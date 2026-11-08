@@ -120,6 +120,62 @@ public class ItProjectDetailsPageTests
     }
 
     [Fact]
+    public async Task Stages_ABindingErrorOnADateOrCostIsNotSavedAsEmpty()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync();
+        var seeded = await db.Commands().SaveStagesAsync(id, Input(S("AON", true, new DateOnly(2026, 6, 19)), S("SO", cost: 46.8m)), rowVersion, ItProjectTestDb.Actor());
+        Assert.True(seeded.Result.Succeeded);
+
+        var page = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await page.OnGetAsync(id, CancellationToken.None);
+        // What model binding does when "31-02-2026" or "abc" is posted: the value stays null and an error is recorded.
+        page.Stages.Items.Single(item => item.StageCode == "AON").CompletedOn = null;
+        page.ModelState.AddModelError("Stages.Items[1].CompletedOn", "The value '31-02-2026' is not valid.");
+        page.Stages.Items.Single(item => item.StageCode == "SO").CostLakhs = null;
+        page.ModelState.AddModelError("Stages.Items[7].CostLakhs", "The value 'abc' is not valid.");
+
+        var result = await page.OnPostStagesAsync(id, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(DetailsModel.OpenStages, page.Open);
+        var errors = page.DrawerErrors(DetailsModel.OpenStages, "Stages");
+        Assert.Contains("AoN: The value '31-02-2026' is not valid.", errors);
+        Assert.Contains("SO: The value 'abc' is not valid.", errors);
+        Assert.NotEmpty(page.Details.RowVersion); // the other drawers still carry their row versions
+        await using var context = db.NewContext();
+        Assert.Equal(new DateOnly(2026, 6, 19), (await context.ItProjectStages.SingleAsync(s => s.ItProjectId == id && s.StageCode == "AON")).CompletedOn);
+        Assert.Equal(46.8m, (await context.ItProjectStages.SingleAsync(s => s.ItProjectId == id && s.StageCode == "SO")).CostLakhs);
+        Assert.DoesNotContain(db.Audit.Entries.Skip(2), entry => entry.Action == "ItProjects.StagesChanged");
+    }
+
+    [Fact]
+    public async Task Details_InvalidPostKeepsEveryOtherFormUsable()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+        var page = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        await page.OnGetAsync(id, CancellationToken.None);
+        // A real POST of the edit form carries only the Details fields.
+        page.Stages = new DetailsModel.StagesInput();
+        page.Drop = new DetailsModel.DropInput();
+        page.RowVersion = null;
+        page.Details.Title = "";
+        page.ModelState.AddModelError("Details.Title", "Give the project a title.");
+
+        var result = await page.OnPostDetailsAsync(id, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(DetailsModel.OpenEdit, page.Open);
+        Assert.Equal("", page.Details.Title); // the typed value stays in the drawer
+        Assert.Equal(page.RowVersionToken, page.RowVersion);
+        Assert.Equal(page.RowVersionToken, page.Drop.RowVersion);
+        Assert.Equal(page.RowVersionToken, page.Stages.RowVersion);
+        Assert.Equal(9, page.Stages.Items.Count);
+        Assert.Contains("Give the project a title.", page.DrawerErrors(DetailsModel.OpenEdit, "Details"));
+    }
+
+    [Fact]
     public async Task Stages_WithAStaleRowVersionRedirectsWithAnErrorToast()
     {
         await using var db = await ItProjectTestDb.CreateAsync();

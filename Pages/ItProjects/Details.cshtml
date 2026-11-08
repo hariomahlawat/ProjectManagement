@@ -12,9 +12,9 @@
         ItProjectStatusKind.InProgress => "itp-chip--cur",
         _ => null
     };
-    var editErrors = ViewData.ModelState.TryGetValue(DetailsModel.OpenEdit, out var editEntry) ? editEntry.Errors : null;
-    var stageErrors = ViewData.ModelState.TryGetValue(DetailsModel.OpenStages, out var stageEntry) ? stageEntry.Errors : null;
-    var dropErrors = ViewData.ModelState.TryGetValue(DetailsModel.OpenDrop, out var dropEntry) ? dropEntry.Errors : null;
+    var editErrors = Model.DrawerErrors(DetailsModel.OpenEdit, nameof(Model.Details));
+    var stageErrors = Model.DrawerErrors(DetailsModel.OpenStages, nameof(Model.Stages));
+    var dropErrors = Model.DrawerErrors(DetailsModel.OpenDrop, nameof(Model.Drop));
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/it-projects.css" asp-append-version="true" />
@@ -144,13 +144,13 @@
             <div class="offcanvas-body">
                 <form method="post" asp-page-handler="Stages" asp-route-id="@Model.Project.Id" data-page-handled data-itp-stage-editor novalidate>
                     <input type="hidden" asp-for="Stages.RowVersion" />
-                    @if (stageErrors is { Count: > 0 })
+                    @if (stageErrors.Count > 0)
                     {
                         <div class="alert alert-danger itp-drawer__errors" role="alert">
                             <ul class="mb-0 ps-3">
                                 @foreach (var error in stageErrors)
                                 {
-                                    <li>@error.ErrorMessage</li>
+                                    <li>@error</li>
                                 }
                             </ul>
                         </div>
@@ -207,13 +207,13 @@
             <div class="offcanvas-body">
                 <form method="post" asp-page-handler="Details" asp-route-id="@Model.Project.Id" novalidate>
                     <input type="hidden" asp-for="Details.RowVersion" />
-                    @if (editErrors is { Count: > 0 })
+                    @if (editErrors.Count > 0)
                     {
                         <div class="alert alert-danger itp-drawer__errors" role="alert">
                             <ul class="mb-0 ps-3">
                                 @foreach (var error in editErrors)
                                 {
-                                    <li>@error.ErrorMessage</li>
+                                    <li>@error</li>
                                 }
                             </ul>
                         </div>
@@ -259,13 +259,13 @@
                 <div class="offcanvas-body">
                     <form method="post" asp-page-handler="Drop" asp-route-id="@Model.Project.Id" novalidate>
                         <input type="hidden" asp-for="Drop.RowVersion" />
-                        @if (dropErrors is { Count: > 0 })
+                        @if (dropErrors.Count > 0)
                         {
                             <div class="alert alert-danger itp-drawer__errors" role="alert">
                                 <ul class="mb-0 ps-3">
                                     @foreach (var error in dropErrors)
                                     {
-                                        <li>@error.ErrorMessage</li>
+                                        <li>@error</li>
                                     }
                                 </ul>
                             </div>

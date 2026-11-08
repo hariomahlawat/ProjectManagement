@@ -177,11 +177,13 @@ public class DetailsModel : PageModel
         }
 
         FinancialYearOptions = CreateModel.BuildFinancialYearOptions(yearIsValid ? Details.FinancialYearStart!.Value : Project.FinancialYearStart);
-        ModelState.Remove($"{nameof(Stages)}");
         if (!IsSectionValid(nameof(Details)))
         {
+            // Keep what was typed in the edit drawer, but give every other form its row version.
+            var posted = Details;
             Open = OpenEdit;
-            FillStagesInput();
+            FillInputsFromProject();
+            Details = posted;
             return Page();
         }
 
@@ -211,6 +213,16 @@ public class DetailsModel : PageModel
         if (!CanManage)
         {
             return Forbid();
+        }
+
+        if (!IsSectionValid(nameof(Stages)))
+        {
+            // A date or cost that did not bind must not be saved as "empty".
+            var posted = Stages;
+            Open = OpenStages;
+            FillInputsFromProject();
+            Stages = posted;
+            return Page();
         }
 
         var inputs = Stages.Items
@@ -393,6 +405,58 @@ public class DetailsModel : PageModel
     private bool IsSectionValid(string prefix)
         => ModelState.Where(entry => entry.Key.StartsWith(prefix + ".", StringComparison.Ordinal) || entry.Key == prefix)
             .All(entry => entry.Value?.Errors.Count == 0);
+
+    /// <summary>
+    /// Every error a drawer should list: the command's errors (keyed by the drawer) and the
+    /// binding or validation errors of its fields. Each field error names the stage when it can.
+    /// </summary>
+    public IReadOnlyList<string> DrawerErrors(string open, string prefix)
+    {
+        var errors = new List<string>();
+        foreach (var entry in ModelState)
+        {
+            if (entry.Value is null || entry.Value.Errors.Count == 0)
+            {
+                continue;
+            }
+
+            if (entry.Key != open && !(entry.Key == prefix || entry.Key.StartsWith(prefix + ".", StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            var stage = StageOfKey(entry.Key);
+            foreach (var error in entry.Value.Errors)
+            {
+                var text = string.IsNullOrWhiteSpace(error.ErrorMessage)
+                    ? "A value could not be read. Check the dates and the cost."
+                    : error.ErrorMessage;
+                errors.Add(stage is null ? text : $"{stage}: {text}");
+            }
+        }
+
+        return errors.Distinct().ToList();
+    }
+
+    private string? StageOfKey(string key)
+    {
+        const string marker = "Stages.Items[";
+        var start = key.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            return null;
+        }
+
+        var close = key.IndexOf(']', start);
+        if (close < 0 || !int.TryParse(key.AsSpan(start + marker.Length, close - start - marker.Length), out var index))
+        {
+            return null;
+        }
+
+        return index >= 0 && index < Stages.Items.Count && ItProjectStages.IsKnown(Stages.Items[index].StageCode)
+            ? ItProjectStages.LabelOf(Stages.Items[index].StageCode)
+            : null;
+    }
 
     private IActionResult Failed(ItProjectCommandResult result, string? open)
     {
