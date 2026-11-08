@@ -1,23 +1,32 @@
 using Microsoft.AspNetCore.Authorization;
+using ProjectManagement.Areas.Admin.Pages.Shared;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Admin.MasterData.Integrity;
+using ProjectManagement.Services.Admin.MasterData.ReferenceLists;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Navigation.ModuleNav;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DocumentCategories;
 
+// On the shared list page, inside Administration (docs/ux/admin-review-3-fixes.md, PR 12).
 [Authorize(Policy = Policies.Documents.ManageCategories)]
 public class IndexModel : DocRepoListPageModel
 {
-    public IndexModel(IDocRepoListService lists, IListOrderNoticeService order)
-        : base(lists, order)
+    private static readonly AdminReferenceListPresentation Shown = new(
+        AdminNavigationKeys.DocumentTypes, "bi-folder2", "Add document type", "documents", "/Admin/DocumentCategories", Area: "DocumentRepository");
+
+    public IndexModel(IDocRepoListService lists, IReferenceListService referenceLists, IListOrderNoticeService order)
+        : base(lists, referenceLists, order)
     {
     }
 
     protected override DocRepoListKind Kind => DocRepoListKind.DocumentType;
 
-    protected override string OrderKey => AdminMasterDataIntegrityService.DocumentCategoryOrderKey;
+    protected override ReferenceListDefinition Definition => ReferenceListCatalog.DocumentTypes;
+
+    protected override string? OrderCheckKey => AdminMasterDataIntegrityService.DocumentCategoryOrderKey;
+
+    protected override AdminReferenceListPresentation Presentation => Shown;
 
     public override string Noun => "type";
-
-    public override string LibraryFilter => "documentCategoryId";
 }

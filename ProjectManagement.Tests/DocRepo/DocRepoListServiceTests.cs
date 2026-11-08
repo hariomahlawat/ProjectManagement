@@ -107,81 +107,6 @@ public sealed class DocRepoListServiceTests
     }
 
     [Fact]
-    public async Task List_CarriesTheRowVersion_WhereTheDatabaseHasOne()
-    {
-        await using var versioned = CreateVersionedDb();
-        SeedLookups(versioned);
-        versioned.Entry(versioned.DocumentCategories.Local.Single()).Property(DocRepoListService.VersionProperty).CurrentValue = 9u;
-        await versioned.SaveChangesAsync();
-        await using var plain = CreateDb();
-        SeedLookups(plain);
-        await plain.SaveChangesAsync();
-
-        Assert.Equal(9u, (await Service(versioned).ListAsync(DocRepoListKind.DocumentType)).Single().Version);
-        Assert.Null((await Service(plain).ListAsync(DocRepoListKind.DocumentType)).Single().Version);
-    }
-
-    [Theory]
-    [InlineData(DocRepoListKind.DocumentType, false)]
-    [InlineData(DocRepoListKind.Office, false)]
-    [InlineData(DocRepoListKind.DocumentType, true)]
-    public async Task Delete_RefusesAValueInUse_EvenByTrashedDocuments(DocRepoListKind kind, bool onlyInTrash)
-    {
-        await using var db = CreateDb();
-        SeedLookups(db);
-        SeedDocument(db, "Filed under it", isDeleted: onlyInTrash);
-        await db.SaveChangesAsync();
-        var lists = Service(db);
-
-        var result = await lists.DeleteAsync(kind, Admin, 1, version: null);
-
-        Assert.False(result.Succeeded);
-        Assert.Equal("InUse", result.ErrorCode);
-        Assert.Contains("Deactivate it instead", result.Message);
-        Assert.Single(await db.Documents.AsNoTracking().ToListAsync());
-        var row = Assert.Single(await lists.ListAsync(kind));
-        Assert.False(row.CanDelete);
-    }
-
-    [Theory]
-    [InlineData(DocRepoListKind.DocumentType)]
-    [InlineData(DocRepoListKind.Office)]
-    public async Task Delete_RefusesTheValueAutomaticImportsAreFiledUnder(DocRepoListKind kind)
-    {
-        await using var db = CreateDb();
-        SeedLookups(db);
-        await db.SaveChangesAsync();
-        // No document uses it yet, but ingestion is configured to file new PDFs under it.
-        var lists = Service(db, new DocRepoOptions { IngestionOfficeCategoryId = 1, IngestionDocumentCategoryId = 1 });
-
-        var result = await lists.DeleteAsync(kind, Admin, 1, version: null);
-
-        Assert.Equal("UsedByIngestion", result.ErrorCode);
-        Assert.True(kind == DocRepoListKind.DocumentType ? await db.DocumentCategories.AnyAsync() : await db.OfficeCategories.AnyAsync());
-        var row = Assert.Single(await lists.ListAsync(kind));
-        Assert.True(row.UsedByIngestion);
-        Assert.False(row.CanDelete);
-    }
-
-    [Fact]
-    public async Task Delete_RemovesAnUnusedValue_AndAuditsIt()
-    {
-        await using var db = CreateDb();
-        SeedLookups(db);
-        db.DocumentCategories.Add(new DocumentCategory { Id = 2, Name = "Unused" });
-        await db.SaveChangesAsync();
-        var lists = Service(db);
-        Assert.True((await lists.ListAsync(DocRepoListKind.DocumentType)).Single(item => item.Id == 2).CanDelete);
-
-        var result = await lists.DeleteAsync(DocRepoListKind.DocumentType, Admin, 2, version: null);
-
-        Assert.True(result.Succeeded, result.Message);
-        Assert.False(await db.DocumentCategories.AnyAsync(item => item.Id == 2));
-        var audit = Assert.Single(await db.DocRepoAudits.AsNoTracking().ToListAsync());
-        Assert.Equal(DocRepoAuditEventTypes.CategoryChanged, audit.EventType);
-    }
-
-    [Fact]
     public async Task Create_RefusesTheSameNameInAnotherCase_AndChangesNeedThePolicy()
     {
         await using var db = CreateDb();
@@ -201,22 +126,6 @@ public sealed class DocRepoListServiceTests
     }
 
     [Fact]
-    public async Task List_CountsLibraryAndTrashSeparately()
-    {
-        await using var db = CreateDb();
-        SeedLookups(db);
-        SeedDocument(db, "Live one");
-        SeedDocument(db, "Live two");
-        SeedDocument(db, "Trashed", isDeleted: true);
-        await db.SaveChangesAsync();
-
-        var office = Assert.Single(await Service(db).ListAsync(DocRepoListKind.Office));
-
-        Assert.Equal(2, office.DocumentCount);
-        Assert.Equal(1, office.TrashedDocumentCount);
-    }
-
-    [Fact]
     public void BothPages_GoThroughTheService_NotTheDatabase()
     {
         foreach (var page in new[] { typeof(DocumentTypesPage), typeof(OfficesPage) })
@@ -231,23 +140,39 @@ public sealed class DocRepoListServiceTests
     [Fact]
     public async Task TogglePage_PostsTheStateWanted_ToTheService()
     {
+        await using var db = CreateDb();
         var lists = new RecordingLists();
-        var page = new OfficesPage(lists, new NoNotices());
+        var page = new OfficesPage(lists, ReferenceLists(db), new NoNotices());
         ConfigurePage(page, Admin);
 
-        var result = await page.OnPostToggleAsync(4, active: true, version: 12u, CancellationToken.None);
+        // The shared list posts isActive and rowVersion (xmin as four bytes)...
+        var result = await page.OnPostToggleAsync(4, true, Convert.ToBase64String(BitConverter.GetBytes(12u)), CancellationToken.None);
 
         Assert.IsType<RedirectToPageResult>(result);
         Assert.Equal((DocRepoListKind.Office, 4, (bool?)true, (uint?)12u), lists.LastToggle);
-        Assert.Equal("Done.", page.TempData["ToastMessage"]);
+        Assert.Equal("Done.", page.TempData[ProjectManagement.Services.Admin.FlashMessageKeys.AdminMasterDataSuccess]);
+
+        // ...and a form from the old page (active, version) still works (PR 12).
+        page.LegacyActive = false;
+        page.LegacyVersion = 13u;
+        await page.OnPostToggleAsync(5, null, null, CancellationToken.None);
+        Assert.Equal((DocRepoListKind.Office, 5, (bool?)false, (uint?)13u), lists.LastToggle);
     }
 
     // SECTION: Helpers
     /// <summary>Only administrators manage the repository lists (Policies.Documents.CategoryManagerRoles).</summary>
     private static System.Security.Claims.ClaimsPrincipal Admin => User("admin-user", ProjectManagement.Configuration.RoleNames.Admin);
 
-    private static DocRepoListService Service(ApplicationDbContext db, DocRepoOptions? options = null) =>
-        new(db, new DocRepoAuditService(db), Authorization(), Microsoft.Extensions.Options.Options.Create(options ?? new DocRepoOptions()));
+    private static DocRepoListService Service(ApplicationDbContext db) =>
+        new(db, new DocRepoAuditService(db), Authorization());
+
+    private static ProjectManagement.Services.Admin.MasterData.ReferenceLists.ReferenceListService ReferenceLists(ApplicationDbContext db) =>
+        new(db, new NoAdminAudit(), Authorization(), new Microsoft.AspNetCore.Http.HttpContextAccessor());
+
+    private sealed class NoAdminAudit : ProjectManagement.Services.Admin.IAdminAuditService
+    {
+        public Task RecordAsync(ProjectManagement.Services.Admin.AdminAuditEntry entry, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
 
     private static async Task<bool> IsActiveAsync(ApplicationDbContext db, DocRepoListKind kind, int id) =>
         kind == DocRepoListKind.DocumentType
@@ -279,9 +204,6 @@ public sealed class DocRepoListServiceTests
     {
         public (DocRepoListKind, int, bool?, uint?) LastToggle { get; private set; }
 
-        public Task<System.Collections.Generic.IReadOnlyList<DocRepoListItem>> ListAsync(DocRepoListKind kind, CancellationToken cancellationToken = default) =>
-            Task.FromResult<System.Collections.Generic.IReadOnlyList<DocRepoListItem>>(Array.Empty<DocRepoListItem>());
-
         public Task<DocRepoListResult> CreateAsync(DocRepoListKind kind, System.Security.Claims.ClaimsPrincipal user, string? name, int? sortOrder, CancellationToken cancellationToken = default) =>
             Task.FromResult(DocRepoListResult.Success("Done."));
 
@@ -293,9 +215,6 @@ public sealed class DocRepoListServiceTests
             LastToggle = (kind, id, isActive, version);
             return Task.FromResult(DocRepoListResult.Success("Done."));
         }
-
-        public Task<DocRepoListResult> DeleteAsync(DocRepoListKind kind, System.Security.Claims.ClaimsPrincipal user, int id, uint? version, CancellationToken cancellationToken = default) =>
-            Task.FromResult(DocRepoListResult.Success("Done."));
     }
 
     private sealed class NoNotices : IListOrderNoticeService

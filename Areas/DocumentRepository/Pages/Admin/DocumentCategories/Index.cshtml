@@ -2,63 +2,11 @@
 @model ProjectManagement.Areas.DocumentRepository.Pages.Admin.DocumentCategories.IndexModel
 @{
     ViewData["Title"] = "Repository document types";
-    ViewData["UseFullWidth"] = true;
 }
 
-@section Styles {
-    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
-}
+<partial name="../_DocRepoListPage" model="Model" />
 
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
+    <script src="~/js/admin/admin-reference-edit-dialog.js" asp-append-version="true" defer></script>
 }
-
-<div class="library library--narrow">
-    <header class="library-head">
-        <div class="library-head__text">
-            <a class="library-back" asp-page="/Documents/Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
-            <h1>Repository document types</h1>
-            <p>The kinds of paper in the library, such as letters, policies and minutes. Lower numbers come first in lists. A deactivated type is no longer offered for new documents; documents already filed under it keep it.</p>
-        </div>
-    </header>
-
-    <partial name="~/Pages/Shared/_ListOrderNotice.cshtml" model="Model.OrderNotice" />
-
-    <div class="library-columns library-columns--admin">
-        <!-- SECTION: Add -->
-        <section class="library-panel">
-            <h2>Add a type</h2>
-            <form method="post" asp-page-handler="Create" class="library-fieldset">
-                <div asp-validation-summary="ModelOnly" class="alert alert-warning library-summary-errors" role="alert"></div>
-                <div class="library-field">
-                    <label asp-for="Input.Name">Name <span class="library-required" aria-hidden="true">*</span></label>
-                    <input asp-for="Input.Name" class="form-control" placeholder="For example: Minutes" />
-                    <span class="library-field__error" asp-validation-for="Input.Name"></span>
-                </div>
-                <div class="library-field">
-                    <label asp-for="Input.SortOrder">Order in lists</label>
-                    <input asp-for="Input.SortOrder" class="form-control" type="number" aria-describedby="sort-order-help" />
-                    <span class="library-field__hint" id="sort-order-help">Leave blank to add it at the end.</span>
-                    <span class="library-field__error" asp-validation-for="Input.SortOrder"></span>
-                </div>
-                <div><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add</button></div>
-            </form>
-        </section>
-
-        <!-- SECTION: Existing -->
-        <section class="library-tablecard">
-            @if (!Model.Items.Any())
-            {
-                <div class="library-empty">
-                    <i class="bi bi-tags" aria-hidden="true"></i>
-                    <h2>No types yet</h2>
-                    <p>Add the first one; uploads need at least one.</p>
-                </div>
-            }
-            else
-            {
-                <partial name="../_DocRepoListTable" model="Model" />
-            }
-        </section>
-    </div>
-</div>

@@ -1,185 +1,77 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using ProjectManagement.Configuration;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Areas.Admin.Pages.Shared;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData.Integrity;
+using ProjectManagement.Services.Admin.MasterData.ReferenceLists;
+using ProjectManagement.Services.Navigation.ModuleNav;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes;
 
+// On the shared list page, inside Administration (docs/ux/admin-review-3-fixes.md, PR 12).
 [Authorize(Policy = AdminPolicies.SocialMediaListsManage)]
-public class IndexModel : PageModel
+public class IndexModel : SocialMediaListPageModel
 {
+    private static readonly AdminReferenceListPresentation Shown = new(
+        AdminNavigationKeys.SocialMediaTypes, "bi-megaphone", "Add event type", "events", "/Admin/SocialMediaTypes",
+        Area: "ProjectOfficeReports", CreatePageName: "New");
+
     private readonly SocialMediaEventTypeService _service;
     private readonly SocialMediaPlatformService _platformService;
-    private readonly UserManager<ApplicationUser> _userManager;
 
     public IndexModel(
+        IReferenceListService lists,
+        IListOrderNoticeService order,
         SocialMediaEventTypeService service,
         SocialMediaPlatformService platformService,
         UserManager<ApplicationUser> userManager)
+        : base(lists, order, userManager)
     {
-        _service = service;
-        _platformService = platformService;
-        _userManager = userManager;
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _platformService = platformService ?? throw new ArgumentNullException(nameof(platformService));
     }
 
-    public IReadOnlyList<SocialMediaEventTypeSummary> Items { get; private set; } = Array.Empty<SocialMediaEventTypeSummary>();
-    public IReadOnlyList<SocialMediaPlatformSummary> Platforms { get; private set; } = Array.Empty<SocialMediaPlatformSummary>();
+    protected override ReferenceListDefinition Definition => ReferenceListCatalog.SocialMediaEventTypes;
 
-    public async Task OnGetAsync(CancellationToken cancellationToken)
+    protected override AdminReferenceListPresentation Presentation => Shown;
+
+    protected override async Task<(bool Found, string? Name, bool IsActive)> FindAsync(Guid id, CancellationToken cancellationToken) =>
+        await _service.FindAsync(id, cancellationToken) is { } item ? (true, item.Name, item.IsActive) : (false, null, false);
+
+    protected override async Task<string?> SetActiveAsync(Guid id, bool isActive, byte[] rowVersion, CancellationToken cancellationToken)
     {
-        // Platforms have their own page; the platform handlers below stay for links already open.
-        Items = await _service.GetSummariesAsync(cancellationToken);
-    }
-
-    public async Task<IActionResult> OnPostToggleAsync(Guid id, bool enable, string rowVersion, CancellationToken cancellationToken)
-    {
-        var userId = _userManager.GetUserId(User) ?? string.Empty;
-        var bytes = DecodeRowVersion(rowVersion);
-        if (bytes == null)
-        {
-            TempData["ToastError"] = "Unable to process the request. Please try again.";
-            return RedirectToPage();
-        }
-
         var existing = await _service.FindAsync(id, cancellationToken);
-        if (existing == null)
+        if (existing is null)
         {
-            TempData["ToastError"] = "Social media event type not found.";
-            return RedirectToPage();
+            return "That event type is no longer in the list.";
         }
 
-        var result = await _service.UpdateAsync(id, existing.Name, existing.Description, enable, bytes, userId, cancellationToken);
-        if (result.Outcome == SocialMediaEventTypeMutationOutcome.Success)
+        var result = await _service.UpdateAsync(id, existing.Name, existing.Description, isActive, rowVersion, UserId, cancellationToken);
+        return result.Outcome switch
         {
-            TempData["ToastMessage"] = enable ? "Social media event type activated." : "Social media event type deactivated.";
-        }
-        else if (result.Outcome == SocialMediaEventTypeMutationOutcome.ConcurrencyConflict)
-        {
-            TempData["ToastError"] = "The social media event type was updated by someone else. Please reload the page.";
-        }
-        else if (result.Outcome == SocialMediaEventTypeMutationOutcome.DuplicateName)
-        {
-            TempData["ToastError"] = "Another social media event type already has this name.";
-        }
-        else
-        {
-            TempData["ToastError"] = "Unable to update the social media event type.";
-        }
+            SocialMediaEventTypeMutationOutcome.Success => null,
+            SocialMediaEventTypeMutationOutcome.ConcurrencyConflict => "This record was changed by another administrator. Reload the page and try again.",
+            _ => result.Errors.FirstOrDefault() ?? "The event type could not be changed."
+        };
+    }
 
+    // Kept for platform forms opened from this page before Platforms had their own page.
+    public async Task<IActionResult> OnPostTogglePlatformAsync(Guid id, bool enable, string? rowVersion, CancellationToken cancellationToken)
+    {
+        var result = await _platformService.ToggleAsync(id, enable, DecodeRowVersion(rowVersion), UserId, cancellationToken);
+        Flash(result.Outcome == SocialMediaPlatformMutationOutcome.Success
+            ? AdminOperationResult.Success(enable ? "Social media platform activated." : "Social media platform deactivated.")
+            : AdminOperationResult.Failure(result.Errors.FirstOrDefault() ?? "The platform could not be changed.", result.Outcome.ToString()));
         return RedirectToPage();
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(Guid id, string rowVersion, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostDeletePlatformAsync(Guid id, string? rowVersion, CancellationToken cancellationToken)
     {
-        var userId = _userManager.GetUserId(User) ?? string.Empty;
-        var bytes = DecodeRowVersion(rowVersion);
-        if (bytes == null)
-        {
-            TempData["ToastError"] = "Unable to process the request. Please try again.";
-            return RedirectToPage();
-        }
-
-        var result = await _service.DeleteAsync(id, bytes, userId, cancellationToken);
-        switch (result.Outcome)
-        {
-            case SocialMediaEventTypeDeletionOutcome.Success:
-                TempData["ToastMessage"] = "Social media event type deleted.";
-                break;
-            case SocialMediaEventTypeDeletionOutcome.InUse:
-                TempData["ToastError"] = "This social media event type cannot be deleted because events are using it.";
-                break;
-            case SocialMediaEventTypeDeletionOutcome.ConcurrencyConflict:
-                TempData["ToastError"] = "The social media event type was changed by someone else. Please reload the page.";
-                break;
-            default:
-                TempData["ToastError"] = "Social media event type not found.";
-                break;
-        }
-
+        Flash(await Lists.DeleteAsync(ReferenceListKeys.SocialMediaPlatforms, id, DecodeRowVersion(rowVersion), cancellationToken));
         return RedirectToPage();
-    }
-
-    public async Task<IActionResult> OnPostTogglePlatformAsync(Guid id, bool enable, string rowVersion, CancellationToken cancellationToken)
-    {
-        var userId = _userManager.GetUserId(User) ?? string.Empty;
-        var bytes = DecodeRowVersion(rowVersion);
-        if (bytes == null)
-        {
-            TempData["ToastError"] = "Unable to process the request. Please try again.";
-            return RedirectToPage();
-        }
-
-        var result = await _platformService.ToggleAsync(id, enable, bytes, userId, cancellationToken);
-        switch (result.Outcome)
-        {
-            case SocialMediaPlatformMutationOutcome.Success:
-                TempData["ToastMessage"] = enable ? "Social media platform activated." : "Social media platform deactivated.";
-                break;
-            case SocialMediaPlatformMutationOutcome.ConcurrencyConflict:
-                TempData["ToastError"] = "The social media platform was updated by someone else. Please reload the page.";
-                break;
-            case SocialMediaPlatformMutationOutcome.NotFound:
-                TempData["ToastError"] = "Social media platform not found.";
-                break;
-            default:
-                TempData["ToastError"] = "Unable to update the social media platform.";
-                break;
-        }
-
-        return RedirectToPage();
-    }
-
-    public async Task<IActionResult> OnPostDeletePlatformAsync(Guid id, string rowVersion, CancellationToken cancellationToken)
-    {
-        var userId = _userManager.GetUserId(User) ?? string.Empty;
-        var bytes = DecodeRowVersion(rowVersion);
-        if (bytes == null)
-        {
-            TempData["ToastError"] = "Unable to process the request. Please try again.";
-            return RedirectToPage();
-        }
-
-        var result = await _platformService.DeleteAsync(id, bytes, userId, cancellationToken);
-        switch (result.Outcome)
-        {
-            case SocialMediaPlatformDeletionOutcome.Success:
-                TempData["ToastMessage"] = "Social media platform deleted.";
-                break;
-            case SocialMediaPlatformDeletionOutcome.ConcurrencyConflict:
-                TempData["ToastError"] = "The social media platform was changed by someone else. Please reload the page.";
-                break;
-            case SocialMediaPlatformDeletionOutcome.InUse:
-                TempData["ToastError"] = "Events are logged on this platform, so it cannot be deleted. Deactivate it instead.";
-                break;
-            default:
-                TempData["ToastError"] = "Social media platform not found.";
-                break;
-        }
-
-        return RedirectToPage();
-    }
-
-    private static byte[]? DecodeRowVersion(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        try
-        {
-            return Convert.FromBase64String(value);
-        }
-        catch (FormatException)
-        {
-            return null;
-        }
     }
 }

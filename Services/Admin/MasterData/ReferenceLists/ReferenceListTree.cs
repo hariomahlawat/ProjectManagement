@@ -1,12 +1,12 @@
 namespace ProjectManagement.Services.Admin.MasterData.ReferenceLists;
 
 /// <summary>An item of a tree list in page order, with where it sits.</summary>
-public sealed record ReferenceListTreeNode(
-    ReferenceListItemProjection Item,
+public sealed record ReferenceListTreeNode<TKey>(
+    ReferenceListItemProjection<TKey> Item,
     int Depth,
     string? ParentPath,
     bool CanMoveUp,
-    bool CanMoveDown);
+    bool CanMoveDown) where TKey : struct;
 
 /// <summary>
 /// Lays a tree list (categories) out in page order: each parent, then its children, siblings by
@@ -16,27 +16,50 @@ public sealed record ReferenceListTreeNode(
 /// </summary>
 public static class ReferenceListTree
 {
-    public static IReadOnlyList<ReferenceListTreeNode> Build(IReadOnlyCollection<ReferenceListItemProjection> items)
+    public static IReadOnlyList<ReferenceListTreeNode<TKey>> Build<TKey>(IReadOnlyCollection<ReferenceListItemProjection<TKey>> items)
+        where TKey : struct
     {
         var ids = items.Select(item => item.Id).ToHashSet();
-        var children = items
-            .GroupBy(item => item.ParentId is int parent && ids.Contains(parent) ? parent : (int?)null)
-            .ToDictionary(
-                group => group.Key ?? 0,
-                group => group.OrderBy(item => item.SortOrder).ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList());
+        var roots = new List<ReferenceListItemProjection<TKey>>();
+        var children = new Dictionary<TKey, List<ReferenceListItemProjection<TKey>>>();
+        foreach (var item in items)
+        {
+            if (item.ParentId is TKey parent && ids.Contains(parent))
+            {
+                if (!children.TryGetValue(parent, out var siblings))
+                {
+                    children[parent] = siblings = new List<ReferenceListItemProjection<TKey>>();
+                }
 
-        var nodes = new List<ReferenceListTreeNode>(items.Count);
-        var listed = new HashSet<int>();
+                siblings.Add(item);
+            }
+            else
+            {
+                roots.Add(item);
+            }
+        }
 
-        void Visit(ReferenceListItemProjection item, int depth, string? parentPath, List<ReferenceListItemProjection> siblings)
+        static List<ReferenceListItemProjection<TKey>> Ordered(IEnumerable<ReferenceListItemProjection<TKey>> list) =>
+            list.OrderBy(item => item.SortOrder).ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
+
+        roots = Ordered(roots);
+        foreach (var key in children.Keys.ToList())
+        {
+            children[key] = Ordered(children[key]);
+        }
+
+        var nodes = new List<ReferenceListTreeNode<TKey>>(items.Count);
+        var listed = new HashSet<TKey>();
+
+        void Visit(ReferenceListItemProjection<TKey> item, int depth, string? parentPath, List<ReferenceListItemProjection<TKey>> siblings)
         {
             if (!listed.Add(item.Id))
             {
                 return;
             }
 
-            var index = siblings.FindIndex(candidate => candidate.Id == item.Id);
-            nodes.Add(new ReferenceListTreeNode(item, depth, parentPath, index > 0, index >= 0 && index < siblings.Count - 1));
+            var index = siblings.FindIndex(candidate => EqualityComparer<TKey>.Default.Equals(candidate.Id, item.Id));
+            nodes.Add(new ReferenceListTreeNode<TKey>(item, depth, parentPath, index > 0, index >= 0 && index < siblings.Count - 1));
 
             if (children.TryGetValue(item.Id, out var own))
             {
@@ -48,21 +71,15 @@ public static class ReferenceListTree
             }
         }
 
-        if (children.TryGetValue(0, out var roots))
+        foreach (var root in roots)
         {
-            foreach (var root in roots)
-            {
-                Visit(root, 0, null, roots);
-            }
+            Visit(root, 0, null, roots);
         }
 
         // Items only reachable through a cycle never hang from a top-level item.
-        var unreached = items.Where(item => !listed.Contains(item.Id))
-            .OrderBy(item => item.SortOrder).ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        foreach (var item in unreached)
+        foreach (var item in Ordered(items.Where(item => !listed.Contains(item.Id))))
         {
-            Visit(item, 0, null, new List<ReferenceListItemProjection> { item });
+            Visit(item, 0, null, new List<ReferenceListItemProjection<TKey>> { item });
         }
 
         return nodes;

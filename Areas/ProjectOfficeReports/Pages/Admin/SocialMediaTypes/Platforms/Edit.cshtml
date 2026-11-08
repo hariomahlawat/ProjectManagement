@@ -1,44 +1,46 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.Platforms.EditModel
+@using ProjectManagement.Areas.Admin.Models
+@* Inside Administration with the list it belongs to (docs/ux/admin-review-3-fixes.md, PR 12). *@
 @{
-    ViewData["Title"] = "Edit Social Media Platform";
+    ViewData["Title"] = "Edit social media platform";
+    var header = new AdminPageHeaderModel
+    {
+        Title = "Edit platform",
+        Description = "Renaming changes the name on events already logged on it.",
+        Icon = "bi-pencil-square",
+        Actions = new[] { new AdminPageActionModel { Text = "Back to platforms", Href = Url.Page("Index"), Icon = "bi-arrow-left" } }
+    };
 }
 
-<div class="visit-tracker">
-    <div class="pm-card">
-        <div class="pm-card-header">
-            <div class="pm-card-heading">
-                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-hash"></i></span>
-                <div>
-                    <h1 class="pm-card-title">Edit social media platform</h1>
-                    <p class="pm-card-subtitle mb-0">Update the details for this platform option.</p>
-                </div>
-            </div>
-        </div>
-        <div class="pm-card-body">
-            <form method="post">
-                <div class="mb-3">
-                    <label asp-for="Input.Name" class="form-label"></label>
-                    <input asp-for="Input.Name" class="form-control" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+<div class="admin-form-layout">
+    <form method="post" class="admin-panel admin-form-panel" novalidate>
+        <input type="hidden" asp-for="RowVersion" />
+        <div class="admin-form-section__body">
+            <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+            <div class="admin-form-grid">
+                <div class="admin-field">
+                    <label asp-for="Input.Name"></label>
+                    <input asp-for="Input.Name" class="form-control" maxlength="128" autocomplete="off" />
                     <span asp-validation-for="Input.Name" class="text-danger"></span>
                 </div>
-                <div class="mb-3">
-                    <label asp-for="Input.Description" class="form-label"></label>
-                    <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
+                <div class="admin-field">
+                    <label asp-for="Input.Description"></label>
+                    <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="512"></textarea>
                     <span asp-validation-for="Input.Description" class="text-danger"></span>
                 </div>
-                <div class="form-check form-switch mb-3">
-                    <input asp-for="Input.IsActive" class="form-check-input" />
-                    <label asp-for="Input.IsActive" class="form-check-label"></label>
-                </div>
-                <input type="hidden" asp-for="RowVersion" />
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Save changes</button>
-                    <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
-                </div>
-            </form>
+            </div>
+            <div class="form-check form-switch">
+                <input asp-for="Input.IsActive" class="form-check-input" />
+                <label asp-for="Input.IsActive" class="form-check-label">Active (offered in new forms)</label>
+            </div>
         </div>
-    </div>
+        <footer class="admin-form-actions">
+            <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg" aria-hidden="true"></i>Save changes</button>
+        </footer>
+    </form>
 </div>
 
 @section Scripts {

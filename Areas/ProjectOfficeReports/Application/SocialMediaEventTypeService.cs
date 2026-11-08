@@ -36,24 +36,6 @@ public sealed class SocialMediaEventTypeService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<SocialMediaEventTypeSummary>> GetSummariesAsync(CancellationToken cancellationToken)
-    {
-        return await _db.SocialMediaEventTypes.AsNoTracking()
-            .OrderBy(x => x.Name)
-            .Select(x => new SocialMediaEventTypeSummary(
-                x.Id,
-                x.Name,
-                x.Description,
-                x.IsActive,
-                x.Events.Count,
-                x.CreatedAtUtc,
-                x.CreatedByUserId,
-                x.LastModifiedAtUtc,
-                x.LastModifiedByUserId,
-                x.RowVersion))
-            .ToListAsync(cancellationToken);
-    }
-
     public Task<SocialMediaEventType?> FindAsync(Guid id, CancellationToken cancellationToken)
     {
         return _db.SocialMediaEventTypes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
@@ -142,37 +124,6 @@ public sealed class SocialMediaEventTypeService
         return SocialMediaEventTypeMutationResult.Success(entity);
     }
 
-    public async Task<SocialMediaEventTypeDeletionResult> DeleteAsync(Guid id, byte[] rowVersion, string performedByUserId, CancellationToken cancellationToken)
-    {
-        var entity = await _db.SocialMediaEventTypes
-            .Include(x => x.Events)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-
-        if (entity == null)
-        {
-            return SocialMediaEventTypeDeletionResult.NotFound();
-        }
-
-        if (entity.Events.Count > 0)
-        {
-            return SocialMediaEventTypeDeletionResult.InUse(entity.Events.Count);
-        }
-
-        _db.Entry(entity).Property(x => x.RowVersion).OriginalValue = rowVersion;
-        _db.SocialMediaEventTypes.Remove(entity);
-
-        try
-        {
-            await _db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return SocialMediaEventTypeDeletionResult.Concurrency();
-        }
-
-        await Audit.Events.SocialMediaEventTypeDeleted(id, performedByUserId).WriteAsync(_audit);
-        return SocialMediaEventTypeDeletionResult.Success();
-    }
 }
 
 public sealed record SocialMediaEventTypeMutationResult(SocialMediaEventTypeMutationOutcome Outcome, SocialMediaEventType? Entity, IReadOnlyList<string> Errors)
@@ -201,34 +152,3 @@ public enum SocialMediaEventTypeMutationOutcome
     Invalid,
     ConcurrencyConflict
 }
-
-public sealed record SocialMediaEventTypeDeletionResult(SocialMediaEventTypeDeletionOutcome Outcome, int ReferencedCount)
-{
-    public static SocialMediaEventTypeDeletionResult Success() => new(SocialMediaEventTypeDeletionOutcome.Success, 0);
-
-    public static SocialMediaEventTypeDeletionResult NotFound() => new(SocialMediaEventTypeDeletionOutcome.NotFound, 0);
-
-    public static SocialMediaEventTypeDeletionResult InUse(int count) => new(SocialMediaEventTypeDeletionOutcome.InUse, count);
-
-    public static SocialMediaEventTypeDeletionResult Concurrency() => new(SocialMediaEventTypeDeletionOutcome.ConcurrencyConflict, 0);
-}
-
-public enum SocialMediaEventTypeDeletionOutcome
-{
-    Success,
-    NotFound,
-    InUse,
-    ConcurrencyConflict
-}
-
-public sealed record SocialMediaEventTypeSummary(
-    Guid Id,
-    string Name,
-    string? Description,
-    bool IsActive,
-    int EventCount,
-    DateTimeOffset CreatedAtUtc,
-    string CreatedByUserId,
-    DateTimeOffset? LastModifiedAtUtc,
-    string? LastModifiedByUserId,
-    byte[] RowVersion);

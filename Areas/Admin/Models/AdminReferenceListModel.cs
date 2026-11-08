@@ -23,6 +23,9 @@ public sealed record AdminReferenceListModel
 
     public IReadOnlyList<ReferenceListExtraColumn> ExtraColumns { get; init; } = Array.Empty<ReferenceListExtraColumn>();
 
+    /// <summary>The area of the list's pages (Admin, or the module that owns them).</summary>
+    public string Area { get; init; } = "Admin";
+
     public string IndexPage { get; init; } = string.Empty;
     public string CreatePage { get; init; } = string.Empty;
     public string EditPage { get; init; } = string.Empty;
