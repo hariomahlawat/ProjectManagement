@@ -448,14 +448,19 @@ public sealed class DocRepoReferenceListDefinition<TEntity> : ReferenceListDefin
                 Name = item.Name,
                 IsActive = item.IsActive,
                 SortOrder = item.SortOrder,
-                Xmin = EF.Property<uint>(item, DocRepoListService.VersionProperty)
+                Xmin = EF.Property<uint>(item, DocRepoListService.VersionProperty),
+                // Bound explicitly so a search on Detail translates (Codex review on #3019).
+                ParentId = null,
+                Detail = null
             })
             : items.Select(item => new ReferenceListItemProjection<int>
             {
                 Id = item.Id,
                 Name = item.Name,
                 IsActive = item.IsActive,
-                SortOrder = item.SortOrder
+                SortOrder = item.SortOrder,
+                ParentId = null,
+                Detail = null
             });
     }
 

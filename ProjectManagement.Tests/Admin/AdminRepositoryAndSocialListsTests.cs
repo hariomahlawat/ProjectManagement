@@ -109,6 +109,29 @@ public sealed class AdminRepositoryAndSocialListsTests
         Assert.Empty(adminAudit.Entries);
     }
 
+    // Codex review on #3019: the search also reads Detail, so the repository projections bind it
+    // (DocRepoListPostgresIntegrationTests runs the same search on PostgreSQL).
+    [Fact]
+    public async Task RepositoryList_CanBeSearched_WithAndWithoutARowVersion()
+    {
+        await using var plain = CreateDb();
+        DocRepoTestSupport.SeedLookups(plain);
+        plain.DocumentCategories.Add(new DocumentCategory { Id = 2, Name = "Minutes" });
+        await plain.SaveChangesAsync();
+        await using var versioned = CreateVersionedDb();
+        DocRepoTestSupport.SeedLookups(versioned);
+        versioned.DocumentCategories.Add(new DocumentCategory { Id = 2, Name = "Minutes" });
+        await versioned.SaveChangesAsync();
+
+        foreach (var db in new ApplicationDbContext[] { plain, versioned })
+        {
+            var searched = await Lists(db, out _).GetPageAsync(ReferenceListKeys.DocumentTypes, new ReferenceListRequest("minu", null, 1, 25));
+            Assert.Equal("Minutes", Assert.Single(searched.Rows).Name);
+            Assert.Equal(1, searched.FilteredCount);
+        }
+
+    }
+
     [Fact]
     public async Task RepositoryDelete_FromAnOutOfDatePage_IsRefused()
     {

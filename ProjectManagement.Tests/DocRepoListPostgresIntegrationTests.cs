@@ -47,6 +47,13 @@ public sealed class DocRepoListPostgresIntegrationTests
 
             // The page reads each row's version (xmin, carried as four bytes like every list's row version).
             var opened = await PageAsync(target);
+
+            // A search (name and description) translates on PostgreSQL (Codex review on #3019).
+            await using (var searchDb = Create(target))
+            {
+                var searched = await ReferenceLists(searchDb).GetPageAsync(ReferenceListKeys.DocumentTypes, new ReferenceListRequest("lett", null, 1, 25));
+                Assert.Equal("Letter", Assert.Single(searched.Rows).Name);
+            }
             var letter = opened.Single(item => item.Name == "Letter");
             var letterId = int.Parse(letter.Id);
             var openedVersion = Xmin(letter.RowVersion);
