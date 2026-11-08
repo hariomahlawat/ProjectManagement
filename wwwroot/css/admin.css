@@ -4591,7 +4591,7 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 @media (max-width: 575.98px) {
     .admin-data-table-wrap:has(> .admin-data-table--cards) { overflow-x: visible; }
     .admin-data-table--cards thead { display: none; }
-    .admin-data-table--cards, .admin-data-table--cards tbody { display: block; width: 100%; }
+    .admin-data-table--cards, .admin-data-table--cards tbody { display: block; width: 100%; min-width: 0; }
     .admin-data-table--cards tr {
         position: relative;
         display: grid;

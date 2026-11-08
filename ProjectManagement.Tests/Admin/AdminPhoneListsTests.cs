@@ -34,6 +34,8 @@ public sealed class AdminPhoneListsTests
 
         Assert.Contains(".admin-data-table--cards td.admin-data-table__actions { position: absolute;", block);
         Assert.Contains(".admin-data-table-wrap:has(> .admin-data-table--cards) { overflow-x: visible; }", block);
+        // The desktop table's min-width (52rem on the lookup table) must not carry over to the cards.
+        Assert.Contains(".admin-data-table--cards, .admin-data-table--cards tbody { display: block; width: 100%; min-width: 0; }", block);
         Assert.DoesNotMatch(new Regex("#[0-9a-fA-F]{3,8}\\b|rgba?\\("), block);
     }
 
