@@ -46,6 +46,10 @@ public class ItProjectReadServiceTests
         Assert.Equal(9, soRow.Stages.Count);
         Assert.True(soRow.Stages.Single(cell => cell.StageCode == "BM").IsSkipped);
 
+        var notStartedRow = board.Rows.Single(row => row.Id == atPpp);
+        Assert.Equal(ItProjectStatusKind.NotStarted, notStartedRow.Status.Kind);
+        Assert.Equal("PPP", notStartedRow.Stages.Single(cell => cell.IsCurrent).StageCode); // "now" sits at the first stage
+
         var droppedRow = board.Rows.Single(row => row.Id == dropped);
         Assert.Equal(ItProjectStatusKind.Dropped, droppedRow.Status.Kind);
         Assert.Equal("Merged", droppedRow.DroppedReason);

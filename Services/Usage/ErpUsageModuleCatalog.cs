@@ -25,6 +25,7 @@ public sealed class ErpUsageModuleCatalog : IErpUsageModuleCatalog
         Module("dashboard", "Dashboard", "bi-speedometer2", "/Dashboard"),
         Module("workspace", "Workspace", "bi-person-workspace", "/Workspace"),
         Module("projects", "Projects", "bi-kanban", "/Projects", "/Process", "/Approvals", "/IndustryPartners"),
+        Module("it-projects", "IT projects", "bi-pc-display", "/ItProjects"),
         Module("calendar", "Calendar", "bi-calendar3", "/Calendar", "/Celebrations", "/Settings/Holidays"),
         Module("documents", "Documents", "bi-files", "/DocumentRepository", "/Files"),
         Module("media", "Photos and media", "bi-images", "/Photos", "/MediaLibrary"),
