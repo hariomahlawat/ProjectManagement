@@ -135,6 +135,18 @@ public sealed class AdminReadableAuditLogTests
     }
 
     [Fact]
+    public void Describe_NumbersTooBigToCount_KeepTheirText_AndDoNotFail()
+    {
+        var text = AuditEntryDescriber.Describe("CelebrationUpdated", "Updated '9999999999 record(s)'.", null, null, null);
+        var deck = AuditEntryDescriber.Describe("ProjectBriefing.MembershipUpdated",
+            "Briefing deck membership updated: 9999999999 added, 0 removed.", null, null,
+            new AdminAuditPayloadParser().Parse("{\"DeckId\":\"1\"}"));
+
+        Assert.Equal("Updated '9999999999 records'.", text.Detail);
+        Assert.Null(deck.Detail);
+    }
+
+    [Fact]
     public void NewCatalogueTitles_ArePlain()
     {
         var catalog = new AuditActionPresentationCatalog();
@@ -256,6 +268,14 @@ public sealed class AdminReadableAuditLogTests
         Assert.Equal("Reason: posted out.", disabled.Detail);
         Assert.Equal(new AuditRecordDisplay("Sandeep Kumar", "Person"), disabled.Record);
         Assert.Equal(AuditEntryPresenter.ActorNotRecorded, enabled.Actor);
+
+        // An actor id that no longer resolves never falls back to the affected account's name.
+        db.AuditLogs.Add(Log("AdminUserDisabled", userId: "u-sandeep", userName: "sandeep",
+            dataJson: "{\"Actor\":\"admin-gone\"}", time: Now.AddMinutes(-1)));
+        await db.SaveChangesAsync();
+        var removedActor = (await CreateLogService(db).GetAsync(Query())).Rows
+            .First(row => row.Action == "AdminUserDisabled");
+        Assert.Equal(AuditActorNames.UnknownPerson, removedActor.Actor);
         Assert.Equal(new AuditRecordDisplay("Sandeep Kumar", "Person"), enabled.Record);
     }
 

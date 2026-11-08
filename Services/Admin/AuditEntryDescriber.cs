@@ -340,9 +340,13 @@ public static partial class AuditEntryDescriber
     {
         if (message is null) return null;
         var match = MembershipRegex().Match(message);
-        if (!match.Success) return null;
-        var added = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-        var removed = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+        if (!match.Success
+            || !int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var added)
+            || !int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var removed))
+        {
+            return null;
+        }
+
         return (added, removed) switch
         {
             (0, 0) => "No projects added or removed.",
@@ -475,10 +479,10 @@ public static partial class AuditEntryDescriber
         if (code is not null && string.Equals(text, code, StringComparison.OrdinalIgnoreCase)) return null;
 
         text = CountedPluralRegex().Replace(text, match =>
-        {
-            var number = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-            return Count(number, match.Groups[2].Value);
-        });
+            // A number too big to count keeps its text; only "(s)" is tidied below.
+            int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)
+                ? Count(number, match.Groups[2].Value)
+                : match.Value);
         return text.Replace("(s)", "s", StringComparison.Ordinal);
     }
 

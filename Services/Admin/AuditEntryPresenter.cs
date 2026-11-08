@@ -73,13 +73,18 @@ public static class AuditEntryPresenter
         return described
             .Select(item =>
             {
+                var legacyActorId = ActorId(item);
                 var actor = item.Text.ActorNotRecorded
                     ? ActorNotRecorded
-                    : AuditActorNames.Resolve(
-                        ActorId(item) ?? FirstPresent(item.Payload.ActorUserId, item.Entry.UserId),
-                        FirstPresent(item.Payload.ActorName, item.Entry.UserName),
-                        byId,
-                        byUserName);
+                    : legacyActorId is not null
+                        // The legacy user columns belong to the affected account, never the
+                        // actor: an actor id that no longer resolves reads "Removed user".
+                        ? AuditActorNames.Resolve(legacyActorId, null, byId, byUserName)
+                        : AuditActorNames.Resolve(
+                            FirstPresent(item.Payload.ActorUserId, item.Entry.UserId),
+                            FirstPresent(item.Payload.ActorName, item.Entry.UserName),
+                            byId,
+                            byUserName);
                 var record = item.Text.Record is null ? null : Display(item.Text.Record, names, byId, byUserName);
                 var mention = item.Text.Mention is null ? null : Display(item.Text.Mention, names, byId, byUserName);
                 return new AuditEntryView(
