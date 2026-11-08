@@ -1,7 +1,13 @@
 @model IReadOnlyList<ProjectManagement.ViewComponents.RestoreTabViewModel>
 @if (Model.Count > 1)
 {
-    <nav class="admin-restore-tabs" aria-label="Kind of deleted item">
+    var current = Model.FirstOrDefault(tab => tab.IsActive);
+    @* On a phone the strip scrolls sideways, so this line names the open list (docs/ux/admin-review-3-fixes.md, PR 8). *@
+    @if (current is not null)
+    {
+        <p class="admin-restore-tabs__current" aria-hidden="true">Showing: <strong>@current.Label</strong></p>
+    }
+    <nav class="admin-restore-tabs" aria-label="Kind of deleted item" data-admin-restore-tabs>
         @foreach (var tab in Model)
         {
             <a class="admin-restore-tabs__tab@(tab.IsActive ? " is-active" : string.Empty)"

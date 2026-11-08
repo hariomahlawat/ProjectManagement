@@ -4572,3 +4572,47 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     .admin-user-table .admin-user-cell { min-width: 0; }
     .admin-user-table td.admin-data-table__actions { position: absolute; top: .65rem; right: .55rem; width: auto; }
 }
+
+/* Phones (docs/ux/admin-review-3-fixes.md, PR 8). */
+/* Restore deleted items: the tab strip scrolls sideways on a phone, so a line above it names the open list. */
+.admin-restore-tabs__current { display: none; }
+@media (max-width: 640px) {
+    .admin-restore-tabs__current {
+        display: block;
+        margin: .8rem 0 -.4rem;
+        color: var(--admin-text-secondary);
+        font-size: .8rem;
+    }
+    .admin-restore-tabs__current strong { color: var(--admin-text); }
+}
+
+/* Lists used in forms: each row is a card on a phone, with its actions menu in view at the top
+   right instead of at the far end of a table that scrolls sideways. The desktop table is unchanged. */
+@media (max-width: 575.98px) {
+    .admin-data-table-wrap:has(> .admin-data-table--cards) { overflow-x: visible; }
+    .admin-data-table--cards thead { display: none; }
+    .admin-data-table--cards, .admin-data-table--cards tbody { display: block; width: 100%; min-width: 0; }
+    .admin-data-table--cards tr {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .45rem .9rem;
+        padding: .75rem .85rem;
+        border-bottom: 1px solid var(--admin-border);
+    }
+    .admin-data-table--cards tbody tr:last-child { border-bottom: 0; }
+    .admin-data-table--cards td { display: block; min-width: 0; padding: 0; border-bottom: 0; }
+    .admin-data-table--cards tbody tr:hover td { background: transparent; }
+    .admin-data-table--cards td:first-child { grid-column: 1 / -1; padding-right: 2.6rem; }
+    .admin-data-table--cards td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: .15rem;
+        color: var(--admin-text-muted);
+        font-size: .6rem;
+        font-weight: 750;
+        letter-spacing: .025em;
+        text-transform: uppercase;
+    }
+    .admin-data-table--cards td.admin-data-table__actions { position: absolute; top: .6rem; right: .55rem; width: auto; }
+}

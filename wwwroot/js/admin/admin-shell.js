@@ -347,6 +347,16 @@
         });
     }
 
+    // Restore deleted items on a phone: the tab strip scrolls sideways, so bring the open tab into
+    // view. Only the strip moves; "nearest" leaves the page where it is (docs/ux/admin-review-3-fixes.md, PR 8).
+    document.querySelectorAll("[data-admin-restore-tabs]").forEach(strip => {
+        if (strip.scrollWidth <= strip.clientWidth) return;
+        const active = strip.querySelector("[aria-current='page']");
+        if (active && typeof active.scrollIntoView === "function") {
+            active.scrollIntoView({ inline: "center", block: "nearest" });
+        }
+    });
+
     document.querySelectorAll("[data-admin-controlled-submit]").forEach(form => {
         form.addEventListener("submit", () => {
             form.querySelectorAll("button[type='submit']").forEach(button => {
