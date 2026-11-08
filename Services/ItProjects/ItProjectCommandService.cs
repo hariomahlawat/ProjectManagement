@@ -153,6 +153,12 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         }
 
         var statusAfter = ItProjectStatus.Resolve(project);
+        if (!string.Equals(statusBefore.CurrentStageCode, statusAfter.CurrentStageCode, StringComparison.OrdinalIgnoreCase))
+        {
+            // Only a change of the current stage counts as movement; a date or cost edit does not.
+            project.StageMovedAtUtc = UtcNow();
+        }
+
         var data = new Dictionary<string, string?>
         {
             ["StatusBefore"] = statusBefore.Label,

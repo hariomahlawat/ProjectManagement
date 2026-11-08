@@ -50,7 +50,8 @@ public class IndexModel : PageModel
     public bool GroupByFinancialYear => string.Equals(Group, "fy", StringComparison.OrdinalIgnoreCase);
 
     public ItProjectBoard Board { get; private set; } = new(
-        Array.Empty<ItProjectBoardRow>(), Array.Empty<ItProjectBoardStageCount>(), 0, 0, 0, Array.Empty<int>());
+        Array.Empty<ItProjectBoardRow>(), Array.Empty<ItProjectBoardStageCount>(), 0, 0, 0, Array.Empty<int>(),
+        new ItProjectBoardFigures(null, 0, 0, 0m, 0, 0, null));
 
     /// <summary>The rows the chosen scope draws, in the service's board order.</summary>
     public IReadOnlyList<ItProjectBoardRow> ScopedRows { get; private set; } = Array.Empty<ItProjectBoardRow>();
@@ -87,10 +88,7 @@ public class IndexModel : PageModel
         ScopedRows = Board.Rows.Where(row => InScope(row.Status.Kind, BoardScope)).ToList();
         Bands = ItProjectBoardPresentation.Bands(ScopedRows, GroupByFinancialYear);
 
-        // "Completed this FY" counts by the delivery date when it is known, else by the project's FY.
-        CompletedThisFinancialYear = Board.Rows.Count(row =>
-            row.Status.Kind == ItProjectStatusKind.Completed &&
-            CompletedInFinancialYear(row, CurrentFinancialYearStart));
+        CompletedThisFinancialYear = Board.Figures.DeliveredThisFinancialYear;
 
         BusiestStage = Board.StageCounts
             .Where(count => count.AtStage > 0)
@@ -124,12 +122,4 @@ public class IndexModel : PageModel
         ItProjectBoardScope.Dropped => kind == ItProjectStatusKind.Dropped,
         _ => true
     };
-
-    private static bool CompletedInFinancialYear(ItProjectBoardRow row, int financialYearStart)
-    {
-        var delivery = row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.Delivery);
-        return delivery?.CompletedOn is { } date
-            ? FinancialYearHelper.Contains(financialYearStart, date)
-            : row.FinancialYearStart == financialYearStart;
-    }
 }

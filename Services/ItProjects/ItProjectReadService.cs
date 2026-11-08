@@ -6,16 +6,21 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.ItProjects;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.ItProjects;
 
 public sealed class ItProjectReadService : IItProjectReadService
 {
-    private readonly ApplicationDbContext _db;
+    private static readonly TimeZoneInfo Ist = TimeZoneHelper.GetIst();
 
-    public ItProjectReadService(ApplicationDbContext db)
+    private readonly ApplicationDbContext _db;
+    private readonly IClock _clock;
+
+    public ItProjectReadService(ApplicationDbContext db, IClock clock)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
     public async Task<ItProjectBoard> GetBoardAsync(ItProjectBoardQuery query, CancellationToken cancellationToken = default)
@@ -51,7 +56,8 @@ public sealed class ItProjectReadService : IItProjectReadService
             .OrderByDescending(year => year)
             .ToListAsync(cancellationToken);
 
-        var rows = loaded.Select(ToRow).ToList();
+        var today = Today();
+        var rows = loaded.Select(project => ToRow(project, today)).ToList();
 
         var activeCount = rows.Count(row => IsActive(row.Status.Kind));
         var completedCount = rows.Count(row => row.Status.Kind == ItProjectStatusKind.Completed);
@@ -77,13 +83,15 @@ public sealed class ItProjectReadService : IItProjectReadService
             .ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return new ItProjectBoard(ordered, stageCounts, activeCount, completedCount, droppedCount, years);
+        return new ItProjectBoard(ordered, stageCounts, activeCount, completedCount, droppedCount, years, Figures(rows, today));
     }
 
     public Task<ItProject?> GetAsync(int id, CancellationToken cancellationToken = default)
         => _db.ItProjects
             .Include(project => project.Stages.OrderBy(stage => stage.SortOrder))
             .FirstOrDefaultAsync(project => project.Id == id && !project.IsDeleted, cancellationToken);
+
+    public ItProjectTiming GetTiming(ItProject project) => ItProjectTiming.Resolve(project, Today(), ToLocalDate);
 
     public async Task<string?> GetUserDisplayNameAsync(string userId, CancellationToken cancellationToken = default)
     {
@@ -116,7 +124,51 @@ public sealed class ItProjectReadService : IItProjectReadService
         _ => 3
     };
 
-    private static ItProjectBoardRow ToRow(ItProject project)
+    private DateOnly Today() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, Ist).DateTime);
+
+    private static DateOnly ToLocalDate(DateTime utc)
+        => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Ist));
+
+    private static ItProjectBoardFigures Figures(IReadOnlyList<ItProjectBoardRow> rows, DateOnly today)
+    {
+        var active = rows.Where(row => IsActive(row.Status.Kind)).ToList();
+        var inProgress = active.Where(row => row.Status.Kind == ItProjectStatusKind.InProgress).ToList();
+
+        var longest = inProgress
+            .Where(row => row.Timing.Basis == ItProjectTimeBasis.StageDate)
+            .OrderByDescending(row => row.Timing.DaysAtStage)
+            .ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
+            .Select(row => new ItProjectLongestWait(row.Id, row.Title, row.Status.CurrentStageCode!, row.Timing.DaysAtStage!.Value))
+            .FirstOrDefault();
+
+        var onOrder = inProgress
+            .Where(row => row.Status.CurrentStageCode == ItProjectStages.Delivery)
+            .Select(row => row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.So))
+            .Where(cell => cell is { IsCompleted: true })
+            .ToList();
+
+        var thisFinancialYear = FinancialYearHelper.GetStartYear(today);
+        var delivered = rows.Where(row => row.Status.Kind == ItProjectStatusKind.Completed)
+            .Select(row => (Row: row, On: row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.Delivery)?.CompletedOn))
+            .ToList();
+        var deliveredDates = delivered.Where(item => item.On.HasValue).Select(item => item.On!.Value).ToList();
+
+        // "Delivered this FY" counts by the delivery date when it is known, else by the project's FY.
+        var deliveredThisYear = delivered.Count(item => item.On is { } on
+            ? FinancialYearHelper.Contains(thisFinancialYear, on)
+            : item.Row.FinancialYearStart == thisFinancialYear);
+
+        return new ItProjectBoardFigures(
+            longest,
+            ActiveWithoutStageDate: inProgress.Count(row => row.Timing.Basis != ItProjectTimeBasis.StageDate),
+            DatesMissingCount: active.Count(row => row.Timing.HasMissingDates),
+            OnOrderLakhs: onOrder.Sum(cell => cell!.CostLakhs ?? 0m),
+            OnOrderCount: onOrder.Count,
+            DeliveredThisFinancialYear: deliveredThisYear,
+            LastDeliveredOn: deliveredDates.Count == 0 ? null : deliveredDates.Max());
+    }
+
+    private static ItProjectBoardRow ToRow(ItProject project, DateOnly today)
     {
         var status = ItProjectStatus.Resolve(project);
         var cells = project.Stages
@@ -140,6 +192,7 @@ public sealed class ItProjectReadService : IItProjectReadService
             project.DroppedOn,
             project.DroppedReason,
             project.UpdatedAtUtc,
-            cells);
+            cells,
+            ItProjectTiming.Resolve(project, today, ToLocalDate));
     }
 }

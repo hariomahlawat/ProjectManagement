@@ -64,7 +64,7 @@ All colours are existing `--pm-*` tokens (theme coverage check), no new assets, 
 | Figure | Rule |
 | --- | --- |
 | Days at current stage | Uses the first of these that exists. (1) **Stage date**: today minus the completion date of the stage just before the current one (skipped stages ignored), on the PRISM stage start rule. This is the real figure and the only one that gets an ageing colour. (2) **Recorded move**: if that stage has no date, the day the system recorded the move to the current stage (`StageMovedAtUtc`, below), shown as "recorded 21 Aug" in light text, never coloured and never in "Waiting longest". (3) Otherwise "date not recorded". An earlier stage's date is never borrowed, because it would add the earlier stages' time to this one. A case with no stage done shows "added 5 d ago". |
-| Days between stages | Completion date minus the previous dated completion; blank when either date is missing ("date not recorded"). |
+| Days between stages | Completion date minus the completion date of the stage just before it (skipped stages ignored); blank when either date is missing, never measured from an earlier stage. |
 | Elapsed | Today (or the Delivery date) minus the first dated completion. |
 | Waiting longest | Maximum days-at-stage over active, non-dropped cases in the current filter, from stage dates only; the tile says how many cases were left out for missing dates. |
 | Dates missing | Active cases with a completed stage that has no date. Shown to Manage roles only, as a link that filters the register to them. |

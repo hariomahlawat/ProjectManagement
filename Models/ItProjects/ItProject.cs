@@ -36,6 +36,13 @@ public class ItProject
 
     public DateTime UpdatedAtUtc { get; set; }
 
+    /// <summary>
+    /// When a stage save last changed the current stage (docs/ux/it-projects-redesign.md). Only a
+    /// fallback for the "days at stage" figure when the previous stage has no completion date;
+    /// null for projects whose stage has not moved since the column was added.
+    /// </summary>
+    public DateTime? StageMovedAtUtc { get; set; }
+
     public DateOnly? DroppedOn { get; set; }
 
     [MaxLength(500)]
