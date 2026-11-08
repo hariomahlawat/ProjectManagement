@@ -72,6 +72,12 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         BoardScope = ParseScope(Scope);
+        if (Fy is { } year && !CreateModel.IsSupportedFinancialYear(year))
+        {
+            // An unsupported year in the address (a typo, an old link) means "all years", not an error.
+            Fy = null;
+        }
+
         CanManage = ItProjectAccess.CanManage(User);
         CurrentFinancialYearStart = FinancialYearHelper.GetStartYear(DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime));
 

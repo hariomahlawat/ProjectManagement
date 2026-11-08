@@ -112,6 +112,23 @@ public class ItProjectBoardPageTests
     }
 
     [Theory]
+    [InlineData(1999)]
+    [InlineData(10000)]
+    public async Task Board_TreatsAnUnsupportedFinancialYearAsAllYears(int year)
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        await SeedAtAsync(db, "LAN upgrade", null, 2026);
+
+        var page = Page(db, ItProjectTestDb.User("u"));
+        page.Fy = year;
+        var result = await page.OnGetAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Null(page.Fy);
+        Assert.Single(page.ScopedRows);
+    }
+
+    [Theory]
     [InlineData(null, ItProjectBoardScope.Active)]
     [InlineData("", ItProjectBoardScope.Active)]
     [InlineData("nonsense", ItProjectBoardScope.Active)]
