@@ -2,6 +2,7 @@
 @model ProjectManagement.Areas.Admin.Pages.Logs.IndexModel
 @using System.Text.Json
 @using ProjectManagement.Services.Admin
+@using ProjectManagement.Areas.Admin.Pages.Logs
 @{
     ViewData["Title"] = "Audit log";
     var series = Model.Result.SeriesLabels.Select((label, index) => new
@@ -72,9 +73,9 @@
                     <option value="documents">Documents</option>
                     <option value="calendar">Calendar</option>
                     <option value="recovery">Recovery</option>
-                    <option value="master-data">Master data</option>
-                    <option value="pdf-ingestion">PDF ingestion</option>
-                    <option value="legacy-import">Legacy import</option>
+                    <option value="master-data">@IndexModel.CategoryLabel("master-data")</option>
+                    <option value="pdf-ingestion">@IndexModel.CategoryLabel("pdf-ingestion")</option>
+                    <option value="legacy-import">@IndexModel.CategoryLabel("legacy-import")</option>
                 </select>
             </div>
 
@@ -161,7 +162,7 @@
                 @if (Model.UsesDefaultWindow) { <span class="admin-filter-chip">Last @ProjectManagement.Areas.Admin.Pages.Logs.IndexModel.DefaultWindowDays days</span> <a class="admin-filter-chip" href="@Model.AllHistoryUrl()">Show all history</a> }
                 @if (Model.All) { <span class="admin-filter-chip">All history</span> <a class="admin-filter-chip" href="@Model.RecentWindowUrl()">Last @ProjectManagement.Areas.Admin.Pages.Logs.IndexModel.DefaultWindowDays days only</a> }
                 @if (!string.IsNullOrWhiteSpace(Model.Level)) { <span class="admin-filter-chip">Severity: @Model.Level</span> }
-                @if (!string.IsNullOrWhiteSpace(Model.Category)) { <span class="admin-filter-chip">Category: @Model.Category.Replace('-', ' ')</span> }
+                @if (!string.IsNullOrWhiteSpace(Model.Category)) { <span class="admin-filter-chip">Category: @IndexModel.CategoryLabel(Model.Category)</span> }
                 @if (!string.IsNullOrWhiteSpace(Model.Action)) { <span class="admin-filter-chip">Action: @Model.Action</span> }
                 @if (!string.IsNullOrWhiteSpace(Model.EntityType)) { <span class="admin-filter-chip">Record: @Model.EntityType</span> }
                 @if (!string.IsNullOrWhiteSpace(Model.UserName)) { <span class="admin-filter-chip">Actor: @Model.UserName</span> }
@@ -237,7 +238,7 @@
                                     <span class="admin-audit-event-cell__icon admin-audit-event-cell__icon--@presentation.Tone" aria-hidden="true"><i class="bi @presentation.Icon"></i></span>
                                     <span class="admin-audit-event-cell__copy">
                                         <strong>@presentation.Label</strong>
-                                        <span>@(string.IsNullOrWhiteSpace(row.Message) ? presentation.Category : row.Message)</span>
+                                        <span>@(row.Detail ?? presentation.Category)</span>
                                     </span>
                                 </div>
                             </td>
@@ -248,7 +249,18 @@
                                 </div>
                             </td>
                             <td>
-                                @if (!string.IsNullOrWhiteSpace(payload?.AffectedRecord))
+                                @if (row.Record is not null)
+                                {
+                                    <div class="admin-affected-record">
+                                        <strong>@row.Record.Name</strong>
+                                        <span>@row.Record.TypeLabel</span>
+                                        @if (entityLink is not null)
+                                        {
+                                            <a href="@entityLink.Href">@entityLink.Text <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
+                                        }
+                                    </div>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(payload?.AffectedRecord))
                                 {
                                     <div class="admin-affected-record">
                                         <strong>@payload.EntityType</strong>
