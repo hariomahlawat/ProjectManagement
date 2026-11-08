@@ -459,7 +459,7 @@ public sealed class DocRepoReferenceListDefinition<TEntity> : ReferenceListDefin
         WritesAdminAudit = false;
 
         // People type the order number (-999 to 9999); it is shown as typed, and a delete leaves
-        // the rest alone. Data checks offers Renumber for gaps and repeats.
+        // the rest alone. Data checks accepts any numbers here (fourth review, U7).
         OrderIsPosition = false;
         AuditOrigin = "DocumentRepository.Admin";
     }
