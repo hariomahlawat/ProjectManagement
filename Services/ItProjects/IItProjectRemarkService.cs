@@ -31,9 +31,9 @@ public interface IItProjectRemarkService
     /// <summary>Adds a remark as the actor's remark role. Fails when the actor holds no remark role.</summary>
     Task<(ItProjectCommandResult Result, int RemarkId)> AddAsync(int itProjectId, ItProjectRemarkInput input, ItProjectRemarkActor actor, CancellationToken cancellationToken = default);
 
-    /// <summary>Edits the actor's own remark.</summary>
-    Task<ItProjectCommandResult> EditAsync(int remarkId, ItProjectRemarkInput input, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default);
+    /// <summary>Edits the actor's own remark. The remark must belong to the given, live project.</summary>
+    Task<ItProjectCommandResult> EditAsync(int itProjectId, int remarkId, ItProjectRemarkInput input, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default);
 
-    /// <summary>Soft-deletes the actor's own remark, or any remark when the actor is an Admin.</summary>
-    Task<ItProjectCommandResult> DeleteAsync(int remarkId, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default);
+    /// <summary>Soft-deletes the actor's own remark, or any remark when the actor is an Admin. The remark must belong to the given, live project.</summary>
+    Task<ItProjectCommandResult> DeleteAsync(int itProjectId, int remarkId, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default);
 }

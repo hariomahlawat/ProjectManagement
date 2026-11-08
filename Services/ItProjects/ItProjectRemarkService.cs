@@ -120,7 +120,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         return (ItProjectCommandResult.Ok(), remark.Id);
     }
 
-    public async Task<ItProjectCommandResult> EditAsync(int remarkId, ItProjectRemarkInput input, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
+    public async Task<ItProjectCommandResult> EditAsync(int itProjectId, int remarkId, ItProjectRemarkInput input, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         EnsureActor(actor);
@@ -131,7 +131,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             return ItProjectCommandResult.Fail(errors);
         }
 
-        var remark = await LoadAsync(remarkId, cancellationToken);
+        var remark = await LoadAsync(itProjectId, remarkId, cancellationToken);
         if (remark is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -152,11 +152,11 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         return await CommitAsync(remark, rowVersion, actor, "ItProjects.RemarkEdited", cancellationToken);
     }
 
-    public async Task<ItProjectCommandResult> DeleteAsync(int remarkId, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
+    public async Task<ItProjectCommandResult> DeleteAsync(int itProjectId, int remarkId, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
 
-        var remark = await LoadAsync(remarkId, cancellationToken);
+        var remark = await LoadAsync(itProjectId, remarkId, cancellationToken);
         if (remark is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -206,10 +206,21 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
     private static string? NormaliseStage(string? stageCode)
         => string.IsNullOrWhiteSpace(stageCode) ? null : ItProjectStages.Get(stageCode.Trim()).Code;
 
-    private Task<ItProjectRemark?> LoadAsync(int remarkId, CancellationToken cancellationToken)
+    /// <summary>
+    /// The live remark with that id on that live project. A remark id from another project, or
+    /// from a soft-deleted project, is "not found": the route's project is the one the caller
+    /// has been authorised for (engineering invariant 6).
+    /// </summary>
+    private Task<ItProjectRemark?> LoadAsync(int itProjectId, int remarkId, CancellationToken cancellationToken)
         => _db.ItProjectRemarks
             .Include(remark => remark.AuditEntries)
-            .FirstOrDefaultAsync(remark => remark.Id == remarkId && !remark.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(remark =>
+                remark.Id == remarkId &&
+                remark.ItProjectId == itProjectId &&
+                !remark.IsDeleted &&
+                remark.ItProject != null &&
+                !remark.ItProject.IsDeleted,
+                cancellationToken);
 
     private async Task<ItProjectCommandResult> CommitAsync(ItProjectRemark remark, byte[] rowVersion, ItProjectRemarkActor actor, string action, CancellationToken cancellationToken, Dictionary<string, string?>? extra = null)
     {

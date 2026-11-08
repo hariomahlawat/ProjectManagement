@@ -97,12 +97,12 @@ public class ItProjectRemarkServiceTests
         Assert.True(added.Succeeded);
         var rowVersion = (await db.Remarks().ListAsync(id)).Single().RowVersion;
 
-        var byOther = await db.Remarks().EditAsync(remarkId, new ItProjectRemarkInput("Changed by someone else.", new DateOnly(2026, 3, 12), "PNC"), rowVersion, ItProjectTestDb.RemarkActor("hod-1", RoleNames.HoD));
+        var byOther = await db.Remarks().EditAsync(id, remarkId, new ItProjectRemarkInput("Changed by someone else.", new DateOnly(2026, 3, 12), "PNC"), rowVersion, ItProjectTestDb.RemarkActor("hod-1", RoleNames.HoD));
         Assert.False(byOther.Succeeded);
         Assert.Contains(ItProjectRemarkService.NotAuthorMessage, byOther.Errors);
 
         db.Clock.Set(ItProjectTestDb.Now.AddHours(1));
-        var byAuthor = await db.Remarks().EditAsync(remarkId, new ItProjectRemarkInput("PNC concluded at 46.80 L against L1 of 49.2 L.", new DateOnly(2026, 3, 13), null), rowVersion, ItProjectTestDb.RemarkActor("mco-1", RoleNames.Mco));
+        var byAuthor = await db.Remarks().EditAsync(id, remarkId, new ItProjectRemarkInput("PNC concluded at 46.80 L against L1 of 49.2 L.", new DateOnly(2026, 3, 13), null), rowVersion, ItProjectTestDb.RemarkActor("mco-1", RoleNames.Mco));
         Assert.True(byAuthor.Succeeded, string.Join("; ", byAuthor.Errors));
 
         var remark = (await db.Remarks().ListAsync(id)).Single();
@@ -112,7 +112,7 @@ public class ItProjectRemarkServiceTests
         Assert.NotNull(remark.LastEditedAtUtc);
         Assert.NotEqual(rowVersion, remark.RowVersion);
 
-        var stale = await db.Remarks().EditAsync(remarkId, new ItProjectRemarkInput("Stale.", new DateOnly(2026, 3, 13), null), rowVersion, ItProjectTestDb.RemarkActor("mco-1", RoleNames.Mco));
+        var stale = await db.Remarks().EditAsync(id, remarkId, new ItProjectRemarkInput("Stale.", new DateOnly(2026, 3, 13), null), rowVersion, ItProjectTestDb.RemarkActor("mco-1", RoleNames.Mco));
         Assert.True(stale.ConcurrencyConflict);
 
         await using var context = db.NewContext();
@@ -131,15 +131,15 @@ public class ItProjectRemarkServiceTests
         Assert.True(first.Succeeded && second.Succeeded);
         var versions = (await db.Remarks().ListAsync(id)).ToDictionary(remark => remark.Id, remark => remark.RowVersion);
 
-        var byOther = await db.Remarks().DeleteAsync(firstId, versions[firstId], ItProjectTestDb.RemarkActor("hod-1", RoleNames.HoD));
+        var byOther = await db.Remarks().DeleteAsync(id, firstId, versions[firstId], ItProjectTestDb.RemarkActor("hod-1", RoleNames.HoD));
         Assert.False(byOther.Succeeded);
         Assert.Contains(ItProjectRemarkService.NotAuthorOrAdminMessage, byOther.Errors);
 
-        var byAuthor = await db.Remarks().DeleteAsync(firstId, versions[firstId], ItProjectTestDb.RemarkActor("ito-1", RoleNames.Ito));
+        var byAuthor = await db.Remarks().DeleteAsync(id, firstId, versions[firstId], ItProjectTestDb.RemarkActor("ito-1", RoleNames.Ito));
         Assert.True(byAuthor.Succeeded);
         Assert.Equal("true", db.Audit.Entries.Last().Data["DeletedByAuthor"]);
 
-        var byAdmin = await db.Remarks().DeleteAsync(secondId, versions[secondId], ItProjectTestDb.RemarkActor("admin-1", null, isAdmin: true));
+        var byAdmin = await db.Remarks().DeleteAsync(id, secondId, versions[secondId], ItProjectTestDb.RemarkActor("admin-1", null, isAdmin: true));
         Assert.True(byAdmin.Succeeded);
         Assert.Equal("false", db.Audit.Entries.Last().Data["DeletedByAuthor"]);
 
@@ -151,8 +151,38 @@ public class ItProjectRemarkServiceTests
         Assert.Equal("Admin", adminSnapshot.ActorRole);
         Assert.True(adminSnapshot.SnapshotIsDeleted);
 
-        var again = await db.Remarks().DeleteAsync(firstId, versions[firstId], ItProjectTestDb.RemarkActor("ito-1", RoleNames.Ito));
+        var again = await db.Remarks().DeleteAsync(id, firstId, versions[firstId], ItProjectTestDb.RemarkActor("ito-1", RoleNames.Ito));
         Assert.Contains(ItProjectRemarkService.NotFoundMessage, again.Errors);
+    }
+
+    [Fact]
+    public async Task EditAndDelete_AreBoundToTheProjectAndRefuseADeletedParent()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (projectA, rowVersionA) = await db.SeedAsync("A", "IT PPP A");
+        var (projectB, _) = await db.SeedAsync("B", "IT PPP B");
+        var (added, remarkId) = await db.Remarks().AddAsync(projectA, new ItProjectRemarkInput("On A.", new DateOnly(2026, 11, 8), null), ItProjectTestDb.RemarkActor("ito-1", RoleNames.Ito));
+        Assert.True(added.Succeeded);
+        var rowVersion = (await db.Remarks().ListAsync(projectA)).Single().RowVersion;
+        var author = ItProjectTestDb.RemarkActor("ito-1", RoleNames.Ito);
+
+        // Through another project's route the remark is not found, even for its author.
+        var viaOtherProject = await db.Remarks().EditAsync(projectB, remarkId, new ItProjectRemarkInput("Moved?", new DateOnly(2026, 11, 8), null), rowVersion, author);
+        Assert.Contains(ItProjectRemarkService.NotFoundMessage, viaOtherProject.Errors);
+        var deleteViaOther = await db.Remarks().DeleteAsync(projectB, remarkId, rowVersion, ItProjectTestDb.RemarkActor("admin-1", null, isAdmin: true));
+        Assert.Contains(ItProjectRemarkService.NotFoundMessage, deleteViaOther.Errors);
+
+        // Once the parent project is deleted its remarks are frozen.
+        Assert.True((await db.Commands().DeleteAsync(projectA, rowVersionA, ItProjectTestDb.Actor("admin-1"))).Succeeded);
+        var afterParentDeleted = await db.Remarks().EditAsync(projectA, remarkId, new ItProjectRemarkInput("Still editable?", new DateOnly(2026, 11, 8), null), rowVersion, author);
+        Assert.Contains(ItProjectRemarkService.NotFoundMessage, afterParentDeleted.Errors);
+        var deleteAfterParentDeleted = await db.Remarks().DeleteAsync(projectA, remarkId, rowVersion, author);
+        Assert.Contains(ItProjectRemarkService.NotFoundMessage, deleteAfterParentDeleted.Errors);
+
+        await using var context = db.NewContext();
+        var stored = await context.ItProjectRemarks.SingleAsync(remark => remark.Id == remarkId);
+        Assert.Equal("On A.", stored.Body);
+        Assert.False(stored.IsDeleted);
     }
 
     private static async Task AddUserAsync(ItProjectTestDb db, string id, string fullName)

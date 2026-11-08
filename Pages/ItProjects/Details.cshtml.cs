@@ -430,6 +430,7 @@ public class DetailsModel : PageModel
         }
 
         var result = await _remarks.EditAsync(
+            id,
             RemarkEdit.Id,
             new ItProjectRemarkInput(RemarkEdit.Body, RemarkEdit.EventDate!.Value, RemarkEdit.StageCode),
             DecodeRowVersion(RemarkEdit.RowVersion),
@@ -451,7 +452,7 @@ public class DetailsModel : PageModel
             return Forbid();
         }
 
-        var result = await _remarks.DeleteAsync(remarkId, DecodeRowVersion(remarkRowVersion), RemarkActor(), cancellationToken);
+        var result = await _remarks.DeleteAsync(id, remarkId, DecodeRowVersion(remarkRowVersion), RemarkActor(), cancellationToken);
         return RemarkOutcome(id, result, "Remark deleted.");
     }
 
