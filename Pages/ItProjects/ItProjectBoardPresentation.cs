@@ -178,6 +178,29 @@ public static class ItProjectBoardPresentation
         _ => "itp-role--other"
     };
 
+    /// <summary>"842 KB", "1.2 MB": the size of an attachment.</summary>
+    public static string FileSize(long bytes)
+    {
+        const long kb = 1024, mb = kb * 1024, gb = mb * 1024;
+        return bytes switch
+        {
+            < kb => $"{bytes} B",
+            < mb => $"{bytes / (double)kb:0} KB",
+            < gb => $"{bytes / (double)mb:0.#} MB",
+            _ => $"{bytes / (double)gb:0.#} GB"
+        };
+    }
+
+    /// <summary>The Bootstrap icon of an attachment by its content type.</summary>
+    public static string FileIcon(string? contentType) => (contentType ?? string.Empty).ToLowerInvariant() switch
+    {
+        "application/pdf" => "bi-file-earmark-pdf",
+        "application/msword" or "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "bi-file-earmark-word",
+        "application/vnd.ms-excel" or "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "bi-file-earmark-excel",
+        "application/vnd.ms-powerpoint" or "application/vnd.openxmlformats-officedocument.presentationml.presentation" => "bi-file-earmark-slides",
+        _ => "bi-file-earmark"
+    };
+
     /// <summary>"3 projects" / "1 project".</summary>
     public static string Projects(int count) => count == 1 ? "1 project" : $"{count} projects";
 }

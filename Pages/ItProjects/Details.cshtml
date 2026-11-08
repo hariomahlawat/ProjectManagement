@@ -1,6 +1,7 @@
 @page "/ItProjects/{id:int}"
 @using ProjectManagement.Models.ItProjects
 @using ProjectManagement.Pages.ItProjects
+@using ProjectManagement.Services.ItProjects
 @model ProjectManagement.Pages.ItProjects.DetailsModel
 @{
     ViewData["Title"] = Model.Project.Title;
@@ -241,6 +242,56 @@
                         <dt>SO cost</dt><dd>@ItProjectBoardPresentation.Cost(soCost)</dd>
                     }
                 </dl>
+            </section>
+
+            <section class="itp-card itp-files" id="attachments" aria-labelledby="itpFilesTitle">
+                <h2 class="itp-card__title" id="itpFilesTitle">Attachments <span class="itp-card__count">@Model.Attachments.Count</span></h2>
+                @if (Model.Attachments.Count == 0)
+                {
+                    <p class="itp-files__empty">
+                        @if (Model.CanManage)
+                        {
+                            <text>No files yet. Attach the PPP, the AoN or the SO as PDF or Office documents.</text>
+                        }
+                        else
+                        {
+                            <text>No files attached.</text>
+                        }
+                    </p>
+                }
+                else
+                {
+                    <ul class="itp-files__list">
+                        @foreach (var file in Model.Attachments)
+                        {
+                            <li class="itp-file">
+                                <i class="bi @ItProjectBoardPresentation.FileIcon(file.ContentType) itp-file__icon" aria-hidden="true"></i>
+                                <div class="itp-file__main">
+                                    <a class="itp-file__name" asp-page-handler="Attachment" asp-route-id="@Model.Project.Id" asp-route-attachmentId="@file.Id" title="Download @file.FileName">@file.FileName</a>
+                                    <div class="itp-file__meta">@ItProjectBoardPresentation.FileSize(file.SizeBytes) &middot; @file.UploadedByName &middot; <time datetime="@file.UploadedAtUtc.ToString("yyyy-MM-dd")">@ItProjectBoardPresentation.ShortDate(DateOnly.FromDateTime(file.UploadedAtUtc))</time></div>
+                                </div>
+                                @if (Model.CanManage)
+                                {
+                                    <form method="post" asp-page-handler="AttachmentDelete" asp-route-id="@Model.Project.Id" asp-route-attachmentId="@file.Id" class="itp-file__delete"
+                                          data-confirm="Remove this file from the project? An administrator can restore it later." data-confirm-tone="danger" data-confirm-action="Remove file">
+                                        <button type="submit" class="itp-file__remove" aria-label="Remove @file.FileName"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                                    </form>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+                @if (Model.CanManage)
+                {
+                    <form method="post" asp-page-handler="AttachmentUpload" asp-route-id="@Model.Project.Id" enctype="multipart/form-data" class="itp-files__upload">
+                        <label class="btn btn-outline-secondary btn-sm itp-files__add">
+                            <i class="bi bi-paperclip" aria-hidden="true"></i><span>Add file</span>
+                            <input type="file" name="AttachmentFile" class="visually-hidden" accept="@ItProjectAttachmentValidator.AcceptList" data-auto-submit />
+                        </label>
+                        <noscript><button type="submit" class="btn btn-primary btn-sm">Upload</button></noscript>
+                        <span class="itp-files__hint">PDF, Word, Excel or PowerPoint, up to @Model.AttachmentMaxMb MB.</span>
+                    </form>
+                }
             </section>
         </aside>
     </div>

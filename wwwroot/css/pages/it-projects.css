@@ -1120,6 +1120,105 @@ a.itp-tile--selected:hover {
 
 /* ---- phones ------------------------------------------------------------------------------ */
 
+/* attachments */
+
+.itp-files__empty {
+    margin: 0 0 .6rem;
+    color: var(--pm-text-muted);
+    font-size: var(--pm-font-size-sm);
+}
+
+.itp-files__list {
+    list-style: none;
+    margin: 0 0 .6rem;
+    padding: 0;
+    display: grid;
+    gap: .35rem;
+}
+
+.itp-file {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    padding: .4rem .5rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 10px;
+    background: var(--pm-surface-subtle);
+    min-width: 0;
+}
+
+.itp-file__icon {
+    flex: 0 0 auto;
+    font-size: 1.25rem;
+    color: var(--pm-text-secondary);
+}
+
+.itp-file__main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.itp-file__name {
+    display: block;
+    font-weight: 600;
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-strong);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.itp-file__name:hover {
+    color: var(--pm-primary);
+    text-decoration: underline;
+}
+
+.itp-file__meta {
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
+.itp-file__delete {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.itp-file__remove {
+    padding: .15rem .35rem;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--pm-text-muted);
+    line-height: 1;
+    cursor: pointer;
+}
+
+.itp-file__remove:hover {
+    background: var(--pm-danger-soft-bg);
+    color: var(--pm-danger);
+}
+
+.itp-files__upload {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+}
+
+.itp-files__add {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    margin: 0;
+    cursor: pointer;
+}
+
+.itp-files__hint {
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
 @media (max-width: 991.98px) {
     .itp-strip {
         grid-template-columns: repeat(2, minmax(0, 1fr));

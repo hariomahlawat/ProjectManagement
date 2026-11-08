@@ -538,12 +538,90 @@ public class ItProjectDetailsPageTests
     private static IReadOnlyList<string> Strings(System.Text.Json.JsonElement array)
         => array.EnumerateArray().Select(item => item.GetString()!).ToList();
 
+    // ---- attachments -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Attachments_ManageUsersUploadAndRemove_EveryoneDownloads()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+
+        var hod = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        hod.AttachmentFile = ItProjectAttachmentServiceTests.FormFile("IT PPP 09-2025.pdf", ItProjectAttachmentServiceTests.PdfType, ItProjectAttachmentServiceTests.PdfBytes);
+        var uploaded = Assert.IsType<RedirectToPageResult>(await hod.OnPostAttachmentUploadAsync(id, CancellationToken.None));
+        Assert.Equal(DetailsModel.AttachmentsFragment, uploaded.Fragment);
+        Assert.Equal(id, uploaded.RouteValues?["id"]);
+        Assert.Equal("\"IT PPP 09-2025.pdf\" attached.", hod.TempData["ToastSuccess"]);
+
+        var viewer = Page(db, ItProjectTestDb.User("viewer", RoleNames.ProjectOfficer));
+        Assert.IsType<PageResult>(await viewer.OnGetAsync(id, CancellationToken.None));
+        var file = Assert.Single(viewer.Attachments);
+        Assert.Equal("IT PPP 09-2025.pdf", file.FileName);
+        Assert.Equal("hod-1", file.UploadedByName); // no user row in the test db, so the id shows
+
+        var download = Assert.IsType<FileStreamResult>(await viewer.OnGetAttachmentAsync(id, file.Id, CancellationToken.None));
+        Assert.Equal(ItProjectAttachmentServiceTests.PdfType, download.ContentType);
+        Assert.Equal("IT PPP 09-2025.pdf", download.FileDownloadName);
+        await download.FileStream.DisposeAsync();
+
+        var removed = Assert.IsType<RedirectToPageResult>(await hod.OnPostAttachmentDeleteAsync(id, file.Id, CancellationToken.None));
+        Assert.Equal(DetailsModel.AttachmentsFragment, removed.Fragment);
+        Assert.Equal("File removed.", hod.TempData["ToastSuccess"]);
+        Assert.Empty(await db.Attachments().ListAsync(id));
+        Assert.IsType<NotFoundResult>(await viewer.OnGetAttachmentAsync(id, file.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Attachments_UploadAndRemoveAreForbiddenForViewers()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+        var viewer = Page(db, ItProjectTestDb.User("viewer", RoleNames.ProjectOfficer));
+        viewer.AttachmentFile = ItProjectAttachmentServiceTests.FormFile("ppp.pdf", ItProjectAttachmentServiceTests.PdfType, ItProjectAttachmentServiceTests.PdfBytes);
+
+        Assert.IsType<ForbidResult>(await viewer.OnPostAttachmentUploadAsync(id, CancellationToken.None));
+        Assert.IsType<ForbidResult>(await viewer.OnPostAttachmentDeleteAsync(id, Guid.NewGuid(), CancellationToken.None));
+        Assert.Empty(await db.Attachments().ListAsync(id));
+    }
+
+    [Fact]
+    public async Task Attachments_ARejectedUploadShowsTheReasonAndStoresNothing()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+        var ito = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        ito.AttachmentFile = ItProjectAttachmentServiceTests.FormFile("fake.pdf", ItProjectAttachmentServiceTests.PdfType, System.Text.Encoding.UTF8.GetBytes("not a pdf"));
+
+        Assert.IsType<RedirectToPageResult>(await ito.OnPostAttachmentUploadAsync(id, CancellationToken.None));
+
+        Assert.Equal(ItProjectAttachmentValidator.ContentMismatchMessage, ito.TempData["ToastError"]);
+        Assert.Empty(db.Storage.Saved);
+
+        ito.AttachmentFile = null;
+        Assert.IsType<RedirectToPageResult>(await ito.OnPostAttachmentUploadAsync(id, CancellationToken.None));
+        Assert.Equal("Choose a file to attach.", ito.TempData["ToastError"]);
+    }
+
+    [Fact]
+    public async Task Attachments_DownloadIsScopedToTheRouteProject()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+        var (otherId, _) = await db.SeedAsync("Other", "IT PPP 10/2025");
+        var (_, attachmentId) = await db.Attachments().UploadAsync(id, ItProjectAttachmentServiceTests.FormFile("ppp.pdf", ItProjectAttachmentServiceTests.PdfType, ItProjectAttachmentServiceTests.PdfBytes), ItProjectTestDb.Actor());
+        var viewer = Page(db, ItProjectTestDb.User("viewer", RoleNames.ProjectOfficer));
+
+        Assert.IsType<NotFoundResult>(await viewer.OnGetAttachmentAsync(otherId, attachmentId, CancellationToken.None));
+        Assert.IsType<NotFoundResult>(await viewer.OnGetAttachmentAsync(9999, attachmentId, CancellationToken.None));
+        Assert.IsType<FileStreamResult>(await viewer.OnGetAttachmentAsync(id, attachmentId, CancellationToken.None));
+    }
+
     private static DetailsModel Page(ItProjectTestDb db, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext { User = user };
         var actionContext = new ActionContext(httpContext, new RouteData(), new PageActionDescriptor(), new ModelStateDictionary());
         var context = new PageContext(actionContext) { ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), actionContext.ModelState) };
-        return new DetailsModel(db.Reads(), db.Commands(), db.Remarks(), db.Clock)
+        return new DetailsModel(db.Reads(), db.Commands(), db.Remarks(), db.Attachments(), db.Clock)
         {
             PageContext = context,
             TempData = new TempDataDictionary(httpContext, new NullTempDataProvider())
