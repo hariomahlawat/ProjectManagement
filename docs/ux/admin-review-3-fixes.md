@@ -299,3 +299,11 @@ parameter, not inlined), and compiled for use in memory.
 - Removed: `_AdminFlatLookupDirectory.cshtml`, `AdminFlatLookupDirectoryModel` and the query service's `GetFlatLookupAsync`, which only these pages used. The "Last changed" column is gone; the audit log keeps the history.
 - No migration.
 - Tests: `AdminReferenceListTests` (items used by a project or named by a change request refuse Delete, unused ones are deleted and audited, an old version and a missing permission are refused, tile counts and filters, the three pages render the shared layout); `AdminSearchEscapingPostgresTests` now searches through the shared service on PostgreSQL.
+
+### PR 14 shipped: repository trash in Administration
+
+- **Repository trash (decision 2, option A).** The Document Repository's deleted documents (`/DocumentRepository/Admin/Trash`) render inside the admin layout: sidebar (with Restore deleted items lit), mobile header, the "Restore & archive" eyebrow and the "Restore deleted items" heading, like the other bins. The page shows the Restore deleted items tabs with "Repository documents" selected, and that tab and the overview card no longer say the page opens in another module. The Documents tab in the top bar is no longer lit there.
+  - Paging, search, Restore and Delete for good are unchanged, as are the route, the handlers and the policy (`DocRepo.Purge`, Admin only). The library's "Deleted repository documents" menu item still opens the page.
+- **Document deletion approvals.** Stays in the Decision Centre. Opened with the repository-deletions filter (`/Approvals/Pending?Type=RepositoryDocumentDelete`), its heading reads "Document deletion approvals" with a sentence on what approving does, and the page title matches. The "Administration ›" return bar above it, shown to administrators, is the link back. Without that filter the Decision Centre is unchanged.
+- No migration; no new route.
+- Tests: `AdminRepositoryTrashInShellTests` (in the shell, eyebrow, the rest of the repository keeps its layout, the page keeps its actions, the Decision Centre heading with and without the filter); `AdminRestoreTabsTests`, `AdminNavigationCatalogTests` and `AdminPageIndexTests` updated.

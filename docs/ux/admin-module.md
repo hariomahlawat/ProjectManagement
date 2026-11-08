@@ -174,7 +174,7 @@ The 19-tile "Administrative areas" grid and the duplicated metric cards go.
 | Overview | `/Admin/Recovery`: each kind, how many can come back, how long it is kept, and recent restores and permanent deletions |
 | Projects | `/Admin/Projects/Trash` |
 | Project documents | `/Admin/Documents/Recycle` |
-| Repository documents | the Document Repository's Trash, which opens in that module |
+| Repository documents | `/DocumentRepository/Admin/Trash`, inside Administration since third-review PR 14 |
 | Calendar events | `/Admin/Calendar/Deleted` |
 | Chat files | Chat file storage, at its undo list |
 
