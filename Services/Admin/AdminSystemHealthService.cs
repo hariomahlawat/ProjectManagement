@@ -800,9 +800,9 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         return Path.GetFullPath(path);
     }
 
-    // Worker times were shown in UTC while the rest of Administration uses IST.
+    // Worker times were shown in UTC while the rest of Administration uses IST; same format as IAdminTimeService.FormatIst.
     private static string FormatIst(DateTimeOffset utc) =>
-        ProjectManagement.Infrastructure.IstClock.ToIst(utc).ToString("dd MMM yyyy, HH:mm", System.Globalization.CultureInfo.InvariantCulture) + " IST";
+        ProjectManagement.Infrastructure.IstClock.ToIst(utc).ToString(AdminTimeService.IstFormat, System.Globalization.CultureInfo.InvariantCulture) + " IST";
 
     private string ResolveDataProtectionPath()
     {

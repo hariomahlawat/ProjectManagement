@@ -115,12 +115,12 @@
                 @foreach (var batch in Model.Batches)
                 {
                     <tr>
-                        <td>@StorageModel.Local(batch.RemovedUtc)</td>
+                        <td>@Model.Local(batch.RemovedUtc)</td>
                         <td>@(batch.Reason == ProjectManagement.Models.Chat.ChatAttachmentRemovalReason.Retention ? "Automatic retention" : "Administrator")</td>
                         <td>@batch.Files.ToString("N0")</td>
                         <td>@StorageModel.Size(batch.Bytes)</td>
                         <td>@batch.People.ToString("N0")</td>
-                        <td>@(batch.CanUndo ? StorageModel.Local(batch.RestorableUntil) : "—")</td>
+                        <td>@(batch.CanUndo ? Model.Local(batch.RestorableUntil) : "—")</td>
                         <td class="text-end">
                             @if (batch.CanUndo)
                             {

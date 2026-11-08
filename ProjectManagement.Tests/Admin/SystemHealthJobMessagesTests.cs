@@ -91,9 +91,8 @@ public sealed class SystemHealthJobMessagesTests
     [Fact]
     public void MissingFiles_ShowsIstWithZone_AndTheRealCacheTime()
     {
-        var checkedAt = MissingFilesModel.FormatCheckedAt(new DateTimeOffset(2026, 11, 7, 8, 35, 0, TimeSpan.Zero));
-        Assert.Equal("7 Nov 2026, 14:05 IST", checkedAt);
-
+        // The checked-at time itself goes through IAdminTimeService.FormatIst
+        // (AdminRound4RobustnessTests covers the text).
         Assert.Equal("2 minutes", MissingFilesModel.FormatCacheDuration(DocRepoMissingFilesService.CacheDuration));
         Assert.Equal("1 minute", MissingFilesModel.FormatCacheDuration(TimeSpan.FromMinutes(1)));
         Assert.Equal("45 seconds", MissingFilesModel.FormatCacheDuration(TimeSpan.FromSeconds(45)));
