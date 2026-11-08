@@ -1,43 +1,27 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.NewModel
 @using ProjectManagement.Areas.Admin.Models
-@* Inside Administration with the list it belongs to (docs/ux/admin-review-3-fixes.md, PR 12). *@
+@using ProjectManagement.Services.Admin.MasterData.ReferenceLists
+@* Inside Administration, on the shared list form (docs/ux/admin-review-4-fixes.md, PR 5). *@
 @{
     ViewData["Title"] = "Add social media event type";
-    var header = new AdminPageHeaderModel
-    {
-        Title = "Add event type",
-        Description = "A kind of event a social media post can be about. It is offered in the social media form straight away.",
-        Icon = "bi-megaphone",
-        Actions = new[] { new AdminPageActionModel { Text = "Back to event types", Href = Url.Page("Index"), Icon = "bi-arrow-left" } }
-    };
-}
-
-<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
-<div class="admin-form-layout">
-    <form method="post" class="admin-panel admin-form-panel" novalidate>
-        
-        <div class="admin-form-section__body">
-            <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
-            <div class="admin-form-grid">
-                <div class="admin-field">
-                    <label asp-for="Input.Name"></label>
-                    <input asp-for="Input.Name" class="form-control" maxlength="128" autocomplete="off" placeholder="For example: Product launch" />
-                    <span asp-validation-for="Input.Name" class="text-danger"></span>
-                </div>
-                <div class="admin-field">
-                    <label asp-for="Input.Description"></label>
-                    <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="512"></textarea>
-                    <span asp-validation-for="Input.Description" class="text-danger"></span>
-                </div>
+    Func<object?, Microsoft.AspNetCore.Html.IHtmlContent> fields =
+        @<text>
+            <div class="admin-field">
+                <label asp-for="Input.Name">Name</label>
+                <input asp-for="Input.Name" class="form-control" maxlength="128" autocomplete="off" autofocus placeholder="For example: Product launch" />
+                <span asp-validation-for="Input.Name" class="text-danger"></span>
             </div>
-        </div>
-        <footer class="admin-form-actions">
-            <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg" aria-hidden="true"></i>Add event type</button>
-        </footer>
-    </form>
-</div>
+            <div class="admin-field">
+                <label asp-for="Input.Description">Description</label>
+                <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="512"></textarea>
+                <small class="admin-field__hint">@AdminListFormWords.DescriptionHint</small>
+                <span asp-validation-for="Input.Description" class="text-danger"></span>
+            </div>
+        </text>;
+    var form = AdminListFormModel.For(ReferenceListCatalog.SocialMediaEventTypes, isEdit: false, "bi-megaphone", Url.Page("Index"), fields);
+}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminListForm.cshtml" model="form" />
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

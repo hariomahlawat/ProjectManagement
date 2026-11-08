@@ -1,0 +1,30 @@
+@model ProjectManagement.Areas.Admin.Models.AdminListFormModel
+@using ProjectManagement.Areas.Admin.Models
+@*
+    The one Add and Edit form of every reference list (docs/ux/admin-review-4-fixes.md, PR 5):
+    a page of its own (never a dialog), "Add …" or "Edit …", one plain sentence on what the list
+    is for, the page's own fields, then Cancel and "Add …" or "Save". It posts to the page that
+    renders it, so each page keeps its handler, field names and validation.
+*@
+@{
+    var header = new AdminPageHeaderModel
+    {
+        Title = Model.Heading,
+        Description = Model.Purpose,
+        Icon = Model.Icon,
+        Actions = new[] { new AdminPageActionModel { Text = Model.BackText, Href = Model.BackHref, Icon = "bi-arrow-left" } }
+    };
+}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+<div class="admin-form-layout" data-admin-list-form="@Model.ListKey">
+    <form method="post" class="admin-panel admin-form-panel" novalidate>
+        <div class="admin-form-section__body">
+            <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+            @Model.Fields(null)
+        </div>
+        <footer class="admin-form-actions">
+            <a href="@Model.BackHref" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary"><i class="bi @(Model.IsEdit ? "bi-check-lg" : "bi-plus-lg")" aria-hidden="true"></i>@Model.SubmitText</button>
+        </footer>
+    </form>
+</div>

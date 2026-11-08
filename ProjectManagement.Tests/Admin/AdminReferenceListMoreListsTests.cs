@@ -381,7 +381,7 @@ public sealed class AdminReferenceListMoreListsTests : IAsyncLifetime
         Assert.False(File.Exists(Path.Combine(FindRepositoryRoot(), "Areas/Admin/Pages/MasterData/ArppReferences/_ReferencePanel.cshtml")));
         var partial = Read("Areas/Admin/Pages/Shared/_AdminReferenceList.cshtml");
         Assert.Contains("Add sub-category", partial);
-        Assert.Contains("data-reference-edit", partial);
+        Assert.DoesNotContain("data-reference-edit", partial);
         Assert.Contains("--reference-depth", partial);
     }
 

@@ -1,31 +1,26 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.ActivityTypes.CreateModel
 @using ProjectManagement.Areas.Admin.Models
+@using ProjectManagement.Services.Admin.MasterData.ReferenceLists
+@* On the shared list form (docs/ux/admin-review-4-fixes.md, PR 5). *@
 @{
     ViewData["Title"] = "Add activity type";
-    var header = new AdminPageHeaderModel
-    {
-        Eyebrow = "Master data · Activity types",
-        Title = "Add activity type",
-        Description = "Create an operational activity classification with a clear purpose and availability state.",
-        Icon = "bi-plus-circle",
-        Actions = new[] { new AdminPageActionModel { Text = "Back to activity types", Href = Url.Page("./Index"), Icon = "bi-arrow-left" } }
-    };
-}
-<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
-<div class="admin-form-layout">
-    <form method="post" class="admin-panel admin-form-panel" novalidate>
-        <header class="admin-form-section__header"><span>01</span><div><h2>Activity classification</h2><p>Describe the intended use so administrators can distinguish similar activity types.</p></div></header>
-        <div class="admin-form-section__body">
-            <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
-            <div class="admin-form-grid">
-                <div class="admin-field"><label asp-for="Input.Name"></label><input asp-for="Input.Name" class="form-control" maxlength="120" autocomplete="off" autofocus /><span asp-validation-for="Input.Name" class="text-danger"></span></div>
-                <div class="admin-field"><label asp-for="Input.Description"></label><textarea asp-for="Input.Description" class="form-control" rows="4" maxlength="512" placeholder="Explain when this type should be selected"></textarea><span asp-validation-for="Input.Description" class="text-danger"></span></div>
+    Func<object?, Microsoft.AspNetCore.Html.IHtmlContent> fields =
+        @<text>
+            <div class="admin-field">
+                <label asp-for="Input.Name">Name</label>
+                <input asp-for="Input.Name" class="form-control" maxlength="120" autocomplete="off" autofocus />
+                <span asp-validation-for="Input.Name" class="text-danger"></span>
             </div>
-            <label class="admin-switch-row"><input asp-for="Input.IsActive" type="checkbox" /><span><strong>Active</strong><small>Make this type available in activity forms immediately.</small></span></label>
-        </div>
-        <footer class="admin-form-actions"><a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="bi bi-plus-lg"></i>Create activity type</button></footer>
-    </form>
-    <aside class="admin-guidance-card"><span class="admin-guidance-card__icon"><i class="bi bi-list-task"></i></span><h2>Classification guidance</h2><ul><li>Use one type for one operational purpose.</li><li>Avoid abbreviations that are not widely understood.</li><li>Deactivate obsolete types instead of renaming them to a different meaning.</li></ul></aside>
-</div>
+            <div class="admin-field">
+                <label asp-for="Input.Description">Description</label>
+                <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="512"></textarea>
+                <small class="admin-field__hint">@AdminListFormWords.DescriptionHint</small>
+                <span asp-validation-for="Input.Description" class="text-danger"></span>
+            </div>
+            <label class="admin-switch-row"><input asp-for="Input.IsActive" type="checkbox" class="form-check-input" /><span><strong>Active</strong><small>@AdminListFormWords.ActiveHint</small></span></label>
+        </text>;
+    var form = AdminListFormModel.For(ReferenceListCatalog.ActivityTypes, isEdit: false, "bi-list-task", Url.Page("./Index"), fields);
+}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminListForm.cshtml" model="form" />
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

@@ -307,7 +307,9 @@ public sealed class AdminRepositoryAndSocialListsTests
         Assert.Equal(navigationKey, AdminNavigationCatalog.FindActiveEntry("ProjectOfficeReports", page, new QueryCollection())!.Key);
 
         var text = Read($"Areas/ProjectOfficeReports/Pages{page}.cshtml");
-        Assert.Contains("_AdminPageHeader.cshtml", text);
+        // The shared list form writes the admin page header (docs/ux/admin-review-4-fixes.md, PR 5).
+        Assert.Contains("~/Areas/Admin/Pages/Shared/_AdminListForm.cshtml", text);
+        Assert.Contains("_AdminPageHeader.cshtml", Read("Areas/Admin/Pages/Shared/_AdminListForm.cshtml"));
         Assert.DoesNotContain("pm-card", text);
         if (page.EndsWith("/Edit", StringComparison.Ordinal))
         {

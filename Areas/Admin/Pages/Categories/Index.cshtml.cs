@@ -15,7 +15,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Categories;
 public sealed class IndexModel : AdminReferenceListPageModel
 {
     private static readonly AdminReferenceListPresentation Shown = new(
-        AdminNavigationKeys.ProjectCategories, "bi-diagram-3", "Add category", "projects and sub-categories", "/Categories");
+        AdminNavigationKeys.ProjectCategories, "bi-diagram-3", "Add project category", "projects and sub-categories", "/Categories");
 
     private readonly IAdminMasterDataCommandService _commands;
 

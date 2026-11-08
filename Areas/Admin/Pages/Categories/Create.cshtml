@@ -1,31 +1,28 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Categories.CreateModel
 @using ProjectManagement.Areas.Admin.Models
+@using ProjectManagement.Services.Admin.MasterData.ReferenceLists
+@* On the shared list form (docs/ux/admin-review-4-fixes.md, PR 5). *@
 @{
     ViewData["Title"] = "Add project category";
-    var header = new AdminPageHeaderModel
-    {
-        Eyebrow = "Master data · Project categories",
-        Title = "Add category",
-        Description = "Create a root category or place the new item beneath an existing parent.",
-        Icon = "bi-node-plus",
-        Actions = new[] { new AdminPageActionModel { Text = "Back to categories", Href = Url.Page("./Index"), Icon = "bi-arrow-left" } }
-    };
-}
-<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
-<div class="admin-form-layout">
-    <form method="post" class="admin-panel admin-form-panel" novalidate>
-        <header class="admin-form-section__header"><span>01</span><div><h2>Category details</h2><p>Names should be concise, distinct and suitable for management reporting.</p></div></header>
-        <div class="admin-form-section__body">
-            <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+    Func<object?, Microsoft.AspNetCore.Html.IHtmlContent> fields =
+        @<text>
             <div class="admin-form-grid admin-form-grid--two">
-                <div class="admin-field admin-field--wide"><label asp-for="Input.Name"></label><input asp-for="Input.Name" class="form-control" maxlength="120" autocomplete="off" autofocus /><span asp-validation-for="Input.Name" class="text-danger"></span></div>
-                <div class="admin-field"><label asp-for="Input.ParentId">Parent category</label><select asp-for="Input.ParentId" asp-items="Model.ParentOptions" class="form-select"></select><span asp-validation-for="Input.ParentId" class="text-danger"></span><small>Leave blank to create a root category.</small></div>
+                <div class="admin-field">
+                    <label asp-for="Input.Name">Name</label>
+                    <input asp-for="Input.Name" class="form-control" maxlength="120" autocomplete="off" autofocus />
+                    <span asp-validation-for="Input.Name" class="text-danger"></span>
+                </div>
+                <div class="admin-field">
+                    <label asp-for="Input.ParentId">Parent category</label>
+                    <select asp-for="Input.ParentId" asp-items="Model.ParentOptions" class="form-select"></select>
+                    <small class="admin-field__hint">Leave blank for a top-level category.</small>
+                    <span asp-validation-for="Input.ParentId" class="text-danger"></span>
+                </div>
             </div>
-            <label class="admin-switch-row"><input asp-for="Input.IsActive" type="checkbox" /><span><strong>Active</strong><small>Make this category available in project forms immediately.</small></span></label>
-        </div>
-        <footer class="admin-form-actions"><a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i>Create category</button></footer>
-    </form>
-    <aside class="admin-guidance-card"><span class="admin-guidance-card__icon"><i class="bi bi-diagram-3"></i></span><h2>Hierarchy guidance</h2><ul><li>Use parent categories for broad reporting groups.</li><li>Keep sibling names distinct.</li><li>Inactive categories remain visible on historical projects.</li></ul></aside>
-</div>
+            <label class="admin-switch-row"><input asp-for="Input.IsActive" type="checkbox" class="form-check-input" /><span><strong>Active</strong><small>@AdminListFormWords.ActiveHint</small></span></label>
+        </text>;
+    var form = AdminListFormModel.For(ReferenceListCatalog.ProjectCategories, isEdit: false, "bi-diagram-3", Url.Page("./Index"), fields);
+}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminListForm.cshtml" model="form" />
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

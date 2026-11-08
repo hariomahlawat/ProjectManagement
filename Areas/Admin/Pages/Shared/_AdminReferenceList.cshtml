@@ -32,7 +32,6 @@
     };
     var showOrder = Model.ShowOrder;
     var canMove = !string.IsNullOrEmpty(Model.MoveHandler);
-    var dialog = Model.EditDialog;
     var filterName = list.Status switch
     {
         ReferenceListStatuses.InUse => "in use",
@@ -73,7 +72,8 @@
     @if (list.Rows.Count == 0)
     {
         var listIsEmpty = tiles.All == 0;
-        var addHref = listIsEmpty && dialog is null ? Url.Page(Model.CreatePage, new { area = Model.Area }) : null;
+        var addValues = new RouteValueDictionary(keep.ToDictionary(pair => pair.Key, pair => (object?)pair.Value)) { ["area"] = Model.Area };
+        var addHref = listIsEmpty ? Url.Page(Model.CreatePage, addValues) : null;
         <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new AdminEmptyStateModel { Icon = Model.Icon, Title = listIsEmpty ? $"No {pluralLower} yet" : $"No {pluralLower} match", Description = listIsEmpty ? $"Add the first {Model.SingularLabel}; forms offer it straight away." : "Change the search or pick another tile.", ActionText = addHref is null ? null : $"Add {Model.SingularLabel}", ActionHref = addHref })" />
     }
     else
@@ -159,14 +159,8 @@
                                     {
                                         <li><a class="dropdown-item" asp-area="@Model.Area" asp-page="@Model.CreatePage" asp-route-parentId="@row.Id"><i class="bi bi-node-plus" aria-hidden="true"></i>Add sub-category</a></li>
                                     }
-                                    @if (dialog is null)
-                                    {
-                                        <li><a class="dropdown-item" asp-area="@Model.Area" asp-page="@Model.EditPage" asp-route-id="@row.Id"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit</a></li>
-                                    }
-                                    else
-                                    {
-                                        <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="@dialog.Target" data-reference-edit data-id="@row.Id" data-value="@row.Name" data-description="@row.Detail" data-sort-order="@row.SortOrder" data-row-version="@row.RowVersion" data-kind="@dialog.Kind" data-kind-label="@dialog.KindLabel"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit</button></li>
-                                    }
+                                    @* Every list edits on its own page (docs/ux/admin-review-4-fixes.md, PR 5). *@
+                                    <li><a class="dropdown-item" asp-area="@Model.Area" asp-page="@Model.EditPage" asp-all-route-data="keep" asp-route-id="@row.Id"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit</a></li>
                                     @if (string.IsNullOrEmpty(Model.ToggleHandler))
                                     {
                                         <li><a class="dropdown-item" asp-area="@Model.Area" asp-page="@Model.DeactivatePage" asp-route-id="@row.Id" asp-route-restore="@(!row.IsActive)"><i class="bi @(row.IsActive ? "bi-slash-circle" : "bi-check-circle")" aria-hidden="true"></i>@(row.IsActive ? "Deactivate" : "Reactivate")</a></li>
