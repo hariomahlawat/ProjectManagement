@@ -202,11 +202,41 @@ public class ItProjectBoardPageTests
     }
 
     [Fact]
-    public void FinancialYearOptions_AlwaysIncludeTheChosenYear()
+    public void FinancialYearOptions_AlwaysIncludeTheChosenYearAndStayInRange()
     {
         var options = CreateModel.BuildFinancialYearOptions(2005);
         Assert.Contains(options, option => option.Value == "2005" && option.Selected);
         Assert.Equal(options.Select(option => int.Parse(option.Value)).OrderByDescending(year => year), options.Select(option => int.Parse(option.Value)));
+        Assert.All(options, option => Assert.True(int.Parse(option.Value) >= 2000));
+
+        var atTop = CreateModel.BuildFinancialYearOptions(9998);
+        Assert.Equal("9998", atTop[0].Value); // nothing above the helper's maximum
+        Assert.Throws<ArgumentOutOfRangeException>(() => CreateModel.BuildFinancialYearOptions(1999));
+    }
+
+    [Theory]
+    [InlineData(1999)]
+    [InlineData(10000)]
+    public async Task Create_RejectsAnOutOfRangeFinancialYearInsteadOfFailing(int year)
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var page = CreatePage(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        page.Input = new CreateModel.InputModel
+        {
+            Title = "Core switches",
+            PppReferenceNumber = "IT PPP 09/2025",
+            FinancialYearStart = year,
+            Description = "Out of range year."
+        };
+
+        var result = await page.OnPostAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(page.ModelState.IsValid);
+        Assert.Contains("Choose the financial year.", page.ModelState["Input.FinancialYearStart"]!.Errors.Select(error => error.ErrorMessage));
+        Assert.Contains(page.FinancialYearOptions, option => option.Selected && option.Value == "2026"); // falls back to the current FY
+        await using var context = db.NewContext();
+        Assert.Empty(context.ItProjects.ToList());
     }
 
     // ---- helpers ---------------------------------------------------------------------------

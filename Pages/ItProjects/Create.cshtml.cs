@@ -66,7 +66,15 @@ public class CreateModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        FinancialYearOptions = BuildFinancialYearOptions(Input.FinancialYearStart ?? CurrentFinancialYearStart());
+        var current = CurrentFinancialYearStart();
+        var yearIsValid = Input.FinancialYearStart is { } posted && IsSupportedFinancialYear(posted);
+        if (Input.FinancialYearStart.HasValue && !yearIsValid)
+        {
+            ModelState.AddModelError($"{nameof(Input)}.{nameof(Input.FinancialYearStart)}", "Choose the financial year.");
+        }
+
+        // The picker must never be built from an unsupported year: the helper that formats it throws.
+        FinancialYearOptions = BuildFinancialYearOptions(yearIsValid ? Input.FinancialYearStart!.Value : current);
         if (!ModelState.IsValid)
         {
             return Page();
@@ -100,13 +108,23 @@ public class CreateModel : PageModel
     private int CurrentFinancialYearStart()
         => FinancialYearHelper.GetStartYear(DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime));
 
-    /// <summary>Next FY, the current one, then the past ten; the chosen year is always offered.</summary>
+    internal static bool IsSupportedFinancialYear(int startYear)
+        => startYear is >= FinancialYearHelper.MinimumSupportedStartYear and <= FinancialYearHelper.MaximumSupportedStartYear;
+
+    /// <summary>
+    /// Next FY, the current one, then the past ten, all within the helper's supported range; the
+    /// chosen year is always offered. The caller passes a supported year.
+    /// </summary>
     internal static IReadOnlyList<SelectListItem> BuildFinancialYearOptions(int selected)
     {
-        var current = selected;
-        var years = Enumerable.Range(current - PastFinancialYearsOffered, PastFinancialYearsOffered + 2)
+        if (!IsSupportedFinancialYear(selected))
+        {
+            throw new ArgumentOutOfRangeException(nameof(selected), selected, "Unsupported financial year.");
+        }
+
+        var years = Enumerable.Range(selected - PastFinancialYearsOffered, PastFinancialYearsOffered + 2)
             .Reverse()
-            .Where(year => year >= FinancialYearHelper.MinimumSupportedStartYear)
+            .Where(IsSupportedFinancialYear)
             .ToList();
         if (!years.Contains(selected))
         {
