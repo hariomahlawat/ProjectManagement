@@ -1,6 +1,13 @@
-// IT projects board (docs/ux/it-projects.md): filters the rows already on the page as the user
-// types, so the search box never needs a round trip. The GET form stays the no-script fallback,
-// and the financial year select submits it through data-auto-submit.
+// IT projects board (docs/ux/it-projects.md).
+//
+// Two search modes, so the rows on the page and the search box never disagree:
+// - When the page holds the complete scoped board (no server-side search), the box filters the
+//   rows in place as the user types, with no round trip. The box is taken out of the GET form so
+//   the financial year select (data-auto-submit) and the pills never carry the typed text to the
+//   server, which would narrow the rows the box can then search.
+// - When the page was already narrowed by the server (a link or a no-script submit carried
+//   `q`), filtering the narrowed rows cannot bring the others back, so the box submits the form
+//   instead: on Enter, and when it is cleared.
 (function () {
     'use strict';
 
@@ -10,10 +17,31 @@
     }
 
     var input = board.querySelector('[data-itp-search]');
+    if (!input || !input.form) {
+        return;
+    }
+
+    var form = input.form;
+    var serverSearched = board.getAttribute('data-itp-server-search') === 'true';
+
+    if (serverSearched) {
+        var submitTimer = null;
+        input.addEventListener('input', function () {
+            window.clearTimeout(submitTimer);
+            if (input.value.trim() === '') {
+                submitTimer = window.setTimeout(function () { form.submit(); }, 250);
+            }
+        });
+        return;
+    }
+
+    // Client mode: the form never sends the search text.
+    input.removeAttribute('name');
+
     var rows = Array.prototype.slice.call(board.querySelectorAll('[data-itp-row]'));
     var bands = Array.prototype.slice.call(board.querySelectorAll('[data-itp-band]'));
     var noMatch = board.querySelector('[data-itp-no-match]');
-    if (!input || rows.length === 0) {
+    if (rows.length === 0) {
         return;
     }
 
@@ -54,16 +82,10 @@
         timer = window.setTimeout(apply, 120);
     });
 
-    // Enter in the search box would submit the form and reload with the same result; keep the
-    // in-place filter instead.
     input.addEventListener('keydown', function (event) {
         if (event.key === 'Enter') {
             event.preventDefault();
             apply();
         }
     });
-
-    if (input.value) {
-        apply();
-    }
 })();

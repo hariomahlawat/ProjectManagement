@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="~/css/pages/it-projects.css" asp-append-version="true" />
 }
 
-<div class="itp-page" data-itp-board>
+<div class="itp-page" data-itp-board data-itp-server-search="@(string.IsNullOrWhiteSpace(Model.Q) ? "false" : "true")">
     <header class="itp-head">
         <div class="itp-head__identity">
             <div class="itp-crumb" aria-label="Breadcrumb">ERP / IT projects</div>
@@ -179,13 +179,18 @@
                                 @foreach (var cell in row.Stages)
                                 {
                                     var text = ItProjectBoardPresentation.CellText(cell);
+                                    var cost = ItProjectBoardPresentation.CellCost(cell);
                                     <td class="itp-stage">
                                         <span class="itp-cell @ItProjectBoardPresentation.CellClass(cell)" title="@ItProjectBoardPresentation.CellTitle(cell)">
                                             <i class="itp-dot" aria-hidden="true"></i>
                                             <span class="visually-hidden">@ItProjectBoardPresentation.CellTitle(cell)</span>
                                             @if (text is not null)
                                             {
-                                                <small class="@(cell.IsCompleted && !cell.CompletedOn.HasValue ? "itp-cell__text--nd" : cell.CostLakhs.HasValue ? "itp-cell__text--cost" : null)" aria-hidden="true">@text</small>
+                                                <small class="@(cell.IsCompleted && !cell.CompletedOn.HasValue ? "itp-cell__text--nd" : null)" aria-hidden="true">@text</small>
+                                            }
+                                            @if (cost is not null)
+                                            {
+                                                <small class="itp-cell__text--cost" aria-hidden="true">@cost</small>
                                             }
                                         </span>
                                     </td>

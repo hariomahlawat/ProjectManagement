@@ -31,7 +31,7 @@ public static class ItProjectBoardPresentation
         _ => status.Label
     };
 
-    /// <summary>The text a stage cell shows under its dot, or null for nothing.</summary>
+    /// <summary>The first line a stage cell shows under its dot (date, "no date" or "now"), or null for nothing.</summary>
     public static string? CellText(ItProjectBoardStageCell cell)
     {
         if (cell.IsSkipped)
@@ -44,13 +44,12 @@ public static class ItProjectBoardPresentation
             return cell.CompletedOn.HasValue ? ShortDate(cell.CompletedOn.Value) : "no date";
         }
 
-        if (cell.CostLakhs.HasValue)
-        {
-            return Cost(cell.CostLakhs.Value);
-        }
-
         return cell.IsCurrent ? "now" : null;
     }
+
+    /// <summary>The cost line of a stage cell (SO only), shown whether or not the stage is complete.</summary>
+    public static string? CellCost(ItProjectBoardStageCell cell)
+        => !cell.IsSkipped && cell.CostLakhs.HasValue ? Cost(cell.CostLakhs.Value) : null;
 
     /// <summary>The tooltip of a stage cell.</summary>
     public static string CellTitle(ItProjectBoardStageCell cell)

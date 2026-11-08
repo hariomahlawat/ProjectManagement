@@ -134,9 +134,15 @@ public class ItProjectBoardPageTests
         Assert.Equal("TEC: done, date not recorded", ItProjectBoardPresentation.CellTitle(doneNoDate));
 
         var current = new ItProjectBoardStageCell("SO", 8, false, null, false, 46.8m, true);
-        Assert.Equal("₹ 46.80 L", ItProjectBoardPresentation.CellText(current));
+        Assert.Equal("now", ItProjectBoardPresentation.CellText(current));
+        Assert.Equal("₹ 46.80 L", ItProjectBoardPresentation.CellCost(current));
         Assert.Equal("SO: current stage, ₹ 46.80 L", ItProjectBoardPresentation.CellTitle(current));
         Assert.Equal("itp-cell--cur", ItProjectBoardPresentation.CellClass(current));
+
+        // The cost stays on the cell once SO is complete (Codex review, PR 2).
+        var doneWithCost = new ItProjectBoardStageCell("SO", 8, true, new DateOnly(2026, 2, 12), false, 12.4m, false);
+        Assert.Equal("12 Feb 26", ItProjectBoardPresentation.CellText(doneWithCost));
+        Assert.Equal("₹ 12.40 L", ItProjectBoardPresentation.CellCost(doneWithCost));
 
         var pending = new ItProjectBoardStageCell("DLV", 9, false, null, false, null, false);
         Assert.Null(ItProjectBoardPresentation.CellText(pending));
@@ -146,6 +152,8 @@ public class ItProjectBoardPageTests
         Assert.Null(ItProjectBoardPresentation.CellText(skipped));
         Assert.Equal("Benchmarking: skipped", ItProjectBoardPresentation.CellTitle(skipped));
         Assert.Equal("itp-cell--skip", ItProjectBoardPresentation.CellClass(skipped));
+        Assert.Null(ItProjectBoardPresentation.CellCost(pending));
+        Assert.Null(ItProjectBoardPresentation.CellCost(skipped));
 
         Assert.Equal("FY 2026-27", ItProjectBoardPresentation.FinancialYear(2026));
         Assert.Equal("₹ 1,23,456.70 L", ItProjectBoardPresentation.Cost(123456.7m));
