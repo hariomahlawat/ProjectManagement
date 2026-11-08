@@ -130,7 +130,7 @@ public sealed class AdminReferenceListTests : IAsyncLifetime
 
         var build = all.Rows.Single(row => row.Name == "Build");
         Assert.Equal(2, build.UsageCount);
-        Assert.Equal("2 projects", Assert.Single(build.UsedBy).Text);
+        Assert.Equal(new[] { "2 projects", "0 change requests" }, build.UsedBy.Select(item => item.Text));
         Assert.False(build.CanDelete);
         Assert.False(build.CanMoveUp);
         Assert.True(build.CanMoveDown);
@@ -168,11 +168,53 @@ public sealed class AdminReferenceListTests : IAsyncLifetime
 
         Assert.Equal(new ReferenceListTiles(2, 1, 0), units.Tiles);
         Assert.Equal(new ReferenceListTiles(1, 1, 0), lines.Tiles);
-        Assert.Equal("1 project", Assert.Single(units.Rows.Single(row => row.Name == "Army HQ").UsedBy).Text);
+        Assert.Equal("1 project", units.Rows.Single(row => row.Name == "Army HQ").UsedBy[0].Text);
 
         var lineRow = await db.LineDirectorates.AsNoTracking().SingleAsync();
         var refused = await service.DeleteAsync(ReferenceListKeys.LineDirectorates, lineRow.Id, lineRow.RowVersion);
         Assert.Equal("EntityInUse", refused.ErrorCode);
+    }
+
+    // A project change request keeps the item it started from in a column and the item it
+    // proposes in its JSON payload, with no foreign key behind either (Codex review on #3015).
+    [Theory]
+    [InlineData("original")]
+    [InlineData("proposed")]
+    public async Task Delete_IsRefusedWhileAChangeRequestNamesTheItem(string how)
+    {
+        int typeId;
+        await using (var seed = new ApplicationDbContext(_options))
+        {
+            var type = new ProjectType { Name = "Prototype", SortOrder = 0 };
+            var project = new Project { Name = "Radar", CreatedByUserId = Admin, CreatedAt = DateTime.UtcNow };
+            seed.AddRange(type, project);
+            await seed.SaveChangesAsync();
+            typeId = type.Id;
+            seed.ProjectMetaChangeRequests.Add(new ProjectMetaChangeRequest
+            {
+                ProjectId = project.Id,
+                ChangeType = "Meta",
+                Payload = how == "proposed" ? $"{{\"name\":\"Radar\",\"projectTypeId\":{type.Id}}}" : "{\"name\":\"Radar\"}",
+                OriginalName = "Radar",
+                OriginalProjectTypeId = how == "original" ? type.Id : null,
+                DecisionStatus = "Pending"
+            });
+            await seed.SaveChangesAsync();
+        }
+
+        await using var db = new ApplicationDbContext(_options);
+        var service = CreateService(db, new CapturingAdminAudit());
+        var page = await service.GetPageAsync(ReferenceListKeys.ProjectTypes, new ReferenceListRequest(null, "inuse", 1, 25));
+        var row = Assert.Single(page.Rows);
+        Assert.Equal(new[] { "0 projects", "1 change request" }, row.UsedBy.Select(item => item.Text));
+        Assert.False(row.CanDelete);
+        Assert.Equal(1, page.Tiles.InUse);
+
+        var stored = await db.ProjectTypes.AsNoTracking().SingleAsync(item => item.Id == typeId);
+        var result = await service.DeleteAsync(ReferenceListKeys.ProjectTypes, typeId, stored.RowVersion);
+        Assert.Equal("EntityInUse", result.ErrorCode);
+        Assert.Contains("used by 1 change request", result.UserMessage);
+        Assert.True(await db.ProjectTypes.AnyAsync(item => item.Id == typeId));
     }
 
     public static IEnumerable<object[]> ListPages() => new[]

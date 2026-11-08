@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Admin.MasterData.ReferenceLists;
 
@@ -18,15 +19,37 @@ public static class ReferenceListKeys
 
 /// <summary>
 /// One kind of record that uses a list item, such as projects. An item is in use when any of
-/// its list's sources names it.
+/// its list's sources names it. A source gives either a query the database runs
+/// (<see cref="ReferencingIds"/>) or, for ids the database cannot read (inside JSON), a loader
+/// that reads them in memory (<see cref="LoadReferencingIds"/>). Either way it yields one id per
+/// record that uses the item.
 /// </summary>
-/// <param name="One">The record in the singular, for "Used by 1 project".</param>
-/// <param name="Many">The record in the plural, for "Used by 3 projects".</param>
-/// <param name="ReferencingIds">The list item ids the records point at, one per record.</param>
-public sealed record ReferenceListUsageSource(
-    string One,
-    string Many,
-    Func<ApplicationDbContext, IQueryable<int>> ReferencingIds);
+public sealed class ReferenceListUsageSource
+{
+    public ReferenceListUsageSource(string one, string many, Func<ApplicationDbContext, IQueryable<int>> referencingIds)
+    {
+        One = one;
+        Many = many;
+        ReferencingIds = referencingIds ?? throw new ArgumentNullException(nameof(referencingIds));
+    }
+
+    public ReferenceListUsageSource(string one, string many, Func<ApplicationDbContext, CancellationToken, Task<IReadOnlyList<int>>> loadReferencingIds)
+    {
+        One = one;
+        Many = many;
+        LoadReferencingIds = loadReferencingIds ?? throw new ArgumentNullException(nameof(loadReferencingIds));
+    }
+
+    /// <summary>The record in the singular, for "1 project".</summary>
+    public string One { get; }
+
+    /// <summary>The record in the plural, for "3 projects".</summary>
+    public string Many { get; }
+
+    public Func<ApplicationDbContext, IQueryable<int>>? ReferencingIds { get; }
+
+    public Func<ApplicationDbContext, CancellationToken, Task<IReadOnlyList<int>>>? LoadReferencingIds { get; }
+}
 
 /// <summary>
 /// A column a list shows between Name and Order, such as a code or a parent.
@@ -155,22 +178,86 @@ public static class ReferenceListCatalog
         "project", "projects",
         db => db.Projects.Where(project => project.SponsoringLineDirectorateId != null).Select(project => project.SponsoringLineDirectorateId!.Value));
 
+    // Project change requests keep the item they started from in a column and the item they
+    // propose inside their JSON payload; neither has a foreign key. Every request counts, decided
+    // ones too, because their history shows the names.
+    private static ReferenceListUsageSource ChangeRequests(
+        Func<ChangeRequestIds, int?> original,
+        Func<ProjectMetaChangeRequestPayload, int?> proposed) => new(
+        "change request", "change requests",
+        async (db, cancellationToken) =>
+        {
+            var rows = await db.ProjectMetaChangeRequests.AsNoTracking()
+                .Select(request => new ChangeRequestIds
+                {
+                    ProjectTypeId = request.OriginalProjectTypeId,
+                    SponsoringUnitId = request.OriginalSponsoringUnitId,
+                    LineDirectorateId = request.OriginalSponsoringLineDirectorateId,
+                    Payload = request.Payload
+                })
+                .ToListAsync(cancellationToken);
+            var ids = new List<int>();
+            foreach (var row in rows)
+            {
+                var named = new HashSet<int>();
+                if (original(row) is int start) named.Add(start);
+                if (ReadPayload(row.Payload) is { } payload && proposed(payload) is int target) named.Add(target);
+                ids.AddRange(named);
+            }
+
+            return ids;
+        });
+
+    private sealed class ChangeRequestIds
+    {
+        public int? ProjectTypeId { get; init; }
+        public int? SponsoringUnitId { get; init; }
+        public int? LineDirectorateId { get; init; }
+        public string? Payload { get; init; }
+    }
+
+    private static ProjectMetaChangeRequestPayload? ReadPayload(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<ProjectMetaChangeRequestPayload>(json);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static readonly ReferenceListUsageSource ChangeRequestsByType =
+        ChangeRequests(row => row.ProjectTypeId, payload => payload.ProjectTypeId);
+
+    private static readonly ReferenceListUsageSource ChangeRequestsBySponsoringUnit =
+        ChangeRequests(row => row.SponsoringUnitId, payload => payload.SponsoringUnitId);
+
+    private static readonly ReferenceListUsageSource ChangeRequestsByLineDirectorate =
+        ChangeRequests(row => row.LineDirectorateId, payload => payload.SponsoringLineDirectorateId);
+
     // Every project row counts, archived and deleted ones too: the database's foreign key
     // refuses a delete while any project row points at the item.
     public static ReferenceListDefinition ProjectTypes { get; } = new ReferenceListDefinition<ProjectType>(
         ReferenceListKeys.ProjectTypes, "project type", "Project types", "ProjectType",
         "MasterData.ProjectTypeDeleted", AdminPolicies.MasterDataManage,
-        db => db.ProjectTypes, new[] { ProjectsByType });
+        db => db.ProjectTypes, new[] { ProjectsByType, ChangeRequestsByType });
 
     public static ReferenceListDefinition SponsoringUnits { get; } = new ReferenceListDefinition<SponsoringUnit>(
         ReferenceListKeys.SponsoringUnits, "sponsoring unit", "Sponsoring units", "SponsoringUnit",
         "MasterData.SponsoringUnitDeleted", AdminPolicies.MasterDataManage,
-        db => db.SponsoringUnits, new[] { ProjectsBySponsoringUnit });
+        db => db.SponsoringUnits, new[] { ProjectsBySponsoringUnit, ChangeRequestsBySponsoringUnit });
 
     public static ReferenceListDefinition LineDirectorates { get; } = new ReferenceListDefinition<LineDirectorate>(
         ReferenceListKeys.LineDirectorates, "line directorate", "Line directorates", "LineDirectorate",
         "MasterData.LineDirectorateDeleted", AdminPolicies.MasterDataManage,
-        db => db.LineDirectorates, new[] { ProjectsByLineDirectorate });
+        db => db.LineDirectorates, new[] { ProjectsByLineDirectorate, ChangeRequestsByLineDirectorate });
 
     public static IReadOnlyList<ReferenceListDefinition> All { get; } = new[] { ProjectTypes, SponsoringUnits, LineDirectorates };
 

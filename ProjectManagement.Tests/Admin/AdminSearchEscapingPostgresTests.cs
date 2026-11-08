@@ -55,7 +55,7 @@ public sealed class AdminSearchEscapingPostgresTests
             percent = await lists.GetPageAsync(
                 ReferenceListKeys.SponsoringUnits, new ReferenceListRequest("50%", "all", 1, 25));
             Assert.Equal(new[] { "Share 50% cut" }, percent.Rows.Select(row => row.Name));
-            Assert.Equal("0 projects", Assert.Single(percent.Rows[0].UsedBy).Text);
+            Assert.Equal(new[] { "0 projects", "0 change requests" }, percent.Rows[0].UsedBy.Select(item => item.Text));
 
             var recovery = new ProjectRecoveryQueryService(
                 db,

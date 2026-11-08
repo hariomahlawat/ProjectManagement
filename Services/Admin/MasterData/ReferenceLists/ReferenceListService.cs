@@ -120,10 +120,9 @@ public sealed class ReferenceListService : IReferenceListService
         };
 
         var all = definition.Items(_db);
-        var used = UsedIds(definition);
         var filtered = status switch
         {
-            ReferenceListStatuses.InUse => all.Where(item => used.Contains(item.Id)),
+            ReferenceListStatuses.InUse => await WhereInUseAsync(definition, all, cancellationToken),
             ReferenceListStatuses.Active => all.Where(item => item.IsActive),
             ReferenceListStatuses.Inactive => all.Where(item => !item.IsActive),
             _ => all
@@ -281,24 +280,44 @@ public sealed class ReferenceListService : IReferenceListService
     private static ReferenceListDefinition Require(string key) =>
         ReferenceListCatalog.Find(key) ?? throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown reference list.");
 
-    private IQueryable<int> UsedIds(ReferenceListDefinition definition)
+    // Items some record uses. Sources the database can query stay one subquery; sources read in
+    // memory (ids inside JSON, for example) are passed in as a list.
+    private async Task<IQueryable<ReferenceListItemProjection>> WhereInUseAsync(
+        ReferenceListDefinition definition,
+        IQueryable<ReferenceListItemProjection> items,
+        CancellationToken cancellationToken)
     {
-        IQueryable<int>? used = null;
+        IQueryable<int>? queried = null;
+        var loaded = new HashSet<int>();
         foreach (var source in definition.UsedBy)
         {
-            var ids = source.ReferencingIds(_db);
-            used = used is null ? ids : used.Union(ids);
+            if (source.ReferencingIds is not null)
+            {
+                var ids = source.ReferencingIds(_db);
+                queried = queried is null ? ids : queried.Union(ids);
+            }
+            else
+            {
+                loaded.UnionWith(await source.LoadReferencingIds!(_db, cancellationToken));
+            }
         }
 
-        return used!;
+        var loadedIds = loaded.ToArray();
+        if (queried is null)
+        {
+            return items.Where(item => loadedIds.Contains(item.Id));
+        }
+
+        return loadedIds.Length == 0
+            ? items.Where(item => queried.Contains(item.Id))
+            : items.Where(item => queried.Contains(item.Id) || loadedIds.Contains(item.Id));
     }
 
     private async Task<ReferenceListTiles> CountTilesAsync(ReferenceListDefinition definition, CancellationToken cancellationToken)
     {
         var all = definition.Items(_db);
-        var used = UsedIds(definition);
         var total = await all.CountAsync(cancellationToken);
-        var inUse = await all.CountAsync(item => used.Contains(item.Id), cancellationToken);
+        var inUse = await (await WhereInUseAsync(definition, all, cancellationToken)).CountAsync(cancellationToken);
         var inactive = await all.CountAsync(item => !item.IsActive, cancellationToken);
         return new ReferenceListTiles(total, inUse, inactive);
     }
@@ -318,12 +337,21 @@ public sealed class ReferenceListService : IReferenceListService
                 continue;
             }
 
-            var grouped = await source.ReferencingIds(_db)
-                .Where(value => idArray.Contains(value))
-                .GroupBy(value => value)
-                .Select(group => new { group.Key, Count = group.Count() })
-                .ToDictionaryAsync(item => item.Key, item => item.Count, cancellationToken);
-            counts.Add(grouped);
+            if (source.ReferencingIds is not null)
+            {
+                counts.Add(await source.ReferencingIds(_db)
+                    .Where(value => idArray.Contains(value))
+                    .GroupBy(value => value)
+                    .Select(group => new { group.Key, Count = group.Count() })
+                    .ToDictionaryAsync(item => item.Key, item => item.Count, cancellationToken));
+            }
+            else
+            {
+                counts.Add((await source.LoadReferencingIds!(_db, cancellationToken))
+                    .Where(value => idArray.Contains(value))
+                    .GroupBy(value => value)
+                    .ToDictionary(group => group.Key, group => group.Count()));
+            }
         }
 
         return idArray.ToDictionary(
