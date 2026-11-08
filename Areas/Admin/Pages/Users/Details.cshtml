@@ -318,7 +318,7 @@
                                     <p>@activity.Message</p>
                                 }
                                 <div class="admin-activity-timeline__meta">
-                                    <span><i class="bi bi-person" aria-hidden="true"></i> Performed by @activity.Actor</span>
+                                    <span><i class="bi bi-person" aria-hidden="true"></i> @(activity.Actor == ProjectManagement.Services.Admin.AuditEntryPresenter.ActorNotRecorded ? "Who did this was not recorded" : $"Done by {activity.Actor}")</span>
                                 </div>
                             </div>
                         </article>

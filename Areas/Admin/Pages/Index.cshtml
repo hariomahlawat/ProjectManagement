@@ -133,6 +133,10 @@
                     <li>
                         <span>
                             <strong>@presentation.Label</strong>
+                            @if (!string.IsNullOrWhiteSpace(action.Record))
+                            {
+                                <span> · @action.Record</span>
+                            }
                             @if (!string.Equals(action.Message, action.Action, StringComparison.OrdinalIgnoreCase))
                             {
                                 <span> · @action.Message</span>

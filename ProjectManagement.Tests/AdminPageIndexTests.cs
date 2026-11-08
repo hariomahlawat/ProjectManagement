@@ -63,7 +63,10 @@ public sealed class AdminPageIndexTests
         Assert.Equal("Lists used in forms", pages[AdminNavigationKeys.SponsoringUnits].OpensFrom);
         Assert.Null(pages[AdminNavigationKeys.SponsoringUnits].OwnModule);
         Assert.Equal("the Decision Centre", pages[AdminNavigationKeys.DocumentDeleteRequests].OwnModule);
-        Assert.Equal("the Document Repository", pages[AdminNavigationKeys.UnreadablePdfs].OwnModule);
+        // Unreadable PDFs and Missing files render inside Administration (fourth review, PR 6).
+        Assert.Null(pages[AdminNavigationKeys.UnreadablePdfs].OwnModule);
+        Assert.Null(pages[AdminNavigationKeys.MissingDocumentFiles].OwnModule);
+        Assert.Equal("System health", pages[AdminNavigationKeys.MissingDocumentFiles].OpensFrom);
         // Repository trash renders inside Administration (third review, PR 14).
         Assert.Null(pages[AdminNavigationKeys.RepositoryTrash].OwnModule);
         // The repository and social media lists render inside Administration (third review, PR 12).

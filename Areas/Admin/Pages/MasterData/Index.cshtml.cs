@@ -5,6 +5,7 @@ using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.MasterData;
+using ProjectManagement.Services.Navigation.ModuleNav;
 
 namespace ProjectManagement.Areas.Admin.Pages.MasterData;
 
@@ -81,13 +82,24 @@ public sealed class IndexModel : PageModel
     public string DomainUrl(MasterDataDomainSummary domain) =>
         Url.Page(domain.Page, new { area = domain.Area }) ?? "#";
 
-    /// <summary>Lists kept by another module open there, with that module's menu.</summary>
-    public static string? OpensIn(MasterDataDomainSummary domain) => domain.Area switch
+    /// <summary>
+    /// Names the module a list opens in when it leaves Administration; null for a list that opens
+    /// inside Administration, as the repository and social media lists now do.
+    /// </summary>
+    public static string? OpensIn(MasterDataDomainSummary domain)
     {
-        "DocumentRepository" => "the Document Repository",
-        "ProjectOfficeReports" => "Project office reports",
-        _ => null
-    };
+        if (AdminNavigationCatalog.IsInScope(domain.Area, domain.Page, null, null))
+        {
+            return null;
+        }
+
+        return domain.Area switch
+        {
+            "DocumentRepository" => "the Document Repository",
+            "ProjectOfficeReports" => "Project office reports",
+            _ => null
+        };
+    }
 
     public static string Values(MasterDataDomainSummary domain) =>
         (domain.Total == 1 ? "1 value" : $"{domain.Total:N0} values")

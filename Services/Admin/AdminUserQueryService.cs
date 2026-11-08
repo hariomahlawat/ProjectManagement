@@ -407,7 +407,7 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
         var boundedLimit = Math.Clamp(limit, 1, MaximumActivityRows);
         var entityIdToken = $"\"EntityId\":\"{userId}\"";
 
-        return await _db.AuditLogs.AsNoTracking()
+        var rows = await _db.AuditLogs.AsNoTracking()
             .Where(audit =>
                 audit.Action.StartsWith("AdminUser")
                 && ((audit.DataJson != null && audit.DataJson.Contains(entityIdToken))
@@ -415,14 +415,38 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
             .OrderByDescending(audit => audit.TimeUtc)
             .ThenByDescending(audit => audit.Id)
             .Take(boundedLimit)
-            .Select(audit => new AdminUserAdministrativeActivity(
+            .Select(audit => new
+            {
                 audit.Id,
                 audit.Level,
                 audit.Action,
-                audit.Message ?? audit.Action,
-                audit.UserName ?? "System",
-                audit.TimeUtc))
+                audit.Message,
+                audit.UserId,
+                audit.UserName,
+                audit.DataJson,
+                audit.TimeUtc
+            })
             .ToListAsync(cancellationToken);
+
+        // The person who acted, through the audit log's one name lookup, and a plain detail
+        // instead of the stored user name (docs/ux/admin-review-4-fixes.md, PR 7).
+        var views = await AuditEntryPresenter.DescribeAsync(
+            _db,
+            rows.Select(audit => new AuditEntrySource(audit.Action, audit.Message, audit.UserId, audit.UserName, audit.DataJson))
+                .ToArray(),
+            null,
+            cancellationToken);
+
+        return rows
+            .Select((audit, index) => new AdminUserAdministrativeActivity(
+                audit.Id,
+                audit.Level,
+                audit.Action,
+                // The page hides a message equal to the action.
+                views[index].Detail ?? audit.Action,
+                views[index].Actor,
+                audit.TimeUtc))
+            .ToArray();
     }
 
     private IQueryable<ApplicationUser> ComposeBaseQuery(AdminUserListRequest request)

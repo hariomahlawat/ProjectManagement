@@ -220,37 +220,60 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
                 group: MasterDataGroups.Calendar, usedIn: "Shared calendar")
         };
 
-        var auditRows = await (
-                from item in _db.AuditLogs.AsNoTracking()
-                where item.Action.StartsWith("MasterData.")
-                    || item.Action.StartsWith("Holiday")
-                    || item.Action.StartsWith("GazettedHoliday")
-                    || item.Action.StartsWith("RestrictedHoliday")
-                    || item.Action.StartsWith("Celebration")
-                join user in _db.Users on item.UserId equals user.Id into users
-                from user in users.DefaultIfEmpty()
-                orderby item.TimeUtc descending, item.Id descending
-                select new
-                {
-                    item.Id,
-                    item.Action,
-                    item.Level,
-                    // The person's name when the log kept only their id.
-                    Actor = item.UserName ?? (user == null ? item.UserId : (user.FullName ?? user.UserName)),
-                    item.Message,
-                    item.TimeUtc
-                })
+        var auditRows = await _db.AuditLogs.AsNoTracking()
+            .Where(item => item.Action.StartsWith("MasterData.")
+                || item.Action.StartsWith("Holiday")
+                || item.Action.StartsWith("GazettedHoliday")
+                || item.Action.StartsWith("RestrictedHoliday")
+                || item.Action.StartsWith("Celebration"))
+            .OrderByDescending(item => item.TimeUtc)
+            .ThenByDescending(item => item.Id)
             .Take(8)
+            .Select(item => new
+            {
+                item.Id,
+                item.Action,
+                item.Level,
+                item.UserId,
+                item.UserName,
+                item.Message,
+                item.DataJson,
+                item.TimeUtc
+            })
             .ToListAsync(cancellationToken);
 
-        var recentChanges = auditRows.Select(item =>
+        // People through the audit log's one name lookup, and the changed item by name
+        // (docs/ux/admin-review-4-fixes.md, PR 7).
+        var views = await AuditEntryPresenter.DescribeAsync(
+            _db,
+            auditRows.Select(item => new AuditEntrySource(
+                    item.Action,
+                    item.Message,
+                    item.UserId,
+                    item.UserName,
+                    item.DataJson,
+                    _auditPresentation.Describe(item.Action, item.Level).Label))
+                .ToArray(),
+            null,
+            cancellationToken);
+
+        var recentChanges = auditRows.Select((item, index) =>
         {
             var presentation = _auditPresentation.Describe(item.Action, item.Level);
+            var view = views[index];
+            var message = (view.Record?.Name, view.Detail) switch
+            {
+                ({ } name, { } detail) when detail.Contains(name, StringComparison.OrdinalIgnoreCase) => detail,
+                ({ } name, { } detail) => $"{name}: {detail}",
+                ({ } name, null) => name,
+                (null, { } detail) => detail,
+                _ => null
+            };
             return new MasterDataRecentChange(
                 item.Id,
                 presentation.Label,
-                item.Actor,
-                item.Message,
+                view.Actor,
+                message,
                 new DateTimeOffset(EnsureUtc(item.TimeUtc)),
                 presentation.Icon,
                 presentation.Tone);

@@ -143,14 +143,6 @@ public sealed class AdminNavigationCatalogTests
         });
     }
 
-    [Theory]
-    [InlineData("DocumentRepository", "/Admin/OCRFailures/OcrFailures")]
-    public void PagesFromOtherModules_KeepTheirOwnLayout(string area, string page)
-    {
-        Assert.NotNull(AdminNavigationCatalog.FindActiveEntry(area, page, new QueryCollection()));
-        Assert.False(AdminNavigationCatalog.IsInScope(area, page, null, null, new QueryCollection()));
-    }
-
     [Fact]
     public void DocumentDeletionApprovals_IsTheDecisionCentreFilteredToRepositoryDeletions()
     {

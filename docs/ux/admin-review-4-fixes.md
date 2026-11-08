@@ -195,6 +195,37 @@ No PR in this plan needs a database migration.
 - Checked on screen at 375 px and 1440 px, light and dark: page width equals the viewport on every page above.
 - Tests: `AdminPhonesRoundTwoTests`.
 
+### PR 7 shipped: a readable audit log
+
+**Shipped.** U5 and U9.
+
+- **Plain details, worked out when shown.** `AuditEntryDescriber` (Services/Admin) turns what every entry already stores (the action, the message, the user columns and the details JSON) into one plain sentence and the record the entry changed. Old entries read as well as new ones, and nothing stored changes: no new fields, no rewritten rows, the same CSV columns. For example:
+  - "Synchronized the IPA stage … for project 185" → "IPA stage set as completed on 22 Apr 2025, from the Original ARPP.", with the project's name under Affected record;
+  - "FfcGlobalFootprint additional slide enabled." → "FFC global footprint slide switched on.";
+  - "1 project(s) added to briefing deck." → "1 project added.", with the deck's name under Affected record;
+  - "Normalised display order for 5 record(s)." → "Put 5 items back in order.", with "Sponsoring units" (List) instead of "MasterDataIntegrity / sponsoring-unit-order";
+  - "Invalid credentials for hariomahlawat" → "Wrong user name or password.", with the person under Affected record.
+  - A detail that only repeats the title, or is only a user name (account changes stored the account's user name as their message), is left out. Any other message is kept, with "(s)" turned into the right plural.
+- **Affected record by name.** Filled for sign-ins (the account, or the user name typed when no account matches), account changes, projects (any entry with a project id), briefing decks, ARPP issues, list items and whole lists. A record that is gone shows the name the entry stored, or "No. 999" marked "no longer in PRISM". `AuditEntryPresenter` looks the names up for the whole page: one query for every person (actors and accounts), and one query per kind of record on the page, never one per row. Project, account and list-item records link as before.
+- **New titles** for actions that had machine-made ones: the ARPP issue events, "IPA stage set from the ARPP", the briefing deck extra-slide and template events, "Account details changed", "Roles changed", "Project video added"; "Display order normalised" is now "List put back in order", and PDF copying reads "Copying PDFs started/finished/…".
+- **Old account entries.** Entries written before the admin audit envelope kept the affected account in the user columns, so the log called that account the actor. They now show the account under Affected record and the actor from the stored "Actor" id, or "Not recorded" when the entry did not keep one.
+- **Category names match the sidebar.** "Lists used in forms", "Copy PDFs into the repository" and "Legacy project import", in the filter, its chip, the drawer and the CSV's Category values. The query values (`master-data`, `pdf-ingestion`, `legacy-import`) are unchanged. The list hub's "Open the audit log" link sent `master data`, which filtered nothing; it now sends `master-data`, and the old value is still accepted.
+- **People by name (U9).** The list hub's recent changes, a user's Audit history ("Done by Hari Om Ahlawat") and Home's recent changes go through `AuditEntryPresenter`, so through `AuditActorNames`. Sign-in activity looks up the typed user name of a failed or locked sign-in in the same one query, and shows the person's name with the user name when it matches an account.
+- Routes, filters' query values, CSV columns and policies are unchanged. No migration, no new scripts or packages.
+- Tests: `AdminReadableAuditLogTests` (a plain detail for each changed action, details dropped when they only repeat the title or a user name, plurals, the new titles and category names, the old `master data` link, Affected record filled by name for each kind, old account entries, the three places that showed user names, and names read once per page on SQLite with 25 rows).
+
+### PR 6 shipped: the last two pages in Administration
+
+**Shipped.** U4, U8 and part of U11.
+
+- **Unreadable PDFs and Missing files in the admin layout (U4).** Both pages (`/DocumentRepository/Admin/OCRFailures/OcrFailures`, `/DocumentRepository/Admin/MissingFiles`) render inside Administration for administrators: sidebar with System health lit, mobile header, the "System" eyebrow and the shared admin page header, like the Repository trash (third review, PR 14). "Read all again" moved into the header's actions and shows while anything is listed. The "← Administration" strip hides itself, and "Back to the library" now shows only to a Head of Department, who can open the pages but gets the normal layout; so each viewer has one way back. The Documents tab in the top bar is no longer lit there.
+  - Their catalogue entries drop `usesAdminShell: false` and name System health as the sidebar parent, so Every admin page says they open from System health. Missing files' icon was a Bootstrap icon that does not exist; it is now `bi-file-earmark-x`, as in the library's menu. System health's Missing files sentence no longer says "(Document Repository)".
+  - Inside the shell the library body drops its own gutter (`.admin-shell__content .library.docrepo-admin-page`), as the trash does.
+- **"Opens in …" only where it is true (U8).** `/Admin/MasterData` asks the admin catalogue whether a list's page renders in Administration, and names another module only when it does not. Repository document types, Repository offices and both social media lists lose the hint. Every admin page no longer names the Document Repository for any page; only Document deletion approvals still says "Opens in the Decision Centre".
+- **Main menu names (part of U11).** The Documents dropdown says Unreadable PDFs, Repository offices and Repository document types, the names Administration uses.
+- Routes, handlers and policies unchanged; old URLs work. No migration. Rollback: the previous release renders the pages in the library's layout.
+- Tests: `AdminLastPagesInShellTests` (both pages in the shell under System health, the admin header and one way back, the hint only for a list that leaves Administration); `AdminPageIndexTests`, `AdminNavigationCatalogTests` and `RoleBasedNavigationProviderTests` updated.
+
 ## Owner actions still open
 - Mark Test HoD, Test Project Officer and the two Claude Review accounts as Test in Edit user → "Kind of account", so ERP usage stops counting them.
 - Review the "Restored but still hidden" list next to Repository trash, and reactivate the documents that should be visible.

@@ -238,9 +238,47 @@ public sealed class IndexModel : PageModel
 
     public AdminClientDescriptor Client(AdminLogRow row) => _clients.Describe(row.UserAgent);
 
-    public AdminAuditEntityLink? EntityLink(AdminLogRow row) => row.Payload is null
-        ? null
-        : _entityLinks.Resolve(HttpContext, row.Payload);
+    public AdminAuditEntityLink? EntityLink(AdminLogRow row)
+    {
+        if (row.Payload is { EntityType: not null, EntityId: not null } stored)
+        {
+            return _entityLinks.Resolve(HttpContext, stored);
+        }
+
+        // Entries that name their record only in their own details (a project id, a person's
+        // account) link the same way as entries written with an entity type and id.
+        var entityType = row.RecordRef?.Kind switch
+        {
+            AuditRecordKinds.Project => "Project",
+            AuditRecordKinds.Person => "ApplicationUser",
+            { } kind when AuditRecordKinds.ListItemKinds.Contains(kind) => kind,
+            _ => null
+        };
+        return entityType is null
+            ? null
+            : _entityLinks.Resolve(
+                HttpContext,
+                new AdminAuditPayload(entityType, row.RecordRef!.Key, null, null, null, null, null, null, null, null, null, null));
+    }
+
+    /// <summary>
+    /// The Category filter's words, matching the sidebar. The query values ("master-data",
+    /// "pdf-ingestion") stay as they were, so saved links keep working.
+    /// </summary>
+    public static string CategoryLabel(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        "authentication" => "Authentication",
+        "access" or "access-security" => "Access & security",
+        "projects" => "Projects",
+        "documents" => "Documents",
+        "calendar" => "Calendar",
+        "recovery" => "Recovery",
+        "master-data" or "master data" => AuditActionPresentationCatalog.ListsCategory,
+        "pdf-ingestion" => AuditActionPresentationCatalog.PdfCopyCategory,
+        "legacy-import" => AuditActionPresentationCatalog.LegacyImportCategory,
+        null or "" => "All categories",
+        _ => value!.Replace('-', ' ')
+    };
 
     public string DetailJson(AdminLogRow row)
     {
@@ -263,13 +301,13 @@ public sealed class IndexModel : PageModel
             ActorRoles(row),
             payload?.EntityType,
             payload?.EntityId,
-            payload?.AffectedRecord,
+            row.Record?.ToString() ?? payload?.AffectedRecord,
             entityLink?.Text,
             entityLink?.Href,
             row.Ip,
             client.Summary,
             client.RawUserAgent,
-            row.Message,
+            row.Detail,
             payload?.Reason,
             payload?.Outcome,
             payload?.TraceId,
