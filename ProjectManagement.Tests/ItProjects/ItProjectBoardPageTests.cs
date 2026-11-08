@@ -53,8 +53,7 @@ public class ItProjectBoardPageTests
         Assert.Equal(1, page.Board.DroppedCount);
         Assert.Equal(4, page.AllCount);
         Assert.Equal(2026, page.CurrentFinancialYearStart); // clock is 8 Nov 2026
-        Assert.Equal(1, page.CompletedThisFinancialYear);   // delivered 20 Sep 2026 is in FY 2026-27
-        Assert.Equal("PPP", page.BusiestStage!.StageCode);  // PPP and SO tie at 1; the earlier stage wins
+        Assert.Equal(1, page.Board.Figures.DeliveredInFinancialYear); // delivered 20 Sep 2026 is in FY 2026-27
         Assert.DoesNotContain(page.ScopedRows, row => row.Id == completedId);
     }
 
@@ -283,7 +282,7 @@ public class ItProjectBoardPageTests
         }
     }
 
-    private static PageContext Context(System.Security.Claims.ClaimsPrincipal user)
+    internal static PageContext Context(System.Security.Claims.ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext { User = user };
         var actionContext = new ActionContext(httpContext, new RouteData(), new PageActionDescriptor(), new ModelStateDictionary());

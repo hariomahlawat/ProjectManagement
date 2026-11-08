@@ -15,55 +15,96 @@
 }
 
 <div class="itp-page" data-itp-board data-itp-server-search="@(string.IsNullOrWhiteSpace(Model.Q) ? "false" : "true")">
-    <header class="itp-head">
-        <div class="itp-head__identity">
+    <header class="itp-board-head">
+        <div class="itp-board-head__identity">
             <div class="itp-crumb" aria-label="Breadcrumb">ERP / IT projects</div>
-            <h1 class="itp-title">IT projects</h1>
-            <p class="itp-subtitle">Where every IT PPP case stands, from PPP to delivery.</p>
-            <div class="itp-rule" aria-hidden="true"></div>
+            <h1 class="itp-board-head__title">IT projects</h1>
+            <p class="itp-board-head__lead">Every IT PPP case, where it stands and how long it has been there.</p>
         </div>
-        @if (Model.CanManage)
-        {
-            <div class="itp-head__actions">
+        <div class="itp-board-head__actions">
+            <nav class="itp-fy" aria-label="Financial year">
+                <a class="itp-fy__item @(Model.Fy is null ? "itp-fy__item--on" : null)" aria-current="@(Model.Fy is null ? "page" : null)"
+                   asp-page="./Index" asp-route-scope="@scopeKey" asp-route-q="@Model.Q" asp-route-group="@Model.Group">All years</a>
+                @foreach (var year in Model.RecentYears)
+                {
+                    <a class="itp-fy__item @(Model.Fy == year ? "itp-fy__item--on" : null)" aria-current="@(Model.Fy == year ? "page" : null)"
+                       asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@year" asp-route-q="@Model.Q" asp-route-group="@Model.Group">@FinancialYearHelper.Format(year)</a>
+                }
+                @if (Model.EarlierYears.Count > 0)
+                {
+                    <form method="get" class="itp-fy__earlier">
+                        <input type="hidden" name="scope" value="@scopeKey" />
+                        <input type="hidden" name="q" value="@Model.Q" />
+                        <input type="hidden" name="group" value="@Model.Group" />
+                        <label class="visually-hidden" for="itpEarlierYear">Earlier financial year</label>
+                        <select id="itpEarlierYear" name="fy" class="form-select form-select-sm @(Model.EarlierYears.Contains(Model.Fy ?? 0) ? "itp-fy__select--on" : null)" data-auto-submit>
+                            <option value="" selected="@(!Model.EarlierYears.Contains(Model.Fy ?? 0))">Earlier</option>
+                            @foreach (var year in Model.EarlierYears)
+                            {
+                                <option value="@year" selected="@(Model.Fy == year)">@FinancialYearHelper.Format(year)</option>
+                            }
+                        </select>
+                        <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Go</button></noscript>
+                    </form>
+                }
+            </nav>
+            @if (Model.CanManage)
+            {
                 <a class="btn btn-primary itp-btn-primary" asp-page="./Create"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>New IT project</span></a>
-            </div>
-        }
+            }
+        </div>
     </header>
 
-    <section class="itp-strip" aria-label="Summary">
-        <a class="itp-tile @(scopeKey == "active" ? "itp-tile--selected" : null)" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">
-            <span class="itp-tile__k">In progress</span>
-            <span class="itp-tile__v">@Model.Board.ActiveCount</span>
-            <span class="itp-tile__s">@(Model.Fy.HasValue ? $"in FY {fyLabel}" : "across all financial years")</span>
+    @{
+        var figures = Model.Board.Figures;
+        var figuresYear = FinancialYearHelper.Format(figures.FinancialYearStart);
+    }
+    <section class="itp-figs" aria-label="Summary for @(Model.Fy.HasValue ? $"FY {fyLabel}" : "all years")">
+        <a class="itp-fig itp-fig--progress @(scopeKey == "active" ? "itp-fig--selected" : null)" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">
+            <span class="itp-fig__k">In progress</span>
+            <span class="itp-fig__v">@Model.Board.ActiveCount <small>@(Model.Board.ActiveCount == 1 ? "case" : "cases")</small></span>
+            <span class="itp-fig__types" aria-label="By type in FY @figuresYear">
+                <span class="itp-type itp-type--new" title="New in FY @figuresYear">@figures.ActiveNew New</span>
+                <span class="itp-type itp-type--cl" title="Committed liability: SO placed, carried into FY @figuresYear">@figures.ActiveCommittedLiability CL</span>
+                <span class="itp-type itp-type--cf" title="Carried forward without an SO into FY @figuresYear">@figures.ActiveCarriedForward CF</span>
+            </span>
+            <span class="itp-fig__s">@ItProjectBoardPresentation.InProgressNote(figures)</span>
         </a>
-        <a class="itp-tile @(scopeKey == "completed" ? "itp-tile--selected" : null)" asp-page="./Index" asp-route-scope="completed" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">
-            <span class="itp-tile__k">Completed</span>
-            <span class="itp-tile__v">@Model.Board.CompletedCount</span>
-            <span class="itp-tile__s">@Model.CompletedThisFinancialYear this FY (@FinancialYearHelper.Format(Model.CurrentFinancialYearStart))</span>
-        </a>
-        <div class="itp-tile itp-tile--static">
-            <span class="itp-tile__k">Most projects at</span>
-            @if (Model.BusiestStage is { } busiest)
-            {
-                <span class="itp-tile__v itp-tile__v--text">@ItProjectStages.LabelOf(busiest.StageCode)</span>
-                <span class="itp-tile__s">@ItProjectBoardPresentation.Projects(busiest.AtStage) waiting there</span>
-            }
-            else
-            {
-                <span class="itp-tile__v itp-tile__v--text">—</span>
-                <span class="itp-tile__s">no project in progress</span>
-            }
+
+        @if (figures.LongestWait is { } longest)
+        {
+            <a class="itp-fig itp-fig--wait" asp-page="./Details" asp-route-id="@longest.Id">
+                <span class="itp-fig__k">Waiting longest</span>
+                <span class="itp-fig__v">@longest.Days <small>@(longest.Days == 1 ? "day" : "days")</small></span>
+                <span class="itp-fig__s"><b>@longest.Title</b> at @ItProjectStages.LabelOf(longest.StageCode)@ItProjectBoardPresentation.LeftOutNote(figures.ActiveWithoutStageDate)</span>
+            </a>
+        }
+        else
+        {
+            <div class="itp-fig itp-fig--wait itp-fig--static">
+                <span class="itp-fig__k">Waiting longest</span>
+                <span class="itp-fig__v">—</span>
+                <span class="itp-fig__s">@(figures.ActiveWithoutStageDate > 0 ? "No case in progress has a stage date yet." : "No case in progress.")</span>
+            </div>
+        }
+
+        <div class="itp-fig itp-fig--order itp-fig--static">
+            <span class="itp-fig__k">On order, not yet delivered</span>
+            <span class="itp-fig__v">@ItProjectBoardPresentation.Lakhs(figures.OnOrderLakhs) <small>lakh</small></span>
+            <span class="itp-fig__s">@(figures.OnOrderCount == 0 ? "No supply order awaiting delivery" : figures.OnOrderCount == 1 ? "1 supply order awaiting delivery and ATP" : $"{figures.OnOrderCount} supply orders awaiting delivery and ATP")</span>
         </div>
-        <a class="itp-tile @(scopeKey == "dropped" ? "itp-tile--selected" : null)" asp-page="./Index" asp-route-scope="dropped" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">
-            <span class="itp-tile__k">Dropped</span>
-            <span class="itp-tile__v">@Model.Board.DroppedCount</span>
-            <span class="itp-tile__s">kept for the record</span>
+
+        <a class="itp-fig itp-fig--done @(scopeKey == "completed" ? "itp-fig--selected" : null)" asp-page="./Index" asp-route-scope="completed" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">
+            <span class="itp-fig__k">Delivered</span>
+            <span class="itp-fig__v">@Model.Board.CompletedCount <small>@(Model.Board.CompletedCount == 1 ? "case" : "cases")</small></span>
+            <span class="itp-fig__s">@ItProjectBoardPresentation.DeliveredNote(figures)</span>
         </a>
     </section>
 
     <form method="get" class="itp-toolbar" role="search" aria-label="Filter the board">
         <input type="hidden" name="scope" value="@scopeKey" />
         <input type="hidden" name="group" value="@Model.Group" />
+        <input type="hidden" name="fy" value="@Model.Fy" />
         <label class="itp-search">
             <i class="bi bi-search" aria-hidden="true"></i>
             <span class="visually-hidden">Search title or IT PPP reference</span>
@@ -71,20 +112,10 @@
         </label>
         <nav class="itp-pills" aria-label="Status">
             <a class="itp-pill @(scopeKey == "active" ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">Active <b>@Model.Board.ActiveCount</b></a>
-            <a class="itp-pill @(scopeKey == "completed" ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="completed" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">Completed <b>@Model.Board.CompletedCount</b></a>
+            <a class="itp-pill @(scopeKey == "completed" ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="completed" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">Delivered <b>@Model.Board.CompletedCount</b></a>
             <a class="itp-pill @(scopeKey == "dropped" ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="dropped" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">Dropped <b>@Model.Board.DroppedCount</b></a>
             <a class="itp-pill @(scopeKey == "all" ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="all" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">All <b>@Model.AllCount</b></a>
         </nav>
-        <label class="itp-select">
-            <span>Financial year</span>
-            <select name="fy" class="form-select form-select-sm" data-auto-submit>
-                <option value="" selected="@(!Model.Fy.HasValue)">All years</option>
-                @foreach (var year in Model.Board.FinancialYears)
-                {
-                    <option value="@year" selected="@(Model.Fy == year)">@FinancialYearHelper.Format(year)</option>
-                }
-            </select>
-        </label>
         <a class="itp-toggle @(Model.GroupByFinancialYear ? "itp-toggle--on" : null)" asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@(Model.GroupByFinancialYear ? null : "fy")" role="switch" aria-checked="@(Model.GroupByFinancialYear ? "true" : "false")">
             <i aria-hidden="true"></i><span>Group by FY</span>
         </a>
@@ -160,7 +191,11 @@
                                 <td class="itp-project">
                                     <div class="itp-project__title"><a asp-page="./Details" asp-route-id="@row.Id" class="itp-project__link">@row.Title</a></div>
                                     <div class="itp-project__meta">
-                                        <b>@row.PppReferenceNumber</b>
+                                        @if (row.YearType is { } yearType)
+                                        {
+                                            <span class="itp-type itp-type--@yearType.Code.ToLowerInvariant()" title="@yearType.Label in FY @FinancialYearHelper.Format(yearType.FinancialYearStart)@(yearType.IsManual ? ", set by hand" : null)">@yearType.Code</span>
+                                        }
+                                        <b>@row.DisplayReference</b>
                                         <span>·</span>
                                         <span>@ItProjectBoardPresentation.FinancialYear(row.FinancialYearStart)</span>
                                         @if (row.Status.Kind == ItProjectStatusKind.Completed)

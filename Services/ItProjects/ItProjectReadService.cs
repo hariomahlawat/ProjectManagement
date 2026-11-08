@@ -27,39 +27,40 @@ public sealed class ItProjectReadService : IItProjectReadService
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        var projects = _db.ItProjects.AsNoTracking().Where(project => !project.IsDeleted);
+        // The module holds tens of cases, not thousands: load them all once, because the year
+        // filter ("live in that year") and the year list both need every case's stages.
+        var all = await _db.ItProjects.AsNoTracking()
+            .Where(project => !project.IsDeleted)
+            .Include(project => project.Stages)
+            .Include(project => project.FinancialYears)
+            .ToListAsync(cancellationToken);
 
-        if (query.FinancialYearStart.HasValue)
+        var currentYear = ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow);
+
+        // The year picker lists every year some case counts in, newest first.
+        var years = all
+            .SelectMany(project => ItProjectYearTypes.LiveYears(project, currentYear))
+            .Distinct()
+            .OrderByDescending(year => year)
+            .ToList();
+
+        IEnumerable<ItProject> loaded = all;
+        if (query.FinancialYearStart is { } fy)
         {
-            var fy = query.FinancialYearStart.Value;
-            projects = projects.Where(project => project.FinancialYearStart == fy);
+            // A year shows every case that counts in it: its New cases and the CL / CF cases
+            // carried into it.
+            loaded = loaded.Where(project => ItProjectYearTypes.IsLive(project, fy, currentYear));
         }
 
         var search = query.Search?.Trim();
         if (!string.IsNullOrEmpty(search))
         {
-            // ToLower + Contains translates on PostgreSQL and on the SQLite test provider alike.
-            var needle = search.ToLowerInvariant();
-            projects = projects.Where(project =>
-                project.Title.ToLower().Contains(needle) ||
-                project.PppReferenceNumber.ToLower().Contains(needle) ||
-                project.FinancialYears.Any(year => year.PppReferenceNumber != null && year.PppReferenceNumber.ToLower().Contains(needle)));
+            loaded = loaded.Where(project => Matches(project, search));
         }
 
-        var loaded = await projects
-            .Include(project => project.Stages)
-            .Include(project => project.FinancialYears)
-            .ToListAsync(cancellationToken);
-
-        var years = await _db.ItProjects.AsNoTracking()
-            .Where(project => !project.IsDeleted)
-            .Select(project => project.FinancialYearStart)
-            .Distinct()
-            .OrderByDescending(year => year)
-            .ToListAsync(cancellationToken);
-
         var today = Today();
-        var rows = loaded.Select(project => ToRow(project, today)).ToList();
+        var typeYear = query.FinancialYearStart ?? currentYear;
+        var rows = loaded.Select(project => ToRow(project, today, ItProjectYearTypes.Resolve(project, typeYear, currentYear))).ToList();
 
         var activeCount = rows.Count(row => IsActive(row.Status.Kind));
         var completedCount = rows.Count(row => row.Status.Kind == ItProjectStatusKind.Completed);
@@ -85,7 +86,7 @@ public sealed class ItProjectReadService : IItProjectReadService
             .ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return new ItProjectBoard(ordered, stageCounts, activeCount, completedCount, droppedCount, years, Figures(rows, today));
+        return new ItProjectBoard(ordered, stageCounts, activeCount, completedCount, droppedCount, years, Figures(rows, today, typeYear, currentYear));
     }
 
     public Task<ItProject?> GetAsync(int id, CancellationToken cancellationToken = default)
@@ -135,7 +136,13 @@ public sealed class ItProjectReadService : IItProjectReadService
     private static DateOnly ToLocalDate(DateTime utc)
         => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Ist));
 
-    private static ItProjectBoardFigures Figures(IReadOnlyList<ItProjectBoardRow> rows, DateOnly today)
+    /// <summary>Title, the first IT PPP number or any later year's number, ignoring case.</summary>
+    private static bool Matches(ItProject project, string search)
+        => project.Title.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+           project.PppReferenceNumber.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+           project.FinancialYears.Any(year => year.PppReferenceNumber is { } number && number.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    private static ItProjectBoardFigures Figures(IReadOnlyList<ItProjectBoardRow> rows, DateOnly today, int figuresYear, int currentYear)
     {
         var active = rows.Where(row => IsActive(row.Status.Kind)).ToList();
         var inProgress = active.Where(row => row.Status.Kind == ItProjectStatusKind.InProgress).ToList();
@@ -153,16 +160,18 @@ public sealed class ItProjectReadService : IItProjectReadService
             .Where(cell => cell is { IsCompleted: true })
             .ToList();
 
-        var thisFinancialYear = FinancialYearHelper.GetStartYear(today);
         var delivered = rows.Where(row => row.Status.Kind == ItProjectStatusKind.Completed)
             .Select(row => (Row: row, On: row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.Delivery)?.CompletedOn))
             .ToList();
         var deliveredDates = delivered.Where(item => item.On.HasValue).Select(item => item.On!.Value).ToList();
 
-        // "Delivered this FY" counts by the delivery date when it is known, else by the project's FY.
-        var deliveredThisYear = delivered.Count(item => item.On is { } on
-            ? FinancialYearHelper.Contains(thisFinancialYear, on)
-            : item.Row.FinancialYearStart == thisFinancialYear);
+        // "Delivered in the year" counts by the delivery date when it is known, else by the project's FY.
+        var deliveredInYear = delivered.Count(item => item.On is { } on
+            ? FinancialYearHelper.Contains(figuresYear, on)
+            : item.Row.FinancialYearStart == figuresYear);
+
+        // New / CL / CF of the cases still running, in the board's year.
+        var typed = active.Where(row => row.YearType is not null).ToList();
 
         return new ItProjectBoardFigures(
             longest,
@@ -170,12 +179,17 @@ public sealed class ItProjectReadService : IItProjectReadService
             DatesMissingCount: active.Count(row => row.Timing.HasMissingDates),
             OnOrderLakhs: onOrder.Sum(cell => cell!.CostLakhs ?? 0m),
             OnOrderCount: onOrder.Count,
-            DeliveredThisFinancialYear: deliveredThisYear,
+            DeliveredInFinancialYear: deliveredInYear,
             LastDeliveredOn: deliveredDates.Count == 0 ? null : deliveredDates.Max(),
-            CurrentFinancialYearStart: thisFinancialYear);
+            CurrentFinancialYearStart: currentYear,
+            FinancialYearStart: figuresYear,
+            ActiveNew: typed.Count(row => row.YearType!.Type == ItProjectYearType.New),
+            ActiveCommittedLiability: typed.Count(row => row.YearType!.Type == ItProjectYearType.CommittedLiability),
+            ActiveCarriedForward: typed.Count(row => row.YearType!.Type == ItProjectYearType.CarriedForward),
+            NotStartedCount: active.Count(row => row.Status.Kind == ItProjectStatusKind.NotStarted));
     }
 
-    private static ItProjectBoardRow ToRow(ItProject project, DateOnly today)
+    private static ItProjectBoardRow ToRow(ItProject project, DateOnly today, ItProjectYearTypeInfo? yearType)
     {
         var status = ItProjectStatus.Resolve(project);
         var cells = project.Stages
@@ -200,6 +214,7 @@ public sealed class ItProjectReadService : IItProjectReadService
             project.DroppedReason,
             project.UpdatedAtUtc,
             cells,
-            ItProjectTiming.Resolve(project, today, ToLocalDate));
+            ItProjectTiming.Resolve(project, today, ToLocalDate),
+            yearType);
     }
 }

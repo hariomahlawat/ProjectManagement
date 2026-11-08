@@ -16,6 +16,7 @@ public enum ItProjectBoardScope
 
 public sealed record ItProjectBoardQuery(
     ItProjectBoardScope Scope = ItProjectBoardScope.Active,
+    /// <summary>Show the cases that count in this year (New ones and those carried into it); null for all years.</summary>
     int? FinancialYearStart = null,
     string? Search = null);
 
@@ -38,7 +39,12 @@ public sealed record ItProjectBoardRow(
     string? DroppedReason,
     DateTime UpdatedAtUtc,
     IReadOnlyList<ItProjectBoardStageCell> Stages,
-    ItProjectTiming Timing);
+    ItProjectTiming Timing,
+    ItProjectYearTypeInfo? YearType)
+{
+    /// <summary>The IT PPP number to show for the board's year: that year's number when entered, else the first one.</summary>
+    public string DisplayReference => YearType?.PppReferenceNumber ?? PppReferenceNumber;
+}
 
 public sealed record ItProjectBoardStageCount(string StageCode, int AtStage);
 
@@ -47,7 +53,8 @@ public sealed record ItProjectLongestWait(int Id, string Title, string StageCode
 
 /// <summary>
 /// Board-wide figures (docs/ux/it-projects-redesign.md). Like the scope counts they follow the
-/// financial year and search but not the scope.
+/// financial year and search but not the scope. <see cref="FinancialYearStart"/> is the board's
+/// year (the chosen one, else the current one): delivered and New / CL / CF counts are for it.
 /// </summary>
 public sealed record ItProjectBoardFigures(
     ItProjectLongestWait? LongestWait,
@@ -55,9 +62,14 @@ public sealed record ItProjectBoardFigures(
     int DatesMissingCount,
     decimal OnOrderLakhs,
     int OnOrderCount,
-    int DeliveredThisFinancialYear,
+    int DeliveredInFinancialYear,
     DateOnly? LastDeliveredOn,
-    int CurrentFinancialYearStart);
+    int CurrentFinancialYearStart,
+    int FinancialYearStart,
+    int ActiveNew,
+    int ActiveCommittedLiability,
+    int ActiveCarriedForward,
+    int NotStartedCount);
 
 public sealed record ItProjectBoard(
     IReadOnlyList<ItProjectBoardRow> Rows,
