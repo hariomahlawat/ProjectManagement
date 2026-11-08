@@ -6,12 +6,19 @@ using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.ItProjects;
 
-/// <summary>The type of a project in one financial year, and whether it was set by hand.</summary>
+/// <summary>
+/// A project in one financial year: its type (and whether it was set by hand) and the IT PPP
+/// reference number it carries in that year's IT PPP. In the project's own year that is the
+/// project's number; in a later year it is the number entered for that year, or null when not
+/// entered yet.
+/// </summary>
 public sealed record ItProjectYearTypeInfo(
     int FinancialYearStart,
     ItProjectYearType Type,
     ItProjectYearType AutomaticType,
-    bool IsManual)
+    bool IsManual,
+    bool IsOwnYear,
+    string? PppReferenceNumber)
 {
     public string Code => ItProjectYearTypes.Code(Type);
 
@@ -20,6 +27,8 @@ public sealed record ItProjectYearTypeInfo(
 
 /// <summary>
 /// The one rule source for New / CL / CF (docs/ux/it-projects-redesign.md, "Year type").
+/// CL and CF cases appear again in the next year's IT PPP under a new reference number, which is
+/// kept per year in <see cref="ItProjectFinancialYear"/>.
 /// A project is New in its own financial year. In each later year it is still live in, it is CL
 /// when the SO was placed before that year began (an SO marked complete without a date counts as
 /// placed) and CF otherwise. A type set by hand for a year wins over the automatic one.
@@ -118,10 +127,11 @@ public static class ItProjectYearTypes
         }
 
         var automatic = AutomaticType(project, financialYearStart);
-        var manual = project.YearTypeOverrides.FirstOrDefault(item => item.FinancialYearStart == financialYearStart);
-        return manual is null
-            ? new ItProjectYearTypeInfo(financialYearStart, automatic, automatic, IsManual: false)
-            : new ItProjectYearTypeInfo(financialYearStart, manual.Type, automatic, IsManual: true);
+        var own = financialYearStart == project.FinancialYearStart;
+        var year = YearRow(project, financialYearStart);
+        var manual = year?.TypeOverride;
+        var reference = own ? project.PppReferenceNumber : year?.PppReferenceNumber;
+        return new ItProjectYearTypeInfo(financialYearStart, manual ?? automatic, automatic, manual.HasValue, own, reference);
     }
 
     /// <summary>The type in every live year, oldest first.</summary>
@@ -129,6 +139,10 @@ public static class ItProjectYearTypes
         => LiveYears(project, currentFinancialYearStart)
             .Select(year => Resolve(project, year, currentFinancialYearStart)!)
             .ToList();
+
+    /// <summary>The stored row for a later year, if any.</summary>
+    public static ItProjectFinancialYear? YearRow(ItProject project, int financialYearStart)
+        => project.FinancialYears.FirstOrDefault(item => item.FinancialYearStart == financialYearStart);
 
     private static ItProjectStage? Stage(ItProject project, string code)
         => project.Stages.FirstOrDefault(stage => string.Equals(stage.StageCode, code, StringComparison.OrdinalIgnoreCase));

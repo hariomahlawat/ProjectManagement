@@ -605,7 +605,7 @@ public class DetailsModel : PageModel
         return RedirectToPage(new { id });
     }
 
-    public async Task<IActionResult> OnPostYearTypeAsync(int id, int fy, string? yearType, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostYearAsync(int id, int fy, string? yearType, string? yearReference, CancellationToken cancellationToken)
     {
         if (!await LoadAsync(id, cancellationToken))
         {
@@ -630,7 +630,7 @@ public class DetailsModel : PageModel
                 return RedirectToPage(new { id });
         }
 
-        var result = await _commands.SetYearTypeAsync(id, fy, type, DecodeRowVersion(RowVersion), Actor(), cancellationToken);
+        var result = await _commands.SaveYearAsync(id, fy, new ItProjectYearInput(type, yearReference), DecodeRowVersion(RowVersion), Actor(), cancellationToken);
         if (!result.Succeeded)
         {
             if (result.ConcurrencyConflict)
@@ -642,9 +642,7 @@ public class DetailsModel : PageModel
             return RedirectToPage(new { id });
         }
 
-        TempData.ToastSuccess(type is null
-            ? $"FY {FinancialYearHelper.Format(fy)} is back to the automatic type."
-            : $"FY {FinancialYearHelper.Format(fy)} type saved.");
+        TempData.ToastSuccess($"FY {FinancialYearHelper.Format(fy)} saved.");
         return RedirectToPage(new { id });
     }
 

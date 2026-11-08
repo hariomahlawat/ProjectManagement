@@ -198,7 +198,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectIdeaDocument> ProjectIdeaDocuments => Set<ProjectIdeaDocument>();
         public DbSet<ItProject> ItProjects => Set<ItProject>();
         public DbSet<ItProjectStage> ItProjectStages => Set<ItProjectStage>();
-        public DbSet<ItProjectYearTypeOverride> ItProjectYearTypeOverrides => Set<ItProjectYearTypeOverride>();
+        public DbSet<ItProjectFinancialYear> ItProjectFinancialYears => Set<ItProjectFinancialYear>();
         public DbSet<ItProjectRemark> ItProjectRemarks => Set<ItProjectRemark>();
         public DbSet<ItProjectRemarkAudit> ItProjectRemarkAudits => Set<ItProjectRemarkAudit>();
         public DbSet<ItProjectAttachment> ItProjectAttachments => Set<ItProjectAttachment>();
@@ -387,14 +387,15 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => x.IsDeleted);
                 e.HasIndex(x => x.UpdatedAtUtc);
                 e.HasMany(x => x.Stages).WithOne(x => x.ItProject).HasForeignKey(x => x.ItProjectId).OnDelete(DeleteBehavior.Cascade);
-                e.HasMany(x => x.YearTypeOverrides).WithOne(x => x.ItProject).HasForeignKey(x => x.ItProjectId).OnDelete(DeleteBehavior.Cascade);
+                e.HasMany(x => x.FinancialYears).WithOne(x => x.ItProject).HasForeignKey(x => x.ItProjectId).OnDelete(DeleteBehavior.Cascade);
             });
 
-            builder.Entity<ItProjectYearTypeOverride>(e =>
+            builder.Entity<ItProjectFinancialYear>(e =>
             {
-                e.ToTable("ItProjectYearTypeOverrides");
-                e.Property(x => x.Type).HasConversion<string>().HasMaxLength(32).IsRequired();
-                e.Property(x => x.SetByUserId).IsRequired().HasMaxLength(450);
+                e.ToTable("ItProjectFinancialYears");
+                e.Property(x => x.PppReferenceNumber).HasMaxLength(ItProjectFinancialYear.ReferenceMaxLength);
+                e.Property(x => x.TypeOverride).HasConversion<string>().HasMaxLength(32);
+                e.Property(x => x.UpdatedByUserId).IsRequired().HasMaxLength(450);
                 e.HasIndex(x => new { x.ItProjectId, x.FinancialYearStart }).IsUnique();
             });
 

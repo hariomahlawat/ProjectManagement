@@ -15,6 +15,9 @@ public sealed record ItProjectDetailsInput(
     int FinancialYearStart,
     string Description);
 
+/// <summary>One year's IT PPP entry for a project: the reference number in that year and an optional type set by hand.</summary>
+public sealed record ItProjectYearInput(ItProjectYearType? Type, string? PppReferenceNumber);
+
 public sealed record ItProjectCommandResult(
     bool Succeeded,
     IReadOnlyList<string> Errors,
@@ -46,10 +49,11 @@ public interface IItProjectCommandService
     Task<ItProjectCommandResult> ReinstateAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Sets the New / CL / CF type of the project for one financial year it counts in, or resets it
-    /// to the automatic type when <paramref name="type"/> is null or equals the automatic type.
+    /// Saves what one financial year's IT PPP says about the project: a later year's IT PPP
+    /// reference number, and a New / CL / CF type set by hand (null or the automatic type means
+    /// automatic). The first year's number stays on the project and is changed with Edit.
     /// </summary>
-    Task<ItProjectCommandResult> SetYearTypeAsync(int id, int financialYearStart, ItProjectYearType? type, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
+    Task<ItProjectCommandResult> SaveYearAsync(int id, int financialYearStart, ItProjectYearInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
 
     /// <summary>Soft delete. The row and its stages stay for audit and a later restore.</summary>
     Task<ItProjectCommandResult> DeleteAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);

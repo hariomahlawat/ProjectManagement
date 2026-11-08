@@ -18,22 +18,34 @@ public enum ItProjectYearType
     CarriedForward = 2
 }
 
-/// <summary>A type set by hand for one project in one financial year. No row means the automatic type.</summary>
-public class ItProjectYearTypeOverride
+/// <summary>
+/// What a later year's IT PPP says about a carried-over project: the IT PPP reference number it
+/// was given in that year and, optionally, a type set by hand. The project's own year keeps its
+/// number on <see cref="ItProject.PppReferenceNumber"/>; no row means "number not yet entered,
+/// automatic type".
+/// </summary>
+public class ItProjectFinancialYear
 {
+    public const int ReferenceMaxLength = 100;
+
     public int Id { get; set; }
 
     public int ItProjectId { get; set; }
 
     public ItProject? ItProject { get; set; }
 
-    /// <summary>Start year of the financial year the type applies to.</summary>
+    /// <summary>Start year of the financial year, e.g. 2026 for 2026-27.</summary>
     public int FinancialYearStart { get; set; }
 
-    public ItProjectYearType Type { get; set; }
+    /// <summary>The IT PPP reference number in that year's IT PPP. Free text, not unique.</summary>
+    [MaxLength(ReferenceMaxLength)]
+    public string? PppReferenceNumber { get; set; }
+
+    /// <summary>A type set by hand for that year; null means the automatic type.</summary>
+    public ItProjectYearType? TypeOverride { get; set; }
 
     [Required, MaxLength(450)]
-    public string SetByUserId { get; set; } = string.Empty;
+    public string UpdatedByUserId { get; set; } = string.Empty;
 
-    public DateTime SetAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
 }

@@ -118,13 +118,15 @@ public class ItProjectYearTypeTests
     public void ManualType_WinsAndKeepsTheAutomaticOne()
     {
         var project = Project(2025, ("TEC", D(2025, 11, 18)));
-        project.YearTypeOverrides.Add(new ItProjectYearTypeOverride { FinancialYearStart = 2026, Type = ItProjectYearType.CommittedLiability });
+        project.FinancialYears.Add(new ItProjectFinancialYear { FinancialYearStart = 2026, TypeOverride = ItProjectYearType.CommittedLiability, PppReferenceNumber = "IT PPP 03/2026" });
 
         var info = ItProjectYearTypes.Resolve(project, 2026, Current)!;
 
         Assert.Equal(ItProjectYearType.CommittedLiability, info.Type);
         Assert.Equal(ItProjectYearType.CarriedForward, info.AutomaticType);
         Assert.True(info.IsManual);
+        Assert.Equal("IT PPP 03/2026", info.PppReferenceNumber);
+        Assert.False(info.IsOwnYear);
         Assert.False(ItProjectYearTypes.Resolve(project, 2025, Current)!.IsManual);
     }
 
@@ -136,76 +138,138 @@ public class ItProjectYearTypeTests
         Assert.Equal(2025, ItProjectYearTypes.CurrentFinancialYear(new DateTimeOffset(2026, 3, 31, 18, 0, 0, TimeSpan.Zero)));
     }
 
+    [Fact]
+    public void OwnYear_CarriesTheProjectNumber_LaterYearsTheirOwn()
+    {
+        var project = Project(2025, ("TEC", D(2025, 11, 18)));
+        project.PppReferenceNumber = "IT PPP 09/2025";
+
+        Assert.Equal("IT PPP 09/2025", ItProjectYearTypes.Resolve(project, 2025, Current)!.PppReferenceNumber);
+        Assert.Null(ItProjectYearTypes.Resolve(project, 2026, Current)!.PppReferenceNumber); // not entered yet
+    }
+
     // ---- the command ---------------------------------------------------------------------------
 
+    private static ItProjectYearInput Year(ItProjectYearType? type, string? reference = null) => new(type, reference);
+
     [Fact]
-    public async Task SetYearType_StoresAudits_AndResetRemoves()
+    public async Task SaveYear_StoresNumberAndType_AuditsAndClearRemoves()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var (id, rowVersion) = await db.SeedAsync(fy: 2025);
         var stages = await db.Commands().SaveStagesAsync(id, Input(S("TEC", true, D(2025, 11, 18))), rowVersion, ItProjectTestDb.Actor());
         Assert.True(stages.Result.Succeeded);
 
-        var set = await db.Commands().SetYearTypeAsync(id, 2026, ItProjectYearType.CommittedLiability, await db.RowVersionAsync(id), ItProjectTestDb.Actor("hod-1"));
+        var set = await db.Commands().SaveYearAsync(id, 2026, Year(ItProjectYearType.CommittedLiability, "  IT PPP 03/2026 "), await db.RowVersionAsync(id), ItProjectTestDb.Actor("hod-1"));
         Assert.True(set.Succeeded, string.Join("; ", set.Errors));
 
         var reads = db.Reads();
         var types = reads.GetYearTypes((await reads.GetAsync(id))!);
         Assert.Equal(new[] { "New", "CL" }, types.Select(type => type.Code));
+        Assert.Equal(new[] { "IT PPP 09/2025", "IT PPP 03/2026" }, types.Select(type => type.PppReferenceNumber));
         Assert.True(types[1].IsManual);
         Assert.Equal(ItProjectYearType.CarriedForward, types[1].AutomaticType);
 
         var audit = db.Audit.Entries.Last();
-        Assert.Equal("ItProjects.YearTypeChanged", audit.Action);
+        Assert.Equal("ItProjects.YearChanged", audit.Action);
         Assert.Equal("2026-27", audit.Data!["FinancialYear"]);
-        Assert.Equal("CF (automatic)", audit.Data["Before"]);
-        Assert.Equal("CL (set by hand)", audit.Data["After"]);
+        Assert.Equal("CF (automatic)", audit.Data["TypeBefore"]);
+        Assert.Equal("CL (set by hand)", audit.Data["TypeAfter"]);
+        Assert.Null(audit.Data["ReferenceBefore"]);
+        Assert.Equal("IT PPP 03/2026", audit.Data["ReferenceAfter"]);
 
-        var reset = await db.Commands().SetYearTypeAsync(id, 2026, null, await db.RowVersionAsync(id), ItProjectTestDb.Actor("hod-1"));
-        Assert.True(reset.Succeeded);
-        await using var context = db.NewContext();
-        Assert.False(await context.ItProjectYearTypeOverrides.AnyAsync());
-        Assert.Equal("CL (set by hand)", db.Audit.Entries.Last().Data!["Before"]);
-        Assert.Equal("CF (automatic)", db.Audit.Entries.Last().Data!["After"]);
+        // Back to automatic but keep the number: the row stays with the number only.
+        var keep = await db.Commands().SaveYearAsync(id, 2026, Year(null, "IT PPP 03/2026"), await db.RowVersionAsync(id), ItProjectTestDb.Actor("hod-1"));
+        Assert.True(keep.Succeeded);
+        await using (var context = db.NewContext())
+        {
+            var row = await context.ItProjectFinancialYears.SingleAsync();
+            Assert.Null(row.TypeOverride);
+            Assert.Equal("IT PPP 03/2026", row.PppReferenceNumber);
+        }
+
+        // Clearing both removes the row.
+        var clear = await db.Commands().SaveYearAsync(id, 2026, Year(null, " "), await db.RowVersionAsync(id), ItProjectTestDb.Actor("hod-1"));
+        Assert.True(clear.Succeeded);
+        await using (var context = db.NewContext())
+        {
+            Assert.False(await context.ItProjectFinancialYears.AnyAsync());
+        }
     }
 
     [Fact]
-    public async Task SetYearType_ToTheAutomaticType_StoresNothing()
+    public async Task SaveYear_WithNothingChanged_StoresAndAuditsNothing()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var (id, rowVersion) = await db.SeedAsync(fy: 2026);
         var auditsBefore = db.Audit.Entries.Count;
 
-        var result = await db.Commands().SetYearTypeAsync(id, 2026, ItProjectYearType.New, rowVersion, ItProjectTestDb.Actor());
+        var result = await db.Commands().SaveYearAsync(id, 2026, Year(ItProjectYearType.New), rowVersion, ItProjectTestDb.Actor());
 
         Assert.True(result.Succeeded);
         Assert.Equal(auditsBefore, db.Audit.Entries.Count);
         await using var context = db.NewContext();
-        Assert.False(await context.ItProjectYearTypeOverrides.AnyAsync());
+        Assert.False(await context.ItProjectFinancialYears.AnyAsync());
     }
 
     [Fact]
-    public async Task SetYearType_RejectsAYearTheProjectDoesNotCountIn()
+    public async Task SaveYear_OwnYearNumberIsChangedWithEditOnly()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var (id, rowVersion) = await db.SeedAsync(fy: 2026);
 
-        var result = await db.Commands().SetYearTypeAsync(id, 2025, ItProjectYearType.CarriedForward, rowVersion, ItProjectTestDb.Actor());
+        var result = await db.Commands().SaveYearAsync(id, 2026, Year(null, "IT PPP 99/2026"), rowVersion, ItProjectTestDb.Actor());
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("Edit", result.Errors.Single());
+    }
+
+    [Fact]
+    public async Task SaveYear_RejectsAYearTheProjectDoesNotCountIn()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync(fy: 2026);
+
+        var result = await db.Commands().SaveYearAsync(id, 2025, Year(ItProjectYearType.CarriedForward), rowVersion, ItProjectTestDb.Actor());
 
         Assert.False(result.Succeeded);
         Assert.Contains("FY 2025-26", result.Errors.Single());
     }
 
     [Fact]
-    public async Task SetYearType_StaleRowVersion_IsAConflict()
+    public async Task SaveYear_RejectsATooLongNumber()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync(fy: 2025);
+
+        var result = await db.Commands().SaveYearAsync(id, 2026, Year(null, new string('x', ItProjectFinancialYear.ReferenceMaxLength + 1)), rowVersion, ItProjectTestDb.Actor());
+
+        Assert.False(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task SaveYear_StaleRowVersion_IsAConflict()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var (id, staleRowVersion) = await db.SeedAsync(fy: 2025);
         var moved = await db.Commands().SaveStagesAsync(id, Input(S("AON", true)), staleRowVersion, ItProjectTestDb.Actor());
         Assert.True(moved.Result.Succeeded);
 
-        var result = await db.Commands().SetYearTypeAsync(id, 2026, ItProjectYearType.CommittedLiability, staleRowVersion, ItProjectTestDb.Actor());
+        var result = await db.Commands().SaveYearAsync(id, 2026, Year(ItProjectYearType.CommittedLiability), staleRowVersion, ItProjectTestDb.Actor());
 
         Assert.True(result.ConcurrencyConflict);
+    }
+
+    [Fact]
+    public async Task BoardSearch_FindsALaterYearNumber()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync(fy: 2025);
+        var saved = await db.Commands().SaveYearAsync(id, 2026, Year(null, "IT PPP 03/2026"), rowVersion, ItProjectTestDb.Actor());
+        Assert.True(saved.Succeeded);
+
+        var board = await db.Reads().GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.All, Search: "03/2026"));
+
+        Assert.Equal(id, Assert.Single(board.Rows).Id);
     }
 }

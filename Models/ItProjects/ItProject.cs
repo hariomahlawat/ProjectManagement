@@ -63,6 +63,9 @@ public class ItProject
 
     public ICollection<ItProjectStage> Stages { get; set; } = new List<ItProjectStage>();
 
-    /// <summary>Year types set by hand; every other live year uses the automatic type.</summary>
-    public ICollection<ItProjectYearTypeOverride> YearTypeOverrides { get; set; } = new List<ItProjectYearTypeOverride>();
+    /// <summary>
+    /// Later financial years the project was carried into: that year's IT PPP reference number and
+    /// any type set by hand. The project's own year is not stored here.
+    /// </summary>
+    public ICollection<ItProjectFinancialYear> FinancialYears { get; set; } = new List<ItProjectFinancialYear>();
 }

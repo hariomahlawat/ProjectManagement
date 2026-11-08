@@ -42,12 +42,13 @@ public sealed class ItProjectReadService : IItProjectReadService
             var needle = search.ToLowerInvariant();
             projects = projects.Where(project =>
                 project.Title.ToLower().Contains(needle) ||
-                project.PppReferenceNumber.ToLower().Contains(needle));
+                project.PppReferenceNumber.ToLower().Contains(needle) ||
+                project.FinancialYears.Any(year => year.PppReferenceNumber != null && year.PppReferenceNumber.ToLower().Contains(needle)));
         }
 
         var loaded = await projects
             .Include(project => project.Stages)
-            .Include(project => project.YearTypeOverrides)
+            .Include(project => project.FinancialYears)
             .ToListAsync(cancellationToken);
 
         var years = await _db.ItProjects.AsNoTracking()
@@ -90,7 +91,7 @@ public sealed class ItProjectReadService : IItProjectReadService
     public Task<ItProject?> GetAsync(int id, CancellationToken cancellationToken = default)
         => _db.ItProjects
             .Include(project => project.Stages.OrderBy(stage => stage.SortOrder))
-            .Include(project => project.YearTypeOverrides)
+            .Include(project => project.FinancialYears)
             .FirstOrDefaultAsync(project => project.Id == id && !project.IsDeleted, cancellationToken);
 
     public ItProjectTiming GetTiming(ItProject project) => ItProjectTiming.Resolve(project, Today(), ToLocalDate);

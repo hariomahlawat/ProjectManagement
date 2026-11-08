@@ -617,18 +617,18 @@ public class ItProjectDetailsPageTests
     }
 
     [Fact]
-    public async Task YearType_ViewersCannotChangeIt()
+    public async Task Year_ViewersCannotChangeIt()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var (id, _) = await db.SeedAsync(fy: 2025);
         var page = Page(db, ItProjectTestDb.User("po-1", RoleNames.ProjectOfficer));
         await page.OnGetAsync(id, CancellationToken.None);
 
-        Assert.IsType<ForbidResult>(await page.OnPostYearTypeAsync(id, 2026, "CL", CancellationToken.None));
+        Assert.IsType<ForbidResult>(await page.OnPostYearAsync(id, 2026, "CL", "IT PPP 03/2026", CancellationToken.None));
     }
 
     [Fact]
-    public async Task YearType_ManageSetsItAndThePageShowsEveryLiveYear()
+    public async Task Year_ManageSetsNumberAndTypeAndThePageShowsEveryLiveYear()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var (id, _) = await db.SeedAsync(fy: 2025);
@@ -636,18 +636,20 @@ public class ItProjectDetailsPageTests
         await page.OnGetAsync(id, CancellationToken.None);
         Assert.Equal(new[] { "New", "CF" }, page.YearTypes.Select(type => type.Code));
 
-        Assert.IsType<RedirectToPageResult>(await page.OnPostYearTypeAsync(id, 2026, "CL", CancellationToken.None));
+        Assert.IsType<RedirectToPageResult>(await page.OnPostYearAsync(id, 2026, "CL", "IT PPP 03/2026", CancellationToken.None));
 
         var reloaded = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
         await reloaded.OnGetAsync(id, CancellationToken.None);
         var year = reloaded.YearTypes.Single(type => type.FinancialYearStart == 2026);
         Assert.Equal("CL", year.Code);
         Assert.True(year.IsManual);
+        Assert.Equal("IT PPP 03/2026", year.PppReferenceNumber);
 
-        Assert.IsType<RedirectToPageResult>(await reloaded.OnPostYearTypeAsync(id, 2026, "auto", CancellationToken.None));
+        Assert.IsType<RedirectToPageResult>(await reloaded.OnPostYearAsync(id, 2026, "auto", "IT PPP 03/2026", CancellationToken.None));
         var reset = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
         await reset.OnGetAsync(id, CancellationToken.None);
         Assert.False(reset.YearTypes.Single(type => type.FinancialYearStart == 2026).IsManual);
+        Assert.Equal("IT PPP 03/2026", reset.YearTypes.Single(type => type.FinancialYearStart == 2026).PppReferenceNumber);
     }
 
     private static DetailsModel Page(ItProjectTestDb db, ClaimsPrincipal user)

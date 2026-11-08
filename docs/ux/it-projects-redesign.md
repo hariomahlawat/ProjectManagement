@@ -96,9 +96,14 @@ type for that year changes.
 - A case is **live in a year** from its own financial year up to the current one, until it is
   delivered (Delivery and ATP date) or dropped (dropped date) before that year begins. A delivery
   without a date keeps the case in its own year only.
-- **Change by hand**: the ITO, HoD or Admin can set the type of one case for one year (New, CL or
-  CF), or reset it to the automatic type. Stored as `ItProjectYearTypeOverride` (one row per case
-  and year), audited as `ItProjects.YearTypeChanged`. The page marks a manual type.
+- **A new IT PPP number each year**: CL and CF cases are listed again in the next year's IT PPP
+  under a new IT PPP reference number. The case keeps its first number on the project; each later
+  year holds its own number, entered by the ITO, HoD or Admin when that year's IT PPP is made
+  ("number not entered" until then). Search finds a case by any year's number.
+- **Change by hand**: the same people can set the type of one case for one year (New, CL or CF),
+  or go back to the automatic type. Both are stored in `ItProjectFinancialYear` (one row per case
+  and later year: reference number, optional type), audited as `ItProjects.YearChanged`. The first
+  year's number is changed with Edit.
 - The board's **financial year filter** shows every case live in that year, each with its type
   chip, and the figure tiles split by type ("8 in progress · 3 New · 2 CL · 3 CF").
 
@@ -112,7 +117,7 @@ type for that year changes.
 | Register order | Stage order by default, Longest wait as an option (the phone list uses Longest wait) |
 | Remarks feed | Stage completions shown in line with the remarks |
 | Wording | "Delivered" instead of "Completed"; "Update stages" instead of "Stages" |
-| Year type | New / CL / CF per year as above, CL when the SO is placed, changeable by hand |
+| Year type | New / CL / CF per year as above, CL when the SO is placed, changeable by hand; a carried-over case gets a new IT PPP number in each later year |
 
 ## Plan (small PRs, each merged when Codex and CI are clean)
 
@@ -121,7 +126,7 @@ PR 1 (#3036) is merged. The year type was added on 8 Nov as PR 2, so the later P
 | PR | Content | Tests |
 | --- | --- | --- |
 | 1 | `StageMovedAtUtc` column and its setting in the stage save; `ItProjectTiming` in the read service: time figure with its fallbacks, gaps, elapsed, waiting longest, dates missing, on order, ageing band | rule tests for each fallback (previous stage dated, undated with and without a recorded move, earlier date not borrowed), skipped and dropped; migration manifest and tail test |
-| 2 | Year type: `ItProjectYearTypes` rule, `ItProjectYearTypeOverride` table and migration, set/reset command with audit, read methods | rule per year (own year, SO placed or not, undated SO, delivered or dropped before the year), override wins and resets, Manage only, migration manifest |
+| 2 | Year type: `ItProjectYearTypes` rule, `ItProjectFinancialYear` table (later-year IT PPP number and type set by hand) and migration, save command with audit, read methods, search by any year's number | rule per year (own year, SO placed or not, undated SO, delivered or dropped before the year), override wins and resets, Manage only, migration manifest |
 | 3 | Board header with FY segmented control (cases live in the year, type chips) and the four figure tiles split by type | figures from the read model, FY filter links |
 | 4 | "Where the cases are now" pipeline card | counts and ordering per stage, empty stages, overflow ("+3 more") |
 | 5 | Register: track rows, Now column, age badges, legend, narrow optional stages, one filter bar, sort, "Dates missing" link for Manage | sort orders, band order, search still works |
