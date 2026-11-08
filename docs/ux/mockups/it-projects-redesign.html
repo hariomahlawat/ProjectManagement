@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>IT projects redesign</title>
+<!-- Mockup for docs/ux/it-projects-redesign.md. Standalone and offline: no CDN, no web fonts.
+     Colours are the PRISM --pm-* token values (light and graphite dark) so the build maps 1:1. -->
+<style>
+:root {
+    --pm-primary: #2563d6; --pm-primary-soft: #e0edff; --pm-primary-strong: #1d4ed8;
+    --pm-page-bg: #f6f7fb; --pm-card: #ffffff; --pm-surface-subtle: #f8fafc; --pm-surface: #f3f4f6; --pm-surface-muted: #e5e7eb;
+    --pm-text: #0b1220; --pm-text-strong: #0f172a; --pm-text-secondary: #4b5563; --pm-text-muted: #5f6673; --pm-text-inverted: #fff;
+    --pm-border: #e5e7eb; --pm-border-strong: #d1d5db;
+    --pm-success: #16a34a; --pm-success-strong: #166534; --pm-success-soft-bg: #f0fdf4;
+    --pm-warning: #f59e0b; --pm-warning-strong: #854d0e; --pm-warning-soft-bg: #fef3c7;
+    --pm-danger: #b91c1c; --pm-danger-soft-bg: #fee2e2;
+    --pm-spec-1: #e11d48; --pm-spec-2: #d97706; --pm-spec-3: #16a34a; --pm-spec-4: #0891b2; --pm-spec-5: #2563eb; --pm-spec-6: #7c3aed;
+    --pm-shadow-card: 0 1px 2px rgba(15,23,42,.05), 0 12px 32px -16px rgba(15,23,42,.18);
+    --pm-shadow-card-hover: 0 2px 4px rgba(15,23,42,.06), 0 18px 40px -16px rgba(15,23,42,.24);
+    --pm-font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+    --pm-primary: #6ea8fe; --pm-primary-soft: color-mix(in srgb, #6ea8fe 16%, #16181b); --pm-primary-strong: #9ec5fe;
+    --pm-page-bg: #0f1113; --pm-card: #16181b; --pm-surface-subtle: #1c1f23; --pm-surface: #1c1f23; --pm-surface-muted: #2a2e33;
+    --pm-text: #dde1e5; --pm-text-strong: #f0f2f4; --pm-text-secondary: #b4b9bf; --pm-text-muted: #8f959c; --pm-text-inverted: #0f1113;
+    --pm-border: #2a2e33; --pm-border-strong: #3a3f45;
+    --pm-success: #4ade80; --pm-success-strong: #86efac; --pm-success-soft-bg: color-mix(in srgb, #4ade80 12%, #16181b);
+    --pm-warning: #fbbf24; --pm-warning-strong: #fcd34d; --pm-warning-soft-bg: color-mix(in srgb, #fbbf24 14%, #16181b);
+    --pm-danger: #f87171; --pm-danger-soft-bg: color-mix(in srgb, #f87171 14%, #16181b);
+    --pm-shadow-card: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -16px rgba(0,0,0,.6);
+    --pm-shadow-card-hover: 0 2px 4px rgba(0,0,0,.5), 0 18px 40px -16px rgba(0,0,0,.7);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--pm-page-bg); color: var(--pm-text); font: 14px/1.5 var(--pm-font-stack); }
+a { color: var(--pm-primary); text-decoration: none; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---- mockup chrome (not part of the design) ---- */
+.mk-bar { position: sticky; top: 0; z-index: 50; display: flex; gap: .4rem; align-items: center; padding: .55rem 1.25rem; background: #0b1220; color: #cbd5e1; font-size: 12px; }
+.mk-bar b { color: #fff; margin-right: .75rem; }
+.mk-bar button { border: 1px solid #334155; background: transparent; color: #cbd5e1; padding: .3rem .7rem; border-radius: 7px; font: inherit; cursor: pointer; }
+.mk-bar button[aria-pressed="true"] { background: #e2e8f0; color: #0b1220; border-color: #e2e8f0; }
+.mk-bar .sp { flex: 1; }
+.mk-screen { display: none; }
+.mk-screen.on { display: block; }
+.mk-note { max-width: 1320px; margin: 1.25rem auto 0; padding: 0 1.5rem; }
+.mk-note div { border: 1px dashed var(--pm-border-strong); border-radius: 12px; padding: .7rem 1rem; color: var(--pm-text-secondary); font-size: 12.5px; background: var(--pm-card); }
+.mk-note b { color: var(--pm-text-strong); }
+
+.page { max-width: 1320px; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
+
+/* ---- shared ---- */
+.crumb { font-size: 12px; color: var(--pm-text-muted); margin-bottom: .5rem; }
+.crumb a { color: inherit; }
+.crumb a:hover { color: var(--pm-primary); }
+.btn { display: inline-flex; align-items: center; gap: .4rem; height: 36px; padding: 0 .9rem; border-radius: 10px; border: 1px solid var(--pm-border-strong); background: var(--pm-card); color: var(--pm-text-strong); font: 600 13px var(--pm-font-stack); cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--pm-text-muted); }
+.btn--primary { background: var(--pm-primary); border-color: var(--pm-primary); color: var(--pm-text-inverted); box-shadow: 0 6px 16px -8px var(--pm-primary); }
+.btn--primary:hover { background: var(--pm-primary-strong); border-color: var(--pm-primary-strong); }
+.btn--ghost { border-color: transparent; background: transparent; color: var(--pm-text-secondary); }
+.btn--quiet-danger { border-color: transparent; background: transparent; color: var(--pm-danger); }
+.btn svg { width: 15px; height: 15px; }
+.card { background: var(--pm-card); border: 1px solid var(--pm-border); border-radius: 16px; box-shadow: var(--pm-shadow-card); }
+.eyebrow { font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--pm-text-muted); }
+.chip { display: inline-flex; align-items: center; gap: .3rem; height: 22px; padding: 0 .55rem; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--pm-surface); color: var(--pm-text-secondary); white-space: nowrap; }
+.chip--ref { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-weight: 600; letter-spacing: -.01em; }
+.chip--ok { background: var(--pm-success-soft-bg); color: var(--pm-success-strong); }
+.chip--cur { background: var(--pm-primary-soft); color: var(--pm-primary-strong); }
+
+/* age: calm up to 120 days at one stage, amber 121-240, red over 240 (assumed; owner decision) */
+.age { display: inline-flex; align-items: center; gap: .3rem; height: 22px; padding: 0 .5rem; border-radius: 7px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--pm-surface); color: var(--pm-text-secondary); white-space: nowrap; }
+.age::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--pm-text-muted); }
+.age--warn { background: var(--pm-warning-soft-bg); color: var(--pm-warning-strong); }
+.age--warn::before { background: var(--pm-warning); }
+.age--late { background: var(--pm-danger-soft-bg); color: var(--pm-danger); }
+.age--late::before { background: var(--pm-danger); }
+
+/* ================================ BOARD ================================ */
+.b-head { display: flex; align-items: flex-end; gap: 1rem; margin-bottom: 1.25rem; }
+.b-head h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.02em; color: var(--pm-text-strong); line-height: 1.15; }
+.b-head p { margin: .3rem 0 0; color: var(--pm-text-secondary); }
+.b-head__actions { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+.fy { display: inline-flex; padding: 3px; gap: 2px; border-radius: 11px; background: var(--pm-surface); border: 1px solid var(--pm-border); }
+.fy a { padding: .32rem .7rem; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--pm-text-secondary); }
+.fy a.on { background: var(--pm-card); color: var(--pm-text-strong); box-shadow: 0 1px 3px rgba(15,23,42,.12); }
+
+/* the pipeline: where every live case sits right now */
+.pipe { padding: 1.1rem 1.25rem 1.2rem; margin-bottom: 1rem; position: relative; overflow: hidden; }
+.pipe::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--pm-spec-1), var(--pm-spec-2), var(--pm-spec-3), var(--pm-spec-4), var(--pm-spec-5), var(--pm-spec-6)); }
+.pipe__top { display: flex; align-items: baseline; gap: .75rem; margin-bottom: .9rem; }
+.pipe__top h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--pm-text-strong); }
+.pipe__top span { font-size: 12.5px; color: var(--pm-text-muted); }
+.pipe__cols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) .62fr .62fr repeat(2, minmax(0, 1fr)); gap: 6px; }
+.pcol { min-width: 0; }
+.pcol__h { position: relative; display: flex; align-items: center; justify-content: space-between; gap: .3rem; height: 38px; padding: 0 .75rem 0 .8rem; background: var(--pm-surface); color: var(--pm-text-secondary); font-size: 12px; font-weight: 700; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%); }
+.pcol:first-child .pcol__h { clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%); border-radius: 9px 0 0 9px; }
+.pcol:last-child .pcol__h { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 10px 50%); border-radius: 0 9px 9px 0; }
+.pcol__h b { font-size: 15px; color: var(--pm-text-strong); font-variant-numeric: tabular-nums; }
+.pcol--has .pcol__h { background: var(--pm-primary-soft); color: var(--pm-primary-strong); }
+.pcol--has .pcol__h b { color: var(--pm-primary-strong); }
+.pcol--opt .pcol__h { background: transparent; border: 0; color: var(--pm-text-muted); font-weight: 600; background-image: repeating-linear-gradient(135deg, var(--pm-surface) 0 6px, transparent 6px 12px); }
+.pcol--opt.pcol--has .pcol__h { background: var(--pm-primary-soft); color: var(--pm-primary-strong); }
+.pcol__list { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; min-height: 64px; }
+.tok { display: block; padding: .4rem .5rem .45rem; border-radius: 9px; border: 1px solid var(--pm-border); background: var(--pm-card); font-size: 11.5px; line-height: 1.3; color: var(--pm-text-strong); font-weight: 600; transition: border-color .15s, transform .15s, box-shadow .15s; }
+.tok:hover { border-color: var(--pm-primary); transform: translateY(-1px); box-shadow: var(--pm-shadow-card); }
+.tok small { display: flex; align-items: center; gap: .3rem; margin-top: .2rem; font-size: 11px; font-weight: 600; color: var(--pm-text-muted); font-variant-numeric: tabular-nums; }
+.tok small::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--pm-text-muted); flex: none; }
+.tok--warn { border-left: 3px solid var(--pm-warning); }
+.tok--warn small { color: var(--pm-warning-strong); }
+.tok--warn small::before { background: var(--pm-warning); }
+.tok--late { border-left: 3px solid var(--pm-danger); }
+.tok--late small { color: var(--pm-danger); }
+.tok--late small::before { background: var(--pm-danger); }
+.pcol__empty { font-size: 11.5px; color: var(--pm-text-muted); padding: .35rem .5rem; }
+
+/* figures */
+.figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.fig { position: relative; padding: .95rem 1.1rem 1rem 1.25rem; overflow: hidden; color: inherit; }
+.fig::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--mark, var(--pm-spec-5)); }
+a.fig:hover { box-shadow: var(--pm-shadow-card-hover); }
+.fig__k { font-size: 12px; font-weight: 600; color: var(--pm-text-secondary); }
+.fig__v { display: flex; align-items: baseline; gap: .4rem; margin: .1rem 0 .05rem; font-size: 30px; font-weight: 700; letter-spacing: -.03em; color: var(--pm-text-strong); font-variant-numeric: tabular-nums; line-height: 1.15; }
+.fig__v small { font-size: 14px; font-weight: 600; letter-spacing: 0; color: var(--pm-text-muted); }
+.fig__s { font-size: 12px; color: var(--pm-text-muted); }
+.fig__s b { color: var(--pm-text-strong); font-weight: 600; }
+
+/* register */
+.reg-tools { display: flex; align-items: center; gap: .6rem; margin-bottom: .75rem; flex-wrap: wrap; }
+.reg-tools h2 { margin: 0 .5rem 0 0; font-size: 17px; font-weight: 700; color: var(--pm-text-strong); }
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--pm-surface); }
+.seg a { padding: .28rem .65rem; border-radius: 7px; font-size: 12.5px; font-weight: 600; color: var(--pm-text-secondary); }
+.seg a b { font-weight: 700; margin-left: .2rem; color: var(--pm-text-muted); }
+.seg a.on { background: var(--pm-card); color: var(--pm-text-strong); box-shadow: 0 1px 3px rgba(15,23,42,.12); }
+.seg a.on b { color: var(--pm-primary); }
+.search { margin-left: auto; display: flex; align-items: center; gap: .5rem; width: 300px; height: 36px; padding: 0 .75rem; border: 1px solid var(--pm-border); border-radius: 10px; background: var(--pm-card); color: var(--pm-text-muted); font-size: 13px; }
+.search svg { width: 15px; height: 15px; }
+.sel { height: 36px; padding: 0 .7rem; border: 1px solid var(--pm-border); border-radius: 10px; background: var(--pm-card); color: var(--pm-text-secondary); font: 600 12.5px var(--pm-font-stack); display: inline-flex; align-items: center; gap: .35rem; }
+
+.reg { overflow: hidden; }
+.reg__grid { display: grid; grid-template-columns: minmax(250px, 1.25fr) minmax(430px, 2fr) 170px; align-items: center; }
+.reg__head { padding: .6rem 1.1rem; background: var(--pm-surface-subtle); border-bottom: 1px solid var(--pm-border); font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--pm-text-muted); }
+.reg__band { padding: .5rem 1.1rem; font-size: 12px; font-weight: 700; color: var(--pm-text-secondary); background: var(--pm-surface-subtle); border-bottom: 1px solid var(--pm-border); display: flex; gap: .5rem; align-items: center; }
+.reg__band span { font-weight: 500; color: var(--pm-text-muted); }
+.row { padding: .8rem 1.1rem; border-bottom: 1px solid var(--pm-border); transition: background .12s; position: relative; }
+.row:hover { background: var(--pm-surface-subtle); }
+.row:last-child { border-bottom: 0; }
+.row__t { font-weight: 650; color: var(--pm-text-strong); font-size: 14px; line-height: 1.3; }
+.row__t a { color: inherit; }
+.row__t a:hover { color: var(--pm-primary); }
+.row__m { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .3rem; font-size: 12px; color: var(--pm-text-muted); }
+.row__at { text-align: right; }
+.row__at .lbl { display: block; font-size: 12.5px; font-weight: 650; color: var(--pm-text-strong); margin-bottom: .2rem; }
+.row__at .sub { display: block; font-size: 11.5px; color: var(--pm-text-muted); margin-top: .2rem; }
+.row--dropped .row__t, .row--dropped .track { opacity: .55; }
+.row--dropped .row__t { text-decoration: line-through; text-decoration-color: var(--pm-text-muted); }
+
+/* the track: one line per project, the stage dots sit on it */
+.track { position: relative; display: grid; grid-template-columns: repeat(5, 1fr) .55fr .55fr repeat(2, 1fr); align-items: center; height: 44px; padding: 0 4px; }
+.track__base { position: absolute; top: 50%; height: 2px; margin-top: -1px; background: var(--pm-border-strong); border-radius: 2px; }
+.track__fill { position: absolute; top: 50%; height: 4px; margin-top: -2px; border-radius: 4px; background: linear-gradient(90deg, var(--pm-spec-4), var(--pm-success)); }
+.track__fill--live { background: linear-gradient(90deg, var(--pm-spec-4), var(--pm-success) 80%, var(--pm-primary)); }
+.st { position: relative; display: flex; justify-content: center; }
+.st i { display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--pm-card); border: 2px solid var(--pm-border-strong); position: relative; z-index: 1; }
+.st--done i { background: var(--pm-success); border-color: var(--pm-success); }
+.st--done i::after { content: ""; position: absolute; left: 3.5px; top: 1px; width: 3px; height: 6px; border: solid var(--pm-card); border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); }
+.st--skip i { width: 6px; height: 6px; border: 0; background: var(--pm-border-strong); }
+.st--cur i { width: 18px; height: 18px; background: var(--pm-primary); border: 3px solid var(--pm-card); box-shadow: 0 0 0 2px var(--pm-primary), 0 0 0 7px var(--pm-primary-soft); animation: pulse 2.4s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 2px var(--pm-primary), 0 0 0 10px transparent; } }
+@media (prefers-reduced-motion: reduce) { .st--cur i { animation: none; } }
+.st--cur.late i { background: var(--pm-danger); box-shadow: 0 0 0 2px var(--pm-danger), 0 0 0 7px var(--pm-danger-soft-bg); }
+.st--cur.warn i { background: var(--pm-warning); box-shadow: 0 0 0 2px var(--pm-warning), 0 0 0 7px var(--pm-warning-soft-bg); }
+.st--stop i { background: var(--pm-card); border-color: var(--pm-text-muted); }
+.st--stop i::before, .st--stop i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 1.6px; background: var(--pm-text-muted); transform: translate(-50%, -50%) rotate(45deg); }
+.st--stop i::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.st em { position: absolute; top: 19px; font-style: normal; font-size: 10.5px; color: var(--pm-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; opacity: 0; transition: opacity .12s; }
+.row:hover .st em, .st--cur em { opacity: 1; }
+.st--cur em { top: 22px; font-weight: 700; color: var(--pm-primary-strong); }
+.trackhead { display: grid; grid-template-columns: repeat(5, 1fr) .55fr .55fr repeat(2, 1fr); padding: 0 4px; }
+.trackhead span { text-align: center; }
+.trackhead span.o { color: var(--pm-text-muted); opacity: .7; font-weight: 600; }
+.reg-foot { display: flex; gap: 1.2rem; align-items: center; margin-top: .7rem; font-size: 12px; color: var(--pm-text-muted); flex-wrap: wrap; }
+.reg-foot .k { display: inline-flex; align-items: center; gap: .4rem; }
+.reg-foot .k .st { width: 18px; }
+
+/* ================================ PROJECT PAGE ================================ */
+.p-hero { padding: 1.4rem 1.5rem 1.25rem; position: relative; overflow: hidden; margin-bottom: 1rem; }
+.p-hero::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--pm-spec-1), var(--pm-spec-2), var(--pm-spec-3), var(--pm-spec-4), var(--pm-spec-5), var(--pm-spec-6)); }
+.p-hero__top { display: flex; gap: 1.25rem; align-items: flex-start; }
+.p-hero__id { flex: 1; min-width: 0; }
+.p-hero__chips { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .55rem; }
+.p-hero h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; color: var(--pm-text-strong); }
+.p-hero__desc { margin: .5rem 0 0; color: var(--pm-text-secondary); max-width: 760px; }
+.p-hero__actions { display: flex; gap: .5rem; flex: none; }
+.p-now { display: grid; grid-template-columns: 1.35fr repeat(4, minmax(0, 1fr)); gap: 0; margin-top: 1.25rem; border: 1px solid var(--pm-border); border-radius: 14px; overflow: hidden; }
+.p-now > div { padding: .8rem 1rem; border-left: 1px solid var(--pm-border); }
+.p-now > div:first-child { border-left: 0; background: var(--pm-danger-soft-bg); }
+.p-now .k { font-size: 11.5px; font-weight: 600; color: var(--pm-text-muted); }
+.p-now .v { font-size: 18px; font-weight: 700; color: var(--pm-text-strong); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.p-now .s { font-size: 12px; color: var(--pm-text-muted); }
+.p-now > div:first-child .k { color: var(--pm-danger); }
+.p-now > div:first-child .v { font-size: 22px; color: var(--pm-text-strong); }
+
+.journey { padding: 1.15rem 1.4rem 1.3rem; margin-bottom: 1rem; }
+.sec-h { display: flex; align-items: baseline; gap: .6rem; margin-bottom: 1rem; }
+.sec-h h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--pm-text-strong); }
+.sec-h span { font-size: 12.5px; color: var(--pm-text-muted); }
+.sec-h .act { margin-left: auto; }
+.steps { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); position: relative; }
+.step { position: relative; text-align: center; padding-top: 2px; }
+.step::before { content: ""; position: absolute; top: 15px; left: -50%; width: 100%; height: 3px; background: var(--pm-success); z-index: 0; }
+.step:first-child::before { display: none; }
+.step--cur::before { background: linear-gradient(90deg, var(--pm-success), var(--pm-danger)); }
+.step--pend::before { background: var(--pm-border-strong); height: 2px; }
+.step__dot { position: relative; z-index: 1; width: 30px; height: 30px; margin: 0 auto; border-radius: 50%; background: var(--pm-success); color: var(--pm-text-inverted); display: grid; place-items: center; box-shadow: 0 0 0 4px var(--pm-card); }
+.step__dot svg { width: 15px; height: 15px; }
+.step--cur .step__dot { background: var(--pm-danger); box-shadow: 0 0 0 4px var(--pm-card), 0 0 0 8px var(--pm-danger-soft-bg); }
+.step--cur .step__dot::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--pm-card); }
+.step__gap { position: absolute; top: -9px; left: -50%; width: 100%; text-align: center; font-size: 10.5px; font-weight: 700; color: var(--pm-text-muted); font-variant-numeric: tabular-nums; z-index: 2; }
+.step__gap span { background: var(--pm-card); padding: 0 .3rem; }
+.step__l { margin-top: .55rem; font-size: 12.5px; font-weight: 700; color: var(--pm-text-strong); }
+.step__d { font-size: 11.5px; color: var(--pm-text-muted); font-variant-numeric: tabular-nums; }
+.step__x { display: inline-block; margin-top: .2rem; font-size: 11px; font-weight: 700; color: var(--pm-success-strong); background: var(--pm-success-soft-bg); border-radius: 6px; padding: 0 .35rem; }
+.step--cur .step__l { color: var(--pm-danger); }
+
+.spend { margin-top: 1.4rem; }
+.spend__bar { display: flex; height: 26px; border-radius: 8px; overflow: hidden; gap: 2px; }
+.spend__bar span { display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; color: var(--pm-text-inverted); white-space: nowrap; overflow: hidden; min-width: 0; }
+.spend__k { display: flex; justify-content: space-between; margin-top: .45rem; font-size: 12px; color: var(--pm-text-muted); }
+.spend__k b { color: var(--pm-text-strong); }
+
+.p-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 1rem; align-items: start; }
+.panel { padding: 1.1rem 1.25rem; }
+.panel + .panel { margin-top: 1rem; }
+.composer { border: 1px solid var(--pm-border); border-radius: 12px; background: var(--pm-surface-subtle); padding: .7rem .8rem; margin-bottom: 1rem; }
+.composer__ta { min-height: 44px; color: var(--pm-text-muted); font-size: 13.5px; padding: .15rem .1rem .5rem; }
+.composer__row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.composer__row .pill { height: 30px; padding: 0 .65rem; border: 1px solid var(--pm-border); border-radius: 8px; background: var(--pm-card); font-size: 12px; display: inline-flex; align-items: center; gap: .3rem; color: var(--pm-text-secondary); }
+.composer__row .pill b { color: var(--pm-text-strong); }
+.composer__row .btn { margin-left: auto; height: 32px; }
+.feed { position: relative; }
+.feed::before { content: ""; position: absolute; left: 17px; top: 8px; bottom: 8px; width: 2px; background: var(--pm-border); }
+.ev { position: relative; display: grid; grid-template-columns: 36px 1fr; gap: .75rem; padding: .35rem 0 .9rem; }
+.ev__av { position: relative; z-index: 1; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--pm-text-inverted); box-shadow: 0 0 0 4px var(--pm-card); }
+.ev__av--hod { background: var(--pm-spec-5); }
+.ev__av--mco { background: var(--pm-spec-2); }
+.ev__av--stage { width: 22px; height: 22px; margin: 7px; background: var(--pm-success); }
+.ev__av--stage svg { width: 12px; height: 12px; }
+.ev__h { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; font-size: 13px; }
+.ev__h b { color: var(--pm-text-strong); }
+.ev__h time { margin-left: auto; font-size: 12px; color: var(--pm-text-muted); font-variant-numeric: tabular-nums; }
+.ev__b { margin-top: .25rem; padding: .6rem .8rem; border-radius: 4px 12px 12px 12px; background: var(--pm-surface-subtle); border: 1px solid var(--pm-border); color: var(--pm-text); }
+.ev__f { margin-top: .3rem; font-size: 12px; color: var(--pm-text-muted); display: flex; gap: .6rem; }
+.ev--stage .ev__h { color: var(--pm-text-secondary); }
+.role { height: 19px; padding: 0 .45rem; border-radius: 6px; font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; }
+.role--hod { background: var(--pm-primary-soft); color: var(--pm-primary-strong); }
+.role--mco { background: var(--pm-warning-soft-bg); color: var(--pm-warning-strong); }
+.files { display: flex; flex-direction: column; gap: .5rem; }
+.file { display: grid; grid-template-columns: 34px 1fr auto; gap: .65rem; align-items: center; padding: .55rem .6rem; border: 1px solid var(--pm-border); border-radius: 11px; }
+.file:hover { border-color: var(--pm-border-strong); background: var(--pm-surface-subtle); }
+.file__ic { width: 34px; height: 40px; border-radius: 6px; background: var(--pm-danger-soft-bg); color: var(--pm-danger); display: grid; place-items: center; font-size: 9.5px; font-weight: 800; letter-spacing: .02em; }
+.file__n { display: block; font-size: 13px; font-weight: 600; color: var(--pm-text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file__m { display: block; font-size: 11.5px; color: var(--pm-text-muted); }
+.file__a { color: var(--pm-text-muted); font-size: 16px; }
+.drop { margin-top: .75rem; border: 1.5px dashed var(--pm-border-strong); border-radius: 12px; padding: .9rem; text-align: center; font-size: 12.5px; color: var(--pm-text-muted); }
+.drop b { color: var(--pm-primary); }
+.facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: .45rem 1rem; font-size: 13px; }
+.facts dt { color: var(--pm-text-muted); }
+.facts dd { margin: 0; color: var(--pm-text-strong); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.danger-zone { margin-top: 1rem; display: flex; justify-content: flex-end; gap: .25rem; }
+
+/* ================================ STAGE EDITOR ================================ */
+.ed-wrap { display: grid; grid-template-columns: 1fr 480px; min-height: 760px; }
+.ed-shade { background: color-mix(in srgb, var(--pm-text-strong) 35%, transparent); padding: 1.5rem; }
+.ed-shade .card { opacity: .55; filter: saturate(.6); padding: 1.2rem; }
+.ed { background: var(--pm-card); border-left: 1px solid var(--pm-border); box-shadow: -24px 0 48px -24px rgba(15,23,42,.35); display: flex; flex-direction: column; }
+.ed__h { padding: 1.2rem 1.4rem .9rem; border-bottom: 1px solid var(--pm-border); }
+.ed__h h3 { margin: 0; font-size: 18px; color: var(--pm-text-strong); }
+.ed__h p { margin: .2rem 0 0; font-size: 12.5px; color: var(--pm-text-muted); }
+.ed__b { flex: 1; padding: .6rem 1.4rem; }
+.er { display: grid; grid-template-columns: 34px 1fr 150px; gap: .75rem; align-items: center; padding: .55rem 0; position: relative; }
+.er::before { content: ""; position: absolute; left: 16px; top: -10px; height: 20px; width: 2px; background: var(--pm-border-strong); }
+.er:first-child::before { display: none; }
+.er--done::before, .er--new::before { background: var(--pm-success); }
+.ck { position: relative; z-index: 1; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--pm-border-strong); background: var(--pm-card); display: grid; place-items: center; cursor: pointer; }
+.er--done .ck { background: var(--pm-success); border-color: var(--pm-success); color: var(--pm-text-inverted); }
+.er--new .ck { background: var(--pm-success-soft-bg); border: 2px dashed var(--pm-success); color: var(--pm-success-strong); }
+.er--skip .ck { width: 20px; height: 20px; margin: 7px; border-style: dashed; }
+.ck svg { width: 15px; height: 15px; }
+.er__l { font-weight: 650; color: var(--pm-text-strong); font-size: 13.5px; }
+.er__s { font-size: 11.5px; color: var(--pm-text-muted); }
+.er--skip .er__l { color: var(--pm-text-muted); font-weight: 600; }
+.er--new .er__s { color: var(--pm-success-strong); font-weight: 600; }
+.inp { height: 34px; border: 1px solid var(--pm-border-strong); border-radius: 9px; padding: 0 .6rem; display: flex; align-items: center; font-size: 13px; color: var(--pm-text-strong); background: var(--pm-card); font-variant-numeric: tabular-nums; }
+.inp--empty { color: var(--pm-text-muted); }
+.inp--focus { border-color: var(--pm-primary); box-shadow: 0 0 0 3px var(--pm-primary-soft); }
+.switch { display: inline-flex; align-items: center; gap: .4rem; font-size: 12px; font-weight: 600; color: var(--pm-primary); justify-self: start; }
+.switch i { width: 30px; height: 17px; border-radius: 999px; background: var(--pm-surface-muted); position: relative; }
+.switch i::after { content: ""; position: absolute; left: 2px; top: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--pm-card); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.so-extra { grid-column: 2 / 4; display: grid; grid-template-columns: 1fr 150px; gap: .75rem; align-items: center; }
+.ed__sum { margin: .5rem 1.4rem 0; padding: .7rem .9rem; border-radius: 12px; background: var(--pm-success-soft-bg); color: var(--pm-success-strong); font-size: 12.5px; display: flex; gap: .55rem; }
+.ed__sum svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.ed__f { display: flex; gap: .5rem; justify-content: flex-end; padding: 1rem 1.4rem 1.2rem; border-top: 1px solid var(--pm-border); margin-top: .9rem; }
+
+/* ================================ PHONE ================================ */
+.phones { display: flex; gap: 2.5rem; justify-content: center; flex-wrap: wrap; padding-top: .5rem; }
+.phone { width: 390px; height: 820px; border-radius: 44px; border: 10px solid #0b1220; background: var(--pm-page-bg); overflow: hidden; box-shadow: 0 40px 80px -40px rgba(15,23,42,.5); }
+.phone__in { height: 100%; overflow-y: auto; padding: 1rem .9rem 2rem; }
+.phone h1 { font-size: 24px; margin: .2rem 0 .1rem; color: var(--pm-text-strong); letter-spacing: -.02em; }
+.phone .sub { font-size: 12.5px; color: var(--pm-text-muted); margin: 0 0 .8rem; }
+.p-strip { display: flex; gap: .5rem; overflow-x: auto; padding-bottom: .3rem; margin: 0 -.9rem .8rem; padding-left: .9rem; padding-right: .9rem; scrollbar-width: none; }
+.p-strip .fig { flex: 0 0 150px; padding: .7rem .8rem .75rem 1rem; }
+.p-strip .fig__v { font-size: 22px; }
+.mcard { padding: .85rem .9rem .8rem; margin-bottom: .6rem; }
+.mcard__t { font-weight: 650; color: var(--pm-text-strong); font-size: 14px; line-height: 1.3; }
+.mcard__m { display: flex; gap: .35rem; align-items: center; margin-top: .35rem; flex-wrap: wrap; font-size: 11.5px; color: var(--pm-text-muted); }
+.mbar { display: flex; gap: 3px; margin-top: .7rem; }
+.mbar span { flex: 1; height: 6px; border-radius: 3px; background: var(--pm-surface-muted); }
+.mbar span.d { background: var(--pm-success); }
+.mbar span.c { background: var(--pm-primary); }
+.mbar span.c.late { background: var(--pm-danger); }
+.mbar span.c.warn { background: var(--pm-warning); }
+.mbar span.s { flex: .35; background: transparent; border: 1px dashed var(--pm-border-strong); height: 6px; }
+.mcard__at { display: flex; justify-content: space-between; align-items: center; margin-top: .5rem; font-size: 12.5px; }
+.mcard__at b { color: var(--pm-text-strong); }
+.vsteps { margin: 0; padding: 0; list-style: none; position: relative; }
+.vsteps li { position: relative; display: grid; grid-template-columns: 26px 1fr auto; gap: .65rem; padding: .5rem 0; align-items: center; font-size: 13px; }
+.vsteps li::before { content: ""; position: absolute; left: 12px; top: -12px; height: 24px; width: 2px; background: var(--pm-success); }
+.vsteps li:first-child::before { display: none; }
+.vsteps li.p::before { background: var(--pm-border-strong); }
+.vsteps .dot { width: 26px; height: 26px; border-radius: 50%; background: var(--pm-success); display: grid; place-items: center; color: var(--pm-text-inverted); position: relative; z-index: 1; }
+.vsteps .dot svg { width: 12px; height: 12px; }
+.vsteps li.c .dot { background: var(--pm-danger); box-shadow: 0 0 0 5px var(--pm-danger-soft-bg); }
+.vsteps li.c .dot::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pm-card); }
+.vsteps b { color: var(--pm-text-strong); }
+.vsteps small { color: var(--pm-text-muted); font-size: 11.5px; display: block; }
+.vsteps .r { text-align: right; font-size: 11.5px; color: var(--pm-text-muted); font-variant-numeric: tabular-nums; }
+.phone-actions { z-index: 3; position: sticky; bottom: -2rem; margin: 1rem -.9rem -2rem; padding: .75rem .9rem 1.1rem; background: color-mix(in srgb, var(--pm-card) 92%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--pm-border); display: flex; gap: .5rem; }
+.phone-actions .btn { flex: 1; justify-content: center; height: 42px; }
+</style>
+</head>
+<body>
+
+<div class="mk-bar" role="toolbar" aria-label="Mockup screens">
+    <b>IT projects · redesign mockup</b>
+    <button type="button" data-screen="board" aria-pressed="true">1 · Board</button>
+    <button type="button" data-screen="project" aria-pressed="false">2 · Project page</button>
+    <button type="button" data-screen="editor" aria-pressed="false">3 · Stage editor</button>
+    <button type="button" data-screen="phone" aria-pressed="false">4 · Phone</button>
+    <span class="sp"></span>
+    <button type="button" id="mkTheme" aria-pressed="false">Dark theme</button>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-steps" viewBox="0 0 16 16"><circle cx="3" cy="8" r="2" fill="currentColor"/><circle cx="8" cy="8" r="2" fill="currentColor"/><circle cx="13" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 8h1M10 8h1" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7.2v4M8 4.8v.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+</svg>
+
+<!-- ============================== 1 · BOARD ============================== -->
+<section class="mk-screen on" data-screen="board">
+<div class="page">
+    <div class="crumb"><a href="#">ERP</a> / IT projects</div>
+    <header class="b-head">
+        <div>
+            <h1>IT projects</h1>
+            <p>Every IT PPP case, where it stands and how long it has been there.</p>
+        </div>
+        <div class="b-head__actions">
+            <nav class="fy" aria-label="Financial year"><a class="on" href="#">All years</a><a href="#">2026-27</a><a href="#">2025-26</a><a href="#">2024-25</a></nav>
+            <a class="btn btn--primary" href="#"><svg><use href="#i-plus"/></svg>New IT project</a>
+        </div>
+    </header>
+
+    <section class="figs" aria-label="Summary">
+        <a class="card fig" href="#" style="--mark: var(--pm-spec-5)">
+            <div class="fig__k">In progress</div>
+            <div class="fig__v">8 <small>cases</small></div>
+            <div class="fig__s"><b>1</b> not started yet · <b>3</b> moved in the last 90 days</div>
+        </a>
+        <a class="card fig" href="#" style="--mark: var(--pm-spec-1)">
+            <div class="fig__k">Waiting longest</div>
+            <div class="fig__v">355 <small>days</small></div>
+            <div class="fig__s"><b>Core switches, Admin block</b> at COB</div>
+        </a>
+        <a class="card fig" href="#" style="--mark: var(--pm-spec-2)">
+            <div class="fig__k">On order, not yet delivered</div>
+            <div class="fig__v">₹148.40 <small>lakh</small></div>
+            <div class="fig__s"><b>2</b> supply orders awaiting delivery and ATP</div>
+        </a>
+        <a class="card fig" href="#" style="--mark: var(--pm-spec-3)">
+            <div class="fig__k">Delivered</div>
+            <div class="fig__v">3 <small>cases</small></div>
+            <div class="fig__s">none yet in FY 2026-27 · last on <b>30 Jun 2025</b></div>
+        </a>
+    </section>
+
+    <section class="card pipe" aria-label="Where the cases are now">
+        <div class="pipe__top"><h2>Where the cases are now</h2><span>Each card is a live case at that stage, with the days since the previous stage closed.</span></div>
+        <div class="pipe__cols">
+            <div class="pcol pcol--has"><div class="pcol__h">IT PPP / IPA <b>1</b></div><div class="pcol__list"><a class="tok" href="#">Endpoint security licences<small>added 5 d ago</small></a></div></div>
+            <div class="pcol pcol--has"><div class="pcol__h">AoN <b>1</b></div><div class="pcol__list"><a class="tok tok--warn" href="#">Video conferencing, conference hall<small>186 d</small></a></div></div>
+            <div class="pcol pcol--has"><div class="pcol__h">Bid <b>1</b></div><div class="pcol__list"><a class="tok tok--warn" href="#">Workstations for Design Centre<small>142 d</small></a></div></div>
+            <div class="pcol pcol--has"><div class="pcol__h">TEC <b>1</b></div><div class="pcol__list"><a class="tok" href="#">Laptops for faculty<small>81 d</small></a></div></div>
+            <div class="pcol pcol--has"><div class="pcol__h">COB <b>1</b></div><div class="pcol__list"><a class="tok tok--late" href="#">Core switches, Admin block<small>355 d</small></a></div></div>
+            <div class="pcol pcol--opt pcol--has"><div class="pcol__h">BM <b>1</b></div><div class="pcol__list"><a class="tok" href="#">Secure printing<small>33 d</small></a></div></div>
+            <div class="pcol pcol--opt"><div class="pcol__h">PNC <b>0</b></div><div class="pcol__list"></div></div>
+            <div class="pcol"><div class="pcol__h">SO <b>0</b></div><div class="pcol__list"><div class="pcol__empty">Nothing waiting for an SO.</div></div></div>
+            <div class="pcol pcol--has"><div class="pcol__h">Delivery &amp; ATP <b>2</b></div><div class="pcol__list"><a class="tok tok--late" href="#">Campus Wi-Fi, phase 2<small>331 d · ₹86.40 L</small></a><a class="tok tok--late" href="#">Server room UPS<small>304 d · ₹62.00 L</small></a></div></div>
+        </div>
+    </section>
+
+    <div class="reg-tools">
+        <h2>Register</h2>
+        <nav class="seg" aria-label="Status"><a class="on" href="#">Active <b>8</b></a><a href="#">Delivered <b>3</b></a><a href="#">Dropped <b>1</b></a><a href="#">All <b>12</b></a></nav>
+        <span class="sel">Sort: Stage order ▾</span>
+        <label class="search"><svg><use href="#i-search"/></svg>Search title or IT PPP reference</label>
+    </div>
+
+    <section class="card reg" aria-label="Register">
+        <div class="reg__grid reg__head">
+            <span>Case</span>
+            <div class="trackhead"><span>PPP</span><span>AoN</span><span>Bid</span><span>TEC</span><span>COB</span><span class="o">BM</span><span class="o">PNC</span><span>SO</span><span>DLV</span></div>
+            <span style="text-align:right">Now</span>
+        </div>
+
+        <div class="reg__band">Active <span>8 cases</span></div>
+
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Endpoint security licences (renewal, 600 seats)</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 12/2026</span><span>FY 2026-27</span></div></div>
+            <div class="track"><div class="st st--cur"><i></i><em>now</em></div><div class="st"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div><div class="st st--skip"><i></i></div><div class="st st--skip"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div></div>
+            <div class="row__at"><span class="lbl">Not started</span><span class="age">5 d</span></div>
+        </div>
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Video conferencing for the conference hall</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 04/2026</span><span>FY 2026-27</span></div></div>
+            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>06 May 26</em></div><div class="st st--cur warn"><i></i><em>186 d</em></div><div class="st"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div><div class="st st--skip"><i></i></div><div class="st st--skip"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div></div>
+            <div class="row__at"><span class="lbl">At AoN</span><span class="age age--warn">186 d</span></div>
+        </div>
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Workstations for Design Centre (40 nos)</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 07/2026</span><span>FY 2026-27</span></div></div>
+            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>28 Apr 26</em></div><div class="st st--done"><i></i><em>19 Jun 26</em></div><div class="st st--cur warn"><i></i><em>142 d</em></div><div class="st"><i></i></div><div class="st"><i></i></div><div class="st st--skip"><i></i></div><div class="st st--skip"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div></div>
+            <div class="row__at"><span class="lbl">At Bid</span><span class="age age--warn">142 d</span></div>
+        </div>
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Laptops for faculty (120 nos)</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 05/2026</span><span>FY 2026-27</span></div></div>
+            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>22 Apr 26</em></div><div class="st st--done"><i></i><em>05 Jun 26</em></div><div class="st st--done"><i></i><em>19 Aug 26</em></div><div class="st st--cur"><i></i><em>81 d</em></div><div class="st"><i></i></div><div class="st st--skip"><i></i></div><div class="st st--skip"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div></div>
+            <div class="row__at"><span class="lbl">At TEC</span><span class="age">81 d</span></div>
+        </div>
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Core switches, Admin block</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 09/2025</span><span>FY 2025-26</span></div></div>
+            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>12 May 25</em></div><div class="st st--done"><i></i><em>03 Jul 25</em></div><div class="st st--done"><i></i><em>29 Sep 25</em></div><div class="st st--done"><i></i><em>18 Nov 25</em></div><div class="st st--cur late"><i></i><em>355 d</em></div><div class="st st--skip"><i></i></div><div class="st st--skip"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div></div>
+            <div class="row__at"><span class="lbl">At COB</span><span class="age age--late">355 d</span></div>
+        </div>
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Secure printing (follow-me) for HQ offices</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 01/2026</span><span>FY 2026-27</span></div></div>
+            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>09 Apr 26</em></div><div class="st st--done"><i></i><em>20 May 26</em></div><div class="st st--done"><i></i><em>14 Jul 26</em></div><div class="st st--done"><i></i><em>02 Sep 26</em></div><div class="st st--done"><i></i><em>06 Oct 26</em></div><div class="st st--cur"><i></i><em>33 d</em></div><div class="st st--skip"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div></div>
+            <div class="row__at"><span class="lbl">At Benchmarking</span><span class="age">33 d</span></div>
+        </div>
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Campus Wi-Fi, phase 2 (hostel blocks)</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 02/2025</span><span>FY 2025-26</span></div></div>
+            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>10 Apr 25</em></div><div class="st st--done"><i></i><em>22 May 25</em></div><div class="st st--done"><i></i><em>01 Aug 25</em></div><div class="st st--done"><i></i><em>15 Sep 25</em></div><div class="st st--done"><i></i><em>07 Oct 25</em></div><div class="st st--done"><i></i><em>28 Oct 25</em></div><div class="st st--done"><i></i><em>20 Nov 25</em></div><div class="st st--done"><i></i><em>12 Dec 25</em></div><div class="st st--cur late"><i></i><em>331 d</em></div></div>
+            <div class="row__at"><span class="lbl">At Delivery &amp; ATP</span><span class="age age--late">331 d</span><span class="sub">SO ₹86.40 L</span></div>
+        </div>
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Server room UPS (2 x 40 kVA)</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 06/2025</span><span>FY 2025-26</span></div></div>
+            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>02 May 25</em></div><div class="st st--done"><i></i><em>16 Jun 25</em></div><div class="st st--done"><i></i><em>27 Aug 25</em></div><div class="st st--done"><i></i><em>09 Oct 25</em></div><div class="st st--done"><i></i><em>04 Nov 25</em></div><div class="st st--skip"><i></i></div><div class="st st--done"><i></i><em>27 Nov 25</em></div><div class="st st--done"><i></i><em>08 Jan 26</em></div><div class="st st--cur late"><i></i><em>304 d</em></div></div>
+            <div class="row__at"><span class="lbl">At Delivery &amp; ATP</span><span class="age age--late">304 d</span><span class="sub">SO ₹62.00 L</span></div>
+        </div>
+
+        <div class="reg__band">Delivered <span>3 cases</span></div>
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Fibre ring, east campus</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 10/2024</span><span>FY 2024-25</span></div></div>
+            <div class="track"><div class="track__fill"></div><div class="st st--done"><i></i><em>09 Jul 24</em></div><div class="st st--done"><i></i><em>21 Aug 24</em></div><div class="st st--done"><i></i><em>06 Nov 24</em></div><div class="st st--done"><i></i><em>17 Dec 24</em></div><div class="st st--done"><i></i><em>15 Jan 25</em></div><div class="st st--skip"><i></i></div><div class="st st--skip"><i></i></div><div class="st st--done"><i></i><em>24 Feb 25</em></div><div class="st st--done"><i></i><em>30 Jun 25</em></div></div>
+            <div class="row__at"><span class="chip chip--ok">Delivered 30 Jun 25</span><span class="sub">356 days end to end · ₹34.90 L</span></div>
+        </div>
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Backup appliance for the server room</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 11/2024</span><span>FY 2024-25</span></div></div>
+            <div class="track"><div class="track__fill"></div><div class="st st--done"><i></i><em>04 Jun 24</em></div><div class="st st--done"><i></i><em>25 Jul 24</em></div><div class="st st--done"><i></i><em>02 Oct 24</em></div><div class="st st--done"><i></i><em>14 Nov 24</em></div><div class="st st--done"><i></i><em>09 Dec 24</em></div><div class="st st--skip"><i></i></div><div class="st st--skip"><i></i></div><div class="st st--done"><i></i><em>21 Jan 25</em></div><div class="st st--done"><i></i><em>27 Mar 25</em></div></div>
+            <div class="row__at"><span class="chip chip--ok">Delivered 27 Mar 25</span><span class="sub">296 days end to end · ₹48.75 L</span></div>
+        </div>
+        <div class="reg__grid row">
+            <div><div class="row__t"><a href="#">Network monitoring suite</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 03/2024</span><span>FY 2024-25</span></div></div>
+            <div class="track"><div class="track__fill"></div><div class="st st--done"><i></i><em>16 Apr 24</em></div><div class="st st--done"><i></i><em>29 May 24</em></div><div class="st st--done"><i></i><em>07 Aug 24</em></div><div class="st st--done"><i></i><em>18 Sep 24</em></div><div class="st st--done"><i></i><em>10 Oct 24</em></div><div class="st st--skip"><i></i></div><div class="st st--skip"><i></i></div><div class="st st--done"><i></i><em>26 Nov 24</em></div><div class="st st--done"><i></i><em>13 Feb 25</em></div></div>
+            <div class="row__at"><span class="chip chip--ok">Delivered 13 Feb 25</span><span class="sub">303 days end to end · ₹18.30 L</span></div>
+        </div>
+    </section>
+    <div class="reg-foot">
+        <span class="k"><span class="st st--done"><i></i></span>done (hover a row for dates)</span>
+        <span class="k"><span class="st st--cur" style="transform:scale(.8)"><i></i></span>current stage</span>
+        <span class="k"><span class="st"><i></i></span>not yet</span>
+        <span class="k"><span class="st st--skip"><i></i></span>skipped</span>
+        <span class="k"><span class="age">≤120 d</span><span class="age age--warn">121–240 d</span><span class="age age--late">&gt;240 d</span> days at the current stage</span>
+    </div>
+</div>
+</section>
+
+<!-- ============================== 2 · PROJECT PAGE ============================== -->
+<section class="mk-screen" data-screen="project">
+<div class="page">
+    <div class="crumb"><a href="#">ERP</a> / <a href="#">IT projects</a> / IT PPP 02/2025</div>
+
+    <section class="card p-hero">
+        <div class="p-hero__top">
+            <div class="p-hero__id">
+                <div class="p-hero__chips"><span class="chip chip--ref">IT PPP 02/2025</span><span class="chip">FY 2025-26</span><span class="chip chip--cur">In progress</span></div>
+                <h1>Campus Wi-Fi, phase 2 (hostel blocks)</h1>
+                <p class="p-hero__desc">Extension of the campus Wi-Fi to the four hostel blocks: 96 access points, two controllers and PoE switching.</p>
+            </div>
+            <div class="p-hero__actions">
+                <button class="btn" type="button">Edit</button>
+                <button class="btn btn--primary" type="button"><svg><use href="#i-steps"/></svg>Update stages</button>
+            </div>
+        </div>
+        <div class="p-now">
+            <div><div class="k">At Delivery and ATP for</div><div class="v">331 days</div><div class="s">since the SO on 12 Dec 2025</div></div>
+            <div><div class="k">Supply order</div><div class="v">₹86.40 L</div><div class="s">placed 12 Dec 2025</div></div>
+            <div><div class="k">Started</div><div class="v">10 Apr 2025</div><div class="s">IT PPP / IPA closed</div></div>
+            <div><div class="k">Elapsed</div><div class="v">577 days</div><div class="s">about 19 months</div></div>
+            <div><div class="k">Last update</div><div class="v">24 Oct 2026</div><div class="s">remark by Mahesh Kini</div></div>
+        </div>
+    </section>
+
+    <section class="card journey" aria-label="Stages">
+        <div class="sec-h"><h2>Journey</h2><span>Days between stages above the line. All nine stages, including the two optional ones this case used.</span></div>
+        <div class="steps">
+            <div class="step"><div class="step__dot"><svg><use href="#i-check"/></svg></div><div class="step__l">IT PPP / IPA</div><div class="step__d">10 Apr 25</div></div>
+            <div class="step"><div class="step__gap"><span>42 d</span></div><div class="step__dot"><svg><use href="#i-check"/></svg></div><div class="step__l">AoN</div><div class="step__d">22 May 25</div></div>
+            <div class="step"><div class="step__gap"><span>71 d</span></div><div class="step__dot"><svg><use href="#i-check"/></svg></div><div class="step__l">Bid</div><div class="step__d">01 Aug 25</div></div>
+            <div class="step"><div class="step__gap"><span>45 d</span></div><div class="step__dot"><svg><use href="#i-check"/></svg></div><div class="step__l">TEC</div><div class="step__d">15 Sep 25</div></div>
+            <div class="step"><div class="step__gap"><span>22 d</span></div><div class="step__dot"><svg><use href="#i-check"/></svg></div><div class="step__l">COB</div><div class="step__d">07 Oct 25</div></div>
+            <div class="step"><div class="step__gap"><span>21 d</span></div><div class="step__dot"><svg><use href="#i-check"/></svg></div><div class="step__l">Benchmarking</div><div class="step__d">28 Oct 25</div></div>
+            <div class="step"><div class="step__gap"><span>23 d</span></div><div class="step__dot"><svg><use href="#i-check"/></svg></div><div class="step__l">PNC</div><div class="step__d">20 Nov 25</div></div>
+            <div class="step"><div class="step__gap"><span>22 d</span></div><div class="step__dot"><svg><use href="#i-check"/></svg></div><div class="step__l">SO</div><div class="step__d">12 Dec 25</div><span class="step__x">₹86.40 L</span></div>
+            <div class="step step--cur"><div class="step__gap"><span style="color:var(--pm-danger)">331 d so far</span></div><div class="step__dot"></div><div class="step__l">Delivery and ATP</div><div class="step__d">now</div></div>
+        </div>
+        <div class="spend">
+            <div class="spend__bar" aria-label="Where the time went">
+                <span style="flex:42;background:var(--pm-spec-6)">AoN</span>
+                <span style="flex:71;background:var(--pm-spec-5)">Bid 71 d</span>
+                <span style="flex:45;background:var(--pm-spec-4)">TEC</span>
+                <span style="flex:22;background:var(--pm-spec-3)">COB</span>
+                <span style="flex:21;background:color-mix(in srgb, var(--pm-spec-3) 60%, var(--pm-spec-2))">BM</span>
+                <span style="flex:23;background:var(--pm-spec-2)">PNC</span>
+                <span style="flex:22;background:color-mix(in srgb, var(--pm-spec-2) 50%, var(--pm-spec-1))">SO</span>
+                <span style="flex:331;background:repeating-linear-gradient(135deg, var(--pm-spec-1) 0 10px, color-mix(in srgb, var(--pm-spec-1) 82%, var(--pm-card)) 10px 20px)">Delivery and ATP · 331 d so far (57%)</span>
+            </div>
+            <div class="spend__k"><span>Where the time went · 10 Apr 2025 → today</span><span><b>577 days</b> so far</span></div>
+        </div>
+    </section>
+
+    <div class="p-grid">
+        <section class="card panel" aria-label="Remarks and history">
+            <div class="sec-h"><h2>Remarks and history</h2><span>2 remarks · stage changes shown in line</span></div>
+            <div class="composer">
+                <div class="composer__ta">Write a remark as HoD…</div>
+                <div class="composer__row">
+                    <span class="pill">Date <b>08 Nov 2026</b></span>
+                    <span class="pill">About <b>Delivery and ATP</b> ▾</span>
+                    <button class="btn btn--primary" type="button">Post remark</button>
+                </div>
+            </div>
+            <div class="feed">
+                <div class="ev">
+                    <div class="ev__av ev__av--hod">MK</div>
+                    <div>
+                        <div class="ev__h"><b>Mahesh Kini</b><span class="role role--hod">HoD</span><span class="chip">Delivery and ATP</span><time>24 Oct 2026</time></div>
+                        <div class="ev__b">First lot of access points received. ATP planned after the controller firmware is cleared by the OEM.</div>
+                        <div class="ev__f"><a href="#">Edit</a><a href="#" style="color:var(--pm-danger)">Delete</a></div>
+                    </div>
+                </div>
+                <div class="ev">
+                    <div class="ev__av ev__av--mco">SB</div>
+                    <div>
+                        <div class="ev__h"><b>SN Bihari</b><span class="role role--mco">MCO</span><span class="chip">PNC</span><time>24 Sep 2026</time></div>
+                        <div class="ev__b">PNC concluded at 86.40 L against the L1 quote of 91.20 L.</div>
+                    </div>
+                </div>
+                <div class="ev ev--stage">
+                    <div class="ev__av ev__av--stage"><svg><use href="#i-check"/></svg></div>
+                    <div><div class="ev__h"><span><b>SO</b> placed, ₹86.40 L</span><time>12 Dec 2025</time></div></div>
+                </div>
+                <div class="ev ev--stage">
+                    <div class="ev__av ev__av--stage"><svg><use href="#i-check"/></svg></div>
+                    <div><div class="ev__h"><span><b>PNC</b> completed</span><time>20 Nov 2025</time></div></div>
+                </div>
+                <div class="ev ev--stage">
+                    <div class="ev__av ev__av--stage"><svg><use href="#i-check"/></svg></div>
+                    <div><div class="ev__h"><span>6 earlier stages, from <b>IT PPP / IPA</b> on 10 Apr 2025</span><time><a href="#">show</a></time></div></div>
+                </div>
+            </div>
+        </section>
+
+        <aside>
+            <section class="card panel" aria-label="Documents">
+                <div class="sec-h"><h2>Documents</h2><span>3</span></div>
+                <div class="files">
+                    <a class="file" href="#"><span class="file__ic">PDF</span><span><span class="file__n">SO 14-2025 Wi-Fi phase 2.pdf</span><span class="file__m">892 B · Mahesh Kini · 14 Dec 25</span></span><span class="file__a">↓</span></a>
+                    <a class="file" href="#"><span class="file__ic">PDF</span><span><span class="file__n">PNC minutes.pdf</span><span class="file__m">879 B · Mahesh Kini · 13 Dec 25</span></span><span class="file__a">↓</span></a>
+                    <a class="file" href="#"><span class="file__ic">PDF</span><span><span class="file__n">Benchmarking note.pdf</span><span class="file__m">885 B · Mahesh Kini · 14 Dec 25</span></span><span class="file__a">↓</span></a>
+                </div>
+                <div class="drop">Drop a file here or <b>browse</b><br/>PDF, Word, Excel or PowerPoint, up to 100 MB</div>
+            </section>
+            <section class="card panel" aria-label="Record">
+                <div class="sec-h"><h2>Record</h2></div>
+                <dl class="facts">
+                    <dt>Added</dt><dd>10 Apr 2025 · Hari Om Ahlawat</dd>
+                    <dt>Stages last changed</dt><dd>12 Dec 2025</dd>
+                    <dt>Optional stages</dt><dd>Benchmarking, PNC used</dd>
+                </dl>
+                <div class="danger-zone"><button class="btn btn--ghost" type="button">Mark dropped</button><button class="btn btn--quiet-danger" type="button">Delete</button></div>
+            </section>
+        </aside>
+    </div>
+</div>
+</section>
+
+<!-- ============================== 3 · STAGE EDITOR ============================== -->
+<section class="mk-screen" data-screen="editor">
+<div class="ed-wrap">
+    <div class="ed-shade" aria-hidden="true">
+        <div class="card"><div class="crumb">ERP / IT projects / IT PPP 07/2026</div><h1 style="margin:0;font-size:24px;color:var(--pm-text-strong)">Workstations for Design Centre (40 nos)</h1><p style="color:var(--pm-text-muted)">At Bid for 142 days</p></div>
+    </div>
+    <aside class="ed" aria-label="Update stages">
+        <div class="ed__h">
+            <h3>Update stages</h3>
+            <p>Workstations for Design Centre · tick what is done; dates are optional but make the ageing honest.</p>
+        </div>
+        <div class="ed__b">
+            <div class="er er--done"><span class="ck"><svg><use href="#i-check"/></svg></span><div><div class="er__l">IT PPP / IPA</div><div class="er__s">done</div></div><span class="inp">28 Apr 2026</span></div>
+            <div class="er er--done"><span class="ck"><svg><use href="#i-check"/></svg></span><div><div class="er__l">AoN</div><div class="er__s">done · 52 d after PPP</div></div><span class="inp">19 Jun 2026</span></div>
+            <div class="er er--new"><span class="ck"><svg><use href="#i-check"/></svg></span><div><div class="er__l">Bid</div><div class="er__s">will be completed</div></div><span class="inp inp--empty">date not known</span></div>
+            <div class="er er--done"><span class="ck"><svg><use href="#i-check"/></svg></span><div><div class="er__l">TEC</div><div class="er__s">ticked now · 133 d after AoN</div></div><span class="inp inp--focus">30 Oct 2026</span></div>
+            <div class="er"><span class="ck"></span><div><div class="er__l">COB</div><div class="er__s">next</div></div><span class="inp inp--empty">dd mmm yyyy</span></div>
+            <div class="er er--skip"><span class="ck"></span><div><div class="er__l">Benchmarking</div><div class="er__s">skipped for this case</div></div><span class="switch"><i></i>Include</span></div>
+            <div class="er er--skip"><span class="ck"></span><div><div class="er__l">PNC</div><div class="er__s">skipped for this case</div></div><span class="switch"><i></i>Include</span></div>
+            <div class="er"><span class="ck"></span><div><div class="er__l">SO</div><div class="er__s">date and value are both optional</div></div><span class="inp inp--empty">dd mmm yyyy</span>
+                <div class="so-extra"><span class="er__s">Value of the supply order</span><span class="inp inp--empty">₹ ____ lakh</span></div></div>
+            <div class="er"><span class="ck"></span><div><div class="er__l">Delivery and ATP</div><div class="er__s">closes the case</div></div><span class="inp inp--empty">dd mmm yyyy</span></div>
+        </div>
+        <div class="ed__sum" role="status"><svg><use href="#i-info"/></svg><span>Saving marks <b>Bid</b> and <b>TEC</b> complete. Bid has no date, so the board will count the wait at COB from 30 Oct 2026.</span></div>
+        <div class="ed__f"><button class="btn" type="button">Cancel</button><button class="btn btn--primary" type="button">Save 2 changes</button></div>
+    </aside>
+</div>
+</section>
+
+<!-- ============================== 4 · PHONE ============================== -->
+<section class="mk-screen" data-screen="phone">
+<div class="page">
+<div class="phones">
+    <div class="phone"><div class="phone__in">
+        <div class="crumb">ERP / IT projects</div>
+        <h1>IT projects</h1>
+        <p class="sub">8 in progress · 3 delivered · 1 dropped</p>
+        <div class="p-strip">
+            <div class="card fig" style="--mark: var(--pm-spec-1)"><div class="fig__k">Waiting longest</div><div class="fig__v">355 <small>d</small></div><div class="fig__s">Core switches, COB</div></div>
+            <div class="card fig" style="--mark: var(--pm-spec-2)"><div class="fig__k">On order</div><div class="fig__v">₹148 <small>L</small></div><div class="fig__s">2 awaiting delivery</div></div>
+            <div class="card fig" style="--mark: var(--pm-spec-3)"><div class="fig__k">Delivered</div><div class="fig__v">3</div><div class="fig__s">last 30 Jun 25</div></div>
+        </div>
+        <nav class="seg" style="display:flex;margin-bottom:.4rem"><a class="on" href="#" style="flex:1;text-align:center">Active <b>8</b></a><a href="#" style="flex:1;text-align:center">Delivered <b>3</b></a><a href="#" style="flex:1;text-align:center">All <b>12</b></a></nav>
+        <div style="font-size:11.5px;color:var(--pm-text-muted);margin:0 0 .5rem .2rem">Longest wait first</div>
+        <div class="card mcard"><div class="mcard__t">Core switches, Admin block</div><div class="mcard__m"><span class="chip chip--ref">IT PPP 09/2025</span>FY 2025-26</div>
+            <div class="mbar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="c late"></span><span class="s"></span><span class="s"></span><span></span><span></span></div>
+            <div class="mcard__at"><span>At <b>COB</b> · stage 5 of 7</span><span class="age age--late">355 d</span></div></div>
+        <div class="card mcard"><div class="mcard__t">Campus Wi-Fi, phase 2 (hostel blocks)</div><div class="mcard__m"><span class="chip chip--ref">IT PPP 02/2025</span>FY 2025-26 · SO ₹86.40 L</div>
+            <div class="mbar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="c late"></span></div>
+            <div class="mcard__at"><span>At <b>Delivery and ATP</b> · 9 of 9</span><span class="age age--late">331 d</span></div></div>
+        <div class="card mcard"><div class="mcard__t">Server room UPS (2 x 40 kVA)</div><div class="mcard__m"><span class="chip chip--ref">IT PPP 06/2025</span>FY 2025-26 · SO ₹62.00 L</div>
+            <div class="mbar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="s"></span><span class="d"></span><span class="d"></span><span class="c late"></span></div>
+            <div class="mcard__at"><span>At <b>Delivery and ATP</b> · 8 of 8</span><span class="age age--late">304 d</span></div></div>
+        <div class="card mcard"><div class="mcard__t">Workstations for Design Centre (40 nos)</div><div class="mcard__m"><span class="chip chip--ref">IT PPP 07/2026</span>FY 2026-27</div>
+            <div class="mbar"><span class="d"></span><span class="d"></span><span class="c warn"></span><span></span><span></span><span class="s"></span><span class="s"></span><span></span><span></span></div>
+            <div class="mcard__at"><span>At <b>Bid</b> · 3 of 7</span><span class="age age--warn">142 d</span></div></div>
+        <div class="card mcard"><div class="mcard__t">Laptops for faculty (120 nos)</div><div class="mcard__m"><span class="chip chip--ref">IT PPP 05/2026</span>FY 2026-27</div>
+            <div class="mbar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="c"></span><span></span><span class="s"></span><span class="s"></span><span></span><span></span></div>
+            <div class="mcard__at"><span>At <b>TEC</b> · 4 of 7</span><span class="age">81 d</span></div></div>
+    </div></div>
+
+    <div class="phone"><div class="phone__in">
+        <div class="crumb">← IT projects</div>
+        <div class="p-hero__chips" style="margin-top:.4rem"><span class="chip chip--ref">IT PPP 02/2025</span><span class="chip">FY 2025-26</span></div>
+        <h1 style="font-size:21px">Campus Wi-Fi, phase 2 (hostel blocks)</h1>
+        <div class="card" style="padding:.8rem .9rem;margin:.7rem 0;background:var(--pm-danger-soft-bg);border-color:transparent;box-shadow:none">
+            <div style="font-size:12px;font-weight:600;color:var(--pm-danger)">At Delivery and ATP for</div>
+            <div style="font-size:24px;font-weight:700;color:var(--pm-text-strong)">331 days</div>
+            <div style="font-size:12px;color:var(--pm-text-secondary)">since the SO on 12 Dec 2025 · SO ₹86.40 L</div>
+        </div>
+        <div class="card panel">
+            <div class="sec-h" style="margin-bottom:.4rem"><h2>Journey</h2><span>577 days so far</span></div>
+            <ol class="vsteps">
+                <li><span class="dot"><svg><use href="#i-check"/></svg></span><span><b>IT PPP / IPA</b></span><span class="r">10 Apr 25</span></li>
+                <li><span class="dot"><svg><use href="#i-check"/></svg></span><span><b>AoN</b><small>42 days</small></span><span class="r">22 May 25</span></li>
+                <li><span class="dot"><svg><use href="#i-check"/></svg></span><span><b>Bid</b><small>71 days</small></span><span class="r">01 Aug 25</span></li>
+                <li><span class="dot"><svg><use href="#i-check"/></svg></span><span><b>TEC</b><small>45 days</small></span><span class="r">15 Sep 25</span></li>
+                <li><span class="dot"><svg><use href="#i-check"/></svg></span><span><b>COB</b><small>22 days</small></span><span class="r">07 Oct 25</span></li>
+                <li><span class="dot"><svg><use href="#i-check"/></svg></span><span><b>Benchmarking</b><small>21 days</small></span><span class="r">28 Oct 25</span></li>
+                <li><span class="dot"><svg><use href="#i-check"/></svg></span><span><b>PNC</b><small>23 days</small></span><span class="r">20 Nov 25</span></li>
+                <li><span class="dot"><svg><use href="#i-check"/></svg></span><span><b>SO</b><small>22 days · ₹86.40 L</small></span><span class="r">12 Dec 25</span></li>
+                <li class="c"><span class="dot"></span><span><b style="color:var(--pm-danger)">Delivery and ATP</b><small>331 days and counting</small></span><span class="r">now</span></li>
+            </ol>
+        </div>
+        <div class="card panel" style="margin-top:.7rem">
+            <div class="sec-h" style="margin-bottom:.6rem"><h2>Remarks</h2><span>2</span></div>
+            <div class="ev" style="padding-bottom:.2rem"><div class="ev__av ev__av--hod">MK</div><div><div class="ev__h"><b>Mahesh Kini</b><span class="role role--hod">HoD</span><time>24 Oct</time></div><div class="ev__b">First lot of access points received. ATP planned after the controller firmware is cleared by the OEM.</div></div></div>
+        </div>
+        <div class="phone-actions"><button class="btn" type="button">Remark</button><button class="btn btn--primary" type="button">Update stages</button></div>
+    </div></div>
+</div>
+</div>
+</section>
+
+<div class="mk-note"><div><b>Assumptions in this mockup.</b> Days at a stage count from the day after the previous stage closed (the stage start rule used elsewhere in PRISM); a case with no stage done counts from the day it was added. Ageing bands 0–120 / 121–240 / over 240 days are placeholders for an owner decision. Data is the local demo set as of 8 Nov 2026, with the "Demo ·" prefix left off.</div></div>
+
+<script>
+(function () {
+    var buttons = document.querySelectorAll('.mk-bar [data-screen]');
+    buttons.forEach(function (b) {
+        b.addEventListener('click', function () {
+            buttons.forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+            document.querySelectorAll('.mk-screen').forEach(function (s) { s.classList.toggle('on', s.dataset.screen === b.dataset.screen); });
+            window.scrollTo(0, 0);
+        });
+    });
+    // Line geometry: the grey base runs first to last stage centre; the fill runs to the last done or current stage.
+    document.querySelectorAll('.track').forEach(function (tr) {
+        var st = tr.querySelectorAll('.st'); if (!st.length) return;
+        var box = tr.getBoundingClientRect();
+        var cx = function (el) { var r = el.getBoundingClientRect(); return r.left + r.width / 2 - box.left; };
+        var base = document.createElement('div'); base.className = 'track__base';
+        base.style.left = cx(st[0]) + 'px'; base.style.width = (cx(st[st.length - 1]) - cx(st[0])) + 'px';
+        tr.insertBefore(base, tr.firstChild);
+        var fill = tr.querySelector('.track__fill'); if (!fill) return;
+        var reached = tr.querySelectorAll('.st--done, .st--cur'); var last = reached[reached.length - 1];
+        fill.style.left = cx(st[0]) + 'px'; fill.style.width = (cx(last) - cx(st[0])) + 'px';
+    });
+    var t = document.getElementById('mkTheme');
+    t.addEventListener('click', function () {
+        var dark = document.documentElement.getAttribute('data-theme') !== 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        t.setAttribute('aria-pressed', String(dark));
+    });
+})();
+</script>
+</body>
+</html>
