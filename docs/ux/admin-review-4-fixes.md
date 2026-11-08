@@ -138,6 +138,15 @@ There were no High findings. The earlier fixes held, and no reviewer found a reg
 
 No PR in this plan needs a database migration.
 
+## PR 3 as shipped
+
+**Shipped.** "Sort older images again" runs in `MediaReclassificationService` (Features/MediaLibrary/Admin); the Classification review handler only calls it and shows the result.
+- Everything happens in one transaction. The service picks the batch (at most 500 older images not already waiting), then locks every processing job of those images (`SELECT … FOR UPDATE`, ordered by Id) before deciding anything.
+- An image whose sorting job (AnalyseAsset, ReclassifyAsset, ClassifyMedia or RebuildIntelligence) is held by a worker with a live lease is left alone and counted; the page says "… already in progress were left alone." A worker claiming with `FOR UPDATE SKIP LOCKED` either finished its claim before the lock (the image is skipped) or skips the locked rows until the commit. A job whose lease ran out is not held, as in the worker's own recovery.
+- The worker rotates `ClassificationConcurrencyToken` when it finishes. If an image changes between reading and saving anyway (a reviewer, the scanner), nothing is saved and the page says "Some older images changed while this ran, so nothing was queued. Try again." instead of failing.
+- The clock is `IClock`. The per-image classification audits commit with the change, and the admin audit entry and the face-retirement wording are unchanged. The stale and reviewable rules are defined once in the service and used by the page's filter and counts.
+- Tests: `MediaReclassificationServiceTests` (queueing, held and expired jobs, the skipped count, all held, already waiting, batches, audits, a failed admin audit) and `MediaReclassificationPostgresIntegrationTests` (a worker claims a job just before the lock and keeps it; during the lock a `SKIP LOCKED` claim cannot take a job being reset), which runs in `database-migrations.yml`.
+
 ## Owner actions still open
 - Mark Test HoD, Test Project Officer and the two Claude Review accounts as Test in Edit user → "Kind of account", so ERP usage stops counting them.
 - Review the "Restored but still hidden" list next to Repository trash, and reactivate the documents that should be visible.
