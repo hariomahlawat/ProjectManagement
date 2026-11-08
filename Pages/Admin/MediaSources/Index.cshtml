@@ -564,7 +564,7 @@
                 else
                 {
                     <div class="table-responsive">
-                        <table class="table align-middle mb-0 media-unavailable-table">
+                        <table class="table align-middle mb-0 admin-data-table--cards media-unavailable-table">
                             <thead class="table-light">
                                 <tr>
                                     <th>Media</th>
@@ -591,16 +591,16 @@
                                                 </dl>
                                             </details>
                                         </td>
-                                        <td>
+                                        <td data-label="Source">
                                             <div class="fw-medium">@asset.SourceLabel</div>
                                             <div class="small text-muted">@asset.OriginLabel</div>
                                         </td>
-                                        <td>
+                                        <td data-label="Status">
                                             <span class="badge text-bg-secondary">@asset.StatusLabel</span>
                                             <div class="small text-muted mt-2" style="max-width: 24rem;">@asset.ReasonSummary</div>
                                         </td>
-                                        <td class="small text-nowrap">@asset.LastCheckedDisplay</td>
-                                        <td class="text-end">
+                                        <td class="small text-nowrap" data-label="Last checked">@asset.LastCheckedDisplay</td>
+                                        <td class="text-end media-unavailable-table__action">
                                             <form method="post" asp-page-handler="RecheckUnavailableAsset">
                                                 <input type="hidden" name="id" value="@asset.Id" />
                                                 <button type="submit" class="btn btn-sm btn-outline-secondary">Recheck source</button>

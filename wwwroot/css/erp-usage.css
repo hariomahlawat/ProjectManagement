@@ -187,7 +187,9 @@
 .erp-heatmap-legend { display: flex; flex-wrap: wrap; gap: .75rem; color: #637187; font-size: .68rem; }
 .erp-heatmap-legend span { display: inline-flex; align-items: center; gap: .3rem; }
 .erp-heatmap-legend i, .erp-heatmap-cell { display: inline-block; width: .72rem; height: .72rem; border-radius: 3px; border: 1px solid transparent; }
-.erp-heatmap-scroll { max-height: 34rem; overflow: auto; padding: .75rem 1rem 1rem; }
+/* position: relative keeps the cells' screen-reader-only labels inside the scroller; without it they
+   are placed against the page and widen it on a phone (docs/ux/admin-review-4-fixes.md, PR 8). */
+.erp-heatmap-scroll { position: relative; max-height: 34rem; overflow: auto; padding: .75rem 1rem 1rem; }
 .erp-heatmap-table { border-collapse: separate; border-spacing: 3px; width: max-content; min-width: 100%; }
 .erp-heatmap-table th, .erp-heatmap-table td { padding: 0; text-align: center; }
 .erp-heatmap-table thead th {
@@ -239,6 +241,14 @@
   .erp-usage-filters__actions { justify-content: stretch; }
   .erp-usage-filters__actions .btn { flex: 1; }
   .erp-usage-scope-options { align-items: flex-start; flex-direction: column; }
+}
+
+/* Phones: each person is a card (admin.css, .admin-data-table--cards), not a 1040px table that
+   scrolls sideways (docs/ux/admin-review-4-fixes.md, PR 8). */
+@media (max-width: 575.98px) {
+  .erp-usage-table.admin-data-table--cards { min-width: 0; }
+  .erp-usage-table.admin-data-table--cards td:first-child { padding-right: 0; }
+  .erp-usage-table.admin-data-table--cards .erp-working-days__progress { width: 100%; }
 }
 
 /* ============================================================

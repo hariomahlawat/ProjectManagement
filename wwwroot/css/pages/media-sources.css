@@ -11,11 +11,8 @@
     font-size: .72rem;
     font-weight: 750;
     letter-spacing: .035em;
-    position: sticky;
     text-transform: uppercase;
-    top: var(--app-header-height, 4.5rem);
     white-space: nowrap;
-    z-index: 2;
 }
 
 .media-unavailable-table td {
@@ -52,9 +49,21 @@
 .media-technical-details dd { margin-bottom: .25rem; }
 .media-technical-details dt { color: #687386; font-weight: 650; }
 
+/* The header row used to be sticky with a 72px offset, but the table sits in a sideways scroller,
+   so the header stuck 72px down inside it and covered the first row (docs/ux/admin-review-4-fixes.md,
+   PR 8). The list is paged, so a plain header row is enough. */
 @media (max-width: 991.98px) {
     .media-unavailable-table { min-width: 920px; }
-    .media-unavailable-table thead th { position: static; }
+}
+
+/* Phones: each unavailable item is a card (admin.css, .admin-data-table--cards) with Recheck in view. */
+@media (max-width: 575.98px) {
+    .table-responsive:has(> .media-unavailable-table) { overflow-x: visible; }
+    .media-unavailable-table.admin-data-table--cards { min-width: 0; }
+    .media-unavailable-table.admin-data-table--cards td { padding: 0; background: transparent; box-shadow: none; }
+    .media-unavailable-table.admin-data-table--cards td:first-child { padding-right: 0; }
+    .media-unavailable-table.admin-data-table--cards td.media-unavailable-table__action { grid-column: 1 / -1; text-align: start !important; }
+    .media-unavailable-table.admin-data-table--cards td.media-unavailable-table__action .btn { width: 100%; }
 }
 
 /* ============================================================
