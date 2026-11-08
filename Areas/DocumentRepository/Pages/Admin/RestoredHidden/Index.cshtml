@@ -56,14 +56,14 @@
                             <div class="admin-table-secondary">@row.Office · @row.Category</div>
                         </td>
                         <td data-label="Restored">
-                            <div class="admin-table-primary">@IndexModel.FormatIst(row.RestoredAtUtc)</div>
+                            <div class="admin-table-primary">@Model.FormatIst(row.RestoredAtUtc)</div>
                             <div class="admin-table-secondary">By @row.RestoredBy</div>
                         </td>
                         <td data-label="Before it was deleted">
                             @if (row.DeactivatedBeforeAtUtc is { } deactivatedAt)
                             {
                                 <span class="admin-status-pill admin-status-pill--warning">Made inactive on purpose</span>
-                                <div class="admin-table-secondary mt-1">By @row.DeactivatedBeforeBy, @IndexModel.FormatIst(deactivatedAt)</div>
+                                <div class="admin-table-secondary mt-1">By @row.DeactivatedBeforeBy, @Model.FormatIst(deactivatedAt)</div>
                             }
                             else
                             {

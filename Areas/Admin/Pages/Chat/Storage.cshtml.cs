@@ -8,6 +8,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Contracts.Chat;
 using ProjectManagement.Features.Chat;
 using ProjectManagement.Hubs;
+using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Chat;
 
 namespace ProjectManagement.Areas.Admin.Pages.Chat;
@@ -28,9 +29,11 @@ public sealed class StorageModel : PageModel
     private readonly ChatAttachmentService _attachments;
     private readonly IHubContext<ChatHub, IChatClient> _hub;
     private readonly IOptionsMonitor<ChatOptions> _options;
+    private readonly IAdminTimeService _time;
 
-    public StorageModel(ChatStorageService storage, ChatAttachmentService attachments, IHubContext<ChatHub, IChatClient> hub, IOptionsMonitor<ChatOptions> options)
+    public StorageModel(ChatStorageService storage, ChatAttachmentService attachments, IHubContext<ChatHub, IChatClient> hub, IOptionsMonitor<ChatOptions> options, IAdminTimeService time)
     {
+        _time = time ?? throw new ArgumentNullException(nameof(time));
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _attachments = attachments ?? throw new ArgumentNullException(nameof(attachments));
         _hub = hub ?? throw new ArgumentNullException(nameof(hub));
@@ -133,6 +136,6 @@ public sealed class StorageModel : PageModel
 
     public static string Size(long bytes) => ChatAttachmentService.FormatSize(bytes);
 
-    public static string Local(DateTimeOffset utc)
-        => TimeZoneInfo.ConvertTime(utc, ProjectManagement.Utilities.TimeZoneHelper.GetIst()).ToString("d MMM yyyy, HH:mm");
+    /// <summary>"7 Nov 2026, 14:05 IST", through the one Administration formatter.</summary>
+    public string Local(DateTimeOffset utc) => _time.FormatIst(utc);
 }

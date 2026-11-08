@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
@@ -16,12 +17,14 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
     {
         private readonly ApplicationDbContext _db;
         private readonly IDocRepoMissingFilesService _missingFiles;
+        private readonly IAdminTimeService _time;
 
         // SECTION: Constructor
-        public MissingFilesModel(ApplicationDbContext db, IDocRepoMissingFilesService missingFiles)
+        public MissingFilesModel(ApplicationDbContext db, IDocRepoMissingFilesService missingFiles, IAdminTimeService time)
         {
             _db = db;
             _missingFiles = missingFiles;
+            _time = time;
         }
 
         // SECTION: View data
@@ -55,13 +58,10 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
         public DateTimeOffset CheckedUtc { get; private set; }
 
         /// <summary>When the files were checked, in IST with the zone: "7 Nov 2026, 14:05 IST".</summary>
-        public string CheckedAtIst => FormatCheckedAt(CheckedUtc);
+        public string CheckedAtIst => _time.FormatIst(CheckedUtc);
 
         /// <summary>How long the shared check reuses its result, from the service's own setting.</summary>
         public string CacheMinutesText => FormatCacheDuration(DocRepoMissingFilesService.CacheDuration);
-
-        internal static string FormatCheckedAt(DateTimeOffset utc) =>
-            ProjectManagement.Infrastructure.IstClock.ToIst(utc).ToString("d MMM yyyy, HH:mm", System.Globalization.CultureInfo.InvariantCulture) + " IST";
 
         internal static string FormatCacheDuration(TimeSpan duration) => duration.TotalSeconds < 60
             ? $"{(int)duration.TotalSeconds} seconds"

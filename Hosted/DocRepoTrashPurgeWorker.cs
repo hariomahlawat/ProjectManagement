@@ -51,13 +51,13 @@ public sealed class DocRepoTrashPurgeWorker : BackgroundService
                 {
                     _status?.MarkStarted(WorkerKey);
                     using var scope = _scopeFactory.CreateScope();
-                    var purged = await scope.ServiceProvider.GetRequiredService<DocRepoTrashPurgeService>().PurgeExpiredAsync(stoppingToken);
-                    if (purged > 0)
+                    var run = await scope.ServiceProvider.GetRequiredService<DocRepoTrashPurgeService>().RunExpiredPurgeAsync(stoppingToken);
+                    if (run.Purged > 0)
                     {
-                        _logger.LogInformation("Purged {Count} document(s) that were in the trash for more than {Days} days.", purged, retentionDays);
+                        _logger.LogInformation("Purged {Count} document(s) that were in the trash for more than {Days} days.", run.Purged, retentionDays);
                     }
 
-                    _status?.MarkSucceeded(WorkerKey, BackgroundJobMessages.Removed(purged, "document", "documents", $"that were in the bin over {retentionDays} days"));
+                    _status?.MarkSucceeded(WorkerKey, RunSummary(run, retentionDays));
                 }
                 else
                 {
@@ -77,5 +77,19 @@ public sealed class DocRepoTrashPurgeWorker : BackgroundService
                 await Task.Delay(Interval, stoppingToken).ContinueWith(_ => { }, TaskScheduler.Default);
             }
         }
+    }
+
+    /// <summary>The last-run line System health shows, naming any documents left in the bin.</summary>
+    internal static string RunSummary(DocRepoTrashPurgeRun run, int retentionDays)
+    {
+        var verb = run.Purged == 1 ? "was" : "were";
+        var removed = BackgroundJobMessages.Removed(run.Purged, "document", "documents", $"that {verb} in the bin over {retentionDays} days");
+        if (run.Failed <= 0)
+        {
+            return removed;
+        }
+
+        var notRemoved = BackgroundJobMessages.CouldNotRemove(run.Failed, "document", "documents", "stays in the bin", "stay in the bin");
+        return run.Purged > 0 ? $"{removed}; {notRemoved}" : notRemoved;
     }
 }

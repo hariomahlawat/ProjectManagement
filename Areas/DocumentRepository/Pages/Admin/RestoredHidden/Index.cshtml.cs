@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,7 +7,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.Admin.Models;
-using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.DocRepo;
 
@@ -23,11 +21,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.RestoredHidden;
 public sealed class IndexModel : PageModel
 {
     private readonly DocRepoRestoredHiddenService _service;
+    private readonly IAdminTimeService _time;
 
     // SECTION: Constructor
-    public IndexModel(DocRepoRestoredHiddenService service)
+    public IndexModel(DocRepoRestoredHiddenService service, IAdminTimeService time)
     {
         _service = service;
+        _time = time;
     }
 
     // SECTION: View data
@@ -42,9 +42,8 @@ public sealed class IndexModel : PageModel
         Icon = "bi-eye-slash"
     };
 
-    /// <summary>"7 Nov 2026, 14:05 IST".</summary>
-    public static string FormatIst(DateTimeOffset utc)
-        => IstClock.ToIst(utc).ToString("d MMM yyyy, HH:mm", CultureInfo.InvariantCulture) + " IST";
+    /// <summary>"7 Nov 2026, 14:05 IST", through the one Administration formatter.</summary>
+    public string FormatIst(DateTimeOffset utc) => _time.FormatIst(utc);
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
