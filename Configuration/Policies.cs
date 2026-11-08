@@ -248,6 +248,34 @@ public static class Policies
             && SharedPublicationManagerRoles.Any(principal.IsInRole);
     }
 
+    /// <summary>
+    /// IT projects (docs/ux/it-projects.md). View is registered as RequireAuthenticatedUser in
+    /// Program.cs. Manage and Remark are distinct because the people who run an IT PPP case
+    /// (Admin, HoD, ITO) are not the people who comment on it (ITO, MCO, HoD, Comdt).
+    /// </summary>
+    public static class ItProjects
+    {
+        public const string View = "ItProjects.View";
+        public const string Manage = "ItProjects.Manage";
+        public const string Remark = "ItProjects.Remark";
+
+        public static readonly string[] ManageRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD,
+            RoleNames.Ito
+        };
+
+        /// <summary>In seniority order: the first role a user holds is the role a remark is written as.</summary>
+        public static readonly string[] RemarkRoles =
+        {
+            RoleNames.Comdt,
+            RoleNames.HoD,
+            RoleNames.Mco,
+            RoleNames.Ito
+        };
+    }
+
     public static class Ipr
     {
         public const string View = "Ipr.View";

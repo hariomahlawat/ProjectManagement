@@ -28,6 +28,7 @@ using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data.Projects;
 using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.IndustryPartners;
+using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Models.Publications;
@@ -195,6 +196,8 @@ namespace ProjectManagement.Data
         public DbSet<ProjectIdeaComment> ProjectIdeaComments => Set<ProjectIdeaComment>();
         public DbSet<ProjectIdeaNote> ProjectIdeaNotes => Set<ProjectIdeaNote>();
         public DbSet<ProjectIdeaDocument> ProjectIdeaDocuments => Set<ProjectIdeaDocument>();
+        public DbSet<ItProject> ItProjects => Set<ItProject>();
+        public DbSet<ItProjectStage> ItProjectStages => Set<ItProjectStage>();
 
         // SECTION: PostgreSQL text search helpers
         public static string TsHeadline(string config, string text, NpgsqlTsQuery query, string options) => throw new NotSupportedException();
@@ -361,6 +364,34 @@ namespace ProjectManagement.Data
                 entity.HasIndex(x => x.NotebookTagId);
                 entity.HasOne(x => x.Preference).WithMany(x => x.Tags).HasForeignKey(x => x.PreferenceId).OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(x => x.NotebookTag).WithMany(x => x.SystemItems).HasForeignKey(x => x.NotebookTagId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // SECTION: IT projects module (docs/ux/it-projects.md). Separate from Projects on purpose.
+            builder.Entity<ItProject>(e =>
+            {
+                e.ToTable("ItProjects");
+                e.Property(x => x.Title).IsRequired().HasMaxLength(200);
+                e.Property(x => x.PppReferenceNumber).IsRequired().HasMaxLength(100);
+                e.Property(x => x.Description).IsRequired();
+                e.Property(x => x.CreatedByUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.UpdatedByUserId).HasMaxLength(450);
+                e.Property(x => x.DroppedReason).HasMaxLength(500);
+                e.Property(x => x.DroppedByUserId).HasMaxLength(450);
+                e.Property(x => x.DeletedByUserId).HasMaxLength(450);
+                ConfigureRowVersion(e);
+                e.HasIndex(x => x.FinancialYearStart);
+                e.HasIndex(x => x.IsDeleted);
+                e.HasIndex(x => x.UpdatedAtUtc);
+                e.HasMany(x => x.Stages).WithOne(x => x.ItProject).HasForeignKey(x => x.ItProjectId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ItProjectStage>(e =>
+            {
+                e.ToTable("ItProjectStages");
+                e.Property(x => x.StageCode).IsRequired().HasMaxLength(8);
+                e.Property(x => x.CostLakhs).HasPrecision(14, 2);
+                e.HasIndex(x => new { x.ItProjectId, x.StageCode }).IsUnique();
+                e.HasIndex(x => new { x.ItProjectId, x.SortOrder });
             });
 
             // SECTION: Project Ideas module

@@ -136,3 +136,4 @@
 20261224080011_AddProjectKeyPoints
 20261225080012_AddChatAttachmentRestoredUtc
 20261226080013_AddPdfIngestionRuns
+20261227080014_AddItProjects

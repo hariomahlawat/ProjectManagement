@@ -363,7 +363,8 @@ public sealed class AdminDataJobTidyUpTests : IDisposable
             .Select(line => line.Trim())
             .Where(line => line.Length > 0)
             .ToArray();
-        Assert.Equal("20261226080013_AddPdfIngestionRuns", manifest[^1]);
+        Assert.Contains("20261226080013_AddPdfIngestionRuns", manifest);
+        Assert.Equal("20261227080014_AddItProjects", manifest[^1]);
     }
 
     // ---- helpers ---------------------------------------------------------------------------
