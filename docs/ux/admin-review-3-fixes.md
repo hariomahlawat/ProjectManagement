@@ -221,3 +221,11 @@ parameter, not inlined), and compiled for use in memory.
   - Rollback: the old release goes back to its in-memory list and leaves the table unused.
   - Wording that said the history starts again when PRISM restarts now reads "Not run yet" (Copy PDFs), "No PDF run yet" (Home) and "No run yet" (Data jobs).
 - Tests: `AdminDataJobTidyUpTests` covers the import rolled back when its audit fails, staging under the data root, importing from and sweeping the old folder, paging, the policy, the recycle service, the Disable words and the run history across contexts and its trimming. `UserLifecycleServiceTests.TryDisable_ReturnsATypedOutcomeForEverySafeguard` covers the typed outcomes, and `AdminCodeGuardsTests` covers the CSV audit and that no file is returned without it.
+
+### PR 14 shipped: repository trash in Administration
+
+- **Repository trash (decision 2, option A).** The Document Repository's deleted documents (`/DocumentRepository/Admin/Trash`) render inside the admin layout: sidebar (with Restore deleted items lit), mobile header, the "Restore & archive" eyebrow and the "Restore deleted items" heading, like the other bins. The page shows the Restore deleted items tabs with "Repository documents" selected, and that tab and the overview card no longer say the page opens in another module. The Documents tab in the top bar is no longer lit there.
+  - Paging, search, Restore and Delete for good are unchanged, as are the route, the handlers and the policy (`DocRepo.Purge`, Admin only). The library's "Deleted repository documents" menu item still opens the page.
+- **Document deletion approvals.** Stays in the Decision Centre. Opened with the repository-deletions filter (`/Approvals/Pending?Type=RepositoryDocumentDelete`), its heading reads "Document deletion approvals" with a sentence on what approving does, and the page title matches. The "Administration ›" return bar above it, shown to administrators, is the link back. Without that filter the Decision Centre is unchanged.
+- No migration; no new route.
+- Tests: `AdminRepositoryTrashInShellTests` (in the shell, eyebrow, the rest of the repository keeps its layout, the page keeps its actions, the Decision Centre heading with and without the filter); `AdminRestoreTabsTests`, `AdminNavigationCatalogTests` and `AdminPageIndexTests` updated.

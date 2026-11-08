@@ -84,8 +84,8 @@ public sealed class IndexModel : PageModel
         AdminRestoreTabKeys.ProjectDocuments => "Kept until an administrator deletes them for good."
             + (Summary.RecycledDocumentBytes > 0 ? $" They take {FormatBytes(Summary.RecycledDocumentBytes)}." : string.Empty),
         AdminRestoreTabKeys.RepositoryDocuments => _repositoryTrash.RetentionDays > 0
-            ? $"Kept {_repositoryTrash.RetentionDays} days, then deleted for good automatically. Opens in the Document Repository."
-            : "Kept until someone deletes them for good. Opens in the Document Repository.",
+            ? $"Kept {_repositoryTrash.RetentionDays} days, then deleted for good automatically."
+            : "Kept until someone deletes them for good.",
         AdminRestoreTabKeys.CalendarEvents => "Kept until someone restores them.",
         AdminRestoreTabKeys.ChatFiles => $"Each clean-up can be undone for {_chat.CurrentValue.Attachments.UndoHours} hours. Opens Chat file storage.",
         _ => string.Empty

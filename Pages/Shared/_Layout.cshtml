@@ -103,6 +103,8 @@
         var useAdminModuleShell = isAdminModulePage && User.IsInRole(RoleNames.Admin);
         var usageModuleKey = signedIn ? ErpUsageModules.ResolvePath(Context.Request.Path) : null;
         var isCalendarPrimaryPage = isCalendarPage && !useAdminModuleShell;
+        // Document Repository pages shown in Administration (its trash) light the admin shell, not the Documents tab.
+        var isDocumentRepositoryPrimaryPage = isDocumentRepositoryPage && !useAdminModuleShell;
 
         // Keep the Projects primary tab active throughout the complete module,
         // not only on the Ongoing page. Admin-area routes with similar page names
@@ -216,8 +218,8 @@
                         </a>
                         <a asp-area="DocumentRepository"
                            asp-page="/Documents/Index"
-                           class="pm-top-tabs__item @(isDocumentRepositoryPage ? "is-active" : string.Empty)"
-                           aria-current="@(isDocumentRepositoryPage ? "page" : null)">
+                           class="pm-top-tabs__item @(isDocumentRepositoryPrimaryPage ? "is-active" : string.Empty)"
+                           aria-current="@(isDocumentRepositoryPrimaryPage ? "page" : null)">
                             <span>Documents</span>
                             @await Component.InvokeAsync("AotsUnreadBadge", new { variant = "topnav" })
                         </a>

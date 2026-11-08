@@ -18,6 +18,9 @@
     color: var(--pm-library-ink);
 }
 
+/* The repository trash sits inside Administration, whose shell already gives the page its gutter. */
+.library.docrepo-trash { padding: 0 0 24px; }
+
 .library a { color: inherit; }
 .library :focus-visible { outline: none; box-shadow: var(--library-focus); border-radius: 6px; }
 .library kbd {

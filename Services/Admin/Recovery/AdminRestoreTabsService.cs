@@ -86,7 +86,7 @@ public sealed class AdminRestoreTabsService : IAdminRestoreTabsService
             () => AdminBins.CountProjectsAsync(_db, cancellationToken));
         await AddAsync(AdminRestoreTabKeys.ProjectDocuments, "Project documents", AdminNavigationKeys.DocumentRecycle, false,
             () => AdminBins.CountProjectDocumentsAsync(_db, cancellationToken));
-        await AddAsync(AdminRestoreTabKeys.RepositoryDocuments, "Repository documents", AdminNavigationKeys.RepositoryTrash, true,
+        await AddAsync(AdminRestoreTabKeys.RepositoryDocuments, "Repository documents", AdminNavigationKeys.RepositoryTrash, false,
             () => AdminBins.CountRepositoryDocumentsAsync(_db, cancellationToken));
         await AddAsync(AdminRestoreTabKeys.CalendarEvents, "Calendar events", AdminNavigationKeys.DeletedEvents, false,
             () => AdminBins.CountEventsAsync(_db, cancellationToken));

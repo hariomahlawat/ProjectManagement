@@ -62,6 +62,20 @@ public sealed class IndexModel : PageModel
 
     public string? SuccessMessage { get; private set; }
 
+    /// <summary>
+    /// The page's heading. Opened from Administration's "Document deletion approvals" (filtered to
+    /// repository deletions), it names that list; otherwise it is the Decision Centre.
+    /// </summary>
+    public DecisionCentreHeading Heading => ParseEnum<ApprovalQueueType>(Type) == ApprovalQueueType.RepositoryDocumentDelete
+        ? new DecisionCentreHeading(
+            "Decision Centre",
+            "Document deletion approvals",
+            "Requests to delete Document Repository files. An approved file moves to the repository's deleted documents, where an administrator can still restore it.")
+        : new DecisionCentreHeading(
+            "Command decision workspace",
+            "Decision Centre",
+            "One place to review and decide project, document and institutional requests.");
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         SuccessMessage = TempData["Success"] as string ?? Success?.ToLowerInvariant() switch
@@ -348,3 +362,5 @@ public sealed class IndexModel : PageModel
     private static string SplitEnumLabel(string value)
         => string.Concat(value.Select((character, index) => index > 0 && char.IsUpper(character) ? $" {character}" : character.ToString()));
 }
+
+public sealed record DecisionCentreHeading(string Eyebrow, string Title, string Description);

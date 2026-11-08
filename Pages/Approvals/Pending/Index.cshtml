@@ -1,7 +1,7 @@
 @page "/Approvals/Pending"
 @model ProjectManagement.Pages.Approvals.Pending.IndexModel
 @{
-    ViewData["Title"] = "Decision Centre";
+    ViewData["Title"] = Model.Heading.Title;
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/approvals.css" asp-append-version="true" />
@@ -10,9 +10,9 @@
 <main class="decision-centre">
     <header class="decision-header">
         <div>
-            <div class="decision-eyebrow">Command decision workspace</div>
-            <h1>Decision Centre</h1>
-            <p>One place to review and decide project, document and institutional requests.</p>
+            <div class="decision-eyebrow">@Model.Heading.Eyebrow</div>
+            <h1>@Model.Heading.Title</h1>
+            <p>@Model.Heading.Description</p>
         </div>
     </header>
 
