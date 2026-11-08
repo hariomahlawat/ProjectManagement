@@ -31,7 +31,9 @@ public sealed class IndexModel : PageModel
     }
 
     // SECTION: View data
-    public IReadOnlyList<DocRepoRestoredHiddenRow> Items { get; private set; } = Array.Empty<DocRepoRestoredHiddenRow>();
+    public DocRepoRestoredHiddenList Result { get; private set; } = new(Array.Empty<DocRepoRestoredHiddenRow>(), 0);
+
+    public IReadOnlyList<DocRepoRestoredHiddenRow> Items => Result.Items;
 
     public AdminPageHeaderModel Header { get; } = new()
     {
@@ -46,7 +48,7 @@ public sealed class IndexModel : PageModel
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        Items = await _service.ListAsync(User, cancellationToken);
+        Result = await _service.ListAsync(User, cancellationToken);
     }
 
     // SECTION: Reactivate one

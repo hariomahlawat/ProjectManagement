@@ -67,7 +67,7 @@ public sealed class DocRepoRestoredHiddenServiceTests
         Audit(db, trashedAgain, DocRepoRestoredHiddenService.RestoredEvent, RestoredAt);
         await db.SaveChangesAsync();
 
-        var rows = await CreateService(db).ListAsync(Admin);
+        var rows = (await CreateService(db).ListAsync(Admin)).Items;
 
         var row = Assert.Single(rows);
         Assert.Equal(hidden.Id, row.Id);
@@ -97,7 +97,7 @@ public sealed class DocRepoRestoredHiddenServiceTests
         Audit(db, switchedBack, DocRepoRestoredHiddenService.RestoredEvent, RestoredAt.AddMinutes(-1));
         await db.SaveChangesAsync();
 
-        var rows = await CreateService(db).ListAsync(Admin);
+        var rows = (await CreateService(db).ListAsync(Admin)).Items;
 
         Assert.Equal(2, rows.Count);
         var marked = rows.Single(r => r.Id == wasHidden.Id);
@@ -141,7 +141,7 @@ public sealed class DocRepoRestoredHiddenServiceTests
         Assert.Equal(DocRepoRestoredHiddenService.AuditSource, details.RootElement.GetProperty("source").GetString());
 
         // Off the list now, and a repeat changes nothing.
-        Assert.Empty(await CreateService(db).ListAsync(Admin));
+        Assert.Empty((await CreateService(db).ListAsync(Admin)).Items);
         Assert.Equal(DocRepoReactivateOutcome.NotListed, await CreateService(db).ReactivateAsync(Admin, hidden.Id));
         Assert.Equal(before + 1, await db.DocRepoAudits.CountAsync());
     }
@@ -174,7 +174,7 @@ public sealed class DocRepoRestoredHiddenServiceTests
         var hidden = SeedDocument(db, "Supply order", isActive: false);
         Audit(db, hidden, DocRepoRestoredHiddenService.RestoredEvent, RestoredAt);
         await db.SaveChangesAsync();
-        Assert.Single(await CreateService(db).ListAsync(Admin));
+        Assert.Single((await CreateService(db).ListAsync(Admin)).Items);
 
         // After the page opened, another administrator deactivated it on purpose.
         Audit(db, hidden, DocRepoRestoredHiddenService.DeactivatedEvent, Now.AddMinutes(-1), "other-admin");
@@ -205,6 +205,43 @@ public sealed class DocRepoRestoredHiddenServiceTests
         var active = await db.Documents.AsNoTracking().Where(d => d.IsActive).Select(d => d.Id).ToListAsync();
         Assert.Equal(new[] { first.Id, second.Id }.OrderBy(id => id), active.OrderBy(id => id));
         Assert.Equal(2, await db.DocRepoAudits.CountAsync(a => a.EventType == DocRepoRestoredHiddenService.ActivatedEvent));
+    }
+
+    [Fact]
+    public async Task ALongList_IsShownAndReactivatedInBoundedBatches()
+    {
+        // "Reactivate all shown" posts one value per row plus the antiforgery token; ASP.NET
+        // Core refuses a form with more than 1,024 values by default.
+        Assert.True(DocRepoRestoredHiddenService.MaxShown + 1 < 1024);
+
+        await using var db = CreateDb();
+        SeedLookups(db);
+        var total = DocRepoRestoredHiddenService.MaxShown + 5;
+        var documents = Enumerable.Range(0, total)
+            .Select(i =>
+            {
+                var document = SeedDocument(db, $"Document {i:000}", isActive: false);
+                Audit(db, document, DocRepoRestoredHiddenService.RestoredEvent, RestoredAt.AddMinutes(i));
+                return document;
+            })
+            .ToList();
+        await db.SaveChangesAsync();
+
+        var list = await CreateService(db).ListAsync(Admin);
+
+        Assert.Equal(total, list.TotalCount);
+        Assert.Equal(DocRepoRestoredHiddenService.MaxShown, list.Items.Count);
+        Assert.True(list.IsCapped);
+        // The most recently restored are shown first; the oldest five wait.
+        Assert.Equal(documents[^1].Id, list.Items[0].Id);
+        Assert.DoesNotContain(list.Items, row => documents.Take(5).Any(d => d.Id == row.Id));
+
+        // A request for more than the bound changes at most the bound.
+        var result = await CreateService(db).ReactivateManyAsync(Admin, documents.Select(d => d.Id).ToList());
+        Assert.Equal(DocRepoRestoredHiddenService.MaxShown, result.Reactivated);
+        var next = await CreateService(db).ListAsync(Admin);
+        Assert.Equal(5, next.TotalCount);
+        Assert.False(next.IsCapped);
     }
 
     // SECTION: Policy

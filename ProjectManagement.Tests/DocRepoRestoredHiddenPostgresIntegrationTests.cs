@@ -61,7 +61,7 @@ public sealed class DocRepoRestoredHiddenPostgresIntegrationTests
             // Both are listed when the admin opens the page.
             await using (var listing = Create(target))
             {
-                Assert.Equal(2, (await Service(listing).ListAsync(Admin)).Count);
+                Assert.Equal(2, (await Service(listing).ListAsync(Admin)).TotalCount);
             }
 
             // Another administrator deactivates one on purpose (as Documents/Manage does: the row

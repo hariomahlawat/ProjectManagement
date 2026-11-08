@@ -23,7 +23,8 @@
     else
     {
         <div class="admin-panel__body admin-restored-hidden__intro">
-            <p class="admin-inline-note"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Open a document to check it, then choose Reactivate to show it to readers and in search again. A document made inactive before it was deleted is marked, so you can leave it hidden if that was the intent.</span></p>
+            <p class="admin-inline-note"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Open a document to check it, then choose Reactivate to show it to readers and in search again. A document made inactive before it was deleted is marked, so you can leave it hidden if that was the intent.@if (Model.Result.IsCapped)
+                {<text> Showing the @count most recently restored of @Model.Result.TotalCount.ToString("N0"); the rest appear here as these are done.</text>}</span></p>
             <form method="post" asp-page-handler="ReactivateAll"
                   data-confirm="@(count == 1 ? "Reactivate the 1 document shown?" : $"Reactivate all {count} documents shown?") Readers and search will see @(count == 1 ? "it" : "them") again. Each change is recorded in the repository's audit."
                   data-confirm-action="Reactivate all"

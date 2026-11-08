@@ -22,6 +22,15 @@ public sealed record DocRepoRestoredHiddenRow(
     DateTimeOffset? DeactivatedBeforeAtUtc,
     string? DeactivatedBeforeBy);
 
+/// <summary>
+/// The rows shown (newest restore first, at most <see cref="DocRepoRestoredHiddenService.MaxShown"/>)
+/// and how many documents are on the list in all.
+/// </summary>
+public sealed record DocRepoRestoredHiddenList(IReadOnlyList<DocRepoRestoredHiddenRow> Items, int TotalCount)
+{
+    public bool IsCapped => TotalCount > Items.Count;
+}
+
 public enum DocRepoReactivateOutcome
 {
     Reactivated,
@@ -58,6 +67,13 @@ public sealed class DocRepoRestoredHiddenService
     /// <summary>Written in the audit details so the reactivation can be traced to this list.</summary>
     public const string AuditSource = "Restored but still hidden";
 
+    /// <summary>
+    /// Most rows shown, and most documents one request reactivates. "Reactivate all shown" posts
+    /// one form value per row, so this keeps it well under ASP.NET Core's default limit of
+    /// 1,024 form values; once these are done the next ones are shown.
+    /// </summary>
+    public const int MaxShown = 200;
+
     private readonly ApplicationDbContext _db;
     private readonly IDocRepoAuditService _audit;
     private readonly IAuthorizationService _authorization;
@@ -82,19 +98,25 @@ public sealed class DocRepoRestoredHiddenService
         => (await FindAsync(null, cancellationToken)).Count;
 
     /// <exception cref="UnauthorizedAccessException">The user may not manage the trash.</exception>
-    public async Task<IReadOnlyList<DocRepoRestoredHiddenRow>> ListAsync(ClaimsPrincipal user, CancellationToken cancellationToken = default)
+    public async Task<DocRepoRestoredHiddenList> ListAsync(ClaimsPrincipal user, CancellationToken cancellationToken = default)
     {
         if (!await IsAllowedAsync(user))
         {
             throw new UnauthorizedAccessException("Only repository administrators can see this list.");
         }
 
-        var found = await FindAsync(null, cancellationToken);
-        if (found.Count == 0)
+        var all = await FindAsync(null, cancellationToken);
+        if (all.Count == 0)
         {
-            return Array.Empty<DocRepoRestoredHiddenRow>();
+            return new DocRepoRestoredHiddenList(Array.Empty<DocRepoRestoredHiddenRow>(), 0);
         }
 
+        // Newest restore first; ties by id here, by title in the rows below.
+        var found = all
+            .OrderByDescending(pair => pair.Value.Restored.OccurredAtUtc)
+            .ThenBy(pair => pair.Key)
+            .Take(MaxShown)
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
         var ids = found.Keys.ToList();
         var documents = await _db.Documents.AsNoTracking()
             .Where(d => ids.Contains(d.Id))
@@ -123,7 +145,7 @@ public sealed class DocRepoRestoredHiddenService
             StringComparer.Ordinal);
         string NameOf(string id) => nameById.TryGetValue(id, out var name) ? name : id;
 
-        return documents
+        var rows = documents
             .Select(d =>
             {
                 var match = found[d.Id];
@@ -140,6 +162,7 @@ public sealed class DocRepoRestoredHiddenService
             .OrderByDescending(row => row.RestoredAtUtc)
             .ThenBy(row => row.Subject, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        return new DocRepoRestoredHiddenList(rows, all.Count);
     }
 
     /// <summary>Makes one listed document visible again, with an audit entry saved alongside.</summary>
@@ -168,7 +191,8 @@ public sealed class DocRepoRestoredHiddenService
             return new DocRepoReactivateManyResult(0, 0, Forbidden: true);
         }
 
-        var requested = documentIds.Where(id => id != Guid.Empty).Distinct().ToList();
+        // The page never sends more than it shows; a longer request is cut to the same bound.
+        var requested = documentIds.Where(id => id != Guid.Empty).Distinct().Take(MaxShown).ToList();
         if (requested.Count == 0)
         {
             return new DocRepoReactivateManyResult(0, 0);
