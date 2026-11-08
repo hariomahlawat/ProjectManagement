@@ -175,6 +175,18 @@ No PR in this plan needs a database migration.
 - No migration. Routes, handlers and policies unchanged. Rollback: the previous release has the old pages; nothing stored changes.
 - Tests: `AdminSharedListsFinishedTests` (change requests read once per page; the in-place switch on each lookup, an old version and a missing state refused; the old Deactivate URL redirects and its old form still works; the one form adds, renames, refuses a duplicate name and 404s a missing item on each lookup; the pages keep their files and routes and share one model with the list policy). `ProjectMetaChangeDecisionServiceTests` (a deleted proposed item refused plainly, for all five lists, with nothing saved or audited). `ListOrderTests` (equal and spaced repository numbers accepted by Data checks and the list notice; project types still flagged). `AdminSearchEscapingPostgresTests` (the SQL count matches the in-memory reader).
 
+### PR 6 shipped: the last two pages in Administration
+
+**Shipped.** U4, U8 and part of U11.
+
+- **Unreadable PDFs and Missing files in the admin layout (U4).** Both pages (`/DocumentRepository/Admin/OCRFailures/OcrFailures`, `/DocumentRepository/Admin/MissingFiles`) render inside Administration for administrators: sidebar with System health lit, mobile header, the "System" eyebrow and the shared admin page header, like the Repository trash (third review, PR 14). "Read all again" moved into the header's actions and shows while anything is listed. The "← Administration" strip hides itself, and "Back to the library" now shows only to a Head of Department, who can open the pages but gets the normal layout; so each viewer has one way back. The Documents tab in the top bar is no longer lit there.
+  - Their catalogue entries drop `usesAdminShell: false` and name System health as the sidebar parent, so Every admin page says they open from System health. Missing files' icon was a Bootstrap icon that does not exist; it is now `bi-file-earmark-x`, as in the library's menu. System health's Missing files sentence no longer says "(Document Repository)".
+  - Inside the shell the library body drops its own gutter (`.admin-shell__content .library.docrepo-admin-page`), as the trash does.
+- **"Opens in …" only where it is true (U8).** `/Admin/MasterData` asks the admin catalogue whether a list's page renders in Administration, and names another module only when it does not. Repository document types, Repository offices and both social media lists lose the hint. Every admin page no longer names the Document Repository for any page; only Document deletion approvals still says "Opens in the Decision Centre".
+- **Main menu names (part of U11).** The Documents dropdown says Unreadable PDFs, Repository offices and Repository document types, the names Administration uses.
+- Routes, handlers and policies unchanged; old URLs work. No migration. Rollback: the previous release renders the pages in the library's layout.
+- Tests: `AdminLastPagesInShellTests` (both pages in the shell under System health, the admin header and one way back, the hint only for a list that leaves Administration); `AdminPageIndexTests`, `AdminNavigationCatalogTests` and `RoleBasedNavigationProviderTests` updated.
+
 ## Owner actions still open
 - Mark Test HoD, Test Project Officer and the two Claude Review accounts as Test in Edit user → "Kind of account", so ERP usage stops counting them.
 - Review the "Restored but still hidden" list next to Repository trash, and reactivate the documents that should be visible.

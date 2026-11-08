@@ -20,6 +20,8 @@
 
 /* The repository trash sits inside Administration, whose shell already gives the page its gutter. */
 .library.docrepo-trash { padding: 0 0 24px; }
+/* Unreadable PDFs and Missing files: the same inside the shell; a non-admin outside it keeps the library gutter. */
+.admin-shell__content .library.docrepo-admin-page { padding: 0 0 24px; }
 
 .library a { color: inherit; }
 .library :focus-visible { outline: none; box-shadow: var(--library-focus); border-radius: 6px; }

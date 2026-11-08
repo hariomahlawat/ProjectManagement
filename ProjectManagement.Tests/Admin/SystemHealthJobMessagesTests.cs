@@ -99,7 +99,10 @@ public sealed class SystemHealthJobMessagesTests
 
         var view = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Areas", "DocumentRepository", "Pages", "Admin", "MissingFiles.cshtml"));
         Assert.DoesNotContain("two minutes", view, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("@Model.CacheMinutesText", view, StringComparison.Ordinal);
+        // The cache time is in the admin page header, built in the page model (fourth review, PR 6).
+        var model = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Areas", "DocumentRepository", "Pages", "Admin", "MissingFiles.cshtml.cs"));
+        Assert.Contains("{CacheMinutesText}", model, StringComparison.Ordinal);
+        Assert.DoesNotContain("two minutes", model, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("@Model.CheckedAtIst", view, StringComparison.Ordinal);
     }
 
