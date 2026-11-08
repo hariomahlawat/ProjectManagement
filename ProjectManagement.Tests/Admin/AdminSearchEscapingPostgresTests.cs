@@ -229,6 +229,11 @@ public sealed class AdminSearchEscapingPostgresTests
                 Request("not json"),
                 Request($"{{\"name\":\"Radar\",\"projectTypeId\":\"{types[2].Id}\"}}"),
                 Request("{\"name\":\"Radar\",\"projectTypeId\":99999999999}"),
+                // The ends of the Int32 range count; one past them is skipped (Codex review on #3026).
+                Request("{\"name\":\"Radar\",\"projectTypeId\":2147483647}"),
+                Request("{\"name\":\"Radar\",\"projectTypeId\":1000000000}"),
+                Request("{\"name\":\"Radar\",\"projectTypeId\":-2147483648}"),
+                Request("{\"name\":\"Radar\",\"projectTypeId\":2147483648}"),
                 Request(string.Empty, r => r.OriginalProjectTypeId = types[0].Id));
             await db.SaveChangesAsync();
 
@@ -250,11 +255,20 @@ public sealed class AdminSearchEscapingPostgresTests
                 // The page counts through the same query: Used by, the In use tile and filter.
                 var page = await lists.GetPageAsync(definition.Key, new ReferenceListRequest(null, "inuse", 1, 100));
                 var used = page.Rows.ToDictionary(row => int.Parse(row.Id), row => row.UsedBy.Single(item => item.One == "change request").Count);
-                foreach (var pair in reader)
+                // Ids that are not in the list (the Int32 edge cases) have no row to show.
+                foreach (var pair in reader.Where(pair => page.Rows.Any(row => row.Id == pair.Key.ToString())))
                 {
                     Assert.Equal(pair.Value, used[pair.Key]);
                 }
             }
+
+            var typeSource = ReferenceListCatalog.ProjectTypes is KeyedReferenceListDefinition<int> keyed
+                ? keyed.UsedBy.Single(item => item.One == "change request")
+                : throw new InvalidOperationException();
+            var typeIds = await typeSource.ReferencingIds!(db)!.ToListAsync();
+            Assert.Contains(2147483647, typeIds);
+            Assert.Contains(1000000000, typeIds);
+            Assert.Contains(int.MinValue, typeIds);
 
             // Spot checks against what a person reads in the requests above.
             var typeUse = await lists.GetUsageAsync(ReferenceListKeys.ProjectTypes, types[1].Id);

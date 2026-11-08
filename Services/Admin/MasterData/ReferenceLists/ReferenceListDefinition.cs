@@ -593,7 +593,9 @@ public static class ReferenceListCatalog
     /// key exactly as <see cref="ProjectMetaChangeRequestPayload"/> names it and a plain number
     /// or null as the value, so the first "key": number is the value. A key inside a text value
     /// cannot match, because the quotes around it are escaped there. A number too long for an
-    /// int is skipped, as the reader skips it. Names come from the EF model and the payload class,
+    /// int is skipped, as the reader skips it: the text is compared as a numeric (which any run of
+    /// digits is) against the whole Int32 range before it is cast, so every valid id counts (Codex
+    /// review on #3026). Names come from the EF model and the payload class,
     /// never from input; the SQL has no braces, so EF does not read it as a format string.
     /// </remarks>
     private static IQueryable<int> ChangeRequestIdsInSql(ApplicationDbContext db, string originalColumn, string payloadKey, string? proposedColumn)
@@ -613,7 +615,7 @@ public static class ReferenceListCatalog
             "SELECT DISTINCT r.\"Id\" AS \"RequestId\", v.\"Value\" " +
             $"FROM {qualified} AS r " +
             "CROSS JOIN LATERAL (SELECT substring(r." + Column(nameof(ProjectMetaChangeRequest.Payload)) + " from '" + pattern + "') AS \"Text\") AS t " +
-            "CROSS JOIN LATERAL (SELECT CASE WHEN length(ltrim(t.\"Text\", '-')) <= 9 THEN t.\"Text\"::integer END AS \"Proposed\") AS p " +
+            "CROSS JOIN LATERAL (SELECT CASE WHEN t.\"Text\"::numeric BETWEEN -2147483648 AND 2147483647 THEN t.\"Text\"::integer END AS \"Proposed\") AS p " +
             $"CROSS JOIN LATERAL (VALUES {values}) AS v(\"Value\") " +
             "WHERE v.\"Value\" IS NOT NULL) AS named";
         return db.Database.SqlQueryRaw<int>(sql);
