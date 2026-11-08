@@ -209,7 +209,7 @@ public static class AdminNavigationCatalog
             Item("Deleted repository documents", "DocumentRepository", "/Admin/Trash/Index", "bi-trash", Policies.Documents.Purge),
             "Document Repository files that were deleted: restore them or delete them for good.",
             "document repository trash, docrepo trash, trash, restore",
-            matchPagePattern: "/Admin/Trash/", inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre, usesAdminShell: false),
+            matchPagePattern: "/Admin/Trash/", inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre),
         Entry(AdminNavigationKeys.RestoredHiddenDocuments, AdminNavigationGroups.RestoreArchive, 86,
             Item("Restored but still hidden", "DocumentRepository", "/Admin/RestoredHidden/Index", "bi-eye-slash", Policies.Documents.Purge),
             "Repository documents restored from the trash before restore was fixed, still hidden from readers: check each and reactivate it.",

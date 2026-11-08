@@ -3,7 +3,6 @@
 @using ProjectManagement.Areas.DocumentRepository.Models
 @{
     ViewData["Title"] = "Deleted repository documents";
-    ViewData["UseFullWidth"] = true;
     var firstPage = Math.Max(1, Model.Result.Page - 2);
     var lastPage = Math.Min(Model.Result.TotalPages, Model.Result.Page + 2);
 }
@@ -12,24 +11,12 @@
     <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
 }
 
-<div class="library">
-    <header class="library-head">
-        <div class="library-head__text">
-            <a class="library-back" asp-page="/Documents/Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
-            <h1>Deleted repository documents</h1>
-            <p>
-                Documents whose deletion was approved. Restore puts one back in the library; Delete for good removes it and its file.
-                @if (Model.RetentionDays > 0)
-                {
-                    <text>Anything left here is deleted for good @Model.RetentionDays days after it was trashed.</text>
-                }
-                else
-                {
-                    <text>Automatic clean-up is off, so documents stay here until someone deletes them.</text>
-                }
-            </p>
-        </div>
-    </header>
+@* Shown inside Administration, like the other kinds of deleted item (docs/ux/admin-review-3-fixes.md, PR 14). *@
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+@await Component.InvokeAsync("RestoreTabs", new { active = ProjectManagement.Services.Admin.Recovery.AdminRestoreTabKeys.RepositoryDocuments })
+
+<div class="library docrepo-trash">
 
     @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
     {

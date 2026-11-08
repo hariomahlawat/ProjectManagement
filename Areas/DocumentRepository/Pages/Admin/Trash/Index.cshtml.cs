@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.Trash;
@@ -49,6 +50,17 @@ public sealed class IndexModel : PageModel
     public int TotalCount => Result.TrashCount;
 
     public long TotalBytes => Result.TrashBytes;
+
+    /// <summary>The Administration page header: the same title as every "Restore deleted items" page.</summary>
+    public AdminPageHeaderModel Header => new()
+    {
+        Title = "Restore deleted items",
+        Description = "Document Repository files whose deletion was approved. Restore puts one back in the library; Delete for good removes it and its file. "
+            + (RetentionDays > 0
+                ? $"Anything left here is deleted for good {RetentionDays} days after it was deleted."
+                : "Automatic clean-up is off, so documents stay here until someone deletes them."),
+        Icon = "bi-arrow-counterclockwise"
+    };
 
     public string NameOf(string? userId)
         => string.IsNullOrWhiteSpace(userId) ? "Unknown" : Result.UserNames.TryGetValue(userId, out var name) ? name : userId;
