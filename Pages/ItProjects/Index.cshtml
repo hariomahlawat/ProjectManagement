@@ -135,7 +135,7 @@
                                 </ul>
                                 @if (column.Hidden > 0)
                                 {
-                                    <a class="itp-pcol__more" href="#itpRegister">+ @column.Hidden more</a>
+                                    <a class="itp-pcol__more" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-fragment="itpRegister">+ @column.Hidden more</a>
                                 }
                             }
                         </li>
