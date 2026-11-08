@@ -22,6 +22,120 @@ public static class ItProjectBoardPresentation
 
     public static string Cost(decimal lakhs) => $"₹ {lakhs.ToString("#,##0.00", Culture)} L";
 
+    /// <summary>
+    /// One stop on a register row's track. <paramref name="State"/> is done, nodate (done without a
+    /// date), cur, pend or skip; <paramref name="LineIn"/> and <paramref name="LineOut"/> say whether
+    /// the line on either side of the dot is drawn as travelled.
+    /// </summary>
+    public sealed record TrackStop(string StageCode, string State, string Tone, string? Label, string Title, bool LineIn, bool LineOut);
+
+    /// <summary>The nine stops of a row's track, from the stage facts the read service resolved.</summary>
+    public static IReadOnlyList<TrackStop> Track(ItProjectBoardRow row)
+    {
+        var cells = row.Stages.OrderBy(cell => cell.SortOrder).ToList();
+        var live = row.Status.Kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress;
+
+        // A stop is reached when it is done or current; a skipped stop is passed through when a
+        // later stop is reached, so the travelled line runs on across it.
+        var reached = new bool[cells.Count];
+        for (var index = cells.Count - 1; index >= 0; index--)
+        {
+            var cell = cells[index];
+            var laterReached = index + 1 < cells.Count && reached[index + 1];
+            reached[index] = cell.IsSkipped ? laterReached : cell.IsCompleted || cell.IsCurrent;
+        }
+
+        var (nowText, _, nowTone) = TimeText(row.Timing);
+        return cells
+            .Select((cell, index) =>
+            {
+                string state;
+                string? text;
+                var tone = "calm";
+                if (cell.IsSkipped)
+                {
+                    state = "skip";
+                    text = null;
+                }
+                else if (cell.IsCompleted)
+                {
+                    state = cell.CompletedOn.HasValue ? "done" : "nodate";
+                    text = cell.CompletedOn.HasValue ? ShortDate(cell.CompletedOn.Value) : "no date";
+                }
+                else if (cell.IsCurrent && live)
+                {
+                    state = "cur";
+                    text = row.Status.Kind == ItProjectStatusKind.NotStarted ? "now" : row.Timing.Basis == ItProjectTimeBasis.StageDate ? nowText : "now";
+                    tone = row.Timing.Basis == ItProjectTimeBasis.StageDate ? nowTone : "calm";
+                }
+                else if (row.Status.Kind == ItProjectStatusKind.Dropped && row.Status.CurrentStageCode == cell.StageCode)
+                {
+                    state = "stop";
+                    text = "dropped";
+                }
+                else
+                {
+                    state = "pend";
+                    text = null;
+                }
+
+                return new TrackStop(
+                    cell.StageCode,
+                    state,
+                    tone,
+                    text,
+                    CellTitle(cell),
+                    LineIn: index > 0 && reached[index],
+                    LineOut: index + 1 < cells.Count && reached[index + 1]);
+            })
+            .ToList();
+    }
+
+    /// <summary>The short column heading above a row's track.</summary>
+    public static string TrackHeading(string code) => code switch
+    {
+        ItProjectStages.Ppp => "PPP",
+        ItProjectStages.Benchmarking => "BM",
+        ItProjectStages.Delivery => "DLV",
+        _ => ItProjectStages.LabelOf(code)
+    };
+
+    /// <summary>The Now column of a register row.</summary>
+    public sealed record NowCell(string Label, string? Badge, string BadgeTone, string? BadgeTitle, string? Note);
+
+    public static NowCell Now(ItProjectBoardRow row)
+    {
+        var so = row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.So && !cell.IsSkipped)?.CostLakhs;
+        // Non-breaking spaces keep "SO ₹ 48.75 L" on one line in the narrow Now column.
+        var soText = so is { } cost ? $"SO {Cost(cost)}".Replace(' ', ' ') : null;
+        switch (row.Status.Kind)
+        {
+            case ItProjectStatusKind.Completed:
+            {
+                var on = row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.Delivery)?.CompletedOn;
+                var span = row.Timing.ElapsedDays is { } days ? $"{days} days end to end" : null;
+                var note = string.Join(" · ", new[] { span, soText }.Where(part => part is not null));
+                return new NowCell(on is { } date ? $"Delivered {ShortDate(date)}" : "Delivered", null, "ok", null, note.Length == 0 ? null : note);
+            }
+
+            case ItProjectStatusKind.Dropped:
+                return new NowCell(
+                    row.DroppedOn is { } dropped ? $"Dropped {ShortDate(dropped)}" : "Dropped",
+                    null,
+                    "drop",
+                    null,
+                    row.Status.CurrentStageLabel is { } at ? $"at {at}" : null);
+
+            default:
+            {
+                var (text, title, tone) = TimeText(row.Timing);
+                var label = row.Status.Kind == ItProjectStatusKind.NotStarted ? "Not started" : $"At {row.Status.CurrentStageLabel}";
+                var note = row.Status.CurrentStageCode == ItProjectStages.Delivery ? soText : null;
+                return new NowCell(label, text, tone, title, note);
+            }
+        }
+    }
+
     /// <summary>A case card in the "Where the cases are now" pipeline.</summary>
     public sealed record PipelineCase(int Id, string Title, string TimeText, string? TimeTitle, string Tone, string? SoCost);
 
@@ -166,26 +280,6 @@ public static class ItProjectBoardPresentation
         _ => status.Label
     };
 
-    /// <summary>The first line a stage cell shows under its dot (date, "no date" or "now"), or null for nothing.</summary>
-    public static string? CellText(ItProjectBoardStageCell cell)
-    {
-        if (cell.IsSkipped)
-        {
-            return null;
-        }
-
-        if (cell.IsCompleted)
-        {
-            return cell.CompletedOn.HasValue ? ShortDate(cell.CompletedOn.Value) : "no date";
-        }
-
-        return cell.IsCurrent ? "now" : null;
-    }
-
-    /// <summary>The cost line of a stage cell (SO only), shown whether or not the stage is complete.</summary>
-    public static string? CellCost(ItProjectBoardStageCell cell)
-        => !cell.IsSkipped && cell.CostLakhs.HasValue ? Cost(cell.CostLakhs.Value) : null;
-
     /// <summary>The tooltip of a stage cell.</summary>
     public static string CellTitle(ItProjectBoardStageCell cell)
     {
@@ -212,14 +306,6 @@ public static class ItProjectBoardPresentation
 
         return $"{label}: {string.Join(", ", parts)}";
     }
-
-    public static string CellClass(ItProjectBoardStageCell cell) => cell.IsSkipped
-        ? "itp-cell--skip"
-        : cell.IsCompleted
-            ? "itp-cell--done"
-            : cell.IsCurrent
-                ? "itp-cell--cur"
-                : "itp-cell--pend";
 
     public sealed record Band(string Key, string Title, int Count, IReadOnlyList<ItProjectBoardRow> Rows);
 
