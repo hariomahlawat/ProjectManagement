@@ -1,0 +1,156 @@
+@model ProjectManagement.Areas.Admin.Models.AdminReferenceListModel
+@using ProjectManagement.Areas.Admin.Models
+@using ProjectManagement.Services.Admin.MasterData.ReferenceLists
+@*
+    The shared list page for reference lists (docs/ux/admin-review-3-fixes.md, owner decision 1):
+    tiles All, In use and Inactive; one table of Name, [extra columns], Order, Used by, Status and
+    Actions; Delete only when nothing uses the item. On a phone each row is a card (PR 8).
+*@
+@{
+    var list = Model.Page;
+    var tiles = list.Tiles;
+    var first = list.FilteredCount == 0 ? 0 : ((list.Page - 1) * list.PageSize) + 1;
+    var last = Math.Min(list.Page * list.PageSize, list.FilteredCount);
+    var startPage = Math.Max(1, list.Page - 2);
+    var endPage = Math.Min(list.TotalPages, list.Page + 2);
+    var pluralLower = Model.PluralLabel.ToLowerInvariant();
+    string TileHref(string status) => Url.Page(Model.IndexPage, new { area = "Admin", status, q = string.IsNullOrEmpty(list.Search) ? null : list.Search, pageSize = list.PageSize == 25 ? (int?)null : list.PageSize })!;
+    var tileModels = new[]
+    {
+        new AdminMonitoringMetricModel { Label = "All", Value = tiles.All.ToString(), Detail = $"Every {Model.SingularLabel}", Icon = Model.Icon, Tone = "neutral", Href = TileHref(ReferenceListStatuses.All), IsActive = list.Status == ReferenceListStatuses.All },
+        new AdminMonitoringMetricModel { Label = "In use", Value = tiles.InUse.ToString(), Detail = $"Used by {Model.UsedByLabel}", Icon = "bi-link-45deg", Tone = "info", Href = TileHref(ReferenceListStatuses.InUse), IsActive = list.Status == ReferenceListStatuses.InUse },
+        new AdminMonitoringMetricModel { Label = "Inactive", Value = tiles.Inactive.ToString(), Detail = "Kept on old records", Icon = "bi-slash-circle", Tone = "neutral", Href = TileHref(ReferenceListStatuses.Inactive), IsActive = list.Status == ReferenceListStatuses.Inactive }
+    };
+    var showOrder = !string.IsNullOrEmpty(Model.MoveHandler);
+    var filterName = list.Status switch
+    {
+        ReferenceListStatuses.InUse => "in use",
+        ReferenceListStatuses.Inactive => "inactive",
+        ReferenceListStatuses.Active => "active",
+        _ => null
+    };
+}
+<section class="admin-master-summary-grid admin-reference-list-tiles" aria-label="@Model.PluralLabel at a glance" data-admin-reference-list="@list.Key">
+    @foreach (var tile in tileModels)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminMonitoringMetric.cshtml" model="tile" />
+    }
+</section>
+
+<section class="admin-panel" aria-labelledby="reference-list-title">
+    <header class="admin-panel__header">
+        <div><h2 id="reference-list-title">@(filterName is null ? Model.PluralLabel : $"{Model.PluralLabel} {filterName}")</h2></div>
+        <span class="admin-panel__meta">Showing @first–@last of @list.FilteredCount</span>
+    </header>
+    <form method="get" class="admin-master-filter-toolbar">
+        <input type="hidden" name="status" value="@list.Status" />
+        <div class="admin-filter-toolbar__search"><i class="bi bi-search" aria-hidden="true"></i><label class="visually-hidden" for="reference-list-search">Search @pluralLower</label><input id="reference-list-search" class="form-control" type="search" name="q" value="@list.Search" placeholder="Search @pluralLower" autocomplete="off" /></div>
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size"><label for="reference-list-page-size">Rows</label><select id="reference-list-page-size" class="form-select" name="pageSize">@foreach (var size in new[] { 10, 25, 50, 100 }) { <option value="@size" selected="@(list.PageSize == size ? "selected" : null)">@size</option> }</select></div>
+        <div class="admin-filter-toolbar__actions"><button class="btn btn-primary" type="submit"><i class="bi bi-search" aria-hidden="true"></i>Search</button><a class="btn btn-outline-secondary" asp-area="Admin" asp-page="@Model.IndexPage">Clear</a></div>
+    </form>
+
+    @if (list.Rows.Count == 0)
+    {
+        var listIsEmpty = tiles.All == 0;
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new AdminEmptyStateModel { Icon = Model.Icon, Title = listIsEmpty ? $"No {pluralLower} yet" : $"No {pluralLower} match", Description = listIsEmpty ? $"Add the first {Model.SingularLabel}; forms offer it straight away." : "Change the search or pick another tile.", ActionText = listIsEmpty ? $"Add {Model.SingularLabel}" : null, ActionHref = listIsEmpty ? Url.Page(Model.CreatePage, new { area = "Admin" }) : null })" />
+    }
+    else
+    {
+        <div class="admin-data-table-wrap">
+            <table class="admin-data-table admin-data-table--cards admin-reference-list-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        @foreach (var column in Model.ExtraColumns)
+                        {
+                            <th scope="col">@column.Header</th>
+                        }
+                        @if (showOrder)
+                        {
+                            <th scope="col">Order</th>
+                        }
+                        <th scope="col">Used by</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="admin-data-table__actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in list.Rows)
+                {
+                    var usedBy = row.UsedBy.Where(item => item.Count > 0).ToArray();
+                    <tr data-reference-list-row="@row.Id">
+                        <td><div class="admin-lookup-name"><span aria-hidden="true"><i class="bi @Model.Icon"></i></span><strong>@row.Name</strong></div></td>
+                        @for (var index = 0; index < Model.ExtraColumns.Count; index++)
+                        {
+                            var value = index < row.ExtraValues.Count ? row.ExtraValues[index] : null;
+                            <td data-label="@Model.ExtraColumns[index].Header">@(string.IsNullOrWhiteSpace(value) ? "—" : value)</td>
+                        }
+                        @if (showOrder)
+                        {
+                            <td data-label="Order">
+                                <div class="admin-order-control">
+                                    <span>@(row.SortOrder + 1)</span>
+                                    @foreach (var (offset, canMove, direction) in new[] { (-1, row.CanMoveUp, "up"), (1, row.CanMoveDown, "down") })
+                                    {
+                                        <form method="post" data-admin-controlled-submit asp-area="Admin" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
+                                            <input type="hidden" name="id" value="@row.Id" />
+                                            <input type="hidden" name="offset" value="@offset" />
+                                            <input type="hidden" name="q" value="@list.Search" />
+                                            <input type="hidden" name="status" value="@list.Status" />
+                                            <input type="hidden" name="pageNumber" value="@list.Page" />
+                                            <input type="hidden" name="pageSize" value="@list.PageSize" />
+                                            <button class="btn btn-sm btn-icon" type="submit" disabled="@(!canMove ? "disabled" : null)" aria-label="Move @row.Name @direction"><i class="bi bi-chevron-@direction" aria-hidden="true"></i></button>
+                                        </form>
+                                    }
+                                </div>
+                            </td>
+                        }
+                        <td data-label="Used by">@if (usedBy.Length == 0) { <span class="admin-muted-value">Not used</span> } else { <strong class="admin-reference-list-usage">@string.Join(" · ", usedBy.Select(item => item.Text))</strong> }</td>
+                        <td data-label="Status"><span class="admin-status-pill admin-status-pill--@(row.IsActive ? "success" : "neutral")"><i class="bi @(row.IsActive ? "bi-check-circle" : "bi-slash-circle")" aria-hidden="true"></i>@(row.IsActive ? "Active" : "Inactive")</span></td>
+                        <td class="admin-data-table__actions">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @row.Name"><i class="bi bi-three-dots" aria-hidden="true"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" asp-area="Admin" asp-page="@Model.EditPage" asp-route-id="@row.Id"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit</a></li>
+                                    <li><a class="dropdown-item" asp-area="Admin" asp-page="@Model.DeactivatePage" asp-route-id="@row.Id" asp-route-restore="@(!row.IsActive)"><i class="bi @(row.IsActive ? "bi-slash-circle" : "bi-check-circle")" aria-hidden="true"></i>@(row.IsActive ? "Deactivate" : "Reactivate")</a></li>
+                                    @if (!string.IsNullOrEmpty(Model.DeleteHandler))
+                                    {
+                                        <li><hr class="dropdown-divider" /></li>
+                                        @if (row.CanDelete)
+                                        {
+                                            <li>
+                                                <form method="post" asp-area="Admin" asp-page="@Model.IndexPage" asp-page-handler="@Model.DeleteHandler"
+                                                      data-confirm="Delete '@row.Name'?"
+                                                      data-confirm-detail="Nothing uses this @Model.SingularLabel. It is removed from the list for good."
+                                                      data-confirm-action="Delete"
+                                                      data-confirm-tone="danger">
+                                                    <input type="hidden" name="id" value="@row.Id" />
+                                                    <input type="hidden" name="rowVersion" value="@row.RowVersion" />
+                                                    <input type="hidden" name="q" value="@list.Search" />
+                                                    <input type="hidden" name="status" value="@list.Status" />
+                                                    <input type="hidden" name="pageNumber" value="@list.Page" />
+                                                    <input type="hidden" name="pageSize" value="@list.PageSize" />
+                                                    <button class="dropdown-item text-danger" type="submit"><i class="bi bi-trash3" aria-hidden="true"></i>Delete</button>
+                                                </form>
+                                            </li>
+                                        }
+                                        else
+                                        {
+                                            <li><span class="dropdown-item disabled admin-reference-list-locked" aria-disabled="true"><i class="bi bi-lock" aria-hidden="true"></i>Delete<small>In use, so deactivate it instead</small></span></li>
+                                        }
+                                    }
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (list.TotalPages > 1)
+    {
+        <nav class="admin-pagination" aria-label="@Model.PluralLabel pages"><span>Page @list.Page of @list.TotalPages</span><ul class="pagination pagination-sm mb-0"><li class="page-item @(list.Page <= 1 ? "disabled" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-route-q="@list.Search" asp-route-status="@list.Status" asp-route-pageSize="@list.PageSize" asp-route-pageNumber="@(list.Page - 1)">Previous</a></li>@for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++){<li class="page-item @(pageNumber == list.Page ? "active" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-route-q="@list.Search" asp-route-status="@list.Status" asp-route-pageSize="@list.PageSize" asp-route-pageNumber="@pageNumber">@pageNumber</a></li>}<li class="page-item @(list.Page >= list.TotalPages ? "disabled" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-route-q="@list.Search" asp-route-status="@list.Status" asp-route-pageSize="@list.PageSize" asp-route-pageNumber="@(list.Page + 1)">Next</a></li></ul></nav>
+    }
+</section>

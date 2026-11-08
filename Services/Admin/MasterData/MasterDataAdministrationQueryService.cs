@@ -13,13 +13,6 @@ public enum MasterDataCategoryKind
     Technical = 1
 }
 
-public enum MasterDataFlatLookupKind
-{
-    ProjectType = 0,
-    SponsoringUnit = 1,
-    LineDirectorate = 2
-}
-
 public sealed record MasterDataDomainSummary(
     string Key,
     string Title,
@@ -96,37 +89,6 @@ public sealed record CategoryDirectoryResult(
     string Search,
     string Status);
 
-public sealed record FlatLookupDirectoryRequest(
-    string? Search,
-    string? Status,
-    int Page,
-    int PageSize);
-
-public sealed record FlatLookupAdminRow(
-    int Id,
-    string Name,
-    bool IsActive,
-    int SortOrder,
-    int UsageCount,
-    string RowVersion,
-    DateTimeOffset? UpdatedUtc,
-    bool CanMoveUp,
-    bool CanMoveDown);
-
-public sealed record FlatLookupDirectoryResult(
-    MasterDataFlatLookupKind Kind,
-    IReadOnlyList<FlatLookupAdminRow> Rows,
-    int Total,
-    int Active,
-    int Inactive,
-    int InUse,
-    int FilteredCount,
-    int Page,
-    int PageSize,
-    int TotalPages,
-    string Search,
-    string Status);
-
 public sealed record ActivityTypeDirectoryRequest(
     string? Search,
     string? Status,
@@ -181,7 +143,6 @@ public interface IMasterDataAdministrationQueryService
     Task<MasterDataOverviewSnapshot> GetOverviewAsync(int holidayYear, CancellationToken cancellationToken = default);
     Task<CategoryDirectoryResult> GetCategoriesAsync(MasterDataCategoryKind kind, CategoryDirectoryRequest request, CancellationToken cancellationToken = default);
     Task<CategoryImpact?> GetCategoryImpactAsync(MasterDataCategoryKind kind, int id, CancellationToken cancellationToken = default);
-    Task<FlatLookupDirectoryResult> GetFlatLookupAsync(MasterDataFlatLookupKind kind, FlatLookupDirectoryRequest request, CancellationToken cancellationToken = default);
     Task<ActivityTypeDirectoryResult> GetActivityTypesAsync(ActivityTypeDirectoryRequest request, CancellationToken cancellationToken = default);
 }
 
@@ -439,17 +400,6 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             otherReferences);
     }
 
-    public Task<FlatLookupDirectoryResult> GetFlatLookupAsync(
-        MasterDataFlatLookupKind kind,
-        FlatLookupDirectoryRequest request,
-        CancellationToken cancellationToken = default) => kind switch
-        {
-            MasterDataFlatLookupKind.ProjectType => GetProjectTypesAsync(request, cancellationToken),
-            MasterDataFlatLookupKind.SponsoringUnit => GetSponsoringUnitsAsync(request, cancellationToken),
-            MasterDataFlatLookupKind.LineDirectorate => GetLineDirectoratesAsync(request, cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
-        };
-
     public async Task<ActivityTypeDirectoryResult> GetActivityTypesAsync(
         ActivityTypeDirectoryRequest request,
         CancellationToken cancellationToken = default)
@@ -523,108 +473,6 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             totalPages,
             search,
             status);
-    }
-
-    private async Task<FlatLookupDirectoryResult> GetProjectTypesAsync(
-        FlatLookupDirectoryRequest request,
-        CancellationToken cancellationToken)
-    {
-        var all = _db.ProjectTypes.AsNoTracking();
-        var total = await all.CountAsync(cancellationToken);
-        var active = await all.CountAsync(item => item.IsActive, cancellationToken);
-        var inUse = await all.CountAsync(item => item.Projects.Any(), cancellationToken);
-        var search = NormalizeSearch(request.Search);
-        var status = NormalizeStatus(request.Status);
-        var pageSize = NormalizePageSize(request.PageSize);
-        var page = Math.Max(1, request.Page);
-
-        IQueryable<ProjectType> filtered = ApplyStatus(all, status, item => item.IsActive);
-        if (search.Length > 0)
-        {
-            var pattern = SearchLikePattern.Contains(search);
-            filtered = filtered.Where(item => EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter));
-        }
-        var filteredCount = await filtered.CountAsync(cancellationToken);
-        var totalPages = Math.Max(1, (int)Math.Ceiling(filteredCount / (double)pageSize));
-        page = Math.Min(page, totalPages);
-        var ordered = filtered.OrderBy(item => item.SortOrder).ThenBy(item => item.Name);
-        var allOrderedIds = await all.OrderBy(item => item.SortOrder).ThenBy(item => item.Name).Select(item => item.Id).ToListAsync(cancellationToken);
-        var rows = await ordered.Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(item => new { item.Id, item.Name, item.IsActive, item.SortOrder, Usage = item.Projects.Count, item.RowVersion })
-            .ToListAsync(cancellationToken);
-
-        return BuildFlatResult(MasterDataFlatLookupKind.ProjectType, rows.Select(item => new FlatLookupAdminRow(
-            item.Id, item.Name, item.IsActive, item.SortOrder, item.Usage, Convert.ToBase64String(item.RowVersion), null,
-            CanMoveUp(allOrderedIds, item.Id), CanMoveDown(allOrderedIds, item.Id))).ToArray(), total, active, inUse,
-            filteredCount, page, pageSize, totalPages, search, status);
-    }
-
-    private async Task<FlatLookupDirectoryResult> GetSponsoringUnitsAsync(
-        FlatLookupDirectoryRequest request,
-        CancellationToken cancellationToken)
-    {
-        var all = _db.SponsoringUnits.AsNoTracking();
-        var total = await all.CountAsync(cancellationToken);
-        var active = await all.CountAsync(item => item.IsActive, cancellationToken);
-        var inUse = await all.CountAsync(item => item.Projects.Any(), cancellationToken);
-        var search = NormalizeSearch(request.Search);
-        var status = NormalizeStatus(request.Status);
-        var pageSize = NormalizePageSize(request.PageSize);
-        var page = Math.Max(1, request.Page);
-
-        IQueryable<SponsoringUnit> filtered = ApplyStatus(all, status, item => item.IsActive);
-        if (search.Length > 0)
-        {
-            var pattern = SearchLikePattern.Contains(search);
-            filtered = filtered.Where(item => EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter));
-        }
-        var filteredCount = await filtered.CountAsync(cancellationToken);
-        var totalPages = Math.Max(1, (int)Math.Ceiling(filteredCount / (double)pageSize));
-        page = Math.Min(page, totalPages);
-        var allOrderedIds = await all.OrderBy(item => item.SortOrder).ThenBy(item => item.Name).Select(item => item.Id).ToListAsync(cancellationToken);
-        var rows = await filtered.OrderBy(item => item.SortOrder).ThenBy(item => item.Name)
-            .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(item => new { item.Id, item.Name, item.IsActive, item.SortOrder, Usage = item.Projects.Count, item.RowVersion, item.UpdatedUtc })
-            .ToListAsync(cancellationToken);
-
-        return BuildFlatResult(MasterDataFlatLookupKind.SponsoringUnit, rows.Select(item => new FlatLookupAdminRow(
-            item.Id, item.Name, item.IsActive, item.SortOrder, item.Usage, Convert.ToBase64String(item.RowVersion),
-            new DateTimeOffset(EnsureUtc(item.UpdatedUtc)), CanMoveUp(allOrderedIds, item.Id), CanMoveDown(allOrderedIds, item.Id))).ToArray(),
-            total, active, inUse, filteredCount, page, pageSize, totalPages, search, status);
-    }
-
-    private async Task<FlatLookupDirectoryResult> GetLineDirectoratesAsync(
-        FlatLookupDirectoryRequest request,
-        CancellationToken cancellationToken)
-    {
-        var all = _db.LineDirectorates.AsNoTracking();
-        var total = await all.CountAsync(cancellationToken);
-        var active = await all.CountAsync(item => item.IsActive, cancellationToken);
-        var inUse = await all.CountAsync(item => item.Projects.Any(), cancellationToken);
-        var search = NormalizeSearch(request.Search);
-        var status = NormalizeStatus(request.Status);
-        var pageSize = NormalizePageSize(request.PageSize);
-        var page = Math.Max(1, request.Page);
-
-        IQueryable<LineDirectorate> filtered = ApplyStatus(all, status, item => item.IsActive);
-        if (search.Length > 0)
-        {
-            var pattern = SearchLikePattern.Contains(search);
-            filtered = filtered.Where(item => EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter));
-        }
-        var filteredCount = await filtered.CountAsync(cancellationToken);
-        var totalPages = Math.Max(1, (int)Math.Ceiling(filteredCount / (double)pageSize));
-        page = Math.Min(page, totalPages);
-        var allOrderedIds = await all.OrderBy(item => item.SortOrder).ThenBy(item => item.Name).Select(item => item.Id).ToListAsync(cancellationToken);
-        var rows = await filtered.OrderBy(item => item.SortOrder).ThenBy(item => item.Name)
-            .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(item => new { item.Id, item.Name, item.IsActive, item.SortOrder, Usage = item.Projects.Count, item.RowVersion, item.UpdatedUtc })
-            .ToListAsync(cancellationToken);
-
-        return BuildFlatResult(MasterDataFlatLookupKind.LineDirectorate, rows.Select(item => new FlatLookupAdminRow(
-            item.Id, item.Name, item.IsActive, item.SortOrder, item.Usage, Convert.ToBase64String(item.RowVersion),
-            new DateTimeOffset(EnsureUtc(item.UpdatedUtc)), CanMoveUp(allOrderedIds, item.Id), CanMoveDown(allOrderedIds, item.Id))).ToArray(),
-            total, active, inUse, filteredCount, page, pageSize, totalPages, search, status);
     }
 
     private async Task<IReadOnlyList<RawCategoryRow>> LoadProjectCategoriesAsync(CancellationToken cancellationToken)
@@ -846,38 +694,6 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
         return System.Linq.Expressions.Expression.Lambda<Func<T, bool>>(body, expression.Parameters);
     }
 
-    private static FlatLookupDirectoryResult BuildFlatResult(
-        MasterDataFlatLookupKind kind,
-        IReadOnlyList<FlatLookupAdminRow> rows,
-        int total,
-        int active,
-        int inUse,
-        int filteredCount,
-        int page,
-        int pageSize,
-        int totalPages,
-        string search,
-        string status) => new(
-            kind,
-            rows,
-            total,
-            active,
-            total - active,
-            inUse,
-            filteredCount,
-            page,
-            pageSize,
-            totalPages,
-            search,
-            status);
-
-    private static bool CanMoveUp(IReadOnlyList<int> orderedIds, int id) => orderedIds.IndexOf(id) > 0;
-    private static bool CanMoveDown(IReadOnlyList<int> orderedIds, int id)
-    {
-        var index = orderedIds.IndexOf(id);
-        return index >= 0 && index < orderedIds.Count - 1;
-    }
-
     private static string NormalizeSearch(string? value) => value?.Trim() ?? string.Empty;
     private static string NormalizeStatus(string? value) => value?.Trim().ToLowerInvariant() switch
     {
@@ -916,17 +732,5 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
     private sealed record CountSnapshot(int Total, int Active, int Inactive, int InUse)
     {
         public static CountSnapshot Empty { get; } = new(0, 0, 0, 0);
-    }
-}
-
-internal static class MasterDataListExtensions
-{
-    public static int IndexOf(this IReadOnlyList<int> items, int value)
-    {
-        for (var index = 0; index < items.Count; index++)
-        {
-            if (items[index] == value) return index;
-        }
-        return -1;
     }
 }
