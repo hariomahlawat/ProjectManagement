@@ -152,6 +152,49 @@ These are larger changes. None of the PRs above makes them without the owner's g
    - Test HoD, Test Project Officer and the two Claude Review accounts are marked as people, so ERP usage counts them.
    - Documents restored before second-review PR 2 stay hidden from readers and search.
 
+### Decided (8 Nov 2026)
+
+The owner took the recommendations:
+- one shared list page (1);
+- option A, the outer pages inside the admin layout (2);
+- briefing decks listed in Restore deleted items (3).
+
+For the two items still open from the second review (4):
+- **Test accounts:** marking the four accounts as Test is an owner action in Edit user → "Kind of account". No code change and no data script.
+- **Hidden documents:** documents restored before second-review PR 2 get a review list with Reactivate. Nothing is reactivated automatically, because some of those documents may have been made inactive on purpose.
+
+**The reference lists.** The admin ones:
+- Project categories, Technical categories, Project types, Sponsoring units and Line directorates;
+- Activity types;
+- the ARPP value lists.
+
+The Document Repository's lists: Document types and Offices. The social media lists: Event types and Platforms.
+
+Holidays and Celebrations are not plain lists (dates, recurring rules), so they keep their own pages.
+
+**One rule for every list:**
+- tiles (All, In use, Inactive);
+- one table with Name, Order, Used by, Status and Actions;
+- Add and Edit, and Deactivate or Reactivate;
+- Delete only when nothing uses the item. The service checks use, and the database's foreign keys stay as the backstop.
+- Inactive items stay on old records and drop out of new forms.
+
+| PR | Scope | Decision |
+| --- | --- | --- |
+| 10 | **Shared list page.** One partial and view model, plus one usage-and-delete rule in a service; applied to Project types, Sponsoring units and Line directorates (they already share `_AdminFlatLookupDirectory`) | 1 |
+| 11 | **More lists on the shared page.** Project categories, Technical categories, Activity types and the ARPP value lists | 1 |
+| 12 | **Document Repository and social media lists in Administration.** Document types, Offices, social media Event types and Platforms move onto the shared list page, inside the admin layout (sidebar, header, Administration breadcrumb) | 1, 2 |
+| 13 | **Media pages in Administration.** Media sources, Media intelligence and Classification review render in the admin layout | 2 |
+| 14 | **Repository trash and Document deletion approvals.** Repository trash renders in the admin layout. Document deletion approvals stays in the Decision Centre, with a heading that names it and a link back to Administration | 2 |
+| 15 | **Briefing decks in Restore deleted items.** Deleted decks listed as a kind, restored through the existing briefing-deck service, with its policy and audit | 3 |
+| 16 | **Restored but still hidden documents.** A Document Repository admin list of documents that were restored before second-review PR 2 and are still inactive, each with Reactivate (audited, reindexed); no bulk change without a confirmation | 4 |
+
+Rules:
+- Old URLs keep working (redirect where a page moves) and policies are unchanged.
+- Every PR ships with tests and is checked on screen at desktop and phone width, light and dark, while signed in.
+- Every PR is merged when CI and Codex are clean.
+- PRs 10–12 run in order, because they share the list page. PRs 13–16 are independent of them and of each other.
+
 ## PR 3 as shipped
 
 - **Sign-in activity (C3).** `AdminLoginMonitoringService` turns the Outcome filter and the review rule into the database query before the newest-5,000 cap. The review rule for a successful sign-in (between 22:00 and 05:00 IST) is `LateNightSuccessfulSignIn`, kept in step with `BuildEvent`; failed and locked-out attempts always need a look. The chart and the CSV export read the filtered set, and the "Sign-ins to look at" queue and its tile always read the review set, so an older failed sign-in is listed and counted even when newer successful ones fill the cap. "Too many to draw" now means a list on the page was cut off, and "Sign-ins in this period" shows the full count instead of the capped one. The usual sign-in times still come from the newest 5,000 events in the period.
@@ -221,6 +264,17 @@ parameter, not inlined), and compiled for use in memory.
   - Rollback: the old release goes back to its in-memory list and leaves the table unused.
   - Wording that said the history starts again when PRISM restarts now reads "Not run yet" (Copy PDFs), "No PDF run yet" (Home) and "No run yet" (Data jobs).
 - Tests: `AdminDataJobTidyUpTests` covers the import rolled back when its audit fails, staging under the data root, importing from and sweeping the old folder, paging, the policy, the recycle service, the Disable words and the run history across contexts and its trimming. `UserLifecycleServiceTests.TryDisable_ReturnsATypedOutcomeForEverySafeguard` covers the typed outcomes, and `AdminCodeGuardsTests` covers the CSV audit and that no file is returned without it.
+
+### PR 13 shipped: media pages in Administration
+
+**Shipped.** Owner decision 2, option A. Media sources, Media intelligence and Classification review now open inside Administration, with its sidebar, page header, "System" eyebrow and the "Administration" context bar on a phone, instead of leaving for the module layout.
+
+- `AdminNavigationCatalog`: the three entries no longer set `usesAdminShell: false`. Media intelligence and Classification review stay out of the sidebar and now name Media sources as their `SidebarParent`, so it stays highlighted and Every admin page says "Opens from Media sources".
+- The pages use the shared `_AdminPageHeader` instead of their own header and drop their `container-*` wrappers, so the shell's spacing applies. Their own page styles stay (`media-sources.css`, `media-intelligence.css`). On Classification review the confirmed "Sort older images again" button sits at the right of the tabs, because the shared header has no confirmed-POST action.
+- One layout, not two. These pages are Administration pages (their routes are under `/Admin`, their policy is `Admin.Media.View`), even when opened from Photos. The layout's existing rule decides the shell: administrators get it, and an HoD who can open the pages sees the same header in the standard layout, as on every other admin page an HoD can open. No "came from Photos" switch.
+- The "Administration ›" return bar is no longer shown on these pages: the shell already leads back. It still serves the pages that keep their module's layout (Document Repository, social media lists, Document deletion approvals). Every admin page no longer says media opens in "the media library".
+- Routes, handlers, policies and the Photos links are unchanged.
+- Tests: `AdminMediaPagesInShellTests` (in scope for the shell, no return bar, "System" eyebrow, sidebar parent, no "own module" note, the shared header in the views); `AdminNavigationCatalogTests` and `AdminPageIndexTests` updated.
 
 ### PR 16 shipped: restored but still hidden documents
 
