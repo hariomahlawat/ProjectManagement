@@ -652,6 +652,25 @@ public class ItProjectDetailsPageTests
         Assert.Equal("IT PPP 03/2026", reset.YearTypes.Single(type => type.FinancialYearStart == 2026).PppReferenceNumber);
     }
 
+    [Fact]
+    public async Task Year_AFirstYearTypeSetByHandCanBePutBackToAutomatic()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync(fy: 2026);
+        var set = await db.Commands().SaveYearAsync(id, 2026, new ItProjectYearInput(ItProjectYearType.CarriedForward, null), rowVersion, ItProjectTestDb.Actor());
+        Assert.True(set.Succeeded);
+
+        var page = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        await page.OnGetAsync(id, CancellationToken.None);
+        Assert.True(page.YearTypes.Single().IsManual);
+
+        Assert.IsType<RedirectToPageResult>(await page.OnPostYearAsync(id, 2026, "auto", null, CancellationToken.None));
+        var reloaded = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        await reloaded.OnGetAsync(id, CancellationToken.None);
+        Assert.Equal("New", reloaded.YearTypes.Single().Code);
+        Assert.False(reloaded.YearTypes.Single().IsManual);
+    }
+
     private static DetailsModel Page(ItProjectTestDb db, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext { User = user };

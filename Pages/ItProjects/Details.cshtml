@@ -41,7 +41,7 @@
         {
             <div class="itp-head__actions">
                 <button type="button" class="btn btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#itpEditDrawer" aria-controls="itpEditDrawer">Edit</button>
-                <button type="button" class="btn btn-primary itp-btn-primary" data-bs-toggle="offcanvas" data-bs-target="#itpStagesDrawer" aria-controls="itpStagesDrawer"><i class="bi bi-signpost-split" aria-hidden="true"></i><span>Stages</span></button>
+                <button type="button" class="btn btn-primary itp-btn-primary" data-bs-toggle="offcanvas" data-bs-target="#itpStagesDrawer" aria-controls="itpStagesDrawer"><i class="bi bi-signpost-split" aria-hidden="true"></i><span>Update stages</span></button>
                 @if (Model.IsDropped)
                 {
                     <form method="post" asp-page-handler="Reinstate" asp-route-id="@Model.Project.Id" class="d-inline"
@@ -231,7 +231,7 @@
             <section class="itp-card itp-card--facts">
                 <h2 class="itp-card__title">At a glance</h2>
                 <dl class="itp-facts">
-                    <dt>Status</dt><dd>@Model.Status.Label</dd>
+                    <dt>Status</dt><dd>@ItProjectBoardPresentation.StatusLine(Model.Status)</dd>
                     <dt>Financial year</dt><dd>@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</dd>
                     <dt>Created</dt><dd>@ItProjectBoardPresentation.ShortDate(DateOnly.FromDateTime(Model.Project.CreatedAtUtc))</dd>
                     @{
@@ -254,7 +254,9 @@
                                 <span class="itp-years__fy">@fyLabel</span>
                                 <span class="itp-years__type itp-years__type--@year.Code.ToLowerInvariant()" title="@year.Label, @how">@year.Code</span>
                                 <span class="itp-years__ref @(year.PppReferenceNumber is null ? "itp-years__ref--none" : null)">@(year.PppReferenceNumber ?? "number not entered")</span>
-                                @if (Model.CanManage)
+                                @* The first year is New and its number is changed with Edit, so it has no form, unless a type
+                                   was once set there by hand: then the form stays so it can be put back to automatic. *@
+                                @if (Model.CanManage && (!year.IsOwnYear || year.IsManual))
                                 {
                                     <form method="post" asp-page-handler="Year" asp-route-id="@Model.Project.Id" class="itp-years__form">
                                         <input type="hidden" asp-for="RowVersion" />
@@ -346,7 +348,7 @@
         <div class="offcanvas offcanvas-end itp-drawer" tabindex="-1" id="itpStagesDrawer" aria-labelledby="itpStagesDrawerLabel">
             <div class="offcanvas-header">
                 <div>
-                    <h5 id="itpStagesDrawerLabel" class="mb-0">Stages</h5>
+                    <h5 id="itpStagesDrawerLabel" class="mb-0">Update stages</h5>
                     <p class="itp-drawer__hint mb-0">Tick what is done. Dates are optional. Ticking a later stage completes the earlier ones.</p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
