@@ -919,9 +919,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             var isWorkingDay = cell.Date.DayOfWeek != DayOfWeek.Sunday
                 && configuredWorkingDays.Contains(cell.Date.DayOfWeek)
                 && !nonWorkingDates.Contains(cell.Date);
-            var isHistoricalAudit = cell.Label.StartsWith(
-                "Historical audited",
-                StringComparison.OrdinalIgnoreCase);
+            var isHistoricalAudit = cell.Label.Contains(FromAuditLogNote, StringComparison.Ordinal);
             var isMonitored = !isHistoricalAudit
                 && nowUtc >= trackingInceptionUtc
                 && cell.Date >= effectiveTrackingStart;
@@ -1125,30 +1123,26 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
 
             if (operationalCount > 0)
             {
-                var prefix = beforeComprehensiveMonitoring ? "Historical audited operational action" : "Operational action";
                 return new ErpUsageHeatmapCell(
                     date,
                     ErpUsageHeatmapState.BusinessAction,
-                    BuildSignalLabel(prefix, operationalCount, moduleLabels, beforeComprehensiveMonitoring));
+                    BuildSignalLabel(CountedChanges(operationalCount, "change", beforeComprehensiveMonitoring), moduleLabels, beforeComprehensiveMonitoring));
             }
 
             if (administrativeCount > 0)
             {
-                var prefix = beforeComprehensiveMonitoring ? "Historical audited administrative action" : "Administrative action";
                 return new ErpUsageHeatmapCell(
                     date,
                     ErpUsageHeatmapState.AdministrativeAction,
-                    BuildSignalLabel(prefix, administrativeCount, moduleLabels, beforeComprehensiveMonitoring));
+                    BuildSignalLabel(CountedChanges(administrativeCount, "admin change", beforeComprehensiveMonitoring), moduleLabels, beforeComprehensiveMonitoring));
             }
 
             if (date < effectiveTrackingStart)
             {
                 var createdDate = DateOnly.FromDateTime(_time.ToIst(user.CreatedUtc).Date);
                 var reason = date < createdDate
-                    ? "Account not yet created"
-                    : date < trackingDate
-                        ? "Comprehensive usage monitoring not active"
-                        : "Comprehensive usage monitoring not active";
+                    ? "The account did not exist yet"
+                    : "Not counted yet";
                 return new ErpUsageHeatmapCell(date, ErpUsageHeatmapState.NotObserved, reason);
             }
 
@@ -1158,7 +1152,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 return new ErpUsageHeatmapCell(
                     date,
                     ErpUsageHeatmapState.Interactive,
-                    BuildSignalLabel("Interactive ERP use", 0, moduleLabels, false));
+                    BuildSignalLabel("Worked in PRISM", moduleLabels, false));
             }
 
             if (dailySummary?.HadNavigation == true
@@ -1167,7 +1161,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 return new ErpUsageHeatmapCell(
                     date,
                     ErpUsageHeatmapState.Navigation,
-                    BuildSignalLabel("ERP navigation", 0, moduleLabels, false));
+                    BuildSignalLabel("Opened pages", moduleLabels, false));
             }
 
             if (date.DayOfWeek == DayOfWeek.Sunday
@@ -1246,15 +1240,26 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         return ("Occasional user", "info");
     }
 
+    // "Made a change", "Made 3 changes"; changes from before pages were counted come from the
+    // audit log, and say so (docs/ux/admin-review-4-fixes.md, PR 9).
+    private static string CountedChanges(int count, string noun, bool fromAuditLog)
+    {
+        var text = count > 1 ? $"Made {count} {noun}s" : $"Made {(noun.StartsWith('a') ? "an" : "a")} {noun}";
+        return fromAuditLog ? text + FromAuditLogNote : text;
+    }
+
+    // Marks a change read from the audit log for a day before pages were counted; the year
+    // view finds those days by it.
+    private const string FromAuditLogNote = " (from the audit log)";
+
     private static string BuildSignalLabel(
         string signal,
-        int count,
         IReadOnlyCollection<string> modules,
         bool historical)
     {
         var parts = new List<string>
         {
-            count > 1 ? $"{signal}s: {count}" : signal
+            signal
         };
         if (modules.Count > 0)
         {
@@ -1262,7 +1267,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         }
         if (historical)
         {
-            parts.Add("Read-only navigation monitoring was not active");
+            parts.Add("Pages opened were not counted yet");
         }
         return string.Join("\n", parts);
     }

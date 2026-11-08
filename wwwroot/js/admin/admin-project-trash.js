@@ -36,12 +36,12 @@
 
         if (actionInput) actionInput.value = action;
         if (idInput) idInput.value = projectId;
-        if (title) title.textContent = isPurge ? 'Delete project permanently' : 'Restore project';
-        if (eyebrow) eyebrow.textContent = isPurge ? 'Controlled destruction' : 'Recovery operation';
+        if (title) title.textContent = isPurge ? 'Delete project for good' : 'Restore project';
+        if (eyebrow) eyebrow.textContent = 'Deleted projects';
         if (summaryName) summaryName.textContent = projectName;
         if (summaryDetail) summaryDetail.textContent = isPurge
-            ? 'Verify dependencies, record the authority and confirm the exact project name.'
-            : 'The project and its existing records will return to the portfolio.';
+            ? 'Check what goes with it, give a reason and type the project name.'
+            : 'The project and its records come back to the project list.';
         if (restorePanel) restorePanel.hidden = isPurge;
         if (purgePanel) purgePanel.hidden = !isPurge;
         if (confirmationLabel) confirmationLabel.textContent = projectName;
@@ -58,7 +58,7 @@
         if (submit) {
             submit.className = `btn ${isPurge ? 'btn-danger' : 'btn-primary'}`;
             submit.innerHTML = isPurge
-                ? '<i class="bi bi-trash"></i> Delete permanently'
+                ? '<i class="bi bi-trash"></i> Delete for good'
                 : '<i class="bi bi-arrow-counterclockwise"></i> Restore project';
         }
     });
@@ -67,7 +67,7 @@
         if (!(submit instanceof HTMLButtonElement)) return;
         submit.disabled = true;
         submit.dataset.originalHtml = submit.innerHTML;
-        submit.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Processing…';
+        submit.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Working…';
     });
 
     modal.addEventListener('hidden.bs.modal', () => {

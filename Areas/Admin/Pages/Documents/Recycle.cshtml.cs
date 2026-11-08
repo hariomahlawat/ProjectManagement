@@ -77,7 +77,7 @@ public sealed class RecycleModel : PageModel
 
         if (ids.Count > _options.MaximumBulkDocuments)
         {
-            SetError($"A maximum of {_options.MaximumBulkDocuments} documents can be processed in one operation.");
+            SetError($"Choose up to {_options.MaximumBulkDocuments} documents at a time.");
             return RedirectToPage(RouteValues());
         }
 
@@ -98,7 +98,7 @@ public sealed class RecycleModel : PageModel
         }
         else
         {
-            SetError("The requested document recovery operation is not supported.");
+            SetError("That action is not available here.");
             return RedirectToPage(RouteValues());
         }
 
@@ -108,13 +108,13 @@ public sealed class RecycleModel : PageModel
         var result = await _recycle.ExecuteAsync(recycleAction, ids, actor, cancellationToken);
         if (result.NothingEligible)
         {
-            SetError("The selected documents are no longer available in the recycle bin.");
+            SetError("Those documents are no longer in the bin.");
             return RedirectToPage(RouteValues());
         }
 
-        var operation = recycleAction == DocumentRecycleAction.Restore ? "restored" : "permanently deleted";
+        var operation = recycleAction == DocumentRecycleAction.Restore ? "restored" : "deleted for good";
         var skippedNote = result.Skipped > 0
-            ? $" {result.Skipped} selected document(s) were no longer in the recycle bin and were left unchanged."
+            ? (result.Skipped == 1 ? " 1 of them was no longer in the bin and was left as it was." : $" {result.Skipped} of them were no longer in the bin and were left as they were.")
             : string.Empty;
         if (result.FailedIds.Count == 0)
         {
@@ -124,7 +124,7 @@ public sealed class RecycleModel : PageModel
         else
         {
             TempData[FlashMessageKeys.AdminRecoveryError] =
-                $"{result.Succeeded} document(s) were {operation}; {result.FailedIds.Count} could not be processed. Review the audit log and retry the failed records." + skippedNote;
+                $"{result.Succeeded} {(result.Succeeded == 1 ? "document" : "documents")} {operation}; {result.FailedIds.Count} could not be. Try those again; the audit log says what went wrong." + skippedNote;
         }
 
         return RedirectToPage(RouteValues());

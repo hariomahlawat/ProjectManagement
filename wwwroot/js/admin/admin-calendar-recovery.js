@@ -12,10 +12,10 @@
         button.addEventListener("click", () => {
             id.value = button.dataset.eventId || "";
             title.textContent = button.dataset.eventTitle || "Selected event";
-            schedule.textContent = button.dataset.eventSchedule || "Original schedule";
+            schedule.textContent = button.dataset.eventSchedule || "When";
             explanation.textContent = button.dataset.eventRecurring === "true"
-                ? "The recurring series definition will be restored to the shared calendar. Future occurrences will again be generated from the retained recurrence rule."
-                : "The event will return to the shared calendar with its original schedule and metadata.";
+                ? "The whole series goes back on the shared calendar and repeats as before."
+                : "The event goes back on the shared calendar, on its original dates.";
         });
     });
     form?.addEventListener("submit", () => {

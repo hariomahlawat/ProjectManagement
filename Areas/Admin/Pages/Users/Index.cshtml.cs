@@ -191,6 +191,10 @@ public sealed class IndexModel : PageModel
             Q = Q[..100];
         }
         Role = string.IsNullOrWhiteSpace(Role) ? null : Role.Trim();
+        if (AdminUserListRequest.IsNoRole(Role))
+        {
+            Role = AdminUserListRequest.NoRole;
+        }
         Status = string.IsNullOrWhiteSpace(Status) ? null : Status.Trim().ToLowerInvariant();
         if (Status is not null && !SupportedStatuses.Contains(Status))
         {

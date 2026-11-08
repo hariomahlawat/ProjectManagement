@@ -66,6 +66,7 @@
             <label asp-for="Role">Role</label>
             <select asp-for="Role" class="form-select" data-admin-auto-submit>
                 <option value="">All roles</option>
+                <option value="@ProjectManagement.Services.Admin.AdminUserListRequest.NoRole">No role</option>
                 @foreach (var role in Model.AllRoles)
                 {
                     <option value="@role">@RoleNames.Describe(role).DisplayName</option>
@@ -136,7 +137,7 @@
                    asp-route-q="@Model.Q"
                    asp-route-status="@Model.Status"
                    asp-route-pageSize="@Model.PageSize">
-                    Role: @RoleNames.Describe(Model.Role).DisplayName <i class="bi bi-x" aria-hidden="true"></i>
+                    @(ProjectManagement.Services.Admin.AdminUserListRequest.IsNoRole(Model.Role) ? "No role" : $"Role: {RoleNames.Describe(Model.Role).DisplayName}") <i class="bi bi-x" aria-hidden="true"></i>
                 </a>
             }
             @if (!string.IsNullOrWhiteSpace(Model.Status))
@@ -188,7 +189,7 @@
                             <td>
                                 @if (row.Roles.Count == 0)
                                 {
-                                    <span class="admin-muted-value">No roles assigned</span>
+                                    <span class="admin-muted-value">No role</span>
                                 }
                                 else
                                 {

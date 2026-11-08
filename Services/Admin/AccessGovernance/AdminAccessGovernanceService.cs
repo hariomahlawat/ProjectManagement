@@ -20,7 +20,11 @@ public sealed record AccessGovernanceFinding(
     string Title,
     string Description,
     string? UserId = null,
-    string? RoleName = null);
+    string? RoleName = null,
+    IReadOnlyList<AccessGovernanceAccountLink>? Accounts = null);
+
+/// <summary>An account named inside a finding, so the page can link to it.</summary>
+public sealed record AccessGovernanceAccountLink(string UserId, string DisplayName, string UserName);
 
 public sealed record AccessGovernanceRoleRow(
     string Name,
@@ -235,6 +239,7 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
     }
 
     internal const string NoRoleCode = "user-no-role";
+    internal const string RolelessCode = "roleless-users";
 
     private static IReadOnlyList<AccessGovernanceFinding> BuildGlobalFindings(
         IReadOnlyList<UserProjection> users,
@@ -263,14 +268,24 @@ public sealed class AdminAccessGovernanceService : IAdminAccessGovernanceService
                 RoleName: RoleNames.Admin));
         }
 
-        var rolelessCount = users.Count(user => !rolesByUser.TryGetValue(user.Id, out var roles) || roles.Count == 0);
-        if (rolelessCount > 0)
+        // The accounts are named, so nobody has to go looking for them
+        // (docs/ux/admin-review-4-fixes.md, PR 9).
+        var roleless = users
+            .Where(user => !rolesByUser.TryGetValue(user.Id, out var roles) || roles.Count == 0)
+            .OrderBy(DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(user => user.UserName, StringComparer.OrdinalIgnoreCase)
+            .Select(user => new AccessGovernanceAccountLink(user.Id, DisplayName(user), user.UserName))
+            .ToArray();
+        if (roleless.Length > 0)
         {
             findings.Add(new AccessGovernanceFinding(
-                "roleless-users",
+                RolelessCode,
                 AccessGovernanceFindingSeverity.Review,
-                $"{rolelessCount} user account{(rolelessCount == 1 ? string.Empty : "s")} without a role",
-                "These people can sign in but cannot open pages that need a role. Give each a role, or disable the account."));
+                roleless.Length == 1 ? "1 account has no role" : $"{roleless.Length} accounts have no role",
+                roleless.Length == 1
+                    ? "It can sign in but cannot open pages that need a role. Give it a role, or disable it."
+                    : "They can sign in but cannot open pages that need a role. Give each a role, or disable it.",
+                Accounts: roleless));
         }
 
         return findings;

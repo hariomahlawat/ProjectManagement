@@ -3,7 +3,7 @@
     <i class="bi bi-eye-slash" aria-hidden="true"></i>
     <div>
         <strong>@(Model == 1 ? "1 restored document is still hidden" : $"{Model} restored documents are still hidden")</strong>
-        <span>They were restored before restore was fixed, so readers and search cannot see them.
-            <a asp-area="DocumentRepository" asp-page="/Admin/RestoredHidden/Index">Review and reactivate</a></span>
+        <span>An older version of PRISM restored them hidden, so readers and search cannot find them.
+            <a asp-area="DocumentRepository" asp-page="/Admin/RestoredHidden/Index">Check them and show them again</a></span>
     </div>
 </div>

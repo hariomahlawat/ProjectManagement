@@ -11,7 +11,7 @@
     ViewData["PageShell"] = "analytics";
     var header = new AdminPageHeaderModel
     {
-        Eyebrow = "Command monitoring · Adoption",
+        Eyebrow = "Command",
         Title = "ERP usage",
         Description = "How many people use PRISM each day and which modules they use. This is not the same as how often they sign in.",
         Icon = "bi-activity",
@@ -43,7 +43,7 @@
 
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
 
-<section class="erp-usage-notice" aria-label="Interpretation notice">
+<section class="erp-usage-notice" aria-label="How to read this page">
     <i class="bi bi-info-circle" aria-hidden="true"></i>
     <p><strong>This shows how much PRISM is used, not attendance.</strong> Active time is an estimate from the pages people open. It does not measure working hours or how well anyone works.</p>
 </section>
@@ -231,7 +231,7 @@
 
     @if (Model.Result.Users.Count == 0)
     {
-        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new AdminEmptyStateModel { Icon = "bi-activity", Title = "No usage records match the current filters", Description = "Usage appears after authenticated navigation, an interactive browser heartbeat or a recognised audited action." })" />
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new AdminEmptyStateModel { Icon = "bi-activity", Title = "Nobody matches these filters", Description = "A person shows here once they open a page, work on one, or make a change." })" />
     }
     else
     {
@@ -242,8 +242,8 @@
                         <th>User</th>
                         <th>Today / last active</th>
                         <th>Active working days</th>
-                        <th>Approx. active time</th>
-                        <th>Modules / actions</th>
+                        <th>Time in PRISM</th>
+                        <th>Modules and changes</th>
                         <th>How often</th>
                     </tr>
                 </thead>
@@ -263,7 +263,7 @@
                                     }
                                     <span>@string.Join(" · ", new[] { user.Rank, user.UserName }.Where(value => !string.IsNullOrWhiteSpace(value)))</span>
                                     <small>
-                                        @(user.Roles.Count == 0 ? "No assigned role" : string.Join(", ", user.Roles.Select(role => RoleCatalog.Describe(role).DisplayName))) · @user.AccountState
+                                        @(user.Roles.Count == 0 ? "No role" : string.Join(", ", user.Roles.Select(role => RoleCatalog.Describe(role).DisplayName))) · @user.AccountState
                                         @if (user.AccountKind != UserAccountKind.Human)
                                         {
                                             <text> · @user.AccountKind account</text>
@@ -271,7 +271,7 @@
                                     </small>
                                     @if (Model.ShouldShowEffectiveTrackingStart(user))
                                     {
-                                        <small>Monitored from @user.EffectiveTrackingStart.ToString("dd MMM yyyy")</small>
+                                        <small>Counted from @user.EffectiveTrackingStart.ToString("dd MMM yyyy")</small>
                                     }
                                 </div>
                             </td>
@@ -299,15 +299,15 @@
                                     }
                                 </div>
                             </td>
-                            <td data-label="Approx. active time" title="An estimate from the pages this person opened since counting began.">
+                            <td data-label="Time in PRISM" title="An estimate from the pages this person opened since counting began.">
                                 <strong>@IndexModel.FormatApproximateMinutes(user.ApproximateActiveMinutes)</strong>
                                 <small class="d-block text-muted">Estimate</small>
                             </td>
-                            <td data-label="Modules / actions">
+                            <td data-label="Modules and changes">
                                 <div class="erp-module-list">@(user.Modules.Count == 0 ? "—" : string.Join(", ", user.Modules.Take(4)))</div>
                                 <div class="erp-action-counts">
-                                    <small><strong>@user.OperationalActionCount</strong> operational</small>
-                                    <small><strong>@user.AdministrativeActionCount</strong> administrative</small>
+                                    <small><strong>@user.OperationalActionCount</strong> @(user.OperationalActionCount == 1 ? "change" : "changes")</small>
+                                    <small><strong>@user.AdministrativeActionCount</strong> admin @(user.AdministrativeActionCount == 1 ? "change" : "changes")</small>
                                 </div>
                             </td>
                             <td data-label="How often"><span class="admin-status-pill admin-status-pill--@user.PostureTone">@user.Posture</span></td>
@@ -332,18 +332,18 @@
 {
     <section class="admin-panel" aria-labelledby="erp-heatmap-title">
         <header class="admin-panel__header">
-            <div><div class="admin-panel__eyebrow">Day-by-day pattern</div><h2 id="erp-heatmap-title">Usage heatmap</h2></div>
-            <div class="erp-heatmap-legend" aria-label="Heatmap legend">
-                <span><i class="is-action"></i>Operational action</span>
-                <span><i class="is-admin-action"></i>Administrative action</span>
-                <span><i class="is-interactive"></i>Interactive use</span>
-                <span><i class="is-navigation"></i>Navigation</span>
+            <div><div class="admin-panel__eyebrow">Day by day</div><h2 id="erp-heatmap-title">Use each day</h2></div>
+            <div class="erp-heatmap-legend" aria-label="What the colours mean">
+                <span><i class="is-action"></i>Made a change</span>
+                <span><i class="is-admin-action"></i>Made an admin change</span>
+                <span><i class="is-interactive"></i>Worked in PRISM</span>
+                <span><i class="is-navigation"></i>Opened pages</span>
                 <span><i class="is-none"></i>No recorded use</span>
-                <span><i class="is-not-observed"></i>Not monitored</span>
+                <span><i class="is-not-observed"></i>Not counted yet</span>
                 <span><i class="is-nonworking"></i>Non-working day</span>
             </div>
         </header>
-        <div class="erp-heatmap-scroll" tabindex="0" aria-label="Horizontally scrollable usage heatmap">
+        <div class="erp-heatmap-scroll" tabindex="0" aria-label="Use each day. Scrolls sideways.">
             <table class="erp-heatmap-table">
                 <thead>
                     <tr>
@@ -351,7 +351,7 @@
                         @foreach (var date in Model.Result.HeatmapDates)
                         {
                             <th class="@(Model.IsTrackingInceptionDate(date) ? "is-tracking-start" : null)"
-                                title="@(Model.IsTrackingInceptionDate(date) ? $"Monitoring started · {date:dddd, dd MMM yyyy}" : date.ToString("dddd, dd MMM yyyy"))">
+                                title="@(Model.IsTrackingInceptionDate(date) ? $"Counting began · {date:dddd, dd MMM yyyy}" : date.ToString("dddd, dd MMM yyyy"))">
                                 <span>@date.ToString("dd")</span><small>@date.ToString("MMM")</small>
                             </th>
                         }

@@ -14,7 +14,7 @@
 
 @if (!Model.BinIsEmpty)
 {
-<section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Calendar recovery summary">
+<section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Deleted events at a glance">
     <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-x"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Deleted events</span><small>Matching your filters</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-arrow-repeat"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.RecurringCount</strong><span>Repeating events</span><small>Restore brings back the whole series</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar2-week"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.AllDayCount</strong><span>All-day events</span><small>Come back on their original dates</small></span></article>
@@ -47,14 +47,14 @@
     }
     else
     {
-        <div class="admin-table-wrap"><table class="admin-data-table admin-recovery-table"><thead><tr><th>Event</th><th>Original schedule</th><th>Ownership</th><th>Deletion record</th><th class="text-end">Action</th></tr></thead><tbody>
+        <div class="admin-table-wrap"><table class="admin-data-table admin-recovery-table"><thead><tr><th>Event</th><th>When</th><th>Added by</th><th>Deleted</th><th class="text-end">Action</th></tr></thead><tbody>
         @foreach (var item in Model.Result.Items)
         {
             <tr>
                 <td><div class="admin-table-primary">@item.Title</div><div class="admin-table-tags"><span class="admin-status-pill admin-status-pill--neutral">@item.Category</span>@if (item.IsRecurring){<span class="admin-status-pill admin-status-pill--info"><i class="bi bi-arrow-repeat"></i> Recurring series</span>}@if (item.IsAllDay){<span class="admin-status-pill admin-status-pill--neutral">All day</span>}</div>@if (!string.IsNullOrWhiteSpace(item.Location)){<div class="admin-table-secondary mt-2"><i class="bi bi-geo-alt"></i> @item.Location</div>}</td>
-                <td><div class="admin-table-primary">@Model.FormatSchedule(item)</div><div class="admin-table-secondary">Restoration returns this schedule to the shared calendar.</div></td>
-                <td><div class="admin-table-secondary">Created by</div><div class="admin-table-primary">@(item.CreatedByName ?? "User unavailable")</div></td>
-                <td><div class="admin-table-primary">@Model.FormatDeletedAt(item.DeletedAtUtc)</div><div class="admin-table-secondary">By @(item.DeletedByName ?? "User unavailable")</div></td>
+                <td><div class="admin-table-primary">@Model.FormatSchedule(item)</div></td>
+                <td><div class="admin-table-primary">@(item.CreatedByName ?? "Not known")</div></td>
+                <td><div class="admin-table-primary">@Model.FormatDeletedAt(item.DeletedAtUtc)</div><div class="admin-table-secondary">By @(item.DeletedByName ?? "Not known")</div></td>
                 <td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary" data-calendar-restore data-event-id="@item.Id" data-event-title="@item.Title" data-event-schedule="@Model.FormatSchedule(item)" data-event-recurring="@(item.IsRecurring ? "true" : "false")" data-bs-toggle="modal" data-bs-target="#calendarRestoreModal"><i class="bi bi-arrow-counterclockwise"></i> Restore</button></td>
             </tr>
         }
@@ -70,8 +70,8 @@
 <div class="modal fade" id="calendarRestoreModal" tabindex="-1" aria-labelledby="calendarRestoreTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content admin-controlled-modal"><form method="post" asp-page-handler="Restore" data-calendar-restore-form>
         <input type="hidden" asp-for="RestoreEventId" data-calendar-event-id /><input type="hidden" asp-for="Search" /><input type="hidden" asp-for="Category" /><input type="hidden" asp-for="DeletedFrom" /><input type="hidden" asp-for="DeletedTo" /><input type="hidden" asp-for="PageNumber" /><input type="hidden" asp-for="PageSize" />
-        <div class="modal-header"><div><div class="admin-panel__eyebrow">Calendar recovery</div><h2 class="modal-title fs-5" id="calendarRestoreTitle">Restore event</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-        <div class="modal-body"><div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-calendar-event"></i></span><div><strong data-calendar-event-title>Selected event</strong><small data-calendar-event-schedule>Original schedule</small></div></div><div class="admin-inline-notice"><i class="bi bi-info-circle"></i><span data-calendar-restore-explanation>The event will return to the shared calendar with its original schedule and metadata.</span></div></div>
+        <div class="modal-header"><div><div class="admin-panel__eyebrow">Deleted calendar events</div><h2 class="modal-title fs-5" id="calendarRestoreTitle">Restore event</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body"><div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-calendar-event"></i></span><div><strong data-calendar-event-title>Selected event</strong><small data-calendar-event-schedule>When</small></div></div><div class="admin-inline-notice"><i class="bi bi-info-circle"></i><span data-calendar-restore-explanation>The event goes back on the shared calendar, on its original dates.</span></div></div>
         <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" data-calendar-submit><i class="bi bi-arrow-counterclockwise"></i> Restore event</button></div>
     </form></div></div>
 </div>

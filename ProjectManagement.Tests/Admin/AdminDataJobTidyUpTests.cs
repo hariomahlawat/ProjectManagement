@@ -289,7 +289,7 @@ public sealed class AdminDataJobTidyUpTests : IDisposable
     public void Disable_WordsComeFromTheOutcome_NotFromExceptionText()
     {
         Assert.Equal("You cannot disable your own signed-in account.", DisableModel.PublicDisableFailure(UserDisableOutcome.SelfDisable, "ref"));
-        Assert.Equal("Undo the deletion request before changing this account's state.", DisableModel.PublicDisableFailure(UserDisableOutcome.PendingDeletion, "ref"));
+        Assert.Equal("This account is waiting to be deleted. Undo that first if you want to disable it instead.", DisableModel.PublicDisableFailure(UserDisableOutcome.PendingDeletion, "ref"));
         Assert.Equal("This account is the last active Administrator and cannot be disabled.", DisableModel.PublicDisableFailure(UserDisableOutcome.LastActiveAdmin, "ref"));
         Assert.Equal("The account no longer exists or was removed by another administrator.", DisableModel.PublicDisableFailure(UserDisableOutcome.NotFound, "ref"));
         Assert.Equal("The account could not be disabled. Reference: ref.", DisableModel.PublicDisableFailure((UserDisableOutcome)99, "ref"));

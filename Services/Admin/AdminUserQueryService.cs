@@ -12,7 +12,17 @@ public sealed record AdminUserListRequest(
     string? Role,
     string? Status,
     int Page = 1,
-    int PageSize = 25);
+    int PageSize = 25)
+{
+    /// <summary>
+    /// The Role filter value for accounts that hold no role. It is not a role name: role names
+    /// never contain a hyphen (docs/ux/admin-review-4-fixes.md, PR 9).
+    /// </summary>
+    public const string NoRole = "no-role";
+
+    public static bool IsNoRole(string? role) =>
+        string.Equals(role?.Trim(), NoRole, StringComparison.OrdinalIgnoreCase);
+}
 
 public sealed record AdminUserSummary(
     int Total,
@@ -491,7 +501,16 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Role))
+        if (AdminUserListRequest.IsNoRole(request.Role))
+        {
+            // The same rule as Who has which role: an account with no named role.
+            var holders = from userRole in _db.UserRoles.AsNoTracking()
+                          join role in _db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+                          where role.Name != null && role.Name != string.Empty
+                          select userRole.UserId;
+            query = query.Where(user => !holders.Contains(user.Id));
+        }
+        else if (!string.IsNullOrWhiteSpace(request.Role))
         {
             var requestedRole = request.Role.Trim().ToUpperInvariant();
             var roleIds = _db.Roles.AsNoTracking()

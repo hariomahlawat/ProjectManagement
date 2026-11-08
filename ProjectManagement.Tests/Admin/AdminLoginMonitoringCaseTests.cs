@@ -45,6 +45,8 @@ public sealed class AdminLoginMonitoringCaseTests
         Assert.Equal(3, all.Failed);
         Assert.Equal(2, all.AffectedAccounts); // admin + the unknown "nobody"
         Assert.Equal(2, all.UniqueUsers);      // admin once, plus "nobody"
+        // Only admin signed in successfully: the caption under Successful sign-ins counts that.
+        Assert.Equal(1, all.SuccessfulPeople);
         Assert.Equal(2, forAdmin.Failed);
     }
 }

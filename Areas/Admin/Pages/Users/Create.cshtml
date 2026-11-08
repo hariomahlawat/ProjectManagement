@@ -31,13 +31,13 @@
                 <div class="admin-field">
                     <label asp-for="Input.UserName"></label>
                     <input asp-for="Input.UserName" class="form-control" maxlength="32" autocomplete="username" />
-                    <span class="admin-field__hint">Permanent sign-in name. Use 3–32 letters, numbers or . _ -</span>
+                    <span class="admin-field__hint">What they type to sign in. It cannot be changed later. 3–32 letters, numbers or . _ -</span>
                     <span asp-validation-for="Input.UserName" class="text-danger"></span>
                 </div>
                 <div class="admin-field">
                     <label asp-for="Input.Rank"></label>
                     <input asp-for="Input.Rank" class="form-control" maxlength="32" autocomplete="organization-title" />
-                    <span class="admin-field__hint">Official rank or appointment prefix.</span>
+                    <span class="admin-field__hint">For example: Col or Sh.</span>
                     <span asp-validation-for="Input.Rank" class="text-danger"></span>
                 </div>
                 <div class="admin-field">
@@ -111,7 +111,7 @@
                     <div>
                         <strong>Password rules</strong>
                         <p>@Model.PasswordPolicyDescription</p>
-                        <p>Give them the temporary password in person or another approved way. Do not put it in remarks or an email subject.</p>
+                        <p>Give them the password in person. Do not write it in remarks or an email.</p>
                     </div>
                 </aside>
             </div>
