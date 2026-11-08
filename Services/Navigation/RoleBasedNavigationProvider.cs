@@ -90,6 +90,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
+                Text = "IT projects",
+                Page = "/ItProjects/Index",
+                AuthorizationPolicy = Policies.ItProjects.View,
+                Icon = "bi-pc-display"
+            },
+            new()
+            {
                 Text = "Proliferation compendium",
                 Page = "/Projects/Compendium/Index",
                 Icon = "bi-file-earmark-pdf"

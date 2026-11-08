@@ -68,6 +68,38 @@ public class RoleBasedNavigationProviderTests
     }
 
     [Fact]
+    public async Task Navigation_OffersItProjectsBehindItsViewPolicy()
+    {
+        var user = new ApplicationUser
+        {
+            Id = "officer-2",
+            UserName = "officer2"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services);
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var allowed = CreateProvider(userManager, httpContextAccessor, new TestAuthorizationService(new[] { Policies.ItProjects.View }));
+        var itProjects = (await allowed.GetNavigationAsync()).Single(item => item.Text == "IT projects");
+        Assert.Equal("/ItProjects/Index", itProjects.Page);
+        Assert.Equal(Policies.ItProjects.View, itProjects.AuthorizationPolicy);
+        Assert.Equal("bi-pc-display", itProjects.Icon);
+
+        var denied = CreateProvider(userManager, httpContextAccessor, new TestAuthorizationService(Array.Empty<string>()));
+        Assert.DoesNotContain(await denied.GetNavigationAsync(), item => item.Text == "IT projects");
+    }
+
+    [Fact]
     public async Task Navigation_OffersPdfToolsToEverySignedInUserInANewTab()
     {
         var user = new ApplicationUser
