@@ -64,7 +64,8 @@ public sealed class AdminRestoreTabsTests
         var tabs = (await CreateService(db, AdminNavigationCatalog.Entries.Select(entry => entry.Key).ToArray())
             .GetAsync(new ClaimsPrincipal(new ClaimsIdentity()))).ToDictionary(tab => tab.Key);
 
-        Assert.True(tabs[AdminRestoreTabKeys.RepositoryDocuments].OpensAnotherPage);
+        // Repository trash renders inside Administration since third-review PR 14.
+        Assert.False(tabs[AdminRestoreTabKeys.RepositoryDocuments].OpensAnotherPage);
         Assert.True(tabs[AdminRestoreTabKeys.ChatFiles].OpensAnotherPage);
         Assert.False(tabs[AdminRestoreTabKeys.Projects].OpensAnotherPage);
         Assert.Equal("/Admin/Chat/Storage#chatStorageBatches", tabs[AdminRestoreTabKeys.ChatFiles].HrefFrom("/Admin/Chat/Storage"));

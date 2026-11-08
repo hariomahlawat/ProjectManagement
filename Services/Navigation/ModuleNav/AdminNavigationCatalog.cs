@@ -214,7 +214,7 @@ public static class AdminNavigationCatalog
             Item("Deleted repository documents", "DocumentRepository", "/Admin/Trash/Index", "bi-trash", Policies.Documents.Purge),
             "Document Repository files that were deleted: restore them or delete them for good.",
             "document repository trash, docrepo trash, trash, restore",
-            matchPagePattern: "/Admin/Trash/", inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre, usesAdminShell: false),
+            matchPagePattern: "/Admin/Trash/", inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre),
         Entry(AdminNavigationKeys.ArchivedProjects, AdminNavigationGroups.RestoreArchive, 90,
             Item("Archived projects", "Admin", "/Projects/Archived", "bi-archive", AdminPolicies.RecoveryManage),
             "Projects taken out of everyday views. Restore one to make it visible again.",

@@ -144,7 +144,6 @@ public sealed class AdminNavigationCatalogTests
     }
 
     [Theory]
-    [InlineData("DocumentRepository", "/Admin/Trash/Index")]
     [InlineData("DocumentRepository", "/Admin/OCRFailures/OcrFailures")]
     public void PagesFromOtherModules_KeepTheirOwnLayout(string area, string page)
     {
