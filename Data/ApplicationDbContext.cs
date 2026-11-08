@@ -198,6 +198,8 @@ namespace ProjectManagement.Data
         public DbSet<ProjectIdeaDocument> ProjectIdeaDocuments => Set<ProjectIdeaDocument>();
         public DbSet<ItProject> ItProjects => Set<ItProject>();
         public DbSet<ItProjectStage> ItProjectStages => Set<ItProjectStage>();
+        public DbSet<ItProjectRemark> ItProjectRemarks => Set<ItProjectRemark>();
+        public DbSet<ItProjectRemarkAudit> ItProjectRemarkAudits => Set<ItProjectRemarkAudit>();
 
         // SECTION: PostgreSQL text search helpers
         public static string TsHeadline(string config, string text, NpgsqlTsQuery query, string options) => throw new NotSupportedException();
@@ -392,6 +394,31 @@ namespace ProjectManagement.Data
                 e.Property(x => x.CostLakhs).HasPrecision(14, 2);
                 e.HasIndex(x => new { x.ItProjectId, x.StageCode }).IsUnique();
                 e.HasIndex(x => new { x.ItProjectId, x.SortOrder });
+            });
+
+            builder.Entity<ItProjectRemark>(e =>
+            {
+                e.ToTable("ItProjectRemarks");
+                e.Property(x => x.AuthorUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.AuthorRole).IsRequired().HasMaxLength(32);
+                e.Property(x => x.Body).IsRequired().HasMaxLength(ItProjectRemark.BodyMaxLength);
+                e.Property(x => x.StageCode).HasMaxLength(8);
+                e.Property(x => x.DeletedByUserId).HasMaxLength(450);
+                ConfigureRowVersion(e);
+                e.HasIndex(x => new { x.ItProjectId, x.IsDeleted, x.EventDate, x.CreatedAtUtc })
+                    .HasDatabaseName("IX_ItProjectRemarks_Project_Deleted_EventDate_Created");
+                e.HasOne(x => x.ItProject).WithMany().HasForeignKey(x => x.ItProjectId).OnDelete(DeleteBehavior.Cascade);
+                e.HasMany(x => x.AuditEntries).WithOne(x => x.Remark).HasForeignKey(x => x.RemarkId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ItProjectRemarkAudit>(e =>
+            {
+                e.ToTable("ItProjectRemarkAudits");
+                e.Property(x => x.ActorUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.ActorRole).HasMaxLength(32);
+                e.Property(x => x.SnapshotBody).IsRequired().HasMaxLength(ItProjectRemark.BodyMaxLength);
+                e.Property(x => x.SnapshotStageCode).HasMaxLength(8);
+                e.HasIndex(x => new { x.RemarkId, x.ActionAtUtc });
             });
 
             // SECTION: Project Ideas module

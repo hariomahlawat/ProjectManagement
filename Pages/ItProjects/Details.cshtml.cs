@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using ProjectManagement.Configuration;
@@ -30,16 +31,77 @@ public class DetailsModel : PageModel
     public const string OpenEdit = "edit";
     public const string OpenDrop = "drop";
 
+    public const string OpenRemark = "remark";
+
     private readonly IItProjectReadService _reads;
     private readonly IItProjectCommandService _commands;
+    private readonly IItProjectRemarkService _remarks;
     private readonly IClock _clock;
 
-    public DetailsModel(IItProjectReadService reads, IItProjectCommandService commands, IClock clock)
+    public DetailsModel(IItProjectReadService reads, IItProjectCommandService commands, IItProjectRemarkService remarks, IClock clock)
     {
         _reads = reads ?? throw new ArgumentNullException(nameof(reads));
         _commands = commands ?? throw new ArgumentNullException(nameof(commands));
+        _remarks = remarks ?? throw new ArgumentNullException(nameof(remarks));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
+
+    public IReadOnlyList<ItProjectRemarkView> Remarks { get; private set; } = Array.Empty<ItProjectRemarkView>();
+
+    /// <summary>True when the signed-in user may write remarks (ITO, MCO, HoD, Comdt).</summary>
+    public bool CanRemark { get; private set; }
+
+    /// <summary>The role a new remark would be written as, or null.</summary>
+    public string? RemarkRole { get; private set; }
+
+    public bool IsAdmin { get; private set; }
+
+    [BindProperty]
+    public RemarkInput Remark { get; set; } = new();
+
+    [BindProperty]
+    public RemarkEditInput RemarkEdit { get; set; } = new();
+
+    public sealed class RemarkInput
+    {
+        [Required(ErrorMessage = "Write the remark.")]
+        [StringLength(ItProjectRemark.BodyMaxLength, MinimumLength = ItProjectRemarkService.MinBodyLength, ErrorMessage = "The remark must be between {2} and {1} characters.")]
+        [Display(Name = "Remark")]
+        public string Body { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Give the date the remark is about.")]
+        [DataType(DataType.Date)]
+        [Display(Name = "Event date")]
+        public DateOnly? EventDate { get; set; }
+
+        [Display(Name = "About")]
+        public string? StageCode { get; set; }
+    }
+
+    public sealed class RemarkEditInput
+    {
+        public int Id { get; set; }
+
+        [Required(ErrorMessage = "Write the remark.")]
+        [StringLength(ItProjectRemark.BodyMaxLength, MinimumLength = ItProjectRemarkService.MinBodyLength, ErrorMessage = "The remark must be between {2} and {1} characters.")]
+        public string Body { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Give the date the remark is about.")]
+        [DataType(DataType.Date)]
+        public DateOnly? EventDate { get; set; }
+
+        public string? StageCode { get; set; }
+
+        public string RowVersion { get; set; } = string.Empty;
+    }
+
+    /// <summary>Who may edit a remark: its author.</summary>
+    public bool CanEditRemark(ItProjectRemarkView remark) => CanRemark && remark.AuthorUserId == UserId;
+
+    /// <summary>Who may delete a remark: its author, or an Admin as moderation.</summary>
+    public bool CanDeleteRemark(ItProjectRemarkView remark) => IsAdmin || (CanRemark && remark.AuthorUserId == UserId);
+
+    private string? UserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     /// <summary>Which drawer opens on load: stages, edit or drop.</summary>
     [BindProperty(SupportsGet = true)]
@@ -302,6 +364,126 @@ public class DetailsModel : PageModel
         });
     }
 
+    // ---- remarks -----------------------------------------------------------------------------
+
+    public async Task<IActionResult> OnPostRemarkAddAsync(int id, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (!CanRemark)
+        {
+            return Forbid();
+        }
+
+        if (!IsSectionValid(nameof(Remark)))
+        {
+            var posted = Remark;
+            Open = OpenRemark;
+            FillInputsFromProject();
+            Remark = posted;
+            return Page();
+        }
+
+        var (result, _) = await _remarks.AddAsync(
+            id,
+            new ItProjectRemarkInput(Remark.Body, Remark.EventDate!.Value, Remark.StageCode),
+            RemarkActor(),
+            cancellationToken);
+
+        if (!result.Succeeded)
+        {
+            var posted = Remark;
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(OpenRemark, error);
+            }
+
+            Open = OpenRemark;
+            FillInputsFromProject();
+            Remark = posted;
+            return Page();
+        }
+
+        TempData.ToastSuccess("Remark added.");
+        return RedirectToPage(null, null, new { id }, "remarks");
+    }
+
+    public async Task<IActionResult> OnPostRemarkEditAsync(int id, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (!CanRemark)
+        {
+            return Forbid();
+        }
+
+        if (!IsSectionValid(nameof(RemarkEdit)))
+        {
+            TempData.ToastError("The remark was not saved: " + string.Join(" ", FieldErrors(nameof(RemarkEdit))));
+            return RedirectToPage(null, null, new { id }, "remarks");
+        }
+
+        var result = await _remarks.EditAsync(
+            RemarkEdit.Id,
+            new ItProjectRemarkInput(RemarkEdit.Body, RemarkEdit.EventDate!.Value, RemarkEdit.StageCode),
+            DecodeRowVersion(RemarkEdit.RowVersion),
+            RemarkActor(),
+            cancellationToken);
+
+        return RemarkOutcome(id, result, "Remark saved.");
+    }
+
+    public async Task<IActionResult> OnPostRemarkDeleteAsync(int id, int remarkId, string? remarkRowVersion, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (!CanRemark && !IsAdmin)
+        {
+            return Forbid();
+        }
+
+        var result = await _remarks.DeleteAsync(remarkId, DecodeRowVersion(remarkRowVersion), RemarkActor(), cancellationToken);
+        return RemarkOutcome(id, result, "Remark deleted.");
+    }
+
+    private IActionResult RemarkOutcome(int id, ItProjectCommandResult result, string successText)
+    {
+        if (result.Succeeded)
+        {
+            TempData.ToastSuccess(successText);
+        }
+        else
+        {
+            TempData.ToastError(result.ConcurrencyConflict
+                ? "This remark was changed by someone else. Refresh and try again."
+                : string.Join(" ", result.Errors));
+        }
+
+        return RedirectToPage(null, null, new { id }, "remarks");
+    }
+
+    private IEnumerable<string> FieldErrors(string prefix)
+        => ModelState
+            .Where(entry => entry.Key == prefix || entry.Key.StartsWith(prefix + ".", StringComparison.Ordinal))
+            .SelectMany(entry => entry.Value?.Errors ?? new ModelErrorCollection())
+            .Select(error => error.ErrorMessage)
+            .Where(text => !string.IsNullOrWhiteSpace(text));
+
+    private ItProjectRemarkActor RemarkActor()
+    {
+        var actor = Actor();
+        return new ItProjectRemarkActor(actor.UserId, actor.UserName, RemarkRole, IsAdmin);
+    }
+
     public async Task<IActionResult> OnPostDropAsync(int id, CancellationToken cancellationToken)
     {
         if (!await LoadAsync(id, cancellationToken))
@@ -416,6 +598,10 @@ public class DetailsModel : PageModel
         UpdatedByName = project.UpdatedByUserId is { } userId
             ? await _reads.GetUserDisplayNameAsync(userId, cancellationToken)
             : null;
+        Remarks = await _remarks.ListAsync(id, cancellationToken);
+        CanRemark = ItProjectAccess.CanRemark(User, project);
+        RemarkRole = ItProjectAccess.RemarkRoleOf(User);
+        IsAdmin = User.IsInRole(RoleNames.Admin);
         return true;
     }
 
@@ -442,6 +628,7 @@ public class DetailsModel : PageModel
         }
 
         RowVersion = RowVersionToken;
+        Remark = new RemarkInput { EventDate = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime) };
     }
 
     private void FillStagesInput()

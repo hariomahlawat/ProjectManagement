@@ -810,6 +810,218 @@ a.itp-tile--selected:hover {
     text-decoration: underline;
 }
 
+/* remarks */
+
+.itp-card__count {
+    margin-left: .4rem;
+    padding: 0 .4rem;
+    border-radius: 9px;
+    background: var(--pm-surface);
+    font-size: var(--pm-font-size-xxs);
+    letter-spacing: 0;
+    color: var(--pm-text-secondary);
+}
+
+.itp-remarks__empty {
+    margin: 0 0 .75rem;
+    color: var(--pm-text-muted);
+    font-size: var(--pm-font-size-sm);
+}
+
+.itp-remarks__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.itp-remark {
+    display: flex;
+    gap: .75rem;
+    padding: .75rem 0;
+    border-top: 1px solid var(--pm-border);
+}
+
+.itp-remark:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.itp-remark__avatar {
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--pm-surface);
+    color: var(--pm-text-secondary);
+    font-size: var(--pm-font-size-xs);
+    font-weight: 700;
+}
+
+.itp-remark__main {
+    flex: 1;
+    min-width: 0;
+}
+
+.itp-remark__who {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    font-size: var(--pm-font-size-sm);
+}
+
+.itp-remark__name {
+    font-weight: 600;
+    color: var(--pm-text-strong);
+}
+
+.itp-remark__when {
+    margin-left: auto;
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
+.itp-remark__body {
+    margin-top: .25rem;
+    line-height: 1.5;
+    white-space: pre-line;
+    color: var(--pm-text);
+}
+
+.itp-remark__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .6rem;
+    margin-top: .3rem;
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
+.itp-remark__delete {
+    display: inline;
+    margin: 0;
+}
+
+.itp-remark__action {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: var(--pm-primary);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.itp-remark__action:hover {
+    text-decoration: underline;
+}
+
+.itp-remark__action--danger {
+    color: var(--pm-danger);
+}
+
+.itp-remark__editor {
+    margin-top: .5rem;
+}
+
+.itp-remark__editor:not([open]) {
+    display: none;
+}
+
+.itp-remark__editor:target {
+    display: block;
+}
+
+.itp-remark__editor:target > summary ~ * {
+    display: block;
+}
+
+.itp-role {
+    display: inline-block;
+    padding: .05rem .45rem;
+    border-radius: 999px;
+    font-size: var(--pm-font-size-xxs);
+    font-weight: 700;
+    letter-spacing: .05em;
+    background: var(--pm-surface);
+    color: var(--pm-text-secondary);
+}
+
+.itp-role--comdt {
+    background: var(--pm-surface-violet);
+    color: var(--pm-spec-6);
+}
+
+.itp-role--hod {
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+}
+
+.itp-role--mco {
+    background: var(--pm-warning-soft-bg);
+    color: var(--pm-warning-soft-text);
+}
+
+.itp-role--ito {
+    background: var(--pm-success-soft-bg);
+    color: var(--pm-success-soft-text);
+}
+
+.itp-composer {
+    margin-top: .75rem;
+    padding: .65rem .75rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 12px;
+    background: var(--pm-surface-subtle);
+}
+
+.itp-composer--edit {
+    margin-top: 0;
+}
+
+.itp-composer__text {
+    resize: vertical;
+}
+
+.itp-composer__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: .5rem;
+    margin-top: .5rem;
+}
+
+.itp-composer__field {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    font-size: var(--pm-font-size-xxs);
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--pm-text-muted);
+}
+
+.itp-composer__field .form-control,
+.itp-composer__field .form-select {
+    width: auto;
+    min-width: 9rem;
+}
+
+.itp-composer__spacer {
+    flex: 1;
+}
+
+.itp-composer__as {
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
 /* drawers */
 
 .itp-drawer {

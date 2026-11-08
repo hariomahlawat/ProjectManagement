@@ -394,6 +394,93 @@ public class ItProjectDetailsPageTests
         Assert.False(page.IsDropped);
     }
 
+    [Theory]
+    [InlineData(RoleNames.Ito, true, false)]
+    [InlineData(RoleNames.Mco, true, false)]
+    [InlineData(RoleNames.HoD, true, false)]
+    [InlineData(RoleNames.Comdt, true, false)]
+    [InlineData(RoleNames.Admin, false, true)]
+    [InlineData(RoleNames.ProjectOfficer, false, false)]
+    public async Task Remarks_ComposerAndModerationFollowTheRoles(string role, bool canRemark, bool isAdmin)
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+        var page = Page(db, ItProjectTestDb.User("u", role));
+
+        await page.OnGetAsync(id, CancellationToken.None);
+
+        Assert.Equal(canRemark, page.CanRemark);
+        Assert.Equal(isAdmin, page.IsAdmin);
+        Assert.Equal(canRemark ? role : null, page.RemarkRole);
+        Assert.Equal(new DateOnly(2026, 11, 8), page.Remark.EventDate);
+    }
+
+    [Fact]
+    public async Task Remarks_AddEditAndDeleteThroughThePage()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+
+        var ito = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await ito.OnGetAsync(id, CancellationToken.None);
+        ito.Remark = new DetailsModel.RemarkInput { Body = "SO draft with Accounts.", EventDate = new DateOnly(2026, 11, 2), StageCode = "SO" };
+        var added = Assert.IsType<RedirectToPageResult>(await ito.OnPostRemarkAddAsync(id, CancellationToken.None));
+        Assert.Equal("remarks", added.Fragment);
+        Assert.Equal("Remark added.", ito.TempData["ToastSuccess"]);
+
+        var view = Page(db, ItProjectTestDb.User("po-1", RoleNames.ProjectOfficer));
+        await view.OnGetAsync(id, CancellationToken.None);
+        var remark = Assert.Single(view.Remarks);
+        Assert.Equal(RoleNames.Ito, remark.AuthorRole);
+        Assert.False(view.CanEditRemark(remark));
+        Assert.False(view.CanDeleteRemark(remark));
+        Assert.IsType<ForbidResult>(await view.OnPostRemarkAddAsync(id, CancellationToken.None));
+
+        var hod = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        await hod.OnGetAsync(id, CancellationToken.None);
+        Assert.False(hod.CanEditRemark(remark));
+        Assert.False(hod.CanDeleteRemark(remark));
+        hod.RemarkEdit = new DetailsModel.RemarkEditInput { Id = remark.Id, Body = "Hijacked.", EventDate = remark.EventDate, RowVersion = DetailsModel.EncodeRowVersion(remark.RowVersion) };
+        Assert.IsType<RedirectToPageResult>(await hod.OnPostRemarkEditAsync(id, CancellationToken.None));
+        Assert.Equal(ItProjectRemarkService.NotAuthorMessage, hod.TempData["ToastError"]);
+
+        var author = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await author.OnGetAsync(id, CancellationToken.None);
+        Assert.True(author.CanEditRemark(remark));
+        author.RemarkEdit = new DetailsModel.RemarkEditInput { Id = remark.Id, Body = "SO issued on 12 Nov.", EventDate = new DateOnly(2026, 11, 12), StageCode = "SO", RowVersion = DetailsModel.EncodeRowVersion(remark.RowVersion) };
+        Assert.IsType<RedirectToPageResult>(await author.OnPostRemarkEditAsync(id, CancellationToken.None));
+        Assert.Equal("Remark saved.", author.TempData["ToastSuccess"]);
+
+        var admin = Page(db, ItProjectTestDb.User("admin-1", RoleNames.Admin));
+        await admin.OnGetAsync(id, CancellationToken.None);
+        var edited = Assert.Single(admin.Remarks);
+        Assert.Equal("SO issued on 12 Nov.", edited.Body);
+        Assert.False(admin.CanEditRemark(edited));
+        Assert.True(admin.CanDeleteRemark(edited));
+        Assert.IsType<RedirectToPageResult>(await admin.OnPostRemarkDeleteAsync(id, edited.Id, DetailsModel.EncodeRowVersion(edited.RowVersion), CancellationToken.None));
+        Assert.Equal("Remark deleted.", admin.TempData["ToastSuccess"]);
+        Assert.Empty(await db.Remarks().ListAsync(id));
+    }
+
+    [Fact]
+    public async Task Remarks_AnEmptyRemarkStaysInTheComposerWithTheError()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+        var page = Page(db, ItProjectTestDb.User("mco-1", RoleNames.Mco));
+        await page.OnGetAsync(id, CancellationToken.None);
+        page.Remark = new DetailsModel.RemarkInput { Body = "", EventDate = new DateOnly(2026, 11, 8) };
+        page.ModelState.AddModelError("Remark.Body", "Write the remark.");
+
+        var result = await page.OnPostRemarkAddAsync(id, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(DetailsModel.OpenRemark, page.Open);
+        Assert.Contains("Write the remark.", page.DrawerErrors(DetailsModel.OpenRemark, "Remark"));
+        Assert.Equal(page.RowVersionToken, page.Stages.RowVersion); // the rest of the page is still usable
+        Assert.Empty(await db.Remarks().ListAsync(id));
+    }
+
     [Fact]
     public async Task Writes_AreForbiddenForViewers()
     {
@@ -456,7 +543,7 @@ public class ItProjectDetailsPageTests
         var httpContext = new DefaultHttpContext { User = user };
         var actionContext = new ActionContext(httpContext, new RouteData(), new PageActionDescriptor(), new ModelStateDictionary());
         var context = new PageContext(actionContext) { ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), actionContext.ModelState) };
-        return new DetailsModel(db.Reads(), db.Commands(), db.Clock)
+        return new DetailsModel(db.Reads(), db.Commands(), db.Remarks(), db.Clock)
         {
             PageContext = context,
             TempData = new TempDataDictionary(httpContext, new NullTempDataProvider())

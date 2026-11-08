@@ -53,6 +53,11 @@ internal sealed class ItProjectTestDb : IAsyncDisposable
     public ItProjectReadService Reads(ApplicationDbContext? context = null) =>
         new(context ?? NewContext());
 
+    public ItProjectRemarkService Remarks(ApplicationDbContext? context = null) =>
+        new(context ?? NewContext(), Audit, Clock);
+
+    public static ItProjectRemarkActor RemarkActor(string userId, string? role, bool isAdmin = false) => new(userId, userId, role, isAdmin);
+
     public static ItProjectActor Actor(string userId = "ito-1") => new(userId, userId);
 
     public static ItProjectDetailsInput Details(string title = "Core switches, Admin block", string reference = "IT PPP 09/2025", int fy = 2025) =>

@@ -700,6 +700,7 @@ builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDo
 // SECTION: IT projects (docs/ux/it-projects.md)
 builder.Services.AddScoped<ProjectManagement.Services.ItProjects.IItProjectReadService, ProjectManagement.Services.ItProjects.ItProjectReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ItProjects.IItProjectCommandService, ProjectManagement.Services.ItProjects.ItProjectCommandService>();
+builder.Services.AddScoped<ProjectManagement.Services.ItProjects.IItProjectRemarkService, ProjectManagement.Services.ItProjects.ItProjectRemarkService>();
 // SECTION: Project Officer workspace services
 builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingPageResolver>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();

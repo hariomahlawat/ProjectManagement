@@ -31,6 +31,35 @@
         }
     }
 
+    // ---- remarks: open and close the inline editor ---------------------------------------------
+    // Without script the Edit link jumps to the <details> and :target shows it; with script we
+    // toggle the details element in place so the page does not scroll.
+
+    page.addEventListener('click', function (event) {
+        var edit = event.target.closest('[data-itp-remark-edit]');
+        if (edit) {
+            var editor = document.getElementById(edit.getAttribute('href').slice(1));
+            if (editor) {
+                event.preventDefault();
+                editor.open = true;
+                var text = editor.querySelector('textarea');
+                if (text) {
+                    text.focus();
+                }
+            }
+            return;
+        }
+
+        var cancel = event.target.closest('[data-itp-remark-cancel]');
+        if (cancel) {
+            var details = cancel.closest('details');
+            if (details) {
+                event.preventDefault();
+                details.open = false;
+            }
+        }
+    });
+
     // ---- stage editor -------------------------------------------------------------------------
 
     var form = page.querySelector('[data-itp-stage-editor]');
