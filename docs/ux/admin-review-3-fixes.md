@@ -248,6 +248,15 @@ parameter, not inlined), and compiled for use in memory.
 - No migration; routes, policies and the CSV export are unchanged.
 - Tests: `AdminAuditLogNamesAndFiguresTests` (full role names and display names, the distinct-record count and its PostgreSQL translation, search for "R&D", an apostrophe and Hindi, the drawer JSON staying HTML-safe, older escaped rows reading as written).
 
+### PR 8 shipped: phones
+
+- **Restore deleted items (U6).** On a phone (640 px and narrower) a line above the tab strip reads "Showing: Calendar events" (the open tab's own label), so the open list is named even before the strip scrolls. On load, `admin-shell.js` brings the open tab into view with `scrollIntoView({ inline: "center", block: "nearest" })`, and only when the strip is wider than the screen, so the page itself does not move. Desktop is unchanged; the line is hidden there and screen readers keep the tab's `aria-current`.
+- **Lookup lists (U8).** The shared lookup table (`_AdminFlatLookupDirectory`: sponsoring units, line directorates, project types) and Activity types become one card per row at 575 px and narrower: the name across the top, the ⋯ actions menu (Edit, Deactivate) pinned to the card's top right, and Usage, Status, Order and Last changed labelled underneath, two to a line. No sideways scrolling. The desktop table is unchanged. The block (`.admin-data-table--cards`) follows the Users card layout and uses only admin tokens, so dark mode follows. It also clears the desktop table's `min-width` (52rem on the lookup table), which would otherwise make each card 832 px wide.
+- Checked on screen while signed in, 8 Nov: 375 px and 1400 px, light and dark. No page scrolls sideways at 375 px; the open bin tab is centred in its strip and the page stays at the top; the ⋯ menu opens in view.
+- **Already fine on phones, checked and left as they are:** ARPP values (each row stacks, Edit and Deactivate under the value), the social media types and platforms (cards with their buttons), and the Document Repository lists (`_DocRepoListTable` stacks below 768 px with Save, Deactivate and Delete under each row).
+- Routes, handlers, form names and policies are unchanged. No new scripts or packages.
+- Tests: `AdminPhoneListsTests` (the card class and labels on both tables, the actions pinned in view, token-only CSS, the tab label and the script hook) and two cases in `admin-shell.test.js` (the open tab is scrolled into view with `block: "nearest"`; a strip that fits is left alone).
+
 ### PR 9 shipped: data-job tidy-up
 
 - **Legacy import's audit (C5).** The projects, the import record and the audit entry are saved in one transaction. `LegacyImportPreflightService.CommitAsync` opens it, and `ProjectImportService` joins it through a savepoint (`RelationalTransactionScope`). If the audit write fails, nothing is imported and the message says so. Used on its own, the import still opens its own transaction.
