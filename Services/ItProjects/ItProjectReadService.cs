@@ -165,7 +165,8 @@ public sealed class ItProjectReadService : IItProjectReadService
             OnOrderLakhs: onOrder.Sum(cell => cell!.CostLakhs ?? 0m),
             OnOrderCount: onOrder.Count,
             DeliveredThisFinancialYear: deliveredThisYear,
-            LastDeliveredOn: deliveredDates.Count == 0 ? null : deliveredDates.Max());
+            LastDeliveredOn: deliveredDates.Count == 0 ? null : deliveredDates.Max(),
+            CurrentFinancialYearStart: thisFinancialYear);
     }
 
     private static ItProjectBoardRow ToRow(ItProject project, DateOnly today)

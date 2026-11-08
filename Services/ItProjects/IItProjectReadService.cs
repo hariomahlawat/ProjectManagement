@@ -56,7 +56,8 @@ public sealed record ItProjectBoardFigures(
     decimal OnOrderLakhs,
     int OnOrderCount,
     int DeliveredThisFinancialYear,
-    DateOnly? LastDeliveredOn);
+    DateOnly? LastDeliveredOn,
+    int CurrentFinancialYearStart);
 
 public sealed record ItProjectBoard(
     IReadOnlyList<ItProjectBoardRow> Rows,

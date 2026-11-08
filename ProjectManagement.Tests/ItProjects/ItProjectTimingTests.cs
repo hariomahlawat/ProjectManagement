@@ -248,6 +248,20 @@ public class ItProjectTimingTests
     }
 
     [Fact]
+    public async Task Board_FinancialYearFollowsIstAtTheYearBoundary()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        await SeedWithAsync(db, "Firewall", Input(S("DLV", true, D(2026, 4, 1))));
+
+        // 31 Mar 2026, 20:00 UTC is 1 Apr 2026, 01:30 IST: FY 2026-27 has begun in India.
+        db.Clock.Set(new DateTimeOffset(2026, 3, 31, 20, 0, 0, TimeSpan.Zero));
+        var figures = (await db.Reads().GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.All))).Figures;
+
+        Assert.Equal(2026, figures.CurrentFinancialYearStart);
+        Assert.Equal(1, figures.DeliveredThisFinancialYear);
+    }
+
+    [Fact]
     public async Task GetTiming_MatchesTheBoardRow()
     {
         await using var db = await ItProjectTestDb.CreateAsync();

@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models.ItProjects;
-using ProjectManagement.Services;
 using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Utilities;
 
@@ -22,12 +21,10 @@ namespace ProjectManagement.Pages.ItProjects;
 public class IndexModel : PageModel
 {
     private readonly IItProjectReadService _reads;
-    private readonly IClock _clock;
 
-    public IndexModel(IItProjectReadService reads, IClock clock)
+    public IndexModel(IItProjectReadService reads)
     {
         _reads = reads ?? throw new ArgumentNullException(nameof(reads));
-        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
     /// <summary>active (default), completed, dropped or all.</summary>
@@ -51,7 +48,7 @@ public class IndexModel : PageModel
 
     public ItProjectBoard Board { get; private set; } = new(
         Array.Empty<ItProjectBoardRow>(), Array.Empty<ItProjectBoardStageCount>(), 0, 0, 0, Array.Empty<int>(),
-        new ItProjectBoardFigures(null, 0, 0, 0m, 0, 0, null));
+        new ItProjectBoardFigures(null, 0, 0, 0m, 0, 0, null, 0));
 
     /// <summary>The rows the chosen scope draws, in the service's board order.</summary>
     public IReadOnlyList<ItProjectBoardRow> ScopedRows { get; private set; } = Array.Empty<ItProjectBoardRow>();
@@ -80,7 +77,6 @@ public class IndexModel : PageModel
         }
 
         CanManage = ItProjectAccess.CanManage(User);
-        CurrentFinancialYearStart = FinancialYearHelper.GetStartYear(DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime));
 
         // One query for every scope: the tiles need all rows, and the scope only picks which
         // rows the board draws.
@@ -88,6 +84,8 @@ public class IndexModel : PageModel
         ScopedRows = Board.Rows.Where(row => InScope(row.Status.Kind, BoardScope)).ToList();
         Bands = ItProjectBoardPresentation.Bands(ScopedRows, GroupByFinancialYear);
 
+        // The count and its label use the same IST financial year, resolved once in the read service.
+        CurrentFinancialYearStart = Board.Figures.CurrentFinancialYearStart;
         CompletedThisFinancialYear = Board.Figures.DeliveredThisFinancialYear;
 
         BusiestStage = Board.StageCounts

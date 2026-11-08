@@ -262,7 +262,7 @@ public class ItProjectBoardPageTests
         => Assert.Single(pageModel.GetCustomAttributes<AuthorizeAttribute>(inherit: false)).Policy;
 
     private static IndexModel Page(ItProjectTestDb db, System.Security.Claims.ClaimsPrincipal user)
-        => new(db.Reads(), db.Clock) { PageContext = Context(user) };
+        => new(db.Reads()) { PageContext = Context(user) };
 
     private static CreateModel CreatePage(ItProjectTestDb db, System.Security.Claims.ClaimsPrincipal user)
     {
