@@ -195,7 +195,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             "Storage",
             "Document Repository files",
             token => CheckRepositoryFilesAsync(forceRefresh, token),
-            "Open Missing files (Document Repository) to see which documents have lost their file, then restore the files from backup.",
+            "Open Missing files to see which documents have lost their file, then restore the files from backup.",
             cancellationToken));
 
         if (_configuration.GetValue<bool?>("MediaLibrary:Enabled") ?? true)

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.DocRepo;
@@ -26,6 +27,15 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
             _missingFiles = missingFiles;
             _time = time;
         }
+
+        // SECTION: Page header
+        public AdminPageHeaderModel Header => new()
+        {
+            Title = "Missing files",
+            Description = "Documents whose PDF is not in storage, so nobody can open or download them. Restore the file from backup to the storage path shown, or request the document's deletion. "
+                + $"System health shows the same check. Its result is reused for {CacheMinutesText}, here and on System health; use Check again after restoring files.",
+            Icon = "bi-file-earmark-x"
+        };
 
         // SECTION: View data
         public sealed record MissingFileRow(

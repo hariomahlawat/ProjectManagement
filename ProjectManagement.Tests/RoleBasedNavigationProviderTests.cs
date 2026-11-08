@@ -54,6 +54,13 @@ public class RoleBasedNavigationProviderTests
         Assert.DoesNotContain(children, c => c.Text == "Project trash");
         Assert.DoesNotContain(children, c => c.Text == "Activity types");
 
+        // The Documents menu uses the same names as Administration (fourth review, PR 6).
+        var documents = navigation.Single(item => item.Text == "Documents").Children.ToList();
+        Assert.Contains(documents, c => c.Text == "Unreadable PDFs" && c.Page == "/Admin/OCRFailures/OcrFailures");
+        Assert.Contains(documents, c => c.Text == "Repository offices" && c.Page == "/Admin/OfficeCategories/Index");
+        Assert.Contains(documents, c => c.Text == "Repository document types" && c.Page == "/Admin/DocumentCategories/Index");
+        Assert.DoesNotContain(documents, c => c.Text is "OCR failures" or "Office categories" or "Document categories");
+
         var archivedProjects = children.Single(c => c.Text == "Archived projects");
         Assert.Equal("Admin", archivedProjects.Area);
         Assert.Equal("/Projects/Archived", archivedProjects.Page);
