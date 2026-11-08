@@ -5,6 +5,12 @@
 // the page's Preview handler, which runs ItProjectStageRules and answers with the normalised
 // stages and a sentence saying what the save will also do; this script writes that back into
 // the inputs and shows the sentence, and asks with PrismConfirm before such a save.
+//
+// An untick is a "reopen" gesture. It is recorded in the hidden `reopen` field, which both the
+// preview and the save handler apply before the rules, so a save that arrives before a preview
+// has answered (or when the preview failed) still reopens what the user asked. The field is
+// cleared once a preview has written the normalised state back, because that state then carries
+// the gesture itself.
 // The form carries data-page-handled: this script owns its confirm dialog.
 (function () {
     'use strict';
@@ -36,12 +42,15 @@
     var rows = Array.prototype.slice.call(form.querySelectorAll('[data-itp-stage]'));
     var note = form.querySelector('[data-itp-stage-note]');
     var tokenInput = form.querySelector('input[name="__RequestVerificationToken"]');
-    if (!previewUrl || rows.length === 0) {
+    var reopenInput = form.querySelector('[data-itp-reopen]');
+    if (!previewUrl || rows.length === 0 || !reopenInput) {
         return;
     }
 
     var touched = {};
-    var latest = null;       // the last preview the server answered with
+    var reopenQueue = [];
+    var latest = null;        // the last preview the server answered with, or null
+    var inFlight = null;      // the preview request currently running, or null
     var requestId = 0;
 
     function rowByCode(code) {
@@ -83,12 +92,13 @@
         }
     }
 
-    function preview(reopenCode) {
+    function setReopenField() {
+        reopenInput.value = reopenQueue.join(',');
+    }
+
+    function preview() {
         var id = ++requestId;
         var data = new FormData(form);
-        if (reopenCode) {
-            data.set('reopen', reopenCode);
-        }
         data.set('touched', Object.keys(touched).join(','));
 
         var headers = {};
@@ -96,28 +106,41 @@
             headers['X-CSRF-TOKEN'] = tokenInput.value;
         }
 
-        return fetch(previewUrl, { method: 'POST', body: data, headers: headers, credentials: 'same-origin' })
+        var request = fetch(previewUrl, { method: 'POST', body: data, headers: headers, credentials: 'same-origin' })
             .then(function (response) { return response.ok ? response.json() : null; })
             .then(function (result) {
-                if (id !== requestId || !result) {
-                    return;
+                if (id !== requestId) {
+                    return; // a newer edit superseded this preview
                 }
-                if (result.valid) {
+                if (result && result.valid) {
                     latest = result;
                     render(result);
+                    // The written-back state now carries the reopen gestures; nothing left to replay.
+                    reopenQueue = [];
+                    setReopenField();
                 } else {
-                    // The server will say the same on save; keep the user's inputs as they are.
                     latest = null;
                     if (note) {
-                        note.hidden = false;
-                        note.textContent = (result.errors || []).join(' ');
+                        var errors = result && result.errors ? result.errors : [];
+                        note.hidden = errors.length === 0;
+                        note.textContent = errors.join(' ');
                     }
                 }
             })
             .catch(function () {
-                // Offline or an error: the server still applies the rules on save.
-                latest = null;
+                // Offline or an error: the save handler applies the rules and the queued reopens itself.
+                if (id === requestId) {
+                    latest = null;
+                }
+            })
+            .then(function () {
+                if (id === requestId) {
+                    inFlight = null;
+                }
             });
+
+        inFlight = request;
+        return request;
     }
 
     rows.forEach(function (row) {
@@ -129,30 +152,46 @@
         if (tick) {
             tick.addEventListener('change', function () {
                 touched[code] = true;
-                preview(tick.checked ? null : code);
+                if (!tick.checked && reopenQueue.indexOf(code) === -1) {
+                    reopenQueue.push(code);
+                    setReopenField();
+                }
+                preview();
             });
         }
         if (date) {
             date.addEventListener('change', function () {
                 touched[code] = true;
-                preview(null);
+                preview();
             });
         }
         if (include) {
             include.addEventListener('change', function () {
                 touched[code] = true;
-                preview(null);
+                preview();
             });
         }
     });
 
     var confirmed = false;
-    form.addEventListener('submit', function (event) {
-        if (confirmed || !latest || !latest.summary || !window.PrismConfirm) {
+
+    function submitNow() {
+        confirmed = true;
+        if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+        } else {
+            form.submit();
+        }
+    }
+
+    // Decides, from the latest server preview, whether to ask first. Called only when no preview
+    // is in flight, so the decision matches what will be posted.
+    function decide() {
+        if (!latest || !latest.summary || !window.PrismConfirm) {
+            submitNow();
             return;
         }
 
-        event.preventDefault();
         var reopening = latest.reopened && latest.reopened.length > 0;
         window.PrismConfirm.show({
             tone: reopening ? 'warning' : 'primary',
@@ -162,15 +201,22 @@
             confirmText: 'Save stages',
             cancelText: 'Go back'
         }).then(function (ok) {
-            if (!ok) {
-                return;
-            }
-            confirmed = true;
-            if (typeof form.requestSubmit === 'function') {
-                form.requestSubmit();
-            } else {
-                form.submit();
+            if (ok) {
+                submitNow();
             }
         });
+    }
+
+    form.addEventListener('submit', function (event) {
+        if (confirmed) {
+            return;
+        }
+
+        event.preventDefault();
+        if (inFlight) {
+            inFlight.then(decide);
+        } else {
+            decide();
+        }
     });
 })();

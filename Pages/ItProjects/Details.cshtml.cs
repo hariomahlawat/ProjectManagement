@@ -203,7 +203,12 @@ public class DetailsModel : PageModel
         return RedirectToPage(new { id });
     }
 
-    public async Task<IActionResult> OnPostStagesAsync(int id, CancellationToken cancellationToken)
+    /// <param name="reopen">
+    /// Comma list of stages the user unticked since the editor last showed a server-normalised
+    /// state. Applied before the rules, so a save that arrives before (or instead of) a preview
+    /// still reopens what the user asked.
+    /// </param>
+    public async Task<IActionResult> OnPostStagesAsync(int id, string? reopen, CancellationToken cancellationToken)
     {
         if (!await LoadAsync(id, cancellationToken))
         {
@@ -225,7 +230,7 @@ public class DetailsModel : PageModel
             return Page();
         }
 
-        var save = await _commands.SaveStagesAsync(id, ToStageInputs(Stages.Items), DecodeRowVersion(Stages.RowVersion), Actor(), cancellationToken);
+        var save = await _commands.SaveStagesAsync(id, ApplyReopen(ToStageInputs(Stages.Items), reopen), DecodeRowVersion(Stages.RowVersion), Actor(), cancellationToken);
         if (!save.Result.Succeeded)
         {
             return Failed(save.Result, OpenStages);
@@ -238,9 +243,9 @@ public class DetailsModel : PageModel
     /// <summary>
     /// The stage editor's live preview: the posted stages after <see cref="ItProjectStageRules"/>
     /// has run, plus what a save would also complete or reopen. The browser only renders this,
-    /// so the chain is calculated in one place. <paramref name="reopen"/> is the stage the user
-    /// just unticked (that stage and the later ones open first); <paramref name="touched"/> is a
-    /// comma list of the stages the user changed directly, left out of the summary.
+    /// so the chain is calculated in one place. <paramref name="reopen"/> is the comma list of
+    /// stages the user unticked (each opens with the later ones first); <paramref name="touched"/>
+    /// is a comma list of the stages the user changed directly, left out of the summary.
     /// </summary>
     public async Task<IActionResult> OnPostPreviewAsync(int id, string? reopen, string? touched, CancellationToken cancellationToken)
     {
@@ -254,13 +259,13 @@ public class DetailsModel : PageModel
             return Forbid();
         }
 
-        IReadOnlyCollection<ItProjectStageInput> inputs = ToStageInputs(Stages.Items);
-        if (!string.IsNullOrWhiteSpace(reopen))
+        if (!IsSectionValid(nameof(Stages)))
         {
-            inputs = ItProjectStageRules.Reopen(inputs, reopen.Trim());
+            // A value that did not bind is reported, never normalised into "empty".
+            return new JsonResult(new { valid = false, errors = DrawerErrors(OpenStages, nameof(Stages)) });
         }
 
-        var rules = ItProjectStageRules.Apply(inputs);
+        var rules = ItProjectStageRules.Apply(ApplyReopen(ToStageInputs(Stages.Items), reopen));
         if (!rules.IsValid)
         {
             return new JsonResult(new { valid = false, errors = rules.Errors });
@@ -446,6 +451,21 @@ public class DetailsModel : PageModel
                 CostLakhs = row.CostLakhs
             }).ToList()
         };
+    }
+
+    private static IReadOnlyCollection<ItProjectStageInput> ApplyReopen(IReadOnlyCollection<ItProjectStageInput> inputs, string? reopen)
+    {
+        if (string.IsNullOrWhiteSpace(reopen))
+        {
+            return inputs;
+        }
+
+        foreach (var code in reopen.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            inputs = ItProjectStageRules.Reopen(inputs, code);
+        }
+
+        return inputs;
     }
 
     private static List<ItProjectStageInput> ToStageInputs(IEnumerable<StageItemInput> items)

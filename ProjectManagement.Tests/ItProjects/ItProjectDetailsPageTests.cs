@@ -83,7 +83,7 @@ public class ItProjectDetailsPageTests
         page.Stages.Items.Single(item => item.StageCode == "TEC").CompletedOn = new DateOnly(2025, 11, 10);
         page.Stages.Items.Single(item => item.StageCode == "PNC").IsIncluded = true;
         page.Stages.Items.Single(item => item.StageCode == "SO").CostLakhs = 46.8m;
-        var result = await page.OnPostStagesAsync(id, CancellationToken.None);
+        var result = await page.OnPostStagesAsync(id, null, CancellationToken.None);
 
         var redirect = Assert.IsType<RedirectToPageResult>(result);
         Assert.Null(redirect.PageName);
@@ -108,7 +108,7 @@ public class ItProjectDetailsPageTests
 
         page.Stages.Items.Single(item => item.StageCode == "PPP").CompletedOn = new DateOnly(2026, 6, 1);
         page.Stages.Items.Single(item => item.StageCode == "AON").CompletedOn = new DateOnly(2026, 5, 1);
-        var result = await page.OnPostStagesAsync(id, CancellationToken.None);
+        var result = await page.OnPostStagesAsync(id, null, CancellationToken.None);
 
         Assert.IsType<PageResult>(result);
         Assert.Equal(DetailsModel.OpenStages, page.Open);
@@ -135,7 +135,7 @@ public class ItProjectDetailsPageTests
         page.Stages.Items.Single(item => item.StageCode == "SO").CostLakhs = null;
         page.ModelState.AddModelError("Stages.Items[7].CostLakhs", "The value 'abc' is not valid.");
 
-        var result = await page.OnPostStagesAsync(id, CancellationToken.None);
+        var result = await page.OnPostStagesAsync(id, null, CancellationToken.None);
 
         Assert.IsType<PageResult>(result);
         Assert.Equal(DetailsModel.OpenStages, page.Open);
@@ -210,6 +210,46 @@ public class ItProjectDetailsPageTests
     }
 
     [Fact]
+    public async Task Preview_ReportsABindingErrorInsteadOfNormalisingItAway()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync();
+        Assert.True((await db.Commands().SaveStagesAsync(id, Input(S("AON", true, new DateOnly(2026, 6, 19))), rowVersion, ItProjectTestDb.Actor())).Result.Succeeded);
+        var page = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await page.OnGetAsync(id, CancellationToken.None);
+        page.Stages.Items.Single(item => item.StageCode == "AON").CompletedOn = null;
+        page.ModelState.AddModelError("Stages.Items[1].CompletedOn", "The value '10000-01-01' is not valid.");
+
+        var result = Preview(await page.OnPostPreviewAsync(id, null, "AON", CancellationToken.None));
+
+        Assert.False(result.valid);
+        Assert.Contains("AoN: The value '10000-01-01' is not valid.", result.errors);
+    }
+
+    [Fact]
+    public async Task Stages_HonoursAReopenGestureThatArrivesWithTheSave()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync();
+        Assert.True((await db.Commands().SaveStagesAsync(id, Input(S("SO", true, new DateOnly(2026, 3, 4), cost: 46.8m)), rowVersion, ItProjectTestDb.Actor())).Result.Succeeded);
+        var page = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await page.OnGetAsync(id, CancellationToken.None);
+
+        // The user unticked COB and pressed Save before the preview answered: the form still says
+        // SO is complete, but the reopen field carries the gesture.
+        page.Stages.Items.Single(item => item.StageCode == "COB").IsCompleted = false;
+        var result = await page.OnPostStagesAsync(id, reopen: "COB", CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("Stages saved. Reopened: COB, SO.", page.TempData["ToastSuccess"]);
+        await using var context = db.NewContext();
+        var stages = await context.ItProjectStages.Where(stage => stage.ItProjectId == id).OrderBy(stage => stage.SortOrder).ToListAsync();
+        Assert.Equal(new[] { "PPP", "AON", "BID", "TEC" }, stages.Where(stage => stage.IsCompleted).Select(stage => stage.StageCode));
+        Assert.Null(stages.Single(stage => stage.StageCode == "SO").CompletedOn);
+        Assert.Equal(46.8m, stages.Single(stage => stage.StageCode == "SO").CostLakhs);
+    }
+
+    [Fact]
     public async Task Preview_IsForbiddenForViewers()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
@@ -244,7 +284,7 @@ public class ItProjectDetailsPageTests
         await page.OnGetAsync(id, CancellationToken.None);
         page.Stages.RowVersion = DetailsModel.EncodeRowVersion(stale);
         page.Stages.Items.Single(item => item.StageCode == "BID").IsCompleted = true;
-        var result = await page.OnPostStagesAsync(id, CancellationToken.None);
+        var result = await page.OnPostStagesAsync(id, null, CancellationToken.None);
 
         Assert.IsType<RedirectToPageResult>(result);
         Assert.Equal(ItProjectCommandService.ConcurrencyConflictMessage, page.TempData["ToastError"]);
@@ -334,7 +374,7 @@ public class ItProjectDetailsPageTests
         var page = Page(db, ItProjectTestDb.User("po-1", RoleNames.ProjectOfficer));
         await page.OnGetAsync(id, CancellationToken.None);
 
-        Assert.IsType<ForbidResult>(await page.OnPostStagesAsync(id, CancellationToken.None));
+        Assert.IsType<ForbidResult>(await page.OnPostStagesAsync(id, null, CancellationToken.None));
         Assert.IsType<ForbidResult>(await page.OnPostDetailsAsync(id, CancellationToken.None));
         Assert.IsType<ForbidResult>(await page.OnPostDropAsync(id, CancellationToken.None));
         Assert.IsType<ForbidResult>(await page.OnPostReinstateAsync(id, CancellationToken.None));
