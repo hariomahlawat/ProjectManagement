@@ -48,7 +48,7 @@ public class IndexModel : PageModel
 
     public ItProjectBoard Board { get; private set; } = new(
         Array.Empty<ItProjectBoardRow>(), Array.Empty<ItProjectBoardStageCount>(), 0, 0, 0, Array.Empty<int>(),
-        new ItProjectBoardFigures(null, 0, 0, 0m, 0, 0, null, 0));
+        new ItProjectBoardFigures(null, 0, 0, 0m, 0, 0, null, 0, 0, 0, 0, 0, 0));
 
     /// <summary>The rows the chosen scope draws, in the service's board order.</summary>
     public IReadOnlyList<ItProjectBoardRow> ScopedRows { get; private set; } = Array.Empty<ItProjectBoardRow>();
@@ -57,13 +57,17 @@ public class IndexModel : PageModel
 
     public bool CanManage { get; private set; }
 
-    /// <summary>The current financial year's start, for "Completed this FY".</summary>
+    /// <summary>The current financial year's start (IST), resolved once in the read service.</summary>
     public int CurrentFinancialYearStart { get; private set; }
 
-    public int CompletedThisFinancialYear { get; private set; }
+    /// <summary>How many years the header shows as buttons; older ones go in the "Earlier" list.</summary>
+    public const int RecentYearButtons = 4;
 
-    /// <summary>The stage with the most active projects at it, or null when the board is empty.</summary>
-    public ItProjectBoardStageCount? BusiestStage { get; private set; }
+    /// <summary>The newest years some case counts in, shown as buttons beside "All years".</summary>
+    public IReadOnlyList<int> RecentYears { get; private set; } = Array.Empty<int>();
+
+    /// <summary>Older years, offered in the "Earlier" list.</summary>
+    public IReadOnlyList<int> EarlierYears { get; private set; } = Array.Empty<int>();
 
     public int AllCount => Board.ActiveCount + Board.CompletedCount + Board.DroppedCount;
 
@@ -84,15 +88,9 @@ public class IndexModel : PageModel
         ScopedRows = Board.Rows.Where(row => InScope(row.Status.Kind, BoardScope)).ToList();
         Bands = ItProjectBoardPresentation.Bands(ScopedRows, GroupByFinancialYear);
 
-        // The count and its label use the same IST financial year, resolved once in the read service.
         CurrentFinancialYearStart = Board.Figures.CurrentFinancialYearStart;
-        CompletedThisFinancialYear = Board.Figures.DeliveredThisFinancialYear;
-
-        BusiestStage = Board.StageCounts
-            .Where(count => count.AtStage > 0)
-            .OrderByDescending(count => count.AtStage)
-            .ThenBy(count => ItProjectStages.OrderOf(count.StageCode))
-            .FirstOrDefault();
+        RecentYears = Board.FinancialYears.Take(RecentYearButtons).ToList();
+        EarlierYears = Board.FinancialYears.Skip(RecentYearButtons).ToList();
 
         return Page();
     }

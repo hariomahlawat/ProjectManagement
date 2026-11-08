@@ -235,7 +235,7 @@ public class ItProjectTimingTests
         Assert.Equal(62.00m, figures.OnOrderLakhs);
         Assert.Equal(1, figures.OnOrderCount);
 
-        Assert.Equal(1, figures.DeliveredThisFinancialYear);
+        Assert.Equal(1, figures.DeliveredInFinancialYear);
         Assert.Equal(D(2026, 7, 1), figures.LastDeliveredOn);
 
         var recentRow = board.Rows.Single(row => row.Id == recent).Timing;
@@ -258,7 +258,7 @@ public class ItProjectTimingTests
         var figures = (await db.Reads().GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.All))).Figures;
 
         Assert.Equal(2026, figures.CurrentFinancialYearStart);
-        Assert.Equal(1, figures.DeliveredThisFinancialYear);
+        Assert.Equal(1, figures.DeliveredInFinancialYear);
     }
 
     [Fact]

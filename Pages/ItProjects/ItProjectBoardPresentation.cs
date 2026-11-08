@@ -22,6 +22,42 @@ public static class ItProjectBoardPresentation
 
     public static string Cost(decimal lakhs) => $"₹ {lakhs.ToString("#,##0.00", Culture)} L";
 
+    /// <summary>A lakh figure for a summary tile: "₹148.40".</summary>
+    public static string Lakhs(decimal lakhs) => $"₹{lakhs.ToString("#,##0.00", Culture)}";
+
+    /// <summary>The second line of the In progress tile.</summary>
+    public static string InProgressNote(ItProjectBoardFigures figures)
+    {
+        var parts = new List<string>();
+        if (figures.NotStartedCount > 0)
+        {
+            parts.Add($"{figures.NotStartedCount} not started yet");
+        }
+
+        if (figures.DatesMissingCount > 0)
+        {
+            parts.Add(figures.DatesMissingCount == 1 ? "1 missing a stage date" : $"{figures.DatesMissingCount} missing a stage date");
+        }
+
+        return parts.Count == 0 ? "All have their stage dates" : string.Join(" · ", parts);
+    }
+
+    /// <summary>The note after "Waiting longest" when some cases have no stage date to count from.</summary>
+    public static string LeftOutNote(int casesWithoutStageDate) => casesWithoutStageDate switch
+    {
+        0 => string.Empty,
+        1 => " · 1 case without a stage date left out",
+        _ => $" · {casesWithoutStageDate} cases without stage dates left out"
+    };
+
+    /// <summary>The second line of the Delivered tile: deliveries in the board's year and the last delivery.</summary>
+    public static string DeliveredNote(ItProjectBoardFigures figures)
+    {
+        var year = $"FY {FinancialYearHelper.Format(figures.FinancialYearStart)}";
+        var inYear = figures.DeliveredInFinancialYear == 0 ? $"none yet in {year}" : $"{figures.DeliveredInFinancialYear} in {year}";
+        return figures.LastDeliveredOn is { } last ? $"{inYear} · last on {last.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}" : inYear;
+    }
+
     public static string StatusChip(ItProjectStatus status) => status.Kind switch
     {
         ItProjectStatusKind.NotStarted => "Not started",
