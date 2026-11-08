@@ -21,6 +21,16 @@ public static class BackgroundJobMessages
             : $"Removed {Count(count)} {noun} {where}";
     }
 
+    /// <summary>
+    /// Items a job could not remove this run, for example "1 document could not be removed and
+    /// stays in the bin; the server log says why". The next run tries them again.
+    /// </summary>
+    public static string CouldNotRemove(int count, string one, string many, string staysOne, string staysMany)
+    {
+        var single = count == 1;
+        return $"{Count(count)} {(single ? one : many)} could not be removed and {(single ? staysOne : staysMany)}; the server log says why";
+    }
+
     /// <summary>Notification clean-up: old ones removed, stale unread ones marked as read.</summary>
     public static string NotificationsTidied(int removed, int markedRead)
     {

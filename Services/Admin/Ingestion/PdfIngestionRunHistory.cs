@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 
@@ -50,10 +51,12 @@ public sealed class PdfIngestionRunHistory : IPdfIngestionRunHistory
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly ApplicationDbContext _db;
+    private readonly ILogger<PdfIngestionRunHistory>? _logger;
 
-    public PdfIngestionRunHistory(ApplicationDbContext db)
+    public PdfIngestionRunHistory(ApplicationDbContext db, ILogger<PdfIngestionRunHistory>? logger = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _logger = logger;
     }
 
     public async Task RecordAsync(PdfIngestionRunRecord run, CancellationToken cancellationToken = default)
@@ -91,7 +94,16 @@ public sealed class PdfIngestionRunHistory : IPdfIngestionRunHistory
             throw;
         }
 
-        await TrimAsync(cancellationToken);
+        // The summary is saved. Removing old runs is housekeeping: if it fails, the caller must
+        // not be told the summary was lost, and the next run trims again.
+        try
+        {
+            await TrimAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "PDF ingestion run {RunId} was saved, but old run summaries could not be removed; the next run will try again.", run.RunId);
+        }
     }
 
     public async Task<PdfIngestionRunRecord?> GetAsync(Guid runId, CancellationToken cancellationToken = default)
@@ -136,10 +148,21 @@ public sealed class PdfIngestionRunHistory : IPdfIngestionRunHistory
         catch (DbUpdateConcurrencyException)
         {
             // Another process trimmed the same rows first; nothing is left to do.
-            foreach (var row in expired)
-            {
-                _db.Entry(row).State = EntityState.Detached;
-            }
+            Detach(expired);
+        }
+        catch
+        {
+            // Leave the shared request-scoped context clean, then let RecordAsync log it.
+            Detach(expired);
+            throw;
+        }
+    }
+
+    private void Detach(IEnumerable<PdfIngestionRun> rows)
+    {
+        foreach (var row in rows)
+        {
+            _db.Entry(row).State = EntityState.Detached;
         }
     }
 

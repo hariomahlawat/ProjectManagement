@@ -36,13 +36,17 @@ public sealed class AdminTimeService : IAdminTimeService
 
     public DateTimeOffset ToIst(DateTimeOffset utc) => IstClock.ToIst(utc);
 
+    // The one way Administration writes a moment: "7 Nov 2026, 14:05 IST" (no leading zero, the
+    // same day style as System health's "6 Nov").
+    public const string IstFormat = "d MMM yyyy, HH:mm";
+
     public string FormatIst(DateTime? utc, string fallback = "—") =>
         utc.HasValue
-            ? ToIst(utc.Value).ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture) + " IST"
+            ? ToIst(utc.Value).ToString(IstFormat, CultureInfo.InvariantCulture) + " IST"
             : fallback;
 
     public string FormatIst(DateTimeOffset? utc, string fallback = "—") =>
         utc.HasValue
-            ? ToIst(utc.Value).ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture) + " IST"
+            ? ToIst(utc.Value).ToString(IstFormat, CultureInfo.InvariantCulture) + " IST"
             : fallback;
 }

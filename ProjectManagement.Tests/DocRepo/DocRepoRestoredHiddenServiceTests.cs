@@ -283,12 +283,12 @@ public sealed class DocRepoRestoredHiddenServiceTests
         Audit(db, hidden, DocRepoRestoredHiddenService.RestoredEvent, RestoredAt);
         await db.SaveChangesAsync();
 
-        var page = new IndexModel(CreateService(db));
+        var page = new IndexModel(CreateService(db), new ProjectManagement.Services.Admin.AdminTimeService(new ProjectManagement.Services.SystemClock()));
         ConfigurePage(page, Manager);
         Assert.IsType<ForbidResult>(await page.OnPostReactivateAsync(hidden.Id, CancellationToken.None));
         Assert.IsType<ForbidResult>(await page.OnPostReactivateAllAsync(new[] { hidden.Id }, CancellationToken.None));
 
-        var adminPage = new IndexModel(CreateService(db));
+        var adminPage = new IndexModel(CreateService(db), new ProjectManagement.Services.Admin.AdminTimeService(new ProjectManagement.Services.SystemClock()));
         ConfigurePage(adminPage, Admin);
         Assert.IsType<RedirectToPageResult>(await adminPage.OnPostReactivateAllAsync(new[] { hidden.Id }, CancellationToken.None));
         Assert.Equal("1 document reactivated.", adminPage.TempData[FlashMessageKeys.AdminRecoverySuccess]);
