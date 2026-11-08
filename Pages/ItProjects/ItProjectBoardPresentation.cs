@@ -150,6 +150,34 @@ public static class ItProjectBoardPresentation
             : $"{string.Join(", ", labels.Take(labels.Count - 1))} and {labels[^1]}";
     }
 
+    /// <summary>Up to two initials for a remark avatar: "Maj Rathi" gives "MR", "ito-1" gives "I".</summary>
+    public static string Initials(string? name)
+    {
+        var parts = (name ?? string.Empty)
+            .Split(new[] { ' ', '.', '-', '_' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(part => char.IsLetterOrDigit(part[0]))
+            .ToList();
+        if (parts.Count == 0)
+        {
+            return "?";
+        }
+
+        var letters = parts.Count == 1
+            ? parts[0].Substring(0, 1)
+            : string.Concat(parts[0][0], parts[^1][0]);
+        return letters.ToUpperInvariant();
+    }
+
+    /// <summary>The CSS modifier of a remark role chip.</summary>
+    public static string RoleClass(string role) => role switch
+    {
+        Configuration.RoleNames.Comdt => "itp-role--comdt",
+        Configuration.RoleNames.HoD => "itp-role--hod",
+        Configuration.RoleNames.Mco => "itp-role--mco",
+        Configuration.RoleNames.Ito => "itp-role--ito",
+        _ => "itp-role--other"
+    };
+
     /// <summary>"3 projects" / "1 project".</summary>
     public static string Projects(int count) => count == 1 ? "1 project" : $"{count} projects";
 }
