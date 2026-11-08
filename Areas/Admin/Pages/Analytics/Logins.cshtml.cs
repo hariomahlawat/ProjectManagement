@@ -256,9 +256,8 @@ public sealed class LoginsModel : PageModel
             {
                 Label = "Successful sign-ins",
                 Value = Snapshot.Successful.ToString("N0"),
-                // The people and computers figures count successful sign-ins, so they caption
-                // this tile (docs/ux/admin-review-4-fixes.md, PR 9).
-                Detail = $"{Snapshot.UniqueUsers:N0} {(Snapshot.UniqueUsers == 1 ? "person" : "people")} from {Snapshot.UniqueSourceIps:N0} computer{(Snapshot.UniqueSourceIps == 1 ? "" : "s")} in the last {Snapshot.Days} days",
+                // The people and computers who signed in successfully caption this tile (docs/ux/admin-review-4-fixes.md, PR 9).
+                Detail = $"{Snapshot.SuccessfulPeople:N0} {(Snapshot.SuccessfulPeople == 1 ? "person" : "people")} from {Snapshot.SuccessfulComputers:N0} computer{(Snapshot.SuccessfulComputers == 1 ? "" : "s")} in the last {Snapshot.Days} days",
                 Icon = "bi-check-circle",
                 Tone = "success",
                 Href = FilterUrl("successful", false),

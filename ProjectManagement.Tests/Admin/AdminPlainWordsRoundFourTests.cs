@@ -221,8 +221,8 @@ public sealed class AdminPlainWordsRoundFourTests
 
         Assert.True(failuresTile.Success);
         Assert.Equal("\"Accounts with a failed sign-in or a lockout\",", failuresTile.Groups["detail"].Value.Trim());
-        Assert.Contains("Snapshot.UniqueUsers", successTile.Groups["detail"].Value);
-        Assert.Contains("Snapshot.UniqueSourceIps", successTile.Groups["detail"].Value);
+        Assert.Contains("Snapshot.SuccessfulPeople", successTile.Groups["detail"].Value);
+        Assert.Contains("Snapshot.SuccessfulComputers", successTile.Groups["detail"].Value);
     }
 
     [Fact]

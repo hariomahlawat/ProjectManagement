@@ -83,7 +83,12 @@ public sealed record AdminLoginMonitoringSnapshot(
     IReadOnlyList<AdminLoginEventRow> ReviewRows,
     int ReviewTotal,
     int ReviewPage,
-    int ReviewPageSize)
+    int ReviewPageSize,
+    // Successful sign-ins only: the caption under Successful sign-ins counts these, while
+    // UniqueUsers and UniqueSourceIps also count failed attempts
+    // (docs/ux/admin-review-4-fixes.md, PR 9).
+    int SuccessfulPeople = 0,
+    int SuccessfulComputers = 0)
 {
     public int ReviewTotalPages => ReviewTotal == 0
         ? 1
@@ -235,6 +240,15 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
         var affectedAccounts = auditUserKeys.Count;
+        var successfulPeople = successfulUserKeys
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        var successfulComputers = successfulIps
+            .Select(NormalizeSourceAddress)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
 
         var successfulTrendRows = await successfulQuery
             .GroupBy(authEvent => authEvent.WhenUtc.AddMinutes(IstOffsetMinutes).Date)
@@ -354,7 +368,9 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
             reviewRows,
             reviewTotal,
             page,
-            pageSize);
+            pageSize,
+            successfulPeople,
+            successfulComputers);
     }
 
     private async Task<AdminLoginUserOption?> ResolveSelectedUserAsync(
