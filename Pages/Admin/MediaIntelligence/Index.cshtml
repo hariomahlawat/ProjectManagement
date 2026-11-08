@@ -1,19 +1,24 @@
 @page
 @model ProjectManagement.Pages.Admin.MediaIntelligence.IndexModel
+@using ProjectManagement.Areas.Admin.Models
 @inject ProjectManagement.Services.Admin.IAdminTimeService Time
 @{
     ViewData["Title"] = "Media intelligence";
+    var header = new AdminPageHeaderModel
+    {
+        Eyebrow = "System",
+        Title = "Media intelligence",
+        Description = "Sorts photos from other images, and finds faces so people can be named. Everything runs on this server, and a person always confirms who is who.",
+        Icon = "bi-person-bounding-box",
+        Actions = new[]
+        {
+            new AdminPageActionModel { Text = "Media sources", Href = Url.Page("/Admin/MediaSources/Index"), Icon = "bi-images" }
+        }
+    };
 }
 <link rel="stylesheet" href="~/css/pages/media-intelligence.css" asp-append-version="true" />
-<div class="container-fluid py-4 media-intelligence-page">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-        <div>
-            <div class="text-primary small text-uppercase fw-semibold mb-1">System</div>
-            <h1 class="h3 mb-1">Media intelligence</h1>
-            <p class="text-muted mb-0">Sorts photos from other images, and finds faces so people can be named. Everything runs on this server, and a person always confirms who is who.</p>
-        </div>
-        <a class="btn btn-outline-secondary" asp-page="/Admin/MediaSources/Index">Media sources</a>
-    </div>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+<div class="media-intelligence-page">
 
     <nav class="intel-tabs mb-4" aria-label="Media intelligence sections">
         <a class="active" asp-page="/Admin/MediaIntelligence/Index">Overview</a>

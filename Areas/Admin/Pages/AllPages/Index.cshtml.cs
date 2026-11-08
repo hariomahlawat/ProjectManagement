@@ -80,9 +80,7 @@ public sealed class IndexModel : PageModel
             ? "the Decision Centre"
             : string.Equals(entry.Item.Area, "DocumentRepository", StringComparison.OrdinalIgnoreCase)
             ? "the Document Repository"
-            : entry.Item.Page?.StartsWith("/Admin/Media", StringComparison.OrdinalIgnoreCase) == true
-                ? "the media library"
-                : "its own module";
+            : "its own module";
 }
 
 public sealed record AdminPageIndexGroup(string Name, IReadOnlyList<AdminPageIndexPage> Pages);
