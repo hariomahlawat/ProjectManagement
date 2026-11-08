@@ -69,7 +69,7 @@ a { color: var(--pm-primary); text-decoration: none; }
 .chip--ok { background: var(--pm-success-soft-bg); color: var(--pm-success-strong); }
 .chip--cur { background: var(--pm-primary-soft); color: var(--pm-primary-strong); }
 
-/* age: calm up to 120 days at one stage, amber 121-240, red over 240 (assumed; owner decision) */
+/* age at the current stage (owner decision 8 Nov 2026): up to 30 days normal, 31-60 amber, over 60 red */
 .age { display: inline-flex; align-items: center; gap: .3rem; height: 22px; padding: 0 .5rem; border-radius: 7px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--pm-surface); color: var(--pm-text-secondary); white-space: nowrap; }
 .age::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--pm-text-muted); }
 .age--warn { background: var(--pm-warning-soft-bg); color: var(--pm-warning-strong); }
@@ -414,10 +414,10 @@ a.fig:hover { box-shadow: var(--pm-shadow-card-hover); }
         <div class="pipe__cols">
             <div class="pcol pcol--has"><div class="pcol__h">IT PPP / IPA <b>1</b></div><div class="pcol__list"><a class="tok" href="#">Endpoint security licences<small>added 5 d ago</small></a></div></div>
             <div class="pcol pcol--has"><div class="pcol__h">AoN <b>1</b></div><div class="pcol__list"><a class="tok tok--nd" href="#">Video conferencing, conference hall<small>date not recorded</small></a></div></div>
-            <div class="pcol pcol--has"><div class="pcol__h">Bid <b>1</b></div><div class="pcol__list"><a class="tok tok--warn" href="#">Workstations for Design Centre<small>142 d</small></a></div></div>
+            <div class="pcol pcol--has"><div class="pcol__h">Bid <b>1</b></div><div class="pcol__list"><a class="tok tok--late" href="#">Workstations for Design Centre<small>142 d</small></a></div></div>
             <div class="pcol pcol--has"><div class="pcol__h">TEC <b>1</b></div><div class="pcol__list"><a class="tok tok--nd" href="#">Laptops for faculty<small>recorded 21 Aug</small></a></div></div>
             <div class="pcol pcol--has"><div class="pcol__h">COB <b>1</b></div><div class="pcol__list"><a class="tok tok--late" href="#">Core switches, Admin block<small>355 d</small></a></div></div>
-            <div class="pcol pcol--opt pcol--has"><div class="pcol__h">BM <b>1</b></div><div class="pcol__list"><a class="tok" href="#">Secure printing<small>33 d</small></a></div></div>
+            <div class="pcol pcol--opt pcol--has"><div class="pcol__h">BM <b>1</b></div><div class="pcol__list"><a class="tok tok--warn" href="#">Secure printing<small>33 d</small></a></div></div>
             <div class="pcol pcol--opt"><div class="pcol__h">PNC <b>0</b></div><div class="pcol__list"></div></div>
             <div class="pcol"><div class="pcol__h">SO <b>0</b></div><div class="pcol__list"><div class="pcol__empty">Nothing waiting for an SO.</div></div></div>
             <div class="pcol pcol--has"><div class="pcol__h">Delivery &amp; ATP <b>2</b></div><div class="pcol__list"><a class="tok tok--late" href="#">Campus Wi-Fi, phase 2<small>331 d · ₹86.40 L</small></a><a class="tok tok--late" href="#">Server room UPS<small>304 d · ₹62.00 L</small></a></div></div>
@@ -453,8 +453,8 @@ a.fig:hover { box-shadow: var(--pm-shadow-card-hover); }
         </div>
         <div class="reg__grid row">
             <div><div class="row__t"><a href="#">Workstations for Design Centre (40 nos)</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 07/2026</span><span>FY 2026-27</span></div></div>
-            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>28 Apr 26</em></div><div class="st st--done"><i></i><em>19 Jun 26</em></div><div class="st st--cur warn"><i></i><em>142 d</em></div><div class="st"><i></i></div><div class="st"><i></i></div><div class="st st--skip"><i></i></div><div class="st st--skip"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div></div>
-            <div class="row__at"><span class="lbl">At Bid</span><span class="age age--warn">142 d</span></div>
+            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>28 Apr 26</em></div><div class="st st--done"><i></i><em>19 Jun 26</em></div><div class="st st--cur late"><i></i><em>142 d</em></div><div class="st"><i></i></div><div class="st"><i></i></div><div class="st st--skip"><i></i></div><div class="st st--skip"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div></div>
+            <div class="row__at"><span class="lbl">At Bid</span><span class="age age--late">142 d</span></div>
         </div>
         <div class="reg__grid row">
             <div><div class="row__t"><a href="#">Laptops for faculty (120 nos)</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 05/2026</span><span>FY 2026-27</span></div></div>
@@ -468,8 +468,8 @@ a.fig:hover { box-shadow: var(--pm-shadow-card-hover); }
         </div>
         <div class="reg__grid row">
             <div><div class="row__t"><a href="#">Secure printing (follow-me) for HQ offices</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 01/2026</span><span>FY 2026-27</span></div></div>
-            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>09 Apr 26</em></div><div class="st st--done"><i></i><em>20 May 26</em></div><div class="st st--done"><i></i><em>14 Jul 26</em></div><div class="st st--done"><i></i><em>02 Sep 26</em></div><div class="st st--done"><i></i><em>06 Oct 26</em></div><div class="st st--cur"><i></i><em>33 d</em></div><div class="st st--skip"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div></div>
-            <div class="row__at"><span class="lbl">At Benchmarking</span><span class="age">33 d</span></div>
+            <div class="track"><div class="track__fill track__fill--live"></div><div class="st st--done"><i></i><em>09 Apr 26</em></div><div class="st st--done"><i></i><em>20 May 26</em></div><div class="st st--done"><i></i><em>14 Jul 26</em></div><div class="st st--done"><i></i><em>02 Sep 26</em></div><div class="st st--done"><i></i><em>06 Oct 26</em></div><div class="st st--cur warn"><i></i><em>33 d</em></div><div class="st st--skip"><i></i></div><div class="st"><i></i></div><div class="st"><i></i></div></div>
+            <div class="row__at"><span class="lbl">At Benchmarking</span><span class="age age--warn">33 d</span></div>
         </div>
         <div class="reg__grid row">
             <div><div class="row__t"><a href="#">Campus Wi-Fi, phase 2 (hostel blocks)</a></div><div class="row__m"><span class="chip chip--ref">IT PPP 02/2025</span><span>FY 2025-26</span></div></div>
@@ -505,7 +505,7 @@ a.fig:hover { box-shadow: var(--pm-shadow-card-hover); }
         <span class="k"><span class="st"><i></i></span>not yet</span>
         <span class="k"><span class="st st--skip"><i></i></span>skipped</span>
         <span class="k"><span class="st st--done st--nd"><i></i></span>done, date not recorded</span>
-        <span class="k"><span class="age">≤120 d</span><span class="age age--warn">121–240 d</span><span class="age age--late">&gt;240 d</span> days at the current stage, from stage dates</span>
+        <span class="k"><span class="age">≤30 d</span><span class="age age--warn">31–60 d</span><span class="age age--late">&gt;60 d</span> days at the current stage, from stage dates</span>
         <span class="k"><span class="age age--rec">recorded 21 Aug</span> previous stage has no date: when the move was recorded, never coloured</span>
     </div>
 </div>
@@ -685,8 +685,8 @@ a.fig:hover { box-shadow: var(--pm-shadow-card-hover); }
             <div class="mbar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="d"></span><span class="s"></span><span class="d"></span><span class="d"></span><span class="c late"></span></div>
             <div class="mcard__at"><span>At <b>Delivery and ATP</b> · 8 of 8</span><span class="age age--late">304 d</span></div></div>
         <div class="card mcard"><div class="mcard__t">Workstations for Design Centre (40 nos)</div><div class="mcard__m"><span class="chip chip--ref">IT PPP 07/2026</span>FY 2026-27</div>
-            <div class="mbar"><span class="d"></span><span class="d"></span><span class="c warn"></span><span></span><span></span><span class="s"></span><span class="s"></span><span></span><span></span></div>
-            <div class="mcard__at"><span>At <b>Bid</b> · 3 of 7</span><span class="age age--warn">142 d</span></div></div>
+            <div class="mbar"><span class="d"></span><span class="d"></span><span class="c late"></span><span></span><span></span><span class="s"></span><span class="s"></span><span></span><span></span></div>
+            <div class="mcard__at"><span>At <b>Bid</b> · 3 of 7</span><span class="age age--late">142 d</span></div></div>
         <div class="card mcard"><div class="mcard__t">Laptops for faculty (120 nos)</div><div class="mcard__m"><span class="chip chip--ref">IT PPP 05/2026</span>FY 2026-27</div>
             <div class="mbar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="c"></span><span></span><span class="s"></span><span class="s"></span><span></span><span></span></div>
             <div class="mcard__at"><span>At <b>TEC</b> · 4 of 7</span><span class="age age--rec">recorded 21 Aug</span></div></div>
@@ -725,7 +725,7 @@ a.fig:hover { box-shadow: var(--pm-shadow-card-hover); }
 </div>
 </section>
 
-<div class="mk-note"><div><b>Assumptions in this mockup.</b> The time figure uses, in order: (1) the recorded completion date of the stage just before the current one, giving days at the stage with ageing colour; (2) if that stage has no date, the day the system recorded the move, shown light and never coloured; (3) otherwise "date not recorded". An earlier stage's date is never borrowed. A case with no stage done counts from the day it was added. To show the fallbacks, the mockup drops the PPP date of "Video conferencing" and the Bid date of "Laptops for faculty". Ageing bands 0–120 / 121–240 / over 240 days are placeholders for an owner decision. Data is the local demo set as of 8 Nov 2026, with the "Demo ·" prefix left off.</div></div>
+<div class="mk-note"><div><b>Assumptions in this mockup.</b> The time figure uses, in order: (1) the recorded completion date of the stage just before the current one, giving days at the stage with ageing colour; (2) if that stage has no date, the day the system recorded the move, shown light and never coloured; (3) otherwise "date not recorded". An earlier stage's date is never borrowed. A case with no stage done counts from the day it was added. To show the fallbacks, the mockup drops the PPP date of "Video conferencing" and the Bid date of "Laptops for faculty". Ageing bands (owner decision, 8 Nov 2026): up to 30 days normal, 31–60 amber, over 60 red, the same for every stage. Data is the local demo set as of 8 Nov 2026, with the "Demo ·" prefix left off.</div></div>
 
 <script>
 (function () {

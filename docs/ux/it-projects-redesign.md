@@ -69,7 +69,7 @@ All colours are existing `--pm-*` tokens (theme coverage check), no new assets, 
 | Waiting longest | Maximum days-at-stage over active, non-dropped cases in the current filter, from stage dates only; the tile says how many cases were left out for missing dates. |
 | Dates missing | Active cases with a completed stage that has no date. Shown to Manage roles only, as a link that filters the register to them. |
 | On order | Sum of SO cost on active cases whose SO is complete and Delivery is not. |
-| Ageing band | Calm, amber, red from the days at the current stage (thresholds: owner decision 1). |
+| Ageing band | From the stage-date figure only, the same for every stage (owner decision 8 Nov 2026): up to 30 days normal, 31–60 amber, over 60 red. |
 
 `StageMovedAtUtc` is one new nullable column on `ItProjects` (hand-written, additive migration;
 existing rows stay null, which simply means fallback 3). The stage save sets it only when the
@@ -81,12 +81,10 @@ unit tests for each rule including missing dates and skipped stages.
 
 ## Owner decisions needed
 
-1. **Ageing bands** (applied to stage-date figures only): one rule for every stage (mockup: up to 120 days calm, 121–240 amber, over
-   240 red) or a norm per stage (for example Delivery allowed longer)?
-2. **Default sort** of the register: keep stage order (approved 8 Nov) with Longest wait as an
+1. **Default sort** of the register: keep stage order (approved 8 Nov) with Longest wait as an
    option, or make Longest wait the default? The phone mockup uses Longest wait.
-3. **Stage completions in the remarks feed**: show them in line (mockup) or keep remarks alone?
-4. **Wording**: "Delivered" instead of "Completed", "Update stages" instead of "Stages".
+2. **Stage completions in the remarks feed**: show them in line (mockup) or keep remarks alone?
+3. **Wording**: "Delivered" instead of "Completed", "Update stages" instead of "Stages".
 
 ## Plan (small PRs, each merged when Codex and CI are clean)
 
