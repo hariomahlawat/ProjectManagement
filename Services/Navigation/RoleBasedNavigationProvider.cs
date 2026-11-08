@@ -90,6 +90,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
+                Text = "IT projects",
+                Page = "/ItProjects/Index",
+                AuthorizationPolicy = Policies.ItProjects.View,
+                Icon = "bi-pc-display"
+            },
+            new()
+            {
                 Text = "Proliferation compendium",
                 Page = "/Projects/Compendium/Index",
                 Icon = "bi-file-earmark-pdf"
@@ -161,7 +168,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
-                Text = "OCR failures",
+                Text = "Unreadable PDFs",
                 Area = "DocumentRepository",
                 Page = "/Admin/OCRFailures/OcrFailures",
                 AuthorizationPolicy = "DocRepo.DeleteApprove",
@@ -169,7 +176,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
-                Text = "Office categories",
+                Text = "Repository offices",
                 Area = "DocumentRepository",
                 Page = "/Admin/OfficeCategories/Index",
                 RequiredRoles = new[] { RoleNames.Admin },
@@ -177,7 +184,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
-                Text = "Document categories",
+                Text = "Repository document types",
                 Area = "DocumentRepository",
                 Page = "/Admin/DocumentCategories/Index",
                 RequiredRoles = new[] { RoleNames.Admin },

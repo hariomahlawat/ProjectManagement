@@ -32,7 +32,7 @@ Audit rows go to `DocRepoAudits` (`IDocRepoAuditService`). Changes are saved in 
 | `Deactivated`, `Activated`, `DeleteRequested` | The document's ⋮ menu (Manage). |
 | `DeleteRejected`, `SoftDeleted` | A decision in the Decision Centre. |
 | `RestoredFromTrash`, `Purged` | Trash page, or the retention worker (`system`). |
-| `OcrRequeued` | Retry from the reader, or Re-queue on the OCR failures page. |
+| `OcrRequeued` | Retry from the reader, or Read again on the Unreadable PDFs page (Administration). |
 | `CategoryChanged` | Office or document category created, updated, activated or deactivated (no document id). |
 
 A failure to write a `Viewed` or `Downloaded` row is logged and never blocks reading the document.

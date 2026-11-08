@@ -1,0 +1,60 @@
+@page
+@model ProjectManagement.Pages.ItProjects.CreateModel
+@{
+    ViewData["Title"] = "New IT project";
+    ViewData["PageShell"] = "focused";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/it-projects.css" asp-append-version="true" />
+}
+
+<div class="itp-page itp-page--form">
+    <header class="itp-head">
+        <div class="itp-head__identity">
+            <div class="itp-crumb" aria-label="Breadcrumb">ERP / <a asp-page="./Index">IT projects</a> / New</div>
+            <h1 class="itp-title">New IT project</h1>
+            <p class="itp-subtitle">Three things to start with. The stages come next, on the project's page.</p>
+            <div class="itp-rule" aria-hidden="true"></div>
+        </div>
+    </header>
+
+    <form method="post" class="itp-form" novalidate>
+        <div asp-validation-summary="ModelOnly" class="text-danger itp-form__summary" role="alert"></div>
+
+        <div class="itp-form__field">
+            <label asp-for="Input.Title" class="form-label"></label>
+            <input asp-for="Input.Title" class="form-control" maxlength="200" autofocus placeholder="e.g. Core switches, Admin block" />
+            <span asp-validation-for="Input.Title" class="text-danger"></span>
+        </div>
+
+        <div class="itp-form__row">
+            <div class="itp-form__field">
+                <label asp-for="Input.PppReferenceNumber" class="form-label"></label>
+                <input asp-for="Input.PppReferenceNumber" class="form-control" maxlength="100" placeholder="e.g. IT PPP 09/2025" />
+                <div class="form-text">As written on the PPP. It need not be unique.</div>
+                <span asp-validation-for="Input.PppReferenceNumber" class="text-danger"></span>
+            </div>
+            <div class="itp-form__field itp-form__field--narrow">
+                <label asp-for="Input.FinancialYearStart" class="form-label"></label>
+                <select asp-for="Input.FinancialYearStart" asp-items="Model.FinancialYearOptions" class="form-select"></select>
+                <div class="form-text">April to March.</div>
+                <span asp-validation-for="Input.FinancialYearStart" class="text-danger"></span>
+            </div>
+        </div>
+
+        <div class="itp-form__field">
+            <label asp-for="Input.Description" class="form-label"></label>
+            <textarea asp-for="Input.Description" class="form-control" rows="6" placeholder="What is being procured, for whom, and what it covers."></textarea>
+            <span asp-validation-for="Input.Description" class="text-danger"></span>
+        </div>
+
+        <div class="itp-form__actions">
+            <a class="btn btn-outline-secondary" asp-page="./Index">Cancel</a>
+            <button type="submit" class="btn btn-primary itp-btn-primary">Create IT project</button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
