@@ -278,6 +278,28 @@ public sealed class AdminListFormsTests
         Assert.Equal("Schedule number", page.ValueLabel);
     }
 
+    [Fact]
+    public async Task ArppOldDialogSave_AFieldError_IsShownOnTheList()
+    {
+        // A dialog opened before this change still posts Save; its field errors had nowhere to
+        // show once the dialog was gone (Codex review on #3030).
+        var data = new RecordingArppData
+        {
+            Next = ArppReferenceDataCommandResult.Failed("Check the value.", new Dictionary<string, IReadOnlyList<string>> { ["Value"] = new[] { "That fund already exists." } })
+        };
+        var page = new IndexModel(new UnusedReferenceLists(), new NoOrderNotices(), data)
+        {
+            Input = new IndexModel.ReferenceInputModel { Kind = ArppReferenceDataKind.Fund, Value = "IR&D", SortOrder = 1 }
+        };
+        Configure(page, "/MasterData/ArppReferences/Index");
+
+        var result = await page.OnPostSaveAsync(CancellationToken.None);
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("funds", redirect.RouteValues!["list"]);
+        Assert.Equal("That fund already exists.", page.TempData[FlashMessageKeys.AdminMasterDataError]);
+    }
+
     // SECTION: helpers
 
     private static DocRepoListItemModel DocRepoPage(IDocRepoListService lists, string viewEnginePath)
@@ -378,6 +400,15 @@ public sealed class AdminListFormsTests
         public Task<ReferenceListRow?> GetItemAsync(string key, int id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<AdminOperationResult> DeleteAsync(string key, int id, byte[] rowVersion, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<AdminOperationResult> DeleteAsync(string key, Guid id, byte[] rowVersion, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class NoOrderNotices : ProjectManagement.Services.Admin.MasterData.Integrity.IListOrderNoticeService
+    {
+        public Task<ProjectManagement.Services.Admin.MasterData.Integrity.ListOrderNotice> GetAsync(ClaimsPrincipal user, string checkKey, CancellationToken cancellationToken = default) =>
+            Task.FromResult(ProjectManagement.Services.Admin.MasterData.Integrity.ListOrderNotice.None(checkKey));
+
+        public Task<AdminOperationResult> RenumberAsync(ClaimsPrincipal user, string checkKey, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class DictionaryTempDataProvider : ITempDataProvider

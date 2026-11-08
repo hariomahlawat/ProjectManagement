@@ -85,7 +85,7 @@ public sealed class IndexModel : AdminReferenceListPageModel
         List = AllLists.FirstOrDefault(item => item.Kind == Input.Kind)?.Key ?? List;
         if (!ModelState.IsValid)
         {
-            return await ShowAgainAsync(cancellationToken);
+            return ShowProblem(result: null);
         }
 
         var result = await _referenceData.SaveAsync(
@@ -114,7 +114,7 @@ public sealed class IndexModel : AdminReferenceListPageModel
                 foreach (var message in pair.Value) ModelState.AddModelError(key, message);
             }
             if (result.FieldErrors.Count == 0) ModelState.AddModelError(string.Empty, result.Message);
-            return await ShowAgainAsync(cancellationToken);
+            return ShowProblem(result.Message);
         }
 
         // Admin pages render the namespaced admin keys only. The generic StatusMessage /
@@ -152,11 +152,16 @@ public sealed class IndexModel : AdminReferenceListPageModel
         return result.Success ? AdminOperationResult.Success(result.Message) : AdminOperationResult.Failure(result.Message, "Failed");
     }
 
-    private async Task<IActionResult> ShowAgainAsync(CancellationToken cancellationToken)
+    // The old dialog is gone, and with it the place its field errors were shown: the list shows
+    // what was wrong as a message instead (Codex review on #3030).
+    private IActionResult ShowProblem(string? result)
     {
-        // The old dialog is gone: the page shows what was wrong above the list.
-        await LoadListAsync(cancellationToken);
-        return Page();
+        var fieldError = ModelState.Values
+            .SelectMany(entry => entry.Errors)
+            .Select(error => error.ErrorMessage)
+            .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message));
+        TempData[FlashMessageKeys.AdminMasterDataError] = fieldError ?? result ?? $"The {Current.Definition.Label} could not be saved.";
+        return RedirectToPage(new { list = Current.Key });
     }
 
     private string CurrentUserId()
