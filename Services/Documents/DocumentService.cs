@@ -607,13 +607,31 @@ public sealed class DocumentService : IDocumentService
         document.ArchivedAtUtc = null;
         document.ArchivedByUserId = null;
 
-        await _notificationQueue.SaveAndQueueAsync(
-            "document restore",
-            ct => _notifications.NotifyDocumentRestoredAsync(document, project, performedByUserId, ct),
-            cancellationToken);
+        // The restore, its notification and its audit entry commit in one transaction
+        // (docs/ux/admin-review-4-fixes.md, PR 2). A failed audit write rolls the restore back,
+        // so the document stays in the recycle bin and a retry finds it there; a document is
+        // never restored without a record of who restored it. A notification failure is still
+        // contained by the queue's savepoint and never fails the restore.
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        try
+        {
+            await _notificationQueue.QueueAfterSaveAsync(
+                "document restore",
+                ct => _notifications.NotifyDocumentRestoredAsync(document, project, performedByUserId, ct),
+                cancellationToken);
 
-        await Audit.Events.ProjectDocumentRestored(document.ProjectId, document.Id, performedByUserId)
-            .WriteAsync(_audit);
+            await Audit.Events.ProjectDocumentRestored(document.ProjectId, document.Id, performedByUserId)
+                .WriteAsync(_audit);
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            // Nothing was committed; leave no half-restored document tracked in this context, so
+            // the next document in a bulk restore does not save it again.
+            _db.Entry(document).State = EntityState.Detached;
+            throw;
+        }
 
         document.Project = project;
 

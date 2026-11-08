@@ -143,6 +143,16 @@ There were no High findings. The earlier fixes held, and no reviewer found a reg
 
 No PR in this plan needs a database migration.
 
+## PR 2 as shipped
+
+**Shipped.** Both restores reached from Restore deleted items write their audit entry in the same transaction as the restore, as `CalendarRecoveryService.RestoreAsync` does. `AuditService.LogAsync` already saves through the caller's context and transaction, and puts the ERP-usage summary update in a savepoint, so it is reused as it is.
+
+- **Briefing decks.** `ProjectBriefingDeckService.RestoreAsync` saves the deck and writes `ProjectBriefing.DeckRestored` inside one `RelationalTransactionScope`. The audit is required on this path, not best-effort: a failed write rolls the restore back and the error reaches the page. The owner's own restore in Briefing Studio goes through the same method and follows the same rule, so a deck never comes back without a record of who restored it on either path.
+- **Two restores at once.** The second restore fails the deck's row-version check. Restore deleted items now says "Someone else restored this deck a moment ago. It is already back in Briefing Studio." instead of "could not be restored"; Studio says the same and opens the deck. Any other failure says "could not be restored, and nothing was changed".
+- **Project documents.** `DocumentService.RestoreAsync` saves the document, queues its notification (still contained by the queue's savepoint) and writes `Project.DocumentRestored` in one transaction. A failed audit leaves the document in the recycle bin, so the bulk restore reports it as failed and a retry restores it instead of skipping it. The failed document is detached, so the next one in the batch does not save it again.
+- Routes, handlers and policies are unchanged. No migration.
+- Tests: `AdminDeckRestoreAuditTests` (audit in the same commit, a failing audit rolls back on the admin and Studio paths, two concurrent restores), and in `DocumentNotificationAtomicityTests` the document restore with its notification and audit, a failing audit, and the recycle-bin bulk path with a retry.
+
 ## PR 3 as shipped
 
 **Shipped.** "Sort older images again" runs in `MediaReclassificationService` (Features/MediaLibrary/Admin); the Classification review handler only calls it and shows the result.

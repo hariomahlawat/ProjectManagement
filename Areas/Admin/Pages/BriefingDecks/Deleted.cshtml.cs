@@ -73,9 +73,16 @@ public sealed class DeletedModel : PageModel
             TempData[FlashMessageKeys.AdminRecoveryError] =
                 $"That deck is no longer in the list. It may have been restored already, or it was deleted more than {RetentionDays} days ago.";
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another administrator (or the owner) restored the deck between loading it and saving.
+            TempData[FlashMessageKeys.AdminRecoverySuccess] =
+                "Someone else restored this deck a moment ago. It is already back in Briefing Studio.";
+        }
         catch (DbUpdateException)
         {
-            TempData[FlashMessageKeys.AdminRecoveryError] = "The deck could not be restored. Reload the page and try again.";
+            // Includes a failed audit write: the restore was rolled back, so nothing changed.
+            TempData[FlashMessageKeys.AdminRecoveryError] = "The deck could not be restored, and nothing was changed. Reload the page and try again.";
         }
 
         return RedirectToPage();
