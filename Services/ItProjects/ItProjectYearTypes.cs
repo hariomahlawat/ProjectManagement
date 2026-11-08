@@ -53,9 +53,11 @@ public static class ItProjectYearTypes
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
     };
 
+    /// <summary>Today's date in India. The module's dates (stages, remarks, Dropped) are IST calendar dates.</summary>
+    public static DateOnly TodayIst(DateTimeOffset utcNow) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utcNow, Ist).DateTime);
+
     /// <summary>The financial year that is running now in India.</summary>
-    public static int CurrentFinancialYear(DateTimeOffset utcNow)
-        => FinancialYearHelper.GetStartYear(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utcNow, Ist).DateTime));
+    public static int CurrentFinancialYear(DateTimeOffset utcNow) => FinancialYearHelper.GetStartYear(TodayIst(utcNow));
 
     /// <summary>
     /// Whether the project counts in <paramref name="financialYearStart"/>: always in its own year;

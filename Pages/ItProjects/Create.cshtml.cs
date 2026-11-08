@@ -106,7 +106,7 @@ public class CreateModel : PageModel
     }
 
     private int CurrentFinancialYearStart()
-        => FinancialYearHelper.GetStartYear(DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime));
+        => ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow);
 
     internal static bool IsSupportedFinancialYear(int startYear)
         => startYear is >= FinancialYearHelper.MinimumSupportedStartYear and <= FinancialYearHelper.MaximumSupportedStartYear;

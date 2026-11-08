@@ -57,6 +57,12 @@ public class DetailsModel : PageModel
 
     public IReadOnlyList<ItProjectAttachmentView> Attachments { get; private set; } = Array.Empty<ItProjectAttachmentView>();
 
+    /// <summary>The time facts of the project (days at the stage, elapsed), from the read service.</summary>
+    public ItProjectTiming? Timing { get; private set; }
+
+    /// <summary>The five cells under the title.</summary>
+    public IReadOnlyList<ItProjectPagePresentation.NowStripCell> NowStrip { get; private set; } = Array.Empty<ItProjectPagePresentation.NowStripCell>();
+
     /// <summary>New / CL / CF in every financial year the project counts in, oldest first.</summary>
     public IReadOnlyList<ItProjectYearTypeInfo> YearTypes { get; private set; } = Array.Empty<ItProjectYearTypeInfo>();
 
@@ -732,6 +738,8 @@ public class DetailsModel : PageModel
             ? await _reads.GetUserDisplayNameAsync(userId, cancellationToken)
             : null;
         YearTypes = _reads.GetYearTypes(project);
+        Timing = _reads.GetTiming(project);
+        NowStrip = ItProjectPagePresentation.NowStrip(project, Status, Timing, YearTypes);
         Remarks = await _remarks.ListAsync(id, cancellationToken);
         Attachments = await _attachments.ListAsync(id, cancellationToken);
         CanRemark = ItProjectAccess.CanRemark(User, project);
@@ -757,13 +765,13 @@ public class DetailsModel : PageModel
         {
             Drop = new DropInput
             {
-                DroppedOn = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime),
+                DroppedOn = ItProjectYearTypes.TodayIst(_clock.UtcNow),
                 RowVersion = RowVersionToken
             };
         }
 
         RowVersion = RowVersionToken;
-        Remark = new RemarkInput { EventDate = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime) };
+        Remark = new RemarkInput { EventDate = ItProjectYearTypes.TodayIst(_clock.UtcNow) };
     }
 
     private void FillStagesInput()
@@ -920,7 +928,7 @@ public class DetailsModel : PageModel
     }
 
     private int CurrentFinancialYearStart()
-        => FinancialYearHelper.GetStartYear(DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime));
+        => ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow);
 
     internal static string EncodeRowVersion(byte[]? value)
         => value is { Length: > 0 } ? Convert.ToBase64String(value) : string.Empty;

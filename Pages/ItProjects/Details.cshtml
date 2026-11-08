@@ -22,40 +22,41 @@
 }
 
 <div class="itp-page itp-page--details" data-itp-details data-itp-open="@Model.Open">
-    <header class="itp-head">
-        <div class="itp-head__identity">
-            <div class="itp-crumb" aria-label="Breadcrumb">ERP / <a asp-page="./Index">IT projects</a> / @Model.Project.Title</div>
-            <h1 class="itp-title">@Model.Project.Title</h1>
-            <div class="itp-meta">
-                <span title="IT PPP reference number"><b>@Model.Project.PppReferenceNumber</b></span>
-                <span class="itp-chip itp-chip--fy">@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</span>
-                <span class="itp-chip @statusClass">@ItProjectBoardPresentation.StatusChip(Model.Status)</span>
-                @if (Model.IsDropped && Model.Project.DroppedOn is { } droppedOn)
-                {
-                    <span class="itp-meta__muted">Dropped @ItProjectBoardPresentation.ShortDate(droppedOn)@(string.IsNullOrWhiteSpace(Model.Project.DroppedReason) ? "" : $" · {Model.Project.DroppedReason}")</span>
-                }
-                <span class="itp-meta__muted">Updated @ItProjectBoardPresentation.ShortDate(DateOnly.FromDateTime(Model.Project.UpdatedAtUtc))@(Model.UpdatedByName is { } who ? $" by {who}" : "")</span>
+    <div class="itp-crumb" aria-label="Breadcrumb">ERP / <a asp-page="./Index">IT projects</a> / @Model.Project.PppReferenceNumber</div>
+    <header class="itp-hero">
+        <div class="itp-hero__top">
+            <div class="itp-hero__id">
+                <div class="itp-hero__chips">
+                    <span class="itp-ref" title="IT PPP reference number in its first year">@Model.Project.PppReferenceNumber</span>
+                    <span class="itp-chip itp-chip--fy">@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</span>
+                    <span class="itp-chip @statusClass">@ItProjectBoardPresentation.StatusChip(Model.Status)</span>
+                </div>
+                <h1 class="itp-hero__title">@Model.Project.Title</h1>
+                <p class="itp-hero__desc itp-desc">@Model.Project.Description</p>
             </div>
+            @if (Model.CanManage)
+            {
+                <div class="itp-hero__actions">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#itpEditDrawer" aria-controls="itpEditDrawer">Edit</button>
+                    <button type="button" class="btn btn-primary itp-btn-primary" data-bs-toggle="offcanvas" data-bs-target="#itpStagesDrawer" aria-controls="itpStagesDrawer"><i class="bi bi-signpost-split" aria-hidden="true"></i><span>Update stages</span></button>
+                </div>
+            }
         </div>
-        @if (Model.CanManage)
-        {
-            <div class="itp-head__actions">
-                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#itpEditDrawer" aria-controls="itpEditDrawer">Edit</button>
-                <button type="button" class="btn btn-primary itp-btn-primary" data-bs-toggle="offcanvas" data-bs-target="#itpStagesDrawer" aria-controls="itpStagesDrawer"><i class="bi bi-signpost-split" aria-hidden="true"></i><span>Update stages</span></button>
-                @if (Model.IsDropped)
-                {
-                    <form method="post" asp-page-handler="Reinstate" asp-route-id="@Model.Project.Id" class="d-inline"
-                          data-confirm="Reinstate this IT project? It returns to the active board at the stage it had reached." data-confirm-tone="primary" data-confirm-action="Reinstate">
-                        <input type="hidden" asp-for="RowVersion" />
-                        <button type="submit" class="btn btn-outline-secondary">Reinstate</button>
-                    </form>
-                }
-                else if (!Model.IsCompleted)
-                {
-                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="offcanvas" data-bs-target="#itpDropDrawer" aria-controls="itpDropDrawer">Mark dropped</button>
-                }
-            </div>
-        }
+        <dl class="itp-now">
+            @foreach (var cell in Model.NowStrip)
+            {
+                <div class="itp-now__cell itp-now__cell--@cell.Tone">
+                    <dt>@cell.Key</dt>
+                    <dd>
+                        <span class="itp-now__v">@cell.Value</span>
+                        @if (cell.Note is not null)
+                        {
+                            <span class="itp-now__n">@cell.Note</span>
+                        }
+                    </dd>
+                </div>
+            }
+        </dl>
     </header>
 
     <section class="itp-stepper @(Model.IsDropped ? "itp-stepper--dropped" : null)" aria-label="Stages">
@@ -100,11 +101,6 @@
 
     <div class="itp-grid">
         <div class="itp-grid__main">
-            <section class="itp-card">
-                <h2 class="itp-card__title">Description</h2>
-                <div class="itp-desc">@Model.Project.Description</div>
-            </section>
-
             <section class="itp-card itp-remarks" id="remarks" aria-labelledby="itpRemarksTitle">
                 <h2 class="itp-card__title" id="itpRemarksTitle">Remarks <span class="itp-card__count">@Model.Remarks.Count</span></h2>
                 @if (Model.Remarks.Count == 0)
@@ -228,19 +224,11 @@
             </section>
         </div>
         <aside class="itp-grid__side">
-            <section class="itp-card itp-card--facts">
-                <h2 class="itp-card__title">At a glance</h2>
+            <section class="itp-card itp-card--facts" aria-labelledby="itpRecordTitle">
+                <h2 class="itp-card__title" id="itpRecordTitle">Record</h2>
                 <dl class="itp-facts">
-                    <dt>Status</dt><dd>@ItProjectBoardPresentation.StatusLine(Model.Status)</dd>
-                    <dt>Financial year</dt><dd>@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</dd>
-                    <dt>Created</dt><dd>@ItProjectBoardPresentation.ShortDate(DateOnly.FromDateTime(Model.Project.CreatedAtUtc))</dd>
-                    @{
-                        var so = Model.StageRows.First(row => row.Code == ItProjectStages.So);
-                    }
-                    @if (so.CostLakhs is { } soCost)
-                    {
-                        <dt>SO cost</dt><dd>@ItProjectBoardPresentation.Cost(soCost)</dd>
-                    }
+                    <dt>Added</dt><dd>@ItProjectPagePresentation.LongDate(DateOnly.FromDateTime(Model.Project.CreatedAtUtc))</dd>
+                    <dt>Last change</dt><dd>@ItProjectPagePresentation.LongDate(DateOnly.FromDateTime(Model.Project.UpdatedAtUtc))@(Model.UpdatedByName is { } who ? $" · {who}" : "")</dd>
                 </dl>
                 @if (Model.YearTypes.Count > 0)
                 {
@@ -280,6 +268,28 @@
                             </li>
                         }
                     </ul>
+                }
+                @if (Model.CanManage)
+                {
+                    <div class="itp-record__actions">
+                        @if (Model.IsDropped)
+                        {
+                            <form method="post" asp-page-handler="Reinstate" asp-route-id="@Model.Project.Id"
+                                  data-confirm="Reinstate this IT project? It returns to the active board at the stage it had reached." data-confirm-tone="primary" data-confirm-action="Reinstate">
+                                <input type="hidden" asp-for="RowVersion" />
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">Reinstate</button>
+                            </form>
+                        }
+                        else if (!Model.IsCompleted)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#itpDropDrawer" aria-controls="itpDropDrawer">Mark dropped</button>
+                        }
+                        <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Project.Id"
+                              data-confirm="Delete this IT project? It leaves the board; an administrator can restore it later." data-confirm-tone="danger" data-confirm-action="Delete project">
+                            <input type="hidden" asp-for="RowVersion" />
+                            <button type="submit" class="btn btn-sm btn-link itp-record__delete">Delete</button>
+                        </form>
+                    </div>
                 }
             </section>
 
@@ -337,14 +347,6 @@
 
     @if (Model.CanManage)
     {
-        <footer class="itp-footer">
-            <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Project.Id"
-                  data-confirm="Delete this IT project? It leaves the board; an administrator can restore it later." data-confirm-tone="danger" data-confirm-action="Delete project">
-                <input type="hidden" asp-for="RowVersion" />
-                <button type="submit" class="btn btn-link itp-footer__delete">Delete this IT project</button>
-            </form>
-        </footer>
-
         <div class="offcanvas offcanvas-end itp-drawer" tabindex="-1" id="itpStagesDrawer" aria-labelledby="itpStagesDrawerLabel">
             <div class="offcanvas-header">
                 <div>
