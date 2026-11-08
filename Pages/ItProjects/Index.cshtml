@@ -101,7 +101,51 @@
         </a>
     </section>
 
-    <form method="get" class="itp-toolbar" role="search" aria-label="Filter the board">
+    @{
+        var pipeline = ItProjectBoardPresentation.Pipeline(Model.Board.Rows);
+    }
+    @if (Model.Board.ActiveCount > 0)
+    {
+        <section class="itp-pipe" aria-labelledby="itpPipeTitle">
+            <div class="itp-pipe__top">
+                <h2 class="itp-pipe__title" id="itpPipeTitle">Where the cases are now</h2>
+                <p class="itp-pipe__lead">Each card is a live case at that stage, with the days since the previous stage closed.</p>
+            </div>
+            <div class="itp-pipe__scroll">
+                <ol class="itp-pipe__cols">
+                    @foreach (var column in pipeline)
+                    {
+                        <li class="itp-pcol @(column.IsOptional ? "itp-pcol--opt" : null) @(column.Count > 0 ? "itp-pcol--has" : null)">
+                            <h3 class="itp-pcol__h" title="@column.Label">
+                                <span class="itp-pcol__name">@column.ShortLabel</span>
+                                <b class="itp-pcol__n" aria-label="@ItProjectBoardPresentation.Projects(column.Count) here">@column.Count</b>
+                            </h3>
+                            @if (column.Count > 0)
+                            {
+                                <ul class="itp-pcol__list">
+                                    @foreach (var item in column.Shown)
+                                    {
+                                        <li>
+                                            <a class="itp-tok itp-tok--@item.Tone" asp-page="./Details" asp-route-id="@item.Id">
+                                                <span class="itp-tok__t">@item.Title</span>
+                                                <small class="itp-tok__s" title="@item.TimeTitle">@item.TimeText@(item.SoCost is { } cost ? $" · {cost}" : null)</small>
+                                            </a>
+                                        </li>
+                                    }
+                                </ul>
+                                @if (column.Hidden > 0)
+                                {
+                                    <a class="itp-pcol__more" href="#itpRegister">+ @column.Hidden more</a>
+                                }
+                            }
+                        </li>
+                    }
+                </ol>
+            </div>
+        </section>
+    }
+
+    <form method="get" class="itp-toolbar" id="itpRegister" role="search" aria-label="Filter the board">
         <input type="hidden" name="scope" value="@scopeKey" />
         <input type="hidden" name="group" value="@Model.Group" />
         <input type="hidden" name="fy" value="@Model.Fy" />

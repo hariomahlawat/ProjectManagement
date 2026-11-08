@@ -71,7 +71,7 @@ public class ItProjectBoardPageTests
         await all.OnGetAsync(CancellationToken.None);
         Assert.True(all.CanManage);
         Assert.Equal(new[] { "active", "completed", "dropped" }, all.Bands.Select(band => band.Key));
-        Assert.Equal(new[] { "Active", "Completed", "Dropped" }, all.Bands.Select(band => band.Title));
+        Assert.Equal(new[] { "Active", "Delivered", "Dropped" }, all.Bands.Select(band => band.Title));
 
         var grouped = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
         grouped.Scope = "ALL";

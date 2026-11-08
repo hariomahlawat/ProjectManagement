@@ -22,6 +22,101 @@ public static class ItProjectBoardPresentation
 
     public static string Cost(decimal lakhs) => $"₹ {lakhs.ToString("#,##0.00", Culture)} L";
 
+    /// <summary>A case card in the "Where the cases are now" pipeline.</summary>
+    public sealed record PipelineCase(int Id, string Title, string TimeText, string? TimeTitle, string Tone, string? SoCost);
+
+    /// <summary>One stage column of the pipeline: the live cases at that stage, longest wait first.</summary>
+    public sealed record PipelineColumn(
+        string StageCode,
+        string Label,
+        string ShortLabel,
+        bool IsOptional,
+        int Count,
+        IReadOnlyList<PipelineCase> Shown,
+        int Hidden);
+
+    /// <summary>How many cases a column shows before "+ n more".</summary>
+    public const int PipelineCasesShown = 4;
+
+    /// <summary>
+    /// The nine stage columns with the cases that are live and at that stage now (not started cases
+    /// sit at the first stage). Order in a column: the longest wait by stage dates first, then the
+    /// cases without a stage date, then by title. The facts (current stage, timing) come from the
+    /// read service; this only groups and words them.
+    /// </summary>
+    public static IReadOnlyList<PipelineColumn> Pipeline(IEnumerable<ItProjectBoardRow> rows)
+    {
+        var live = rows
+            .Where(row => row.Status.Kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress && row.Status.CurrentStageCode is not null)
+            .ToList();
+
+        return ItProjectStages.All
+            .Select(stage =>
+            {
+                var here = live
+                    .Where(row => row.Status.CurrentStageCode == stage.Code)
+                    .OrderBy(row => row.Timing.Basis == ItProjectTimeBasis.StageDate ? 0 : 1)
+                    .ThenByDescending(row => row.Timing.Basis == ItProjectTimeBasis.StageDate ? row.Timing.DaysAtStage ?? 0 : 0)
+                    .ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                return new PipelineColumn(
+                    stage.Code,
+                    stage.Label,
+                    ShortStageLabel(stage.Code),
+                    stage.IsOptional,
+                    here.Count,
+                    here.Take(PipelineCasesShown).Select(ToPipelineCase).ToList(),
+                    Math.Max(0, here.Count - PipelineCasesShown));
+            })
+            .ToList();
+    }
+
+    /// <summary>The column heading when space is short: "Delivery and ATP" becomes "Delivery &amp; ATP", Benchmarking "BM".</summary>
+    public static string ShortStageLabel(string code) => code switch
+    {
+        ItProjectStages.Ppp => "IT PPP / IPA",
+        ItProjectStages.Benchmarking => "BM",
+        ItProjectStages.Delivery => "Delivery & ATP",
+        _ => ItProjectStages.LabelOf(code)
+    };
+
+    /// <summary>
+    /// The time line of a case card, following the redesign's rule: days from the previous stage's
+    /// date (coloured by age); else when the move was recorded (never coloured); else not recorded.
+    /// </summary>
+    public static (string Text, string? Title, string Tone) TimeText(ItProjectTiming timing) => timing.Basis switch
+    {
+        ItProjectTimeBasis.StageDate => (
+            Days(timing.DaysAtStage ?? 0),
+            timing.Since is { } since ? $"since the previous stage closed on {since.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}" : null,
+            timing.Band switch
+            {
+                ItProjectAgeBand.Red => "late",
+                ItProjectAgeBand.Amber => "warn",
+                _ => "calm"
+            }),
+        ItProjectTimeBasis.RecordedMove => (
+            timing.Since is { } moved ? $"recorded {moved.ToString("dd MMM", CultureInfo.InvariantCulture)}" : "date not recorded",
+            "The previous stage has no date; this is when the move was recorded.",
+            "nodate"),
+        ItProjectTimeBasis.SinceAdded => (
+            timing.DaysAtStage is 0 or null ? "added today" : $"added {Days(timing.DaysAtStage.Value)} ago",
+            null,
+            "calm"),
+        _ => ("date not recorded", "The previous stage has no date.", "nodate")
+    };
+
+    private static string Days(int days) => days == 1 ? "1 d" : $"{days} d";
+
+    private static PipelineCase ToPipelineCase(ItProjectBoardRow row)
+    {
+        var (text, title, tone) = TimeText(row.Timing);
+        var so = row.Status.CurrentStageCode == ItProjectStages.Delivery
+            ? row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.So && cell.IsCompleted)?.CostLakhs
+            : null;
+        return new PipelineCase(row.Id, row.Title, text, title, tone, so is { } cost ? Cost(cost) : null);
+    }
+
     /// <summary>A lakh figure for a summary tile: "₹148.40".</summary>
     public static string Lakhs(decimal lakhs) => $"₹{lakhs.ToString("#,##0.00", Culture)}";
 
@@ -58,11 +153,15 @@ public static class ItProjectBoardPresentation
         return figures.LastDeliveredOn is { } last ? $"{inYear} · last on {last.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}" : inYear;
     }
 
+    /// <summary>The status line of the project page: "In progress · COB", "Delivered", "Dropped".</summary>
+    public static string StatusLine(ItProjectStatus status)
+        => status.Kind == ItProjectStatusKind.Completed ? "Delivered" : status.Label;
+
     public static string StatusChip(ItProjectStatus status) => status.Kind switch
     {
         ItProjectStatusKind.NotStarted => "Not started",
         ItProjectStatusKind.InProgress => $"At {status.CurrentStageLabel}",
-        ItProjectStatusKind.Completed => "Completed",
+        ItProjectStatusKind.Completed => "Delivered",
         ItProjectStatusKind.Dropped => "Dropped",
         _ => status.Label
     };
@@ -125,7 +224,7 @@ public static class ItProjectBoardPresentation
     public sealed record Band(string Key, string Title, int Count, IReadOnlyList<ItProjectBoardRow> Rows);
 
     /// <summary>
-    /// Splits board rows into the bands the page draws: by status (Active, Completed, Dropped),
+    /// Splits board rows into the bands the page draws: by status (Active, Delivered, Dropped),
     /// or by financial year (newest first) when the user groups by FY. Empty bands are omitted.
     /// Rows keep the service's order inside a band.
     /// </summary>
@@ -144,7 +243,7 @@ public static class ItProjectBoardPresentation
 
         var bands = new List<Band>();
         AddBand(bands, "active", "Active", rows.Where(row => row.Status.Kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress));
-        AddBand(bands, "completed", "Completed", rows.Where(row => row.Status.Kind == ItProjectStatusKind.Completed));
+        AddBand(bands, "completed", "Delivered", rows.Where(row => row.Status.Kind == ItProjectStatusKind.Completed));
         AddBand(bands, "dropped", "Dropped", rows.Where(row => row.Status.Kind == ItProjectStatusKind.Dropped));
         return bands;
     }
