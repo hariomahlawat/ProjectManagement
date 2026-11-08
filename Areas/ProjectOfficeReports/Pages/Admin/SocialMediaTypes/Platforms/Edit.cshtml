@@ -1,47 +1,30 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.Platforms.EditModel
 @using ProjectManagement.Areas.Admin.Models
-@* Inside Administration with the list it belongs to (docs/ux/admin-review-3-fixes.md, PR 12). *@
+@using ProjectManagement.Services.Admin.MasterData.ReferenceLists
+@* Inside Administration, on the shared list form (docs/ux/admin-review-4-fixes.md, PR 5). *@
 @{
     ViewData["Title"] = "Edit social media platform";
-    var header = new AdminPageHeaderModel
-    {
-        Title = "Edit platform",
-        Description = "Renaming changes the name on events already logged on it.",
-        Icon = "bi-pencil-square",
-        Actions = new[] { new AdminPageActionModel { Text = "Back to platforms", Href = Url.Page("Index"), Icon = "bi-arrow-left" } }
-    };
+    Func<object?, Microsoft.AspNetCore.Html.IHtmlContent> fields =
+        @<text>
+            <input type="hidden" asp-for="RowVersion" />
+            <div class="admin-field">
+                <label asp-for="Input.Name">Name</label>
+                <input asp-for="Input.Name" class="form-control" maxlength="128" autocomplete="off" />
+                <small class="admin-field__hint">@AdminListFormWords.RenameHint(ReferenceListKeys.SocialMediaPlatforms)</small>
+                <span asp-validation-for="Input.Name" class="text-danger"></span>
+            </div>
+            <div class="admin-field">
+                <label asp-for="Input.Description">Description</label>
+                <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="512"></textarea>
+                <small class="admin-field__hint">@AdminListFormWords.DescriptionHint</small>
+                <span asp-validation-for="Input.Description" class="text-danger"></span>
+            </div>
+            <label class="admin-switch-row"><input asp-for="Input.IsActive" type="checkbox" class="form-check-input" /><span><strong>Active</strong><small>@AdminListFormWords.ActiveHint</small></span></label>
+        </text>;
+    var form = AdminListFormModel.For(ReferenceListCatalog.SocialMediaPlatforms, isEdit: true, "bi-share", Url.Page("Index"), fields);
 }
-
-<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
-<div class="admin-form-layout">
-    <form method="post" class="admin-panel admin-form-panel" novalidate>
-        <input type="hidden" asp-for="RowVersion" />
-        <div class="admin-form-section__body">
-            <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
-            <div class="admin-form-grid">
-                <div class="admin-field">
-                    <label asp-for="Input.Name"></label>
-                    <input asp-for="Input.Name" class="form-control" maxlength="128" autocomplete="off" />
-                    <span asp-validation-for="Input.Name" class="text-danger"></span>
-                </div>
-                <div class="admin-field">
-                    <label asp-for="Input.Description"></label>
-                    <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="512"></textarea>
-                    <span asp-validation-for="Input.Description" class="text-danger"></span>
-                </div>
-            </div>
-            <div class="form-check form-switch">
-                <input asp-for="Input.IsActive" class="form-check-input" />
-                <label asp-for="Input.IsActive" class="form-check-label">Active (offered in new forms)</label>
-            </div>
-        </div>
-        <footer class="admin-form-actions">
-            <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg" aria-hidden="true"></i>Save changes</button>
-        </footer>
-    </form>
-</div>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminListForm.cshtml" model="form" />
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

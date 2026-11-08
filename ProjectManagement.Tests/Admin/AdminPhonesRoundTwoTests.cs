@@ -55,7 +55,7 @@ public sealed class AdminPhonesRoundTwoTests
         var css = Read("wwwroot/css/admin.css");
         var start = css.IndexOf("/* Phones, round two (docs/ux/admin-review-4-fixes.md, PR 8)", StringComparison.Ordinal);
         Assert.True(start >= 0, "The round-two phone block is missing from admin.css.");
-        var end = css.IndexOf("\n}\n", start, StringComparison.Ordinal);
+        var end = css.IndexOf("\n}", start, StringComparison.Ordinal);
         var block = css[start..end];
 
         Assert.Contains(".admin-audit-table td[data-label=\"Actor\"] { order: 1; }", block);

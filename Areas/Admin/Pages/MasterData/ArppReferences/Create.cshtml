@@ -1,0 +1,8 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.ArppReferenceItemModel
+@* Add on a page of its own, like every list (docs/ux/admin-review-4-fixes.md, PR 5). *@
+@{
+    ViewData["Title"] = "Add " + Model.Current.Definition.Label;
+}
+<partial name="_ArppReferenceForm" model="Model" />
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

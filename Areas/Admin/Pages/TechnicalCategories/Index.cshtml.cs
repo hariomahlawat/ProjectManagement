@@ -15,7 +15,7 @@ namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories;
 public sealed class IndexModel : AdminReferenceListPageModel
 {
     private static readonly AdminReferenceListPresentation Shown = new(
-        AdminNavigationKeys.TechnicalCategories, "bi-cpu", "Add category", "projects and sub-categories", "/TechnicalCategories");
+        AdminNavigationKeys.TechnicalCategories, "bi-cpu", "Add technical category", "projects and sub-categories", "/TechnicalCategories");
 
     private readonly IAdminMasterDataCommandService _commands;
 

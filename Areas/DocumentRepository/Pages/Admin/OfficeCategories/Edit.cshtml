@@ -1,0 +1,8 @@
+@page "{id:int}"
+@model ProjectManagement.Areas.DocumentRepository.Pages.Admin.DocRepoListItemModel
+@* Edit on a page of its own, like every list (docs/ux/admin-review-4-fixes.md, PR 5). *@
+@{
+    ViewData["Title"] = "Edit " + Model.List.Definition.Label;
+}
+<partial name="../_DocRepoListForm" model="Model" />
+@section Scripts { <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" /> }

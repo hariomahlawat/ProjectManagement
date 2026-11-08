@@ -23,6 +23,6 @@
 </div>
 <footer class="admin-form-actions"><a asp-page="./Index" asp-route-year="@Model.Input.Date.Year" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i>Save changes</button></footer>
 </form>
-<aside class="admin-guidance-card"><span class="admin-guidance-card__icon"><i class="bi bi-shield-check"></i></span><h2>Change control</h2><p>Changing a Gazetted Holiday to Restricted does not silently reopen the office. If the office should open that day, use Stop office holiday afterwards.</p></aside>
+<aside class="admin-guidance-card"><span class="admin-guidance-card__icon" aria-hidden="true"><i class="bi bi-calendar-week"></i></span><h2>Office holidays</h2><p>Changing a Gazetted Holiday to Restricted does not reopen the office by itself. To open the office that day, use Stop office holiday on the list afterwards.</p></aside>
 </div>
 @section Scripts { <partial name="_ValidationScriptsPartial" /><script src="~/js/pages/holiday-admin.js" asp-append-version="true"></script> }

@@ -1,41 +1,31 @@
 @model ProjectManagement.Areas.Admin.Pages.Lookups.LookupItemModel
 @using ProjectManagement.Areas.Admin.Models
-@* The one Add and Edit form of Project types, Sponsoring units and Line directorates
-   (docs/ux/admin-review-4-fixes.md, PR 4). Kept plain: PR 5 styles every list form together. *@
+@* The Add and Edit form of Project types, Sponsoring units and Line directorates, on the
+   shared list form (docs/ux/admin-review-4-fixes.md, PRs 4 and 5). *@
 @{
     var list = Model.List;
-    var header = new AdminPageHeaderModel
-    {
-        Title = Model.Heading,
-        Description = Model.IsEdit
-            ? $"Projects that use this {list.Label} keep it after a rename."
-            : $"It is added at the end of the list and offered in project forms straight away.",
-        Icon = list.Icon,
-        Actions = new[] { new AdminPageActionModel { Text = $"Back to {list.Definition.PluralInSentence}", Href = Url.Page("./Index"), Icon = "bi-arrow-left" } }
-    };
-}
-<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
-<div class="admin-form-layout">
-    <form method="post" class="admin-panel admin-form-panel" novalidate>
-        @if (Model.IsEdit)
-        {
-            <input asp-for="Input.Id" type="hidden" />
-            <input asp-for="Input.RowVersion" type="hidden" />
-            <input asp-for="Input.SortOrder" type="hidden" />
-        }
-        <div class="admin-form-section__body">
-            <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
-            <div class="admin-form-grid">
-                <div class="admin-field">
-                    <label asp-for="Input.Name">Name</label>
-                    <input asp-for="Input.Name" class="form-control" maxlength="200" autocomplete="off" autofocus="@(!Model.IsEdit)" />
-                    <span asp-validation-for="Input.Name" class="text-danger"></span>
-                </div>
+    Func<object?, Microsoft.AspNetCore.Html.IHtmlContent> fields =
+        @<text>
+            @if (Model.IsEdit)
+            {
+                <input asp-for="Input.Id" type="hidden" />
+                <input asp-for="Input.RowVersion" type="hidden" />
+                <input asp-for="Input.SortOrder" type="hidden" />
+            }
+            <div class="admin-field">
+                <label asp-for="Input.Name">Name</label>
+                <input asp-for="Input.Name" class="form-control" maxlength="200" autocomplete="off" autofocus="@(!Model.IsEdit)" />
+                @if (Model.IsEdit)
+                {
+                    <small class="admin-field__hint">@AdminListFormWords.RenameHint(list.Definition.Key)</small>
+                }
+                else
+                {
+                    <small class="admin-field__hint">It is added at the end of the list.</small>
+                }
+                <span asp-validation-for="Input.Name" class="text-danger"></span>
             </div>
-        </div>
-        <footer class="admin-form-actions">
-            <a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg" aria-hidden="true"></i>@(Model.IsEdit ? "Save" : $"Add {list.Label}")</button>
-        </footer>
-    </form>
-</div>
+        </text>;
+    var form = AdminListFormModel.For(list.Definition, Model.IsEdit, list.Icon, Url.Page("./Index"), fields);
+}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminListForm.cshtml" model="form" />

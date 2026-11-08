@@ -1,0 +1,42 @@
+@model ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.ArppReferenceItemModel
+@using ProjectManagement.Areas.Admin.Models
+@* The Add and Edit form of the ARPP values, on the shared list form
+   (docs/ux/admin-review-4-fixes.md, PR 5). *@
+@{
+    var current = Model.Current;
+    Func<object?, Microsoft.AspNetCore.Html.IHtmlContent> fields =
+        @<text>
+            @if (Model.IsEdit)
+            {
+                <input asp-for="Input.RowVersion" type="hidden" />
+            }
+            <div class="admin-form-grid admin-form-grid--two">
+                <div class="admin-field">
+                    <label asp-for="Input.Value">@Model.ValueLabel</label>
+                    <input asp-for="Input.Value" class="form-control" maxlength="200" autocomplete="off" autofocus="@(!Model.IsEdit)" />
+                    @if (Model.IsEdit)
+                    {
+                        <small class="admin-field__hint">@AdminListFormWords.RenameHint(current.Definition.Key)</small>
+                    }
+                    <span asp-validation-for="Input.Value" class="text-danger"></span>
+                </div>
+                <div class="admin-field">
+                    <label asp-for="Input.SortOrder">Order in lists</label>
+                    <input asp-for="Input.SortOrder" class="form-control" type="number" min="0" max="9999" />
+                    <small class="admin-field__hint">Lower numbers come first; equal numbers are listed A to Z.</small>
+                    <span asp-validation-for="Input.SortOrder" class="text-danger"></span>
+                </div>
+                @if (Model.HasDescription)
+                {
+                    <div class="admin-field admin-field--wide">
+                        <label asp-for="Input.Description">Description</label>
+                        <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="300"></textarea>
+                        <small class="admin-field__hint">Optional. Shown in the dropdown to help people pick the right schedule.</small>
+                        <span asp-validation-for="Input.Description" class="text-danger"></span>
+                    </div>
+                }
+            </div>
+        </text>;
+    var form = AdminListFormModel.For(current.Definition, Model.IsEdit, "bi-list-check", Url.Page("./Index", new { list = current.Key }), fields);
+}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminListForm.cshtml" model="form" />

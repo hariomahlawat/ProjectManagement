@@ -1641,6 +1641,31 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-field label { display: block; margin-bottom: .28rem; color: var(--admin-text); font-size: .68rem; font-weight: 730; }
 .admin-field__hint { display: block; margin-top: .25rem; color: var(--admin-text-muted); font-size: .59rem; line-height: 1.4; }
 .admin-field .text-danger { display: block; margin-top: .2rem; font-size: .61rem; }
+
+/* One Add and Edit form for every list, and the form pages beside a guidance box
+   (docs/ux/admin-review-4-fixes.md, PR 5). Admin tokens only, so dark mode follows. */
+.admin-form-layout { display: grid; gap: .8rem; align-items: start; max-width: 46rem; margin-top: .8rem; }
+.admin-form-layout:has(> .admin-guidance-card) { grid-template-columns: minmax(0, 1fr) minmax(14rem, 17rem); max-width: 64rem; }
+.admin-form-panel .admin-form-section__body { display: grid; gap: .85rem; }
+.admin-form-grid--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-field--wide { grid-column: 1 / -1; }
+.admin-field > small:not(.text-danger) { display: block; margin-top: .25rem; color: var(--admin-text-muted); font-size: .59rem; line-height: 1.4; }
+.admin-form-section__header > span:first-child { display: inline-grid; width: 1.75rem; height: 1.75rem; place-items: center; border-radius: .55rem; background: var(--admin-primary-soft); color: var(--admin-primary); font-size: .6rem; font-weight: 820; }
+.admin-switch-row { display: flex; align-items: flex-start; gap: .6rem; margin: 0; padding: .65rem .75rem; border: 1px solid var(--admin-border); border-radius: var(--admin-radius-sm); background: var(--admin-surface-subtle); cursor: pointer; }
+.admin-switch-row input { flex: 0 0 auto; margin-top: .12rem; }
+.admin-switch-row > span { display: grid; gap: .12rem; min-width: 0; }
+.admin-switch-row strong { color: var(--admin-text); font-size: .68rem; font-weight: 730; }
+.admin-switch-row small { color: var(--admin-text-secondary); font-size: .6rem; line-height: 1.4; }
+.admin-guidance-card { display: grid; gap: .45rem; padding: .85rem .9rem; border: 1px solid var(--admin-border); border-radius: var(--admin-radius); background: var(--admin-surface-subtle); color: var(--admin-text-secondary); font-size: .62rem; line-height: 1.45; }
+.admin-guidance-card__icon { display: inline-grid; width: 1.9rem; height: 1.9rem; place-items: center; border-radius: .55rem; background: var(--admin-primary-soft); color: var(--admin-primary); }
+.admin-guidance-card h2 { margin: 0; color: var(--admin-text); font-size: .74rem; font-weight: 760; }
+.admin-guidance-card p, .admin-guidance-card ul { margin: 0; }
+.admin-guidance-card ul { padding-left: 1rem; }
+.admin-guidance-card li + li { margin-top: .2rem; }
+@media (max-width: 767.98px) {
+    .admin-form-layout:has(> .admin-guidance-card),
+    .admin-form-grid--two { grid-template-columns: 1fr; }
+}
 .admin-password-layout { display: grid; grid-template-columns: minmax(17rem, 1fr) minmax(16rem, .8fr); gap: 1rem; align-items: start; }
 .admin-password-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .45rem; }
 .admin-password-actions .btn { display: inline-flex; align-items: center; gap: .3rem; }
