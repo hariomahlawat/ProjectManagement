@@ -158,7 +158,7 @@
                             var isDropped = row.Status.Kind == ItProjectStatusKind.Dropped;
                             <tr class="itp-row @(isDropped ? "itp-row--dropped" : null)" data-itp-row data-itp-search-text="@($"{row.Title} {row.PppReferenceNumber}".ToLowerInvariant())">
                                 <td class="itp-project">
-                                    <div class="itp-project__title">@row.Title</div>
+                                    <div class="itp-project__title"><a asp-page="./Details" asp-route-id="@row.Id" class="itp-project__link">@row.Title</a></div>
                                     <div class="itp-project__meta">
                                         <b>@row.PppReferenceNumber</b>
                                         <span>·</span>

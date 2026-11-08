@@ -1,0 +1,297 @@
+@page "/ItProjects/{id:int}"
+@using ProjectManagement.Models.ItProjects
+@using ProjectManagement.Pages.ItProjects
+@model ProjectManagement.Pages.ItProjects.DetailsModel
+@{
+    ViewData["Title"] = Model.Project.Title;
+    ViewData["PageShell"] = "wide";
+    var statusClass = Model.Status.Kind switch
+    {
+        ItProjectStatusKind.Completed => "itp-chip--ok",
+        ItProjectStatusKind.Dropped => "itp-chip--drop",
+        ItProjectStatusKind.InProgress => "itp-chip--cur",
+        _ => null
+    };
+    var editErrors = Model.DrawerErrors(DetailsModel.OpenEdit, nameof(Model.Details));
+    var stageErrors = Model.DrawerErrors(DetailsModel.OpenStages, nameof(Model.Stages));
+    var dropErrors = Model.DrawerErrors(DetailsModel.OpenDrop, nameof(Model.Drop));
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/it-projects.css" asp-append-version="true" />
+}
+
+<div class="itp-page itp-page--details" data-itp-details data-itp-open="@Model.Open">
+    <header class="itp-head">
+        <div class="itp-head__identity">
+            <div class="itp-crumb" aria-label="Breadcrumb">ERP / <a asp-page="./Index">IT projects</a> / @Model.Project.Title</div>
+            <h1 class="itp-title">@Model.Project.Title</h1>
+            <div class="itp-meta">
+                <span title="IT PPP reference number"><b>@Model.Project.PppReferenceNumber</b></span>
+                <span class="itp-chip itp-chip--fy">@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</span>
+                <span class="itp-chip @statusClass">@ItProjectBoardPresentation.StatusChip(Model.Status)</span>
+                @if (Model.IsDropped && Model.Project.DroppedOn is { } droppedOn)
+                {
+                    <span class="itp-meta__muted">Dropped @ItProjectBoardPresentation.ShortDate(droppedOn)@(string.IsNullOrWhiteSpace(Model.Project.DroppedReason) ? "" : $" · {Model.Project.DroppedReason}")</span>
+                }
+                <span class="itp-meta__muted">Updated @ItProjectBoardPresentation.ShortDate(DateOnly.FromDateTime(Model.Project.UpdatedAtUtc))@(Model.UpdatedByName is { } who ? $" by {who}" : "")</span>
+            </div>
+        </div>
+        @if (Model.CanManage)
+        {
+            <div class="itp-head__actions">
+                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#itpEditDrawer" aria-controls="itpEditDrawer">Edit</button>
+                <button type="button" class="btn btn-primary itp-btn-primary" data-bs-toggle="offcanvas" data-bs-target="#itpStagesDrawer" aria-controls="itpStagesDrawer"><i class="bi bi-signpost-split" aria-hidden="true"></i><span>Stages</span></button>
+                @if (Model.IsDropped)
+                {
+                    <form method="post" asp-page-handler="Reinstate" asp-route-id="@Model.Project.Id" class="d-inline"
+                          data-confirm="Reinstate this IT project? It returns to the active board at the stage it had reached." data-confirm-tone="primary" data-confirm-action="Reinstate">
+                        <input type="hidden" asp-for="RowVersion" />
+                        <button type="submit" class="btn btn-outline-secondary">Reinstate</button>
+                    </form>
+                }
+                else if (!Model.IsCompleted)
+                {
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="offcanvas" data-bs-target="#itpDropDrawer" aria-controls="itpDropDrawer">Mark dropped</button>
+                }
+            </div>
+        }
+    </header>
+
+    <section class="itp-stepper @(Model.IsDropped ? "itp-stepper--dropped" : null)" aria-label="Stages">
+        @foreach (var row in Model.StageRows)
+        {
+            var cls = row.IsSkipped ? "itp-step--skip" : row.IsCompleted ? "itp-step--done" : row.IsCurrent ? "itp-step--cur" : "itp-step--pend";
+            <div class="itp-step @cls">
+                <i class="itp-dot" aria-hidden="true"></i>
+                <span class="itp-step__name">@row.Label</span>
+                <span class="itp-step__date">
+                    @if (row.IsSkipped)
+                    {
+                        <text>skipped</text>
+                    }
+                    else if (row.IsCompleted)
+                    {
+                        if (row.CompletedOn is { } on)
+                        {
+                            @ItProjectBoardPresentation.ShortDate(on)
+                        }
+                        else
+                        {
+                            <em>date not recorded</em>
+                        }
+                    }
+                    else if (row.IsCurrent)
+                    {
+                        <text>current</text>
+                    }
+                    else
+                    {
+                        <text>&mdash;</text>
+                    }
+                </span>
+                @if (row.CostLakhs is { } cost)
+                {
+                    <span class="itp-step__cost">@ItProjectBoardPresentation.Cost(cost)</span>
+                }
+            </div>
+        }
+    </section>
+
+    <div class="itp-grid">
+        <div class="itp-grid__main">
+            <section class="itp-card">
+                <h2 class="itp-card__title">Description</h2>
+                <div class="itp-desc">@Model.Project.Description</div>
+            </section>
+        </div>
+        <aside class="itp-grid__side">
+            <section class="itp-card itp-card--facts">
+                <h2 class="itp-card__title">At a glance</h2>
+                <dl class="itp-facts">
+                    <dt>Status</dt><dd>@Model.Status.Label</dd>
+                    <dt>Financial year</dt><dd>@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</dd>
+                    <dt>Created</dt><dd>@ItProjectBoardPresentation.ShortDate(DateOnly.FromDateTime(Model.Project.CreatedAtUtc))</dd>
+                    @{
+                        var so = Model.StageRows.First(row => row.Code == ItProjectStages.So);
+                    }
+                    @if (so.CostLakhs is { } soCost)
+                    {
+                        <dt>SO cost</dt><dd>@ItProjectBoardPresentation.Cost(soCost)</dd>
+                    }
+                </dl>
+            </section>
+        </aside>
+    </div>
+
+    @if (Model.CanManage)
+    {
+        <footer class="itp-footer">
+            <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Project.Id"
+                  data-confirm="Delete this IT project? It leaves the board; an administrator can restore it later." data-confirm-tone="danger" data-confirm-action="Delete project">
+                <input type="hidden" asp-for="RowVersion" />
+                <button type="submit" class="btn btn-link itp-footer__delete">Delete this IT project</button>
+            </form>
+        </footer>
+
+        <div class="offcanvas offcanvas-end itp-drawer" tabindex="-1" id="itpStagesDrawer" aria-labelledby="itpStagesDrawerLabel">
+            <div class="offcanvas-header">
+                <div>
+                    <h5 id="itpStagesDrawerLabel" class="mb-0">Stages</h5>
+                    <p class="itp-drawer__hint mb-0">Tick what is done. Dates are optional. Ticking a later stage completes the earlier ones.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                <form method="post" asp-page-handler="Stages" asp-route-id="@Model.Project.Id" data-page-handled data-itp-stage-editor data-itp-preview-url="@Url.Page(null, "Preview", new { id = Model.Project.Id })" novalidate>
+                    <input type="hidden" asp-for="Stages.RowVersion" />
+                    <input type="hidden" name="reopen" value="@Model.ReopenPending" data-itp-reopen />
+                    @if (stageErrors.Count > 0)
+                    {
+                        <div class="alert alert-danger itp-drawer__errors" role="alert">
+                            <ul class="mb-0 ps-3">
+                                @foreach (var error in stageErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    <div class="itp-stage-rows">
+                        @for (var i = 0; i < Model.Stages.Items.Count; i++)
+                        {
+                            var item = Model.Stages.Items[i];
+                            var row = Model.StageRows.First(r => r.Code == item.StageCode);
+                            <div class="itp-stage-row @(row.IsOptional && !item.IsIncluded ? "itp-stage-row--skipped" : null) @(row.CarriesCost ? "itp-stage-row--cost" : null)" data-itp-stage data-itp-code="@row.Code" data-itp-label="@row.Label" data-itp-optional="@(row.IsOptional ? "true" : "false")">
+                                <input type="hidden" asp-for="Stages.Items[i].StageCode" />
+                                <label class="itp-stage-row__tick">
+                                    <input type="checkbox" asp-for="Stages.Items[i].IsCompleted" class="form-check-input" data-itp-completed disabled="@(row.IsOptional && !item.IsIncluded)" />
+                                    <span class="visually-hidden">@row.Label complete</span>
+                                </label>
+                                <div class="itp-stage-row__label">
+                                    <span class="itp-stage-row__name">@row.Label</span>
+                                    @if (row.IsOptional)
+                                    {
+                                        <label class="itp-stage-row__include">
+                                            <input type="checkbox" asp-for="Stages.Items[i].IsIncluded" class="form-check-input" data-itp-included />
+                                            <span>include this stage</span>
+                                        </label>
+                                    }
+                                    @if (row.CarriesCost)
+                                    {
+                                        <span class="itp-stage-row__sub">SO date and cost in lakhs, both optional</span>
+                                    }
+                                </div>
+                                <div class="itp-stage-row__inputs">
+                                    <input type="date" asp-for="Stages.Items[i].CompletedOn" asp-format="{0:yyyy-MM-dd}" class="form-control form-control-sm" data-itp-date aria-label="@row.Label completion date" disabled="@(row.IsOptional && !item.IsIncluded)" />
+                                    @if (row.CarriesCost)
+                                    {
+                                        <input type="number" asp-for="Stages.Items[i].CostLakhs" class="form-control form-control-sm" step="0.01" min="0" placeholder="cost (L)" data-itp-cost aria-label="SO cost in lakhs" />
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <p class="itp-stage-note" data-itp-stage-note hidden></p>
+                    <div class="itp-drawer__actions">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+                        <button type="submit" class="btn btn-primary itp-btn-primary">Save stages</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="offcanvas offcanvas-end itp-drawer" tabindex="-1" id="itpEditDrawer" aria-labelledby="itpEditDrawerLabel">
+            <div class="offcanvas-header">
+                <h5 id="itpEditDrawerLabel" class="mb-0">Edit details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                <form method="post" asp-page-handler="Details" asp-route-id="@Model.Project.Id" novalidate>
+                    <input type="hidden" asp-for="Details.RowVersion" />
+                    @if (editErrors.Count > 0)
+                    {
+                        <div class="alert alert-danger itp-drawer__errors" role="alert">
+                            <ul class="mb-0 ps-3">
+                                @foreach (var error in editErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    <div class="itp-form__field">
+                        <label asp-for="Details.Title" class="form-label"></label>
+                        <input asp-for="Details.Title" class="form-control" maxlength="200" />
+                        <span asp-validation-for="Details.Title" class="text-danger"></span>
+                    </div>
+                    <div class="itp-form__field">
+                        <label asp-for="Details.PppReferenceNumber" class="form-label"></label>
+                        <input asp-for="Details.PppReferenceNumber" class="form-control" maxlength="100" />
+                        <span asp-validation-for="Details.PppReferenceNumber" class="text-danger"></span>
+                    </div>
+                    <div class="itp-form__field">
+                        <label asp-for="Details.FinancialYearStart" class="form-label"></label>
+                        <select asp-for="Details.FinancialYearStart" asp-items="Model.FinancialYearOptions" class="form-select"></select>
+                        <span asp-validation-for="Details.FinancialYearStart" class="text-danger"></span>
+                    </div>
+                    <div class="itp-form__field">
+                        <label asp-for="Details.Description" class="form-label"></label>
+                        <textarea asp-for="Details.Description" class="form-control" rows="7"></textarea>
+                        <span asp-validation-for="Details.Description" class="text-danger"></span>
+                    </div>
+                    <div class="itp-drawer__actions">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+                        <button type="submit" class="btn btn-primary itp-btn-primary">Save details</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        @if (!Model.IsDropped)
+        {
+            <div class="offcanvas offcanvas-end itp-drawer" tabindex="-1" id="itpDropDrawer" aria-labelledby="itpDropDrawerLabel">
+                <div class="offcanvas-header">
+                    <div>
+                        <h5 id="itpDropDrawerLabel" class="mb-0">Mark dropped</h5>
+                        <p class="itp-drawer__hint mb-0">The project stays on the board, muted, with the reason. It can be reinstated.</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+                </div>
+                <div class="offcanvas-body">
+                    <form method="post" asp-page-handler="Drop" asp-route-id="@Model.Project.Id" novalidate>
+                        <input type="hidden" asp-for="Drop.RowVersion" />
+                        @if (dropErrors.Count > 0)
+                        {
+                            <div class="alert alert-danger itp-drawer__errors" role="alert">
+                                <ul class="mb-0 ps-3">
+                                    @foreach (var error in dropErrors)
+                                    {
+                                        <li>@error</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                        <div class="itp-form__field">
+                            <label asp-for="Drop.DroppedOn" class="form-label"></label>
+                            <input type="date" asp-for="Drop.DroppedOn" asp-format="{0:yyyy-MM-dd}" class="form-control" />
+                            <span asp-validation-for="Drop.DroppedOn" class="text-danger"></span>
+                        </div>
+                        <div class="itp-form__field">
+                            <label asp-for="Drop.Reason" class="form-label"></label>
+                            <textarea asp-for="Drop.Reason" class="form-control" rows="4" maxlength="500" placeholder="e.g. Merged into the HQ rate contract"></textarea>
+                            <span asp-validation-for="Drop.Reason" class="text-danger"></span>
+                        </div>
+                        <div class="itp-drawer__actions">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+                            <button type="submit" class="btn btn-danger">Mark dropped</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/it-projects-details.js" asp-append-version="true" defer></script>
+}

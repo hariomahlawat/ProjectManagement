@@ -61,4 +61,7 @@ public interface IItProjectReadService
 
     /// <summary>The project with its nine stage rows in order, or null when it does not exist or is deleted.</summary>
     Task<ItProject?> GetAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>A user's display name (full name, else user name) for "updated by", or null when unknown.</summary>
+    Task<string?> GetUserDisplayNameAsync(string userId, CancellationToken cancellationToken = default);
 }

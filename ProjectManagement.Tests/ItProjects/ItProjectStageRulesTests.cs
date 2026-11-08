@@ -161,6 +161,24 @@ public class ItProjectStageRulesTests
     }
 
     [Fact]
+    public void Reopen_OpensTheStageAndEveryLaterOneSoApplyDoesNotReCompleteIt()
+    {
+        // What the editor posts after a preview normalised it: every stage up to SO ticked.
+        var posted = Input(S("PPP", true), S("AON", true), S("BID", true, new DateOnly(2025, 9, 29)), S("TEC", true), S("COB", true), S("SO", true, new DateOnly(2026, 3, 4), cost: 46.8m));
+
+        var reopened = ItProjectStageRules.Reopen(posted, "COB");
+        var result = ItProjectStageRules.Apply(reopened);
+
+        Assert.True(result.IsValid);
+        Assert.Equal(new[] { "PPP", "AON", "BID", "TEC" }, Completed(result));
+        Assert.Null(result.Stages.Single(stage => stage.StageCode == "SO").CompletedOn);
+        Assert.Equal(46.8m, result.Stages.Single(stage => stage.StageCode == "SO").CostLakhs); // the cost is not progress
+        Assert.Equal(new DateOnly(2025, 9, 29), result.Stages.Single(stage => stage.StageCode == "BID").CompletedOn);
+
+        Assert.Equal(posted, ItProjectStageRules.Reopen(posted, "XYZ"));
+    }
+
+    [Fact]
     public void Diff_NamesTheStagesASaveWouldCompleteOrReopen()
     {
         var current = ItProjectStages.NewStageRows();

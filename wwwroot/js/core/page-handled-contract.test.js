@@ -21,6 +21,11 @@ const registry = {
     selector: '[data-auto-submit="change"]',
     hosts: ['Pages/Analytics/Index.cshtml'],
   },
+  'Pages/ItProjects/Details.cshtml': {
+    script: 'wwwroot/js/pages/it-projects-details.js',
+    selector: '[data-itp-stage-editor]',
+    hosts: ['Pages/ItProjects/Details.cshtml'],
+  },
   'Pages/Workspace/BriefingDecks/_DeckLibrary.cshtml': {
     script: 'wwwroot/js/pages/project-briefing-library.js',
     selector: 'form[data-pbd-library-delete]',

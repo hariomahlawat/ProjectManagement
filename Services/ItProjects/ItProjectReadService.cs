@@ -85,6 +85,25 @@ public sealed class ItProjectReadService : IItProjectReadService
             .Include(project => project.Stages.OrderBy(stage => stage.SortOrder))
             .FirstOrDefaultAsync(project => project.Id == id && !project.IsDeleted, cancellationToken);
 
+    public async Task<string?> GetUserDisplayNameAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return null;
+        }
+
+        var user = await _db.Users.AsNoTracking()
+            .Where(candidate => candidate.Id == userId)
+            .Select(candidate => new { candidate.FullName, candidate.UserName })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : user.FullName;
+    }
+
     private static bool IsActive(ItProjectStatusKind kind)
         => kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress;
 

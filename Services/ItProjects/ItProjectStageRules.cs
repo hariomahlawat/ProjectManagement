@@ -155,6 +155,27 @@ public static class ItProjectStageRules
     }
 
     /// <summary>
+    /// The editor gesture "untick stage N": that stage and every later one become open with
+    /// their dates cleared, so that <see cref="Apply"/> does not re-complete N from a later tick.
+    /// Unknown codes leave the input unchanged.
+    /// </summary>
+    public static IReadOnlyList<ItProjectStageInput> Reopen(IReadOnlyCollection<ItProjectStageInput> input, string stageCode)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (!ItProjectStages.IsKnown(stageCode))
+        {
+            return input.ToList();
+        }
+
+        var from = ItProjectStages.OrderOf(stageCode);
+        return input
+            .Select(item => ItProjectStages.IsKnown(item.StageCode) && ItProjectStages.OrderOf(item.StageCode) >= from
+                ? item with { IsCompleted = false, CompletedOn = null }
+                : item)
+            .ToList();
+    }
+
+    /// <summary>
     /// The stages a save would auto-complete or reopen compared with the stored rows, for the
     /// confirm dialog and the audit entry. Both lists are in stage order.
     /// </summary>
