@@ -1454,10 +1454,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         _ = NormalizeUserId(requestingUserId);
-        var restorableAfter = _clock.UtcNow.ToUniversalTime().AddDays(-DeletedRetentionDays);
         var rows = await _db.Set<ProjectBriefingDeck>()
             .AsNoTracking()
-            .Where(deck => deck.DeletedAtUtc != null && deck.DeletedAtUtc >= restorableAfter)
+            .Restorable(_clock.UtcNow)
             .OrderByDescending(deck => deck.DeletedAtUtc)
             .Select(deck => new
             {
@@ -1469,6 +1468,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                     ? (deck.DeletedByUser.FullName != string.Empty
                         ? deck.DeletedByUser.FullName
                         : deck.DeletedByUser.UserName ?? "Unknown user")
+                    : "Unknown user",
+                OwnerDisplay = deck.OwnerUser != null
+                    ? (deck.OwnerUser.FullName != string.Empty
+                        ? deck.OwnerUser.FullName
+                        : deck.OwnerUser.UserName ?? "Unknown user")
                     : "Unknown user"
             })
             .ToListAsync(cancellationToken);
@@ -1479,7 +1483,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 row.ProjectCount,
                 row.DeletedAtUtc,
                 row.DeletedByDisplay,
-                row.DeletedAtUtc.AddDays(DeletedRetentionDays)))
+                row.DeletedAtUtc.AddDays(DeletedRetentionDays),
+                row.OwnerDisplay))
             .ToList();
     }
 
@@ -1489,13 +1494,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var restorableAfter = _clock.UtcNow.ToUniversalTime().AddDays(-DeletedRetentionDays);
         var deck = await _db.Set<ProjectBriefingDeck>()
-            .FirstOrDefaultAsync(
-                candidate => candidate.Id == deckId
-                    && candidate.DeletedAtUtc != null
-                    && candidate.DeletedAtUtc >= restorableAfter,
-                cancellationToken)
+            .Restorable(_clock.UtcNow)
+            .FirstOrDefaultAsync(candidate => candidate.Id == deckId, cancellationToken)
             ?? throw new KeyNotFoundException("The deleted deck was not found or can no longer be restored.");
 
         // Another deck may have taken the name since: restore under a free variant instead.
@@ -1786,9 +1787,20 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     private static string Encode(byte[] value) => value is { Length: > 0 } ? Convert.ToBase64String(value) : string.Empty;
 }
 
-internal static class ProjectBriefingDeckQueries
+public static class ProjectBriefingDeckQueries
 {
     // Decks a user works with: everything except decks in the deleted list.
-    public static IQueryable<ProjectBriefingDeck> Live(this IQueryable<ProjectBriefingDeck> decks)
+    internal static IQueryable<ProjectBriefingDeck> Live(this IQueryable<ProjectBriefingDeck> decks)
         => decks.Where(deck => deck.DeletedAtUtc == null);
+
+    /// <summary>
+    /// Deleted decks that can still be restored: deleted within the last
+    /// <see cref="ProjectBriefingDeckService.DeletedRetentionDays"/> days. Studio's "Recently
+    /// deleted", its Restore and Administration's Restore deleted items all read this one rule.
+    /// </summary>
+    public static IQueryable<ProjectBriefingDeck> Restorable(this IQueryable<ProjectBriefingDeck> decks, DateTimeOffset nowUtc)
+    {
+        var restorableAfter = nowUtc.ToUniversalTime().AddDays(-ProjectBriefingDeckService.DeletedRetentionDays);
+        return decks.Where(deck => deck.DeletedAtUtc != null && deck.DeletedAtUtc >= restorableAfter);
+    }
 }

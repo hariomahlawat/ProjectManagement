@@ -72,7 +72,8 @@ public sealed record ProjectBriefingDeletedDeckVm(
     int ProjectCount,
     DateTimeOffset DeletedAtUtc,
     string DeletedByDisplay,
-    DateTimeOffset RestorableUntilUtc);
+    DateTimeOffset RestorableUntilUtc,
+    string? OwnerDisplay = null);
 
 public sealed record ProjectBriefingDeckRestoreResult(long DeckId, string Name, bool Renamed);
 

@@ -176,13 +176,15 @@ The 19-tile "Administrative areas" grid and the duplicated metric cards go.
 | Project documents | `/Admin/Documents/Recycle` |
 | Repository documents | the Document Repository's Trash, which opens in that module |
 | Calendar events | `/Admin/Calendar/Deleted` |
+| Briefing decks | `/Admin/BriefingDecks/Deleted` (added in admin-review-3-fixes PR 15) |
 | Chat files | Chat file storage, at its undo list |
 
 - Each tab keeps its own page, filters and confirmed restore and delete-for-good actions. Old
   links open the matching tab, and no handler or permission changed.
 - The bin pages share the heading "Restore deleted items" and say in one sentence what restoring
   does and how long items are kept. In search they are "Deleted projects", "Deleted project
-  documents", "Deleted calendar events" and "Deleted repository documents".
+  documents", "Deleted calendar events", "Deleted briefing decks" and "Deleted repository
+  documents".
 - A tab appears only if the viewer can open its page.
 - Home's restore tile adds up the same tab counts, so Home and the page always agree.
 - Projects past their retention are deleted automatically, so purges due are not a "To look at"

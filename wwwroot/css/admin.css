@@ -4572,3 +4572,40 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     .admin-user-table .admin-user-cell { min-width: 0; }
     .admin-user-table td.admin-data-table__actions { position: absolute; top: .65rem; right: .55rem; width: auto; }
 }
+
+/* Restore deleted items › Briefing decks (docs/ux/admin-review-3-fixes.md, PR 15): one row per
+   deck, stacked on a phone so Restore stays in reach without a sideways scroll. */
+.admin-deck-recovery-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.admin-deck-recovery-list__item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: .75rem;
+    padding: .75rem .9rem;
+    border-top: 1px solid var(--admin-border);
+}
+.admin-deck-recovery-list__item:first-child { border-top: 0; }
+.admin-deck-recovery-list__icon {
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border-radius: .6rem;
+    background: var(--admin-surface-muted);
+    color: var(--admin-text-secondary);
+}
+.admin-deck-recovery-list__copy { display: grid; gap: .12rem; min-width: 0; }
+.admin-deck-recovery-list__copy strong { overflow: hidden; color: var(--admin-text); font-size: .86rem; text-overflow: ellipsis; white-space: nowrap; }
+.admin-deck-recovery-list__copy small { color: var(--admin-text-muted); font-size: .74rem; }
+.admin-deck-recovery-list__until { display: grid; gap: .05rem; text-align: right; }
+.admin-deck-recovery-list__until span { color: var(--admin-text-muted); font-size: .7rem; }
+.admin-deck-recovery-list__until strong { color: var(--admin-text); font-size: .8rem; }
+.admin-deck-recovery-list__action { margin: 0; }
+
+@media (max-width: 767.98px) {
+    .admin-deck-recovery-list__item { grid-template-columns: auto minmax(0, 1fr); }
+    .admin-deck-recovery-list__until,
+    .admin-deck-recovery-list__action { grid-column: 2; text-align: left; }
+    .admin-deck-recovery-list__until { display: flex; flex-wrap: wrap; gap: .3rem; align-items: baseline; }
+    .admin-deck-recovery-list__copy strong { white-space: normal; }
+}

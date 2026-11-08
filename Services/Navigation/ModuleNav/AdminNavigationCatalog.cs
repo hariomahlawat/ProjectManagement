@@ -20,6 +20,7 @@ public static class AdminNavigationKeys
     public const string DocumentRecycle = "document-recycle";
     public const string PdfIngestion = "pdf-ingestion";
     public const string DeletedEvents = "deleted-events";
+    public const string DeletedBriefingDecks = "deleted-briefing-decks";
     public const string MasterDataCentre = "master-data-centre";
     public const string MasterDataIntegrity = "master-data-integrity";
     public const string Holidays = "holidays";
@@ -186,7 +187,7 @@ public static class AdminNavigationCatalog
         // Restore & archive
         Entry(AdminNavigationKeys.RecoveryCentre, AdminNavigationGroups.RestoreArchive, 55,
             Item("Restore deleted items", "Admin", "/Recovery/Index", "bi-arrow-counterclockwise", AdminPolicies.RecoveryManage),
-            "Bring back deleted projects, documents, calendar events and chat files, and see how long each is kept.",
+            "Bring back deleted projects, documents, calendar events, briefing decks and chat files, and see how long each is kept.",
             "recovery centre, trash, recycle bin, undelete, recover, deleted, purge, bin, undo",
             exactPage: true, showOnDashboard: true),
         Entry(AdminNavigationKeys.ProjectTrash, AdminNavigationGroups.RestoreArchive, 60,
@@ -203,6 +204,11 @@ public static class AdminNavigationCatalog
             Item("Deleted calendar events", "Admin", "/Calendar/Deleted", "bi-calendar-x", AdminPolicies.RecoveryManage),
             "Calendar events that were deleted: put an event or a whole series back on the calendar.",
             "deleted events, calendar, restore event, meeting",
+            exactPage: true, showOnDashboard: true, inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre),
+        Entry(AdminNavigationKeys.DeletedBriefingDecks, AdminNavigationGroups.RestoreArchive, 82,
+            Item("Deleted briefing decks", "Admin", "/BriefingDecks/Deleted", "bi-easel", AdminPolicies.RecoveryManage),
+            "Briefing decks deleted in Briefing Studio: restore one with its projects, notes and choices.",
+            "briefing deck, deck, briefing studio, presentation, slides, restore deck",
             exactPage: true, showOnDashboard: true, inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre),
         Entry(AdminNavigationKeys.RepositoryTrash, AdminNavigationGroups.RestoreArchive, 85,
             Item("Deleted repository documents", "DocumentRepository", "/Admin/Trash/Index", "bi-trash", Policies.Documents.Purge),

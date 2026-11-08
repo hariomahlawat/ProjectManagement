@@ -8,6 +8,7 @@ using ProjectManagement.Services.Admin.Recovery;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Navigation.ModuleNav;
+using ProjectManagement.Services.ProjectBriefings;
 
 namespace ProjectManagement.Areas.Admin.Pages.Recovery;
 
@@ -87,6 +88,7 @@ public sealed class IndexModel : PageModel
             ? $"Kept {_repositoryTrash.RetentionDays} days, then deleted for good automatically. Opens in the Document Repository."
             : "Kept until someone deletes them for good. Opens in the Document Repository.",
         AdminRestoreTabKeys.CalendarEvents => "Kept until someone restores them.",
+        AdminRestoreTabKeys.BriefingDecks => $"Kept {ProjectBriefingDeckService.DeletedRetentionDays} days after they are deleted; after that they cannot be restored.",
         AdminRestoreTabKeys.ChatFiles => $"Each clean-up can be undone for {_chat.CurrentValue.Attachments.UndoHours} hours. Opens Chat file storage.",
         _ => string.Empty
     };
