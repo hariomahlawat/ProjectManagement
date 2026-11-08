@@ -213,7 +213,9 @@ public sealed class AdminUserQueryServiceTests
         Assert.True(authentication[0].WhenUtc >= authentication[1].WhenUtc);
         Assert.Single(administrative);
         Assert.Equal("AdminUserUpdated", administrative[0].Action);
-        Assert.Equal("target.user", administrative[0].Message);
+        // The stored message is only the account's user name, so no detail is shown
+        // (docs/ux/admin-review-4-fixes.md, PR 7); the page hides a message equal to the action.
+        Assert.Equal("AdminUserUpdated", administrative[0].Message);
     }
 
     // Failed sign-ins record the name as typed, while Identity signs in case-insensitively, so

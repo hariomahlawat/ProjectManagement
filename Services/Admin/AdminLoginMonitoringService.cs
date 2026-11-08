@@ -285,14 +285,16 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
                 ? await LoadNewestAsync(filteredSuccessful, filteredAudit, maximumPoints, cancellationToken)
                 : analysed;
 
-        var identityIds = analysed.Rows
+        // A failed sign-in may keep only the typed user name. When it matches an account, the
+        // person's name is shown with it, through the audit log's one name lookup (one query).
+        var signIns = analysed.Rows
             .Concat(filtered.Rows)
             .Concat(review.Rows)
-            .Where(row => !string.IsNullOrWhiteSpace(row.UserId))
-            .Select(row => row.UserId!)
-            .Distinct(StringComparer.Ordinal)
             .ToArray();
-        var identities = await ResolveIdentitiesAsync(identityIds, cancellationToken);
+        var identities = await ResolveIdentitiesAsync(
+            signIns.Select(row => row.UserId),
+            signIns.Where(row => string.IsNullOrWhiteSpace(row.UserId)).Select(row => row.TypedLogin),
+            cancellationToken);
 
         var analysedEvents = BuildEvents(analysed.Rows, identities, markWeekends);
         var filteredEvents = ReferenceEquals(filtered, analysed)
@@ -388,26 +390,17 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
                 user.Rank))
             .ToListAsync(cancellationToken);
 
-    private async Task<IReadOnlyDictionary<string, UserIdentity>> ResolveIdentitiesAsync(
-        IReadOnlyCollection<string> userIds,
+    private async Task<IdentityDirectory> ResolveIdentitiesAsync(
+        IEnumerable<string?> userIds,
+        IEnumerable<string?> typedLogins,
         CancellationToken cancellationToken)
     {
-        if (userIds.Count == 0)
-        {
-            return new Dictionary<string, UserIdentity>(StringComparer.Ordinal);
-        }
-
-        var rows = await _db.Users.AsNoTracking()
-            .Where(user => userIds.Contains(user.Id))
-            .Select(user => new UserIdentity(
-                user.Id,
-                user.UserName ?? string.Empty,
-                string.IsNullOrWhiteSpace(user.FullName)
-                    ? (user.UserName ?? "Unknown user")
-                    : user.FullName))
-            .ToListAsync(cancellationToken);
-
-        return rows.ToDictionary(row => row.Id, StringComparer.Ordinal);
+        var (byId, byUserName) = await AuditActorNames.LoadDirectoryAsync(
+            _db,
+            userIds,
+            typedLogins,
+            cancellationToken);
+        return new IdentityDirectory(byId, byUserName);
     }
 
     private AdminLoginEventRow BuildEvent(
@@ -592,7 +585,7 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
 
     private AdminLoginEventRow[] BuildEvents(
         IEnumerable<RawSignIn> rows,
-        IReadOnlyDictionary<string, UserIdentity> identities,
+        IdentityDirectory identities,
         bool markWeekends) => rows
         .Select(row =>
         {
@@ -635,17 +628,29 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
     private static UserIdentity ResolveIdentity(
         string? userId,
         string? fallbackLogin,
-        IReadOnlyDictionary<string, UserIdentity> identities)
+        IdentityDirectory identities)
     {
         if (!string.IsNullOrWhiteSpace(userId)
-            && identities.TryGetValue(userId, out var identity))
+            && identities.ById.TryGetValue(userId, out var person))
         {
-            return identity;
+            return ToIdentity(person);
+        }
+
+        // Only the typed user name was kept (a failed sign-in): name the account it matches.
+        if (!string.IsNullOrWhiteSpace(fallbackLogin)
+            && identities.ByUserName.TryGetValue(fallbackLogin.Trim(), out var named))
+        {
+            return ToIdentity(named);
         }
 
         var login = string.IsNullOrWhiteSpace(fallbackLogin) ? "Unknown user" : fallbackLogin;
         return new UserIdentity(userId ?? string.Empty, login, login);
     }
+
+    private static UserIdentity ToIdentity(AuditActorDirectoryEntry person) => new(
+        person.Id,
+        person.UserName ?? string.Empty,
+        person.DisplayName ?? "Unknown user");
 
     private static int Percentile(IReadOnlyList<int> sortedValues, int percentile)
     {
@@ -669,6 +674,10 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
     };
 
     private sealed record UserIdentity(string Id, string LoginName, string DisplayName);
+
+    private sealed record IdentityDirectory(
+        IReadOnlyDictionary<string, AuditActorDirectoryEntry> ById,
+        IReadOnlyDictionary<string, AuditActorDirectoryEntry> ByUserName);
 
     private sealed record RawSignIn(
         DateTimeOffset WhenUtc,
