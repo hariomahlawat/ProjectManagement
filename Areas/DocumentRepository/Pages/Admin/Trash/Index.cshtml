@@ -40,6 +40,8 @@
         <div class="library-banner is-danger" role="alert"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>@Model.ErrorMessage</strong></div></div>
     }
 
+    @await Component.InvokeAsync("RestoredHiddenNotice")
+
     @if (Model.TotalCount > 0)
     {
     <div class="library-toolbar">

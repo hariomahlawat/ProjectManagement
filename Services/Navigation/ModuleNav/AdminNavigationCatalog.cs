@@ -42,6 +42,7 @@ public static class AdminNavigationKeys
     public const string UnreadablePdfs = "unreadable-pdfs";
     public const string MissingDocumentFiles = "missing-document-files";
     public const string RepositoryTrash = "repository-trash";
+    public const string RestoredHiddenDocuments = "restored-hidden-documents";
     public const string MediaSources = "media-sources";
     public const string MediaIntelligence = "media-intelligence";
     public const string MediaClassification = "media-classification";
@@ -209,6 +210,11 @@ public static class AdminNavigationCatalog
             "Document Repository files that were deleted: restore them or delete them for good.",
             "document repository trash, docrepo trash, trash, restore",
             matchPagePattern: "/Admin/Trash/", inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre, usesAdminShell: false),
+        Entry(AdminNavigationKeys.RestoredHiddenDocuments, AdminNavigationGroups.RestoreArchive, 86,
+            Item("Restored but still hidden", "DocumentRepository", "/Admin/RestoredHidden/Index", "bi-eye-slash", Policies.Documents.Purge),
+            "Repository documents restored from the trash before restore was fixed, still hidden from readers: check each and reactivate it.",
+            "restored, hidden, inactive, reactivate, document repository, docrepo, invisible",
+            matchPagePattern: "/Admin/RestoredHidden/", inSidebar: false, sidebarParent: AdminNavigationKeys.RecoveryCentre),
         Entry(AdminNavigationKeys.ArchivedProjects, AdminNavigationGroups.RestoreArchive, 90,
             Item("Archived projects", "Admin", "/Projects/Archived", "bi-archive", AdminPolicies.RecoveryManage),
             "Projects taken out of everyday views. Restore one to make it visible again.",

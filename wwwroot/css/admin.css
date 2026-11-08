@@ -4572,3 +4572,28 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     .admin-user-table .admin-user-cell { min-width: 0; }
     .admin-user-table td.admin-data-table__actions { position: absolute; top: .65rem; right: .55rem; width: auto; }
 }
+
+/* Restored but still hidden (Document Repository, admin fix 16). */
+.admin-restored-hidden__intro {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+}
+.admin-restored-hidden__intro .admin-inline-note { flex: 1 1 22rem; margin: 0; }
+.admin-restored-hidden__intro form { flex: 0 0 auto; }
+.admin-restored-hidden-table form { margin: 0; }
+@media (max-width: 575.98px) {
+    .admin-restored-hidden__intro form,
+    .admin-restored-hidden__intro .btn { width: 100%; }
+    /* One card per document: no sideways scrolling to reach Reactivate. */
+    .admin-restored-hidden-table thead { display: none; }
+    .admin-restored-hidden-table, .admin-restored-hidden-table tbody, .admin-restored-hidden-table tr, .admin-restored-hidden-table td { display: block; width: 100%; }
+    .admin-restored-hidden-table tr { padding: .7rem .85rem; border-bottom: 1px solid var(--admin-border); }
+    .admin-restored-hidden-table tbody tr:last-child { border-bottom: 0; }
+    .admin-restored-hidden-table td { padding: .2rem 0; border-bottom: 0; text-align: left; }
+    .admin-restored-hidden-table td[data-label]::before { content: attr(data-label); display: block; color: var(--admin-text-muted); font-size: .52rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .admin-restored-hidden-table td.text-end { text-align: left !important; padding-top: .45rem; }
+    .admin-restored-hidden-table td .btn { width: 100%; }
+}
