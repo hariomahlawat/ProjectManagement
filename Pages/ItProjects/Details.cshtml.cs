@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -22,7 +24,7 @@ namespace ProjectManagement.Pages.ItProjects;
 /// <summary>
 /// One IT project: header, stepper, description, and for Manage users the stage editor, the
 /// details editor, Dropped / Reinstate and Delete (docs/ux/it-projects.md, "The project page").
-/// Remarks (PR 4) and attachments (PR 5) join this page later.
+/// Remarks and attachments have their own cards (PR 4 and PR 5).
 /// </summary>
 [Authorize(Policy = Policies.ItProjects.View)]
 public class DetailsModel : PageModel
@@ -33,13 +35,18 @@ public class DetailsModel : PageModel
 
     public const string OpenRemark = "remark";
 
+    /// <summary>Fragment of the attachments card, where attachment posts return.</summary>
+    public const string AttachmentsFragment = "attachments";
+
     private readonly IItProjectReadService _reads;
     private readonly IItProjectCommandService _commands;
     private readonly IItProjectRemarkService _remarks;
+    private readonly IItProjectAttachmentService _attachments;
     private readonly IClock _clock;
 
-    public DetailsModel(IItProjectReadService reads, IItProjectCommandService commands, IItProjectRemarkService remarks, IClock clock)
+    public DetailsModel(IItProjectReadService reads, IItProjectCommandService commands, IItProjectRemarkService remarks, IItProjectAttachmentService attachments, IClock clock)
     {
+        _attachments = attachments ?? throw new ArgumentNullException(nameof(attachments));
         _reads = reads ?? throw new ArgumentNullException(nameof(reads));
         _commands = commands ?? throw new ArgumentNullException(nameof(commands));
         _remarks = remarks ?? throw new ArgumentNullException(nameof(remarks));
@@ -47,6 +54,15 @@ public class DetailsModel : PageModel
     }
 
     public IReadOnlyList<ItProjectRemarkView> Remarks { get; private set; } = Array.Empty<ItProjectRemarkView>();
+
+    public IReadOnlyList<ItProjectAttachmentView> Attachments { get; private set; } = Array.Empty<ItProjectAttachmentView>();
+
+    /// <summary>The file chosen in the attachments card.</summary>
+    [BindProperty]
+    public IFormFile? AttachmentFile { get; set; }
+
+    /// <summary>The upload limit in whole megabytes, for the card's hint.</summary>
+    public long AttachmentMaxMb => _attachments.MaxSizeBytes / (1024 * 1024);
 
     /// <summary>True when the signed-in user may write remarks (ITO, MCO, HoD, Comdt).</summary>
     public bool CanRemark { get; private set; }
@@ -472,6 +488,78 @@ public class DetailsModel : PageModel
         return RedirectToPage(null, null, new { id }, "remarks");
     }
 
+    // ---- attachments -------------------------------------------------------------------------
+
+    public async Task<IActionResult> OnPostAttachmentUploadAsync(int id, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (!CanManage)
+        {
+            return Forbid();
+        }
+
+        var file = AttachmentFile ?? (Request.HasFormContentType ? Request.Form.Files.FirstOrDefault() : null);
+        if (file is null)
+        {
+            TempData.ToastError("Choose a file to attach.");
+            return RedirectToPage(null, null, new { id }, AttachmentsFragment);
+        }
+
+        var (result, _) = await _attachments.UploadAsync(id, file, Actor(), cancellationToken);
+        return AttachmentOutcome(id, result, $"\"{Path.GetFileName(file.FileName)}\" attached.");
+    }
+
+    /// <summary>Sends a live attachment of this project. Any signed-in user may read it (View policy on the page).</summary>
+    public async Task<IActionResult> OnGetAttachmentAsync(int id, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        var download = await _attachments.OpenAsync(id, attachmentId, cancellationToken);
+        if (download is null)
+        {
+            return NotFound();
+        }
+
+        return File(download.Content, download.ContentType, download.FileName);
+    }
+
+    public async Task<IActionResult> OnPostAttachmentDeleteAsync(int id, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (!CanManage)
+        {
+            return Forbid();
+        }
+
+        var result = await _attachments.DeleteAsync(id, attachmentId, Actor(), cancellationToken);
+        return AttachmentOutcome(id, result, "File removed.");
+    }
+
+    private IActionResult AttachmentOutcome(int id, ItProjectCommandResult result, string successText)
+    {
+        if (result.Succeeded)
+        {
+            TempData.ToastSuccess(successText);
+        }
+        else
+        {
+            TempData.ToastError(string.Join(" ", result.Errors));
+        }
+
+        return RedirectToPage(null, null, new { id }, AttachmentsFragment);
+    }
+
     private IEnumerable<string> FieldErrors(string prefix)
         => ModelState
             .Where(entry => entry.Key == prefix || entry.Key.StartsWith(prefix + ".", StringComparison.Ordinal))
@@ -600,6 +688,7 @@ public class DetailsModel : PageModel
             ? await _reads.GetUserDisplayNameAsync(userId, cancellationToken)
             : null;
         Remarks = await _remarks.ListAsync(id, cancellationToken);
+        Attachments = await _attachments.ListAsync(id, cancellationToken);
         CanRemark = ItProjectAccess.CanRemark(User, project);
         RemarkRole = ItProjectAccess.RemarkRoleOf(User);
         IsAdmin = User.IsInRole(RoleNames.Admin);

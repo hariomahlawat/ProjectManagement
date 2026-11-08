@@ -200,6 +200,7 @@ namespace ProjectManagement.Data
         public DbSet<ItProjectStage> ItProjectStages => Set<ItProjectStage>();
         public DbSet<ItProjectRemark> ItProjectRemarks => Set<ItProjectRemark>();
         public DbSet<ItProjectRemarkAudit> ItProjectRemarkAudits => Set<ItProjectRemarkAudit>();
+        public DbSet<ItProjectAttachment> ItProjectAttachments => Set<ItProjectAttachment>();
 
         // SECTION: PostgreSQL text search helpers
         public static string TsHeadline(string config, string text, NpgsqlTsQuery query, string options) => throw new NotSupportedException();
@@ -419,6 +420,19 @@ namespace ProjectManagement.Data
                 e.Property(x => x.SnapshotBody).IsRequired().HasMaxLength(ItProjectRemark.BodyMaxLength);
                 e.Property(x => x.SnapshotStageCode).HasMaxLength(8);
                 e.HasIndex(x => new { x.RemarkId, x.ActionAtUtc });
+            });
+
+            builder.Entity<ItProjectAttachment>(e =>
+            {
+                e.ToTable("ItProjectAttachments");
+                e.Property(x => x.OriginalFileName).IsRequired().HasMaxLength(ItProjectAttachment.FileNameMaxLength);
+                e.Property(x => x.StorageKey).IsRequired().HasMaxLength(260);
+                e.Property(x => x.ContentType).IsRequired().HasMaxLength(128);
+                e.Property(x => x.UploadedByUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.DeletedByUserId).HasMaxLength(450);
+                e.HasIndex(x => new { x.ItProjectId, x.IsDeleted, x.UploadedAtUtc })
+                    .HasDatabaseName("IX_ItProjectAttachments_Project_Deleted_Uploaded");
+                e.HasOne(x => x.ItProject).WithMany().HasForeignKey(x => x.ItProjectId).OnDelete(DeleteBehavior.Cascade);
             });
 
             // SECTION: Project Ideas module

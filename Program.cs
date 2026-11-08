@@ -701,6 +701,9 @@ builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDo
 builder.Services.AddScoped<ProjectManagement.Services.ItProjects.IItProjectReadService, ProjectManagement.Services.ItProjects.ItProjectReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ItProjects.IItProjectCommandService, ProjectManagement.Services.ItProjects.ItProjectCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.ItProjects.IItProjectRemarkService, ProjectManagement.Services.ItProjects.ItProjectRemarkService>();
+builder.Services.AddScoped<ProjectManagement.Services.ItProjects.IItProjectAttachmentService, ProjectManagement.Services.ItProjects.ItProjectAttachmentService>();
+builder.Services.AddScoped<ProjectManagement.Services.ItProjects.IItProjectAttachmentStorage, ProjectManagement.Services.ItProjects.FileSystemItProjectAttachmentStorage>();
+builder.Services.AddSingleton<ProjectManagement.Services.ItProjects.ItProjectAttachmentValidator>();
 // SECTION: Project Officer workspace services
 builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingPageResolver>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();

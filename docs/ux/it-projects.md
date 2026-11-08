@@ -165,7 +165,7 @@ editor, so stages reached so far can be entered at once.
 | Access governance | `AdminRoleAccessCatalog` entries for Manage and Remark |
 | Usage | `ErpUsageModuleCatalog` module for `/ItProjects` |
 | Audit | `ItProjects.Created/Updated/StagesChanged/Dropped/Reinstated/Deleted`, `ItProjects.RemarkAdded/Edited/Deleted`, `ItProjects.AttachmentUploaded/Deleted`; rows in `AuditActionPresentationCatalog` |
-| Storage | `{upload root}/it-projects/{projectId}/{guid}{ext}`; `IFileSecurityValidator`, `IFileScanner`, `IProtectedFileUrlBuilder` |
+| Storage | `{upload root}/it-projects/{projectId}/{guid}{ext}` (`FileSystemItProjectAttachmentStorage`); `IFileSecurityValidator` on every key and stored file, `IFileScanner` on every upload; downloads go through the project page's `Attachment` handler (View policy, resolved by project and attachment id), not a token URL. Allowed: PDF, Word, Excel, PowerPoint, within `ProjectDocuments:MaxSizeMb`; the bytes are checked against the declared type. Soft delete keeps the file |
 | Migration | hand-written (`tools/Add-PrismMigration.ps1` for the id), manifest line, tail test in `AdminDataJobTidyUpTests` |
 | Styles | `wwwroot/css/pages/it-projects.css`, tokens only (theme coverage check) |
 | Script | `wwwroot/js/pages/it-projects.js` (board filter and search, stage editor confirm text) |
@@ -182,7 +182,7 @@ Restore deleted items entry, export.
 | 2 | Board page, create page, nav entry, usage module, styles | board ordering and counts, status derivation, page policy |
 | 3 | Project page: header, stepper, description, stage editor drawer, edit drawer, Dropped/Reinstate | page handlers, confirm text, concurrency |
 | 4 | Remarks: table, audit, service, panel and composer | role resolution, own-edit rule, Admin delete, audit snapshots |
-| 5 | Attachments: table, storage, validator, upload/download/delete | safety tests mirrored from Industry partners |
+| 5 | Attachments: table, storage, validator, upload/download/delete (done) | safety tests mirrored from Industry partners |
 
 Each PR is reviewed by Codex and merged when CI and Codex are clean. The mockup
 [mockups/it-projects.html](mockups/it-projects.html) (board, project page, stage editor) is the
