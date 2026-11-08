@@ -2333,8 +2333,8 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 /* The shared list page for reference lists (docs/ux/admin-review-3-fixes.md, owner decision 1). */
 .admin-reference-list-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .admin-reference-list-usage { font-weight: 650; color: var(--admin-text); }
-.admin-reference-list-locked { display: grid; grid-template-columns: auto 1fr; column-gap: .45rem; align-items: center; }
-.admin-reference-list-locked small { grid-column: 2; color: var(--admin-text-muted); font-size: .72rem; white-space: normal; }
+.admin-reference-list-locked { align-items: flex-start; }
+.admin-reference-list-locked small { display: block; max-width: 13rem; color: var(--admin-text-muted); font-size: .72rem; white-space: normal; }
 @media (max-width: 575.98px) {
     .admin-reference-list-tiles { gap: .45rem; }
     .admin-reference-list-tiles .admin-monitoring-metric { min-height: 0; padding: .6rem .65rem; }
