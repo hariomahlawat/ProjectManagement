@@ -1,0 +1,64 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using ProjectManagement.Models.ItProjects;
+
+namespace ProjectManagement.Services.ItProjects;
+
+public enum ItProjectBoardScope
+{
+    Active = 0,
+    Completed = 1,
+    Dropped = 2,
+    All = 3
+}
+
+public sealed record ItProjectBoardQuery(
+    ItProjectBoardScope Scope = ItProjectBoardScope.Active,
+    int? FinancialYearStart = null,
+    string? Search = null);
+
+public sealed record ItProjectBoardStageCell(
+    string StageCode,
+    int SortOrder,
+    bool IsCompleted,
+    DateOnly? CompletedOn,
+    bool IsSkipped,
+    decimal? CostLakhs,
+    bool IsCurrent);
+
+public sealed record ItProjectBoardRow(
+    int Id,
+    string Title,
+    string PppReferenceNumber,
+    int FinancialYearStart,
+    ItProjectStatus Status,
+    DateOnly? DroppedOn,
+    string? DroppedReason,
+    DateTime UpdatedAtUtc,
+    IReadOnlyList<ItProjectBoardStageCell> Stages);
+
+public sealed record ItProjectBoardStageCount(string StageCode, int AtStage);
+
+public sealed record ItProjectBoard(
+    IReadOnlyList<ItProjectBoardRow> Rows,
+    IReadOnlyList<ItProjectBoardStageCount> StageCounts,
+    int ActiveCount,
+    int CompletedCount,
+    int DroppedCount,
+    IReadOnlyList<int> FinancialYears);
+
+public interface IItProjectReadService
+{
+    /// <summary>
+    /// The board: rows in board order (active by current stage then title, then completed,
+    /// then dropped), the "at stage" counts and the scope counts. The counts ignore the scope
+    /// filter but honour the financial year and search, so the pills always add up to what the
+    /// user is looking at.
+    /// </summary>
+    Task<ItProjectBoard> GetBoardAsync(ItProjectBoardQuery query, CancellationToken cancellationToken = default);
+
+    /// <summary>The project with its nine stage rows in order, or null when it does not exist or is deleted.</summary>
+    Task<ItProject?> GetAsync(int id, CancellationToken cancellationToken = default);
+}

@@ -54,7 +54,7 @@ public sealed class AdminRoleAccessCatalogTests
         var items = catalog.ForRoles(new[] { customRole }, new[] { customRole });
 
         Assert.Equal(
-            new[] { "core-workspaces", "documents-view", "industry-view-contact", "reports-common-view", "reports-ipr-view" },
+            new[] { "core-workspaces", "documents-view", "industry-view-contact", "it-projects-view", "reports-common-view", "reports-ipr-view" },
             items.Select(item => item.Key).OrderBy(key => key, StringComparer.Ordinal));
         Assert.All(items, item => Assert.Equal(new[] { customRole }, item.PermittedRoles));
     }

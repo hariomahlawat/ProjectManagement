@@ -290,6 +290,13 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy(Policies.Ipr.Edit, policy =>
         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
+    // SECTION: IT projects authorization policies (docs/ux/it-projects.md)
+    options.AddPolicy(Policies.ItProjects.View, policy =>
+        policy.RequireAuthenticatedUser());
+    options.AddPolicy(Policies.ItProjects.Manage, policy =>
+        policy.RequireRole(Policies.ItProjects.ManageRoles));
+    options.AddPolicy(Policies.ItProjects.Remark, policy =>
+        policy.RequireRole(Policies.ItProjects.RemarkRoles));
     // SECTION: Industry partner authorization policies
     // NOTE: The Industry Partners page is available to every authenticated user.
     options.AddPolicy(Policies.IndustryPartners.View, policy =>
@@ -690,6 +697,9 @@ builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.IProjectIdeaC
     serviceProvider.GetRequiredService<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>());
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaPermissionService>();
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDocumentService>();
+// SECTION: IT projects (docs/ux/it-projects.md)
+builder.Services.AddScoped<ProjectManagement.Services.ItProjects.IItProjectReadService, ProjectManagement.Services.ItProjects.ItProjectReadService>();
+builder.Services.AddScoped<ProjectManagement.Services.ItProjects.IItProjectCommandService, ProjectManagement.Services.ItProjects.ItProjectCommandService>();
 // SECTION: Project Officer workspace services
 builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingPageResolver>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();
