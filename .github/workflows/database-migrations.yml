@@ -157,6 +157,15 @@ jobs:
           --no-build
           --filter FullyQualifiedName~AdminSearchEscapingPostgresTests
 
+      - name: Run media re-sort row-lock PostgreSQL test
+        # "Sort older images again" never resets a job a worker claimed mid-request. Creates,
+        # migrates and drops its own prism_test_reclassify_* database.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~MediaReclassificationPostgresIntegrationTests
+
       - name: Run Search V2 PostgreSQL integration tests
         env:
           # The tests create, migrate and drop their own prism_test_searchv2_* database

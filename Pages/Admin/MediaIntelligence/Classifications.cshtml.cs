@@ -5,14 +5,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Features.MediaLibrary.Admin;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
-using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
-using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Pages.Admin.MediaIntelligence;
 
@@ -23,7 +20,7 @@ namespace ProjectManagement.Pages.Admin.MediaIntelligence;
 public sealed class ClassificationsModel : PageModel
 {
     // One "Reclassify stale" request queues at most this many images; run it again for more.
-    public const int MaximumReclassifyBatch = 500;
+    public const int MaximumReclassifyBatch = MediaReclassificationService.MaximumBatch;
 
     private static readonly string[] SupportedModes =
     {
@@ -46,30 +43,21 @@ public sealed class ClassificationsModel : PageModel
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaClassificationOverrideService _overrides;
     private readonly IFaceEligibilityPolicy _eligibility;
-    private readonly IMediaContentChangeInvalidationService _contentInvalidation;
-    private readonly MediaLibraryOptions _options;
+    private readonly IMediaReclassificationService _reclassification;
     private readonly IMediaAdminAccessService _access;
-    private readonly IAdminAuditService _adminAudit;
-    private readonly ILogger<ClassificationsModel> _logger;
 
     public ClassificationsModel(
         MediaLibraryDbContext db,
         IMediaClassificationOverrideService overrides,
         IFaceEligibilityPolicy eligibility,
-        IMediaContentChangeInvalidationService contentInvalidation,
-        IOptions<MediaLibraryOptions> options,
-        IMediaAdminAccessService access,
-        IAdminAuditService adminAudit,
-        ILogger<ClassificationsModel> logger)
+        IMediaReclassificationService reclassification,
+        IMediaAdminAccessService access)
     {
         _access = access ?? throw new ArgumentNullException(nameof(access));
-        _adminAudit = adminAudit ?? throw new ArgumentNullException(nameof(adminAudit));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _overrides = overrides ?? throw new ArgumentNullException(nameof(overrides));
         _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
-        _contentInvalidation = contentInvalidation ?? throw new ArgumentNullException(nameof(contentInvalidation));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _reclassification = reclassification ?? throw new ArgumentNullException(nameof(reclassification));
     }
 
     [BindProperty(SupportsGet = true)] public string? Q { get; set; }
@@ -335,174 +323,29 @@ public sealed class ClassificationsModel : PageModel
 
     public async Task<IActionResult> OnPostReclassifyStaleAsync(CancellationToken cancellationToken)
     {
-        var now = DateTimeOffset.UtcNow;
-        // Bounded: each request loads and resets at most MaximumReclassifyBatch images in one
-        // transaction, instead of the whole stale library at once. A reset image keeps
-        // matching the stale predicate (its ClassifierVersion is null) until the worker
-        // classifies it, so images that already wait in the classification queue are left
-        // out; otherwise running this again would re-reset the same first batch instead of
-        // continuing with the next one.
-        var staleCandidates = ReviewableAssets()
-            .Where(asset => !asset.ClassificationIsManual
-                            && asset.ClassifierVersion != MediaClassifier.ClassifierVersion);
-        var staleAssets = await staleCandidates
-            .Where(asset => !_db.ProcessingJobs.Any(job =>
-                job.MediaAssetId == asset.Id
-                && job.JobType == MediaProcessingJobType.ClassifyMedia
-                && job.Status == MediaProcessingJobStatus.Pending))
-            .OrderBy(asset => asset.Id)
-            .Take(MaximumReclassifyBatch + 1)
-            .ToListAsync(cancellationToken);
-        if (staleAssets.Count == 0 && await staleCandidates.AnyAsync(cancellationToken))
+        var result = await _reclassification.QueueStaleAsync(CurrentUserId(), cancellationToken);
+        switch (result.Outcome)
         {
-            StatusMessage = "Every older image is already waiting to be sorted again. It happens in the background.";
-            return RedirectToCurrent();
-        }
-        var moreRemain = staleAssets.Count > MaximumReclassifyBatch;
-        if (moreRemain)
-        {
-            staleAssets = staleAssets.Take(MaximumReclassifyBatch).ToList();
+            case MediaReclassifyStaleOutcome.NothingStale:
+                StatusMessage = "Every image PRISM sorted already uses the current version.";
+                return RedirectToCurrent();
+            case MediaReclassifyStaleOutcome.AllAlreadyWaiting:
+                StatusMessage = "Every older image is already waiting to be sorted again. It happens in the background.";
+                return RedirectToCurrent();
+            case MediaReclassifyStaleOutcome.AllBusy:
+                WarningMessage = "Stale images are currently being processed. Try again after the active jobs complete.";
+                return RedirectToCurrent();
+            case MediaReclassifyStaleOutcome.ChangedMeanwhile:
+                WarningMessage = "Some older images changed while this ran, so nothing was queued. Try again.";
+                return RedirectToCurrent();
         }
 
-        if (staleAssets.Count == 0)
-        {
-            StatusMessage = "Every image PRISM sorted already uses the current version.";
-            return RedirectToCurrent();
-        }
-
-        var staleIds = staleAssets.Select(asset => asset.Id).ToArray();
-        var activeJobIds = await _db.ProcessingJobs
-            .Where(job => staleIds.Contains(job.MediaAssetId)
-                          && job.Status == MediaProcessingJobStatus.Running
-                          && job.LockExpiresAtUtc != null
-                          && job.LockExpiresAtUtc > now
-                          && (job.JobType == MediaProcessingJobType.AnalyseAsset
-                              || job.JobType == MediaProcessingJobType.ReclassifyAsset
-                              || job.JobType == MediaProcessingJobType.ClassifyMedia
-                              || job.JobType == MediaProcessingJobType.RebuildIntelligence))
-            .Select(job => job.MediaAssetId)
-            .ToListAsync(cancellationToken);
-        var activeSet = activeJobIds.ToHashSet();
-        var queueable = staleAssets.Where(asset => !activeSet.Contains(asset.Id)).ToArray();
-        if (queueable.Length == 0)
-        {
-            WarningMessage = "Stale images are currently being processed. Try again after the active jobs complete.";
-            return RedirectToCurrent();
-        }
-
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-        var queueableIds = queueable.Select(asset => asset.Id).ToArray();
-        var jobs = await _db.ProcessingJobs
-            .Where(job => queueableIds.Contains(job.MediaAssetId)
-                          && job.JobType == MediaProcessingJobType.ClassifyMedia)
-            .ToDictionaryAsync(job => job.MediaAssetId, cancellationToken);
-        var userId = CurrentUserId();
-
-        // A classifier upgrade changes the admission policy that authorised any prior face
-        // processing. Retire derived face intelligence before resetting the classification so
-        // a v6 false positive can never survive the v7 safety-policy transition.
-        await _contentInvalidation.RetireFaceIntelligenceAsync(
-            queueableIds,
-            "ClassifierUpgrade",
-            userId,
-            $"Face intelligence retired before reclassification with {MediaClassifier.ClassifierVersion}.",
-            now,
-            cancellationToken);
-        await _db.ProcessingJobs
-            .Where(job => queueableIds.Contains(job.MediaAssetId)
-                          && (job.JobType == MediaProcessingJobType.DetectFaces
-                              || job.JobType == MediaProcessingJobType.GenerateFaceEmbeddings
-                              || job.JobType == MediaProcessingJobType.AssignFaceCluster)
-                          && job.Status != MediaProcessingJobStatus.Running
-                          && job.Status != MediaProcessingJobStatus.Completed)
-            .ExecuteDeleteAsync(cancellationToken);
-
-        foreach (var asset in queueable)
-        {
-            var previous = asset.Classification;
-            var previousManual = asset.ClassificationIsManual;
-            var previousStatus = asset.ClassificationDecisionStatus;
-            var previousPrediction = asset.PredictedClassification;
-            var previousPredictionScore = asset.PredictedClassificationScore;
-
-            asset.AnalysisStatus = MediaProcessingStatus.Pending;
-            asset.PredictedClassification = MediaClassification.Unknown;
-            asset.PredictedClassificationScore = 0m;
-            asset.Classification = MediaClassification.Unknown;
-            asset.ClassificationConfidence = null;
-            asset.ClassificationDecisionStatus = MediaClassificationDecisionStatus.NotProcessed;
-            asset.ClassificationDecisionReasonCode = "CLASSIFIER_VERSION_CHANGED";
-            asset.AutomaticClassificationSignalsJson = null;
-            asset.AutomaticClassificationScoresJson = null;
-            asset.AutomaticClassificationMetricsJson = null;
-            asset.ClassificationConcurrencyToken = Guid.NewGuid();
-            asset.FaceAnalysisStatus = MediaProcessingStatus.NotRequested;
-            asset.FaceAnalysisVersion = null;
-            asset.FaceAnalysedAtUtc = null;
-            asset.FaceProcessingFailureReason = null;
-            asset.AnalysisVersion = null;
-            asset.ClassifierVersion = null;
-            asset.AnalysisSignalsJson = null;
-            asset.AnalysedAtUtc = null;
-            asset.ClassifiedAtUtc = null;
-
-            _db.ClassificationAudits.Add(new MediaClassificationAudit
-            {
-                MediaAssetId = asset.Id,
-                PreviousClassification = previous,
-                NewClassification = MediaClassification.Unknown,
-                PreviousWasManual = previousManual,
-                NewIsManual = false,
-                AutomaticPredictedClassification = previousPrediction,
-                AutomaticPredictedScore = previousPredictionScore,
-                PreviousDecisionStatus = previousStatus,
-                NewDecisionStatus = MediaClassificationDecisionStatus.NotProcessed,
-                CorrelationId = $"reclassify:{Guid.NewGuid():N}",
-                ChangedByUserId = userId,
-                Reason = $"Queued for classifier upgrade to {MediaClassifier.ClassifierVersion}.",
-                ChangedAtUtc = now
-            });
-
-            if (!jobs.TryGetValue(asset.Id, out var job))
-            {
-                _db.ProcessingJobs.Add(new MediaProcessingJob
-                {
-                    MediaAssetId = asset.Id,
-                    JobType = MediaProcessingJobType.ClassifyMedia,
-                    Status = MediaProcessingJobStatus.Pending,
-                    AvailableAfterUtc = now,
-                    CreatedAtUtc = now,
-                    UpdatedAtUtc = now,
-                    MaxAttempts = 5
-                });
-                continue;
-            }
-
-            job.Status = MediaProcessingJobStatus.Pending;
-            job.AttemptCount = 0;
-            job.AvailableAfterUtc = now;
-            job.StartedAtUtc = null;
-            job.CompletedAtUtc = null;
-            job.LockedBy = null;
-            job.LockExpiresAtUtc = null;
-            job.FailureCode = null;
-            job.FailureMessage = null;
-            job.UpdatedAtUtc = now;
-        }
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        var skipped = staleAssets.Count - queueable.Length;
-
-        // Per-image MediaClassificationAudit rows commit with the change above. This admin
-        // audit row summarises the library-wide operation in the admin log; it is written
-        // after the media commit (separate database context), best effort.
-        await AuditReclassifyBestEffortAsync(queueableIds.Length, skipped, moreRemain, userId, cancellationToken);
-
+        var queued = result.Queued;
+        var skipped = result.SkippedBusy;
         var message = skipped == 0
-            ? $"{queueable.Length} older image{(queueable.Length == 1 ? " is" : "s are")} waiting to be sorted again."
-            : $"{queueable.Length} older image{(queueable.Length == 1 ? " is" : "s are")} waiting to be sorted again; {skipped} already in progress {(skipped == 1 ? "was" : "were")} left alone.";
-        StatusMessage = moreRemain
+            ? $"{queued} older image{(queued == 1 ? " is" : "s are")} waiting to be sorted again."
+            : $"{queued} older image{(queued == 1 ? " is" : "s are")} waiting to be sorted again; {skipped} already in progress {(skipped == 1 ? "was" : "were")} left alone.";
+        StatusMessage = result.MoreRemain
             ? $"{message} More older images remain; use Sort older images again to continue."
             : message;
         return RedirectToPage(new { Q, FilterClassification, Mode = "stale", P = 1 });
@@ -531,8 +374,7 @@ public sealed class ClassificationsModel : PageModel
             "failures" => query.Where(asset => asset.AnalysisStatus == MediaProcessingStatus.Failed
                                                || asset.ClassificationDecisionStatus
                                                   == MediaClassificationDecisionStatus.ProcessingFailed),
-            "stale" => query.Where(asset => !asset.ClassificationIsManual
-                                             && asset.ClassifierVersion != MediaClassifier.ClassifierVersion),
+            "stale" => query.Where(MediaReclassificationService.IsStale),
             "eligible" => query.Where(_eligibility.BuildEligiblePredicate()),
             _ => query
         };
@@ -572,59 +414,14 @@ public sealed class ClassificationsModel : PageModel
                      || asset.ClassificationDecisionStatus
                         == MediaClassificationDecisionStatus.ProcessingFailed,
             cancellationToken);
-        var stale = await baseQuery.CountAsync(
-            asset => !asset.ClassificationIsManual
-                     && asset.ClassifierVersion != MediaClassifier.ClassifierVersion,
-            cancellationToken);
+        var stale = await baseQuery.CountAsync(MediaReclassificationService.IsStale, cancellationToken);
         var eligible = await baseQuery.CountAsync(_eligibility.BuildEligiblePredicate(), cancellationToken);
 
         return new ReviewSetCounts(all, review, admission, risk, automatic, manual, nonPhoto, failures, stale, eligible);
     }
 
     private IQueryable<MediaAsset> ReviewableAssets()
-        => _db.Assets.Where(asset => asset.IsAvailable
-                                     && !asset.IsDeleted
-                                     && !asset.IsArchived
-                                     && asset.Kind == MediaAssetKind.Photo);
-
-    private async Task AuditReclassifyBestEffortAsync(
-        int queued,
-        int skipped,
-        bool moreRemain,
-        string userId,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _adminAudit.RecordAsync(
-                new AdminAuditEntry(
-                    Action: "MediaClassificationsReclassifyStaleQueued",
-                    EntityType: "MediaAsset",
-                    After: new
-                    {
-                        Queued = queued,
-                        SkippedActive = skipped,
-                        MoreRemain = moreRemain,
-                        ClassifierVersion = MediaClassifier.ClassifierVersion,
-                        RequestedByUserId = userId
-                    },
-                    Origin: "Admin.MediaIntelligence.Classifications",
-                    Level: "Warning",
-                    Message: $"Queued {queued} stale image(s) for reclassification with {MediaClassifier.ClassifierVersion}; their face intelligence was retired."),
-                cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _logger.LogCritical(
-                exception,
-                "Reclassify stale queued {Queued} image(s) but its admin audit event could not be written.",
-                queued);
-        }
-    }
+        => _db.Assets.Where(MediaReclassificationService.IsReviewable);
 
     private string CurrentUserId()
         => User.FindFirstValue(ClaimTypes.NameIdentifier)
