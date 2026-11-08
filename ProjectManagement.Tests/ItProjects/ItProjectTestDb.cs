@@ -62,7 +62,7 @@ internal sealed class ItProjectTestDb : IAsyncDisposable
         new(context ?? NewContext(), Audit, Clock);
 
     public ItProjectReadService Reads(ApplicationDbContext? context = null) =>
-        new(context ?? NewContext());
+        new(context ?? NewContext(), Clock);
 
     public ItProjectRemarkService Remarks(ApplicationDbContext? context = null) =>
         new(context ?? NewContext(), Audit, Clock);

@@ -88,7 +88,7 @@ the R&D workflow metadata.
 - `ItProject`: `Id`, `Title` (200), `PppReferenceNumber` (100), `FinancialYearStart` (int,
   indexed), `Description` (text), `CreatedByUserId`, `CreatedAtUtc`, `UpdatedByUserId`, `UpdatedAtUtc`, `DroppedOn` (date?),
   `DroppedReason` (500?), `DroppedByUserId`, `IsDeleted`, `DeletedAtUtc`, `DeletedByUserId`,
-  `RowVersion`.
+  `RowVersion`, `StageMovedAtUtc` (added by the redesign, PR 1).
 - `ItProjectStage`: `Id`, `ItProjectId`, `StageCode` (8), `SortOrder`, `IsCompleted`,
   `CompletedOn` (date?), `IsSkipped`, `CostLakhs` (decimal(14,2)?, SO only), `RowVersion`.
   Unique `(ItProjectId, StageCode)`.
