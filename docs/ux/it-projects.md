@@ -187,3 +187,10 @@ Restore deleted items entry, export.
 Each PR is reviewed by Codex and merged when CI and Codex are clean. The mockup
 [mockups/it-projects.html](mockups/it-projects.html) (board, project page, stage editor) is the
 reference for PRs 2 and 3.
+
+## Redesign (8 Nov 2026)
+
+A UI and UX redesign of the board, project page and stage editor is proposed in
+[it-projects-redesign.md](it-projects-redesign.md) with the mockup
+[mockups/it-projects-redesign.html](mockups/it-projects-redesign.html). It changes presentation
+only; the decisions above stand.
