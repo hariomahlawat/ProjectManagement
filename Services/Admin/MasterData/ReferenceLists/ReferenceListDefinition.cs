@@ -143,6 +143,9 @@ public abstract class ReferenceListDefinition
     internal abstract Task<object?> FindAsync(ApplicationDbContext db, int id, CancellationToken cancellationToken);
     internal abstract Task<IReadOnlyList<object>> LoadOrderedAfterAsync(ApplicationDbContext db, int sortOrder, int? parentId, CancellationToken cancellationToken);
     internal abstract void Remove(ApplicationDbContext db, object entity);
+
+    /// <summary>Locks the item's row (PostgreSQL FOR UPDATE) inside the caller's transaction.</summary>
+    internal abstract Task LockAsync(ApplicationDbContext db, int id, CancellationToken cancellationToken);
 }
 
 /// <summary>A list item as the list reads it, before use is counted.</summary>
@@ -217,6 +220,23 @@ public sealed class ReferenceListDefinition<TEntity> : ReferenceListDefinition w
     }
 
     internal override void Remove(ApplicationDbContext db, object entity) => _set(db).Remove((TEntity)entity);
+
+    internal override async Task LockAsync(ApplicationDbContext db, int id, CancellationToken cancellationToken)
+    {
+        // Names come from the EF model, never from input; the id is a parameter.
+        var entityType = db.Model.FindEntityType(typeof(TEntity))!;
+        var table = entityType.GetTableName()!;
+        var schema = entityType.GetSchema();
+        var store = Microsoft.EntityFrameworkCore.Metadata.StoreObjectIdentifier.Table(table, schema);
+        var idColumn = entityType.FindProperty("Id")!.GetColumnName(store)!;
+        var qualified = schema is null ? Quote(table) : $"{Quote(schema)}.{Quote(table)}";
+        await db.Database.ExecuteSqlRawAsync(
+            $"SELECT 1 FROM {qualified} WHERE {Quote(idColumn)} = {{0}} FOR UPDATE",
+            new object[] { id },
+            cancellationToken);
+    }
+
+    private static string Quote(string name) => "\"" + name.Replace("\"", "\"\"") + "\"";
 }
 
 /// <summary>The reference lists on the shared list page.</summary>

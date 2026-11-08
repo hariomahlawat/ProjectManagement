@@ -344,6 +344,18 @@ public sealed class ReferenceListService : IReferenceListService
             return AdminOperationResult.Failure("The record version is missing. Reload the page and try again.", "ConcurrencyTokenMissing");
         }
 
+        // The check and the delete run in one transaction, with the item's row locked first. A
+        // record saved at the same moment that points at the item (PostgreSQL takes a key-share
+        // lock on the item while checking its foreign key) either commits first and is counted
+        // below, or waits until the delete is over and is then refused. Without this an ARPP
+        // entry saved between the check and the delete would silently lose its value, because
+        // its link is emptied on delete rather than refused (Codex review on #3018).
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        if (_db.Database.IsNpgsql())
+        {
+            await definition.LockAsync(_db, id, cancellationToken);
+        }
+
         var entity = await definition.FindAsync(_db, id, cancellationToken);
         var item = await definition.Items(_db).SingleOrDefaultAsync(row => row.Id == id, cancellationToken);
         if (entity is null || item is null)
@@ -387,7 +399,6 @@ public sealed class ReferenceListService : IReferenceListService
             }
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
