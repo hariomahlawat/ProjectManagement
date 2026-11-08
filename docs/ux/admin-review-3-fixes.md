@@ -221,3 +221,14 @@ parameter, not inlined), and compiled for use in memory.
   - Rollback: the old release goes back to its in-memory list and leaves the table unused.
   - Wording that said the history starts again when PRISM restarts now reads "Not run yet" (Copy PDFs), "No PDF run yet" (Home) and "No run yet" (Data jobs).
 - Tests: `AdminDataJobTidyUpTests` covers the import rolled back when its audit fails, staging under the data root, importing from and sweeping the old folder, paging, the policy, the recycle service, the Disable words and the run history across contexts and its trimming. `UserLifecycleServiceTests.TryDisable_ReturnsATypedOutcomeForEverySafeguard` covers the typed outcomes, and `AdminCodeGuardsTests` covers the CSV audit and that no file is returned without it.
+
+### PR 13 shipped: media pages in Administration
+
+**Shipped.** Owner decision 2, option A. Media sources, Media intelligence and Classification review now open inside Administration, with its sidebar, page header, "System" eyebrow and the "Administration" context bar on a phone, instead of leaving for the module layout.
+
+- `AdminNavigationCatalog`: the three entries no longer set `usesAdminShell: false`. Media intelligence and Classification review stay out of the sidebar and now name Media sources as their `SidebarParent`, so it stays highlighted and Every admin page says "Opens from Media sources".
+- The pages use the shared `_AdminPageHeader` instead of their own header and drop their `container-*` wrappers, so the shell's spacing applies. Their own page styles stay (`media-sources.css`, `media-intelligence.css`). On Classification review the confirmed "Sort older images again" button sits at the right of the tabs, because the shared header has no confirmed-POST action.
+- One layout, not two. These pages are Administration pages (their routes are under `/Admin`, their policy is `Admin.Media.View`), even when opened from Photos. The layout's existing rule decides the shell: administrators get it, and an HoD who can open the pages sees the same header in the standard layout, as on every other admin page an HoD can open. No "came from Photos" switch.
+- The "Administration ›" return bar is no longer shown on these pages: the shell already leads back. It still serves the pages that keep their module's layout (Document Repository, social media lists, Document deletion approvals). Every admin page no longer says media opens in "the media library".
+- Routes, handlers, policies and the Photos links are unchanged.
+- Tests: `AdminMediaPagesInShellTests` (in scope for the shell, no return bar, "System" eyebrow, sidebar parent, no "own module" note, the shared header in the views); `AdminNavigationCatalogTests` and `AdminPageIndexTests` updated.

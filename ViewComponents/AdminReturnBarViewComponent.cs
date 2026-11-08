@@ -8,7 +8,7 @@ namespace ProjectManagement.ViewComponents;
 
 /// <summary>
 /// A slim "Administration › … › page" bar on the admin pages that keep their own module's
-/// layout (Document Repository, media, social media lists, the repository deletion requests in
+/// layout (Document Repository, social media lists, the repository deletion requests in
 /// the Decision Centre). Shown only to people who can open Administration, so module users see
 /// their pages as before (docs/ux/admin-review-fixes.md, PR 5).
 /// </summary>

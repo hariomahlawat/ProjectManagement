@@ -1,8 +1,16 @@
 @page
 @model ProjectManagement.Pages.Admin.MediaIntelligence.ClassificationsModel
 @using ProjectManagement.Features.MediaLibrary.Domain
+@using ProjectManagement.Areas.Admin.Models
 @{
     ViewData["Title"] = "Classification review";
+    var header = new AdminPageHeaderModel
+    {
+        Eyebrow = "System",
+        Title = "Classification review",
+        Description = "Check images PRISM was unsure about and say what each one is. Marking an image as a photograph does not let PRISM look for faces in it; that needs a separate approval below.",
+        Icon = "bi-tags"
+    };
     static string ClassificationLabel(MediaClassification value) => value switch
     {
         MediaClassification.ScannedDocument => "Scanned document",
@@ -14,16 +22,18 @@
 
 <link rel="stylesheet" href="~/css/pages/media-intelligence.css" asp-append-version="true" />
 
-<div class="container-fluid py-4 media-intelligence-page">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-        <div>
-            <div class="text-primary small text-uppercase fw-semibold mb-1">Media intelligence</div>
-            <h1 class="h3 mb-1">Classification review</h1>
-            <p class="text-muted mb-0">
-                Check images PRISM was unsure about and say what each one is. Marking an image as a photograph does not let PRISM look for faces in it; that needs a separate approval below.
-            </p>
-        </div>
-        <div class="d-flex flex-wrap gap-2">
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+
+<div class="media-intelligence-page">
+    @* The re-sort button is a confirmed POST, so it sits beside the tabs instead of in the shared header. *@
+    <div class="intel-tabs-row mb-4">
+        <nav class="intel-tabs" aria-label="Media intelligence sections">
+            <a asp-page="/Admin/MediaIntelligence/Index">Overview</a>
+            <a class="active" aria-current="page" asp-page="/Admin/MediaIntelligence/Classifications">Classification</a>
+            <a asp-page="/Photos/People/Review">People review</a>
+            <a asp-page="/Photos/People/Index">People</a>
+        </nav>
+        <div class="intel-tabs-row__actions">
             <form method="post" asp-page-handler="ReclassifyStale"
                   data-confirm="Sort these images again with the current version of the sorting?">
                 <button type="submit" class="btn btn-outline-primary" disabled="@(Model.StaleCount == 0)">
@@ -37,13 +47,6 @@
             </form>
         </div>
     </div>
-
-    <nav class="intel-tabs mb-4" aria-label="Media intelligence sections">
-        <a asp-page="/Admin/MediaIntelligence/Index">Overview</a>
-        <a class="active" aria-current="page" asp-page="/Admin/MediaIntelligence/Classifications">Classification</a>
-        <a asp-page="/Photos/People/Review">People review</a>
-        <a asp-page="/Photos/People/Index">People</a>
-    </nav>
 
     @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
     {
