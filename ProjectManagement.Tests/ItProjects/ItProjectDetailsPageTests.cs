@@ -176,6 +176,64 @@ public class ItProjectDetailsPageTests
     }
 
     [Fact]
+    public async Task Preview_ReturnsTheNormalisedChainAndWhatElseASaveWouldDo()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync();
+        Assert.True((await db.Commands().SaveStagesAsync(id, Input(S("AON", true)), rowVersion, ItProjectTestDb.Actor())).Result.Succeeded);
+        var page = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await page.OnGetAsync(id, CancellationToken.None);
+
+        // The user ticks TEC: the server completes Bid as well and says so.
+        page.Stages.Items.Single(item => item.StageCode == "TEC").IsCompleted = true;
+        var ticked = Preview(await page.OnPostPreviewAsync(id, reopen: null, touched: "TEC", CancellationToken.None));
+        Assert.True(ticked.valid);
+        Assert.Equal(new[] { "PPP", "AON", "BID", "TEC" }, ticked.completedCodes);
+        Assert.Equal(new[] { "BID" }, ticked.completed);
+        Assert.Equal("Saving will also complete Bid.", ticked.summary);
+
+        // The user then unticks AoN: Bid and TEC reopen too; AoN itself is left out of the sentence.
+        var reopened = Preview(await page.OnPostPreviewAsync(id, reopen: "AON", touched: "TEC,AON", CancellationToken.None));
+        Assert.Equal(new[] { "PPP" }, reopened.completedCodes);
+        Assert.Empty(reopened.completed);
+        Assert.Empty(reopened.reopened); // Bid and TEC were never saved as complete, so nothing saved is reopened
+        Assert.Null(reopened.summary);
+
+        // A date out of order is reported, not normalised away.
+        page.Stages.Items.Single(item => item.StageCode == "PPP").CompletedOn = new DateOnly(2026, 6, 1);
+        page.Stages.Items.Single(item => item.StageCode == "AON").CompletedOn = new DateOnly(2026, 5, 1);
+        var invalid = Preview(await page.OnPostPreviewAsync(id, reopen: null, touched: "", CancellationToken.None));
+        Assert.False(invalid.valid);
+        Assert.Contains(invalid.errors, error => error.Contains("AoN cannot be completed before"));
+
+        Assert.Empty(db.Audit.Entries.Where(entry => entry.Action == "ItProjects.StagesChanged").Skip(1)); // previews never write
+    }
+
+    [Fact]
+    public async Task Preview_IsForbiddenForViewers()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+        var page = Page(db, ItProjectTestDb.User("po-1", RoleNames.ProjectOfficer));
+        await page.OnGetAsync(id, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(await page.OnPostPreviewAsync(id, null, null, CancellationToken.None));
+    }
+
+    [Fact]
+    public void CascadeSummary_JoinsLabelsAndIsNullWhenNothingElseChanges()
+    {
+        Assert.Null(ItProjectBoardPresentation.CascadeSummary(Array.Empty<string>(), Array.Empty<string>()));
+        Assert.Equal("Saving will also complete Bid.", ItProjectBoardPresentation.CascadeSummary(new[] { "BID" }, Array.Empty<string>()));
+        Assert.Equal(
+            "Saving will also complete IT PPP / IPA, AoN, Bid, TEC, COB and SO.",
+            ItProjectBoardPresentation.CascadeSummary(new[] { "PPP", "AON", "BID", "TEC", "COB", "SO" }, Array.Empty<string>()));
+        Assert.Equal(
+            "Saving will also complete Bid and also reopen SO and Delivery and ATP.",
+            ItProjectBoardPresentation.CascadeSummary(new[] { "BID" }, new[] { "SO", "DLV" }));
+    }
+
+    [Fact]
     public async Task Stages_WithAStaleRowVersionRedirectsWithAnErrorToast()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
@@ -294,6 +352,36 @@ public class ItProjectDetailsPageTests
     }
 
     // ---- helpers ---------------------------------------------------------------------------
+
+    private sealed record PreviewView(bool valid, IReadOnlyList<string> errors, IReadOnlyList<string> completedCodes, IReadOnlyList<string> completed, IReadOnlyList<string> reopened, string? summary);
+
+    /// <summary>Reads the anonymous JSON the Preview handler returns, the way the script does.</summary>
+    private static PreviewView Preview(IActionResult result)
+    {
+        var json = Assert.IsType<JsonResult>(result);
+        var element = System.Text.Json.JsonSerializer.SerializeToElement(json.Value);
+        var valid = element.GetProperty("valid").GetBoolean();
+        if (!valid)
+        {
+            return new PreviewView(false, Strings(element.GetProperty("errors")), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), null);
+        }
+
+        var completedCodes = element.GetProperty("stages").EnumerateArray()
+            .Where(stage => stage.GetProperty("completed").GetBoolean())
+            .Select(stage => stage.GetProperty("code").GetString()!)
+            .ToList();
+        var summary = element.GetProperty("summary");
+        return new PreviewView(
+            true,
+            Array.Empty<string>(),
+            completedCodes,
+            Strings(element.GetProperty("completed")),
+            Strings(element.GetProperty("reopened")),
+            summary.ValueKind == System.Text.Json.JsonValueKind.Null ? null : summary.GetString());
+    }
+
+    private static IReadOnlyList<string> Strings(System.Text.Json.JsonElement array)
+        => array.EnumerateArray().Select(item => item.GetString()!).ToList();
 
     private static DetailsModel Page(ItProjectTestDb db, ClaimsPrincipal user)
     {

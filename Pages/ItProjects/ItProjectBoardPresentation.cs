@@ -122,6 +122,34 @@ public static class ItProjectBoardPresentation
         }
     }
 
+    /// <summary>
+    /// One sentence for the stage editor's note and confirm dialog: what a save will also do
+    /// beyond the stages the user touched. Null when nothing else changes.
+    /// </summary>
+    public static string? CascadeSummary(IReadOnlyList<string> completedCodes, IReadOnlyList<string> reopenedCodes)
+    {
+        var parts = new List<string>();
+        if (completedCodes.Count > 0)
+        {
+            parts.Add("also complete " + JoinLabels(completedCodes));
+        }
+
+        if (reopenedCodes.Count > 0)
+        {
+            parts.Add("also reopen " + JoinLabels(reopenedCodes));
+        }
+
+        return parts.Count == 0 ? null : $"Saving will {string.Join(" and ", parts)}.";
+    }
+
+    private static string JoinLabels(IReadOnlyList<string> codes)
+    {
+        var labels = codes.Select(ItProjectStages.LabelOf).ToList();
+        return labels.Count <= 1
+            ? string.Concat(labels)
+            : $"{string.Join(", ", labels.Take(labels.Count - 1))} and {labels[^1]}";
+    }
+
     /// <summary>"3 projects" / "1 project".</summary>
     public static string Projects(int count) => count == 1 ? "1 project" : $"{count} projects";
 }

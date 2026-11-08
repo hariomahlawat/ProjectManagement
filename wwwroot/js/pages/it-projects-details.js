@@ -1,5 +1,10 @@
 // IT project page (docs/ux/it-projects.md, "The project page"): opens the drawer named in the
-// address, and keeps the stage editor's ticks consistent with the stage chain as the user works.
+// address, and keeps the stage editor in step with the server's stage rules.
+//
+// The browser calculates nothing about the stage chain. After every change it posts the form to
+// the page's Preview handler, which runs ItProjectStageRules and answers with the normalised
+// stages and a sentence saying what the save will also do; this script writes that back into
+// the inputs and shows the sentence, and asks with PrismConfirm before such a save.
 // The form carries data-page-handled: this script owns its confirm dialog.
 (function () {
     'use strict';
@@ -23,108 +28,136 @@
     // ---- stage editor -------------------------------------------------------------------------
 
     var form = page.querySelector('[data-itp-stage-editor]');
-    var Chain = window.ItProjectStageChain;
-    if (!form || !Chain) {
+    if (!form) {
         return;
     }
 
+    var previewUrl = form.getAttribute('data-itp-preview-url');
     var rows = Array.prototype.slice.call(form.querySelectorAll('[data-itp-stage]'));
     var note = form.querySelector('[data-itp-stage-note]');
+    var tokenInput = form.querySelector('input[name="__RequestVerificationToken"]');
+    if (!previewUrl || rows.length === 0) {
+        return;
+    }
 
-    function read() {
-        return rows.map(function (row) {
+    var touched = {};
+    var latest = null;       // the last preview the server answered with
+    var requestId = 0;
+
+    function rowByCode(code) {
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i].getAttribute('data-itp-code') === code) {
+                return rows[i];
+            }
+        }
+        return null;
+    }
+
+    // Writes the server's state into the inputs. Presentation only.
+    function render(preview) {
+        preview.stages.forEach(function (state) {
+            var row = rowByCode(state.code);
+            if (!row) {
+                return;
+            }
             var tick = row.querySelector('[data-itp-completed]');
             var date = row.querySelector('[data-itp-date]');
             var include = row.querySelector('[data-itp-included]');
-            var optional = row.getAttribute('data-itp-optional') === 'true';
-            return {
-                code: row.getAttribute('data-itp-code'),
-                label: row.getAttribute('data-itp-label'),
-                completed: !!(tick && tick.checked),
-                date: date && date.value ? date.value : null,
-                skipped: optional && !!include && !include.checked
-            };
-        });
-    }
-
-    function write(states) {
-        states.forEach(function (state, i) {
-            var row = rows[i];
-            var tick = row.querySelector('[data-itp-completed]');
-            var date = row.querySelector('[data-itp-date]');
             if (tick) {
                 tick.checked = state.completed;
                 tick.disabled = state.skipped;
             }
             if (date) {
-                if (!state.completed && date.value) {
-                    date.value = '';
-                }
+                date.value = state.completedOn || '';
                 date.disabled = state.skipped;
+            }
+            if (include) {
+                include.checked = !state.skipped;
             }
             row.classList.toggle('itp-stage-row--skipped', state.skipped);
             row.classList.toggle('itp-stage-row--done', state.completed);
         });
-    }
-
-    var saved = Chain.chain(read());
-    var touched = {};
-
-    function refresh(states) {
-        write(states);
         if (note) {
-            var text = Chain.summary(Chain.cascade(saved, states, touched), states);
-            note.hidden = !text;
-            note.textContent = text || '';
+            note.hidden = !preview.summary;
+            note.textContent = preview.summary || '';
         }
     }
 
-    rows.forEach(function (row, index) {
+    function preview(reopenCode) {
+        var id = ++requestId;
+        var data = new FormData(form);
+        if (reopenCode) {
+            data.set('reopen', reopenCode);
+        }
+        data.set('touched', Object.keys(touched).join(','));
+
+        var headers = {};
+        if (tokenInput && tokenInput.value) {
+            headers['X-CSRF-TOKEN'] = tokenInput.value;
+        }
+
+        return fetch(previewUrl, { method: 'POST', body: data, headers: headers, credentials: 'same-origin' })
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (result) {
+                if (id !== requestId || !result) {
+                    return;
+                }
+                if (result.valid) {
+                    latest = result;
+                    render(result);
+                } else {
+                    // The server will say the same on save; keep the user's inputs as they are.
+                    latest = null;
+                    if (note) {
+                        note.hidden = false;
+                        note.textContent = (result.errors || []).join(' ');
+                    }
+                }
+            })
+            .catch(function () {
+                // Offline or an error: the server still applies the rules on save.
+                latest = null;
+            });
+    }
+
+    rows.forEach(function (row) {
+        var code = row.getAttribute('data-itp-code');
         var tick = row.querySelector('[data-itp-completed]');
         var date = row.querySelector('[data-itp-date]');
         var include = row.querySelector('[data-itp-included]');
-        var code = row.getAttribute('data-itp-code');
 
         if (tick) {
             tick.addEventListener('change', function () {
                 touched[code] = true;
-                refresh(Chain.tick(read(), index, tick.checked));
+                preview(tick.checked ? null : code);
             });
         }
         if (date) {
             date.addEventListener('change', function () {
                 touched[code] = true;
-                refresh(Chain.setDate(read(), index, date.value));
+                preview(null);
             });
         }
         if (include) {
             include.addEventListener('change', function () {
                 touched[code] = true;
-                refresh(Chain.setSkipped(read(), index, !include.checked));
+                preview(null);
             });
         }
     });
 
-    refresh(Chain.chain(read()));
-
     var confirmed = false;
     form.addEventListener('submit', function (event) {
-        if (confirmed) {
-            return;
-        }
-        var current = Chain.chain(read());
-        var cascade = Chain.cascade(saved, current, touched);
-        var text = Chain.summary(cascade, current);
-        if (!text || !window.PrismConfirm) {
+        if (confirmed || !latest || !latest.summary || !window.PrismConfirm) {
             return;
         }
 
         event.preventDefault();
-        var reopening = cascade.reopened.length > 0;
+        var reopening = latest.reopened && latest.reopened.length > 0;
         window.PrismConfirm.show({
             tone: reopening ? 'warning' : 'primary',
             title: reopening ? 'Reopen earlier progress?' : 'Complete the earlier stages too?',
-            message: text,
+            message: latest.summary,
             note: reopening ? 'Reopened stages lose their recorded dates.' : 'Their dates stay empty until someone enters them.',
             confirmText: 'Save stages',
             cancelText: 'Go back'

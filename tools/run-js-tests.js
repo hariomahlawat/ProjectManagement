@@ -15,7 +15,6 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'pages', 'workspace-briefing-desk.test.js'),
   path.join('wwwroot', 'js', 'pages', 'project-portfolio-latest-update.test.js'),
   path.join('wwwroot', 'js', 'pages', 'officer-conference.test.js'),
-  path.join('wwwroot', 'js', 'pages', 'it-projects-stages.test.js'),
   path.join('wwwroot', 'js', 'calendar.test.js'),
   path.join('wwwroot', 'js', 'chat.test.js'),
   path.join('wwwroot', 'js', 'notifications.test.js'),

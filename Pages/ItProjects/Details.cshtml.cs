@@ -225,16 +225,7 @@ public class DetailsModel : PageModel
             return Page();
         }
 
-        var inputs = Stages.Items
-            .Select(item => new ItProjectStageInput(
-                item.StageCode,
-                item.IsCompleted,
-                item.CompletedOn,
-                IsSkipped: ItProjectStages.IsKnown(item.StageCode) && ItProjectStages.IsOptional(item.StageCode) && !item.IsIncluded,
-                item.CostLakhs))
-            .ToList();
-
-        var save = await _commands.SaveStagesAsync(id, inputs, DecodeRowVersion(Stages.RowVersion), Actor(), cancellationToken);
+        var save = await _commands.SaveStagesAsync(id, ToStageInputs(Stages.Items), DecodeRowVersion(Stages.RowVersion), Actor(), cancellationToken);
         if (!save.Result.Succeeded)
         {
             return Failed(save.Result, OpenStages);
@@ -242,6 +233,61 @@ public class DetailsModel : PageModel
 
         TempData.ToastSuccess(StagesSavedText(save));
         return RedirectToPage(new { id });
+    }
+
+    /// <summary>
+    /// The stage editor's live preview: the posted stages after <see cref="ItProjectStageRules"/>
+    /// has run, plus what a save would also complete or reopen. The browser only renders this,
+    /// so the chain is calculated in one place. <paramref name="reopen"/> is the stage the user
+    /// just unticked (that stage and the later ones open first); <paramref name="touched"/> is a
+    /// comma list of the stages the user changed directly, left out of the summary.
+    /// </summary>
+    public async Task<IActionResult> OnPostPreviewAsync(int id, string? reopen, string? touched, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (!CanManage)
+        {
+            return Forbid();
+        }
+
+        IReadOnlyCollection<ItProjectStageInput> inputs = ToStageInputs(Stages.Items);
+        if (!string.IsNullOrWhiteSpace(reopen))
+        {
+            inputs = ItProjectStageRules.Reopen(inputs, reopen.Trim());
+        }
+
+        var rules = ItProjectStageRules.Apply(inputs);
+        if (!rules.IsValid)
+        {
+            return new JsonResult(new { valid = false, errors = rules.Errors });
+        }
+
+        var (completed, reopened) = ItProjectStageRules.Diff(Project.Stages, rules.Stages);
+        var touchedCodes = (touched ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var completedElsewhere = completed.Where(code => !touchedCodes.Contains(code)).ToList();
+        var reopenedElsewhere = reopened.Where(code => !touchedCodes.Contains(code)).ToList();
+
+        return new JsonResult(new
+        {
+            valid = true,
+            stages = rules.Stages.Select(state => new
+            {
+                code = state.StageCode,
+                completed = state.IsCompleted,
+                completedOn = state.CompletedOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                skipped = state.IsSkipped,
+                costLakhs = state.CostLakhs
+            }),
+            completed = completedElsewhere,
+            reopened = reopenedElsewhere,
+            summary = ItProjectBoardPresentation.CascadeSummary(completedElsewhere, reopenedElsewhere)
+        });
     }
 
     public async Task<IActionResult> OnPostDropAsync(int id, CancellationToken cancellationToken)
@@ -401,6 +447,16 @@ public class DetailsModel : PageModel
             }).ToList()
         };
     }
+
+    private static List<ItProjectStageInput> ToStageInputs(IEnumerable<StageItemInput> items)
+        => items
+            .Select(item => new ItProjectStageInput(
+                item.StageCode,
+                item.IsCompleted,
+                item.CompletedOn,
+                IsSkipped: ItProjectStages.IsKnown(item.StageCode) && ItProjectStages.IsOptional(item.StageCode) && !item.IsIncluded,
+                item.CostLakhs))
+            .ToList();
 
     private bool IsSectionValid(string prefix)
         => ModelState.Where(entry => entry.Key.StartsWith(prefix + ".", StringComparison.Ordinal) || entry.Key == prefix)
