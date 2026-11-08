@@ -45,8 +45,9 @@ public sealed record DocRepoReactivateManyResult(int Reactivated, int NotListed,
 ///
 /// Nothing is reactivated automatically: an administrator reviews each one. Both the list and
 /// Reactivate need <see cref="Policies.Documents.Purge"/>, the Repository trash's policy.
-/// Reactivating saves the change and an <c>Activated</c> audit entry together; the Search V2
-/// trigger on "Documents" queues the reindex on save.
+/// Reactivating re-checks the rule with the document rows locked and saves the change and an
+/// <c>Activated</c> audit entry together; the Search V2 trigger on "Documents" queues the
+/// reindex on save.
 /// </summary>
 public sealed class DocRepoRestoredHiddenService
 {
@@ -173,6 +174,19 @@ public sealed class DocRepoRestoredHiddenService
             return new DocRepoReactivateManyResult(0, 0);
         }
 
+        // The check and the change are one transaction, with the document rows locked first.
+        // Deactivate (Documents/Manage) and the purge both update those rows, so they wait for
+        // this to finish, or this waits for them and then re-reads the audit with their entry
+        // committed: a document deactivated meanwhile is no longer listed and is left alone.
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        if (_db.Database.IsNpgsql())
+        {
+            await _db.Database.ExecuteSqlRawAsync(
+                "SELECT 1 FROM \"Documents\" WHERE \"Id\" = ANY({0}) ORDER BY \"Id\" FOR UPDATE",
+                new object[] { requested.ToArray() },
+                cancellationToken);
+        }
+
         var listed = await FindAsync(requested, cancellationToken);
         if (listed.Count == 0)
         {
@@ -202,10 +216,11 @@ public sealed class DocRepoRestoredHiddenService
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
-            // Changed (purged, deleted again) by someone else while this ran; nothing is saved.
+            // Removed by someone else while this ran; nothing is saved.
             _db.ChangeTracker.Clear();
             return new DocRepoReactivateManyResult(0, requested.Count);
         }

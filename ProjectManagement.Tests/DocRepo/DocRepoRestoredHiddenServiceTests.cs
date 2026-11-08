@@ -167,6 +167,26 @@ public sealed class DocRepoRestoredHiddenServiceTests
     }
 
     [Fact]
+    public async Task ReactivateAsync_RechecksTheList_SoADeactivationAfterThePageOpenedWins()
+    {
+        await using var db = CreateDb();
+        SeedLookups(db);
+        var hidden = SeedDocument(db, "Supply order", isActive: false);
+        Audit(db, hidden, DocRepoRestoredHiddenService.RestoredEvent, RestoredAt);
+        await db.SaveChangesAsync();
+        Assert.Single(await CreateService(db).ListAsync(Admin));
+
+        // After the page opened, another administrator deactivated it on purpose.
+        Audit(db, hidden, DocRepoRestoredHiddenService.DeactivatedEvent, Now.AddMinutes(-1), "other-admin");
+        await db.SaveChangesAsync();
+
+        Assert.Equal(DocRepoReactivateOutcome.NotListed, await CreateService(db).ReactivateAsync(Admin, hidden.Id));
+        Assert.False((await db.Documents.AsNoTracking().SingleAsync()).IsActive);
+        // The row lock that makes this hold under concurrency is covered on PostgreSQL by
+        // DocRepoRestoredHiddenPostgresIntegrationTests.
+    }
+
+    [Fact]
     public async Task ReactivateManyAsync_ChangesOnlyListedDocumentsAndSavesThemTogether()
     {
         await using var db = CreateDb();
