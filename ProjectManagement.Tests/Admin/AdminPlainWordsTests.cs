@@ -288,6 +288,76 @@ public sealed class AdminPlainWordsTests
             default, DateTimeOffset.UnixEpoch, default, null, Guid.Empty,
             0, 0, 0, 0, 0, false, false, false, null);
 
+    // The list forms (docs/ux/admin-review-4-fixes.md, PR 5, U1): the governance wording of the
+    // old Add and Edit pages and their guidance boxes stays gone.
+    private static readonly string[] ListFormJargon =
+    {
+        "controlled reference value", "stable across reporting periods", "Reference-list governance",
+        "historical meaning", "Change control", "stale concurrent edits", "operational activity classification",
+        "suitable for management reporting", "Create a root category", "root technology domain",
+        "Classification guidance", "Hierarchy guidance", "Taxonomy guidance", "Calendar behaviour",
+        "classification", "taxonomy", "Create project type", "Create category", "Create activity type",
+        "Create technical category", "Save changes", "Save value", "Inactive values remain",
+        "informational by default", "silently", "Visibility follows", "Hierarchy cycles", "descendants"
+    };
+
+    public static IEnumerable<object[]> ListFormViews() => new[]
+    {
+        "Areas/Admin/Pages/Shared/_AdminListForm.cshtml",
+        "Areas/Admin/Pages/Lookups/_LookupForm.cshtml",
+        "Areas/Admin/Pages/Categories/Create.cshtml",
+        "Areas/Admin/Pages/Categories/Edit.cshtml",
+        "Areas/Admin/Pages/TechnicalCategories/Create.cshtml",
+        "Areas/Admin/Pages/TechnicalCategories/Edit.cshtml",
+        "Areas/Admin/Pages/ActivityTypes/Create.cshtml",
+        "Areas/Admin/Pages/ActivityTypes/Edit.cshtml",
+        "Areas/Admin/Pages/MasterData/ArppReferences/_ArppReferenceForm.cshtml",
+        "Areas/Admin/Pages/MasterData/ArppReferences/Index.cshtml",
+        "Areas/DocumentRepository/Pages/Admin/_DocRepoListForm.cshtml",
+        "Areas/DocumentRepository/Pages/Admin/_DocRepoListPage.cshtml",
+        "Areas/ProjectOfficeReports/Pages/Admin/SocialMediaTypes/New.cshtml",
+        "Areas/ProjectOfficeReports/Pages/Admin/SocialMediaTypes/Edit.cshtml",
+        "Areas/ProjectOfficeReports/Pages/Admin/SocialMediaTypes/Platforms/New.cshtml",
+        "Areas/ProjectOfficeReports/Pages/Admin/SocialMediaTypes/Platforms/Edit.cshtml",
+        "Areas/Admin/Models/AdminListFormModel.cs"
+    }.Select(view => new object[] { view });
+
+    [Theory]
+    [MemberData(nameof(ListFormViews))]
+    public void ListForms_AndGuidanceBoxes_UsePlainWords(string view)
+    {
+        var text = view.EndsWith(".cs", StringComparison.Ordinal)
+            ? string.Join(" ", Regex.Matches(File.ReadAllText(Path.Combine(FindRepositoryRoot(), view)), @"""(?<text>[^""
+]*)""").Select(match => match.Groups["text"].Value))
+            : VisibleText(view);
+
+        var found = ListFormJargon.Where(word => text.Contains(word, StringComparison.OrdinalIgnoreCase)).ToArray();
+
+        Assert.True(found.Length == 0, $"{view}: {string.Join(", ", found)}");
+    }
+
+    // U2: every guidance box left (Holidays, Celebrations) is styled and in plain words.
+    [Fact]
+    public void GuidanceBoxes_AreStyled_AndUsePlainWords()
+    {
+        var root = FindRepositoryRoot();
+        var css = File.ReadAllText(Path.Combine(root, "wwwroot", "css", "admin.css"));
+        Assert.Contains(".admin-guidance-card {", css, StringComparison.Ordinal);
+        Assert.Contains(".admin-switch-row {", css, StringComparison.Ordinal);
+
+        var boxes = Directory.EnumerateFiles(Path.Combine(root, "Areas"), "*.cshtml", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(Path.Combine(root, "Pages"), "*.cshtml", SearchOption.AllDirectories))
+            .SelectMany(file => Regex.Matches(File.ReadAllText(file), @"<aside class=""admin-guidance-card"">.*?</aside>", RegexOptions.Singleline)
+                .Select(match => (File: Path.GetRelativePath(root, file), Text: Regex.Replace(match.Value, "<[^>]+>", " "))))
+            .ToArray();
+
+        Assert.NotEmpty(boxes);
+        var offenders = boxes
+            .SelectMany(box => ListFormJargon.Where(word => box.Text.Contains(word, StringComparison.OrdinalIgnoreCase)).Select(word => $"{box.File}: {word}"))
+            .ToArray();
+        Assert.True(offenders.Length == 0, string.Join("; ", offenders));
+    }
+
     // The page's text as a reader sees it: no comments, no Technical details, no markup or code.
     private static string VisibleText(string view)
     {

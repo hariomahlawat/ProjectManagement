@@ -15,14 +15,12 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin;
 /// Administration (docs/ux/admin-review-3-fixes.md, PR 12). Use and Delete follow the shared rule
 /// (<see cref="IReferenceListService"/>); adding, renaming, reordering and switching on and off
 /// stay in <see cref="IDocRepoListService"/>, which writes the repository's own audit.
-/// Routes, handler names (Create, Update, Toggle, Delete, RenumberOrder) and the form fields of
-/// the old page (active, version) still work.
+/// Add and Edit open the Create and Edit pages, like every list (<see cref="DocRepoListItemModel"/>,
+/// docs/ux/admin-review-4-fixes.md, PR 5). Routes, handler names (Create, Update, Toggle, Delete,
+/// RenumberOrder) and the form fields of the old page and dialogs (active, version) still work.
 /// </summary>
 public abstract class DocRepoListPageModel : AdminReferenceListPageModel
 {
-    public const string AddDialogId = "docRepoListAddModal";
-    public const string EditDialogId = "docRepoListEditModal";
-
     private readonly IDocRepoListService _lists;
 
     protected DocRepoListPageModel(IDocRepoListService lists, IReferenceListService referenceLists, IListOrderNoticeService order)
@@ -35,9 +33,6 @@ public abstract class DocRepoListPageModel : AdminReferenceListPageModel
 
     /// <summary>"type" or "office", for the page's words.</summary>
     public abstract string Noun { get; }
-
-    /// <summary>True when the Add dialog should open again to show what was wrong.</summary>
-    public bool ReopenAddDialog { get; private set; }
 
     [BindProperty]
     public CreateInput Input { get; set; } = new();
@@ -65,23 +60,15 @@ public abstract class DocRepoListPageModel : AdminReferenceListPageModel
     protected override string? Note =>
         $"Lower numbers come first in the repository's forms; equal numbers are listed A to Z. A deactivated {Noun} is no longer offered for new documents; documents already filed under it keep it.";
 
-    protected override AdminReferenceListEditDialog? EditDialog => new("#" + EditDialogId, Kind.ToString(), Noun);
-
     protected override Func<int, bool?, byte[], CancellationToken, Task<AdminOperationResult>>? Toggle => ToggleAsync;
 
-    protected override AdminPageActionModel? PrimaryAction(string folder) => new()
-    {
-        Text = Presentation.AddText,
-        ModalTarget = "#" + AddDialogId,
-        Icon = "bi-plus-lg",
-        IsPrimary = true
-    };
-
+    /// <summary>The old Add dialog's handler, kept for a form opened before the Create page.</summary>
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
         {
-            return await ShowAddAgainAsync(cancellationToken);
+            return ShowProblem(ModelState.Values.SelectMany(entry => entry.Errors).Select(error => error.ErrorMessage).FirstOrDefault(message => !string.IsNullOrWhiteSpace(message))
+                ?? "Enter a name.");
         }
 
         var result = await _lists.CreateAsync(Kind, User, Input.Name, Input.SortOrder, cancellationToken);
@@ -92,15 +79,14 @@ public abstract class DocRepoListPageModel : AdminReferenceListPageModel
 
         if (!result.Succeeded)
         {
-            ModelState.AddModelError(nameof(Input) + "." + nameof(Input.Name), result.Message);
-            return await ShowAddAgainAsync(cancellationToken);
+            return ShowProblem(result.Message);
         }
 
         Flash(AdminOperationResult.Success(result.Message));
         return RedirectToPage();
     }
 
-    /// <summary>Saves the name and order from the Edit dialog (rowVersion) or the old page's row (version).</summary>
+    /// <summary>Saves the name and order from the old Edit dialog (rowVersion) or the older page's row (version).</summary>
     public async Task<IActionResult> OnPostUpdateAsync(int id, string? name, int sortOrder, uint? version, string? rowVersion, CancellationToken cancellationToken) =>
         Finish(await _lists.UpdateAsync(Kind, User, id, name, sortOrder, version ?? ToXmin(DecodeRowVersion(rowVersion)), cancellationToken));
 
@@ -129,11 +115,10 @@ public abstract class DocRepoListPageModel : AdminReferenceListPageModel
         return RedirectToPage();
     }
 
-    private async Task<IActionResult> ShowAddAgainAsync(CancellationToken cancellationToken)
+    private IActionResult ShowProblem(string message)
     {
-        ReopenAddDialog = true;
-        await LoadListAsync(cancellationToken);
-        return Page();
+        Flash(AdminOperationResult.Failure(message, "ValidationFailed"));
+        return RedirectToPage();
     }
 
     // The list carries xmin as four bytes (base64), like every other list's row version.

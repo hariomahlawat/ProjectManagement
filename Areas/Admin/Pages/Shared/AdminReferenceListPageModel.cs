@@ -59,9 +59,6 @@ public abstract class AdminReferenceListPageModel<TKey> : PageModel where TKey :
     /// </summary>
     protected virtual Func<TKey, bool?, byte[], CancellationToken, Task<AdminOperationResult>>? Toggle => null;
 
-    /// <summary>Edit and Add open a dialog on the page instead of the Edit and Create pages.</summary>
-    protected virtual AdminReferenceListEditDialog? EditDialog => null;
-
     /// <summary>A line under the table's heading.</summary>
     protected virtual string? Note => null;
 
@@ -249,7 +246,6 @@ public abstract class AdminReferenceListPageModel<TKey> : PageModel where TKey :
             ShowOrder = Definition.HasOrder,
             ToggleHandler = Toggle is null ? null : "Toggle",
             OffersAddChild = Definition.IsTree,
-            EditDialog = EditDialog,
             Note = Note,
             RouteValues = ListRouteValues
         };

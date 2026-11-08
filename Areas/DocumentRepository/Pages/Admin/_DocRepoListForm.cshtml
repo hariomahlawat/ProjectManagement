@@ -1,0 +1,33 @@
+@model ProjectManagement.Areas.DocumentRepository.Pages.Admin.DocRepoListItemModel
+@using ProjectManagement.Areas.Admin.Models
+@* The Add and Edit form of Repository document types and offices, on the shared list form
+   (docs/ux/admin-review-4-fixes.md, PR 5). *@
+@{
+    var list = Model.List;
+    Func<object?, Microsoft.AspNetCore.Html.IHtmlContent> fields =
+        @<text>
+            @if (Model.IsEdit)
+            {
+                <input asp-for="Input.RowVersion" type="hidden" />
+            }
+            <div class="admin-form-grid admin-form-grid--two">
+                <div class="admin-field">
+                    <label asp-for="Input.Name"></label>
+                    <input asp-for="Input.Name" class="form-control" autocomplete="off" autofocus="@(!Model.IsEdit)" placeholder="@(Model.IsEdit ? null : "For example: " + list.Example)" />
+                    @if (Model.IsEdit)
+                    {
+                        <small class="admin-field__hint">@AdminListFormWords.RenameHint(list.Definition.Key)</small>
+                    }
+                    <span asp-validation-for="Input.Name" class="text-danger"></span>
+                </div>
+                <div class="admin-field">
+                    <label asp-for="Input.SortOrder"></label>
+                    <input asp-for="Input.SortOrder" class="form-control" type="number" min="-999" max="9999" />
+                    <small class="admin-field__hint">Lower numbers come first; equal numbers are listed A to Z.@(Model.IsEdit ? string.Empty : " Leave blank to add it at the end.")</small>
+                    <span asp-validation-for="Input.SortOrder" class="text-danger"></span>
+                </div>
+            </div>
+        </text>;
+    var form = AdminListFormModel.For(list.Definition, Model.IsEdit, list.Icon, Url.Page("./Index"), fields);
+}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminListForm.cshtml" model="form" />

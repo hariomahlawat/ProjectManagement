@@ -14,8 +14,9 @@ using ProjectManagement.Services.Navigation.ModuleNav;
 namespace ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences;
 
 // The three ARPP value lists on the shared list page (docs/ux/admin-review-3-fixes.md, owner
-// decision 1, PR 11), one at a time under a tab strip (?list=cfa|funds|dfpds). Add and Edit stay
-// in the dialog on this page (Save); the order is the number people type.
+// decision 1, PR 11), one at a time under a tab strip (?list=cfa|funds|dfpds). Add and Edit open
+// their own pages, like every list (ArppReferenceItemModel, docs/ux/admin-review-4-fixes.md, PR 5);
+// Save stays for a dialog opened before that change. The order is the number people type.
 [Authorize(Policy = AdminPolicies.MasterDataManage)]
 [ResponseCache(NoStore = true)]
 public sealed class IndexModel : AdminReferenceListPageModel
@@ -58,7 +59,6 @@ public sealed class IndexModel : AdminReferenceListPageModel
     protected override string Title => "ARPP values";
     protected override string? Note => "Lower numbers come first in the ARPP forms; equal numbers are listed A to Z.";
     protected override IReadOnlyDictionary<string, string> ListRouteValues => new Dictionary<string, string> { ["list"] = Current.Key };
-    protected override AdminReferenceListEditDialog? EditDialog => new("#arppReferenceModal", ((int)Current.Kind).ToString(), Current.KindLabel);
     protected override Func<int, bool?, byte[], CancellationToken, Task<AdminOperationResult>>? Toggle => SetActiveFromListAsync;
 
     protected override AdminPageActionModel? PrimaryAction(string folder) => new()
@@ -85,7 +85,7 @@ public sealed class IndexModel : AdminReferenceListPageModel
         List = AllLists.FirstOrDefault(item => item.Kind == Input.Kind)?.Key ?? List;
         if (!ModelState.IsValid)
         {
-            return await ShowAgainAsync(cancellationToken);
+            return ShowProblem(result: null);
         }
 
         var result = await _referenceData.SaveAsync(
@@ -114,7 +114,7 @@ public sealed class IndexModel : AdminReferenceListPageModel
                 foreach (var message in pair.Value) ModelState.AddModelError(key, message);
             }
             if (result.FieldErrors.Count == 0) ModelState.AddModelError(string.Empty, result.Message);
-            return await ShowAgainAsync(cancellationToken);
+            return ShowProblem(result.Message);
         }
 
         // Admin pages render the namespaced admin keys only. The generic StatusMessage /
@@ -152,11 +152,16 @@ public sealed class IndexModel : AdminReferenceListPageModel
         return result.Success ? AdminOperationResult.Success(result.Message) : AdminOperationResult.Failure(result.Message, "Failed");
     }
 
-    private async Task<IActionResult> ShowAgainAsync(CancellationToken cancellationToken)
+    // The old dialog is gone, and with it the place its field errors were shown: the list shows
+    // what was wrong as a message instead (Codex review on #3030).
+    private IActionResult ShowProblem(string? result)
     {
-        await LoadListAsync(cancellationToken);
-        ViewData["ReopenReferenceModal"] = true;
-        return Page();
+        var fieldError = ModelState.Values
+            .SelectMany(entry => entry.Errors)
+            .Select(error => error.ErrorMessage)
+            .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message));
+        TempData[FlashMessageKeys.AdminMasterDataError] = fieldError ?? result ?? $"The {Current.Definition.Label} could not be saved.";
+        return RedirectToPage(new { list = Current.Key });
     }
 
     private string CurrentUserId()
