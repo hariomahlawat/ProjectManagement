@@ -142,7 +142,7 @@ public sealed class DocRepoPagesTests
         }
 
         await db.SaveChangesAsync();
-        var page = new MissingFilesModel(db, new DocRepoMissingFilesService(db, storage, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()), new ProjectManagement.Services.SystemClock()));
+        var page = new MissingFilesModel(db, new DocRepoMissingFilesService(db, storage, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()), new ProjectManagement.Services.SystemClock()), new ProjectManagement.Services.Admin.AdminTimeService(new ProjectManagement.Services.SystemClock()));
         ConfigurePage(page, Manager);
 
         await page.OnGetAsync(page: 1, pageSize: 25);

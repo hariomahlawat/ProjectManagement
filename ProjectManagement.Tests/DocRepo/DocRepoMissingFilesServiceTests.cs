@@ -35,7 +35,7 @@ public sealed class DocRepoMissingFilesServiceTests
         await db.SaveChangesAsync();
         var missingFiles = Service(db, storage);
 
-        var page = new MissingFilesModel(db, missingFiles);
+        var page = new MissingFilesModel(db, missingFiles, new ProjectManagement.Services.Admin.AdminTimeService(new ProjectManagement.Services.SystemClock()));
         ConfigurePage(page, Manager);
         await page.OnGetAsync(page: 1, pageSize: 25);
         var health = await AdminSystemHealthService.RepositoryFilesCheckAsync(missingFiles, forceRefresh: false, CancellationToken.None);

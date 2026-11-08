@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
@@ -152,6 +153,73 @@ public sealed class DocRepoTrashPurgeServiceTests
         Assert.Single(await db.Documents.AsNoTracking().ToListAsync());
     }
 
+    // Fourth review, C4: a database error deleting one document used to abort the whole run, so
+    // every document after it waited for ever. Now it is skipped, its file put back, and counted.
+    [Fact]
+    public async Task RunExpiredPurgeAsync_SkipsADocumentWhoseRowCannotBeDeleted_AndPurgesTheRest()
+    {
+        var name = Guid.NewGuid().ToString();
+        Guid broken;
+        Guid before;
+        Guid after;
+        await using (var seed = CreateDb(name))
+        {
+            before = Seed(seed, deletedDaysAgo: 60);
+            broken = Seed(seed, deletedDaysAgo: 50);
+            after = Seed(seed, deletedDaysAgo: 40);
+            await seed.SaveChangesAsync();
+        }
+
+        await using var db = CreateDb(name, new FailingDeleteInterceptor(broken));
+        var storage = new RecordingStorage();
+
+        var run = await CreateService(db, storage).RunExpiredPurgeAsync();
+
+        Assert.Equal(new DocRepoTrashPurgeRun(Purged: 2, Failed: 1), run);
+        await using var check = CreateDb(name);
+        Assert.Equal(broken, (await check.Documents.AsNoTracking().SingleAsync()).Id);
+        // Its file is back where it was; nothing of it is left set aside.
+        Assert.True(storage.Exists($"docs/{broken}.pdf"));
+        Assert.Empty(storage.Quarantined);
+        Assert.False(storage.Exists($"docs/{before}.pdf"));
+        Assert.False(storage.Exists($"docs/{after}.pdf"));
+        Assert.Equal(2, await check.DocRepoAudits.AsNoTracking().CountAsync(a => a.EventType == "Purged"));
+    }
+
+    [Fact]
+    public async Task PurgeExpiredAsync_StillReturnsTheCountWhenADocumentFails()
+    {
+        var name = Guid.NewGuid().ToString();
+        Guid broken;
+        await using (var seed = CreateDb(name))
+        {
+            broken = Seed(seed, deletedDaysAgo: 50);
+            Seed(seed, deletedDaysAgo: 40);
+            await seed.SaveChangesAsync();
+        }
+
+        await using var db = CreateDb(name, new FailingDeleteInterceptor(broken));
+
+        Assert.Equal(1, await CreateService(db, new RecordingStorage()).PurgeExpiredAsync());
+    }
+
+    [Fact]
+    public void RunSummary_NamesTheDocumentsLeftInTheBin()
+    {
+        Assert.Equal(
+            "Removed 2 documents that were in the bin over 30 days; 1 document could not be removed and stays in the bin; the server log says why",
+            ProjectManagement.Hosted.DocRepoTrashPurgeWorker.RunSummary(new DocRepoTrashPurgeRun(2, 1), 30));
+        Assert.Equal(
+            "3 documents could not be removed and stay in the bin; the server log says why",
+            ProjectManagement.Hosted.DocRepoTrashPurgeWorker.RunSummary(new DocRepoTrashPurgeRun(0, 3), 30));
+        Assert.Equal(
+            "Removed 1 document that was in the bin over 30 days",
+            ProjectManagement.Hosted.DocRepoTrashPurgeWorker.RunSummary(new DocRepoTrashPurgeRun(1, 0), 30));
+        Assert.Equal(
+            "Nothing to remove",
+            ProjectManagement.Hosted.DocRepoTrashPurgeWorker.RunSummary(new DocRepoTrashPurgeRun(0, 0), 30));
+    }
+
     [Fact]
     public async Task PurgeDueUtc_IsTheTrashDatePlusTheRetention()
     {
@@ -173,9 +241,36 @@ public sealed class DocRepoTrashPurgeServiceTests
             new MutableOptionsMonitor(new DocRepoOptions { TrashRetentionDays = retentionDays }));
 
     private static ApplicationDbContext CreateDb()
+        => CreateDb(Guid.NewGuid().ToString());
+
+    private static ApplicationDbContext CreateDb(string name, params IInterceptor[] interceptors)
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name)
+            .AddInterceptors(interceptors)
             .Options);
+
+    // Fails the save that deletes one document, as a database error other than a concurrency one.
+    private sealed class FailingDeleteInterceptor : SaveChangesInterceptor
+    {
+        private readonly Guid _documentId;
+
+        public FailingDeleteInterceptor(Guid documentId) => _documentId = documentId;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            var deletesIt = eventData.Context!.ChangeTracker.Entries<Document>()
+                .Any(e => e.State == EntityState.Deleted && e.Entity.Id == _documentId);
+            if (deletesIt)
+            {
+                throw new DbUpdateException("A row the document depends on is locked.");
+            }
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
 
     private static Guid Seed(ApplicationDbContext db, int? deletedDaysAgo, bool isDeleted = false)
     {

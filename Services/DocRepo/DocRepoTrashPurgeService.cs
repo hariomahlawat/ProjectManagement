@@ -22,6 +22,13 @@ public enum DocRepoPurgeOutcome
 
 public sealed record DocRepoPurgeResult(DocRepoPurgeOutcome Outcome, string? Error = null);
 
+/// <summary>
+/// One automatic purge run: how many documents were removed, and how many could not be (their
+/// file could not be moved, or their row could not be deleted). Those stay in the bin, with their
+/// file in place, and the next run tries them again.
+/// </summary>
+public sealed record DocRepoTrashPurgeRun(int Purged, int Failed);
+
 // SECTION: Trash purge
 // Permanently deletes trashed repository documents: the row, then the file (see PurgeAsync). Used by
 // the Trash page (one document, by an admin) and by DocRepoTrashPurgeWorker (documents whose
@@ -289,17 +296,25 @@ public sealed class DocRepoTrashPurgeService
     /// Documents without a DeletedAtUtc are never purged automatically.
     /// </summary>
     public async Task<int> PurgeExpiredAsync(CancellationToken cancellationToken = default)
+        => (await RunExpiredPurgeAsync(cancellationToken)).Purged;
+
+    /// <summary>
+    /// As <see cref="PurgeExpiredAsync"/>, and also counts the documents that could not be purged.
+    /// A document whose file or row cannot be removed is logged, left in the bin with its file in
+    /// place, and skipped for the rest of the run, so it never stops newer due documents.
+    /// </summary>
+    public async Task<DocRepoTrashPurgeRun> RunExpiredPurgeAsync(CancellationToken cancellationToken = default)
     {
         // One policy per run, even if the setting changes while it runs.
         var retentionDays = RetentionDays;
         if (retentionDays <= 0)
         {
-            return 0;
+            return new DocRepoTrashPurgeRun(0, 0);
         }
 
         var cutoff = _clock.UtcNow.UtcDateTime.AddDays(-retentionDays);
         var purged = 0;
-        // Documents whose file could not be deleted in this run are skipped by the next batches,
+        // Documents that could not be purged in this run are skipped by the next batches,
         // so they never block newer due documents; the next run tries them again.
         var failed = new List<Guid>();
         while (!cancellationToken.IsCancellationRequested)
@@ -320,12 +335,29 @@ public sealed class DocRepoTrashPurgeService
 
             foreach (var item in due)
             {
-                var result = await PurgeAsync(
-                    item.Id,
-                    SystemActor,
-                    new { item.Id, Reason = "TrashRetention", RetentionDays = retentionDays, item.DeletedAtUtc },
-                    cutoff,
-                    cancellationToken);
+                DocRepoPurgeResult result;
+                try
+                {
+                    result = await PurgeAsync(
+                        item.Id,
+                        SystemActor,
+                        new { item.Id, Reason = "TrashRetention", RetentionDays = retentionDays, item.DeletedAtUtc },
+                        cutoff,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // The row could not be deleted (a database error other than a concurrent
+                    // purge or restore). PurgeAsync has already put the file back and cleared
+                    // this attempt's tracked changes; skip the document and carry on.
+                    failed.Add(item.Id);
+                    _logger?.LogError(ex, "Trash retention could not delete document {DocumentId}; it stays in the bin and will be tried again on the next run.", item.Id);
+                    continue;
+                }
 
                 if (result.Outcome == DocRepoPurgeOutcome.Purged)
                 {
@@ -344,6 +376,6 @@ public sealed class DocRepoTrashPurgeService
             }
         }
 
-        return purged;
+        return new DocRepoTrashPurgeRun(purged, failed.Count);
     }
 }

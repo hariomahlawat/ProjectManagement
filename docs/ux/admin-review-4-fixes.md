@@ -125,6 +125,11 @@ There were no High findings. The earlier fixes held, and no reviewer found a reg
 | 9 | **Plain words, round four, and the last figures.** The role-less account named and linked on Who has which role, with a "No role" option in the Users filter; the remaining formal wording in account forms, role capabilities, the bin dialogs ("Delete for good" everywhere), Restored but still hidden, ERP usage and Celebrations; the Sign-in activity caption, the Holidays filter words and System health's "not run yet" sentence | U6, U10, U11 (rest) |
 | 10 | **Small robustness.** The repository purge skips a document it cannot delete and carries on (logged, shown as failed); IST through `IAdminTimeService.FormatIst` in the three places; the PDF run summary's trim failure logged separately | C4, C6, minor |
 
+**PR 10 shipped (small robustness):**
+- **Repository purge:** a document whose row cannot be deleted is logged, its file is put back, and the run carries on with the rest (`DocRepoTrashPurgeService.RunExpiredPurgeAsync`). System health's last-run line says how many documents could not be removed and stay in the bin. The quarantine and concurrency steps are unchanged.
+- **One IST formatter:** Chat storage (the undo deadline now ends in "IST"), Missing files and Restored but still hidden use `IAdminTimeService.FormatIst`. That formatter, and System health's job times, now write the day without a leading zero ("7 Nov 2026, 14:05 IST"), as those three pages already did.
+- **PDF run summary:** a failure while removing old runs is logged as a trim failure, and no longer reported as "could not save".
+
 **Order:**
 - PRs 2, 3 and 10 touch separate code and can run in parallel with anything.
 - PR 5 follows PR 4, because both change the list forms.
@@ -147,6 +152,15 @@ No PR in this plan needs a database migration.
 - **Project documents.** `DocumentService.RestoreAsync` saves the document, queues its notification (still contained by the queue's savepoint) and writes `Project.DocumentRestored` in one transaction. A failed audit leaves the document in the recycle bin, so the bulk restore reports it as failed and a retry restores it instead of skipping it. The failed document is detached, so the next one in the batch does not save it again.
 - Routes, handlers and policies are unchanged. No migration.
 - Tests: `AdminDeckRestoreAuditTests` (audit in the same commit, a failing audit rolls back on the admin and Studio paths, two concurrent restores), and in `DocumentNotificationAtomicityTests` the document restore with its notification and audit, a failing audit, and the recycle-bin bulk path with a retry.
+
+## PR 3 as shipped
+
+**Shipped.** "Sort older images again" runs in `MediaReclassificationService` (Features/MediaLibrary/Admin); the Classification review handler only calls it and shows the result.
+- Everything happens in one transaction. The service picks the batch (at most 500 older images not already waiting), then locks every processing job of those images (`SELECT … FOR UPDATE`, ordered by Id) before deciding anything.
+- An image whose sorting job (AnalyseAsset, ReclassifyAsset, ClassifyMedia or RebuildIntelligence) is held by a worker with a live lease is left alone and counted; the page says "… already in progress were left alone." A worker claiming with `FOR UPDATE SKIP LOCKED` either finished its claim before the lock (the image is skipped) or skips the locked rows until the commit. A job whose lease ran out is not held, as in the worker's own recovery.
+- The worker rotates `ClassificationConcurrencyToken` when it finishes. If an image changes between reading and saving anyway (a reviewer, the scanner), nothing is saved and the page says "Some older images changed while this ran, so nothing was queued. Try again." instead of failing.
+- The clock is `IClock`. The per-image classification audits commit with the change, and the admin audit entry and the face-retirement wording are unchanged. The stale and reviewable rules are defined once in the service and used by the page's filter and counts.
+- Tests: `MediaReclassificationServiceTests` (queueing, held and expired jobs, the skipped count, all held, already waiting, batches, audits, a failed admin audit) and `MediaReclassificationPostgresIntegrationTests` (a worker claims a job just before the lock and keeps it; during the lock a `SKIP LOCKED` claim cannot take a job being reset), which runs in `database-migrations.yml`.
 
 ## Owner actions still open
 - Mark Test HoD, Test Project Officer and the two Claude Review accounts as Test in Edit user → "Kind of account", so ERP usage stops counting them.
