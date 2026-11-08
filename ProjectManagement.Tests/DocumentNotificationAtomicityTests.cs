@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -15,6 +17,8 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.Recovery;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Tests.Fakes;
@@ -374,6 +378,110 @@ public sealed class DocumentNotificationAtomicityTests : IAsyncLifetime
         Assert.True(File.Exists(StoredPath(request.TempStorageKey!)));
     }
 
+    // Restores are audited with the restore (docs/ux/admin-review-4-fixes.md, PR 2). The audit
+    // entry used to be written after the commit, so a failed audit write left a restored
+    // document with no record, and Restore deleted items reported it as failed although it was
+    // back; a retry then skipped it because it was no longer in the recycle bin.
+    [Fact]
+    public async Task Restore_CommitsWithItsNotificationAndItsAuditEntry()
+    {
+        var documentId = await PublishDocumentAsync();
+        await MoveToRecycleBinAsync(documentId);
+        await using var db = new ApplicationDbContext(_options);
+
+        await CreateDocumentService(db, new QueueingNotifier(db, NotifierMode.Queue), DatabaseAudit(db))
+            .RestoreAsync(documentId, "approver", CancellationToken.None);
+
+        await using var verify = new ApplicationDbContext(_options);
+        Assert.Equal(ProjectDocumentStatus.Published, (await verify.ProjectDocuments.SingleAsync()).Status);
+        Assert.Equal(NotificationKind.DocumentRestored, (await verify.NotificationDispatches.SingleAsync()).Kind);
+        var entry = await verify.AuditLogs.SingleAsync(log => log.Action == "Project.DocumentRestored");
+        Assert.Equal("approver", entry.UserId);
+    }
+
+    [Fact]
+    public async Task Restore_WhenTheAuditCannotBeWritten_LeavesTheDocumentInTheRecycleBin()
+    {
+        var documentId = await PublishDocumentAsync();
+        await MoveToRecycleBinAsync(documentId);
+        await using var db = new ApplicationDbContext(_options);
+
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            CreateDocumentService(db, new QueueingNotifier(db, NotifierMode.Queue), new FailingAudit())
+                .RestoreAsync(documentId, "approver", CancellationToken.None));
+
+        await using var verify = new ApplicationDbContext(_options);
+        var document = await verify.ProjectDocuments.SingleAsync();
+        Assert.Equal(ProjectDocumentStatus.SoftDeleted, document.Status);
+        Assert.True(document.IsArchived);
+        Assert.Equal(0, await verify.NotificationDispatches.CountAsync());
+        Assert.Equal(0, await verify.AuditLogs.CountAsync(log => log.Action == "Project.DocumentRestored"));
+    }
+
+    [Fact]
+    public async Task RecycleBinRestore_WhenTheAuditFails_ReportsTheDocumentAsFailed_AndARetryRestoresIt()
+    {
+        var documentId = await PublishDocumentAsync();
+        await MoveToRecycleBinAsync(documentId);
+
+        await using (var db = new ApplicationDbContext(_options))
+        {
+            var failed = await CreateRecycleService(db, CreateDocumentService(db, new QueueingNotifier(db, NotifierMode.Queue), new FailingAudit()))
+                .ExecuteAsync(DocumentRecycleAction.Restore, new[] { documentId }, "approver", CancellationToken.None);
+
+            Assert.Equal(0, failed.Succeeded);
+            Assert.Equal(new[] { documentId }, failed.FailedIds);
+        }
+
+        await using (var verify = new ApplicationDbContext(_options))
+        {
+            Assert.Equal(ProjectDocumentStatus.SoftDeleted, (await verify.ProjectDocuments.SingleAsync()).Status);
+        }
+
+        // The document is still in the recycle bin, so the retry finds it instead of skipping it.
+        await using (var retry = new ApplicationDbContext(_options))
+        {
+            var result = await CreateRecycleService(retry, CreateDocumentService(retry, new QueueingNotifier(retry, NotifierMode.Queue), DatabaseAudit(retry)))
+                .ExecuteAsync(DocumentRecycleAction.Restore, new[] { documentId }, "approver", CancellationToken.None);
+
+            Assert.Equal(1, result.Succeeded);
+            Assert.Equal(0, result.Skipped);
+            Assert.Empty(result.FailedIds);
+        }
+
+        await using var final = new ApplicationDbContext(_options);
+        Assert.Equal(ProjectDocumentStatus.Published, (await final.ProjectDocuments.SingleAsync()).Status);
+        Assert.Equal(1, await final.AuditLogs.CountAsync(log => log.Action == "Project.DocumentRestored"));
+        Assert.Equal(1, await final.NotificationDispatches.CountAsync());
+    }
+
+    private static DocumentRecycleService CreateRecycleService(ApplicationDbContext db, IDocumentService documents)
+    {
+        var options = Options.Create(new AdminRecoveryOptions());
+        return new DocumentRecycleService(
+            new DocumentRecoveryQueryService(db, new AdminTimeService(Clock()), options),
+            documents,
+            options,
+            NullLogger<DocumentRecycleService>.Instance);
+    }
+
+    /// <summary>The real audit service, writing into the caller's context and transaction.</summary>
+    private static AuditService DatabaseAudit(ApplicationDbContext db) => new(db, new HttpContextAccessor(), Clock());
+
+    /// <summary>Fails the audit write the way the real audit service does when its insert fails.</summary>
+    private sealed class FailingAudit : IAuditService
+    {
+        public Task LogAsync(
+            string action,
+            string? message = null,
+            string level = "Info",
+            string? userId = null,
+            string? userName = null,
+            IDictionary<string, string?>? data = null,
+            HttpContext? http = null)
+            => throw new DbUpdateException("Audit store unavailable.");
+    }
+
     private async Task<int> SubmitReplaceRequestAsync(int documentId, string content)
     {
         await using var db = new ApplicationDbContext(_options);
@@ -453,7 +561,7 @@ public sealed class DocumentNotificationAtomicityTests : IAsyncLifetime
     private DocumentDecisionService CreateDecisionService(ApplicationDbContext db, IDocumentNotificationService notifier)
         => new(db, CreateDocumentService(db, notifier), Clock(), new RecordingAudit());
 
-    private DocumentService CreateDocumentService(ApplicationDbContext db, IDocumentNotificationService notifier)
+    private DocumentService CreateDocumentService(ApplicationDbContext db, IDocumentNotificationService notifier, IAuditService? audit = null)
     {
         var uploadRoot = new FixedUploadRoot(_root);
         return new DocumentService(
@@ -461,7 +569,7 @@ public sealed class DocumentNotificationAtomicityTests : IAsyncLifetime
             Options.Create(new ProjectDocumentOptions { ProjectsSubpath = "projects", StorageSubPath = "docs", TempSubPath = "temp" }),
             uploadRoot,
             Clock(),
-            new RecordingAudit(),
+            audit ?? new RecordingAudit(),
             notifier,
             new ProjectDocumentStorageResolver(uploadRoot),
             null,

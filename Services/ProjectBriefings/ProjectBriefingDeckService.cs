@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Services;
 
@@ -1521,8 +1522,31 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.DeletedByUserId = null;
         Touch(deck, userId);
 
-        await _db.SaveChangesAsync(cancellationToken);
-        await AuditAsync("ProjectBriefing.DeckRestored", userId, deck, "Project briefing deck restored.");
+        // The restore and its audit entry commit together, as Calendar recovery does
+        // (docs/ux/admin-review-4-fixes.md, PR 2). The audit write is required here, not
+        // best-effort: if it fails, the restore is rolled back and the caller sees the failure,
+        // so a deck never comes back without a record of who restored it. This holds for the
+        // owner's restore in Briefing Studio as well as for Restore deleted items, so both paths
+        // keep one rule. A second restore of the same deck racing this one fails the row-version
+        // check with a DbUpdateConcurrencyException; the pages report that as already restored.
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            await _audit.LogAsync(
+                "ProjectBriefing.DeckRestored",
+                "Project briefing deck restored.",
+                userId: userId,
+                data: BuildAuditData(deck, extra: null));
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            // Nothing was committed; leave no half-restored deck tracked in this request's context.
+            _db.Entry(deck).State = EntityState.Detached;
+            throw;
+        }
+
         return new ProjectBriefingDeckRestoreResult(
             deck.Id,
             deck.Name,
@@ -1628,6 +1652,13 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         string message,
         IDictionary<string, string?>? extra = null)
     {
+        await TryAuditAsync(action, message, userId, BuildAuditData(deck, extra));
+    }
+
+    private static Dictionary<string, string?> BuildAuditData(
+        ProjectBriefingDeck deck,
+        IDictionary<string, string?>? extra)
+    {
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
         var updateSheetOptions = configuration.UpdateSheetOptions;
         var standardSlideOptions = configuration.StandardSlideOptions;
@@ -1659,7 +1690,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             }
         }
 
-        await TryAuditAsync(action, message, userId, data);
+        return data;
     }
 
     private async Task TryAuditAsync(

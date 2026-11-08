@@ -264,9 +264,16 @@ public sealed class IndexModel : PageModel
             ErrorMessage = exception.Message;
             return RedirectToLibrary();
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Someone else restored the deck between loading it and saving: it is back, so open it.
+            StatusMessage = "Someone else restored this deck a moment ago. It is already back.";
+            return RedirectToPage(new { deckId });
+        }
         catch (DbUpdateException)
         {
-            ErrorMessage = "The deck could not be restored. Reload and try again.";
+            // Includes a failed audit write: the restore was rolled back, so nothing changed.
+            ErrorMessage = "The deck could not be restored, and nothing was changed. Reload and try again.";
             return RedirectToLibrary();
         }
     }
