@@ -181,6 +181,7 @@ No PR in this plan needs a database migration.
 
 - **Wide tables become cards (U3).** Audit log, Sign-in activity, ERP usage and Media sources' unavailable items use the shared `.admin-data-table--cards` pattern from the third review's PR 8, with a `data-label` on each cell. At 375 px each row is a card and the page is 375 px wide on all four (it was 1040 to 1168 px of table in a sideways scroller). Desktop tables are unchanged.
   - Audit log: the event on top, then who (Actor) and when (Time), then severity and the record; an empty Affected record is hidden. The details button sits at the card's top right.
+    The header row, which holds the sort links, is hidden on phones, so a "Sort by" row (Time, Actor, Event, Severity) above the cards uses the same links there (`.admin-card-sort`).
   - Sign-in activity: the person on top with the ⋯ menu at the top right, then when, outcome, review reason and source.
   - ERP usage: the person on top, then the other five figures.
   - Media sources: the item on top, then source, status and last checked, and a full-width "Recheck source" button.

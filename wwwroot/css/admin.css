@@ -4554,6 +4554,34 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     .admin-monitoring-table td.admin-monitoring-table__who { order: -1; grid-column: 1 / -1; padding-right: 2.6rem; }
 }
 
+/* Sort links for card lists: the header row (and its sort links) is hidden on phones, so these
+   stand in for it there. Hidden on wider screens, where the header row sorts. */
+.admin-card-sort { display: none; }
+@media (max-width: 575.98px) {
+    .admin-card-sort {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .35rem;
+        padding: .6rem .85rem;
+        border-bottom: 1px solid var(--admin-border);
+    }
+    .admin-card-sort__label { margin-right: .2rem; color: var(--admin-text-muted); font-size: .72rem; font-weight: 700; }
+    .admin-card-sort__link {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        padding: .2rem .6rem;
+        border: 1px solid var(--admin-border);
+        border-radius: 999px;
+        color: var(--admin-text-secondary);
+        font-size: .74rem;
+        font-weight: 700;
+        text-decoration: none;
+    }
+    .admin-card-sort__link.is-active { border-color: var(--admin-primary); background: var(--admin-primary-soft); color: var(--admin-primary-strong); }
+}
+
 
 /* Restore deleted items › Briefing decks (docs/ux/admin-review-3-fixes.md, PR 15): one row per
    deck, stacked on a phone so Restore stays in reach without a sideways scroll. */

@@ -25,6 +25,21 @@ public sealed class AdminPhonesRoundTwoTests
     }
 
     [Fact]
+    public void AuditLog_KeepsItsSortLinksOnPhones_WhenTheHeaderRowIsHidden()
+    {
+        var view = Read("Areas/Admin/Pages/Logs/Index.cshtml");
+        var css = Read("wwwroot/css/admin.css");
+
+        Assert.Contains("<nav class=\"admin-card-sort\" aria-label=\"Sort audit events\">", view);
+        foreach (var key in new[] { "Time", "User", "Action", "Level" })
+        {
+            Assert.Contains($"(\"{key}\", ", view);
+        }
+        Assert.Contains("href=\"@Model.SortUrl(key)\"", view);
+        Assert.Contains(".admin-card-sort { display: none; }", css);
+    }
+
+    [Fact]
     public void AdminCss_HasBalancedBraces_SoLaterRulesAreNotPhoneOnly()
     {
         // A missing "}" after the PR 8 (third review) card block once put every later rule inside
