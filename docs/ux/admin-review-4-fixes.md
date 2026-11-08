@@ -175,6 +175,25 @@ No PR in this plan needs a database migration.
 - No migration. Routes, handlers and policies unchanged. Rollback: the previous release has the old pages; nothing stored changes.
 - Tests: `AdminSharedListsFinishedTests` (change requests read once per page; the in-place switch on each lookup, an old version and a missing state refused; the old Deactivate URL redirects and its old form still works; the one form adds, renames, refuses a duplicate name and 404s a missing item on each lookup; the pages keep their files and routes and share one model with the list policy). `ProjectMetaChangeDecisionServiceTests` (a deleted proposed item refused plainly, for all five lists, with nothing saved or audited). `ListOrderTests` (equal and spaced repository numbers accepted by Data checks and the list notice; project types still flagged). `AdminSearchEscapingPostgresTests` (the SQL count matches the in-memory reader).
 
+### PR 7 shipped: a readable audit log
+
+**Shipped.** U5 and U9.
+
+- **Plain details, worked out when shown.** `AuditEntryDescriber` (Services/Admin) turns what every entry already stores (the action, the message, the user columns and the details JSON) into one plain sentence and the record the entry changed. Old entries read as well as new ones, and nothing stored changes: no new fields, no rewritten rows, the same CSV columns. For example:
+  - "Synchronized the IPA stage … for project 185" → "IPA stage set as completed on 22 Apr 2025, from the Original ARPP.", with the project's name under Affected record;
+  - "FfcGlobalFootprint additional slide enabled." → "FFC global footprint slide switched on.";
+  - "1 project(s) added to briefing deck." → "1 project added.", with the deck's name under Affected record;
+  - "Normalised display order for 5 record(s)." → "Put 5 items back in order.", with "Sponsoring units" (List) instead of "MasterDataIntegrity / sponsoring-unit-order";
+  - "Invalid credentials for hariomahlawat" → "Wrong user name or password.", with the person under Affected record.
+  - A detail that only repeats the title, or is only a user name (account changes stored the account's user name as their message), is left out. Any other message is kept, with "(s)" turned into the right plural.
+- **Affected record by name.** Filled for sign-ins (the account, or the user name typed when no account matches), account changes, projects (any entry with a project id), briefing decks, ARPP issues, list items and whole lists. A record that is gone shows the name the entry stored, or "No. 999" marked "no longer in PRISM". `AuditEntryPresenter` looks the names up for the whole page: one query for every person (actors and accounts), and one query per kind of record on the page, never one per row. Project, account and list-item records link as before.
+- **New titles** for actions that had machine-made ones: the ARPP issue events, "IPA stage set from the ARPP", the briefing deck extra-slide and template events, "Account details changed", "Roles changed", "Project video added"; "Display order normalised" is now "List put back in order", and PDF copying reads "Copying PDFs started/finished/…".
+- **Old account entries.** Entries written before the admin audit envelope kept the affected account in the user columns, so the log called that account the actor. They now show the account under Affected record and the actor from the stored "Actor" id, or "Not recorded" when the entry did not keep one.
+- **Category names match the sidebar.** "Lists used in forms", "Copy PDFs into the repository" and "Legacy project import", in the filter, its chip, the drawer and the CSV's Category values. The query values (`master-data`, `pdf-ingestion`, `legacy-import`) are unchanged. The list hub's "Open the audit log" link sent `master data`, which filtered nothing; it now sends `master-data`, and the old value is still accepted.
+- **People by name (U9).** The list hub's recent changes, a user's Audit history ("Done by Hari Om Ahlawat") and Home's recent changes go through `AuditEntryPresenter`, so through `AuditActorNames`. Sign-in activity looks up the typed user name of a failed or locked sign-in in the same one query, and shows the person's name with the user name when it matches an account.
+- Routes, filters' query values, CSV columns and policies are unchanged. No migration, no new scripts or packages.
+- Tests: `AdminReadableAuditLogTests` (a plain detail for each changed action, details dropped when they only repeat the title or a user name, plurals, the new titles and category names, the old `master data` link, Affected record filled by name for each kind, old account entries, the three places that showed user names, and names read once per page on SQLite with 25 rows).
+
 ## Owner actions still open
 - Mark Test HoD, Test Project Officer and the two Claude Review accounts as Test in Edit user → "Kind of account", so ERP usage stops counting them.
 - Review the "Restored but still hidden" list next to Repository trash, and reactivate the documents that should be visible.

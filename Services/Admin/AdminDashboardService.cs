@@ -43,7 +43,8 @@ public sealed record AdminDashboardAction(
     string Action,
     string Message,
     string Actor,
-    string WhenLocal);
+    string WhenLocal,
+    string? Record = null);
 
 public sealed record AdminDashboardAttention(
     AdminAttentionSeverity Severity,
@@ -67,13 +68,16 @@ public sealed class AdminDashboardService : IAdminDashboardService
 {
     private readonly ApplicationDbContext _db;
     private readonly IAdminTimeService _time;
+    private readonly IAuditActionPresentationCatalog _presentations;
 
     public AdminDashboardService(
         ApplicationDbContext db,
-        IAdminTimeService time)
+        IAdminTimeService time,
+        IAuditActionPresentationCatalog? presentations = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _time = time ?? throw new ArgumentNullException(nameof(time));
+        _presentations = presentations ?? new AuditActionPresentationCatalog();
     }
 
     public async Task<AdminDashboardSnapshot> GetAsync(CancellationToken cancellationToken = default)
@@ -158,29 +162,39 @@ public sealed class AdminDashboardService : IAdminDashboardService
             {
                 audit.Level,
                 audit.Action,
-                Message = audit.Message ?? audit.Action,
+                audit.Message,
                 audit.UserId,
                 audit.UserName,
+                audit.DataJson,
                 audit.TimeUtc
             })
             .ToListAsync(cancellationToken);
 
-        // People by display name, through the same lookup as the audit log.
-        var (byId, byUserName) = await AuditActorNames.LoadDirectoryAsync(
+        // People, a plain detail and the record by name, as the audit log shows them.
+        var views = await AuditEntryPresenter.DescribeAsync(
             _db,
-            recentActions.Select(action => action.UserId),
-            recentActions.Select(action => action.UserName),
+            recentActions.Select(action => new AuditEntrySource(
+                    action.Action,
+                    action.Message,
+                    action.UserId,
+                    action.UserName,
+                    action.DataJson,
+                    _presentations.Describe(action.Action, action.Level).Label))
+                .ToArray(),
+            null,
             cancellationToken);
 
         return new AdminDashboardSnapshot(
             metrics,
             recentActions
-                .Select(action => new AdminDashboardAction(
+                .Select((action, index) => new AdminDashboardAction(
                     action.Level,
                     action.Action,
-                    action.Message,
-                    AuditActorNames.Resolve(action.UserId, action.UserName, byId, byUserName),
-                    _time.FormatIst(action.TimeUtc)))
+                    // The view hides a message equal to the action, so no detail shows nothing.
+                    views[index].Detail ?? action.Action,
+                    views[index].Actor,
+                    _time.FormatIst(action.TimeUtc),
+                    views[index].Record?.Name))
                 .ToArray(),
             BuildAttention(metrics, _time.TodayIst.AddDays(-1)));
     }

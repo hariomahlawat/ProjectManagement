@@ -15,8 +15,18 @@ public sealed record AdminAuditPayload(
     string? Origin,
     string? BeforeJson,
     string? AfterJson,
-    string? RawPrettyJson)
+    string? RawPrettyJson,
+    IReadOnlyDictionary<string, string?>? Fields = null)
 {
+    /// <summary>
+    /// A top-level value of the stored details ("ProjectId", "DeckName"), matched without regard
+    /// to case. Null when the details do not name it.
+    /// </summary>
+    public string? Field(string name) =>
+        Fields is not null && Fields.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value.Trim()
+            : null;
+
     public string? AffectedRecord => string.IsNullOrWhiteSpace(EntityType)
         ? null
         : string.IsNullOrWhiteSpace(EntityId)
@@ -59,7 +69,8 @@ public sealed class AdminAuditPayloadParser : IAdminAuditPayloadParser
                 ReadString(root, "Origin"),
                 PrettyNested(ReadString(root, "Before")),
                 PrettyNested(ReadString(root, "After")),
-                JsonSerializer.Serialize(root, PrettyJsonOptions));
+                JsonSerializer.Serialize(root, PrettyJsonOptions),
+                ReadFields(root));
         }
         catch (JsonException)
         {
@@ -91,6 +102,23 @@ public sealed class AdminAuditPayloadParser : IAdminAuditPayloadParser
         }
 
         return null;
+    }
+
+    private static IReadOnlyDictionary<string, string?> ReadFields(JsonElement root)
+    {
+        var fields = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in root.EnumerateObject())
+        {
+            fields.TryAdd(property.Name, property.Value.ValueKind switch
+            {
+                JsonValueKind.String => property.Value.GetString(),
+                JsonValueKind.Null or JsonValueKind.Undefined => null,
+                JsonValueKind.Object or JsonValueKind.Array => null,
+                _ => property.Value.GetRawText()
+            });
+        }
+
+        return fields;
     }
 
     private static string? PrettyNested(string? value)

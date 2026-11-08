@@ -34,7 +34,10 @@ public sealed record AdminLogRow(
     long Id = 0,
     string? UserAgent = null,
     AdminAuditPayload? Payload = null,
-    string? ActorDisplayName = null)
+    string? ActorDisplayName = null,
+    string? Detail = null,
+    AuditRecordDisplay? Record = null,
+    AuditRecordRef? RecordRef = null)
 {
     /// <summary>
     /// The name shown as the actor: the person's full name (then user name) from the user
@@ -87,15 +90,18 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
     private readonly ApplicationDbContext _db;
     private readonly IAdminTimeService _time;
     private readonly IAdminAuditPayloadParser _payloads;
+    private readonly IAuditActionPresentationCatalog _presentations;
 
     public AdminLogQueryService(
         ApplicationDbContext db,
         IAdminTimeService time,
-        IAdminAuditPayloadParser? payloads = null)
+        IAdminAuditPayloadParser? payloads = null,
+        IAuditActionPresentationCatalog? presentations = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _time = time ?? throw new ArgumentNullException(nameof(time));
         _payloads = payloads ?? new AdminAuditPayloadParser();
+        _presentations = presentations ?? new AuditActionPresentationCatalog();
     }
 
     public async Task<AdminLogResult> GetAsync(
@@ -363,7 +369,8 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
                 || log.Action.Contains("Trash")
                 || log.Action.Contains("Purge")
                 || log.Action.Contains("Recycle")),
-            "master-data" => query.Where(log => log.Action.StartsWith("MasterData")),
+            // "master data" is what the list hub's link sent before PR 7.
+            "master-data" or "master data" => query.Where(log => log.Action.StartsWith("MasterData")),
             // Maintenance runs log one action per stage (Started/Completed/Failed/Cancelled,
             // Committed), so their "Audit history" links filter by prefix, not exact action.
             "pdf-ingestion" => query.Where(log => log.Action.StartsWith("PdfIngestion")),
@@ -376,39 +383,40 @@ public sealed class AdminLogQueryService : IAdminLogQueryService
         IReadOnlyList<AuditLog> logs,
         CancellationToken cancellationToken)
     {
-        var parsed = logs
-            .Select(log => (Log: log, Payload: _payloads.Parse(log.DataJson)))
-            .ToArray();
-
-        var (byId, byUserName) = await AuditActorNames.LoadDirectoryAsync(
+        // Who, a plain detail and the affected record by name, looked up for the whole page at
+        // once (docs/ux/admin-review-4-fixes.md, PR 7).
+        var views = await AuditEntryPresenter.DescribeAsync(
             _db,
-            parsed.SelectMany(item => new[] { item.Payload.ActorUserId, item.Log.UserId }),
-            parsed.SelectMany(item => new[] { item.Payload.ActorName, item.Log.UserName }),
+            logs.Select(log => new AuditEntrySource(
+                    log.Action,
+                    log.Message,
+                    log.UserId,
+                    log.UserName,
+                    log.DataJson,
+                    _presentations.Describe(log.Action, log.Level).Label))
+                .ToArray(),
+            _payloads,
             cancellationToken);
 
-        return parsed
-            .Select(item => new AdminLogRow(
-                item.Log.TimeUtc,
-                item.Log.Level,
-                item.Log.Action,
-                item.Log.UserId,
-                item.Log.UserName,
-                item.Log.Ip,
-                item.Log.Message,
-                item.Log.DataJson,
-                item.Log.Id,
-                item.Log.UserAgent,
-                item.Payload,
-                AuditActorNames.Resolve(
-                    FirstPresent(item.Payload.ActorUserId, item.Log.UserId),
-                    FirstPresent(item.Payload.ActorName, item.Log.UserName),
-                    byId,
-                    byUserName)))
+        return logs
+            .Select((log, index) => new AdminLogRow(
+                log.TimeUtc,
+                log.Level,
+                log.Action,
+                log.UserId,
+                log.UserName,
+                log.Ip,
+                log.Message,
+                log.DataJson,
+                log.Id,
+                log.UserAgent,
+                views[index].Payload,
+                views[index].Actor,
+                views[index].Detail,
+                views[index].Record,
+                views[index].RecordRef))
             .ToArray();
     }
-
-    private static string? FirstPresent(string? first, string? second) =>
-        string.IsNullOrWhiteSpace(first) ? second : first;
 
     private static IQueryable<AuditLog> ApplySort(
         IQueryable<AuditLog> query,
