@@ -230,6 +230,8 @@ The 19-tile "Administrative areas" grid and the duplicated metric cards go.
   types and offices. Project types, sponsoring units, line directorates and those two lists
   show "The order of this list has gaps or repeats." on their own page, with the same audited
   renumber for people who hold the Data checks permission (`IListOrderNoticeService`).
+  Fourth-review PR 4: the two repository lists sort equal numbers A to Z, so their checks now
+  accept any numbers and their pages no longer show that line.
 
 **Shipped in PR 8 (plain words):**
 - **One eyebrow per group.** `_AdminPageHeader` shows the page's sidebar group (People,

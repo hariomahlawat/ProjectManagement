@@ -39,11 +39,10 @@ A failure to write a `Viewed` or `Downloaded` row is logged and never blocks rea
 
 ## Order of the document types and offices
 
-Document types and offices are listed by their position (`SortOrder`, lowest first), then by name. Positions run 1, 2, 3…
+Document types and offices are listed by their order number (`SortOrder`, lowest first), then by name: equal numbers are listed A to Z. People type the number (-999 to 9999) in the Add and Edit dialog, and a delete leaves the other numbers alone.
 
-- A new type or office goes to the end of the list (highest position + 1) unless a position is typed. Before November 2026 the form defaulted to 100, so older lists may have every row at 100.
-- Admin **Data checks** (`/Admin/MasterData/Integrity`) checks both lists for gaps and repeats (`document-category-order`, `office-category-order`). Its renumber repair keeps the order on screen (position, then name, then Id), runs in one transaction and is recorded in the admin audit log as `MasterData.IntegrityOrderNormalised` with each row's old and new position.
-- When a list has gaps or repeats, its page says so in one line. People with the Data checks permission (`Admin.MasterData.Integrity.Manage`) can renumber it there; others are told an administrator can.
+- A new type or office goes to the end of the list (highest number + 1) unless a number is typed. Before November 2026 the form defaulted to 100, so older lists may have every row at 100; that is a valid order (A to Z).
+- Admin **Data checks** (`/Admin/MasterData/Integrity`) lists both checks (`document-category-order`, `office-category-order`) but, since fourth-review PR 4 (November 2026), accepts any numbers there, because equal and spaced numbers give a fixed order under the rule above. The list pages therefore never say "The order of this list has gaps or repeats." The renumber repair still exists behind each page's `RenumberOrder` handler: it keeps the order on screen (number, then name, then Id), writes 1, 2, 3…, runs in one transaction and is recorded in the admin audit log as `MasterData.IntegrityOrderNormalised` with each row's old and new number.
 
 ## Upload rules
 

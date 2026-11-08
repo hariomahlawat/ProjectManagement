@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -11,6 +12,7 @@ using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.MasterData;
 using ProjectManagement.Services.Admin.MasterData.ReferenceLists;
 using ProjectManagement.Services.Admin.Recovery;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Tests.Fakes;
 using Xunit;
 
@@ -168,6 +170,112 @@ public sealed class AdminSearchEscapingPostgresTests
                 .Rows.Single(item => item.Name == "PR12 Mastodon");
             var deleted = await Lists(check).DeleteAsync(ReferenceListKeys.SocialMediaPlatforms, unused.Id, Convert.FromBase64String(unusedRow.RowVersion));
             Assert.True(deleted.Succeeded, deleted.UserMessage);
+        });
+    }
+
+    // Fourth review, C3: on PostgreSQL the database reads the ids inside change-request payloads.
+    // Its count must match the in-memory reader it replaced, request by request, for every list
+    // that counts change requests, including payloads that reader skipped.
+    [AdminSearchPostgresFact]
+    public async Task ChangeRequestUsage_ReadInSql_MatchesTheInMemoryReader()
+    {
+        await WithDatabaseAsync(async db =>
+        {
+            db.Users.Add(new ApplicationUser { Id = "admin", UserName = "admin", NormalizedUserName = "ADMIN" });
+            var types = Enumerable.Range(1, 4).Select(i => new ProjectType { Name = $"Type {i}", SortOrder = i }).ToArray();
+            var units = Enumerable.Range(1, 3).Select(i => new SponsoringUnit { Name = $"Unit {i}", SortOrder = i, IsActive = true }).ToArray();
+            var lines = Enumerable.Range(1, 3).Select(i => new LineDirectorate { Name = $"Line {i}", SortOrder = i, IsActive = true }).ToArray();
+            var categories = Enumerable.Range(1, 3).Select(i => new ProjectCategory { Name = $"Category {i}", SortOrder = i }).ToArray();
+            var technical = Enumerable.Range(1, 3).Select(i => new TechnicalCategory { Name = $"Technical {i}", SortOrder = i }).ToArray();
+            db.AddRange(types);
+            db.AddRange(units);
+            db.AddRange(lines);
+            db.AddRange(categories);
+            db.AddRange(technical);
+            var project = new Project { Name = "Radar", CreatedByUserId = "admin", CreatedAt = DateTime.UtcNow };
+            db.Projects.Add(project);
+            await db.SaveChangesAsync();
+
+            ProjectMetaChangeRequest Request(string payload, Action<ProjectMetaChangeRequest>? original = null)
+            {
+                var request = new ProjectMetaChangeRequest { ProjectId = project.Id, ChangeType = "Meta", Payload = payload, OriginalName = "Radar", DecisionStatus = "Approved" };
+                original?.Invoke(request);
+                return request;
+            }
+
+            string Payload(ProjectMetaChangeRequestPayload payload) => System.Text.Json.JsonSerializer.Serialize(payload);
+
+            db.ProjectMetaChangeRequests.AddRange(
+                // Proposes one of each, as the app writes it.
+                Request(Payload(new ProjectMetaChangeRequestPayload
+                {
+                    Name = "Radar",
+                    ProjectTypeId = types[0].Id,
+                    SponsoringUnitId = units[0].Id,
+                    SponsoringLineDirectorateId = lines[0].Id,
+                    CategoryId = categories[0].Id,
+                    TechnicalCategoryId = technical[0].Id
+                }), r => r.TechnicalCategoryId = technical[0].Id),
+                // Started from one item and proposes another.
+                Request(Payload(new ProjectMetaChangeRequestPayload { Name = "Radar", ProjectTypeId = types[1].Id, SponsoringUnitId = units[1].Id }),
+                    r => { r.OriginalProjectTypeId = types[2].Id; r.OriginalSponsoringUnitId = units[2].Id; r.OriginalCategoryId = categories[1].Id; r.OriginalTechnicalCategoryId = technical[1].Id; r.OriginalSponsoringLineDirectorateId = lines[1].Id; }),
+                // Started from and proposes the same item: counted once.
+                Request(Payload(new ProjectMetaChangeRequestPayload { Name = "Radar", ProjectTypeId = types[1].Id, CategoryId = categories[1].Id, TechnicalCategoryId = technical[2].Id }),
+                    r => { r.OriginalProjectTypeId = types[1].Id; r.OriginalCategoryId = categories[1].Id; r.TechnicalCategoryId = technical[2].Id; r.OriginalTechnicalCategoryId = technical[2].Id; }),
+                // Nulls, a description that quotes a key, spaces after the colon.
+                Request(Payload(new ProjectMetaChangeRequestPayload { Name = "Radar", Description = $"\"projectTypeId\":{types[3].Id}", ProjectTypeId = null })),
+                Request($"{{ \"name\": \"Radar\", \"projectTypeId\" : {types[3].Id} }}"),
+                // Payloads the reader skipped: not JSON, a number as text, a number too big for an int.
+                Request("not json"),
+                Request($"{{\"name\":\"Radar\",\"projectTypeId\":\"{types[2].Id}\"}}"),
+                Request("{\"name\":\"Radar\",\"projectTypeId\":99999999999}"),
+                // The ends of the Int32 range count; one past them is skipped (Codex review on #3026).
+                Request("{\"name\":\"Radar\",\"projectTypeId\":2147483647}"),
+                Request("{\"name\":\"Radar\",\"projectTypeId\":1000000000}"),
+                Request("{\"name\":\"Radar\",\"projectTypeId\":-2147483648}"),
+                Request("{\"name\":\"Radar\",\"projectTypeId\":2147483648}"),
+                Request(string.Empty, r => r.OriginalProjectTypeId = types[0].Id));
+            await db.SaveChangesAsync();
+
+            var lists = new ReferenceListService(db, new NoAdminAudit(), new DenyAuthorization(), new Microsoft.AspNetCore.Http.HttpContextAccessor());
+            foreach (var definition in new[]
+            {
+                ReferenceListCatalog.ProjectTypes, ReferenceListCatalog.SponsoringUnits, ReferenceListCatalog.LineDirectorates,
+                ReferenceListCatalog.ProjectCategories, ReferenceListCatalog.TechnicalCategories
+            })
+            {
+                var source = ((KeyedReferenceListDefinition<int>)definition).UsedBy.Single(item => item.One == "change request");
+                var inSql = source.ReferencingIds!(db);
+                Assert.NotNull(inSql);
+                var sql = (await inSql!.ToListAsync()).GroupBy(id => id).ToDictionary(group => group.Key, group => group.Count());
+                var reader = (await source.LoadReferencingIds!(db, null, CancellationToken.None)).GroupBy(id => id).ToDictionary(group => group.Key, group => group.Count());
+                Assert.Equal(reader.OrderBy(pair => pair.Key), sql.OrderBy(pair => pair.Key));
+                Assert.NotEmpty(sql);
+
+                // The page counts through the same query: Used by, the In use tile and filter.
+                var page = await lists.GetPageAsync(definition.Key, new ReferenceListRequest(null, "inuse", 1, 100));
+                var used = page.Rows.ToDictionary(row => int.Parse(row.Id), row => row.UsedBy.Single(item => item.One == "change request").Count);
+                // Ids that are not in the list (the Int32 edge cases) have no row to show.
+                foreach (var pair in reader.Where(pair => page.Rows.Any(row => row.Id == pair.Key.ToString())))
+                {
+                    Assert.Equal(pair.Value, used[pair.Key]);
+                }
+            }
+
+            var typeSource = ReferenceListCatalog.ProjectTypes is KeyedReferenceListDefinition<int> keyed
+                ? keyed.UsedBy.Single(item => item.One == "change request")
+                : throw new InvalidOperationException();
+            var typeIds = await typeSource.ReferencingIds!(db)!.ToListAsync();
+            Assert.Contains(2147483647, typeIds);
+            Assert.Contains(1000000000, typeIds);
+            Assert.Contains(int.MinValue, typeIds);
+
+            // Spot checks against what a person reads in the requests above.
+            var typeUse = await lists.GetUsageAsync(ReferenceListKeys.ProjectTypes, types[1].Id);
+            Assert.Equal(2, typeUse.Single(item => item.One == "change request").Count);
+            Assert.Equal(1, (await lists.GetUsageAsync(ReferenceListKeys.ProjectTypes, types[3].Id)).Single(item => item.One == "change request").Count);
+            Assert.Equal(2, (await lists.GetUsageAsync(ReferenceListKeys.ProjectTypes, types[0].Id)).Single(item => item.One == "change request").Count);
+            Assert.Equal(1, (await lists.GetUsageAsync(ReferenceListKeys.TechnicalCategories, technical[2].Id)).Single(item => item.One == "change request").Count);
         });
     }
 

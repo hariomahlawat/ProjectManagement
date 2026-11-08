@@ -83,26 +83,44 @@ public sealed class ListOrderTests : IAsyncLifetime
         Assert.Equal(new[] { ("Alpha", 0), ("Charlie", 1), ("Bravo", 2), ("Delta", 3) }, await ProjectTypeOrderAsync());
     }
 
+    // Fourth review, U7: the repository lists say "Lower numbers come first; equal numbers are
+    // listed A to Z", so Data checks and the list page must not call equal or spaced numbers a
+    // problem. The lists kept 1, 2, 3 still flag repeats.
     [Fact]
-    public async Task DataChecks_FlagsRepositoryListsWithRepeatedPositions()
+    public async Task DataChecks_AcceptEqualAndSpacedNumbersOnTheRepositoryLists()
     {
         await using var db = CreateInMemoryDb();
         db.DocumentCategories.AddRange(
             new DocumentCategory { Id = 1, Name = "Letter", SortOrder = 100 },
             new DocumentCategory { Id = 2, Name = "Minutes", SortOrder = 100 });
         db.OfficeCategories.AddRange(
-            new OfficeCategory { Id = 1, Name = "North", SortOrder = 1 },
-            new OfficeCategory { Id = 2, Name = "South", SortOrder = 2 });
+            new OfficeCategory { Id = 1, Name = "North", SortOrder = 10 },
+            new OfficeCategory { Id = 2, Name = "South", SortOrder = 20 });
+        db.ProjectTypes.AddRange(
+            new ProjectType { Id = 1, Name = "Alpha", SortOrder = 0 },
+            new ProjectType { Id = 2, Name = "Bravo", SortOrder = 0 });
         await db.SaveChangesAsync();
+        var integrity = CreateIntegrity(db);
 
-        var snapshot = await CreateIntegrity(db).InspectAsync();
+        var snapshot = await integrity.InspectAsync();
 
-        var documents = snapshot.Checks.Single(check => check.Key == "document-category-order");
-        Assert.Equal(MasterDataIntegrityStatus.Warning, documents.Status);
-        Assert.True(documents.CanRepair);
-        Assert.Equal(2, documents.Findings.Count);
-        Assert.Equal(MasterDataIntegrityStatus.Healthy,
-            snapshot.Checks.Single(check => check.Key == "office-category-order").Status);
+        foreach (var key in new[] { "document-category-order", "office-category-order" })
+        {
+            var check = snapshot.Checks.Single(item => item.Key == key);
+            Assert.Equal(MasterDataIntegrityStatus.Healthy, check.Status);
+            Assert.Empty(check.Findings);
+            Assert.False(check.CanRepair);
+            Assert.Contains("equal numbers A to Z", check.Description);
+        }
+
+        var notices = new ListOrderNoticeService(integrity, new FixedAuthorization(true));
+        var user = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, "admin") }, "test"));
+        Assert.False((await notices.GetAsync(user, "document-category-order")).HasProblem);
+        Assert.False((await notices.GetAsync(user, "office-category-order")).HasProblem);
+
+        var types = snapshot.Checks.Single(item => item.Key == "project-type-order");
+        Assert.Equal(MasterDataIntegrityStatus.Warning, types.Status);
+        Assert.True((await notices.GetAsync(user, "project-type-order")).HasProblem);
     }
 
     [Fact]

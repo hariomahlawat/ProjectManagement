@@ -1,17 +1,8 @@
 @page
-@model ProjectManagement.Areas.Admin.Pages.Lookups.ProjectTypes.CreateModel
-@using ProjectManagement.Areas.Admin.Models
+@model ProjectManagement.Areas.Admin.Pages.Lookups.LookupItemModel
+@* One shared Add and Edit form for the three lookups (LookupPages.cs). *@
 @{
-    ViewData["Title"] = "Add project type";
-    var header = new AdminPageHeaderModel { Eyebrow = "Master data · Project types", Title = "Add project type", Description = "Create a controlled reference value for use in project records.", Icon = "bi-plus-circle", Actions = new[] { new AdminPageActionModel { Text = "Back to project types", Href = Url.Page("./Index"), Icon = "bi-arrow-left" } } };
+    ViewData["Title"] = Model.Heading;
 }
-<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
-<div class="admin-form-layout">
-<form method="post" class="admin-panel admin-form-panel" novalidate>
-<header class="admin-form-section__header"><span>01</span><div><h2>Reference details</h2><p>Use a clear name that can remain stable across reporting periods.</p></div></header>
-<div class="admin-form-section__body"><div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div><div class="admin-form-grid"><div class="admin-field"><label asp-for="Input.Name"></label><input asp-for="Input.Name" class="form-control" maxlength="200" autocomplete="off" autofocus /><span asp-validation-for="Input.Name" class="text-danger"></span></div></div><div class="admin-inline-note"><i class="bi bi-arrow-down-up" aria-hidden="true"></i><span>The new value is appended to the directory. Use the move controls after creation to adjust its position.</span></div></div>
-<footer class="admin-form-actions"><a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="bi bi-plus-lg"></i>Create project type</button></footer>
-</form>
-<aside class="admin-guidance-card"><span class="admin-guidance-card__icon"><i class="bi bi-tags"></i></span><h2>Reference-list governance</h2><p>Names must be unique. Once referenced by a project, deactivate the value instead of removing its historical meaning.</p></aside>
-</div>
+<partial name="~/Areas/Admin/Pages/Lookups/_LookupForm.cshtml" model="Model" />
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

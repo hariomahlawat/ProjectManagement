@@ -1,15 +1,3 @@
 @page
-@model ProjectManagement.Areas.Admin.Pages.Lookups.SponsoringUnits.DeactivateModel
-@using ProjectManagement.Areas.Admin.Models
-@{
-    var operation = Model.Restore ? "Reactivate" : "Deactivate";
-    ViewData["Title"] = $"{operation} sponsoring unit";
-    var header = new AdminPageHeaderModel { Eyebrow = "Master data · Controlled operation", Title = $"{operation} sponsoring unit", Description = Model.Restore ? "Return this reference value to operational forms." : "Remove this value from new selections while preserving historical references.", Icon = Model.Restore ? "bi-check-circle" : "bi-slash-circle", Actions = new[] { new AdminPageActionModel { Text = "Back to sponsoring units", Href = Url.Page("./Index"), Icon = "bi-arrow-left" } } };
-}
-<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
-<div class="admin-operation-layout"><form method="post" class="admin-panel admin-controlled-operation @(Model.Restore ? "admin-controlled-operation--success" : "admin-controlled-operation--warning")"><input asp-for="Id" type="hidden" /><input asp-for="Restore" type="hidden" /><input asp-for="RowVersion" type="hidden" />
-<header><span class="admin-controlled-operation__icon"><i class="bi @(Model.Restore ? "bi-check-circle" : "bi-slash-circle")"></i></span><div><div class="admin-panel__eyebrow">Sponsoring unit</div><h2>@Model.Name</h2><p>@(Model.Restore ? "This value will become available for new project records." : "Existing project references remain unchanged. The value will no longer be available for new selection.")</p></div></header>
-<div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div><dl class="admin-operation-facts"><div><dt>Current status</dt><dd>@(Model.IsActive ? "Active" : "Inactive")</dd></div><div><dt>Projects using value</dt><dd>@Model.ProjectCount</dd></div><div><dt>Historical references</dt><dd>Preserved</dd></div></dl>
-@if (!Model.Restore && Model.ProjectCount > 0) { <div class="admin-operation-notice"><i class="bi bi-exclamation-triangle"></i><div><strong>Value is in use</strong><span>@Model.ProjectCount project@(Model.ProjectCount == 1 ? "" : "s") will keep this value. It shows as inactive on their forms and they can still be saved with it, but it can no longer be chosen for other projects.</span></div></div> }
-<footer><a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a><button type="submit" class="btn @(Model.Restore ? "btn-primary" : "btn-warning")"><i class="bi @(Model.Restore ? "bi-check-lg" : "bi-slash-circle")"></i>@operation</button></footer>
-</form></div>
+@model ProjectManagement.Areas.Admin.Pages.Lookups.LookupDeactivateModel
+@* Old address: the list switches items off and on in place now. GET and POST return to the list (LookupPages.cs). *@
