@@ -175,6 +175,25 @@ No PR in this plan needs a database migration.
 - No migration. Routes, handlers and policies unchanged. Rollback: the previous release has the old pages; nothing stored changes.
 - Tests: `AdminSharedListsFinishedTests` (change requests read once per page; the in-place switch on each lookup, an old version and a missing state refused; the old Deactivate URL redirects and its old form still works; the one form adds, renames, refuses a duplicate name and 404s a missing item on each lookup; the pages keep their files and routes and share one model with the list policy). `ProjectMetaChangeDecisionServiceTests` (a deleted proposed item refused plainly, for all five lists, with nothing saved or audited). `ListOrderTests` (equal and spaced repository numbers accepted by Data checks and the list notice; project types still flagged). `AdminSearchEscapingPostgresTests` (the SQL count matches the in-memory reader).
 
+### PR 8 shipped: phones, round two
+
+**Shipped.** U3, U12 and U13. Layout and CSS only; routes, handlers and policies unchanged. No migration.
+
+- **Wide tables become cards (U3).** Audit log, Sign-in activity, ERP usage and Media sources' unavailable items use the shared `.admin-data-table--cards` pattern from the third review's PR 8, with a `data-label` on each cell. At 375 px each row is a card and the page is 375 px wide on all four (it was 1040 to 1168 px of table in a sideways scroller). Desktop tables are unchanged.
+  - Audit log: the event on top, then who (Actor) and when (Time), then severity and the record; an empty Affected record is hidden. The details button sits at the card's top right.
+  - Sign-in activity: the person on top with the ⋯ menu at the top right, then when, outcome, review reason and source.
+  - ERP usage: the person on top, then the other five figures.
+  - Media sources: the item on top, then source, status and last checked, and a full-width "Recheck source" button.
+- **Phone polish (U12).**
+  - The Users status tiles and System health's figure tiles wrap their labels instead of ending in "…" ("Must change password", "Some checks need a look").
+  - Home's "To look at": on phones the link sits under the text, so the text uses the full width.
+  - The bin tab strip has `position: relative`, so its screen-reader-only labels stay inside it. Restore deleted items measured 986 px wide without it and 375 px with it; all six bin pages measure 375 px.
+  - Found while measuring: ERP usage's heatmap had the same problem (862 px). Its scroller now has `position: relative` too.
+- **Media sources' header row (U13).** The header was sticky with a 72 px offset, but the table sits in a sideways scroller, so it stuck 72 px down inside that and covered the first row. The header is now a plain row (the list is paged).
+- **Missing brace.** `admin.css` lacked the `}` closing the third review's phone card block, so every rule after it (the Briefing decks list in Restore deleted items) applied only on phones. Fixed, and a test checks the braces balance.
+- Checked on screen at 375 px and 1440 px, light and dark: page width equals the viewport on every page above.
+- Tests: `AdminPhonesRoundTwoTests`.
+
 ## Owner actions still open
 - Mark Test HoD, Test Project Officer and the two Claude Review accounts as Test in Edit user → "Kind of account", so ERP usage stops counting them.
 - Review the "Restored but still hidden" list next to Repository trash, and reactivate the documents that should be visible.

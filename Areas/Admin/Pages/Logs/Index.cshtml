@@ -213,7 +213,7 @@
     else
     {
         <div class="admin-data-table-wrap">
-            <table class="admin-data-table admin-audit-table">
+            <table class="admin-data-table admin-data-table--cards admin-audit-table">
                 <thead>
                     <tr>
                         <th scope="col"><a class="admin-sort-link" href="@Model.SortUrl("Action")">Event <i class="bi bi-arrow-down-up" aria-hidden="true"></i></a></th>
@@ -241,13 +241,13 @@
                                     </span>
                                 </div>
                             </td>
-                            <td>
+                            <td data-label="Actor">
                                 <div class="admin-activity-value">
                                     <strong>@row.Actor</strong>
                                     <span>@(Model.ActorRoles(row) ?? presentation.Category)</span>
                                 </div>
                             </td>
-                            <td>
+                            <td data-label="Affected record">
                                 @if (!string.IsNullOrWhiteSpace(payload?.AffectedRecord))
                                 {
                                     <div class="admin-affected-record">
@@ -260,13 +260,13 @@
                                     </div>
                                 }
                             </td>
-                            <td>
+                            <td data-label="Time">
                                 <div class="admin-activity-value">
                                     <strong>@Model.FormatIst(row.TimeUtc)</strong>
                                     <span title="@client.RawUserAgent">@(string.IsNullOrWhiteSpace(row.Ip) ? client.Summary : row.Ip)</span>
                                 </div>
                             </td>
-                            <td><span class="admin-status-pill admin-status-pill--@presentation.Tone">@row.Level</span></td>
+                            <td data-label="Severity"><span class="admin-status-pill admin-status-pill--@presentation.Tone">@row.Level</span></td>
                             <td class="admin-data-table__actions">
                                 <button class="btn btn-sm btn-icon" type="button" data-admin-audit-detail="audit-detail-@row.Id" aria-label="View details for @presentation.Label">
                                     <i class="bi bi-eye" aria-hidden="true"></i>

@@ -236,7 +236,7 @@
     else
     {
         <div class="admin-data-table-wrap erp-usage-table-wrap">
-            <table class="admin-data-table erp-usage-table">
+            <table class="admin-data-table admin-data-table--cards erp-usage-table">
                 <thead>
                     <tr>
                         <th>User</th>
@@ -275,7 +275,7 @@
                                     }
                                 </div>
                             </td>
-                            <td>
+                            <td data-label="Today / last active">
                                 <div class="erp-usage-today @(user.UsedToday ? "is-active" : null)">
                                     <span><i class="bi @(user.UsedToday ? "bi-check-circle-fill" : "bi-dash-circle")"></i>@(user.UsedToday ? "Used today" : "No use today")</span>
                                     <small>@Model.FormatLastActive(user.LastActiveUtc)</small>
@@ -285,7 +285,7 @@
                                     }
                                 </div>
                             </td>
-                            <td>
+                            <td data-label="Active working days">
                                 <div class="erp-working-days">
                                     <strong>@user.ActiveWorkingDays of @user.AvailableWorkingDays</strong>
                                     <progress class="erp-working-days__progress"
@@ -299,18 +299,18 @@
                                     }
                                 </div>
                             </td>
-                            <td title="An estimate from the pages this person opened since counting began.">
+                            <td data-label="Approx. active time" title="An estimate from the pages this person opened since counting began.">
                                 <strong>@IndexModel.FormatApproximateMinutes(user.ApproximateActiveMinutes)</strong>
                                 <small class="d-block text-muted">Estimate</small>
                             </td>
-                            <td>
+                            <td data-label="Modules / actions">
                                 <div class="erp-module-list">@(user.Modules.Count == 0 ? "—" : string.Join(", ", user.Modules.Take(4)))</div>
                                 <div class="erp-action-counts">
                                     <small><strong>@user.OperationalActionCount</strong> operational</small>
                                     <small><strong>@user.AdministrativeActionCount</strong> administrative</small>
                                 </div>
                             </td>
-                            <td><span class="admin-status-pill admin-status-pill--@user.PostureTone">@user.Posture</span></td>
+                            <td data-label="How often"><span class="admin-status-pill admin-status-pill--@user.PostureTone">@user.Posture</span></td>
                         </tr>
                     }
                 </tbody>

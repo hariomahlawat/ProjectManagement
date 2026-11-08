@@ -249,7 +249,7 @@
     else
     {
         <div class="admin-data-table-wrap">
-            <table class="admin-data-table admin-monitoring-table">
+            <table class="admin-data-table admin-data-table--cards admin-monitoring-table">
                 <thead>
                     <tr>
                         <th scope="col">When</th>
@@ -266,13 +266,13 @@
                         var client = Model.ClientDescriptor(row.UserAgent);
                         var eventDate = DateOnly.FromDateTime(row.LocalTime.DateTime).ToString("yyyy-MM-dd");
                         <tr>
-                            <td>
+                            <td data-label="When">
                                 <div class="admin-activity-value">
                                     <strong>@Model.FormatIst(row.WhenUtc)</strong>
                                     <span>@row.LocalTime.DayOfWeek</span>
                                 </div>
                             </td>
-                            <td>
+                            <td class="admin-monitoring-table__who">
                                 <div class="admin-user-cell admin-user-cell--static">
                                     <span class="admin-user-avatar admin-user-avatar--sm" aria-hidden="true">@(string.IsNullOrWhiteSpace(row.DisplayName) ? "U" : row.DisplayName[..1].ToUpperInvariant())</span>
                                     <span class="admin-user-cell__copy">
@@ -281,7 +281,7 @@
                                     </span>
                                 </div>
                             </td>
-                            <td>
+                            <td data-label="Outcome">
                                 <span class="admin-status-pill admin-status-pill--@Model.OutcomeTone(row.Outcome)">
                                     <i class="bi @Model.OutcomeIcon(row.Outcome)" aria-hidden="true"></i>
                                     @Model.OutcomeLabel(row.Outcome)
@@ -291,11 +291,11 @@
                                     <span class="admin-occurrence-badge" title="The same thing happened @row.OccurrenceCount times close together">×@row.OccurrenceCount</span>
                                 }
                             </td>
-                            <td>
+                            <td data-label="Review reason">
                                 <span class="admin-status-pill admin-status-pill--@Model.ReviewTone(row.ReviewLevel)">@Model.ReviewLabel(row.ReviewLevel)</span>
                                 <span class="admin-review-reason">@row.ReviewReason</span>
                             </td>
-                            <td>
+                            <td data-label="Source">
                                 <div class="admin-source-summary">
                                     <strong>@(string.IsNullOrWhiteSpace(row.Ip) ? "IP unavailable" : row.Ip)</strong>
                                     <span title="@client.RawUserAgent">@client.Summary</span>
