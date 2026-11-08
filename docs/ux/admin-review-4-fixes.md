@@ -125,6 +125,11 @@ There were no High findings. The earlier fixes held, and no reviewer found a reg
 | 9 | **Plain words, round four, and the last figures.** The role-less account named and linked on Who has which role, with a "No role" option in the Users filter; the remaining formal wording in account forms, role capabilities, the bin dialogs ("Delete for good" everywhere), Restored but still hidden, ERP usage and Celebrations; the Sign-in activity caption, the Holidays filter words and System health's "not run yet" sentence | U6, U10, U11 (rest) |
 | 10 | **Small robustness.** The repository purge skips a document it cannot delete and carries on (logged, shown as failed); IST through `IAdminTimeService.FormatIst` in the three places; the PDF run summary's trim failure logged separately | C4, C6, minor |
 
+**PR 10 shipped (small robustness):**
+- **Repository purge:** a document whose row cannot be deleted is logged, its file is put back, and the run carries on with the rest (`DocRepoTrashPurgeService.RunExpiredPurgeAsync`). System health's last-run line says how many documents could not be removed and stay in the bin. The quarantine and concurrency steps are unchanged.
+- **One IST formatter:** Chat storage (the undo deadline now ends in "IST"), Missing files and Restored but still hidden use `IAdminTimeService.FormatIst`. That formatter, and System health's job times, now write the day without a leading zero ("7 Nov 2026, 14:05 IST"), as those three pages already did.
+- **PDF run summary:** a failure while removing old runs is logged as a trim failure, and no longer reported as "could not save".
+
 **Order:**
 - PRs 2, 3 and 10 touch separate code and can run in parallel with anything.
 - PR 5 follows PR 4, because both change the list forms.
