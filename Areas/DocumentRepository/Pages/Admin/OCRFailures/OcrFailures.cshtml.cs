@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
@@ -35,6 +36,27 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
 
         [TempData]
         public string? StatusMessage { get; set; }
+
+        /// <summary>The admin page header; "Read all again" shows while anything is listed.</summary>
+        public AdminPageHeaderModel Header => new()
+        {
+            Title = "Unreadable PDFs",
+            Description = "Documents whose text could not be read, so searching their contents finds nothing. They can still be opened and found by their details.",
+            Icon = "bi-file-earmark-break",
+            Actions = Result.TotalCount > 0
+                ? new[]
+                {
+                    new AdminPageActionModel
+                    {
+                        Text = "Read all again",
+                        Icon = "bi-arrow-repeat",
+                        Href = Url.Page(null, "RequeueAll"),
+                        IsPrimary = true,
+                        UsesPost = true
+                    }
+                }
+                : Array.Empty<AdminPageActionModel>()
+        };
 
         private string ActorUserId =>
             User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";

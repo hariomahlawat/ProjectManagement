@@ -10,15 +10,15 @@
     <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
 }
 
-<div class="library">
-    <header class="library-head">
-        <div class="library-head__text">
-            <a class="library-back" asp-page="/Documents/Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
-            <h1>Missing files</h1>
-            <p>Documents whose PDF is not in storage, so nobody can open or download them. Restore the file from backup to the storage path shown, or request the document's deletion.</p>
-            <p>System health shows the same check. Its result is reused for @Model.CacheMinutesText, here and on System health; use Check again after restoring files.</p>
-        </div>
-    </header>
+@* Shown inside Administration, like the Repository trash (docs/ux/admin-review-4-fixes.md, PR 6). *@
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+<div class="library docrepo-admin-page">
+    @if (!User.IsInRole(ProjectManagement.Configuration.RoleNames.Admin))
+    {
+        @* Administrators go back through the admin sidebar; others reach this page from the library. *@
+        <a class="library-back" asp-page="/Documents/Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the library</a>
+    }
 
     <section class="library-summary library-summary--compact" aria-label="Storage check">
         <div class="library-stat">

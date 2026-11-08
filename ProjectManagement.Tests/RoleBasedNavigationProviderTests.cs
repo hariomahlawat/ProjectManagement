@@ -54,10 +54,49 @@ public class RoleBasedNavigationProviderTests
         Assert.DoesNotContain(children, c => c.Text == "Project trash");
         Assert.DoesNotContain(children, c => c.Text == "Activity types");
 
+        // The Documents menu uses the same names as Administration (fourth review, PR 6).
+        var documents = navigation.Single(item => item.Text == "Documents").Children.ToList();
+        Assert.Contains(documents, c => c.Text == "Unreadable PDFs" && c.Page == "/Admin/OCRFailures/OcrFailures");
+        Assert.Contains(documents, c => c.Text == "Repository offices" && c.Page == "/Admin/OfficeCategories/Index");
+        Assert.Contains(documents, c => c.Text == "Repository document types" && c.Page == "/Admin/DocumentCategories/Index");
+        Assert.DoesNotContain(documents, c => c.Text is "OCR failures" or "Office categories" or "Document categories");
+
         var archivedProjects = children.Single(c => c.Text == "Archived projects");
         Assert.Equal("Admin", archivedProjects.Area);
         Assert.Equal("/Projects/Archived", archivedProjects.Page);
         Assert.Equal(AdminPolicies.RecoveryManage, archivedProjects.AuthorizationPolicy);
+    }
+
+    [Fact]
+    public async Task Navigation_OffersItProjectsBehindItsViewPolicy()
+    {
+        var user = new ApplicationUser
+        {
+            Id = "officer-2",
+            UserName = "officer2"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services);
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var allowed = CreateProvider(userManager, httpContextAccessor, new TestAuthorizationService(new[] { Policies.ItProjects.View }));
+        var itProjects = (await allowed.GetNavigationAsync()).Single(item => item.Text == "IT projects");
+        Assert.Equal("/ItProjects/Index", itProjects.Page);
+        Assert.Equal(Policies.ItProjects.View, itProjects.AuthorizationPolicy);
+        Assert.Equal("bi-pc-display", itProjects.Icon);
+
+        var denied = CreateProvider(userManager, httpContextAccessor, new TestAuthorizationService(Array.Empty<string>()));
+        Assert.DoesNotContain(await denied.GetNavigationAsync(), item => item.Text == "IT projects");
     }
 
     [Fact]
