@@ -1,0 +1,49 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.BriefingDecks.DeletedModel
+@{
+    ViewData["Title"] = "Deleted briefing decks";
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+@await Component.InvokeAsync("RestoreTabs", new { active = ProjectManagement.Services.Admin.Recovery.AdminRestoreTabKeys.BriefingDecks })
+
+<section class="admin-panel" aria-labelledby="deleted-decks-title">
+    <header class="admin-panel__header">
+        <div><h2 id="deleted-decks-title">Deleted briefing decks</h2></div>
+        @if (Model.Decks.Count > 0)
+        {
+            <span class="admin-panel__meta">@Model.Decks.Count @(Model.Decks.Count == 1 ? "deck" : "decks") · kept @Model.RetentionDays days</span>
+        }
+    </header>
+
+    @if (Model.Decks.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-easel", Title = "Nothing deleted", Description = $"Briefing decks deleted in Briefing Studio appear here for {Model.RetentionDays} days. After that they cannot be restored." })" />
+    }
+    else
+    {
+        <ul class="admin-deck-recovery-list" data-deleted-decks>
+            @foreach (var deck in Model.Decks)
+            {
+                <li class="admin-deck-recovery-list__item">
+                    <span class="admin-deck-recovery-list__icon" aria-hidden="true"><i class="bi bi-easel"></i></span>
+                    <div class="admin-deck-recovery-list__copy">
+                        <strong title="@deck.Name">@deck.Name</strong>
+                        <small>@deck.ProjectCount @(deck.ProjectCount == 1 ? "project" : "projects")@(deck.OwnerDisplay is null ? null : $" · made by {deck.OwnerDisplay}")</small>
+                        <small>Deleted @Model.FormatTime(deck.DeletedAtUtc) by @deck.DeletedByDisplay</small>
+                    </div>
+                    <div class="admin-deck-recovery-list__until">
+                        <span>Can be restored until</span>
+                        <strong>@Model.FormatDate(deck.RestorableUntilUtc)</strong>
+                    </div>
+                    <form method="post" asp-page-handler="Restore" class="admin-deck-recovery-list__action">
+                        <input type="hidden" name="deckId" value="@deck.Id" />
+                        <button type="submit" class="btn btn-sm btn-outline-primary" aria-label="Restore @deck.Name"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Restore</button>
+                    </form>
+                </li>
+            }
+        </ul>
+    }
+</section>

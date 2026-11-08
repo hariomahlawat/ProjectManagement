@@ -640,6 +640,7 @@ builder.Services.AddScoped<IAdminExportAuditService, AdminExportAuditService>();
 builder.Services.AddScoped<IAdminHierarchyValidationService, AdminHierarchyValidationService>();
 builder.Services.AddScoped<IAdminMasterDataCommandService, AdminMasterDataCommandService>();
 builder.Services.AddScoped<IMasterDataAdministrationQueryService, MasterDataAdministrationQueryService>();
+builder.Services.AddScoped<ProjectManagement.Services.Admin.MasterData.ReferenceLists.IReferenceListService, ProjectManagement.Services.Admin.MasterData.ReferenceLists.ReferenceListService>();
 builder.Services.AddScoped<IAdminMasterDataIntegrityService, AdminMasterDataIntegrityService>();
 builder.Services.AddScoped<IListOrderNoticeService, ListOrderNoticeService>();
 builder.Services.AddScoped<ICelebrationAdministrationService, CelebrationAdministrationService>();
