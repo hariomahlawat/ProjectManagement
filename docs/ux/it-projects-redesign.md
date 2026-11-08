@@ -79,12 +79,16 @@ old case sets it to the entry day, which is why it is shown as "recorded", not a
 These go on the existing board and details view models (one `ItProjectTiming` projection), with
 unit tests for each rule including missing dates and skipped stages.
 
-## Owner decisions needed
+## Owner decisions (8 Nov 2026)
 
-1. **Default sort** of the register: keep stage order (approved 8 Nov) with Longest wait as an
-   option, or make Longest wait the default? The phone mockup uses Longest wait.
-2. **Stage completions in the remarks feed**: show them in line (mockup) or keep remarks alone?
-3. **Wording**: "Delivered" instead of "Completed", "Update stages" instead of "Stages".
+| Topic | Decision |
+| --- | --- |
+| Design | Mockup approved |
+| Time figure | Stage dates first; recorded move as a light fallback; never borrow an earlier stage's date (rule above) |
+| Ageing bands | Up to 30 days normal, 31–60 amber, over 60 red; one rule for every stage |
+| Register order | Stage order by default, Longest wait as an option (the phone list uses Longest wait) |
+| Remarks feed | Stage completions shown in line with the remarks |
+| Wording | "Delivered" instead of "Completed"; "Update stages" instead of "Stages" |
 
 ## Plan (small PRs, each merged when Codex and CI are clean)
 
