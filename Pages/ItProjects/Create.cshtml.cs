@@ -101,8 +101,8 @@ public class CreateModel : PageModel
             return Page();
         }
 
-        TempData.ToastSuccess($"IT project \"{Input.Title.Trim()}\" created. It starts at IT PPP / IPA.");
-        return RedirectToPage("./Index", new { scope = "active" });
+        TempData.ToastSuccess($"IT project \"{Input.Title.Trim()}\" created. Tick the stages it has already reached.");
+        return RedirectToPage("./Details", new { id, open = DetailsModel.OpenStages });
     }
 
     private int CurrentFinancialYearStart()

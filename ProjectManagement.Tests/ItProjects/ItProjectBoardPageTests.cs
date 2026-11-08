@@ -202,8 +202,8 @@ public class ItProjectBoardPageTests
         var result = await page.OnPostAsync(CancellationToken.None);
 
         var redirect = Assert.IsType<RedirectToPageResult>(result);
-        Assert.Equal("./Index", redirect.PageName);
-        Assert.Equal("active", redirect.RouteValues!["scope"]);
+        Assert.Equal("./Details", redirect.PageName);
+        Assert.Equal(DetailsModel.OpenStages, redirect.RouteValues!["open"]);
         Assert.Contains("created", (string)page.TempData["ToastSuccess"]!);
         await using var context = db.NewContext();
         var project = Assert.Single(context.ItProjects.ToList());
