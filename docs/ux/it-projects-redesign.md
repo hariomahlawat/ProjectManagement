@@ -79,6 +79,29 @@ old case sets it to the entry day, which is why it is shown as "recorded", not a
 These go on the existing board and details view models (one `ItProjectTiming` projection), with
 unit tests for each rule including missing dates and skipped stages.
 
+## Year type: New, CL and CF (owner decision 8 Nov 2026)
+
+A case that is not finished in its own financial year carries over into the next one, and its
+type for that year changes.
+
+| Type | When |
+| --- | --- |
+| **New** | The year is the case's own IT PPP financial year |
+| **CL** (committed liability) | A later year, and the SO was placed: the SO stage was complete before that year began (an SO marked complete without a date counts as placed) |
+| **CF** (carried forward) | A later year, and the SO was not yet placed |
+
+- The type is **derived per year**, never typed in on 1 April: the case keeps its own financial
+  year, and each later year it is live in gives it a type. Looking back at 2025-26 shows what was
+  New or carried in that year.
+- A case is **live in a year** from its own financial year up to the current one, until it is
+  delivered (Delivery and ATP date) or dropped (dropped date) before that year begins. A delivery
+  without a date keeps the case in its own year only.
+- **Change by hand**: the ITO, HoD or Admin can set the type of one case for one year (New, CL or
+  CF), or reset it to the automatic type. Stored as `ItProjectYearTypeOverride` (one row per case
+  and year), audited as `ItProjects.YearTypeChanged`. The page marks a manual type.
+- The board's **financial year filter** shows every case live in that year, each with its type
+  chip, and the figure tiles split by type ("8 in progress · 3 New · 2 CL · 3 CF").
+
 ## Owner decisions (8 Nov 2026)
 
 | Topic | Decision |
@@ -89,17 +112,21 @@ unit tests for each rule including missing dates and skipped stages.
 | Register order | Stage order by default, Longest wait as an option (the phone list uses Longest wait) |
 | Remarks feed | Stage completions shown in line with the remarks |
 | Wording | "Delivered" instead of "Completed"; "Update stages" instead of "Stages" |
+| Year type | New / CL / CF per year as above, CL when the SO is placed, changeable by hand |
 
 ## Plan (small PRs, each merged when Codex and CI are clean)
+
+PR 1 (#3036) is merged. The year type was added on 8 Nov as PR 2, so the later PRs moved down one.
 
 | PR | Content | Tests |
 | --- | --- | --- |
 | 1 | `StageMovedAtUtc` column and its setting in the stage save; `ItProjectTiming` in the read service: time figure with its fallbacks, gaps, elapsed, waiting longest, dates missing, on order, ageing band | rule tests for each fallback (previous stage dated, undated with and without a recorded move, earlier date not borrowed), skipped and dropped; migration manifest and tail test |
-| 2 | Board header with FY segmented control and the four figure tiles | figures from the read model, FY filter links |
-| 3 | "Where the cases are now" pipeline card | counts and ordering per stage, empty stages, overflow ("+3 more") |
-| 4 | Register: track rows, Now column, age badges, legend, narrow optional stages, one filter bar, sort, "Dates missing" link for Manage | sort orders, band order, search still works |
-| 5 | Project page hero and now strip; Record card takes Mark dropped and Delete; "At a glance" removed | page renders for Manage and read-only users |
-| 6 | Journey: gaps above the line and the where-the-time-went bar | gap text with missing dates |
-| 7 | Remarks and history feed with stage completions in line; Documents card polish | feed ordering, folded earlier stages |
-| 8 | Stage editor as a vertical stepper with live consequence summary (reuses the Preview handler) | summary text, no change to the rules |
-| 9 | Phones and dark theme pass for all three screens | layout at 375 px, theme coverage |
+| 2 | Year type: `ItProjectYearTypes` rule, `ItProjectYearTypeOverride` table and migration, set/reset command with audit, read methods | rule per year (own year, SO placed or not, undated SO, delivered or dropped before the year), override wins and resets, Manage only, migration manifest |
+| 3 | Board header with FY segmented control (cases live in the year, type chips) and the four figure tiles split by type | figures from the read model, FY filter links |
+| 4 | "Where the cases are now" pipeline card | counts and ordering per stage, empty stages, overflow ("+3 more") |
+| 5 | Register: track rows, Now column, age badges, legend, narrow optional stages, one filter bar, sort, "Dates missing" link for Manage | sort orders, band order, search still works |
+| 6 | Project page hero and now strip with the year type chip and its change control; Record card takes Mark dropped and Delete; "At a glance" removed | page renders for Manage and read-only users |
+| 7 | Journey: gaps above the line and the where-the-time-went bar | gap text with missing dates |
+| 8 | Remarks and history feed with stage completions in line; Documents card polish | feed ordering, folded earlier stages |
+| 9 | Stage editor as a vertical stepper with live consequence summary (reuses the Preview handler) | summary text, no change to the rules |
+| 10 | Phones and dark theme pass for all three screens | layout at 375 px, theme coverage |

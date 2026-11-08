@@ -616,6 +616,40 @@ public class ItProjectDetailsPageTests
         Assert.IsType<FileStreamResult>(await viewer.OnGetAttachmentAsync(id, attachmentId, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task YearType_ViewersCannotChangeIt()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync(fy: 2025);
+        var page = Page(db, ItProjectTestDb.User("po-1", RoleNames.ProjectOfficer));
+        await page.OnGetAsync(id, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(await page.OnPostYearTypeAsync(id, 2026, "CL", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task YearType_ManageSetsItAndThePageShowsEveryLiveYear()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync(fy: 2025);
+        var page = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        await page.OnGetAsync(id, CancellationToken.None);
+        Assert.Equal(new[] { "New", "CF" }, page.YearTypes.Select(type => type.Code));
+
+        Assert.IsType<RedirectToPageResult>(await page.OnPostYearTypeAsync(id, 2026, "CL", CancellationToken.None));
+
+        var reloaded = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await reloaded.OnGetAsync(id, CancellationToken.None);
+        var year = reloaded.YearTypes.Single(type => type.FinancialYearStart == 2026);
+        Assert.Equal("CL", year.Code);
+        Assert.True(year.IsManual);
+
+        Assert.IsType<RedirectToPageResult>(await reloaded.OnPostYearTypeAsync(id, 2026, "auto", CancellationToken.None));
+        var reset = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await reset.OnGetAsync(id, CancellationToken.None);
+        Assert.False(reset.YearTypes.Single(type => type.FinancialYearStart == 2026).IsManual);
+    }
+
     private static DetailsModel Page(ItProjectTestDb db, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext { User = user };

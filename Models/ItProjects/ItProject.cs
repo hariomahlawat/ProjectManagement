@@ -62,4 +62,7 @@ public class ItProject
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public ICollection<ItProjectStage> Stages { get; set; } = new List<ItProjectStage>();
+
+    /// <summary>Year types set by hand; every other live year uses the automatic type.</summary>
+    public ICollection<ItProjectYearTypeOverride> YearTypeOverrides { get; set; } = new List<ItProjectYearTypeOverride>();
 }

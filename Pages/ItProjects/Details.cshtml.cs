@@ -57,6 +57,9 @@ public class DetailsModel : PageModel
 
     public IReadOnlyList<ItProjectAttachmentView> Attachments { get; private set; } = Array.Empty<ItProjectAttachmentView>();
 
+    /// <summary>New / CL / CF in every financial year the project counts in, oldest first.</summary>
+    public IReadOnlyList<ItProjectYearTypeInfo> YearTypes { get; private set; } = Array.Empty<ItProjectYearTypeInfo>();
+
     /// <summary>The file chosen in the attachments card.</summary>
     [BindProperty]
     public IFormFile? AttachmentFile { get; set; }
@@ -602,6 +605,49 @@ public class DetailsModel : PageModel
         return RedirectToPage(new { id });
     }
 
+    public async Task<IActionResult> OnPostYearTypeAsync(int id, int fy, string? yearType, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (!CanManage)
+        {
+            return Forbid();
+        }
+
+        ItProjectYearType? type;
+        switch ((yearType ?? string.Empty).Trim().ToUpperInvariant())
+        {
+            case "NEW": type = ItProjectYearType.New; break;
+            case "CL": type = ItProjectYearType.CommittedLiability; break;
+            case "CF": type = ItProjectYearType.CarriedForward; break;
+            case "":
+            case "AUTO": type = null; break;
+            default:
+                TempData.ToastError("Choose New, CL or CF.");
+                return RedirectToPage(new { id });
+        }
+
+        var result = await _commands.SetYearTypeAsync(id, fy, type, DecodeRowVersion(RowVersion), Actor(), cancellationToken);
+        if (!result.Succeeded)
+        {
+            if (result.ConcurrencyConflict)
+            {
+                return Failed(result, null);
+            }
+
+            TempData.ToastError(string.Join(" ", result.Errors));
+            return RedirectToPage(new { id });
+        }
+
+        TempData.ToastSuccess(type is null
+            ? $"FY {FinancialYearHelper.Format(fy)} is back to the automatic type."
+            : $"FY {FinancialYearHelper.Format(fy)} type saved.");
+        return RedirectToPage(new { id });
+    }
+
     public async Task<IActionResult> OnPostReinstateAsync(int id, CancellationToken cancellationToken)
     {
         if (!await LoadAsync(id, cancellationToken))
@@ -687,6 +733,7 @@ public class DetailsModel : PageModel
         UpdatedByName = project.UpdatedByUserId is { } userId
             ? await _reads.GetUserDisplayNameAsync(userId, cancellationToken)
             : null;
+        YearTypes = _reads.GetYearTypes(project);
         Remarks = await _remarks.ListAsync(id, cancellationToken);
         Attachments = await _attachments.ListAsync(id, cancellationToken);
         CanRemark = ItProjectAccess.CanRemark(User, project);

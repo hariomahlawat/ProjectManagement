@@ -84,6 +84,9 @@ public interface IItProjectReadService
     /// <summary>The time facts of a project loaded by <see cref="GetAsync"/>, against today in IST.</summary>
     ItProjectTiming GetTiming(ItProject project);
 
+    /// <summary>New / CL / CF in every financial year the project counts in, oldest first.</summary>
+    IReadOnlyList<ItProjectYearTypeInfo> GetYearTypes(ItProject project);
+
     /// <summary>A user's display name (full name, else user name) for "updated by", or null when unknown.</summary>
     Task<string?> GetUserDisplayNameAsync(string userId, CancellationToken cancellationToken = default);
 }

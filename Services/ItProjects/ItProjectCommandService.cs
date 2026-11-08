@@ -242,6 +242,73 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         return await CommitAsync(project, rowVersion, actor, "ItProjects.Reinstated", data, cancellationToken);
     }
 
+    public async Task<ItProjectCommandResult> SetYearTypeAsync(int id, int financialYearStart, ItProjectYearType? type, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+    {
+        EnsureActor(actor);
+        if (type is { } requested && !Enum.IsDefined(requested))
+        {
+            return ItProjectCommandResult.Fail("Choose New, CL or CF.");
+        }
+
+        var project = await LoadForWriteAsync(id, cancellationToken);
+        if (project is null)
+        {
+            return ItProjectCommandResult.Fail(NotFoundMessage);
+        }
+
+        var currentYear = ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow);
+        var before = ItProjectYearTypes.Resolve(project, financialYearStart, currentYear);
+        if (before is null)
+        {
+            return ItProjectCommandResult.Fail($"This IT project does not count in FY {FinancialYearHelper.Format(financialYearStart)}.");
+        }
+
+        var existing = project.YearTypeOverrides.FirstOrDefault(item => item.FinancialYearStart == financialYearStart);
+
+        // Choosing the automatic type, or Reset, removes the hand-set row: there is nothing to keep.
+        var manual = type is { } chosen && chosen != before.AutomaticType ? chosen : (ItProjectYearType?)null;
+        if (manual is null && existing is null)
+        {
+            return ItProjectCommandResult.Ok();
+        }
+
+        if (manual is { } value && existing?.Type == value)
+        {
+            return ItProjectCommandResult.Ok();
+        }
+
+        if (manual is null)
+        {
+            project.YearTypeOverrides.Remove(existing!);
+            _db.ItProjectYearTypeOverrides.Remove(existing!);
+        }
+        else if (existing is null)
+        {
+            project.YearTypeOverrides.Add(new ItProjectYearTypeOverride
+            {
+                FinancialYearStart = financialYearStart,
+                Type = manual.Value,
+                SetByUserId = actor.UserId,
+                SetAtUtc = UtcNow()
+            });
+        }
+        else
+        {
+            existing.Type = manual.Value;
+            existing.SetByUserId = actor.UserId;
+            existing.SetAtUtc = UtcNow();
+        }
+
+        var after = manual ?? before.AutomaticType;
+        return await CommitAsync(project, rowVersion, actor, "ItProjects.YearTypeChanged", new Dictionary<string, string?>
+        {
+            ["FinancialYear"] = FinancialYearHelper.Format(financialYearStart),
+            ["Before"] = ItProjectYearTypes.Code(before.Type) + (before.IsManual ? " (set by hand)" : " (automatic)"),
+            ["After"] = ItProjectYearTypes.Code(after) + (manual is null ? " (automatic)" : " (set by hand)"),
+            ["Automatic"] = ItProjectYearTypes.Code(before.AutomaticType)
+        }, cancellationToken);
+    }
+
     public async Task<ItProjectCommandResult> DeleteAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
@@ -305,6 +372,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
     private Task<ItProject?> LoadForWriteAsync(int id, CancellationToken cancellationToken)
         => _db.ItProjects
             .Include(project => project.Stages)
+            .Include(project => project.YearTypeOverrides)
             .FirstOrDefaultAsync(project => project.Id == id && !project.IsDeleted, cancellationToken);
 
     private async Task<ItProjectCommandResult> CommitAsync(

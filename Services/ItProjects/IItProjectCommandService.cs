@@ -45,6 +45,12 @@ public interface IItProjectCommandService
 
     Task<ItProjectCommandResult> ReinstateAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Sets the New / CL / CF type of the project for one financial year it counts in, or resets it
+    /// to the automatic type when <paramref name="type"/> is null or equals the automatic type.
+    /// </summary>
+    Task<ItProjectCommandResult> SetYearTypeAsync(int id, int financialYearStart, ItProjectYearType? type, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
+
     /// <summary>Soft delete. The row and its stages stay for audit and a later restore.</summary>
     Task<ItProjectCommandResult> DeleteAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
 }

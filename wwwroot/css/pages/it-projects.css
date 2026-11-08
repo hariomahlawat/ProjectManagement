@@ -1327,3 +1327,80 @@ a.itp-tile--selected:hover {
         background: transparent;
     }
 }
+
+/* ---- year type (New / CL / CF per financial year) ---------------------------------------- */
+
+.itp-years__title {
+    margin: .9rem 0 .4rem;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--pm-text-muted);
+}
+
+.itp-years {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+}
+
+.itp-years__row {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .45rem;
+    font-size: var(--pm-font-size-sm);
+}
+
+.itp-years__fy {
+    color: var(--pm-text-strong);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.itp-years__type {
+    display: inline-flex;
+    align-items: center;
+    height: 1.35rem;
+    padding: 0 .5rem;
+    border-radius: 999px;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 700;
+    background: var(--pm-surface);
+    color: var(--pm-text-secondary);
+}
+
+.itp-years__type--new {
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+}
+
+.itp-years__type--cl {
+    background: var(--pm-warning-soft-bg);
+    color: var(--pm-warning-strong);
+}
+
+.itp-years__type--cf {
+    background: var(--pm-surface-muted);
+    color: var(--pm-text-strong);
+}
+
+.itp-years__how {
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
+.itp-years__how {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.itp-years__form .form-select {
+    width: auto;
+    border-radius: 8px;
+}
