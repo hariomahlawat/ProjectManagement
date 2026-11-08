@@ -36,24 +36,6 @@ public sealed class SocialMediaPlatformService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<SocialMediaPlatformSummary>> GetSummariesAsync(CancellationToken cancellationToken)
-    {
-        return await _db.SocialMediaPlatforms.AsNoTracking()
-            .OrderBy(x => x.Name)
-            .Select(x => new SocialMediaPlatformSummary(
-                x.Id,
-                x.Name,
-                x.Description,
-                x.IsActive,
-                x.CreatedAtUtc,
-                x.CreatedByUserId,
-                x.LastModifiedAtUtc,
-                x.LastModifiedByUserId,
-                x.RowVersion,
-                _db.SocialMediaEvents.Count(e => e.SocialMediaPlatformId == x.Id)))
-            .ToListAsync(cancellationToken);
-    }
-
     public Task<SocialMediaPlatform?> FindAsync(Guid id, CancellationToken cancellationToken)
     {
         return _db.SocialMediaPlatforms.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
@@ -153,42 +135,6 @@ public sealed class SocialMediaPlatformService
         return await UpdateAsync(id, existing.Name, existing.Description, enable, rowVersion, modifiedByUserId, cancellationToken);
     }
 
-    public async Task<SocialMediaPlatformDeletionResult> DeleteAsync(Guid id, byte[] rowVersion, string performedByUserId, CancellationToken cancellationToken)
-    {
-        var entity = await _db.SocialMediaPlatforms.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-        if (entity == null)
-        {
-            return SocialMediaPlatformDeletionResult.NotFound();
-        }
-
-        // Events keep the platform they were logged on (the foreign key restricts deletes), so a
-        // platform that is in use can only be deactivated (docs/ux/admin-review-2-fixes.md, PR 10).
-        if (await _db.SocialMediaEvents.AnyAsync(e => e.SocialMediaPlatformId == id, cancellationToken))
-        {
-            return SocialMediaPlatformDeletionResult.InUse();
-        }
-
-        _db.Entry(entity).Property(x => x.RowVersion).OriginalValue = rowVersion;
-        _db.SocialMediaPlatforms.Remove(entity);
-
-        try
-        {
-            await _db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return SocialMediaPlatformDeletionResult.Concurrency();
-        }
-        catch (DbUpdateException)
-        {
-            // An event was logged on it between the check and the delete.
-            _db.ChangeTracker.Clear();
-            return SocialMediaPlatformDeletionResult.InUse();
-        }
-
-        await Audit.Events.SocialMediaPlatformDeleted(id, performedByUserId).WriteAsync(_audit);
-        return SocialMediaPlatformDeletionResult.Success();
-    }
 }
 
 public sealed record SocialMediaPlatformMutationResult(SocialMediaPlatformMutationOutcome Outcome, SocialMediaPlatform? Entity, IReadOnlyList<string> Errors)
@@ -217,34 +163,3 @@ public enum SocialMediaPlatformMutationOutcome
     Invalid,
     ConcurrencyConflict
 }
-
-public sealed record SocialMediaPlatformDeletionResult(SocialMediaPlatformDeletionOutcome Outcome)
-{
-    public static SocialMediaPlatformDeletionResult Success() => new(SocialMediaPlatformDeletionOutcome.Success);
-
-    public static SocialMediaPlatformDeletionResult NotFound() => new(SocialMediaPlatformDeletionOutcome.NotFound);
-
-    public static SocialMediaPlatformDeletionResult Concurrency() => new(SocialMediaPlatformDeletionOutcome.ConcurrencyConflict);
-
-    public static SocialMediaPlatformDeletionResult InUse() => new(SocialMediaPlatformDeletionOutcome.InUse);
-}
-
-public enum SocialMediaPlatformDeletionOutcome
-{
-    Success,
-    NotFound,
-    ConcurrencyConflict,
-    InUse
-}
-
-public sealed record SocialMediaPlatformSummary(
-    Guid Id,
-    string Name,
-    string? Description,
-    bool IsActive,
-    DateTimeOffset CreatedAtUtc,
-    string CreatedByUserId,
-    DateTimeOffset? LastModifiedAtUtc,
-    string? LastModifiedByUserId,
-    byte[] RowVersion,
-    int EventCount = 0);

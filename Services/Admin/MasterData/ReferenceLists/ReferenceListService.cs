@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -33,8 +34,12 @@ public sealed record ReferenceListUsage(string One, string Many, int Count)
     public string Text => $"{Count} {(Count == 1 ? One : Many)}";
 }
 
+/// <summary>
+/// One row of a list. <see cref="Id"/> is the item's key as a form posts it: a number for most
+/// lists, a Guid for the social media lists.
+/// </summary>
 public sealed record ReferenceListRow(
-    int Id,
+    string Id,
     string Name,
     int SortOrder,
     bool IsActive,
@@ -86,6 +91,9 @@ public interface IReferenceListService
     /// <summary>What uses one item, per kind of record.</summary>
     Task<IReadOnlyList<ReferenceListUsage>> GetUsageAsync(string key, int id, CancellationToken cancellationToken = default);
 
+    /// <summary>What uses one item of a list keyed by Guid (the social media lists).</summary>
+    Task<IReadOnlyList<ReferenceListUsage>> GetUsageAsync(string key, Guid id, CancellationToken cancellationToken = default);
+
     /// <summary>One item as the list shows it (its parents and use included), or null.</summary>
     Task<ReferenceListRow?> GetItemAsync(string key, int id, CancellationToken cancellationToken = default);
 
@@ -94,6 +102,27 @@ public interface IReferenceListService
     /// database's foreign keys stay as the backstop for a record the check does not know.
     /// </summary>
     Task<AdminOperationResult> DeleteAsync(string key, int id, byte[] rowVersion, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes an unused item of a list keyed by Guid (the social media lists).</summary>
+    Task<AdminOperationResult> DeleteAsync(string key, Guid id, byte[] rowVersion, CancellationToken cancellationToken = default);
+}
+
+/// <summary>What a list's rule needs from the application, handed to <see cref="ReferenceListDefinition.CreateEngine"/>.</summary>
+internal sealed record ReferenceListServices(
+    ApplicationDbContext Db,
+    IAdminAuditService Audit,
+    IAuthorizationService Authorization,
+    IHttpContextAccessor HttpContextAccessor,
+    IServiceProvider? Services);
+
+/// <summary>One list's rule, whatever its key.</summary>
+internal interface IReferenceListEngine
+{
+    Task<ReferenceListPage> GetPageAsync(ReferenceListRequest request, CancellationToken cancellationToken);
+    Task<ReferenceListTiles> GetTilesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<ReferenceListUsage>> GetUsageAsync(string id, CancellationToken cancellationToken);
+    Task<ReferenceListRow?> GetItemAsync(string id, CancellationToken cancellationToken);
+    Task<AdminOperationResult> DeleteAsync(string id, byte[] rowVersion, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -102,29 +131,81 @@ public interface IReferenceListService
 /// </summary>
 public sealed class ReferenceListService : IReferenceListService
 {
-    private const int MaximumPageSize = 100;
-
-    private readonly ApplicationDbContext _db;
-    private readonly IAdminAuditService _audit;
-    private readonly IAuthorizationService _authorization;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ReferenceListServices _services;
 
     public ReferenceListService(
         ApplicationDbContext db,
         IAdminAuditService audit,
         IAuthorizationService authorization,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        IServiceProvider? services = null)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
-        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
-        _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
-        _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
+        _services = new ReferenceListServices(
+            db ?? throw new ArgumentNullException(nameof(db)),
+            audit ?? throw new ArgumentNullException(nameof(audit)),
+            authorization ?? throw new ArgumentNullException(nameof(authorization)),
+            httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor)),
+            services);
     }
 
-    public async Task<ReferenceListPage> GetPageAsync(string key, ReferenceListRequest request, CancellationToken cancellationToken = default)
+    public Task<ReferenceListPage> GetPageAsync(string key, ReferenceListRequest request, CancellationToken cancellationToken = default) =>
+        Engine(key).GetPageAsync(request, cancellationToken);
+
+    public Task<ReferenceListTiles> GetTilesAsync(string key, CancellationToken cancellationToken = default) =>
+        Engine(key).GetTilesAsync(cancellationToken);
+
+    public Task<IReadOnlyList<ReferenceListUsage>> GetUsageAsync(string key, int id, CancellationToken cancellationToken = default) =>
+        Engine(key).GetUsageAsync(id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+
+    public Task<IReadOnlyList<ReferenceListUsage>> GetUsageAsync(string key, Guid id, CancellationToken cancellationToken = default) =>
+        Engine(key).GetUsageAsync(id.ToString(), cancellationToken);
+
+    public Task<ReferenceListRow?> GetItemAsync(string key, int id, CancellationToken cancellationToken = default) =>
+        Engine(key).GetItemAsync(id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+
+    public Task<AdminOperationResult> DeleteAsync(string key, int id, byte[] rowVersion, CancellationToken cancellationToken = default) =>
+        DeleteCoreAsync(key, id.ToString(CultureInfo.InvariantCulture), rowVersion, cancellationToken);
+
+    public Task<AdminOperationResult> DeleteAsync(string key, Guid id, byte[] rowVersion, CancellationToken cancellationToken = default) =>
+        DeleteCoreAsync(key, id.ToString(), rowVersion, cancellationToken);
+
+    private Task<AdminOperationResult> DeleteCoreAsync(string key, string id, byte[] rowVersion, CancellationToken cancellationToken)
     {
-        var definition = Require(key);
-        var tiles = await CountTilesAsync(definition, cancellationToken);
+        var definition = ReferenceListCatalog.Find(key);
+        return definition is null
+            ? Task.FromResult(AdminOperationResult.Failure("That list was not found.", "NotFound"))
+            : definition.CreateEngine(_services).DeleteAsync(id, rowVersion, cancellationToken);
+    }
+
+    private IReferenceListEngine Engine(string key) =>
+        (ReferenceListCatalog.Find(key) ?? throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown reference list."))
+            .CreateEngine(_services);
+}
+
+/// <summary>The rule for one list, typed by its key (a number or a Guid).</summary>
+internal sealed class ReferenceListEngine<TKey> : IReferenceListEngine where TKey : struct
+{
+    private const int MaximumPageSize = 100;
+
+    private readonly KeyedReferenceListDefinition<TKey> _definition;
+    private readonly ReferenceListServices _services;
+    private readonly ApplicationDbContext _db;
+
+    public ReferenceListEngine(KeyedReferenceListDefinition<TKey> definition, ReferenceListServices services)
+    {
+        _definition = definition;
+        _services = services;
+        _db = services.Db;
+    }
+
+    // The application's services, for usage sources and hooks that read settings or another
+    // module's audit (the repository lists).
+    private IServiceProvider? Provider => _services.Services ?? _services.HttpContextAccessor.HttpContext?.RequestServices;
+
+    public async Task<ReferenceListPage> GetPageAsync(ReferenceListRequest request, CancellationToken cancellationToken)
+    {
+        var definition = _definition;
+        var tiles = await GetTilesAsync(cancellationToken);
         var search = request.Search?.Trim() ?? string.Empty;
         var status = ReferenceListStatuses.Normalize(request.Status);
         var pageSize = request.PageSize switch
@@ -136,13 +217,13 @@ public sealed class ReferenceListService : IReferenceListService
 
         if (definition.IsTree)
         {
-            return await GetTreePageAsync(definition, tiles, search, status, request.Page, pageSize, cancellationToken);
+            return await GetTreePageAsync(tiles, search, status, request.Page, pageSize, cancellationToken);
         }
 
         var all = definition.Items(_db);
         var filtered = status switch
         {
-            ReferenceListStatuses.InUse => await WhereInUseAsync(definition, all, cancellationToken),
+            ReferenceListStatuses.InUse => await WhereInUseAsync(all, cancellationToken),
             ReferenceListStatuses.Active => all.Where(item => item.IsActive),
             ReferenceListStatuses.Inactive => all.Where(item => !item.IsActive),
             _ => all
@@ -182,7 +263,7 @@ public sealed class ReferenceListService : IReferenceListService
         var positions = orderedIds.Select((id, index) => (id, index)).ToDictionary(pair => pair.id, pair => pair.index);
 
         var ids = items.Select(item => item.Id).ToArray();
-        var usage = await CountUsageAsync(definition, ids, cancellationToken);
+        var usage = await CountUsageAsync(ids, cancellationToken);
         var extra = definition.LoadExtraColumns is null || ids.Length == 0
             ? null
             : await definition.LoadExtraColumns(_db, ids, cancellationToken);
@@ -191,18 +272,18 @@ public sealed class ReferenceListService : IReferenceListService
         {
             var position = positions.TryGetValue(item.Id, out var found) ? found : -1;
             return new ReferenceListRow(
-                item.Id,
+                KeyedReferenceListDefinition<TKey>.Format(item.Id),
                 item.Name,
                 item.SortOrder,
                 item.IsActive,
-                Convert.ToBase64String(item.RowVersion ?? Array.Empty<byte>()),
+                item.RowVersionText,
                 usage[item.Id],
                 position > 0,
                 position >= 0 && position < orderedIds.Count - 1,
-                ExtraValuesFor(definition, extra, item.Id))
+                ExtraValuesFor(extra, item.Id))
             {
                 Detail = item.Detail,
-                ShownOrder = ShownOrder(definition, item.SortOrder)
+                ShownOrder = ShownOrder(item.SortOrder)
             };
         }).ToArray();
 
@@ -213,7 +294,6 @@ public sealed class ReferenceListService : IReferenceListService
     // parents before their children, siblings by their order. With no filter the rows are
     // indented; with a filter or search they are not, and each child names its parents.
     private async Task<ReferenceListPage> GetTreePageAsync(
-        ReferenceListDefinition definition,
         ReferenceListTiles tiles,
         string search,
         string status,
@@ -221,11 +301,12 @@ public sealed class ReferenceListService : IReferenceListService
         int pageSize,
         CancellationToken cancellationToken)
     {
+        var definition = _definition;
         var items = await definition.Items(_db).ToListAsync(cancellationToken);
-        HashSet<int>? inUse = null;
+        HashSet<TKey>? inUse = null;
         if (status == ReferenceListStatuses.InUse)
         {
-            inUse = (await (await WhereInUseAsync(definition, definition.Items(_db), cancellationToken))
+            inUse = (await (await WhereInUseAsync(definition.Items(_db), cancellationToken))
                 .Select(item => item.Id)
                 .ToListAsync(cancellationToken)).ToHashSet();
         }
@@ -248,58 +329,74 @@ public sealed class ReferenceListService : IReferenceListService
         var page = Math.Clamp(requestedPage, 1, totalPages);
         var shown = matching.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
         var ids = shown.Select(node => node.Item.Id).ToArray();
-        var usage = await CountUsageAsync(definition, ids, cancellationToken);
+        var usage = await CountUsageAsync(ids, cancellationToken);
         var extra = definition.LoadExtraColumns is null || ids.Length == 0
             ? null
             : await definition.LoadExtraColumns(_db, ids, cancellationToken);
 
         var rows = shown.Select(node => new ReferenceListRow(
-            node.Item.Id,
+            KeyedReferenceListDefinition<TKey>.Format(node.Item.Id),
             node.Item.Name,
             node.Item.SortOrder,
             node.Item.IsActive,
-            Convert.ToBase64String(node.Item.RowVersion ?? Array.Empty<byte>()),
+            node.Item.RowVersionText,
             usage[node.Item.Id],
             node.CanMoveUp,
             node.CanMoveDown,
-            ExtraValuesFor(definition, extra, node.Item.Id))
+            ExtraValuesFor(extra, node.Item.Id))
         {
             Depth = indent ? node.Depth : 0,
             ParentPath = node.ParentPath,
             Detail = node.Item.Detail,
-            ShownOrder = ShownOrder(definition, node.Item.SortOrder)
+            ShownOrder = ShownOrder(node.Item.SortOrder)
         }).ToArray();
 
         return new ReferenceListPage(definition.Key, rows, tiles, matching.Count, page, pageSize, totalPages, search, status);
     }
 
-    private static int ShownOrder(ReferenceListDefinition definition, int sortOrder) =>
-        definition.OrderIsPosition ? sortOrder + 1 : sortOrder;
+    private int ShownOrder(int sortOrder) =>
+        _definition.OrderIsPosition ? sortOrder + 1 : sortOrder;
 
-    public Task<ReferenceListTiles> GetTilesAsync(string key, CancellationToken cancellationToken = default) =>
-        CountTilesAsync(Require(key), cancellationToken);
-
-    public async Task<IReadOnlyList<ReferenceListUsage>> GetUsageAsync(string key, int id, CancellationToken cancellationToken = default)
+    public async Task<ReferenceListTiles> GetTilesAsync(CancellationToken cancellationToken)
     {
-        var usage = await CountUsageAsync(Require(key), new[] { id }, cancellationToken);
-        return usage[id];
+        var all = _definition.Items(_db);
+        var total = await all.CountAsync(cancellationToken);
+        var inUse = await (await WhereInUseAsync(all, cancellationToken)).CountAsync(cancellationToken);
+        var inactive = await all.CountAsync(item => !item.IsActive, cancellationToken);
+        return new ReferenceListTiles(total, inUse, inactive);
     }
 
-    public async Task<ReferenceListRow?> GetItemAsync(string key, int id, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ReferenceListUsage>> GetUsageAsync(string id, CancellationToken cancellationToken)
     {
-        var definition = Require(key);
-        ReferenceListItemProjection? item;
+        if (!KeyedReferenceListDefinition<TKey>.TryParse(id, out var key))
+        {
+            return _definition.UsedBy.Select(source => new ReferenceListUsage(source.One, source.Many, 0)).ToArray();
+        }
+
+        var usage = await CountUsageAsync(new[] { key }, cancellationToken);
+        return usage[key];
+    }
+
+    public async Task<ReferenceListRow?> GetItemAsync(string id, CancellationToken cancellationToken)
+    {
+        if (!KeyedReferenceListDefinition<TKey>.TryParse(id, out var key))
+        {
+            return null;
+        }
+
+        var definition = _definition;
+        ReferenceListItemProjection<TKey>? item;
         string? parentPath = null;
         if (definition.IsTree)
         {
             var node = ReferenceListTree.Build(await definition.Items(_db).ToListAsync(cancellationToken))
-                .FirstOrDefault(candidate => candidate.Item.Id == id);
+                .FirstOrDefault(candidate => EqualityComparer<TKey>.Default.Equals(candidate.Item.Id, key));
             item = node?.Item;
             parentPath = node?.ParentPath;
         }
         else
         {
-            item = await definition.Items(_db).SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
+            item = await definition.Items(_db).SingleOrDefaultAsync(KeyedReferenceListDefinition<TKey>.IdIs(key), cancellationToken);
         }
 
         if (item is null)
@@ -307,39 +404,40 @@ public sealed class ReferenceListService : IReferenceListService
             return null;
         }
 
-        var usage = await CountUsageAsync(definition, new[] { id }, cancellationToken);
+        var usage = await CountUsageAsync(new[] { key }, cancellationToken);
         return new ReferenceListRow(
-            item.Id,
+            KeyedReferenceListDefinition<TKey>.Format(item.Id),
             item.Name,
             item.SortOrder,
             item.IsActive,
-            Convert.ToBase64String(item.RowVersion ?? Array.Empty<byte>()),
-            usage[id],
+            item.RowVersionText,
+            usage[key],
             false,
             false,
             Array.Empty<string?>())
         {
             ParentPath = parentPath,
             Detail = item.Detail,
-            ShownOrder = ShownOrder(definition, item.SortOrder)
+            ShownOrder = ShownOrder(item.SortOrder)
         };
     }
 
-    public async Task<AdminOperationResult> DeleteAsync(string key, int id, byte[] rowVersion, CancellationToken cancellationToken = default)
+    public async Task<AdminOperationResult> DeleteAsync(string id, byte[] rowVersion, CancellationToken cancellationToken)
     {
-        var definition = ReferenceListCatalog.Find(key);
-        if (definition is null)
+        var definition = _definition;
+        var httpContext = _services.HttpContextAccessor.HttpContext;
+        var principal = httpContext?.User;
+        if (principal is null || !(await _services.Authorization.AuthorizeAsync(principal, null, definition.Policy)).Succeeded)
         {
-            return AdminOperationResult.Failure("That list was not found.", "NotFound");
+            return AdminOperationResult.Failure($"You are not allowed to change {definition.PluralInSentence}.", "Forbidden", httpContext?.TraceIdentifier);
         }
 
-        var principal = _httpContextAccessor.HttpContext?.User;
-        if (principal is null || !(await _authorization.AuthorizeAsync(principal, null, definition.Policy)).Succeeded)
+        if (!KeyedReferenceListDefinition<TKey>.TryParse(id, out var key))
         {
-            return AdminOperationResult.Failure($"You are not allowed to change {definition.PluralInSentence}.", "Forbidden", _httpContextAccessor.HttpContext?.TraceIdentifier);
+            return AdminOperationResult.Failure($"That {definition.Label} is no longer in the list.", "NotFound");
         }
 
-        if (rowVersion is not { Length: > 0 })
+        if (definition.RequiresRowVersion(_db) && rowVersion is not { Length: > 0 })
         {
             return AdminOperationResult.Failure("The record version is missing. Reload the page and try again.", "ConcurrencyTokenMissing");
         }
@@ -349,15 +447,17 @@ public sealed class ReferenceListService : IReferenceListService
         // lock on the item while checking its foreign key) either commits first and is counted
         // below, or waits until the delete is over and is then refused. Without this an ARPP
         // entry saved between the check and the delete would silently lose its value, because
-        // its link is emptied on delete rather than refused (Codex review on #3018).
+        // its link is emptied on delete rather than refused (Codex review on #3018), and a
+        // repository document filed at that moment would be deleted with its type or office,
+        // because that link cascades.
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         if (_db.Database.IsNpgsql())
         {
-            await definition.LockAsync(_db, id, cancellationToken);
+            await definition.LockAsync(_db, key, cancellationToken);
         }
 
-        var entity = await definition.FindAsync(_db, id, cancellationToken);
-        var item = await definition.Items(_db).SingleOrDefaultAsync(row => row.Id == id, cancellationToken);
+        var entity = await definition.FindAsync(_db, key, cancellationToken);
+        var item = await definition.Items(_db).SingleOrDefaultAsync(KeyedReferenceListDefinition<TKey>.IdIs(key), cancellationToken);
         if (entity is null || item is null)
         {
             return AdminOperationResult.Failure($"That {definition.Label} is no longer in the list.", "NotFound");
@@ -367,25 +467,30 @@ public sealed class ReferenceListService : IReferenceListService
         var name = item.Name;
         var sortOrder = item.SortOrder;
 
-        var usage = (await CountUsageAsync(definition, new[] { id }, cancellationToken))[id];
-        var inUse = usage.Where(item => item.Count > 0).ToArray();
+        var usage = (await CountUsageAsync(new[] { key }, cancellationToken))[key];
+        var inUse = usage.Where(source => source.Count > 0).ToArray();
         if (inUse.Length > 0)
         {
             _db.ChangeTracker.Clear();
             return AdminOperationResult.Failure(
-                $"'{name}' is used by {string.Join(" and ", inUse.Select(item => item.Text))}, so it cannot be deleted. Deactivate it instead: it stays on those records and drops out of new forms.",
+                $"'{name}' is used by {string.Join(" and ", inUse.Select(source => source.Text))}, so it cannot be deleted. Deactivate it instead: it stays on those records and drops out of new forms.",
                 "EntityInUse");
+        }
+
+        if (!definition.ApplyRowVersion(entry, rowVersion ?? Array.Empty<byte>()))
+        {
+            _db.ChangeTracker.Clear();
+            return Concurrency();
         }
 
         var before = new
         {
-            Id = id,
+            Id = KeyedReferenceListDefinition<TKey>.Format(key),
             Name = name,
             item.IsActive,
             SortOrder = sortOrder,
             item.ParentId
         };
-        entry.Property("RowVersion").OriginalValue = rowVersion;
         definition.Remove(_db, entity);
 
         // Close the gap the item leaves, so the order reads 1, 2, 3 without a renumber. In a
@@ -399,23 +504,31 @@ public sealed class ReferenceListService : IReferenceListService
             }
         }
 
+        await definition.OnDeletingAsync(
+            new ReferenceListDeleteContext(_db, Provider, principal, KeyedReferenceListDefinition<TKey>.Format(key), name, sortOrder),
+            cancellationToken);
+
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
-            await _audit.RecordAsync(new AdminAuditEntry(
-                definition.DeleteAuditAction,
-                definition.EntityType,
-                id.ToString(),
-                before,
-                null,
-                Origin: definition.AuditOrigin), cancellationToken);
+            if (definition.WritesAdminAudit)
+            {
+                await _services.Audit.RecordAsync(new AdminAuditEntry(
+                    definition.DeleteAuditAction,
+                    definition.EntityType,
+                    KeyedReferenceListDefinition<TKey>.Format(key),
+                    before,
+                    null,
+                    Origin: definition.AuditOrigin), cancellationToken);
+            }
+
             await transaction.CommitAsync(cancellationToken);
             return AdminOperationResult.Success($"Deleted '{name}'.");
         }
         catch (DbUpdateConcurrencyException)
         {
             _db.ChangeTracker.Clear();
-            return AdminOperationResult.Failure("This record was changed by another administrator. Reload the page and try again.", "ConcurrencyConflict");
+            return Concurrency();
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
         {
@@ -429,19 +542,18 @@ public sealed class ReferenceListService : IReferenceListService
         }
     }
 
-    private static ReferenceListDefinition Require(string key) =>
-        ReferenceListCatalog.Find(key) ?? throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown reference list.");
+    private static AdminOperationResult Concurrency() =>
+        AdminOperationResult.Failure("This record was changed by another administrator. Reload the page and try again.", "ConcurrencyConflict");
 
     // Items some record uses. Sources the database can query stay one subquery; sources read in
-    // memory (ids inside JSON, for example) are passed in as a list.
-    private async Task<IQueryable<ReferenceListItemProjection>> WhereInUseAsync(
-        ReferenceListDefinition definition,
-        IQueryable<ReferenceListItemProjection> items,
+    // memory (ids inside JSON, or in the settings) are passed in as a list.
+    private async Task<IQueryable<ReferenceListItemProjection<TKey>>> WhereInUseAsync(
+        IQueryable<ReferenceListItemProjection<TKey>> items,
         CancellationToken cancellationToken)
     {
-        IQueryable<int>? queried = null;
-        var loaded = new HashSet<int>();
-        foreach (var source in definition.UsedBy)
+        IQueryable<TKey>? queried = null;
+        var loaded = new HashSet<TKey>();
+        foreach (var source in _definition.UsedBy)
         {
             if (source.ReferencingIds is not null)
             {
@@ -450,7 +562,7 @@ public sealed class ReferenceListService : IReferenceListService
             }
             else
             {
-                loaded.UnionWith(await source.LoadReferencingIds!(_db, cancellationToken));
+                loaded.UnionWith(await source.LoadReferencingIds!(_db, Provider, cancellationToken));
             }
         }
 
@@ -465,27 +577,17 @@ public sealed class ReferenceListService : IReferenceListService
             : items.Where(item => queried.Contains(item.Id) || loadedIds.Contains(item.Id));
     }
 
-    private async Task<ReferenceListTiles> CountTilesAsync(ReferenceListDefinition definition, CancellationToken cancellationToken)
-    {
-        var all = definition.Items(_db);
-        var total = await all.CountAsync(cancellationToken);
-        var inUse = await (await WhereInUseAsync(definition, all, cancellationToken)).CountAsync(cancellationToken);
-        var inactive = await all.CountAsync(item => !item.IsActive, cancellationToken);
-        return new ReferenceListTiles(total, inUse, inactive);
-    }
-
-    private async Task<IReadOnlyDictionary<int, IReadOnlyList<ReferenceListUsage>>> CountUsageAsync(
-        ReferenceListDefinition definition,
-        IReadOnlyCollection<int> ids,
+    private async Task<IReadOnlyDictionary<TKey, IReadOnlyList<ReferenceListUsage>>> CountUsageAsync(
+        IReadOnlyCollection<TKey> ids,
         CancellationToken cancellationToken)
     {
         var idArray = ids.Distinct().ToArray();
-        var counts = new List<IReadOnlyDictionary<int, int>>();
-        foreach (var source in definition.UsedBy)
+        var counts = new List<IReadOnlyDictionary<TKey, int>>();
+        foreach (var source in _definition.UsedBy)
         {
             if (idArray.Length == 0)
             {
-                counts.Add(new Dictionary<int, int>());
+                counts.Add(new Dictionary<TKey, int>());
                 continue;
             }
 
@@ -499,7 +601,7 @@ public sealed class ReferenceListService : IReferenceListService
             }
             else
             {
-                counts.Add((await source.LoadReferencingIds!(_db, cancellationToken))
+                counts.Add((await source.LoadReferencingIds!(_db, Provider, cancellationToken))
                     .Where(value => idArray.Contains(value))
                     .GroupBy(value => value)
                     .ToDictionary(group => group.Key, group => group.Count()));
@@ -508,23 +610,22 @@ public sealed class ReferenceListService : IReferenceListService
 
         return idArray.ToDictionary(
             id => id,
-            id => (IReadOnlyList<ReferenceListUsage>)definition.UsedBy
+            id => (IReadOnlyList<ReferenceListUsage>)_definition.UsedBy
                 .Select((source, index) => new ReferenceListUsage(source.One, source.Many, counts[index].TryGetValue(id, out var count) ? count : 0))
                 .ToArray());
     }
 
-    private static IReadOnlyList<string?> ExtraValuesFor(
-        ReferenceListDefinition definition,
-        IReadOnlyDictionary<int, IReadOnlyList<string?>>? extra,
-        int id)
+    private IReadOnlyList<string?> ExtraValuesFor(
+        IReadOnlyDictionary<TKey, IReadOnlyList<string?>>? extra,
+        TKey id)
     {
-        if (definition.ExtraColumns.Count == 0)
+        if (_definition.ExtraColumns.Count == 0)
         {
             return Array.Empty<string?>();
         }
 
         return extra is not null && extra.TryGetValue(id, out var values)
             ? values
-            : new string?[definition.ExtraColumns.Count];
+            : new string?[_definition.ExtraColumns.Count];
     }
 }

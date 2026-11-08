@@ -83,7 +83,7 @@ A UI/UX review on 6 Nov 2026 (from the code and markup; no signed-in walkthrough
   - Holidays and Celebrations are two sidebar entries.
   - Search index keeps its own entry.
   - The Document Repository appears as "Document deletion approvals", and media as "Media Sources".
-- Document Repository and media pages keep their own module layout.
+- Document Repository and media pages keep their own module layout. (Later, third review PRs 12-16: the media pages, the repository trash, the repository and social media lists and the restored-but-hidden list render inside the admin layout; the unreadable PDFs, missing files and delete requests pages still keep their module's layout.)
 - The Administration sidebar is shown only to Admins. HoD reaching Holidays, Celebrations or Activity types keeps the ordinary navigation.
 
 **Shipped in PR 3:**

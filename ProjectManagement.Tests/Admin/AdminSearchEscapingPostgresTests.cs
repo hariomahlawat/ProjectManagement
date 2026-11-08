@@ -117,6 +117,60 @@ public sealed class AdminSearchEscapingPostgresTests
         });
     }
 
+    // PR 12: the social media lists are keyed by Guid. A platform locked for its delete makes an
+    // event being logged on it wait (or the delete waits for the event): either way the event is
+    // counted and the delete refused, and the Guid row lock and count translate on PostgreSQL.
+    [AdminSearchPostgresFact]
+    public async Task DeletingASocialMediaPlatform_WaitsForAnEventBeingLogged_AndThenRefuses()
+    {
+        await WithDatabaseAsync(async (db, connectionString) =>
+        {
+            // Unique names: the migrations seed some event types and platforms.
+            var type = ProjectManagement.Tests.SocialMediaTestData.CreateEventType(name: "PR12 race type");
+            var platform = ProjectManagement.Tests.SocialMediaTestData.CreatePlatform(name: "PR12 Threads");
+            var unused = ProjectManagement.Tests.SocialMediaTestData.CreatePlatform(name: "PR12 Mastodon");
+            db.SocialMediaEventTypes.Add(type);
+            db.SocialMediaPlatforms.AddRange(platform, unused);
+            await db.SaveChangesAsync();
+
+            var http = new Microsoft.AspNetCore.Http.DefaultHttpContext
+            {
+                User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(new[] { new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "admin") }, "test"))
+            };
+            ReferenceListService Lists(ApplicationDbContext context) =>
+                new(context, new NoAdminAudit(), new AllowAuthorization(), new Microsoft.AspNetCore.Http.HttpContextAccessor { HttpContext = http });
+
+            var page = await Lists(db).GetPageAsync(ReferenceListKeys.SocialMediaPlatforms, new ReferenceListRequest(null, null, 1, 25));
+            var row = page.Rows.Single(item => item.Name == "PR12 Threads");
+            Assert.Equal(platform.Id.ToString(), row.Id);
+
+            // Someone logs an event on the platform and has not committed yet.
+            await using var other = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options);
+            await using var logging = await other.Database.BeginTransactionAsync();
+            other.SocialMediaEvents.Add(ProjectManagement.Tests.SocialMediaTestData.CreateEvent(type.Id, platform.Id));
+            await other.SaveChangesAsync();
+
+            await using var deleteContext = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options);
+            var deleting = Lists(deleteContext).DeleteAsync(ReferenceListKeys.SocialMediaPlatforms, platform.Id, Convert.FromBase64String(row.RowVersion));
+
+            await Task.Delay(1500);
+            Assert.False(deleting.IsCompleted);
+
+            await logging.CommitAsync();
+            var result = await deleting;
+
+            Assert.Equal("EntityInUse", result.ErrorCode);
+            await using var check = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options);
+            Assert.True(await check.SocialMediaPlatforms.AnyAsync(item => item.Id == platform.Id));
+
+            // An unused platform goes.
+            var unusedRow = (await Lists(check).GetPageAsync(ReferenceListKeys.SocialMediaPlatforms, new ReferenceListRequest(null, null, 1, 25)))
+                .Rows.Single(item => item.Name == "PR12 Mastodon");
+            var deleted = await Lists(check).DeleteAsync(ReferenceListKeys.SocialMediaPlatforms, unused.Id, Convert.FromBase64String(unusedRow.RowVersion));
+            Assert.True(deleted.Succeeded, deleted.UserMessage);
+        });
+    }
+
     private static Task WithDatabaseAsync(Func<ApplicationDbContext, Task> test) =>
         WithDatabaseAsync((db, _) => test(db));
 

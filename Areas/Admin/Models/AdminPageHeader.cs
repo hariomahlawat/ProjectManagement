@@ -29,4 +29,7 @@ public sealed record AdminPageActionModel
     /// action that does work rather than navigate.
     /// </summary>
     public bool UsesPost { get; init; }
+
+    /// <summary>Opens this dialog (a CSS selector such as "#addModal") instead of following a link.</summary>
+    public string? ModalTarget { get; init; }
 }

@@ -11,20 +11,26 @@ using ProjectManagement.Services.Navigation.ModuleNav;
 namespace ProjectManagement.Areas.Admin.Pages.Shared;
 
 /// <summary>What a reference list page shows around the shared list (its header and links).</summary>
+/// <param name="Area">The area the list's pages live in: Admin, or the module that owns them
+/// (DocumentRepository, ProjectOfficeReports) for the lists PR 12 brought into Administration.</param>
+/// <param name="CreatePageName">The Add page's name in the folder ("Create"; the social media lists say "New").</param>
 public sealed record AdminReferenceListPresentation(
     string NavigationKey,
     string Icon,
     string AddText,
     string UsedByLabel,
-    string FolderPath);
+    string FolderPath,
+    string Area = "Admin",
+    string CreatePageName = "Create");
 
 /// <summary>
 /// The Index page of a reference list on the shared list page (docs/ux/admin-review-3-fixes.md,
 /// owner decision 1). Each list's page names its list, order check and move command; the
 /// handlers (Move, RenumberOrder, Delete) and the query names (q, status, pageNumber, pageSize)
 /// are the same on every list. Each concrete page keeps its own [Authorize] policy.
+/// <typeparamref name="TKey"/> is the item's key: a number, or a Guid for the social media lists.
 /// </summary>
-public abstract class AdminReferenceListPageModel : PageModel
+public abstract class AdminReferenceListPageModel<TKey> : PageModel where TKey : struct
 {
     private readonly IReferenceListService _lists;
     private readonly IListOrderNoticeService _order;
@@ -45,13 +51,13 @@ public abstract class AdminReferenceListPageModel : PageModel
     protected abstract AdminReferenceListPresentation Presentation { get; }
 
     /// <summary>Moves an item up (-1) or down (+1); null when the list has no order to change.</summary>
-    protected virtual Func<int, int, CancellationToken, Task<AdminOperationResult>>? Move => null;
+    protected virtual Func<TKey, int, CancellationToken, Task<AdminOperationResult>>? Move => null;
 
     /// <summary>
     /// Deactivates or reactivates an item in place: the id, the state asked for (null on an old
     /// form: the other state) and the row version shown. Null links to a Deactivate page instead.
     /// </summary>
-    protected virtual Func<int, bool?, byte[], CancellationToken, Task<AdminOperationResult>>? Toggle => null;
+    protected virtual Func<TKey, bool?, byte[], CancellationToken, Task<AdminOperationResult>>? Toggle => null;
 
     /// <summary>Edit and Add open a dialog on the page instead of the Edit and Create pages.</summary>
     protected virtual AdminReferenceListEditDialog? EditDialog => null;
@@ -69,7 +75,7 @@ public abstract class AdminReferenceListPageModel : PageModel
     protected virtual AdminPageActionModel? PrimaryAction(string folder) => new()
     {
         Text = Presentation.AddText,
-        Href = Url.Page($"{folder}/Create", new { area = "Admin" }),
+        Href = Url.Page($"{folder}/{Presentation.CreatePageName}", new { area = Presentation.Area }),
         Icon = "bi-plus-lg",
         IsPrimary = true
     };
@@ -115,7 +121,7 @@ public abstract class AdminReferenceListPageModel : PageModel
     /// <summary>Anything else a page shows around the list, read after the list.</summary>
     protected virtual Task OnListLoadedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public async Task<IActionResult> OnPostToggleAsync(int id, bool? isActive, string? rowVersion, CancellationToken cancellationToken)
+    public virtual async Task<IActionResult> OnPostToggleAsync(TKey id, bool? isActive, string? rowVersion, CancellationToken cancellationToken)
     {
         if (Toggle is null)
         {
@@ -138,7 +144,7 @@ public abstract class AdminReferenceListPageModel : PageModel
         return RedirectToPage();
     }
 
-    public async Task<IActionResult> OnPostMoveAsync(int id, int offset, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostMoveAsync(TKey id, int offset, CancellationToken cancellationToken)
     {
         if (Move is null)
         {
@@ -149,11 +155,19 @@ public abstract class AdminReferenceListPageModel : PageModel
         return RedirectToList();
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(int id, string? rowVersion, CancellationToken cancellationToken)
+    public virtual async Task<IActionResult> OnPostDeleteAsync(TKey id, string? rowVersion, CancellationToken cancellationToken)
     {
-        Flash(await _lists.DeleteAsync(Definition.Key, id, DecodeRowVersion(rowVersion), cancellationToken));
+        Flash(await DeleteAsync(id, DecodeRowVersion(rowVersion), cancellationToken));
         return RedirectToList();
     }
+
+    /// <summary>Deletes through the shared rule, whatever the key.</summary>
+    protected Task<AdminOperationResult> DeleteAsync(TKey id, byte[] rowVersion, CancellationToken cancellationToken) => id switch
+    {
+        int number => _lists.DeleteAsync(Definition.Key, number, rowVersion, cancellationToken),
+        Guid guid => _lists.DeleteAsync(Definition.Key, guid, rowVersion, cancellationToken),
+        _ => throw new NotSupportedException($"Lists keyed by {typeof(TKey).Name} are not supported.")
+    };
 
     protected IActionResult RedirectToList()
     {
@@ -175,7 +189,7 @@ public abstract class AdminReferenceListPageModel : PageModel
     protected void Flash(AdminOperationResult result) =>
         TempData[result.Succeeded ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.UserMessage;
 
-    private static byte[] DecodeRowVersion(string? value)
+    protected static byte[] DecodeRowVersion(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -225,8 +239,9 @@ public abstract class AdminReferenceListPageModel : PageModel
             UsedByLabel = presentation.UsedByLabel,
             Icon = presentation.Icon,
             ExtraColumns = Definition.ExtraColumns,
+            Area = presentation.Area,
             IndexPage = $"{folder}/Index",
-            CreatePage = $"{folder}/Create",
+            CreatePage = $"{folder}/{presentation.CreatePageName}",
             EditPage = $"{folder}/Edit",
             DeactivatePage = $"{folder}/Deactivate",
             MoveHandler = Move is null || !Definition.HasOrder ? null : "Move",
@@ -238,5 +253,14 @@ public abstract class AdminReferenceListPageModel : PageModel
             Note = Note,
             RouteValues = ListRouteValues
         };
+    }
+}
+
+/// <summary>The Index page of a reference list keyed by whole numbers (most lists).</summary>
+public abstract class AdminReferenceListPageModel : AdminReferenceListPageModel<int>
+{
+    protected AdminReferenceListPageModel(IReferenceListService lists, IListOrderNoticeService order)
+        : base(lists, order)
+    {
     }
 }
