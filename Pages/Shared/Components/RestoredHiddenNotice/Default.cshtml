@@ -1,0 +1,9 @@
+@model int
+<div class="library-banner" role="note" data-restored-hidden-notice>
+    <i class="bi bi-eye-slash" aria-hidden="true"></i>
+    <div>
+        <strong>@(Model == 1 ? "1 restored document is still hidden" : $"{Model} restored documents are still hidden")</strong>
+        <span>They were restored before restore was fixed, so readers and search cannot see them.
+            <a asp-area="DocumentRepository" asp-page="/Admin/RestoredHidden/Index">Review and reactivate</a></span>
+    </div>
+</div>

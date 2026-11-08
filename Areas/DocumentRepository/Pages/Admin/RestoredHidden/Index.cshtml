@@ -1,0 +1,84 @@
+@page
+@model ProjectManagement.Areas.DocumentRepository.Pages.Admin.RestoredHidden.IndexModel
+@using ProjectManagement.Areas.DocumentRepository.Pages.Admin.RestoredHidden
+@{
+    ViewData["Title"] = "Restored but still hidden";
+    var count = Model.Items.Count;
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+
+<section class="admin-panel" aria-labelledby="restored-hidden-title">
+    <header class="admin-panel__header">
+        <div><h2 id="restored-hidden-title">Documents to review</h2></div>
+        <a class="admin-panel__header-link" asp-area="DocumentRepository" asp-page="/Admin/Trash/Index">Deleted repository documents</a>
+    </header>
+
+    @if (count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-check2-circle", Title = "Nothing to review", Description = "Every document restored from the trash is visible, or was made inactive again on purpose." })" />
+    }
+    else
+    {
+        <div class="admin-panel__body admin-restored-hidden__intro">
+            <p class="admin-inline-note"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Open a document to check it, then choose Reactivate to show it to readers and in search again. A document made inactive before it was deleted is marked, so you can leave it hidden if that was the intent.@if (Model.Result.IsCapped)
+                {<text> Showing the @count most recently restored of @Model.Result.TotalCount.ToString("N0"); the rest appear here as these are done.</text>}</span></p>
+            <form method="post" asp-page-handler="ReactivateAll"
+                  data-confirm="@(count == 1 ? "Reactivate the 1 document shown?" : $"Reactivate all {count} documents shown?") Readers and search will see @(count == 1 ? "it" : "them") again. Each change is recorded in the repository's audit."
+                  data-confirm-action="Reactivate all"
+                  data-confirm-tone="primary">
+                @foreach (var row in Model.Items)
+                {
+                    <input type="hidden" name="ids" value="@row.Id" />
+                }
+                <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye" aria-hidden="true"></i> Reactivate all shown (@count)</button>
+            </form>
+        </div>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table admin-restored-hidden-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Document</th>
+                        <th scope="col">Restored</th>
+                        <th scope="col">Before it was deleted</th>
+                        <th scope="col" class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Items)
+                {
+                    <tr>
+                        <td>
+                            <div class="admin-table-primary"><a asp-area="DocumentRepository" asp-page="/Documents/Reader" asp-route-id="@row.Id">@row.Subject</a></div>
+                            <div class="admin-table-secondary">@row.Office · @row.Category</div>
+                        </td>
+                        <td data-label="Restored">
+                            <div class="admin-table-primary">@IndexModel.FormatIst(row.RestoredAtUtc)</div>
+                            <div class="admin-table-secondary">By @row.RestoredBy</div>
+                        </td>
+                        <td data-label="Before it was deleted">
+                            @if (row.DeactivatedBeforeAtUtc is { } deactivatedAt)
+                            {
+                                <span class="admin-status-pill admin-status-pill--warning">Made inactive on purpose</span>
+                                <div class="admin-table-secondary mt-1">By @row.DeactivatedBeforeBy, @IndexModel.FormatIst(deactivatedAt)</div>
+                            }
+                            else
+                            {
+                                <span class="admin-table-secondary">Active</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <form method="post" asp-page-handler="Reactivate" asp-route-id="@row.Id">
+                                <button type="submit" class="btn btn-sm btn-primary" aria-label="Reactivate @row.Subject">Reactivate</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

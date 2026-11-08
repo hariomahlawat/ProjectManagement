@@ -129,6 +129,16 @@ jobs:
           --no-build
           --filter FullyQualifiedName~DocRepoListPostgresIntegrationTests
 
+      - name: Run restored-but-hidden documents PostgreSQL test
+        # Reactivate re-checks the list with the document rows locked, so a deactivation made
+        # at the same moment is never overridden. Creates, migrates and drops its own
+        # prism_test_hidden_* database on this server.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~DocRepoRestoredHiddenPostgresIntegrationTests
+
       - name: Run PDF ingestion advisory-lock PostgreSQL test
         # One ingestion run at a time across application processes. Takes and releases a
         # session advisory lock only; it reads and writes no tables.
