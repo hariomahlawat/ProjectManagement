@@ -32,10 +32,13 @@ test('ticking a later stage completes the earlier non-skipped ones', () => {
 test('unticking a stage reopens every later stage and clears their dates', () => {
   const start = Chain.chain(fresh({ SO: { completed: true, date: '2026-03-04' }, BID: { date: '2025-09-29' } }));
   assert.deepStrictEqual(done(start), ['PPP', 'AON', 'BID', 'TEC', 'COB', 'SO']);
-  const next = Chain.tick(start, 4, false); // COB
-  assert.deepStrictEqual(done(next), ['PPP', 'AON', 'BID']);
+  const next = Chain.tick(start, 4, false); // COB: TEC and everything before it stay done
+  assert.deepStrictEqual(done(next), ['PPP', 'AON', 'BID', 'TEC']);
   assert.strictEqual(next[7].date, null);
   assert.strictEqual(next[2].date, '2025-09-29');
+
+  const further = Chain.tick(next, 3, false); // TEC
+  assert.deepStrictEqual(done(further), ['PPP', 'AON', 'BID']);
 });
 
 test('a date means done', () => {
