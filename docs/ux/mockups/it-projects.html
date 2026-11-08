@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IT projects mockup</title>
+<style>
+:root{
+  --pm-primary:#2563d6;--pm-primary-hover:#1f54b8;--pm-primary-soft:#e0edff;--pm-primary-strong:#1d4ed8;
+  --pm-card:#fff;--pm-surface-subtle:#f8fafc;--pm-surface:#f3f4f6;--pm-surface-muted:#e5e7eb;
+  --pm-text:#0b1220;--pm-text-secondary:#4b5563;--pm-text-muted:#5f6673;--pm-text-strong:#0f172a;
+  --pm-border:#e5e7eb;--pm-border-strong:#d1d5db;
+  --pm-success:#16a34a;--pm-success-soft-bg:#f0fdf4;--pm-success-soft-text:#166534;--pm-success-soft-border:#bbf7d0;
+  --pm-warning-soft-bg:#fef3c7;--pm-warning-soft-text:#854d0e;
+  --pm-danger:#b91c1c;--pm-danger-soft-bg:#fee2e2;
+  --pm-shadow-card:0 1px 2px rgba(15,23,42,.05),0 12px 32px -16px rgba(15,23,42,.18);
+  --pm-spec-1:#e11d48;--pm-spec-2:#d97706;--pm-spec-3:#16a34a;--pm-spec-4:#0891b2;--pm-spec-5:#2563eb;--pm-spec-6:#7c3aed;
+  --pm-font-stack:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--pm-font-stack);font-size:14px;color:var(--pm-text);background:var(--pm-card)}
+a{color:var(--pm-primary);text-decoration:none}
+.topbar{height:52px;border-bottom:1px solid var(--pm-border);display:flex;align-items:center;gap:28px;padding:0 24px;position:relative;background:#fff}
+.topbar:before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,var(--pm-spec-1),var(--pm-spec-2),var(--pm-spec-3),var(--pm-spec-4),var(--pm-spec-5),var(--pm-spec-6))}
+.brand{font-weight:700;letter-spacing:.02em}.brand span{font-weight:400;color:var(--pm-text-muted)}
+.tabs{display:flex;gap:22px;font-size:13px;color:var(--pm-text-secondary)}
+.tabs b{font-weight:600;color:var(--pm-text-strong);position:relative}
+.tabs b:after{content:"";position:absolute;left:0;right:40%;bottom:-17px;height:2px;background:var(--pm-primary);border-radius:2px}
+.switch{margin-left:auto;display:flex;gap:6px}
+.switch button{border:1px solid var(--pm-border);background:#fff;padding:5px 10px;border-radius:8px;font:inherit;font-size:12px;cursor:pointer}
+.switch button.on{background:var(--pm-primary-soft);color:var(--pm-primary-strong);border-color:transparent}
+.page{max-width:1280px;margin:0 auto;padding:22px 24px 60px}
+.crumbs{font-size:12px;color:var(--pm-text-muted);margin-bottom:10px}
+.head{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px}
+.head h1{font-size:24px;margin:0 0 4px;font-weight:650;letter-spacing:-.01em}
+.head p{margin:0;color:var(--pm-text-secondary)}
+.head .rule{height:3px;width:120px;border-radius:3px;margin-top:10px;background:linear-gradient(90deg,var(--pm-spec-1),var(--pm-spec-2),var(--pm-spec-3),var(--pm-spec-4),var(--pm-spec-5),var(--pm-spec-6))}
+.btn{display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:8px 14px;font:inherit;font-weight:600;font-size:13px;border:1px solid var(--pm-border);background:#fff;color:var(--pm-text-strong);cursor:pointer}
+.btn.primary{background:var(--pm-primary);border-color:var(--pm-primary);color:#fff}
+.btn.danger{color:var(--pm-danger)}
+.actions{margin-left:auto;display:flex;gap:8px}
+.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.tile{border:1px solid var(--pm-border);border-radius:14px;padding:12px 14px;background:var(--pm-card);box-shadow:var(--pm-shadow-card);cursor:pointer}
+.tile .k{font-size:12px;color:var(--pm-text-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.tile .v{font-size:26px;font-weight:650;letter-spacing:-.02em;margin-top:2px}
+.tile .s{font-size:12px;color:var(--pm-text-secondary)}
+.tile.sel{border-color:var(--pm-primary);background:var(--pm-primary-soft)}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.search{flex:1;min-width:220px;border:1px solid var(--pm-border);border-radius:10px;padding:8px 12px;color:var(--pm-text-muted);display:flex;gap:8px;align-items:center;background:var(--pm-surface-subtle)}
+.pills{display:flex;gap:4px;background:var(--pm-surface);padding:3px;border-radius:10px}
+.pills span{padding:5px 10px;border-radius:8px;font-size:12.5px;color:var(--pm-text-secondary)}
+.pills span.on{background:#fff;color:var(--pm-text-strong);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.sel2{border:1px solid var(--pm-border);border-radius:10px;padding:7px 10px;font-size:12.5px;background:#fff;color:var(--pm-text-secondary)}
+.sel2 b{color:var(--pm-text-strong);font-weight:600}
+.chk{font-size:12.5px;color:var(--pm-text-secondary);display:flex;gap:6px;align-items:center}
+.chk i{width:28px;height:16px;border-radius:10px;background:var(--pm-surface-muted);display:inline-block;position:relative}
+.chk i:after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+/* board */
+.board{border:1px solid var(--pm-border);border-radius:14px;overflow:hidden;box-shadow:var(--pm-shadow-card)}
+table{width:100%;border-collapse:collapse}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--pm-text-muted);font-weight:600;text-align:center;padding:10px 4px 8px;background:var(--pm-surface-subtle);border-bottom:1px solid var(--pm-border);white-space:nowrap}
+th:first-child{text-align:left;padding-left:16px;width:34%}
+th small{display:block;font-size:11px;text-transform:none;letter-spacing:0;color:var(--pm-text-secondary);font-weight:500;margin-top:2px}
+th small b{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--pm-surface-muted);color:var(--pm-text-strong);font-weight:600}
+th.opt{color:#8a93a3}
+td{padding:9px 4px;text-align:center;border-bottom:1px solid var(--pm-border);vertical-align:middle}
+td:first-child{text-align:left;padding-left:16px}
+tr:last-child td{border-bottom:0}
+tr.row:hover td{background:#fafbfd}
+.t{font-weight:600;color:var(--pm-text-strong)}
+.r{font-size:12px;color:var(--pm-text-muted);margin-top:1px}
+.r b{font-weight:600;color:var(--pm-text-secondary)}
+.band td{background:var(--pm-surface-subtle);text-align:left;font-size:12px;color:var(--pm-text-secondary);font-weight:600;padding:7px 16px;letter-spacing:.02em}
+.band td span{font-weight:500;color:var(--pm-text-muted);margin-left:8px}
+.cell{display:inline-flex;flex-direction:column;align-items:center;gap:3px;min-width:52px}
+.dot{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+.done .dot{background:var(--pm-success);color:#fff}
+.done .dot:before{content:"✓";font-weight:700}
+.cur .dot{background:var(--pm-primary);box-shadow:0 0 0 4px var(--pm-primary-soft);animation:pulse 2s infinite}
+.cur .dot:before{content:"";width:6px;height:6px;border-radius:50%;background:#fff}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 4px var(--pm-primary-soft)}50%{box-shadow:0 0 0 7px #eef4ff}}
+.pend .dot{border:2px solid var(--pm-border-strong);background:#fff}
+.skip .dot{background:var(--pm-surface);color:#9aa3b2}
+.skip .dot:before{content:"–";font-weight:700}
+.cell small{font-size:10.5px;color:var(--pm-text-muted);line-height:1}
+.cell small.nd{font-style:italic}
+.cell small.cost{color:var(--pm-text-secondary);font-weight:600}
+.done.line{position:relative}
+.dropped td{opacity:.55}
+.dropped .t{text-decoration:line-through;text-decoration-color:#9aa3b2}
+.chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--pm-surface);color:var(--pm-text-secondary)}
+.chip.ok{background:var(--pm-success-soft-bg);color:var(--pm-success-soft-text)}
+.chip.cur{background:var(--pm-primary-soft);color:var(--pm-primary-strong)}
+.chip.drop{background:var(--pm-danger-soft-bg);color:var(--pm-danger)}
+.chip.fy{background:#eef2f7;color:#334155}
+.legend{display:flex;gap:18px;font-size:12px;color:var(--pm-text-muted);margin-top:10px;align-items:center}
+.legend .cell{min-width:0;flex-direction:row;gap:6px}
+/* project page */
+.ph{display:flex;align-items:flex-start;gap:14px;margin-bottom:18px}
+.ph h1{margin:0 0 4px;font-size:24px;font-weight:650;letter-spacing:-.01em}
+.ph .meta{display:flex;gap:8px;align-items:center;color:var(--pm-text-secondary);font-size:13px;flex-wrap:wrap}
+.stepper{display:grid;grid-template-columns:repeat(9,1fr);gap:0;border:1px solid var(--pm-border);border-radius:14px;padding:18px 12px 14px;margin-bottom:18px;position:relative;box-shadow:var(--pm-shadow-card);background:var(--pm-card)}
+.stepper:before{content:"";position:absolute;left:7%;right:7%;top:31px;height:2px;background:var(--pm-border)}
+.step{display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;text-align:center}
+.step .dot{width:26px;height:26px;font-size:13px;background:#fff}
+.step .n{font-size:12.5px;font-weight:600;color:var(--pm-text-strong)}
+.step .d{font-size:11px;color:var(--pm-text-muted)}
+.step.skip .n{color:#9aa3b2}
+.step.pend .n{color:var(--pm-text-secondary);font-weight:500}
+.step.cur .n{color:var(--pm-primary-strong)}
+.step .d.nd{font-style:italic}
+.grid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}
+.card{border:1px solid var(--pm-border);border-radius:14px;background:var(--pm-card);box-shadow:var(--pm-shadow-card);padding:16px 18px;margin-bottom:18px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--pm-text-muted);margin:0 0 10px;font-weight:600;display:flex;align-items:center}
+.card h2 .cnt{margin-left:6px;background:var(--pm-surface);border-radius:9px;padding:0 6px;font-size:11px;color:var(--pm-text-secondary)}
+.card h2 .act{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:600;font-size:12.5px;color:var(--pm-primary)}
+.desc{line-height:1.55;color:var(--pm-text)}
+.rem{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--pm-border)}
+.rem:first-of-type{border-top:0}
+.av{width:32px;height:32px;border-radius:50%;background:var(--pm-surface);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--pm-text-secondary);flex:none}
+.rem .who{font-size:13px;font-weight:600;color:var(--pm-text-strong);display:flex;gap:8px;align-items:center}
+.rem .when{font-size:12px;color:var(--pm-text-muted);margin-left:auto;font-weight:500}
+.rem .body{margin-top:4px;line-height:1.5;color:var(--pm-text)}
+.rem .ctx{font-size:11.5px;color:var(--pm-text-muted);margin-top:4px}
+.role{font-size:10.5px;font-weight:700;letter-spacing:.05em;padding:1px 7px;border-radius:999px;background:var(--pm-surface);color:var(--pm-text-secondary)}
+.role.comdt{background:#f3e8ff;color:#6b21a8}.role.hod{background:#e0f2fe;color:#075985}.role.mco{background:#fef3c7;color:#854d0e}.role.ito{background:#dcfce7;color:#166534}
+.composer{border:1px solid var(--pm-border);border-radius:12px;padding:10px 12px;margin-top:8px;background:var(--pm-surface-subtle)}
+.composer .ta{color:var(--pm-text-muted);min-height:44px}
+.composer .row{display:flex;gap:8px;align-items:center;margin-top:8px}
+.composer .row .btn{margin-left:auto;padding:6px 12px}
+.file{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--pm-border)}
+.file:first-of-type{border-top:0}
+.fi{width:30px;height:36px;border-radius:6px;background:var(--pm-danger-soft-bg);color:var(--pm-danger);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.fi.doc{background:var(--pm-primary-soft);color:var(--pm-primary-strong)}
+.fi.xls{background:var(--pm-success-soft-bg);color:var(--pm-success-soft-text)}
+.file .n{font-weight:600;color:var(--pm-text-strong);font-size:13px}
+.file .m{font-size:12px;color:var(--pm-text-muted)}
+.file .dl{margin-left:auto;font-size:12.5px;font-weight:600}
+.drop{border:1px dashed var(--pm-border-strong);border-radius:10px;padding:12px;text-align:center;color:var(--pm-text-muted);font-size:12.5px;margin-top:10px}
+/* drawer */
+.drawer{border:1px solid var(--pm-border);border-radius:14px;background:var(--pm-card);box-shadow:0 2px 4px rgba(15,23,42,.06),0 18px 40px -16px rgba(15,23,42,.24);padding:16px 18px}
+.drawer h3{margin:0 0 2px;font-size:16px}
+.drawer p{margin:0 0 12px;color:var(--pm-text-muted);font-size:12.5px}
+.srow{display:grid;grid-template-columns:22px 1fr 118px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--pm-border)}
+.srow:first-of-type{border-top:0}
+.cb{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--pm-border-strong);display:inline-flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff}
+.cb.on{background:var(--pm-success);border-color:var(--pm-success)}
+.cb.on:before{content:"✓";font-weight:700}
+.srow .l{font-size:13px;font-weight:600;color:var(--pm-text-strong)}
+.srow .l small{display:block;font-weight:500;color:var(--pm-text-muted);font-size:11.5px}
+.srow.skip .l{color:#9aa3b2}
+.in{border:1px solid var(--pm-border);border-radius:8px;padding:6px 8px;font-size:12.5px;color:var(--pm-text);background:#fff}
+.in.ph{color:var(--pm-text-muted)}
+.srow.so{grid-template-columns:22px 1fr 118px}
+.so .in2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tog{font-size:11.5px;color:var(--pm-primary);font-weight:600}
+.note{background:var(--pm-warning-soft-bg);color:var(--pm-warning-soft-text);border-radius:10px;padding:9px 12px;font-size:12.5px;margin:12px 0}
+.dfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.hide{display:none}
+.caption{font-size:12px;color:var(--pm-text-muted);margin:4px 0 14px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">PRISM <span>ERP</span></div>
+  <div class="tabs"><span>Dashboard</span><span>My Workspace</span><span>Calendar</span><span>Notebook</span><span>Photos</span><span>Projects</span><span>FFC</span><span>Documents</span></div>
+  <div class="switch"><button class="on" onclick="show('board')">1 · Board</button><button onclick="show('proj')">2 · Project page</button><button onclick="show('proj',true)">3 · Stage editor</button></div>
+</div>
+
+<!-- ============ BOARD ============ -->
+<div class="page" id="board">
+  <div class="crumbs">Home › IT projects</div>
+  <div class="head">
+    <div>
+      <h1>IT projects</h1>
+      <p>Where every IT PPP case stands, from PPP to delivery.</p>
+      <div class="rule"></div>
+    </div>
+    <div class="actions"><button class="btn primary">+ New IT project</button></div>
+  </div>
+
+  <div class="strip">
+    <div class="tile"><div class="k">In progress</div><div class="v">7</div><div class="s">across FY 2025-26 and 2026-27</div></div>
+    <div class="tile"><div class="k">Completed this FY</div><div class="v">2</div><div class="s">delivered and ATP done</div></div>
+    <div class="tile"><div class="k">Most projects at</div><div class="v" style="font-size:20px;margin-top:6px">Bid</div><div class="s">3 projects waiting on bids</div></div>
+    <div class="tile"><div class="k">Dropped</div><div class="v">1</div><div class="s">kept for the record</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search">🔍 Search title or IT PPP reference</div>
+    <div class="pills"><span class="on">Active 7</span><span>Completed 2</span><span>Dropped 1</span><span>All 10</span></div>
+    <div class="sel2">Financial year: <b>All years</b> ▾</div>
+    <div class="chk"><i></i> Group by FY</div>
+  </div>
+
+  <div class="board">
+  <table>
+    <thead><tr>
+      <th>Project</th>
+      <th>IT PPP / IPA<small><b>1</b> here</small></th>
+      <th>AoN<small><b>1</b> here</small></th>
+      <th>Bid<small><b>3</b> here</small></th>
+      <th>TEC<small><b>0</b> here</small></th>
+      <th>COB<small><b>1</b> here</small></th>
+      <th class="opt">Benchmarking<small>optional</small></th>
+      <th class="opt">PNC<small>optional</small></th>
+      <th>SO<small><b>1</b> here</small></th>
+      <th>Delivery &amp; ATP<small><b>0</b> here</small></th>
+    </tr></thead>
+    <tbody>
+      <tr class="row"><td><div class="t">LAN upgrade, Technical block</div><div class="r"><b>IT PPP 14/2026</b> · FY 2026-27</div></td>
+        <td><span class="cell cur"><i class="dot"></i><small>now</small></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td>
+        <td><span class="cell skip"><i class="dot"></i></span></td><td><span class="cell skip"><i class="dot"></i></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td></tr>
+
+      <tr class="row"><td><div class="t">Endpoint backup appliances</div><div class="r"><b>IT PPP 11/2026</b> · FY 2026-27</div></td>
+        <td><span class="cell done"><i class="dot"></i><small>12 Jun 26</small></span></td>
+        <td><span class="cell cur"><i class="dot"></i><small>now</small></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td>
+        <td><span class="cell skip"><i class="dot"></i></span></td><td><span class="cell skip"><i class="dot"></i></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td></tr>
+
+      <tr class="row"><td><div class="t">Workstations for Design Centre (40 nos)</div><div class="r"><b>IT PPP 07/2026</b> · FY 2026-27</div></td>
+        <td><span class="cell done"><i class="dot"></i><small>28 Apr 26</small></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>19 Jun 26</small></span></td>
+        <td><span class="cell cur"><i class="dot"></i><small>now</small></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td>
+        <td><span class="cell skip"><i class="dot"></i></span></td><td><span class="cell skip"><i class="dot"></i></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td></tr>
+
+      <tr class="row"><td><div class="t">Firewall replacement, main gateway</div><div class="r"><b>IT PPP 03/2026</b> · FY 2026-27</div></td>
+        <td><span class="cell done"><i class="dot"></i><small class="nd">no date</small></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>07 May 26</small></span></td>
+        <td><span class="cell cur"><i class="dot"></i><small>now</small></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td>
+        <td><span class="cell skip"><i class="dot"></i></span></td><td><span class="cell skip"><i class="dot"></i></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td></tr>
+
+      <tr class="row"><td><div class="t">Server room UPS and cooling</div><div class="r"><b>IT PPP 22/2025</b> · FY 2025-26</div></td>
+        <td><span class="cell done"><i class="dot"></i><small>03 Nov 25</small></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>21 Jan 26</small></span></td>
+        <td><span class="cell cur"><i class="dot"></i><small>now</small></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell skip"><i class="dot"></i></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td></tr>
+
+      <tr class="row"><td><div class="t">PRISM ERP application server (HA pair)</div><div class="r"><b>IT PPP 18/2025</b> · FY 2025-26</div></td>
+        <td><span class="cell done"><i class="dot"></i><small>14 Aug 25</small></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>30 Sep 25</small></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>18 Dec 25</small></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>22 Jan 26</small></span></td>
+        <td><span class="cell cur"><i class="dot"></i><small>now</small></span></td>
+        <td><span class="cell skip"><i class="dot"></i></span></td><td><span class="cell skip"><i class="dot"></i></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td></tr>
+
+      <tr class="row"><td><div class="t">Core switches, Admin block</div><div class="r"><b>IT PPP 09/2025</b> · FY 2025-26</div></td>
+        <td><span class="cell done"><i class="dot"></i><small>02 Jun 25</small></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>15 Jul 25</small></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>29 Sep 25</small></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>10 Nov 25</small></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>08 Jan 26</small></span></td>
+        <td><span class="cell skip"><i class="dot"></i></span></td>
+        <td><span class="cell done"><i class="dot"></i><small>04 Mar 26</small></span></td>
+        <td><span class="cell cur"><i class="dot"></i><small class="cost">₹ 46.80 L</small></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td></tr>
+
+      <tr class="band"><td colspan="10">Completed <span>2 projects</span></td></tr>
+      <tr class="row"><td><div class="t">Wi-Fi for Officers' mess</div><div class="r"><b>IT PPP 05/2025</b> · FY 2025-26 · <span class="chip ok">Delivered 20 Sep 26</span></div></td>
+        <td><span class="cell done"><i class="dot"></i><small>11 Apr 25</small></span></td><td><span class="cell done"><i class="dot"></i><small>26 May 25</small></span></td><td><span class="cell done"><i class="dot"></i><small>30 Jul 25</small></span></td><td><span class="cell done"><i class="dot"></i><small>02 Sep 25</small></span></td><td><span class="cell done"><i class="dot"></i><small>14 Oct 25</small></span></td>
+        <td><span class="cell skip"><i class="dot"></i></span></td><td><span class="cell skip"><i class="dot"></i></span></td>
+        <td><span class="cell done"><i class="dot"></i><small class="cost">₹ 12.40 L</small></span></td><td><span class="cell done"><i class="dot"></i><small>20 Sep 26</small></span></td></tr>
+      <tr class="row"><td><div class="t">Antivirus licence renewal (3 yr)</div><div class="r"><b>IT PPP 02/2025</b> · FY 2025-26 · <span class="chip ok">Delivered 05 Jun 26</span></div></td>
+        <td><span class="cell done"><i class="dot"></i><small class="nd">no date</small></span></td><td><span class="cell done"><i class="dot"></i><small class="nd">no date</small></span></td><td><span class="cell done"><i class="dot"></i><small>12 Jan 26</small></span></td><td><span class="cell done"><i class="dot"></i><small>03 Feb 26</small></span></td><td><span class="cell done"><i class="dot"></i><small>20 Feb 26</small></span></td>
+        <td><span class="cell skip"><i class="dot"></i></span></td><td><span class="cell skip"><i class="dot"></i></span></td>
+        <td><span class="cell done"><i class="dot"></i><small class="cost">₹ 8.75 L</small></span></td><td><span class="cell done"><i class="dot"></i><small>05 Jun 26</small></span></td></tr>
+
+      <tr class="band"><td colspan="10">Dropped <span>1 project</span></td></tr>
+      <tr class="row dropped"><td><div class="t">Video conferencing refresh</div><div class="r"><b>IT PPP 16/2025</b> · FY 2025-26 · <span class="chip drop">Dropped at Bid · merged into HQ contract</span></div></td>
+        <td><span class="cell done"><i class="dot"></i><small>19 Aug 25</small></span></td><td><span class="cell done"><i class="dot"></i><small>07 Oct 25</small></span></td>
+        <td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td>
+        <td><span class="cell skip"><i class="dot"></i></span></td><td><span class="cell skip"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td><td><span class="cell pend"><i class="dot"></i></span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="legend">
+    <span class="cell done"><i class="dot"></i> done (date on hover)</span>
+    <span class="cell cur"><i class="dot"></i> current stage</span>
+    <span class="cell pend"><i class="dot"></i> not yet</span>
+    <span class="cell skip"><i class="dot"></i> skipped</span>
+    <span style="margin-left:auto">Rows sort by current stage, then title. Click a stage cell (Manage) to open the stage editor there.</span>
+  </div>
+</div>
+
+<!-- ============ PROJECT PAGE ============ -->
+<div class="page hide" id="proj">
+  <div class="crumbs">Home › IT projects › Core switches, Admin block</div>
+  <div class="ph">
+    <div>
+      <h1>Core switches, Admin block</h1>
+      <div class="meta"><span>IT PPP <b>09/2025</b></span><span>·</span><span class="chip fy">FY 2025-26</span><span class="chip cur">In progress · SO</span><span style="color:var(--pm-text-muted)">Updated 2 Nov 26 by Maj Rathi (ITO)</span></div>
+    </div>
+    <div class="actions"><button class="btn">Edit</button><button class="btn primary" onclick="show('proj',true)">Stages</button><button class="btn danger">Mark dropped</button></div>
+  </div>
+
+  <div class="stepper">
+    <div class="step done"><i class="dot"></i><span class="n">IT PPP / IPA</span><span class="d">02 Jun 25</span></div>
+    <div class="step done"><i class="dot"></i><span class="n">AoN</span><span class="d">15 Jul 25</span></div>
+    <div class="step done"><i class="dot"></i><span class="n">Bid</span><span class="d">29 Sep 25</span></div>
+    <div class="step done"><i class="dot"></i><span class="n">TEC</span><span class="d">10 Nov 25</span></div>
+    <div class="step done"><i class="dot"></i><span class="n">COB</span><span class="d">08 Jan 26</span></div>
+    <div class="step skip"><i class="dot"></i><span class="n">Benchmarking</span><span class="d">skipped</span></div>
+    <div class="step done"><i class="dot"></i><span class="n">PNC</span><span class="d">04 Mar 26</span></div>
+    <div class="step cur"><i class="dot"></i><span class="n">SO</span><span class="d">current · ₹ 46.80 L</span></div>
+    <div class="step pend"><i class="dot"></i><span class="n">Delivery &amp; ATP</span><span class="d">—</span></div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>Description</h2>
+        <div class="desc">Replacement of the two end-of-life core switches in the Admin block with a redundant pair, including 10G uplinks to the Technical block and the server room. Covers hardware, installation and three years of support. Existing access switches stay.</div>
+      </div>
+
+      <div class="card">
+        <h2>Remarks <span class="cnt">4</span></h2>
+        <div class="rem"><div class="av">AR</div><div style="flex:1"><div class="who">Maj Rathi <span class="role ito">ITO</span><span class="when">2 Nov 26</span></div><div class="body">PNC minutes signed on 04 Mar. SO draft with Accounts; expected to issue by mid November. Benchmarking not needed, DGS&amp;D rate contract applies.</div><div class="ctx">about SO</div></div></div>
+        <div class="rem"><div class="av">PS</div><div style="flex:1"><div class="who">Col Sharma <span class="role hod">HoD</span><span class="when">28 Oct 26</span></div><div class="body">Confirm the uplink optics are included in the SO scope before it goes out. Last time they came as a separate case.</div></div></div>
+        <div class="rem"><div class="av">VK</div><div style="flex:1"><div class="who">Lt Col Kaul <span class="role mco">MCO</span><span class="when">12 Mar 26</span></div><div class="body">PNC concluded at ₹ 46.80 L against the L1 quote of ₹ 49.2 L.</div><div class="ctx">about PNC · edited</div></div></div>
+        <div class="rem"><div class="av">CD</div><div style="flex:1"><div class="who">Brig Dutta <span class="role comdt">Comdt</span><span class="when">14 Jan 26</span></div><div class="body">Priority case. Admin block outages are affecting the pay section every month.</div></div></div>
+        <div class="composer">
+          <div class="ta">Write a remark…</div>
+          <div class="row"><span class="in ph">Event date: 8 Nov 26</span><span class="in ph">About: whole project ▾</span><button class="btn primary">Add remark</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Attachments <span class="cnt">3</span><span class="act">Upload</span></h2>
+        <div class="file"><div class="fi">PDF</div><div><div class="n">PNC minutes 04 Mar 26.pdf</div><div class="m">1.2 MB · Maj Rathi · 5 Mar 26</div></div><a class="dl">Download</a></div>
+        <div class="file"><div class="fi xls">XLS</div><div><div class="n">TEC comparative statement.xlsx</div><div class="m">88 KB · Lt Col Kaul · 11 Nov 25</div></div><a class="dl">Download</a></div>
+        <div class="file"><div class="fi doc">DOC</div><div><div class="n">IT PPP 09-2025 proposal.docx</div><div class="m">340 KB · Maj Rathi · 2 Jun 25</div></div><a class="dl">Download</a></div>
+        <div class="drop">Drop a PDF or Office file here, up to 25 MB</div>
+      </div>
+
+      <div class="drawer hide" id="drawer">
+        <h3>Stages</h3>
+        <p>Tick what is done. Dates are optional. Ticking a later stage completes the earlier ones.</p>
+        <div class="srow"><span class="cb on"></span><span class="l">IT PPP / IPA</span><span class="in">02 Jun 2025</span></div>
+        <div class="srow"><span class="cb on"></span><span class="l">AoN</span><span class="in">15 Jul 2025</span></div>
+        <div class="srow"><span class="cb on"></span><span class="l">Bid</span><span class="in">29 Sep 2025</span></div>
+        <div class="srow"><span class="cb on"></span><span class="l">TEC</span><span class="in">10 Nov 2025</span></div>
+        <div class="srow"><span class="cb on"></span><span class="l">COB</span><span class="in">08 Jan 2026</span></div>
+        <div class="srow skip"><span class="cb" style="opacity:.4"></span><span class="l">Benchmarking<small>optional · skipped · <span class="tog">include</span></small></span><span></span></div>
+        <div class="srow"><span class="cb on"></span><span class="l">PNC<small>optional · included · <span class="tog">skip</span></small></span><span class="in">04 Mar 2026</span></div>
+        <div class="srow so"><span class="cb"></span><span class="l">SO<small>SO date and cost in lakhs, both optional</small></span><span class="in2"><span class="in ph">date</span><span class="in">46.80</span></span></div>
+        <div class="srow"><span class="cb"></span><span class="l">Delivery &amp; ATP</span><span class="in ph">date</span></div>
+        <div class="note">Ticking <b>Delivery &amp; ATP</b> will also complete <b>SO</b>. You will be asked to confirm.</div>
+        <div class="dfoot"><button class="btn" onclick="show('proj')">Cancel</button><button class="btn primary">Save stages</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function show(id,drawer){
+  document.getElementById('board').classList.toggle('hide',id!=='board');
+  document.getElementById('proj').classList.toggle('hide',id!=='proj');
+  document.getElementById('drawer').classList.toggle('hide',!drawer);
+  var b=document.querySelectorAll('.switch button');b.forEach(function(x){x.classList.remove('on')});
+  b[id==='board'?0:(drawer?2:1)].classList.add('on');
+  window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>
