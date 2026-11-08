@@ -93,6 +93,10 @@ public class ItProjectBoardYearTests
         Assert.Equal("IT PPP 07/2026", thisYear.Rows.Single(row => row.Id == seeded.Core).DisplayReference);
         Assert.Equal("IT PPP Core switches", lastYear.Rows.Single(row => row.Id == seeded.Core).DisplayReference);
         Assert.Equal("IT PPP Server room UPS", thisYear.Rows.Single(row => row.Id == seeded.Ups).DisplayReference); // not entered: the first number
+
+        // The instant search on the page matches every year's number, like the server search.
+        Assert.Contains("it ppp 07/2026", thisYear.Rows.Single(row => row.Id == seeded.Core).SearchText);
+        Assert.Contains("it ppp core switches", lastYear.Rows.Single(row => row.Id == seeded.Core).SearchText);
     }
 
     [Fact]

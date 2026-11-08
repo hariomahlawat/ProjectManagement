@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ProjectManagement.Models.ItProjects;
@@ -40,10 +41,17 @@ public sealed record ItProjectBoardRow(
     DateTime UpdatedAtUtc,
     IReadOnlyList<ItProjectBoardStageCell> Stages,
     ItProjectTiming Timing,
-    ItProjectYearTypeInfo? YearType)
+    ItProjectYearTypeInfo? YearType,
+    IReadOnlyList<string> LaterYearReferences)
 {
     /// <summary>The IT PPP number to show for the board's year: that year's number when entered, else the first one.</summary>
     public string DisplayReference => YearType?.PppReferenceNumber ?? PppReferenceNumber;
+
+    /// <summary>
+    /// What the board's instant search matches, lower case: the title, the first IT PPP number and
+    /// every later year's number, the same fields the server search uses.
+    /// </summary>
+    public string SearchText => string.Join(' ', new[] { Title, PppReferenceNumber }.Concat(LaterYearReferences)).ToLowerInvariant();
 }
 
 public sealed record ItProjectBoardStageCount(string StageCode, int AtStage);

@@ -215,6 +215,11 @@ public sealed class ItProjectReadService : IItProjectReadService
             project.UpdatedAtUtc,
             cells,
             ItProjectTiming.Resolve(project, today, ToLocalDate),
-            yearType);
+            yearType,
+            project.FinancialYears
+                .Where(year => !string.IsNullOrWhiteSpace(year.PppReferenceNumber))
+                .OrderBy(year => year.FinancialYearStart)
+                .Select(year => year.PppReferenceNumber!)
+                .ToList());
     }
 }
