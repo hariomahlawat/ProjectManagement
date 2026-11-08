@@ -80,8 +80,16 @@ public sealed class ItProjectReadService : IItProjectReadService
             _ => rows
         };
 
-        var ordered = scoped
-            .OrderBy(row => BandOf(row.Status.Kind))
+        var byBand = scoped.OrderBy(row => BandOf(row.Status.Kind));
+        if (query.Sort == ItProjectBoardSort.LongestWait)
+        {
+            // Only live cases wait; delivered and dropped ones keep stage order in their bands.
+            byBand = byBand
+                .ThenBy(row => IsActive(row.Status.Kind) && row.Timing.Basis == ItProjectTimeBasis.StageDate ? 0 : 1)
+                .ThenByDescending(row => IsActive(row.Status.Kind) && row.Timing.Basis == ItProjectTimeBasis.StageDate ? row.Timing.DaysAtStage ?? 0 : 0);
+        }
+
+        var ordered = byBand
             .ThenBy(row => row.Status.CurrentStageCode is null ? int.MaxValue : ItProjectStages.OrderOf(row.Status.CurrentStageCode))
             .ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();

@@ -38,6 +38,23 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Q { get; set; }
 
+    /// <summary>"wait" sorts live cases by the longest wait; anything else keeps stage order.</summary>
+    [BindProperty(SupportsGet = true)]
+    public string? Sort { get; set; }
+
+    /// <summary>"missing" shows only the live cases with a completed stage that has no date.</summary>
+    [BindProperty(SupportsGet = true)]
+    public string? Dates { get; set; }
+
+    public ItProjectBoardSort BoardSort => string.Equals(Sort, "wait", StringComparison.OrdinalIgnoreCase)
+        ? ItProjectBoardSort.LongestWait
+        : ItProjectBoardSort.StageOrder;
+
+    /// <summary>The route value of the current sort, so links keep it.</summary>
+    public string? SortKey => BoardSort == ItProjectBoardSort.LongestWait ? "wait" : null;
+
+    public bool OnlyMissingDates => string.Equals(Dates, "missing", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>"fy" groups the board by financial year.</summary>
     [BindProperty(SupportsGet = true)]
     public string? Group { get; set; }
@@ -84,8 +101,10 @@ public class IndexModel : PageModel
 
         // One query for every scope: the tiles need all rows, and the scope only picks which
         // rows the board draws.
-        Board = await _reads.GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.All, Fy, Q), cancellationToken);
-        ScopedRows = Board.Rows.Where(row => InScope(row.Status.Kind, BoardScope)).ToList();
+        Board = await _reads.GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.All, Fy, Q, BoardSort), cancellationToken);
+        ScopedRows = OnlyMissingDates
+            ? Board.Rows.Where(row => InScope(row.Status.Kind, ItProjectBoardScope.Active) && row.Timing.HasMissingDates).ToList()
+            : Board.Rows.Where(row => InScope(row.Status.Kind, BoardScope)).ToList();
         Bands = ItProjectBoardPresentation.Bands(ScopedRows, GroupByFinancialYear);
 
         CurrentFinancialYearStart = Board.Figures.CurrentFinancialYearStart;

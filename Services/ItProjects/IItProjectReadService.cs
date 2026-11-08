@@ -15,11 +15,21 @@ public enum ItProjectBoardScope
     All = 3
 }
 
+public enum ItProjectBoardSort
+{
+    /// <summary>Live cases by current stage, then title (the approved default).</summary>
+    StageOrder = 0,
+
+    /// <summary>Live cases by days at the current stage from stage dates, longest first; cases without a stage date after them.</summary>
+    LongestWait = 1
+}
+
 public sealed record ItProjectBoardQuery(
     ItProjectBoardScope Scope = ItProjectBoardScope.Active,
     /// <summary>Show the cases that count in this year (New ones and those carried into it); null for all years.</summary>
     int? FinancialYearStart = null,
-    string? Search = null);
+    string? Search = null,
+    ItProjectBoardSort Sort = ItProjectBoardSort.StageOrder);
 
 public sealed record ItProjectBoardStageCell(
     string StageCode,
