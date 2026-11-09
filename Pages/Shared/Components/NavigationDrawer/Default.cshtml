@@ -1,23 +1,16 @@
 @model ProjectManagement.ViewComponents.NavigationDrawerViewModel
-@using System
-@using System.Collections.Generic
 @using System.Linq
+@using ProjectManagement.Models.Navigation
 @using ProjectManagement.ViewComponents
-@{ 
+@{
     const string drawerId = "pmNavigationDrawer";
     const string drawerLabelId = "pmNavigationDrawerLabel";
-    var userInitials = string.Empty;
-
-    if (!string.IsNullOrWhiteSpace(Model.UserName))
-    {
-        userInitials = new string(Model.UserName
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Take(2)
-            .Select(part => char.ToUpperInvariant(part[0]))
-            .ToArray());
-    }
+    const string linkPartial = "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerLink.cshtml";
 }
 
+@* Layout and rules: docs/ux/navigation-drawer.md. The data-drawer-* hooks are the contract with
+   wwwroot/js/navigation/drawer.js; keep them stable, because that module is imported without a
+   version stamp and a cached copy may meet newer markup. *@
 @if (Model.Items?.Any() ?? false)
 {
     <div class="pm-drawer-toggle">
@@ -38,33 +31,71 @@
                 <div class="pm-drawer__header">
                     <div class="pm-drawer__brand">
                         <span class="pm-drawer__brand-mark" aria-hidden="true"><i class="bi bi-bezier"></i></span>
-                        <div class="pm-drawer__brand-copy">
-                            <h2 class="pm-drawer__title" id="@drawerLabelId">@Model.Brand</h2>
-                        </div>
+                        <h2 class="pm-drawer__title" id="@drawerLabelId">@Model.Brand</h2>
                     </div>
                     <button type="button" class="pm-drawer__close" data-drawer-close aria-label="Close navigation menu">
                         <i class="bi bi-x-lg" aria-hidden="true"></i>
                     </button>
                 </div>
 
-                @if (!string.IsNullOrEmpty(Model.UserName))
-                {
-                    <div class="pm-drawer__user" aria-label="Signed in user">
-                        <span class="pm-drawer__user-avatar" aria-hidden="true">@userInitials</span>
-                        <div class="pm-drawer__user-details">
-                            <span class="pm-drawer__user-label">Signed in as</span>
-                            <span class="pm-drawer__user-name">@Model.UserName</span>
-                        </div>
-                    </div>
-                }
-
                 <div class="pm-drawer__body">
-                    <nav class="pm-drawer__nav" aria-label="Primary navigation">
-                        @await Html.PartialAsync(
-                            "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
-                            new NavigationDrawerItemsViewModel(Model.Items, 0))
+                    <nav class="pm-drawer__nav" aria-label="All PRISM areas">
+                        @foreach (var drawerSection in Model.Items)
+                        {
+                            var sectionKey = drawerSection.Key ?? "section";
+                            var titleId = $"pmDrawerSection_{sectionKey}";
+
+                            if (sectionKey == NavigationSectionKeys.Main)
+                            {
+                                @* Main is always open: it is the only primary navigation on phones. *@
+                                <section class="pm-drawer__section pm-drawer__section--main" data-drawer-section="@sectionKey" aria-labelledby="@titleId">
+                                    <h3 class="pm-drawer__section-title" id="@titleId">@drawerSection.Text</h3>
+                                    <ul class="pm-drawer__list">
+                                        @foreach (var link in drawerSection.Children)
+                                        {
+                                            <partial name="@linkPartial" model="link" />
+                                        }
+                                    </ul>
+                                </section>
+                            }
+                            else
+                            {
+                                @* Only the section holding the current page starts open; drawer.js keeps one open at a time. *@
+                                var panelId = $"pmDrawerSectionPanel_{sectionKey}";
+                                var isOpen = drawerSection.HasActiveDescendant;
+
+                                <details class="pm-drawer__section pm-drawer__group" data-drawer-group data-drawer-section="@sectionKey" open="@(isOpen ? "open" : null)">
+                                    <summary class="pm-drawer__section-summary" data-drawer-group-summary
+                                             aria-controls="@panelId"
+                                             aria-expanded="@(isOpen ? "true" : "false")">
+                                        <span class="pm-drawer__section-title" id="@titleId">@drawerSection.Text</span>
+                                        @if (drawerSection.HasActiveDescendant)
+                                        {
+                                            <span class="visually-hidden">(current section)</span>
+                                        }
+                                        <span class="pm-drawer__caret" aria-hidden="true"><i class="bi bi-chevron-down"></i></span>
+                                    </summary>
+                                    <div class="pm-drawer__group-panel" id="@panelId" data-drawer-group-panel aria-hidden="@(isOpen ? "false" : "true")">
+                                        <ul class="pm-drawer__list" aria-labelledby="@titleId">
+                                            @foreach (var link in drawerSection.Children)
+                                            {
+                                                <partial name="@linkPartial" model="link" />
+                                            }
+                                        </ul>
+                                    </div>
+                                </details>
+                            }
+                        }
                     </nav>
                 </div>
+
+                @if (!string.IsNullOrEmpty(Model.UserName))
+                {
+                    <div class="pm-drawer__footer">
+                        <i class="bi bi-person-circle" aria-hidden="true"></i>
+                        <span>Signed in as <strong class="pm-drawer__footer-name">@Model.UserName</strong></span>
+                    </div>
+                }
             </div>
         </div>
     </div>

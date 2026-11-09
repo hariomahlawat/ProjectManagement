@@ -69,8 +69,8 @@ public sealed class NavigationDrawerTests
     public void DrawerMarkup_NamesTheDialogAndWritesValidAriaState()
     {
         var root = FindProjectRoot();
-        var drawer = File.ReadAllText(Path.Combine(root, "Pages", "Shared", "Components", "NavigationDrawer", "Default.cshtml"));
-        var items = File.ReadAllText(Path.Combine(root, "Pages", "Shared", "Components", "NavigationDrawer", "_NavigationDrawerItems.cshtml"));
+        var drawer = ReadDrawerFile(root, "Default.cshtml");
+        var link = ReadDrawerFile(root, "_NavigationDrawerLink.cshtml");
 
         // The accessible name belongs on the element that carries role="dialog".
         Assert.Contains("role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"@drawerLabelId\"", drawer, StringComparison.Ordinal);
@@ -80,8 +80,57 @@ public sealed class NavigationDrawerTests
         Assert.DoesNotContain("btn-close", drawer, StringComparison.Ordinal);
 
         // A Razor explicit expression ends at its closing parenthesis; anything after it is literal text.
-        Assert.DoesNotContain(").ToString().ToLowerInvariant()\"", items, StringComparison.Ordinal);
+        Assert.DoesNotContain(").ToString().ToLowerInvariant()\"", drawer, StringComparison.Ordinal);
+        Assert.DoesNotContain(").ToString().ToLowerInvariant()\"", link, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void DrawerMarkup_KeepsTheScriptHooksAndOpensOnlyTheCurrentSection()
+    {
+        var drawer = ReadDrawerFile(FindProjectRoot(), "Default.cshtml");
+
+        // drawer.js is imported without a version stamp, so a cached copy can meet this markup:
+        // these hooks are the contract between them.
+        foreach (var hook in new[]
+                 {
+                     "data-drawer-toggle", "data-drawer-target=", "data-drawer=", "data-drawer-overlay",
+                     "data-drawer-panel", "data-drawer-close", "data-drawer-group", "data-drawer-group-summary",
+                     "data-drawer-group-panel", "data-drawer-section="
+                 })
+        {
+            Assert.Contains(hook, drawer, StringComparison.Ordinal);
+        }
+
+        // Main is a plain section; the others are <details> opened only around the current page.
+        Assert.Contains("NavigationSectionKeys.Main", drawer, StringComparison.Ordinal);
+        Assert.Contains("var isOpen = drawerSection.HasActiveDescendant;", drawer, StringComparison.Ordinal);
+        Assert.Contains("open=\"@(isOpen ? \"open\" : null)\"", drawer, StringComparison.Ordinal);
+
+        // Section summaries only expand and collapse: no link nested inside an interactive summary.
+        Assert.DoesNotContain("data-drawer-group-link", drawer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildNodes_CarriesSectionKeysForTheMarkup()
+    {
+        var items = new[]
+        {
+            new NavigationItem
+            {
+                Key = NavigationSectionKeys.Trackers,
+                Text = "Trackers",
+                Children = new[] { new NavigationItem { Text = "Activities", Page = "/Activities/Index" } }
+            }
+        };
+
+        var section = Assert.Single(NavigationDrawerViewComponent.BuildNodes(items, null, "/Dashboard/Index", null, null, UrlFor));
+
+        Assert.Equal(NavigationSectionKeys.Trackers, section.Key);
+        Assert.False(section.HasActiveDescendant);
+    }
+
+    private static string ReadDrawerFile(string root, string name) =>
+        File.ReadAllText(Path.Combine(root, "Pages", "Shared", "Components", "NavigationDrawer", name));
 
     private static string FindProjectRoot()
     {

@@ -17,6 +17,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
 {
     private static readonly IReadOnlyList<NavigationItem> AnonymousNavigation = Array.Empty<NavigationItem>();
 
+
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IAuthorizationService _authorizationService;
@@ -45,50 +46,122 @@ public class RoleBasedNavigationProvider : INavigationProvider
         }
 
         var roleSet = await GetRoleSetAsync(user);
+        var isAdmin = roleSet.Contains(RoleNames.Admin);
+        var isHodWithoutAdmin = roleSet.Contains(RoleNames.HoD) && !isAdmin;
 
-        // ===========================
-        // PRIMARY NAVIGATION ITEMS
-        // ===========================
-        var items = new List<NavigationItem>
+        // The drawer lists PRISM's areas in fixed sections (docs/ux/navigation-drawer.md):
+        // whole areas, not a module's internal pages and not actions. Every link keeps the
+        // policy or role its destination enforces; hiding a link is never the authorization.
+        var sections = new List<NavigationItem>
+        {
+            Section(NavigationSectionKeys.Main, "Main", BuildMainItems()),
+            Section(NavigationSectionKeys.Projects, "Projects", BuildProjectItems()),
+            Section(NavigationSectionKeys.Trackers, "Trackers", BuildTrackerItems(isHodWithoutAdmin)),
+            Section(NavigationSectionKeys.Tools, "Tools", BuildToolItems())
+        };
+
+        if (isAdmin)
+        {
+            sections.Add(Section(NavigationSectionKeys.Administration, "Administration", BuildAdministrationItems()) with
+            {
+                AuthorizationPolicy = AdminPolicies.Access
+            });
+        }
+
+        return await TrimNavigationTreeAsync(sections, httpContext.User, roleSet);
+    }
+
+    private static NavigationItem Section(string key, string text, IReadOnlyList<NavigationItem> children) => new()
+    {
+        Key = key,
+        Text = text,
+        Children = children
+    };
+
+    // ===========================
+    // MAIN: the top-bar areas, in the top bar's order. Below 768px the top tabs are
+    // hidden and the drawer is the only primary navigation, so it must hold all of them.
+    // ===========================
+    private static IReadOnlyList<NavigationItem> BuildMainItems() => new NavigationItem[]
+    {
+        new()
+        {
+            Text = "Dashboard",
+            Page = "/Dashboard/Index",
+            Icon = "bi-speedometer2"
+        },
+        new()
+        {
+            Text = "My Workspace",
+            Page = "/Workspace/Index",
+            ActivePagePrefix = "/Workspace/",
+            Icon = "bi-person-workspace"
+        },
+        new()
+        {
+            Text = "Calendar",
+            Page = "/Calendar/Index",
+            ActivePagePrefix = "/Calendar/",
+            Icon = "bi-calendar3"
+        },
+        new()
+        {
+            Text = "Notebook",
+            Page = "/Notebook/Index",
+            ActivePagePrefix = "/Notebook/",
+            Icon = "bi-journal-bookmark"
+        },
+        new()
+        {
+            Text = "Photos",
+            Page = "/Photos/Index",
+            ActivePagePrefix = "/Photos/",
+            Icon = "bi-images"
+        },
+        new()
+        {
+            Text = "FFC",
+            Area = "ProjectOfficeReports",
+            Page = "/FFC/MapTableDetailed",
+            ActivePagePrefix = "/FFC/",
+            Icon = "bi-globe2"
+        },
+        new()
+        {
+            Text = "Documents",
+            Area = "DocumentRepository",
+            Page = "/Documents/Index",
+            ActivePagePrefix = "/Documents/",
+            AuthorizationPolicy = Policies.Documents.View,
+            BadgeViewComponentName = "AotsUnreadBadge",
+            BadgeViewComponentParameters = new { variant = "default" },
+            Icon = "bi-folder2-open"
+        }
+    };
+
+    // ===========================
+    // PROJECTS: the Projects sub-nav's destinations in its order (actions such as
+    // Create project stay on the sub-nav), plus project pages with no tab of their own.
+    // ProjectModuleNavDefinition is shared with the sub-nav, so the extras live here.
+    // ===========================
+    private static IReadOnlyList<NavigationItem> BuildProjectItems()
+    {
+        var moduleItems = ProjectModuleNavDefinition.Build()
+            .Where(item => !item.IsAction)
+            .ToList();
+
+        var extras = new NavigationItem[]
         {
             new()
             {
-                Text = "Calendar",
-                Page = "/Calendar/Index",
-                ActivePagePrefix = "/Calendar/",
-                Icon = "bi-calendar3"
+                Text = "Proliferation compendium",
+                Page = "/Projects/Compendium/Index",
+                ActivePagePrefix = "/Projects/Compendium/",
+                Icon = "bi-book"
             },
             new()
             {
-                Text = "Dashboard",
-                Page = "/Dashboard/Index",
-                Icon = "bi-speedometer2"
-            },
-            new()
-            {
-                Text = "Photos",
-                Page = "/Photos/Index",
-                ActivePagePrefix = "/Photos/",
-                Icon = "bi-images"
-            },
-            new()
-            {
-                Text = "Miscellaneous activities",
-                Page = "/Activities/Index",
-                ActivePagePrefix = "/Activities/",
-                Icon = "bi-stars"
-            },
-            new()
-            {
-                Text = "Task Management",
-                Page = "/ActionTasks/Index",
-                ActivePagePrefix = "/ActionTasks/",
-                AuthorizationPolicy = "ActionTracker.Access",
-                Icon = "bi-list-task"
-            },
-            new()
-            {
-                Text = "Project Ideas",
+                Text = "Project ideas",
                 Page = "/ProjectIdeas/Index",
                 ActivePagePrefix = "/ProjectIdeas/",
                 Icon = "bi-lightbulb"
@@ -100,23 +173,32 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 ActivePagePrefix = "/ItProjects/",
                 AuthorizationPolicy = Policies.ItProjects.View,
                 Icon = "bi-pc-display"
-            },
+            }
+        };
+
+        // Keep Pending approvals (a queue with a badge) last.
+        var pendingIndex = moduleItems.FindIndex(item => item.Page == "/Approvals/Pending/Index");
+        moduleItems.InsertRange(pendingIndex < 0 ? moduleItems.Count : pendingIndex, extras);
+        return moduleItems;
+    }
+
+    // ===========================
+    // TRACKERS: registers and trackers kept by the project office and officers.
+    // Their settings pages (visit types, social media lists) open from the trackers
+    // themselves and from Administration, so they are not listed here.
+    // ===========================
+    private static IReadOnlyList<NavigationItem> BuildTrackerItems(bool includeActivityTypes)
+    {
+        var items = new List<NavigationItem>
+        {
             new()
             {
-                Text = "Proliferation compendium",
-                Page = "/Projects/Compendium/Index",
-                ActivePagePrefix = "/Projects/Compendium/",
-                Icon = "bi-file-earmark-pdf"
+                Text = "Task management",
+                Page = "/ActionTasks/Index",
+                ActivePagePrefix = "/ActionTasks/",
+                AuthorizationPolicy = Policies.ActionTracker.Access,
+                Icon = "bi-list-task"
             },
-            // Standalone tool: users edit their own PDFs in the browser; nothing is stored in PRISM.
-            new()
-            {
-                Text = "PDF Tools",
-                Page = "/Tools/Pdf/Index",
-                Icon = "bi-file-earmark-pdf-fill",
-                OpensInNewTab = true
-            },
-            // Progress review entry (drawer only).
             new()
             {
                 Text = "Progress review",
@@ -124,144 +206,29 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Page = "/ProgressReview/Index",
                 ActivePagePrefix = "/ProgressReview/",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewProgressReview,
-                Icon = "bi-graph-up"
-            }
-        };
-        // ===========================
-        // PROJECT MODULE NAVIGATION
-        // ===========================
-        var projectModuleChildren = ProjectModuleNavDefinition.Build();
-
-        items.Add(new NavigationItem
-        {
-            Text = "Projects",
-            Children = projectModuleChildren,
-            Icon = "bi-kanban"
-        });
-
-
-        var documentRepositoryChildren = new List<NavigationItem>
-        {
-            new()
-            {
-                Text = "Document repository",
-                Area = "DocumentRepository",
-                Page = "/Documents/Index",
-                AuthorizationPolicy = "DocRepo.View",
-                Icon = "bi-folder2-open"
+                Icon = "bi-bar-chart-line"
             },
             new()
             {
-                Text = "Upload document",
-                Area = "DocumentRepository",
-                Page = "/Documents/Upload",
-                AuthorizationPolicy = "DocRepo.Upload",
-                Icon = "bi-cloud-upload"
+                Text = "Visits",
+                Area = "ProjectOfficeReports",
+                Page = "/Visits/Index",
+                ActivePagePrefix = "/Visits/",
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewVisits,
+                Icon = "bi-pin-map"
             },
             new()
             {
-                Text = "Document deletion approvals",
-                Area = "DocumentRepository",
-                Page = "/Admin/DeleteRequests/Index",
-                AuthorizationPolicy = "DocRepo.DeleteApprove",
-                Icon = "bi-shield-x"
+                Text = "Social media",
+                Area = "ProjectOfficeReports",
+                Page = "/SocialMedia/Index",
+                ActivePagePrefix = "/SocialMedia/",
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ManageSocialMediaEvents,
+                Icon = "bi-hash"
             },
             new()
             {
-                Text = "Deleted repository documents",
-                Area = "DocumentRepository",
-                Page = "/Admin/Trash/Index",
-                AuthorizationPolicy = "DocRepo.Purge",
-                Icon = "bi-trash3"
-            },
-            new()
-            {
-                Text = "Unreadable PDFs",
-                Area = "DocumentRepository",
-                Page = "/Admin/OCRFailures/OcrFailures",
-                AuthorizationPolicy = "DocRepo.DeleteApprove",
-                Icon = "bi-bug"
-            },
-            new()
-            {
-                Text = "Repository offices",
-                Area = "DocumentRepository",
-                Page = "/Admin/OfficeCategories/Index",
-                RequiredRoles = new[] { RoleNames.Admin },
-                Icon = "bi-buildings"
-            },
-            new()
-            {
-                Text = "Repository document types",
-                Area = "DocumentRepository",
-                Page = "/Admin/DocumentCategories/Index",
-                RequiredRoles = new[] { RoleNames.Admin },
-                Icon = "bi-bookmarks"
-            }
-        };
-
-        items.Add(new NavigationItem
-        {
-            Text = "Documents",
-            Children = documentRepositoryChildren,
-            Icon = "bi-folder-check"
-        });
-
-        var projectOfficeReportsChildren = new List<NavigationItem>
-        {
-            // Visits
-                new()
-                {
-                    Text = "Visits tracker",
-                    Area = "ProjectOfficeReports",
-                    Page = "/Visits/Index",
-                    ActivePagePrefix = "/Visits/",
-                    AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewVisits,
-                    Icon = "bi-pin-map",
-                    Children = new[]
-                    {
-                        new NavigationItem
-                        {
-                            Text = "Visit types",
-                            Area = "ProjectOfficeReports",
-                            Page = "/VisitTypes/Index",
-                            RequiredRoles = new[] { RoleNames.Admin },
-                            Icon = "bi-geo"
-                        }
-                    }
-                },
-
-                new()
-                {
-                    Text = "Social media tracker",
-                    Area = "ProjectOfficeReports",
-                    Page = "/SocialMedia/Index",
-                    ActivePagePrefix = "/SocialMedia/",
-                    AuthorizationPolicy = ProjectOfficeReportsPolicies.ManageSocialMediaEvents,
-                    Icon = "bi-hash",
-                    Children = new[]
-                    {
-                        new NavigationItem
-                        {
-                            Text = "Social media event types",
-                            Area = "ProjectOfficeReports",
-                            Page = "/Admin/SocialMediaTypes/Index",
-                            RequiredRoles = new[] { RoleNames.Admin },
-                            Icon = "bi-calendar-event"
-                        },
-                        new NavigationItem
-                        {
-                            Text = "Social media platforms",
-                            Area = "ProjectOfficeReports",
-                            Page = "/Admin/SocialMediaTypes/Platforms/Index",
-                            RequiredRoles = new[] { RoleNames.Admin },
-                            Icon = "bi-ui-radios-grid"
-                        }
-                    }
-                },
-            new()
-            {
-                Text = "Training tracker",
+                Text = "Training",
                 Area = "ProjectOfficeReports",
                 Page = "/Training/Index",
                 ActivePagePrefix = "/Training/",
@@ -271,16 +238,16 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
-                Text = "ToT tracker",
+                Text = "ToT",
                 Area = "ProjectOfficeReports",
                 Page = "/Tot/Index",
                 ActivePagePrefix = "/Tot/",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTotTracker,
-                Icon = "bi-diagram-3"
+                Icon = "bi-arrow-left-right"
             },
             new()
             {
-                Text = "Proliferation tracker",
+                Text = "Proliferation",
                 Area = "ProjectOfficeReports",
                 Page = "/Proliferation/Summary",
                 ActivePagePrefix = "/Proliferation/",
@@ -289,53 +256,74 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
-                Text = "IPR Register",
+                Text = "IPR register",
                 Area = "ProjectOfficeReports",
                 Page = "/Ipr/Index",
                 ActivePagePrefix = "/Ipr/",
                 AuthorizationPolicy = Policies.Ipr.View,
-                Icon = "bi-lightbulb"
+                Icon = "bi-patch-check"
             },
             new()
             {
-                Text = "FFC simulators",
-                Area = "ProjectOfficeReports",
-                Page = "/FFC/Index",
-                ActivePagePrefix = "/FFC/",
-                Icon = "bi-cpu"
+                Text = "Activities",
+                Page = "/Activities/Index",
+                ActivePagePrefix = "/Activities/",
+                Icon = "bi-stars"
             },
             new()
             {
-                Text = "ARPP / PPP",
+                // Distinct from the Projects section's "ARPP / PPP" library.
+                Text = "ARPP administration",
                 Area = "ProjectOfficeReports",
                 Page = "/ARPP/Index",
                 ActivePagePrefix = "/ARPP/",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewArpp,
-                Icon = "bi-journal-check"
+                Icon = "bi-sliders"
             }
         };
 
-        items.Add(new NavigationItem
+        // Heads of department manage activity types without the Administration section.
+        if (includeActivityTypes)
         {
-            Text = "Project office reports",
-            Children = projectOfficeReportsChildren,
-            Icon = "bi-clipboard-data"
-        });
-
-        var activityTypesNavigationItem = AdminNavigationCatalog.ActivityTypesItem();
-
-        if (roleSet.Contains(RoleNames.Admin))
-        {
-            items.Add(AdminNavigationCatalog.BuildAdminPanel());
+            items.Add(AdminNavigationCatalog.ActivityTypesItem());
         }
 
-        if (roleSet.Contains(RoleNames.HoD) && !roleSet.Contains(RoleNames.Admin))
-        {
-            items.Add(activityTypesNavigationItem);
-        }
-
-        return await TrimNavigationTreeAsync(items, httpContext.User, roleSet);
+        return items;
     }
+
+    private static IReadOnlyList<NavigationItem> BuildToolItems() => new NavigationItem[]
+    {
+        // Standalone tool: users edit their own PDFs in the browser; nothing is stored in PRISM.
+        new()
+        {
+            Text = "PDF Tools",
+            Page = "/Tools/Pdf/Index",
+            Icon = "bi-file-earmark-pdf",
+            OpensInNewTab = true
+        }
+    };
+
+    // ===========================
+    // ADMINISTRATION: a few entry points only. Administration has its own sidebar,
+    // sub-nav and "Every admin page" index; the catalog stays the source of names,
+    // destinations and policies.
+    // ===========================
+    internal static readonly IReadOnlyList<string> AdministrationDrawerKeys = new[]
+    {
+        AdminNavigationKeys.Dashboard,
+        AdminNavigationKeys.Users,
+        AdminNavigationKeys.Logs,
+        AdminNavigationKeys.DatabaseHealth,
+        AdminNavigationKeys.AllPages
+    };
+
+    private static IReadOnlyList<NavigationItem> BuildAdministrationItems() =>
+        AdministrationDrawerKeys
+            .Select(AdminNavigationCatalog.GetEntry)
+            .Select(entry => entry.Match.ExactPage
+                ? entry.Item
+                : entry.Item with { ActivePagePrefix = entry.Match.PagePattern })
+            .ToList();
 
     private async Task<HashSet<string>> GetRoleSetAsync(ApplicationUser user)
     {

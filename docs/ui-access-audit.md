@@ -4,7 +4,7 @@
 This document inventories navigation entry points and highlights implemented features that currently lack a discoverable user interface path. The review covered the primary navigation provider, admin dashboard, Razor Pages, and partials.
 
 ## Primary navigation
-The global navigation drawer renders a fixed set of top-level items (`Projects`, `Process`, `Calendar`, `Dashboard`) and, for admins, an `Admin Panel` branch. The branch now exposes lifecycle tooling alongside the existing analytics and lookup managers: `Project trash`, `Archived projects`, `Document recycle bin`, `Calendar deleted events`, and the holiday/celebration maintenance pages. (see Services/Navigation/RoleBasedNavigationProvider.cs lines 42-156)
+The navigation drawer (Menu) is described in [ux/navigation-drawer.md](ux/navigation-drawer.md). Since November 2026 it lists areas in fixed sections (Main, Projects, Trackers, Tools and, for admins, five Administration entry points) and no longer lists Administration's sub-pages. Where the matrix below says "admin drawer", read the Administration sidebar and its "Every admin page" index, which carry those pages (`Services/Navigation/ModuleNav/AdminNavigationCatalog.cs`). `NavigationReachabilityTests` checks that each page removed from the drawer keeps another link.
 
 ## Feature access matrix
 | Feature | Implementation | Current entry point(s) | Gap / Risk |

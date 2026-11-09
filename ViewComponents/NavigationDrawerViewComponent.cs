@@ -87,6 +87,7 @@ public class NavigationDrawerViewComponent : ViewComponent
 
         return new NavigationDrawerNode
         {
+            Key = item.Key,
             Text = item.Text,
             Url = buildUrl(item),
             IsActive = isActive,
@@ -156,6 +157,8 @@ public sealed record class NavigationDrawerViewModel
 
 public sealed record class NavigationDrawerNode
 {
+    public string? Key { get; init; }
+
     public required string Text { get; init; }
 
     public string? Url { get; init; }
@@ -176,7 +179,3 @@ public sealed record class NavigationDrawerNode
 
     public bool OpensInNewTab { get; init; }
 }
-
-public sealed record class NavigationDrawerItemsViewModel(
-    IReadOnlyList<NavigationDrawerNode> Nodes,
-    int Depth);
