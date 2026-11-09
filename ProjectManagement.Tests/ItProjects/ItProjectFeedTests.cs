@@ -17,8 +17,8 @@ public class ItProjectFeedTests
 {
     private static DateOnly D(int year, int month, int day) => new(year, month, day);
 
-    private static ItProjectRemarkView Remark(int id, DateOnly on, string? stage = null) =>
-        new(id, "u", "Mahesh Kini", RoleNames.HoD, $"Remark {id}", on, stage, DateTime.UtcNow, null, Array.Empty<byte>());
+    private static ItProjectRemarkView Remark(int id, DateOnly on) =>
+        new(id, "u", "Mahesh Kini", RoleNames.HoD, $"Remark {id}", on, ItProjectRemarkType.General, DateTime.UtcNow, null, Array.Empty<byte>());
 
     private static ItProject Project(params (string Code, DateOnly? On, decimal? Cost)[] done)
     {
@@ -43,7 +43,7 @@ public class ItProjectFeedTests
         var project = Project(
             ("PPP", D(2025, 4, 10), null), ("AON", D(2025, 5, 22), null), ("BID", D(2025, 8, 1), null),
             ("TEC", D(2025, 9, 15), null), ("COB", null, null), ("SO", D(2025, 12, 12), 86.40m));
-        var remarks = new[] { Remark(2, D(2026, 10, 24), "DLV"), Remark(1, D(2025, 9, 15), "TEC") };
+        var remarks = new[] { Remark(2, D(2026, 10, 24)), Remark(1, D(2025, 9, 15)) };
 
         var feed = ItProjectPagePresentation.Feed(project, remarks);
 
@@ -72,16 +72,24 @@ public class ItProjectFeedTests
     }
 
     [Fact]
-    public async Task Page_StartsANewRemarkOnTheCurrentStage()
+    public async Task Page_StartsTheComdtOnAConferenceRemarkAndOthersOnARemark()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var (id, rowVersion) = await db.SeedAsync();
         Assert.True((await db.Commands().SaveStagesAsync(id, Input(S("BID", true, D(2026, 9, 1))), rowVersion, ItProjectTestDb.Actor())).Result.Succeeded);
 
-        var page = ItProjectDetailsPageTests.PageFor(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
-        await page.OnGetAsync(id, CancellationToken.None);
+        var hod = ItProjectDetailsPageTests.PageFor(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        await hod.OnGetAsync(id, CancellationToken.None);
+        Assert.Equal("General", hod.Remark.Type);
+        Assert.True(hod.CanWriteConference);
+        Assert.Contains(hod.Feed, entry => entry.Stages.Any(item => item.StageCode == "BID"));
 
-        Assert.Equal("TEC", page.Remark.StageCode);
-        Assert.Contains(page.Feed, entry => entry.Stages.Any(item => item.StageCode == "BID"));
+        var comdt = ItProjectDetailsPageTests.PageFor(db, ItProjectTestDb.User("comdt-1", RoleNames.Comdt));
+        await comdt.OnGetAsync(id, CancellationToken.None);
+        Assert.Equal("Conference", comdt.Remark.Type);
+
+        var ito = ItProjectDetailsPageTests.PageFor(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await ito.OnGetAsync(id, CancellationToken.None);
+        Assert.False(ito.CanWriteConference);
     }
 }
