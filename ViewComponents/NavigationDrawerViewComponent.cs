@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using ProjectManagement.Models.Navigation;
 using ProjectManagement.Services.Navigation;
+using ProjectManagement.Services.Navigation.ModuleNav;
 
 namespace ProjectManagement.ViewComponents;
 
@@ -44,7 +45,7 @@ public class NavigationDrawerViewComponent : ViewComponent
             ? actionValue?.ToString()
             : null;
 
-        var nodes = items.Select(item => CreateNode(item, area, page, controller, action)).ToList();
+        var nodes = BuildNodes(items, area, page, controller, action, BuildUrl);
 
         return new NavigationDrawerViewModel
         {
@@ -54,22 +55,40 @@ public class NavigationDrawerViewComponent : ViewComponent
         };
     }
 
-    private NavigationDrawerNode CreateNode(
+    /// <summary>
+    /// Projects navigation items into drawer nodes. An item is active when it matches the
+    /// current page exactly or, where it declares one, its <see cref="NavigationItem.ActivePagePrefix"/>
+    /// (the same rule the module sub-nav uses, so the drawer and the tabs agree).
+    /// </summary>
+    internal static IReadOnlyList<NavigationDrawerNode> BuildNodes(
+        IEnumerable<NavigationItem> items,
+        string? currentArea,
+        string? currentPage,
+        string? currentController,
+        string? currentAction,
+        Func<NavigationItem, string?> buildUrl)
+    {
+        return items
+            .Select(item => CreateNode(item, currentArea, currentPage, currentController, currentAction, buildUrl))
+            .ToList();
+    }
+
+    private static NavigationDrawerNode CreateNode(
         NavigationItem item,
         string? currentArea,
         string? currentPage,
         string? currentController,
-        string? currentAction)
+        string? currentAction,
+        Func<NavigationItem, string?> buildUrl)
     {
-        var childNodes = item.Children.Select(child => CreateNode(child, currentArea, currentPage, currentController, currentAction)).ToList();
-        var url = BuildUrl(item);
-        var isActive = IsActive(item, currentArea, currentPage, currentController, currentAction);
+        var childNodes = BuildNodes(item.Children, currentArea, currentPage, currentController, currentAction, buildUrl);
+        var isActive = ModuleSubNavActiveMatcher.IsActive(item, currentArea, currentPage, currentController, currentAction);
         var hasActiveDescendant = childNodes.Any(child => child.IsActive || child.HasActiveDescendant);
 
         return new NavigationDrawerNode
         {
             Text = item.Text,
-            Url = url,
+            Url = buildUrl(item),
             IsActive = isActive,
             HasActiveDescendant = hasActiveDescendant,
             Children = childNodes,
@@ -124,41 +143,6 @@ public class NavigationDrawerViewComponent : ViewComponent
 
         return values;
     }
-
-    private static bool IsActive(
-        NavigationItem item,
-        string? currentArea,
-        string? currentPage,
-        string? currentController,
-        string? currentAction)
-    {
-        if (!string.IsNullOrEmpty(item.Page))
-        {
-            if (!string.Equals(currentPage, item.Page, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            return string.Equals(item.Area ?? string.Empty, currentArea ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-        }
-
-        if (!string.IsNullOrEmpty(item.Controller) && !string.IsNullOrEmpty(item.Action))
-        {
-            if (!string.Equals(currentController, item.Controller, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            if (!string.Equals(currentAction, item.Action, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            return string.Equals(item.Area ?? string.Empty, currentArea ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-        }
-
-        return false;
-    }
 }
 
 public sealed record class NavigationDrawerViewModel
@@ -195,5 +179,4 @@ public sealed record class NavigationDrawerNode
 
 public sealed record class NavigationDrawerItemsViewModel(
     IReadOnlyList<NavigationDrawerNode> Nodes,
-    bool IsOffcanvas,
     int Depth);

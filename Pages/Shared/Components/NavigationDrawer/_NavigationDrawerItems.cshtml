@@ -72,7 +72,7 @@
                     <div class="pm-drawer__group-panel"
                          id="@collapseId"
                          data-drawer-group-panel
-                         aria-hidden="@(!isExpanded).ToString().ToLowerInvariant()">
+                         aria-hidden="@(isExpanded ? "false" : "true")">
                         @await Html.PartialAsync(
                         "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
                                 Model with

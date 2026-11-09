@@ -741,6 +741,14 @@ body.pm-drawer-open {
     flex: 0 0 auto;
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .pm-drawer__panel,
+    .pm-drawer__overlay,
+    .pm-drawer__caret {
+        transition: none;
+    }
+}
+
 /* Search box popup (top bar and Search page; search-combobox.js) ----------- */
 .pm-search-popup {
     position: absolute;
