@@ -79,8 +79,42 @@
     <div class="itp-grid">
         <div class="itp-grid__main">
             <section class="itp-card itp-remarks" id="remarks" aria-labelledby="itpRemarksTitle">
-                <h2 class="itp-card__title" id="itpRemarksTitle">Remarks <span class="itp-card__count">@Model.Remarks.Count</span></h2>
-                @if (Model.Remarks.Count == 0)
+                <h2 class="itp-card__title" id="itpRemarksTitle">Remarks and history <span class="itp-card__count">@Model.Remarks.Count</span></h2>
+                @if (Model.CanRemark)
+                {
+                    var remarkErrors = Model.DrawerErrors(DetailsModel.OpenRemark, nameof(Model.Remark));
+                    <form method="post" asp-page-handler="RemarkAdd" asp-route-id="@Model.Project.Id" class="itp-composer" id="remark-composer" novalidate>
+                        @if (remarkErrors.Count > 0)
+                        {
+                            <div class="alert alert-danger itp-drawer__errors" role="alert">
+                                <ul class="mb-0 ps-3">
+                                    @foreach (var error in remarkErrors)
+                                    {
+                                        <li>@error</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                        <textarea asp-for="Remark.Body" class="form-control itp-composer__text" rows="3" maxlength="@ItProjectRemark.BodyMaxLength" placeholder="Write a remark as @Model.RemarkRole…"></textarea>
+                        <div class="itp-composer__row">
+                            <label class="itp-composer__field"><span>Event date</span><input type="date" asp-for="Remark.EventDate" asp-format="{0:yyyy-MM-dd}" class="form-control form-control-sm" /></label>
+                            <label class="itp-composer__field"><span>About</span>
+                                <select asp-for="Remark.StageCode" class="form-select form-select-sm">
+                                    <option value="">whole project</option>
+                                    @foreach (var stage in ItProjectStages.All)
+                                    {
+                                        <option value="@stage.Code">@stage.Label</option>
+                                    }
+                                </select>
+                            </label>
+                            <span class="itp-composer__spacer"></span>
+                            <span class="itp-composer__as">as <span class="itp-role @ItProjectBoardPresentation.RoleClass(Model.RemarkRole ?? "")">@Model.RemarkRole</span></span>
+                            <button type="submit" class="btn btn-primary itp-btn-primary btn-sm">Add remark</button>
+                        </div>
+                    </form>
+                }
+
+                @if (Model.Feed.Count == 0)
                 {
                     <p class="itp-remarks__empty">
                         @if (Model.CanRemark)
@@ -96,25 +130,27 @@
                 else
                 {
                     <ol class="itp-remarks__list">
-                        @foreach (var remark in Model.Remarks)
+                        @foreach (var entry in Model.Feed)
                         {
-                            var canEdit = Model.CanEditRemark(remark);
-                            var canDelete = Model.CanDeleteRemark(remark);
-                            var rowVersion = DetailsModel.EncodeRowVersion(remark.RowVersion);
+                            if (entry.Remark is { } remark)
+                            {
+                                var canEdit = Model.CanEditRemark(remark);
+                                var canDelete = Model.CanDeleteRemark(remark);
+                                var rowVersion = DetailsModel.EncodeRowVersion(remark.RowVersion);
                             <li class="itp-remark" id="remark-@remark.Id">
-                                <span class="itp-remark__avatar" aria-hidden="true">@ItProjectBoardPresentation.Initials(remark.AuthorName)</span>
+                                <span class="itp-remark__avatar @ItProjectBoardPresentation.RoleClass(remark.AuthorRole)" aria-hidden="true">@ItProjectBoardPresentation.Initials(remark.AuthorName)</span>
                                 <div class="itp-remark__main">
                                     <div class="itp-remark__who">
                                         <span class="itp-remark__name">@remark.AuthorName</span>
                                         <span class="itp-role @ItProjectBoardPresentation.RoleClass(remark.AuthorRole)">@remark.AuthorRole</span>
+                                        @if (remark.StageCode is { } about && ItProjectStages.IsKnown(about))
+                                        {
+                                            <span class="itp-remark__about">@ItProjectStages.LabelOf(about)</span>
+                                        }
                                         <time class="itp-remark__when" datetime="@remark.EventDate.ToString("yyyy-MM-dd")">@ItProjectBoardPresentation.ShortDate(remark.EventDate)</time>
                                     </div>
                                     <div class="itp-remark__body">@remark.Body</div>
                                     <div class="itp-remark__meta">
-                                        @if (remark.StageCode is { } about && ItProjectStages.IsKnown(about))
-                                        {
-                                            <span>about @ItProjectStages.LabelOf(about)</span>
-                                        }
                                         @if (remark.LastEditedAtUtc.HasValue)
                                         {
                                             <span>edited</span>
@@ -161,42 +197,33 @@
                                     }
                                 </div>
                             </li>
+                            }
+                            else if (entry.Folded)
+                            {
+                                <li class="itp-event itp-event--folded">
+                                    <span class="itp-event__dot" aria-hidden="true"></span>
+                                    <details class="itp-event__more">
+                                        <summary>@entry.FoldedText</summary>
+                                        <ol class="itp-event__list">
+                                            @foreach (var item in entry.Stages)
+                                            {
+                                                <li><span>@item.Text</span><time datetime="@item.On.ToString("yyyy-MM-dd")">@ItProjectBoardPresentation.ShortDate(item.On)</time></li>
+                                            }
+                                        </ol>
+                                    </details>
+                                </li>
+                            }
+                            else
+                            {
+                                var item = entry.Stages[0];
+                                <li class="itp-event @(item.StageCode == "DROPPED" ? "itp-event--dropped" : null)">
+                                    <span class="itp-event__dot" aria-hidden="true"></span>
+                                    <span class="itp-event__text">@item.Text</span>
+                                    <time class="itp-event__when" datetime="@item.On.ToString("yyyy-MM-dd")">@ItProjectBoardPresentation.ShortDate(item.On)</time>
+                                </li>
+                            }
                         }
                     </ol>
-                }
-
-                @if (Model.CanRemark)
-                {
-                    var remarkErrors = Model.DrawerErrors(DetailsModel.OpenRemark, nameof(Model.Remark));
-                    <form method="post" asp-page-handler="RemarkAdd" asp-route-id="@Model.Project.Id" class="itp-composer" id="remark-composer" novalidate>
-                        @if (remarkErrors.Count > 0)
-                        {
-                            <div class="alert alert-danger itp-drawer__errors" role="alert">
-                                <ul class="mb-0 ps-3">
-                                    @foreach (var error in remarkErrors)
-                                    {
-                                        <li>@error</li>
-                                    }
-                                </ul>
-                            </div>
-                        }
-                        <textarea asp-for="Remark.Body" class="form-control itp-composer__text" rows="3" maxlength="@ItProjectRemark.BodyMaxLength" placeholder="Write a remark as @Model.RemarkRole…"></textarea>
-                        <div class="itp-composer__row">
-                            <label class="itp-composer__field"><span>Event date</span><input type="date" asp-for="Remark.EventDate" asp-format="{0:yyyy-MM-dd}" class="form-control form-control-sm" /></label>
-                            <label class="itp-composer__field"><span>About</span>
-                                <select asp-for="Remark.StageCode" class="form-select form-select-sm">
-                                    <option value="">whole project</option>
-                                    @foreach (var stage in ItProjectStages.All)
-                                    {
-                                        <option value="@stage.Code">@stage.Label</option>
-                                    }
-                                </select>
-                            </label>
-                            <span class="itp-composer__spacer"></span>
-                            <span class="itp-composer__as">as <span class="itp-role @ItProjectBoardPresentation.RoleClass(Model.RemarkRole ?? "")">@Model.RemarkRole</span></span>
-                            <button type="submit" class="btn btn-primary itp-btn-primary btn-sm">Add remark</button>
-                        </div>
-                    </form>
                 }
             </section>
         </div>

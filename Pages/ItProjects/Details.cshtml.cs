@@ -60,6 +60,9 @@ public class DetailsModel : PageModel
     /// <summary>The time facts of the project (days at the stage, elapsed), from the read service.</summary>
     public ItProjectTiming? Timing { get; private set; }
 
+    /// <summary>Remarks and stage completions, newest first.</summary>
+    public IReadOnlyList<ItProjectPagePresentation.FeedEntry> Feed { get; private set; } = Array.Empty<ItProjectPagePresentation.FeedEntry>();
+
     /// <summary>The nine stops of the Journey card.</summary>
     public IReadOnlyList<ItProjectPagePresentation.JourneyStep> Journey { get; private set; } = Array.Empty<ItProjectPagePresentation.JourneyStep>();
 
@@ -749,6 +752,7 @@ public class DetailsModel : PageModel
         Journey = ItProjectPagePresentation.Journey(project, Status, Timing);
         Remarks = await _remarks.ListAsync(id, cancellationToken);
         Attachments = await _attachments.ListAsync(id, cancellationToken);
+        Feed = ItProjectPagePresentation.Feed(project, Remarks);
         CanRemark = ItProjectAccess.CanRemark(User, project);
         RemarkRole = ItProjectAccess.RemarkRoleOf(User);
         IsAdmin = User.IsInRole(RoleNames.Admin);
@@ -778,7 +782,12 @@ public class DetailsModel : PageModel
         }
 
         RowVersion = RowVersionToken;
-        Remark = new RemarkInput { EventDate = ItProjectYearTypes.TodayIst(_clock.UtcNow) };
+        // A new remark is most often about the stage the case is at, so the composer starts there.
+        Remark = new RemarkInput
+        {
+            EventDate = ItProjectYearTypes.TodayIst(_clock.UtcNow),
+            StageCode = Status.Kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress ? Status.CurrentStageCode : null
+        };
     }
 
     private void FillStagesInput()

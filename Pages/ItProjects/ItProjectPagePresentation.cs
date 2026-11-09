@@ -158,6 +158,107 @@ public static class ItProjectPagePresentation
 
     private static string DaysShort(int days) => days == 1 ? "1 d" : $"{days} d";
 
+    /// <summary>A stage that closed (or the case being dropped), as a line in the remarks feed.</summary>
+    public sealed record StageEvent(string StageCode, string Label, string Text, DateOnly On);
+
+    /// <summary>
+    /// One entry of the feed: a remark, or a run of stage events. A run of three or more is folded
+    /// into one line ("6 stages completed, IT PPP / IPA to COB") that opens to show them.
+    /// </summary>
+    public sealed record FeedEntry(ItProjectRemarkView? Remark, IReadOnlyList<StageEvent> Stages, bool Folded)
+    {
+        public string FoldedText => Stages.Count == 0
+            ? string.Empty
+            : $"{Stages.Count} stages completed, {Stages[^1].Label} to {Stages[0].Label}";
+    }
+
+    /// <summary>How many stage events in a row are shown one by one before they fold.</summary>
+    public const int StageRunShown = 2;
+
+    /// <summary>
+    /// Remarks and stage completions in one list, newest first. Only stages with a completion date
+    /// appear (an undated stage has no place on a timeline); a remark comes before a stage event of
+    /// the same day.
+    /// </summary>
+    public static IReadOnlyList<FeedEntry> Feed(ItProject project, IReadOnlyList<ItProjectRemarkView> remarks)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(remarks);
+
+        var events = new List<(DateOnly On, int Kind, int Order, object Item)>();
+        var index = 0;
+        foreach (var remark in remarks)
+        {
+            // The service lists remarks newest first; keep that order within a day.
+            events.Add((remark.EventDate, 0, index++, remark));
+        }
+
+        foreach (var stage in project.Stages.Where(stage => !stage.IsSkipped && stage.IsCompleted && stage.CompletedOn.HasValue))
+        {
+            var label = ItProjectStages.LabelOf(stage.StageCode);
+            var text = stage.StageCode == ItProjectStages.So && stage.CostLakhs is { } cost
+                ? $"{label} completed · {ItProjectBoardPresentation.Cost(cost)}"
+                : $"{label} completed";
+            events.Add((stage.CompletedOn!.Value, 1, -stage.SortOrder, new StageEvent(stage.StageCode, label, text, stage.CompletedOn.Value)));
+        }
+
+        if (project.DroppedOn is { } dropped)
+        {
+            events.Add((dropped, 1, int.MinValue, new StageEvent("DROPPED", "Dropped", "Marked dropped", dropped)));
+        }
+
+        var ordered = events
+            .OrderByDescending(item => item.On)
+            .ThenBy(item => item.Kind == 1 && item.Order == int.MinValue ? -1 : item.Kind) // dropped tops its day
+            .ThenBy(item => item.Order)
+            .Select(item => item.Item)
+            .ToList();
+
+        var feed = new List<FeedEntry>();
+        var run = new List<StageEvent>();
+        void Flush()
+        {
+            if (run.Count == 0)
+            {
+                return;
+            }
+
+            if (run.Count > StageRunShown)
+            {
+                feed.Add(new FeedEntry(null, run.ToList(), Folded: true));
+            }
+            else
+            {
+                feed.AddRange(run.Select(item => new FeedEntry(null, new[] { item }, Folded: false)));
+            }
+
+            run.Clear();
+        }
+
+        foreach (var item in ordered)
+        {
+            if (item is StageEvent { StageCode: "DROPPED" } drop)
+            {
+                // The drop is not a stage completion: it always stands on its own line.
+                Flush();
+                feed.Add(new FeedEntry(null, new[] { drop }, Folded: false));
+                continue;
+            }
+
+            if (item is StageEvent stageEvent)
+            {
+                run.Add(stageEvent);
+                continue;
+            }
+
+            Flush();
+            feed.Add(new FeedEntry((ItProjectRemarkView)item, Array.Empty<StageEvent>(), Folded: false));
+        }
+
+        Flush();
+        return feed;
+    }
+
     /// <summary>The label of the last non-skipped stage before the current one.</summary>
     private static string? PreviousStageLabel(IReadOnlyList<ItProjectStage> stages, string? currentCode)
     {
