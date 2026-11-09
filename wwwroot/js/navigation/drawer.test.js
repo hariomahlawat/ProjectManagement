@@ -161,3 +161,37 @@ test('the overlay closes the drawer', async () => {
   assert.ok(!document.getElementById('pmNavigationDrawer').classList.contains('is-open'));
   assert.ok(!document.body.classList.contains('pm-drawer-open'));
 });
+
+test('with every section closed, Tab reaches the section headers and Shift+Tab wraps to the last one', async () => {
+  const { initDrawer } = await loadModule();
+  const { window, document } = createDom();
+  // A Main page such as the Dashboard: no section holds the current page, so all start closed.
+  const trackers = document.getElementById('trackers');
+  trackers.open = false;
+  trackers.querySelector('[data-drawer-group-summary]').id = 'trackers-summary';
+  document.getElementById('visits').removeAttribute('aria-current');
+  document.getElementById('dashboard').setAttribute('aria-current', 'page');
+  initDrawer();
+
+  document.getElementById('toggle').click();
+  await frame(window);
+  assert.equal(document.activeElement.id, 'dashboard');
+
+  // Tab from the last Main link must not wrap: the browser moves on to the Projects header.
+  const forward = new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  document.dispatchEvent(forward);
+  assert.equal(forward.defaultPrevented, false);
+
+  // Shift+Tab from Close wraps to the last focusable control: the Trackers header.
+  document.getElementById('close').focus();
+  const backward = new window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+  document.dispatchEvent(backward);
+  assert.ok(backward.defaultPrevented);
+  assert.equal(document.activeElement.id, 'trackers-summary');
+
+  // Tab from the last header wraps to Close.
+  const wrap = new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  document.dispatchEvent(wrap);
+  assert.ok(wrap.defaultPrevented);
+  assert.equal(document.activeElement.id, 'close');
+});

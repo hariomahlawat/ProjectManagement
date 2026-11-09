@@ -6,6 +6,8 @@ const FOCUSABLE_SELECTORS = [
   'select:not([disabled])',
   'textarea:not([disabled])',
   'button:not([disabled])',
+  // A <details> summary is natively focusable; collapsed drawer sections are reached through it.
+  'details > summary:first-of-type',
   'iframe',
   'object',
   'embed',
