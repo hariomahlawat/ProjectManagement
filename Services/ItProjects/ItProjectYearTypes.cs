@@ -7,8 +7,8 @@ using ProjectManagement.Utilities;
 namespace ProjectManagement.Services.ItProjects;
 
 /// <summary>
-/// A project in one financial year: its type (and whether it was set by hand) and the IT PPP
-/// reference number it carries in that year's IT PPP. In the project's own year that is the
+/// A project in one financial year: its type (and whether it was set by hand) and the IT ARPPP
+/// reference number it carries in that year's IT ARPPP. In the project's own year that is the
 /// project's number; in a later year it is the number entered for that year, or null when not
 /// entered yet.
 /// </summary>
@@ -27,7 +27,7 @@ public sealed record ItProjectYearTypeInfo(
 
 /// <summary>
 /// The one rule source for New / CL / CF (docs/ux/it-projects-redesign.md, "Year type").
-/// CL and CF cases appear again in the next year's IT PPP under a new reference number, which is
+/// CL and CF cases appear again in the next year's IT ARPPP under a new reference number, which is
 /// kept per year in <see cref="ItProjectFinancialYear"/>.
 /// A project is New in its own financial year. In each later year it is still live in, it is CL
 /// when the SO was placed before that year began (an SO marked complete without a date counts as

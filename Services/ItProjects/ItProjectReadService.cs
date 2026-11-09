@@ -144,7 +144,7 @@ public sealed class ItProjectReadService : IItProjectReadService
     private static DateOnly ToLocalDate(DateTime utc)
         => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Ist));
 
-    /// <summary>Title, the first IT PPP number or any later year's number, ignoring case.</summary>
+    /// <summary>Title, the first IT ARPPP number or any later year's number, ignoring case.</summary>
     private static bool Matches(ItProject project, string search)
         => project.Title.Contains(search, StringComparison.OrdinalIgnoreCase) ||
            project.PppReferenceNumber.Contains(search, StringComparison.OrdinalIgnoreCase) ||

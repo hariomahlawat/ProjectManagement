@@ -182,7 +182,7 @@ public sealed partial class OfficerConferenceReadService
                 // Code and name are the same, so the row shows the stage once ("At COB").
                 CurrentStateCode = stateName,
                 CurrentStateName = stateName,
-                // The number, the FY and the CL / CF all belong to the same (current) year's IT PPP.
+                // The number, the FY and the CL / CF all belong to the same (current) year's IT ARPPP.
                 CurrentContext = $"{row.YearType?.PppReferenceNumber ?? row.Reference} · FY {FinancialYearHelper.Format(row.YearType?.FinancialYearStart ?? row.FinancialYearStart)}{type}",
                 AttentionText = late ? $"{row.Timing.DaysAtStage} days at {stageLabel}" : null,
                 RequiresAttention = late,

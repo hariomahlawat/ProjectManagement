@@ -19,7 +19,7 @@ public class ItProjectStageRulesTests
         Assert.Equal(new[] { "BM", "PNC" }, ItProjectStages.All.Where(stage => stage.IsOptional).Select(stage => stage.Code));
         Assert.Equal(new[] { "SO" }, ItProjectStages.All.Where(stage => stage.CarriesCost).Select(stage => stage.Code));
         Assert.Equal("Delivery and ATP", ItProjectStages.LabelOf("DLV"));
-        Assert.Equal("IT PPP / IPA", ItProjectStages.LabelOf("PPP"));
+        Assert.Equal("IT ARPPP / IPA", ItProjectStages.LabelOf("PPP"));
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class ItProjectStageRulesTests
 
         Assert.False(result.IsValid);
         var error = Assert.Single(result.Errors);
-        Assert.Contains("Bid cannot be completed before IT PPP / IPA", error);
+        Assert.Contains("Bid cannot be completed before IT ARPPP / IPA", error);
         Assert.Contains("01 Jun 2026", error);
     }
 

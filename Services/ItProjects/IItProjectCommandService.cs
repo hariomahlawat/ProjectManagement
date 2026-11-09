@@ -15,7 +15,7 @@ public sealed record ItProjectDetailsInput(
     int FinancialYearStart,
     string Description);
 
-/// <summary>One year's IT PPP entry for a project: the reference number in that year and an optional type set by hand.</summary>
+/// <summary>One year's IT ARPPP entry for a project: the reference number in that year and an optional type set by hand.</summary>
 public sealed record ItProjectYearInput(ItProjectYearType? Type, string? PppReferenceNumber);
 
 public sealed record ItProjectCommandResult(
@@ -49,7 +49,7 @@ public interface IItProjectCommandService
     Task<ItProjectCommandResult> ReinstateAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Saves what one financial year's IT PPP says about the project: a later year's IT PPP
+    /// Saves what one financial year's IT ARPPP says about the project: a later year's IT ARPPP
     /// reference number, and a New / CL / CF type set by hand (null or the automatic type means
     /// automatic). The first year's number stays on the project and is changed with Edit.
     /// </summary>

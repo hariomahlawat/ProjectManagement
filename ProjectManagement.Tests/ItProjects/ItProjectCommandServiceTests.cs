@@ -48,7 +48,7 @@ public class ItProjectCommandServiceTests
         Assert.False(result.Succeeded);
         Assert.Equal(0, id);
         Assert.Contains("Give the project a title.", result.Errors);
-        Assert.Contains("Give the IT PPP reference number.", result.Errors);
+        Assert.Contains("Give the IT ARPPP reference number.", result.Errors);
         Assert.Contains("Give the project a description.", result.Errors);
         Assert.Contains("Choose the financial year.", result.Errors);
         Assert.Empty(db.Audit.Entries);
@@ -114,7 +114,7 @@ public class ItProjectCommandServiceTests
             ItProjectTestDb.Actor());
 
         Assert.False(save.Result.Succeeded);
-        Assert.Contains(save.Result.Errors, error => error.Contains("AoN cannot be completed before IT PPP / IPA"));
+        Assert.Contains(save.Result.Errors, error => error.Contains("AoN cannot be completed before IT ARPPP / IPA"));
         await using var context = db.NewContext();
         Assert.False(await context.ItProjectStages.AnyAsync(s => s.ItProjectId == id && s.IsCompleted));
         Assert.DoesNotContain(db.Audit.Entries, entry => entry.Action == "ItProjects.StagesChanged");

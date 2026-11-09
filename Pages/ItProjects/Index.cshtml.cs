@@ -14,7 +14,7 @@ using ProjectManagement.Utilities;
 namespace ProjectManagement.Pages.ItProjects;
 
 /// <summary>
-/// The IT projects board: where every IT PPP case stands, stage by stage
+/// The IT projects board: where every IT ARPPP case stands, stage by stage
 /// (docs/ux/it-projects.md, "The board").
 /// </summary>
 [Authorize(Policy = Policies.ItProjects.View)]

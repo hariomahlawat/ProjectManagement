@@ -21,7 +21,7 @@
         <div class="itp-hero__top">
             <div class="itp-hero__id">
                 <div class="itp-hero__chips">
-                    <span class="itp-ref" title="IT PPP reference number in its first year">@Model.Project.PppReferenceNumber</span>
+                    <span class="itp-ref" title="IT ARPPP reference number in its first year">@Model.Project.PppReferenceNumber</span>
                     <span class="itp-chip itp-chip--fy">@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</span>
                     @if (Model.LatestYear is { } latest && !latest.IsOwnYear)
                     {
@@ -231,7 +231,7 @@
                 </dl>
                 @if (Model.YearTypes.Count > 0)
                 {
-                    <h3 class="itp-years__title">In each year's IT PPP</h3>
+                    <h3 class="itp-years__title">In each year's IT ARPPP</h3>
                     <ul class="itp-years">
                         @foreach (var year in Model.YearTypes.Reverse())
                         {
@@ -250,9 +250,9 @@
                                         <input type="hidden" name="fy" value="@year.FinancialYearStart" />
                                         @if (!year.IsOwnYear)
                                         {
-                                            <label class="visually-hidden" for="itpYearRef@(year.FinancialYearStart)">IT PPP reference number in FY @fyLabel</label>
+                                            <label class="visually-hidden" for="itpYearRef@(year.FinancialYearStart)">IT ARPPP reference number in FY @fyLabel</label>
                                             <input id="itpYearRef@(year.FinancialYearStart)" name="yearReference" value="@year.PppReferenceNumber" maxlength="@ItProjectFinancialYear.ReferenceMaxLength"
-                                                   class="form-control form-control-sm" placeholder="IT PPP no. in @fyLabel" autocomplete="off" />
+                                                   class="form-control form-control-sm" placeholder="IT ARPPP no. in @fyLabel" autocomplete="off" />
                                         }
                                         <label class="visually-hidden" for="itpYearType@(year.FinancialYearStart)">Type in FY @fyLabel</label>
                                         <select id="itpYearType@(year.FinancialYearStart)" name="yearType" class="form-select form-select-sm">
@@ -299,7 +299,7 @@
                     <p class="itp-files__empty">
                         @if (Model.CanManage)
                         {
-                            <text>No files yet. Attach the PPP, the AoN or the SO as PDF or Office documents.</text>
+                            <text>No files yet. Attach the IT ARPPP, the AoN or the SO as PDF or Office documents.</text>
                         }
                         else
                         {

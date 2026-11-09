@@ -69,7 +69,7 @@ public class DetailsModel : PageModel
     /// <summary>The status line under the title.</summary>
     public ItProjectPagePresentation.HeroStatus? HeroStatus { get; private set; }
 
-    /// <summary>The project's type and IT PPP number in the latest year it counts in.</summary>
+    /// <summary>The project's type and IT ARPPP number in the latest year it counts in.</summary>
     public ItProjectYearTypeInfo? LatestYear => YearTypes.LastOrDefault();
 
     /// <summary>New / CL / CF in every financial year the project counts in, oldest first.</summary>
@@ -196,9 +196,9 @@ public class DetailsModel : PageModel
         [Display(Name = "Title")]
         public string Title { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Give the IT PPP reference number.")]
-        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The IT PPP reference number must be {1} characters or fewer.")]
-        [Display(Name = "IT PPP reference number")]
+        [Required(ErrorMessage = "Give the IT ARPPP reference number.")]
+        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The IT ARPPP reference number must be {1} characters or fewer.")]
+        [Display(Name = "IT ARPPP reference number")]
         public string PppReferenceNumber { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Choose the financial year.")]

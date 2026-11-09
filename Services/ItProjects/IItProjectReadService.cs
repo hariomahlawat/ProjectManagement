@@ -54,11 +54,11 @@ public sealed record ItProjectBoardRow(
     ItProjectYearTypeInfo? YearType,
     IReadOnlyList<string> LaterYearReferences)
 {
-    /// <summary>The IT PPP number to show for the board's year: that year's number when entered, else the first one.</summary>
+    /// <summary>The IT ARPPP number to show for the board's year: that year's number when entered, else the first one.</summary>
     public string DisplayReference => YearType?.PppReferenceNumber ?? PppReferenceNumber;
 
     /// <summary>
-    /// What the board's instant search matches, lower case: the title, the first IT PPP number and
+    /// What the board's instant search matches, lower case: the title, the first IT ARPPP number and
     /// every later year's number, the same fields the server search uses.
     /// </summary>
     public string SearchText => string.Join(' ', new[] { Title, PppReferenceNumber }.Concat(LaterYearReferences)).ToLowerInvariant();

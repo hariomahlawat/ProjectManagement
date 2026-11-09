@@ -250,7 +250,7 @@ public static class Policies
 
     /// <summary>
     /// IT projects (docs/ux/it-projects.md). View is registered as RequireAuthenticatedUser in
-    /// Program.cs. Manage and Remark are distinct because the people who run an IT PPP case
+    /// Program.cs. Manage and Remark are distinct because the people who run an IT ARPPP case
     /// (Admin, HoD, ITO) are not the people who comment on it (ITO, MCO, HoD, Comdt).
     /// </summary>
     public static class ItProjects

@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations;
 namespace ProjectManagement.Models.ItProjects;
 
 /// <summary>
-/// An IT PPP case of the organisation's own: a small procurement project that is tracked by
+/// An IT ARPPP case of the organisation's own: a small procurement project that is tracked by
 /// the stage it has reached, not by a plan. Deliberately separate from <see cref="Project"/>
 /// (docs/ux/it-projects.md).
 /// </summary>
@@ -64,7 +64,7 @@ public class ItProject
     public ICollection<ItProjectStage> Stages { get; set; } = new List<ItProjectStage>();
 
     /// <summary>
-    /// Later financial years the project was carried into: that year's IT PPP reference number and
+    /// Later financial years the project was carried into: that year's IT ARPPP reference number and
     /// any type set by hand. The project's own year is not stored here.
     /// </summary>
     public ICollection<ItProjectFinancialYear> FinancialYears { get; set; } = new List<ItProjectFinancialYear>();

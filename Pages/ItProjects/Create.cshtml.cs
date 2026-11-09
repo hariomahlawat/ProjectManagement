@@ -44,9 +44,9 @@ public class CreateModel : PageModel
         [Display(Name = "Title")]
         public string Title { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Give the IT PPP reference number.")]
-        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The IT PPP reference number must be {1} characters or fewer.")]
-        [Display(Name = "IT PPP reference number")]
+        [Required(ErrorMessage = "Give the IT ARPPP reference number.")]
+        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The IT ARPPP reference number must be {1} characters or fewer.")]
+        [Display(Name = "IT ARPPP reference number")]
         public string PppReferenceNumber { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Choose the financial year.")]
