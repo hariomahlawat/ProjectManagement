@@ -12,119 +12,215 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Navigation;
 using ProjectManagement.Services.Navigation;
+using ProjectManagement.Services.Navigation.ModuleNav;
 using Xunit;
 
 namespace ProjectManagement.Tests;
 
 public class RoleBasedNavigationProviderTests
 {
-    [Fact]
-    public async Task AdminNavigation_IncludesLifecycleShortcuts()
+    // The drawer's layout and rules: docs/ux/navigation-drawer.md.
+
+    private static readonly string[] AllTrackerPolicies =
     {
-        var user = new ApplicationUser
-        {
-            Id = "admin-1",
-            UserName = "admin"
-        };
+        Policies.ActionTracker.Access,
+        ProjectOfficeReportsPolicies.ViewProgressReview,
+        ProjectOfficeReportsPolicies.ViewVisits,
+        ProjectOfficeReportsPolicies.ManageSocialMediaEvents,
+        ProjectOfficeReportsPolicies.ViewTrainingTracker,
+        ProjectOfficeReportsPolicies.ViewTotTracker,
+        ProjectOfficeReportsPolicies.ViewProliferationTracker,
+        Policies.Ipr.View,
+        ProjectOfficeReportsPolicies.ViewArpp
+    };
 
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services, "Admin");
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
+    [Fact]
+    public async Task Navigation_IsFixedSectionsOfLinksWithNoDeeperNesting()
+    {
+        var navigation = await NavigateAsAsync(new[] { "Admin" });
+
+        Assert.Equal(
+            new[]
             {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
+                NavigationSectionKeys.Main,
+                NavigationSectionKeys.Projects,
+                NavigationSectionKeys.Trackers,
+                NavigationSectionKeys.Tools,
+                NavigationSectionKeys.Administration
+            },
+            navigation.Select(section => section.Key));
 
-        var provider = CreateProvider(userManager, httpContextAccessor);
-        var navigation = await provider.GetNavigationAsync();
+        Assert.All(navigation, section =>
+        {
+            Assert.Null(section.Page);
+            Assert.NotEmpty(section.Children);
+            Assert.All(section.Children, link =>
+            {
+                Assert.Empty(link.Children);
+                Assert.False(string.IsNullOrEmpty(link.Page));
+                Assert.False(link.IsAction);
+            });
+        });
 
-        var adminPanel = navigation.Single(item => item.Text == "Administration");
-        var children = adminPanel.Children.ToList();
+        // Every link names a distinct destination, and no icon is used twice.
+        var links = navigation.SelectMany(section => section.Children).ToList();
+        Assert.Equal(links.Count, links.Select(link => $"{link.Area}|{link.Page}").Distinct().Count());
+        Assert.Equal(links.Count, links.Select(link => link.Icon).Distinct().Count());
+    }
 
-        // The panel shows the same task entries as the Administration sidebar
-        // (docs/ux/admin-module.md); the bins and the individual lists open from them.
-        Assert.Contains(children, c => c.Text == "Restore deleted items" && c.Page == "/Recovery/Index");
-        Assert.Contains(children, c => c.Text == "Lists used in forms" && c.Page == "/MasterData/Index");
-        Assert.DoesNotContain(children, c => c.Text == "Project trash");
-        Assert.DoesNotContain(children, c => c.Text == "Activity types");
+    [Fact]
+    public async Task Navigation_MainMirrorsTheTopBarInItsOrder()
+    {
+        // Below 768px the top tabs are hidden, so Main is the only primary navigation on phones.
+        var main = Section(await NavigateAsAsync(Array.Empty<string>()), NavigationSectionKeys.Main);
 
-        // The Documents menu uses the same names as Administration (fourth review, PR 6).
-        var documents = navigation.Single(item => item.Text == "Documents").Children.ToList();
-        Assert.Contains(documents, c => c.Text == "Unreadable PDFs" && c.Page == "/Admin/OCRFailures/OcrFailures");
-        Assert.Contains(documents, c => c.Text == "Repository offices" && c.Page == "/Admin/OfficeCategories/Index");
-        Assert.Contains(documents, c => c.Text == "Repository document types" && c.Page == "/Admin/DocumentCategories/Index");
-        Assert.DoesNotContain(documents, c => c.Text is "OCR failures" or "Office categories" or "Document categories");
+        Assert.Equal(
+            new[] { "Dashboard", "My Workspace", "Calendar", "Notebook", "Photos", "FFC", "Documents" },
+            main.Children.Select(link => link.Text));
 
-        var archivedProjects = children.Single(c => c.Text == "Archived projects");
-        Assert.Equal("Admin", archivedProjects.Area);
-        Assert.Equal("/Projects/Archived", archivedProjects.Page);
-        Assert.Equal(AdminPolicies.RecoveryManage, archivedProjects.AuthorizationPolicy);
+        var ffc = main.Children.Single(link => link.Text == "FFC");
+        Assert.Equal("ProjectOfficeReports", ffc.Area);
+        Assert.Equal("/FFC/MapTableDetailed", ffc.Page);
+
+        var documents = main.Children.Single(link => link.Text == "Documents");
+        Assert.Equal("DocumentRepository", documents.Area);
+        Assert.Equal(Policies.Documents.View, documents.AuthorizationPolicy);
+        Assert.Equal("AotsUnreadBadge", documents.BadgeViewComponentName);
+    }
+
+    [Fact]
+    public async Task Navigation_ProjectsFollowsTheSubNavWithoutItsActions()
+    {
+        var projects = Section(await NavigateAsAsync(new[] { "HoD" }), NavigationSectionKeys.Projects);
+        var texts = projects.Children.Select(link => link.Text).ToList();
+
+        var subNavDestinations = ProjectModuleNavDefinition.Build()
+            .Where(item => !item.IsAction)
+            .Select(item => item.Text)
+            .ToList();
+
+        // The sub-nav's destinations keep their order, with project pages that have no tab
+        // of their own added before the Pending approvals queue.
+        Assert.Equal(
+            subNavDestinations.Take(subNavDestinations.Count - 1)
+                .Concat(new[] { "Proliferation compendium", "Project ideas", "IT projects" })
+                .Append("Pending approvals"),
+            texts);
+        Assert.DoesNotContain("Create project", texts);
     }
 
     [Fact]
     public async Task Navigation_OffersItProjectsBehindItsViewPolicy()
     {
-        var user = new ApplicationUser
-        {
-            Id = "officer-2",
-            UserName = "officer2"
-        };
-
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services);
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
-
-        var allowed = CreateProvider(userManager, httpContextAccessor, new TestAuthorizationService(new[] { Policies.ItProjects.View }));
-        var itProjects = (await allowed.GetNavigationAsync()).Single(item => item.Text == "IT projects");
+        var allowed = await NavigateAsAsync(Array.Empty<string>(), new[] { Policies.ItProjects.View });
+        var itProjects = Section(allowed, NavigationSectionKeys.Projects).Children.Single(link => link.Text == "IT projects");
         Assert.Equal("/ItProjects/Index", itProjects.Page);
         Assert.Equal(Policies.ItProjects.View, itProjects.AuthorizationPolicy);
         Assert.Equal("bi-pc-display", itProjects.Icon);
 
-        var denied = CreateProvider(userManager, httpContextAccessor, new TestAuthorizationService(Array.Empty<string>()));
-        Assert.DoesNotContain(await denied.GetNavigationAsync(), item => item.Text == "IT projects");
+        var denied = await NavigateAsAsync(Array.Empty<string>(), Array.Empty<string>());
+        Assert.DoesNotContain(AllLinks(denied), link => link.Text == "IT projects");
+    }
+
+    [Fact]
+    public async Task Navigation_TrackersListsEachTrackerBehindItsPolicy()
+    {
+        var trackers = Section(await NavigateAsAsync(new[] { "Project Officer" }, AllTrackerPolicies), NavigationSectionKeys.Trackers);
+
+        Assert.Collection(trackers.Children,
+            link => AssertLink(link, "Task management", null, Policies.ActionTracker.Access),
+            link => AssertLink(link, "Progress review", "ProjectOfficeReports", ProjectOfficeReportsPolicies.ViewProgressReview),
+            link => AssertLink(link, "Visits", "ProjectOfficeReports", ProjectOfficeReportsPolicies.ViewVisits),
+            link => AssertLink(link, "Social media", "ProjectOfficeReports", ProjectOfficeReportsPolicies.ManageSocialMediaEvents),
+            link =>
+            {
+                AssertLink(link, "Training", "ProjectOfficeReports", ProjectOfficeReportsPolicies.ViewTrainingTracker);
+                Assert.Equal("TrainingApprovalsBadge", link.BadgeViewComponentName);
+            },
+            link => AssertLink(link, "ToT", "ProjectOfficeReports", ProjectOfficeReportsPolicies.ViewTotTracker),
+            link => AssertLink(link, "Proliferation", "ProjectOfficeReports", ProjectOfficeReportsPolicies.ViewProliferationTracker),
+            link => AssertLink(link, "IPR register", "ProjectOfficeReports", Policies.Ipr.View),
+            link => AssertLink(link, "Activities", null, null),
+            link =>
+            {
+                // Named apart from the Projects section's "ARPP / PPP" library.
+                AssertLink(link, "ARPP administration", "ProjectOfficeReports", ProjectOfficeReportsPolicies.ViewArpp);
+                Assert.Equal("/ARPP/Index", link.Page);
+            });
+    }
+
+    [Fact]
+    public async Task Navigation_TrackersExcludesUnauthorizedTrackers()
+    {
+        var navigation = await NavigateAsAsync(new[] { "ProjectOffice" }, Array.Empty<string>());
+
+        var trackers = Section(navigation, NavigationSectionKeys.Trackers);
+        var link = Assert.Single(trackers.Children);
+        Assert.Equal("Activities", link.Text);
+        Assert.Null(link.AuthorizationPolicy);
+    }
+
+    [Fact]
+    public async Task Navigation_ListsAreasNotTheirSettingsOrActions()
+    {
+        var links = AllLinks(await NavigateAsAsync(new[] { "Admin", "HoD" }));
+
+        // These open from the module that owns them (see NavigationReachabilityTests).
+        Assert.DoesNotContain(links, link => link.Page == "/Projects/Create");
+        Assert.DoesNotContain(links, link => link.Page == "/FFC/Index");
+        Assert.DoesNotContain(links, link => link.Page == "/VisitTypes/Index");
+        Assert.DoesNotContain(links, link => link.Page is not null && link.Page.StartsWith("/Admin/SocialMediaTypes/", StringComparison.Ordinal));
+        Assert.DoesNotContain(links, link => link.Area == "DocumentRepository" && link.Page != "/Documents/Index");
+        Assert.DoesNotContain(links, link => link.Text == "Activity delete approvals");
+    }
+
+    [Fact]
+    public async Task Navigation_AdministrationIsAFewEntryPointsForAdminsOnly()
+    {
+        var administration = Section(await NavigateAsAsync(new[] { "Admin" }), NavigationSectionKeys.Administration);
+
+        Assert.Equal(AdminPolicies.Access, administration.AuthorizationPolicy);
+        Assert.Equal(
+            new[]
+            {
+                AdminNavigationKeys.Dashboard,
+                AdminNavigationKeys.Users,
+                AdminNavigationKeys.Logs,
+                AdminNavigationKeys.DatabaseHealth,
+                AdminNavigationKeys.AllPages
+            }.Select(key => AdminNavigationCatalog.Get(key).Text),
+            administration.Children.Select(link => link.Text));
+        Assert.All(administration.Children, link => Assert.Equal("Admin", link.Area));
+
+        // Pages inside an entry's area of Administration light that entry.
+        Assert.Equal("/Users/", administration.Children.Single(link => link.Page == "/Users/Index").ActivePagePrefix);
+
+        Assert.DoesNotContain(
+            await NavigateAsAsync(new[] { "HoD" }),
+            section => section.Key == NavigationSectionKeys.Administration);
+    }
+
+    [Fact]
+    public async Task Navigation_IncludesActivityTypesForHodWithoutAdmin()
+    {
+        var hodTrackers = Section(await NavigateAsAsync(new[] { "HoD" }), NavigationSectionKeys.Trackers);
+        Assert.Contains(hodTrackers.Children, link => link.Text == "Activity types" && link.Page == "/ActivityTypes/Index");
+
+        // Admins reach activity types through Administration's own pages.
+        Assert.DoesNotContain(
+            AllLinks(await NavigateAsAsync(new[] { "Admin", "HoD" })),
+            link => link.Page == "/ActivityTypes/Index");
     }
 
     [Fact]
     public async Task Navigation_OffersPdfToolsToEverySignedInUserInANewTab()
     {
-        var user = new ApplicationUser
-        {
-            Id = "officer-1",
-            UserName = "officer"
-        };
+        var tools = Section(await NavigateAsAsync(Array.Empty<string>()), NavigationSectionKeys.Tools);
 
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services);
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
-
-        var provider = CreateProvider(userManager, httpContextAccessor);
-        var navigation = await provider.GetNavigationAsync();
-
-        var pdfTools = navigation.Single(item => item.Text == "PDF Tools");
+        var pdfTools = Assert.Single(tools.Children);
+        Assert.Equal("PDF Tools", pdfTools.Text);
         Assert.Equal("/Tools/Pdf/Index", pdfTools.Page);
         Assert.True(pdfTools.OpensInNewTab);
         Assert.Null(pdfTools.AuthorizationPolicy);
@@ -132,96 +228,29 @@ public class RoleBasedNavigationProviderTests
     }
 
     [Fact]
-    public async Task Navigation_ProjectOfficeReportsIncludesAuthorizedChildren()
+    public async Task Navigation_DropsSectionsWhoseLinksAreAllUnauthorized()
     {
-        var user = new ApplicationUser
-        {
-            Id = "project-office-1",
-            UserName = "projectoffice"
-        };
+        // Every Administration link needs an admin policy; the section must vanish rather
+        // than render as a heading with nothing under it.
+        var navigation = await NavigateAsAsync(new[] { "Admin" }, Array.Empty<string>());
 
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services, "ProjectOffice");
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
-
-        var authorizedPolicies = new[]
-        {
-            ProjectOfficeReportsPolicies.ViewVisits,
-            ProjectOfficeReportsPolicies.ManageSocialMediaEvents,
-            ProjectOfficeReportsPolicies.ViewTrainingTracker,
-            ProjectOfficeReportsPolicies.ViewTotTracker,
-            ProjectOfficeReportsPolicies.ViewProliferationTracker,
-            Policies.Ipr.View
-        };
-
-        var authorizationService = new TestAuthorizationService(authorizedPolicies);
-        var provider = CreateProvider(userManager, httpContextAccessor, authorizationService);
-        var navigation = await provider.GetNavigationAsync();
-
-        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
-        var children = projectOfficeReports.Children.ToList();
-
-        Assert.Collection(children,
-            item =>
-            {
-                Assert.Equal("Visits tracker", item.Text);
-                Assert.Equal(ProjectOfficeReportsPolicies.ViewVisits, item.AuthorizationPolicy);
-            },
-            item =>
-            {
-                Assert.Equal("Social media tracker", item.Text);
-                Assert.Equal(ProjectOfficeReportsPolicies.ManageSocialMediaEvents, item.AuthorizationPolicy);
-            },
-            item =>
-            {
-                Assert.Equal("Training tracker", item.Text);
-                Assert.Equal(ProjectOfficeReportsPolicies.ViewTrainingTracker, item.AuthorizationPolicy);
-                Assert.Equal("TrainingApprovalsBadge", item.BadgeViewComponentName);
-            },
-            item =>
-            {
-                Assert.Equal("ToT tracker", item.Text);
-                Assert.Equal(ProjectOfficeReportsPolicies.ViewTotTracker, item.AuthorizationPolicy);
-            },
-            item =>
-            {
-                Assert.Equal("Proliferation tracker", item.Text);
-                Assert.Equal(ProjectOfficeReportsPolicies.ViewProliferationTracker, item.AuthorizationPolicy);
-            },
-            item =>
-            {
-                Assert.Equal("IPR Register", item.Text);
-                Assert.Equal(Policies.Ipr.View, item.AuthorizationPolicy);
-            },
-            item =>
-            {
-                Assert.Equal("FFC simulators", item.Text);
-                Assert.Null(item.AuthorizationPolicy);
-            });
-
-        Assert.All(children, item => Assert.Equal("ProjectOfficeReports", item.Area));
+        Assert.DoesNotContain(navigation, section => section.Key == NavigationSectionKeys.Administration);
+        Assert.DoesNotContain(AllLinks(navigation), link => link.Text == "Documents");
+        Assert.All(navigation, section => Assert.NotEmpty(section.Children));
     }
 
-    [Fact]
-    public async Task Navigation_ProjectOfficeReportsExcludesUnauthorizedChildren()
+    private static async Task<IReadOnlyList<NavigationItem>> NavigateAsAsync(
+        string[] roles,
+        string[]? allowedPolicies = null)
     {
         var user = new ApplicationUser
         {
-            Id = "project-office-unauthorized",
-            UserName = "limited"
+            Id = "user-1",
+            UserName = "user"
         };
 
         using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services, "ProjectOffice");
+        var userManager = new StubUserManager(user, services, roles);
         var httpContextAccessor = new HttpContextAccessor
         {
             HttpContext = new DefaultHttpContext
@@ -233,138 +262,24 @@ public class RoleBasedNavigationProviderTests
             }
         };
 
-        var authorizationService = new TestAuthorizationService(Array.Empty<string>());
-        var provider = CreateProvider(userManager, httpContextAccessor, authorizationService);
-        var navigation = await provider.GetNavigationAsync();
-
-        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
-        var children = projectOfficeReports.Children.ToList();
-
-        var child = Assert.Single(children);
-        Assert.Equal("FFC simulators", child.Text);
-        Assert.Null(child.AuthorizationPolicy);
+        var authorization = allowedPolicies is null
+            ? new TestAuthorizationService()
+            : new TestAuthorizationService(allowedPolicies);
+        return await CreateProvider(userManager, httpContextAccessor, authorization).GetNavigationAsync();
     }
 
-    [Fact]
-    public async Task Navigation_DoesNotIncludeActivityDeleteApprovals()
+    private static NavigationItem Section(IReadOnlyList<NavigationItem> navigation, string key) =>
+        navigation.Single(section => section.Key == key);
+
+    private static List<NavigationItem> AllLinks(IReadOnlyList<NavigationItem> navigation) =>
+        navigation.SelectMany(section => section.Children).ToList();
+
+    private static void AssertLink(NavigationItem link, string text, string? area, string? policy)
     {
-        var user = new ApplicationUser
-        {
-            Id = "admin-approver",
-            UserName = "admin"
-        };
-
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services, "Admin", "HoD");
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
-
-        var provider = CreateProvider(userManager, httpContextAccessor);
-        var navigation = await provider.GetNavigationAsync();
-
-        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
-
-        Assert.DoesNotContain(projectOfficeReports.Children, c => string.Equals(c.Text, "Activity delete approvals", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task Navigation_IncludesActivityTypesForHod()
-    {
-        var user = new ApplicationUser
-        {
-            Id = "hod-1",
-            UserName = "hod"
-        };
-
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services, "HoD");
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
-
-        var provider = CreateProvider(userManager, httpContextAccessor);
-        var navigation = await provider.GetNavigationAsync();
-
-        Assert.Contains(navigation, item => item.Text == "Activity types" && item.Page == "/ActivityTypes/Index");
-    }
-
-    [Fact]
-    public async Task Navigation_DropsSectionsWhoseChildrenAreAllUnauthorized()
-    {
-        var user = new ApplicationUser
-        {
-            Id = "no-repository-access",
-            UserName = "limited"
-        };
-
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services, "ProjectOffice");
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
-
-        var provider = CreateProvider(userManager, httpContextAccessor, new TestAuthorizationService(Array.Empty<string>()));
-        var navigation = await provider.GetNavigationAsync();
-
-        // Every Documents child needs a repository policy or the Admin role, so the heading
-        // would otherwise render as a label with nothing under it.
-        Assert.DoesNotContain(navigation, item => item.Text == "Documents");
-        Assert.All(
-            navigation.Where(item => item.Page is null && item.Controller is null),
-            section => Assert.NotEmpty(section.Children));
-    }
-
-    [Fact]
-    public async Task Navigation_ProjectOfficeReportsIsASectionHeadingWithoutALandingPage()
-    {
-        var user = new ApplicationUser
-        {
-            Id = "officer-por",
-            UserName = "officer"
-        };
-
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services, "Project Officer");
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
-
-        var provider = CreateProvider(userManager, httpContextAccessor);
-        var navigation = await provider.GetNavigationAsync();
-
-        // The area has no /Index page, so a link here would return 404.
-        var section = navigation.Single(item => item.Text == "Project office reports");
-        Assert.Null(section.Page);
-        Assert.Null(section.Area);
+        Assert.Equal(text, link.Text);
+        Assert.Equal(area, link.Area);
+        Assert.Equal(policy, link.AuthorizationPolicy);
+        Assert.False(string.IsNullOrEmpty(link.ActivePagePrefix));
     }
 
     private static RoleBasedNavigationProvider CreateProvider(

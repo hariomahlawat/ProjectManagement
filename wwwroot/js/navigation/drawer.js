@@ -6,6 +6,8 @@ const FOCUSABLE_SELECTORS = [
   'select:not([disabled])',
   'textarea:not([disabled])',
   'button:not([disabled])',
+  // A <details> summary is natively focusable; collapsed drawer sections are reached through it.
+  'details > summary:first-of-type',
   'iframe',
   'object',
   'embed',
@@ -86,6 +88,14 @@ function getFocusableElements(container) {
   );
 }
 
+function closeOtherSections(drawer, openGroup) {
+  drawer.querySelectorAll('details[data-drawer-section][open]').forEach((other) => {
+    if (other !== openGroup) {
+      other.open = false;
+    }
+  });
+}
+
 function setupDrawer(drawer) {
   if (!(drawer instanceof HTMLElement)) {
     return;
@@ -158,7 +168,14 @@ function setupDrawer(drawer) {
     };
 
     if (group instanceof HTMLDetailsElement) {
-      group.addEventListener('toggle', sync);
+      group.addEventListener('toggle', () => {
+        sync();
+        // Sections are an accordion: opening one closes the others, which keeps the
+        // drawer short enough to scan (docs/ux/navigation-drawer.md).
+        if (group.open && group.hasAttribute('data-drawer-section')) {
+          closeOtherSections(drawer, group);
+        }
+      });
       sync();
     } else if (summary instanceof HTMLElement && groupPanel instanceof HTMLElement) {
       summary.addEventListener('click', (event) => {
@@ -228,6 +245,16 @@ function setupDrawer(drawer) {
 
   const focusFirstElement = () => {
     const focusable = getFocusableElements(panel instanceof HTMLElement ? panel : drawer);
+
+    // Start where the user is: the current page's link, when it is visible.
+    const current = focusable.find((element) => element.getAttribute('aria-current') === 'page');
+    if (current) {
+      current.focus({ preventScroll: true });
+      if (typeof current.scrollIntoView === 'function') {
+        current.scrollIntoView({ block: 'nearest' });
+      }
+      return;
+    }
 
     if (focusable.length > 0) {
       focusable[0].focus({ preventScroll: true });

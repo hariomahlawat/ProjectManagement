@@ -50,6 +50,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Confirmation dialogs](ux/confirm-dialogs.md) | The one glass confirmation dialog (`PrismConfirm`): options, wording rules, behaviour and the plan for converting the remaining browser `confirm()` calls. |
 | [Toasts](ux/toasts.md) | The one glass toast (`PrismToast`): server and script use, behaviour, wording rules and the conversion plan. |
 | [Top bar, Dashboard and workspace headers](ux/app-shell-and-dashboard.md) | What a signed-in user sees first: top-bar fit rules by width, the Dashboard greeting header, workspace page headers and minimum type sizes. |
+| [Navigation drawer (Menu)](ux/navigation-drawer.md) | The Menu drawer: its fixed sections, what belongs in it (areas, not settings or actions), behaviour, compatibility and the reachability rule. |
 | [Project Office Reports](ProjectOfficeReports_Directions.md) | Visits, Social Media, Proliferation, ToT, IPR and related reports. |
 | [Timeline pipeline](timeline.md) | Canonical timeline rules, implemented plan revision behavior and remaining target semantics. |
 | [Timeline implementation roadmap](timeline-proposal-roadmap.md) | Completed B/C milestones, historical gaps and open D/E boundaries. |

@@ -1,0 +1,39 @@
+@model ProjectManagement.ViewComponents.NavigationDrawerNode
+
+@* One drawer destination. Sections hold only links: no nesting, and no actions. *@
+@{
+    var badgeName = Model.BadgeViewComponentName;
+    var accentClass = string.IsNullOrEmpty(Model.Accent) ? string.Empty : $" pm-drawer__accent--{Model.Accent}";
+    var entryClasses = "pm-drawer__link pm-drawer__entry" + accentClass + (Model.IsActive ? " is-active" : string.Empty);
+}
+
+@if (!string.IsNullOrEmpty(Model.Url))
+{
+    <li class="pm-drawer__item" data-drawer-item>
+        <a class="@entryClasses" href="@Model.Url"
+           aria-current="@(Model.IsActive ? "page" : null)"
+           target="@(Model.OpensInNewTab ? "_blank" : null)"
+           rel="@(Model.OpensInNewTab ? "noopener" : null)">
+            <span class="pm-drawer__content">
+                @if (!string.IsNullOrEmpty(Model.Icon))
+                {
+                    <span class="pm-drawer__icon" aria-hidden="true">
+                        <i class="bi @Model.Icon"></i>
+                    </span>
+                }
+
+                <span class="pm-drawer__text">@Model.Text</span>
+                @if (Model.OpensInNewTab)
+                {
+                    <i class="bi bi-box-arrow-up-right pm-drawer__external" aria-hidden="true"></i>
+                    <span class="visually-hidden">(opens in a new tab)</span>
+                }
+            </span>
+
+            @if (!string.IsNullOrEmpty(badgeName))
+            {
+                <span class="pm-drawer__meta">@await Component.InvokeAsync(badgeName!, Model.BadgeViewComponentParameters ?? new { })</span>
+            }
+        </a>
+    </li>
+}

@@ -7,6 +7,13 @@ public record class NavigationItem
 {
     public required string Text { get; init; }
 
+    /// <summary>
+    /// Optional stable identifier. The navigation drawer uses it for its sections
+    /// (see <see cref="NavigationSectionKeys"/>) so markup, scripts and tests do not
+    /// depend on display text.
+    /// </summary>
+    public string? Key { get; init; }
+
     public string? Area { get; init; }
 
     public string? Page { get; init; }
@@ -49,4 +56,14 @@ public record class NavigationItem
     /// PDF Tools, that run outside the PRISM page shell.
     /// </summary>
     public bool OpensInNewTab { get; init; }
+}
+
+/// <summary>Stable keys of the navigation drawer's sections (docs/ux/navigation-drawer.md).</summary>
+public static class NavigationSectionKeys
+{
+    public const string Main = "main";
+    public const string Projects = "projects";
+    public const string Trackers = "trackers";
+    public const string Tools = "tools";
+    public const string Administration = "administration";
 }
