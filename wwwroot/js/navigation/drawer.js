@@ -88,6 +88,76 @@ function getFocusableElements(container) {
   );
 }
 
+// ---------- Remembered section (per browser; a convenience, never required) ----------
+const SECTION_STORAGE_KEY = 'prism.navDrawer.section';
+
+function readRememberedSection() {
+  try {
+    return window.localStorage.getItem(SECTION_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberSection(key) {
+  try {
+    window.localStorage.setItem(SECTION_STORAGE_KEY, key);
+  } catch {
+    // Storage blocked (private window, policy): the drawer works without it.
+  }
+}
+
+// ---------- "Find a page" filter ----------
+function normaliseQuery(value) {
+  return (value || '').toLocaleLowerCase().split(/\s+/).filter(Boolean);
+}
+
+function createFilter(panel) {
+  const body = panel.querySelector('.pm-drawer__body');
+  if (!(body instanceof HTMLElement)) {
+    return null;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'pm-drawer__filter';
+  wrapper.setAttribute('role', 'search');
+
+  const label = document.createElement('label');
+  label.className = 'visually-hidden';
+  label.htmlFor = 'pmDrawerFilter';
+  label.textContent = 'Find a page in the menu';
+
+  const icon = document.createElement('i');
+  icon.className = 'bi bi-search pm-drawer__filter-icon';
+  icon.setAttribute('aria-hidden', 'true');
+
+  const input = document.createElement('input');
+  input.type = 'search';
+  input.id = 'pmDrawerFilter';
+  input.className = 'pm-drawer__filter-input';
+  input.placeholder = 'Find a page…';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.setAttribute('enterkeyhint', 'go');
+  input.setAttribute('aria-keyshortcuts', '/');
+  input.setAttribute('aria-describedby', 'pmDrawerFilterStatus');
+
+  const status = document.createElement('p');
+  status.id = 'pmDrawerFilterStatus';
+  status.className = 'visually-hidden';
+  status.setAttribute('aria-live', 'polite');
+
+  const empty = document.createElement('p');
+  empty.className = 'pm-drawer__filter-empty';
+  empty.hidden = true;
+
+  wrapper.append(label, icon, input, status);
+  body.parentElement.insertBefore(wrapper, body);
+  body.insertBefore(empty, body.firstChild);
+
+  return { input, status, empty };
+}
+
 function closeOtherSections(drawer, openGroup) {
   drawer.querySelectorAll('details[data-drawer-section][open]').forEach((other) => {
     if (other !== openGroup) {
@@ -172,8 +242,10 @@ function setupDrawer(drawer) {
         sync();
         // Sections are an accordion: opening one closes the others, which keeps the
         // drawer short enough to scan (docs/ux/navigation-drawer.md).
-        if (group.open && group.hasAttribute('data-drawer-section')) {
+        // While the filter shows every matching section, the accordion stands aside.
+        if (group.open && group.hasAttribute('data-drawer-section') && drawer.dataset.drawerFiltering !== 'true') {
           closeOtherSections(drawer, group);
+          rememberSection(group.getAttribute('data-drawer-section'));
         }
       });
       sync();
@@ -189,6 +261,122 @@ function setupDrawer(drawer) {
 
     group.dataset.drawerGroupInitialized = 'true';
   });
+
+  // ---------- Remembered section ----------
+  // When no section holds the current page, reopen the one the user last opened.
+  const sectionGroups = groups.filter((group) => group instanceof HTMLDetailsElement && group.hasAttribute('data-drawer-section'));
+  if (sectionGroups.length > 0 && !sectionGroups.some((group) => group.open)) {
+    const remembered = readRememberedSection();
+    const match = sectionGroups.find((group) => group.getAttribute('data-drawer-section') === remembered);
+    if (match) {
+      match.open = true;
+    }
+  }
+
+  // ---------- Filter ----------
+  const filter = sectionGroups.length > 0 && panel instanceof HTMLElement ? createFilter(panel) : null;
+  let openBeforeFilter = null;
+
+  const visibleLinks = () =>
+    Array.from(panel.querySelectorAll('a.pm-drawer__link')).filter((link) => {
+      const item = link.closest('[data-drawer-item]');
+      if (item && item.hidden) {
+        return false;
+      }
+      const section = link.closest('[data-drawer-section]');
+      if (section && section.hidden) {
+        return false;
+      }
+      const closed = link.closest('details:not([open])');
+      return !closed;
+    });
+
+  const applyFilter = () => {
+    if (!filter) {
+      return;
+    }
+
+    const tokens = normaliseQuery(filter.input.value);
+    const sections = Array.from(panel.querySelectorAll('[data-drawer-section]'));
+
+    if (tokens.length === 0) {
+      sections.forEach((section) => {
+        section.hidden = false;
+        section.querySelectorAll('[data-drawer-item]').forEach((item) => {
+          item.hidden = false;
+        });
+      });
+      if (openBeforeFilter) {
+        sectionGroups.forEach((group) => {
+          group.open = openBeforeFilter.has(group);
+        });
+      }
+      openBeforeFilter = null;
+      delete drawer.dataset.drawerFiltering;
+      filter.empty.hidden = true;
+      filter.status.textContent = '';
+      return;
+    }
+
+    if (!openBeforeFilter) {
+      openBeforeFilter = new Set(sectionGroups.filter((group) => group.open));
+    }
+    drawer.dataset.drawerFiltering = 'true';
+
+    let matches = 0;
+    sections.forEach((section) => {
+      const title = section.querySelector('.pm-drawer__section-title');
+      const sectionText = title ? title.textContent : '';
+      let sectionMatches = 0;
+
+      section.querySelectorAll('[data-drawer-item]').forEach((item) => {
+        const text = `${item.textContent} ${sectionText}`.toLocaleLowerCase();
+        const isMatch = tokens.every((token) => text.includes(token));
+        item.hidden = !isMatch;
+        if (isMatch) {
+          sectionMatches += 1;
+        }
+      });
+
+      section.hidden = sectionMatches === 0;
+      if (sectionMatches > 0 && section instanceof HTMLDetailsElement) {
+        section.open = true;
+      }
+      matches += sectionMatches;
+    });
+
+    filter.empty.hidden = matches > 0;
+    filter.empty.textContent = matches > 0 ? '' : `No pages match “${filter.input.value.trim()}”.`;
+    filter.status.textContent = matches === 0
+      ? 'No pages match.'
+      : `${matches} ${matches === 1 ? 'page matches' : 'pages match'}.`;
+  };
+
+  const clearFilter = () => {
+    if (filter && filter.input.value) {
+      filter.input.value = '';
+      applyFilter();
+    }
+  };
+
+  if (filter) {
+    filter.input.addEventListener('input', applyFilter);
+    filter.input.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown') {
+        const [first] = visibleLinks();
+        if (first) {
+          event.preventDefault();
+          first.focus();
+        }
+      } else if (event.key === 'Enter') {
+        const [first] = visibleLinks();
+        if (first && filter.input.value.trim()) {
+          event.preventDefault();
+          first.click();
+        }
+      }
+    });
+  }
 
   let restoreFocusTo = null;
   let isOpen = drawer.classList.contains('is-open');
@@ -212,7 +400,48 @@ function setupDrawer(drawer) {
 
     if (event.key === 'Escape' || event.key === 'Esc') {
       event.preventDefault();
+      // First Escape clears the filter; the next one closes the drawer.
+      if (filter && event.target === filter.input && filter.input.value) {
+        clearFilter();
+        return;
+      }
       closeDrawer();
+      return;
+    }
+
+    // Ctrl/Cmd+K is the global search: close the dialog so the search box it focuses
+    // is not left behind the overlay.
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && String(event.key).toLowerCase() === 'k') {
+      closeDrawer();
+      return;
+    }
+
+    const active = document.activeElement;
+    const typing = active instanceof HTMLElement
+      && (active.matches('input, textarea, select') || active.isContentEditable);
+
+    if (filter && event.key === '/' && !typing && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      filter.input.focus();
+      return;
+    }
+
+    // Use the key's own target: the filter's ArrowDown has already moved focus to a link
+    // by the time this document listener sees the same event.
+    const keyTarget = event.target;
+    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && keyTarget instanceof HTMLElement && keyTarget.matches('a.pm-drawer__link')) {
+      const links = visibleLinks();
+      const index = links.indexOf(keyTarget);
+      if (index >= 0) {
+        event.preventDefault();
+        if (event.key === 'ArrowDown' && index < links.length - 1) {
+          links[index + 1].focus();
+        } else if (event.key === 'ArrowUp' && index > 0) {
+          links[index - 1].focus();
+        } else if (event.key === 'ArrowUp' && filter) {
+          filter.input.focus();
+        }
+      }
       return;
     }
 
@@ -232,7 +461,6 @@ function setupDrawer(drawer) {
 
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
-    const active = document.activeElement;
 
     if (!event.shiftKey && active === last) {
       event.preventDefault();
@@ -276,7 +504,9 @@ function setupDrawer(drawer) {
     toggles.forEach((toggle) => toggle.setAttribute('aria-expanded', 'true'));
     isOpen = true;
     syncAriaHidden();
-    document.addEventListener('keydown', handleKeydown);
+    // Capture phase: while the dialog is open its keys ("/", Escape, Tab) come before
+    // page-wide shortcuts such as the global search's "/" (search-combobox.js).
+    document.addEventListener('keydown', handleKeydown, true);
     syncBodyScrollLock();
     window.requestAnimationFrame(focusFirstElement);
   };
@@ -289,8 +519,9 @@ function setupDrawer(drawer) {
     drawer.classList.remove('is-open');
     toggles.forEach((toggle) => toggle.setAttribute('aria-expanded', 'false'));
     isOpen = false;
+    clearFilter();
     syncAriaHidden();
-    document.removeEventListener('keydown', handleKeydown);
+    document.removeEventListener('keydown', handleKeydown, true);
     syncBodyScrollLock();
 
     if (restoreFocusTo && typeof restoreFocusTo.focus === 'function') {
