@@ -2,17 +2,11 @@
 @using ProjectManagement.Models.ItProjects
 @using ProjectManagement.Pages.ItProjects
 @using ProjectManagement.Services.ItProjects
+@using ProjectManagement.Utilities
 @model ProjectManagement.Pages.ItProjects.DetailsModel
 @{
     ViewData["Title"] = Model.Project.Title;
     ViewData["PageShell"] = "wide";
-    var statusClass = Model.Status.Kind switch
-    {
-        ItProjectStatusKind.Completed => "itp-chip--ok",
-        ItProjectStatusKind.Dropped => "itp-chip--drop",
-        ItProjectStatusKind.InProgress => "itp-chip--cur",
-        _ => null
-    };
     var editErrors = Model.DrawerErrors(DetailsModel.OpenEdit, nameof(Model.Details));
     var stageErrors = Model.DrawerErrors(DetailsModel.OpenStages, nameof(Model.Stages));
     var dropErrors = Model.DrawerErrors(DetailsModel.OpenDrop, nameof(Model.Drop));
@@ -29,7 +23,10 @@
                 <div class="itp-hero__chips">
                     <span class="itp-ref" title="IT PPP reference number in its first year">@Model.Project.PppReferenceNumber</span>
                     <span class="itp-chip itp-chip--fy">@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</span>
-                    <span class="itp-chip @statusClass">@ItProjectBoardPresentation.StatusChip(Model.Status)</span>
+                    @if (Model.LatestYear is { } latest && !latest.IsOwnYear)
+                    {
+                        <span class="itp-type itp-type--@latest.Code.ToLowerInvariant()" title="@latest.Label in FY @FinancialYearHelper.Format(latest.FinancialYearStart)@(latest.PppReferenceNumber is { } number ? $", {number}" : ", number not entered")">@latest.Code · FY @FinancialYearHelper.Format(latest.FinancialYearStart)</span>
+                    }
                 </div>
                 <h1 class="itp-hero__title">@Model.Project.Title</h1>
                 <p class="itp-hero__desc itp-desc">@Model.Project.Description</p>
@@ -42,61 +39,41 @@
                 </div>
             }
         </div>
-        <dl class="itp-now">
-            @foreach (var cell in Model.NowStrip)
-            {
-                <div class="itp-now__cell itp-now__cell--@cell.Tone">
-                    <dt>@cell.Key</dt>
-                    <dd>
-                        <span class="itp-now__v">@cell.Value</span>
-                        @if (cell.Note is not null)
-                        {
-                            <span class="itp-now__n">@cell.Note</span>
-                        }
-                    </dd>
-                </div>
-            }
-        </dl>
+        @if (Model.HeroStatus is { } heroStatus)
+        {
+            <p class="itp-hero__status itp-hero__status--@heroStatus.Tone">
+                <b>@heroStatus.Text</b>@if (heroStatus.Note is not null)
+                {
+                    <span> · @heroStatus.Note</span>
+                }
+            </p>
+        }
     </header>
 
-    <section class="itp-stepper @(Model.IsDropped ? "itp-stepper--dropped" : null)" aria-label="Stages">
-        @foreach (var row in Model.StageRows)
-        {
-            var cls = row.IsSkipped ? "itp-step--skip" : row.IsCompleted ? "itp-step--done" : row.IsCurrent ? "itp-step--cur" : "itp-step--pend";
-            <div class="itp-step @cls">
-                <i class="itp-dot" aria-hidden="true"></i>
-                <span class="itp-step__name">@row.Label</span>
-                <span class="itp-step__date">
-                    @if (row.IsSkipped)
+    <section class="itp-journey @(Model.IsDropped ? "itp-journey--dropped" : null)" aria-labelledby="itpJourneyTitle">
+        <div class="itp-journey__head">
+            <h2 class="itp-journey__title" id="itpJourneyTitle">Journey</h2>
+            <p class="itp-journey__lead">Days between stages above the line, counted from the stage dates.</p>
+        </div>
+        <ol class="itp-journey__steps">
+            @foreach (var step in Model.Journey)
+            {
+                <li class="itp-jstep itp-jstep--@step.State itp-jstep--@step.Tone @(step.Travelled ? "itp-jstep--travelled" : null)">
+                    @if (step.Gap is not null)
                     {
-                        <text>skipped</text>
+                        <span class="itp-jstep__gap"><span>@step.Gap</span></span>
                     }
-                    else if (row.IsCompleted)
+                    <span class="itp-jstep__dot" aria-hidden="true"></span>
+                    <span class="itp-jstep__label">@step.Label</span>
+                    <span class="itp-jstep__date">@step.DateText</span>
+                    @if (step.Cost is not null)
                     {
-                        if (row.CompletedOn is { } on)
-                        {
-                            @ItProjectBoardPresentation.ShortDate(on)
-                        }
-                        else
-                        {
-                            <em>date not recorded</em>
-                        }
+                        <span class="itp-jstep__cost">@step.Cost</span>
                     }
-                    else if (row.IsCurrent)
-                    {
-                        <text>current</text>
-                    }
-                    else
-                    {
-                        <text>&mdash;</text>
-                    }
-                </span>
-                @if (row.CostLakhs is { } cost)
-                {
-                    <span class="itp-step__cost">@ItProjectBoardPresentation.Cost(cost)</span>
-                }
-            </div>
-        }
+                    <span class="visually-hidden">@(step.Gap is null ? null : $", {step.Gap} since the previous stage")</span>
+                </li>
+            }
+        </ol>
     </section>
 
     <div class="itp-grid">
