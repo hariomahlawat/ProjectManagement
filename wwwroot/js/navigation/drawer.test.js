@@ -456,3 +456,23 @@ test('while open, the drawer handles "/" before page-wide shortcuts, and Ctrl+K 
   pressKey(window, document.activeElement, 'k', { ctrlKey: true });
   assert.ok(!document.getElementById('pmNavigationDrawer').classList.contains('is-open'));
 });
+
+test('while filtering, Tab wraps around the visible results only', async () => {
+  const { initDrawer } = await loadModule();
+  const { window, document } = createDom();
+  initDrawer();
+  await openDrawer(window, document);
+
+  typeFilter(window, document.getElementById('pmDrawerFilter'), 'ideas');
+
+  // Project ideas is the last visible control: Tab wraps to Close instead of reaching hidden links.
+  document.getElementById('ideas').focus();
+  const forward = pressKey(window, document.activeElement, 'Tab');
+  assert.ok(forward.defaultPrevented);
+  assert.equal(document.activeElement.id, 'close');
+
+  // Shift+Tab from Close wraps to the last visible result, not a hidden one.
+  const backward = pressKey(window, document.activeElement, 'Tab', { shiftKey: true });
+  assert.ok(backward.defaultPrevented);
+  assert.equal(document.activeElement.id, 'ideas');
+});

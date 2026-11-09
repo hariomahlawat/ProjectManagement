@@ -73,6 +73,11 @@ function getFocusableElements(container) {
         return false;
       }
 
+      // Elements the filter hid (or any other [hidden] ancestor) are not reachable.
+      if (element.closest('[hidden]')) {
+        return false;
+      }
+
       const hiddenAncestor = element.closest('[aria-hidden="true"]');
       if (hiddenAncestor && hiddenAncestor !== element) {
         return false;
@@ -156,6 +161,20 @@ function createFilter(panel) {
   body.insertBefore(empty, body.firstChild);
 
   return { input, status, empty };
+}
+
+// Mirror a <details> section's open state into its ARIA attributes. The browser's toggle
+// event does this too, but it fires asynchronously; the filter needs it at once.
+function syncGroupAria(group) {
+  const expanded = group.open;
+  const summary = group.querySelector('[data-drawer-group-summary]');
+  const groupPanel = group.querySelector('[data-drawer-group-panel]');
+  if (summary instanceof HTMLElement) {
+    summary.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  }
+  if (groupPanel instanceof HTMLElement) {
+    groupPanel.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+  }
 }
 
 function closeOtherSections(drawer, openGroup) {
@@ -309,6 +328,7 @@ function setupDrawer(drawer) {
       if (openBeforeFilter) {
         sectionGroups.forEach((group) => {
           group.open = openBeforeFilter.has(group);
+          syncGroupAria(group);
         });
       }
       openBeforeFilter = null;
@@ -341,6 +361,7 @@ function setupDrawer(drawer) {
       section.hidden = sectionMatches === 0;
       if (sectionMatches > 0 && section instanceof HTMLDetailsElement) {
         section.open = true;
+        syncGroupAria(section);
       }
       matches += sectionMatches;
     });
