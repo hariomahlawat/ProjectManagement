@@ -303,6 +303,70 @@ public class RoleBasedNavigationProviderTests
         Assert.Contains(navigation, item => item.Text == "Activity types" && item.Page == "/ActivityTypes/Index");
     }
 
+    [Fact]
+    public async Task Navigation_DropsSectionsWhoseChildrenAreAllUnauthorized()
+    {
+        var user = new ApplicationUser
+        {
+            Id = "no-repository-access",
+            UserName = "limited"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services, "ProjectOffice");
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var provider = CreateProvider(userManager, httpContextAccessor, new TestAuthorizationService(Array.Empty<string>()));
+        var navigation = await provider.GetNavigationAsync();
+
+        // Every Documents child needs a repository policy or the Admin role, so the heading
+        // would otherwise render as a label with nothing under it.
+        Assert.DoesNotContain(navigation, item => item.Text == "Documents");
+        Assert.All(
+            navigation.Where(item => item.Page is null && item.Controller is null),
+            section => Assert.NotEmpty(section.Children));
+    }
+
+    [Fact]
+    public async Task Navigation_ProjectOfficeReportsIsASectionHeadingWithoutALandingPage()
+    {
+        var user = new ApplicationUser
+        {
+            Id = "officer-por",
+            UserName = "officer"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services, "Project Officer");
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var provider = CreateProvider(userManager, httpContextAccessor);
+        var navigation = await provider.GetNavigationAsync();
+
+        // The area has no /Index page, so a link here would return 404.
+        var section = navigation.Single(item => item.Text == "Project office reports");
+        Assert.Null(section.Page);
+        Assert.Null(section.Area);
+    }
+
     private static RoleBasedNavigationProvider CreateProvider(
         UserManager<ApplicationUser> userManager,
         IHttpContextAccessor httpContextAccessor,

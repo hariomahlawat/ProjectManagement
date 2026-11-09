@@ -25,25 +25,26 @@
                 data-drawer-toggle
                 data-drawer-target="@drawerId"
                 aria-controls="@drawerId"
-                aria-haspopup="true"
+                aria-haspopup="dialog"
                 aria-expanded="false"
                 aria-label="Toggle navigation menu">
             <span class="pm-drawer-toggle__icon" aria-hidden="true"><i class="bi bi-list"></i></span>
             <span class="pm-drawer-toggle__label">Menu</span>
         </button>
 
-        <div class="pm-drawer" data-drawer="@drawerId" id="@drawerId" aria-labelledby="@drawerLabelId">
+        <div class="pm-drawer" data-drawer="@drawerId" id="@drawerId">
             <div class="pm-drawer__overlay" data-drawer-overlay></div>
-            <div class="pm-drawer__panel" data-drawer-panel role="dialog" aria-modal="true">
+            <div class="pm-drawer__panel" data-drawer-panel role="dialog" aria-modal="true" aria-labelledby="@drawerLabelId">
                 <div class="pm-drawer__header">
                     <div class="pm-drawer__brand">
                         <span class="pm-drawer__brand-mark" aria-hidden="true"><i class="bi bi-bezier"></i></span>
                         <div class="pm-drawer__brand-copy">
                             <h2 class="pm-drawer__title" id="@drawerLabelId">@Model.Brand</h2>
-                            <p class="pm-drawer__subtitle">Orchestrate every milestone</p>
                         </div>
                     </div>
-                    <button type="button" class="btn-close pm-drawer__close" data-drawer-close aria-label="Close navigation menu"></button>
+                    <button type="button" class="pm-drawer__close" data-drawer-close aria-label="Close navigation menu">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
                 </div>
 
                 @if (!string.IsNullOrEmpty(Model.UserName))
@@ -61,7 +62,7 @@
                     <nav class="pm-drawer__nav" aria-label="Primary navigation">
                         @await Html.PartialAsync(
                             "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
-                            new NavigationDrawerItemsViewModel(Model.Items, true, 0))
+                            new NavigationDrawerItemsViewModel(Model.Items, 0))
                     </nav>
                 </div>
             </div>

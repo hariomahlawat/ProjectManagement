@@ -55,6 +55,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             {
                 Text = "Calendar",
                 Page = "/Calendar/Index",
+                ActivePagePrefix = "/Calendar/",
                 Icon = "bi-calendar3"
             },
             new()
@@ -67,18 +68,21 @@ public class RoleBasedNavigationProvider : INavigationProvider
             {
                 Text = "Photos",
                 Page = "/Photos/Index",
+                ActivePagePrefix = "/Photos/",
                 Icon = "bi-images"
             },
             new()
             {
                 Text = "Miscellaneous activities",
                 Page = "/Activities/Index",
+                ActivePagePrefix = "/Activities/",
                 Icon = "bi-stars"
             },
             new()
             {
                 Text = "Task Management",
                 Page = "/ActionTasks/Index",
+                ActivePagePrefix = "/ActionTasks/",
                 AuthorizationPolicy = "ActionTracker.Access",
                 Icon = "bi-list-task"
             },
@@ -86,12 +90,14 @@ public class RoleBasedNavigationProvider : INavigationProvider
             {
                 Text = "Project Ideas",
                 Page = "/ProjectIdeas/Index",
+                ActivePagePrefix = "/ProjectIdeas/",
                 Icon = "bi-lightbulb"
             },
             new()
             {
                 Text = "IT projects",
                 Page = "/ItProjects/Index",
+                ActivePagePrefix = "/ItProjects/",
                 AuthorizationPolicy = Policies.ItProjects.View,
                 Icon = "bi-pc-display"
             },
@@ -99,6 +105,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             {
                 Text = "Proliferation compendium",
                 Page = "/Projects/Compendium/Index",
+                ActivePagePrefix = "/Projects/Compendium/",
                 Icon = "bi-file-earmark-pdf"
             },
             // Standalone tool: users edit their own PDFs in the browser; nothing is stored in PRISM.
@@ -115,6 +122,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "Progress review",
                 Area = "ProjectOfficeReports",
                 Page = "/ProgressReview/Index",
+                ActivePagePrefix = "/ProgressReview/",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewProgressReview,
                 Icon = "bi-graph-up"
             }
@@ -207,6 +215,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     Text = "Visits tracker",
                     Area = "ProjectOfficeReports",
                     Page = "/Visits/Index",
+                    ActivePagePrefix = "/Visits/",
                     AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewVisits,
                     Icon = "bi-pin-map",
                     Children = new[]
@@ -222,12 +231,12 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     }
                 },
 
-            // >>> THIS is the part we changed <<<
                 new()
                 {
                     Text = "Social media tracker",
                     Area = "ProjectOfficeReports",
                     Page = "/SocialMedia/Index",
+                    ActivePagePrefix = "/SocialMedia/",
                     AuthorizationPolicy = ProjectOfficeReportsPolicies.ManageSocialMediaEvents,
                     Icon = "bi-hash",
                     Children = new[]
@@ -255,6 +264,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "Training tracker",
                 Area = "ProjectOfficeReports",
                 Page = "/Training/Index",
+                ActivePagePrefix = "/Training/",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTrainingTracker,
                 BadgeViewComponentName = "TrainingApprovalsBadge",
                 Icon = "bi-award"
@@ -264,6 +274,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "ToT tracker",
                 Area = "ProjectOfficeReports",
                 Page = "/Tot/Index",
+                ActivePagePrefix = "/Tot/",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTotTracker,
                 Icon = "bi-diagram-3"
             },
@@ -272,6 +283,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "Proliferation tracker",
                 Area = "ProjectOfficeReports",
                 Page = "/Proliferation/Summary",
+                ActivePagePrefix = "/Proliferation/",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewProliferationTracker,
                 Icon = "bi-radar"
             },
@@ -280,6 +292,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "IPR Register",
                 Area = "ProjectOfficeReports",
                 Page = "/Ipr/Index",
+                ActivePagePrefix = "/Ipr/",
                 AuthorizationPolicy = Policies.Ipr.View,
                 Icon = "bi-lightbulb"
             },
@@ -288,6 +301,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "FFC simulators",
                 Area = "ProjectOfficeReports",
                 Page = "/FFC/Index",
+                ActivePagePrefix = "/FFC/",
                 Icon = "bi-cpu"
             },
             new()
@@ -295,6 +309,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "ARPP / PPP",
                 Area = "ProjectOfficeReports",
                 Page = "/ARPP/Index",
+                ActivePagePrefix = "/ARPP/",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewArpp,
                 Icon = "bi-journal-check"
             }
@@ -303,8 +318,6 @@ public class RoleBasedNavigationProvider : INavigationProvider
         items.Add(new NavigationItem
         {
             Text = "Project office reports",
-            Area = "ProjectOfficeReports",
-            Page = "/Index",
             Children = projectOfficeReportsChildren,
             Icon = "bi-clipboard-data"
         });
@@ -352,6 +365,14 @@ public class RoleBasedNavigationProvider : INavigationProvider
             }
 
             var trimmedChildren = await TrimNavigationTreeAsync(item.Children, user, roleSet);
+
+            // A section heading with no destination of its own is only useful while the
+            // user can open at least one of its children; otherwise it renders as a dead label.
+            if (item.Children.Count > 0 && trimmedChildren.Count == 0 && !HasDestination(item))
+            {
+                continue;
+            }
+
             var trimmedItem = item with
             {
                 Children = trimmedChildren
@@ -362,6 +383,10 @@ public class RoleBasedNavigationProvider : INavigationProvider
 
         return result;
     }
+
+    private static bool HasDestination(NavigationItem item) =>
+        !string.IsNullOrEmpty(item.Page)
+        || (!string.IsNullOrEmpty(item.Controller) && !string.IsNullOrEmpty(item.Action));
 
     private async Task<bool> IsAuthorizedAsync(
         NavigationItem item,
