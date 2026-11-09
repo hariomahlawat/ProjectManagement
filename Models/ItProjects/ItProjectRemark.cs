@@ -46,8 +46,9 @@ public class ItProjectRemark
     public DateOnly EventDate { get; set; }
 
     /// <summary>
-    /// Legacy: the stage a remark was about. Remarks are no longer tied to a stage (owner, 9 Nov
-    /// 2026); old values are kept for the record and not shown.
+    /// For a conference remark: the stage the case was at when it was issued ("Stage when issued"
+    /// on the conference review). For a general remark: a legacy value from before remarks stopped
+    /// being tied to a stage (owner, 9 Nov 2026), kept for the record and not shown.
     /// </summary>
     [MaxLength(8)]
     public string? StageCode { get; set; }

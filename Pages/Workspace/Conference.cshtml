@@ -65,6 +65,10 @@
                                     }
                                     <span>· @option.IdeaCount @(option.IdeaCount == 1 ? "idea" : "ideas")</span>
                                     <span>· @option.OtherTaskCount @(option.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
+                                    @if (option.ItProjectCount > 0)
+                                    {
+                                        <span>· @option.ItProjectCount @(option.ItProjectCount == 1 ? "IT project" : "IT projects")</span>
+                                    }
                                 </small>
                             </span>
                             <i class="bi bi-chevron-right" aria-hidden="true"></i>
@@ -101,6 +105,10 @@
                             }
                             <span class="oc-header__metric"><strong data-oc-header-idea-count>@Model.Conference.IdeaCount</strong> <span data-oc-header-idea-label>@(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span></span>
                             <span class="oc-header__metric oc-header__metric--tasks @(Model.Conference.OtherTaskCount == 0 ? "is-zero" : string.Empty)"><strong data-oc-header-task-count>@Model.Conference.OtherTaskCount</strong> <span data-oc-header-task-label>@(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span></span>
+                            @if (Model.Conference.ItProjectCount > 0)
+                            {
+                                <span class="oc-header__metric"><strong>@Model.Conference.ItProjectCount</strong> @(Model.Conference.ItProjectCount == 1 ? "IT project" : "IT projects")</span>
+                            }
                         </p>
                     </div>
                 </div>

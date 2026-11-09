@@ -8,7 +8,9 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services;
+using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Services.ActionTasks;
+using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Services.ProjectIdeas;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.Services.Workspace;
@@ -30,6 +32,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
     private readonly IActionTaskCollaborationService _taskCollaboration;
     private readonly IClock _clock;
     private readonly IConferenceProjectScopeService? _projectScope;
+    private readonly IItProjectRemarkService? _itProjectRemarks;
 
     // Retained for isolated tests and legacy composition roots. Application DI resolves
     // the complete constructor below.
@@ -49,7 +52,6 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
-    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
     public ConferenceRemarkCommandService(
         ApplicationDbContext db,
         UserManager<ApplicationUser> users,
@@ -61,6 +63,21 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
         : this(db, users, projectRemarks, ideaCommands, taskCollaboration, clock)
     {
         _projectScope = projectScope ?? throw new ArgumentNullException(nameof(projectScope));
+    }
+
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public ConferenceRemarkCommandService(
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> users,
+        IRemarkService projectRemarks,
+        IProjectIdeaCommandService ideaCommands,
+        IActionTaskCollaborationService taskCollaboration,
+        IClock clock,
+        IConferenceProjectScopeService projectScope,
+        IItProjectRemarkService itProjectRemarks)
+        : this(db, users, projectRemarks, ideaCommands, taskCollaboration, clock, projectScope)
+    {
+        _itProjectRemarks = itProjectRemarks ?? throw new ArgumentNullException(nameof(itProjectRemarks));
     }
 
     public async Task<AddConferenceRemarkResult> AddAsync(
@@ -117,6 +134,12 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
                 body,
                 cancellationToken),
             ConferenceItemKind.ActionTask => await AddTaskRemarkAsync(
+                actor,
+                commandRole,
+                request,
+                body,
+                cancellationToken),
+            ConferenceItemKind.ItProject => await AddItProjectRemarkAsync(
                 actor,
                 commandRole,
                 request,
@@ -295,6 +318,65 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
                 }
             },
             null,
+            string.Empty,
+            null);
+    }
+
+    /// <summary>
+    /// A conference direction on an IT project: stored as the IT project's own conference remark.
+    /// IT projects sit under the ITO on the review, so the selected officer must hold that role.
+    /// </summary>
+    private async Task<AddConferenceRemarkResult> AddItProjectRemarkAsync(
+        ApplicationUser actor,
+        string commandRole,
+        AddConferenceRemarkRequest request,
+        string body,
+        CancellationToken cancellationToken)
+    {
+        if (_itProjectRemarks is null)
+        {
+            throw new InvalidOperationException("The selected workload item type is not supported.");
+        }
+
+        var officer = await _users.Users.SingleOrDefaultAsync(user => user.Id == request.OfficerUserId, cancellationToken);
+        if (officer is null || !await _users.IsInRoleAsync(officer, RoleNames.Ito))
+        {
+            throw new InvalidOperationException("IT projects are reviewed under the ITO.");
+        }
+
+        var project = await _db.ItProjects
+            .AsNoTracking()
+            .Include(candidate => candidate.Stages)
+            .SingleOrDefaultAsync(candidate => candidate.Id == request.ItemId && !candidate.IsDeleted && candidate.DroppedOn == null, cancellationToken);
+        if (project is null || ItProjectStatus.Resolve(project).Kind is not (ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress))
+        {
+            throw new InvalidOperationException("This IT project is not part of the selected officer's current workload.");
+        }
+
+        var (result, remarkId) = await _itProjectRemarks.AddAsync(
+            project.Id,
+            new ItProjectRemarkInput(body, ItProjectYearTypes.TodayIst(_clock.UtcNow), ItProjectRemarkType.Conference),
+            new ItProjectRemarkActor(actor.Id, actor.UserName, commandRole, IsAdmin: false),
+            cancellationToken);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join(" ", result.Errors));
+        }
+
+        var remark = await _db.ItProjectRemarks.AsNoTracking().SingleAsync(candidate => candidate.Id == remarkId, cancellationToken);
+        return new AddConferenceRemarkResult(
+            new ConferenceDirectionVm
+            {
+                Id = remark.Id,
+                Body = ConferenceDirectionTextFormatter.ToDisplayText(remark.Body),
+                AuthorName = DisplayName(actor),
+                AuthorRole = DisplayRole(commandRole),
+                CreatedAtUtc = AsUtc(remark.CreatedAtUtc),
+                SnapshotLabel = "Stage when issued",
+                SnapshotValue = remark.StageCode is { } code && ItProjectStages.IsKnown(code) ? ItProjectStages.LabelOf(code) : "Not recorded"
+            },
+            Array.Empty<ConferenceProgressEntryVm>(),
+            "Progress update awaited. The ITO has not written a remark since the direction was issued.",
             string.Empty,
             null);
     }
