@@ -188,7 +188,7 @@ public static class ItProjectBoardPresentation
     /// <summary>The column heading when space is short: "Delivery and ATP" becomes "Delivery &amp; ATP", Benchmarking "BM".</summary>
     public static string ShortStageLabel(string code) => code switch
     {
-        ItProjectStages.Ppp => "IT ARPPP / IPA",
+        ItProjectStages.Ppp => "ARPPP / IPA",
         ItProjectStages.Benchmarking => "BM",
         ItProjectStages.Delivery => "Delivery & ATP",
         _ => ItProjectStages.LabelOf(code)
