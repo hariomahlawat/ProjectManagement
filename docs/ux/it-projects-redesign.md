@@ -45,8 +45,11 @@ how long?**
    356 days end to end". Status, sort (Stage order / Longest wait), FY and search sit in one bar;
    FY becomes a segmented control in the header.
 4. **Project page**: a hero card (reference, FY and status chips, title, description, actions)
-   with a **now strip**: days at the current stage and since when, SO value, started, elapsed, last update. Then **Journey**: the
-   stepper with the days between stages above the line, plus a **where the time went** bar.
+   with **one status line**: where the case is and for how long ("At Delivery and ATP for 332 days ·
+   since SO closed on 12 Dec 2025"), plus a New / CL / CF chip for a carried-over case. Then
+   **Journey**: the stepper with the days between stages above the line. (A five-card "now strip"
+   and a "where the time went" bar were built and then removed on 9 Nov 2026: they repeated what the
+   page already shows. Keep the page lean; no extra metrics.)
    Below, two columns: **Remarks and history** (composer, then remarks with stage completions in
    line, older stages folded) and **Documents** (file rows, drop zone) plus a small **Record**
    card that holds Mark dropped and Delete.
@@ -117,6 +120,7 @@ type for that year changes.
 | Register order | Stage order by default, Longest wait as an option (the phone list uses Longest wait) |
 | Remarks feed | Stage completions shown in line with the remarks |
 | Wording | "Delivered" instead of "Completed"; "Update stages" instead of "Stages" |
+| Simplicity (9 Nov) | No metrics that repeat the page: the project header has one status line, no card strip and no time bar |
 | Year type | New / CL / CF per year as above, CL when the SO is placed, changeable by hand; a carried-over case gets a new IT PPP number in each later year |
 
 ## Plan (small PRs, each merged when Codex and CI are clean)
@@ -130,8 +134,8 @@ PR 1 (#3036) is merged. The year type was added on 8 Nov as PR 2, so the later P
 | 3 | Board header with FY segmented control (cases live in the year, type chips) and the four figure tiles split by type | figures from the read model, FY filter links |
 | 4 | "Where the cases are now" pipeline card | counts and ordering per stage, empty stages, overflow ("+3 more") |
 | 5 | Register: track rows, Now column, age badges, legend, narrow optional stages, one filter bar, sort, "Dates missing" link for Manage | sort orders, band order, search still works |
-| 6 | Project page hero and now strip with the year type chip and its change control; Record card takes Mark dropped and Delete; "At a glance" removed | page renders for Manage and read-only users |
-| 7 | Journey: gaps above the line and the where-the-time-went bar | gap text with missing dates |
+| 6 | Project page hero (#3041); Record card takes Mark dropped and Delete; "At a glance" removed | page renders for Manage and read-only users |
+| 7 | Journey: days between stages above the line; the hero's card strip becomes one status line | gap text with missing dates, status line per kind of case |
 | 8 | Remarks and history feed with stage completions in line; Documents card polish | feed ordering, folded earlier stages |
 | 9 | Stage editor as a vertical stepper with live consequence summary (reuses the Preview handler) | summary text, no change to the rules |
 | 10 | Phones and dark theme pass for all three screens | layout at 375 px, theme coverage |

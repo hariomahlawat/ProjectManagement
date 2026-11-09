@@ -60,8 +60,14 @@ public class DetailsModel : PageModel
     /// <summary>The time facts of the project (days at the stage, elapsed), from the read service.</summary>
     public ItProjectTiming? Timing { get; private set; }
 
-    /// <summary>The five cells under the title.</summary>
-    public IReadOnlyList<ItProjectPagePresentation.NowStripCell> NowStrip { get; private set; } = Array.Empty<ItProjectPagePresentation.NowStripCell>();
+    /// <summary>The nine stops of the Journey card.</summary>
+    public IReadOnlyList<ItProjectPagePresentation.JourneyStep> Journey { get; private set; } = Array.Empty<ItProjectPagePresentation.JourneyStep>();
+
+    /// <summary>The status line under the title.</summary>
+    public ItProjectPagePresentation.HeroStatus? HeroStatus { get; private set; }
+
+    /// <summary>The project's type and IT PPP number in the latest year it counts in.</summary>
+    public ItProjectYearTypeInfo? LatestYear => YearTypes.LastOrDefault();
 
     /// <summary>New / CL / CF in every financial year the project counts in, oldest first.</summary>
     public IReadOnlyList<ItProjectYearTypeInfo> YearTypes { get; private set; } = Array.Empty<ItProjectYearTypeInfo>();
@@ -739,7 +745,8 @@ public class DetailsModel : PageModel
             : null;
         YearTypes = _reads.GetYearTypes(project);
         Timing = _reads.GetTiming(project);
-        NowStrip = ItProjectPagePresentation.NowStrip(project, Status, Timing, YearTypes);
+        HeroStatus = ItProjectPagePresentation.Status(project, Status, Timing);
+        Journey = ItProjectPagePresentation.Journey(project, Status, Timing);
         Remarks = await _remarks.ListAsync(id, cancellationToken);
         Attachments = await _attachments.ListAsync(id, cancellationToken);
         CanRemark = ItProjectAccess.CanRemark(User, project);

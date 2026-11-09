@@ -12,35 +12,44 @@ using static ProjectManagement.Tests.ItProjects.ItProjectStageRulesTests;
 
 namespace ProjectManagement.Tests.ItProjects;
 
-// Redesign PR 6: the project page hero's "now strip" (test clock: 8 Nov 2026, 15:00 IST).
+// The project page header: one status line (owner, 9 Nov 2026: no metric cards) and the Journey's
+// days between stages. Test clock: 8 Nov 2026, 15:00 IST.
 public class ItProjectPageHeroTests
 {
     private static DateOnly D(int year, int month, int day) => new(year, month, day);
 
-    private static async Task<IReadOnlyList<ItProjectPagePresentation.NowStripCell>> StripAsync(ItProjectTestDb db, int id)
+    private static async Task<(ItProjectPagePresentation.HeroStatus Status, IReadOnlyList<ItProjectPagePresentation.JourneyStep> Journey)> ReadAsync(ItProjectTestDb db, int id)
     {
         var reads = db.Reads();
         var project = (await reads.GetAsync(id))!;
-        return ItProjectPagePresentation.NowStrip(project, ItProjectStatus.Resolve(project), reads.GetTiming(project), reads.GetYearTypes(project));
+        var status = ItProjectStatus.Resolve(project);
+        var timing = reads.GetTiming(project);
+        return (ItProjectPagePresentation.Status(project, status, timing), ItProjectPagePresentation.Journey(project, status, timing));
     }
 
     [Fact]
-    public async Task InProgress_ShowsDaysSinceThePreviousStageClosed_AndTheLatestYear()
+    public async Task InProgress_SaysTheStageAndTheDaysSinceThePreviousStageClosed()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
-        var id = await SeedAsync(db, 2025, Input(S("PPP", true, D(2025, 4, 10)), S("SO", true, D(2025, 12, 12), cost: 86.40m)));
-        var saved = await db.Commands().SaveYearAsync(id, 2026, new ItProjectYearInput(null, "IT PPP 04/2026"), await db.RowVersionAsync(id), ItProjectTestDb.Actor());
-        Assert.True(saved.Succeeded);
+        var id = await SeedAsync(db, 2025, Input(S("PPP", true, D(2025, 4, 10)), S("AON", true, D(2025, 5, 22)), S("SO", true, D(2025, 12, 12), cost: 86.40m)));
 
-        var strip = await StripAsync(db, id);
+        var (status, journey) = await ReadAsync(db, id);
 
-        Assert.Equal(5, strip.Count);
-        Assert.Equal(new ItProjectPagePresentation.NowStripCell("At Delivery and ATP for", "331 days", "since SO closed on 12 Dec 2025", "late"), strip[0]);
-        Assert.Equal(new ItProjectPagePresentation.NowStripCell("Supply order", "₹ 86.40 L", "placed 12 Dec 2025", "calm"), strip[1]);
-        Assert.Equal(new ItProjectPagePresentation.NowStripCell("Started", "10 Apr 2025", "IT PPP / IPA closed", "calm"), strip[2]);
-        Assert.Equal("577 days", strip[3].Value);
-        Assert.Equal("about 19 months so far", strip[3].Note);
-        Assert.Equal(new ItProjectPagePresentation.NowStripCell("FY 2026-27 IT PPP", "CL", "IT PPP 04/2026", "type-cl"), strip[4]);
+        Assert.Equal(new ItProjectPagePresentation.HeroStatus("At Delivery and ATP for 331 days", "since SO closed on 12 Dec 2025", "late"), status);
+
+        var steps = journey.ToDictionary(step => step.StageCode);
+        Assert.Equal(9, journey.Count);
+        Assert.Null(steps["PPP"].Gap);
+        Assert.Equal("42 d", steps["AON"].Gap);
+        Assert.Null(steps["BID"].Gap);                      // auto-completed without a date
+        Assert.Equal("nodate", steps["BID"].State);
+        Assert.Equal("date not recorded", steps["BID"].DateText);
+        Assert.Null(steps["SO"].Gap);                       // COB has no date: not measured, not guessed
+        Assert.Equal("₹ 86.40 L", steps["SO"].Cost);
+        Assert.Equal("skip", steps["BM"].State);
+        Assert.True(steps["BM"].Travelled);                  // the line runs through a skipped stop
+        Assert.Equal(("cur", "late", "331 d so far"), (steps["DLV"].State, steps["DLV"].Tone, steps["DLV"].Gap));
+        Assert.True(steps["DLV"].Travelled);
     }
 
     [Fact]
@@ -49,12 +58,10 @@ public class ItProjectPageHeroTests
         await using var db = await ItProjectTestDb.CreateAsync();
         var id = await SeedAsync(db, 2026, Input(S("BID", true)));
 
-        var where = (await StripAsync(db, id))[0];
+        var (status, journey) = await ReadAsync(db, id);
 
-        Assert.Equal("At TEC", where.Key);
-        Assert.Equal("since 08 Nov 2026", where.Value);
-        Assert.Equal("when the move was recorded; Bid has no date", where.Note);
-        Assert.Equal("nodate", where.Tone);
+        Assert.Equal(new ItProjectPagePresentation.HeroStatus("At TEC since 08 Nov 2026", "when the move was recorded; Bid has no date", "nodate"), status);
+        Assert.Null(journey.Single(step => step.StageCode == "TEC").Gap); // no "so far" without a stage date
     }
 
     [Fact]
@@ -66,34 +73,28 @@ public class ItProjectPageHeroTests
         var dropped = await SeedAsync(db, 2025, Input(S("BID", true, D(2025, 10, 15))));
         Assert.True((await db.Commands().DropAsync(dropped, D(2026, 1, 19), "Merged into the HQ contract", await db.RowVersionAsync(dropped), ItProjectTestDb.Actor())).Succeeded);
 
-        var a = await StripAsync(db, notStarted);
-        Assert.Equal(("Not started", "added today"), (a[0].Key, a[0].Value));
-        Assert.Equal(("—", "no stage dated yet"), (a[2].Value, a[2].Note));
-        Assert.Equal(("New", "IT PPP Case"), (a[4].Value, a[4].Note));
+        Assert.Equal(new ItProjectPagePresentation.HeroStatus("Not started, added today", null, "calm"), (await ReadAsync(db, notStarted)).Status);
+        Assert.Equal(new ItProjectPagePresentation.HeroStatus("Delivered on 30 Jun 2025", "356 days end to end", "ok"), (await ReadAsync(db, delivered)).Status);
 
-        var b = await StripAsync(db, delivered);
-        Assert.Equal(new ItProjectPagePresentation.NowStripCell("Delivered", "30 Jun 2025", "356 days end to end", "ok"), b[0]);
-        Assert.Equal("about 12 months, to delivery", b[3].Note);
-        Assert.Equal("FY 2025-26 IT PPP", b[4].Key); // the last year it counted in
-
-        var c = await StripAsync(db, dropped);
-        Assert.Equal(new ItProjectPagePresentation.NowStripCell("Dropped at TEC", "19 Jan 2026", "Merged into the HQ contract", "drop"), c[0]);
-        Assert.Equal("not placed yet", c[1].Note);
+        var (droppedStatus, droppedJourney) = await ReadAsync(db, dropped);
+        Assert.Equal(new ItProjectPagePresentation.HeroStatus("Dropped at TEC on 19 Jan 2026", "Merged into the HQ contract", "drop"), droppedStatus);
+        Assert.Equal("stop", droppedJourney.Single(step => step.StageCode == "TEC").State);
     }
 
     [Fact]
-    public async Task Page_LoadsTheStripAndDefaultsDatesToTodayInIndia()
+    public async Task Page_LoadsTheHeaderAndDefaultsDatesToTodayInIndia()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
-        var id = await SeedAsync(db, 2026, null);
+        var id = await SeedAsync(db, 2025, null);
         // 8 Nov 2026, 20:00 UTC is already 9 Nov in India.
         db.Clock.Set(new DateTimeOffset(2026, 11, 8, 20, 0, 0, TimeSpan.Zero));
 
         var page = ItProjectDetailsPageTests.PageFor(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
         await page.OnGetAsync(id, CancellationToken.None);
 
-        Assert.Equal(5, page.NowStrip.Count);
-        Assert.NotNull(page.Timing);
+        Assert.NotNull(page.HeroStatus);
+        Assert.Equal(9, page.Journey.Count);
+        Assert.Equal("CF", page.LatestYear!.Code); // carried into FY 2026-27 without an SO
         Assert.Equal((DateOnly?)D(2026, 11, 9), page.Remark.EventDate);
         Assert.Equal((DateOnly?)D(2026, 11, 9), page.Drop.DroppedOn);
         Assert.Equal(D(2026, 11, 9), ItProjectYearTypes.TodayIst(db.Clock.UtcNow));
