@@ -153,6 +153,7 @@ public sealed partial class OfficerConferenceReadService
             }
 
             var stageLabel = row.Status.CurrentStageLabel;
+            var stateName = row.Status.Kind == ItProjectStatusKind.NotStarted ? "Not started" : $"At {stageLabel}";
             var late = row.Timing.Basis == ItProjectTimeBasis.StageDate && row.Timing.Band == ItProjectAgeBand.Red;
             var type = row.YearType is { IsOwnYear: false } carried ? $" · {carried.Code}" : string.Empty;
             items.Add(new OfficerConferenceItemVm
@@ -161,8 +162,9 @@ public sealed partial class OfficerConferenceReadService
                 ItemId = row.Id,
                 Title = row.Title,
                 OpenUrl = $"/ItProjects/{row.Id}",
-                CurrentStateCode = row.Status.CurrentStageCode ?? string.Empty,
-                CurrentStateName = row.Status.Kind == ItProjectStatusKind.NotStarted ? "Not started" : $"At {stageLabel}",
+                // Code and name are the same, so the row shows the stage once ("At COB").
+                CurrentStateCode = stateName,
+                CurrentStateName = stateName,
                 CurrentContext = $"{row.YearType?.PppReferenceNumber ?? row.Reference} · FY {FinancialYearHelper.Format(row.FinancialYearStart)}{type}",
                 AttentionText = late ? $"{row.Timing.DaysAtStage} days at {stageLabel}" : null,
                 RequiresAttention = late,
