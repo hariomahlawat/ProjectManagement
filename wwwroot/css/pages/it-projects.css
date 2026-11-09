@@ -925,11 +925,12 @@
 .itp-years__form {
     grid-column: 1 / -1;
     display: flex;
+    flex-wrap: wrap;
     gap: .35rem;
 }
 
 .itp-years__form .form-control {
-    flex: 1 1 8rem;
+    flex: 1 1 9rem;
     min-width: 0;
     border-radius: 8px;
 }
@@ -2765,4 +2766,25 @@ a.itp-fig--selected:hover {
     border-color: color-mix(in srgb, var(--pm-spec-6) 35%, var(--pm-border));
     border-left: 3px solid var(--pm-spec-6);
     background: var(--pm-surface-violet);
+}
+
+/* ---- phones and dark theme pass (redesign PR 10) ------------------------------------------- */
+
+/* Outline buttons on IT project pages read as live controls in both themes, not as disabled. */
+.itp-page .btn-outline-secondary {
+    --bs-btn-color: var(--pm-text-strong);
+    --bs-btn-border-color: var(--pm-border-strong);
+    --bs-btn-hover-color: var(--pm-text-strong);
+    --bs-btn-hover-bg: var(--pm-surface);
+    --bs-btn-hover-border-color: var(--pm-text-muted);
+    --bs-btn-active-color: var(--pm-text-strong);
+    --bs-btn-active-bg: var(--pm-surface-muted);
+    --bs-btn-active-border-color: var(--pm-text-muted);
+}
+
+@media (max-width: 767.98px) {
+    /* Phones show the nine-segment bar, not the dots: the dot part of the key does not apply. */
+    .itp-key__i--track {
+        display: none;
+    }
 }
