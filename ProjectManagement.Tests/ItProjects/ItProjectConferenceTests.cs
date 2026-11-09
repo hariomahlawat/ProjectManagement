@@ -78,9 +78,14 @@ public class ItProjectConferenceTests
         Assert.Equal(live, item.ItemId);                       // the delivered one is not live
         Assert.Equal("At COB", item.CurrentStateName);
         Assert.Equal($"/ItProjects/{live}", item.OpenUrl);
-        Assert.Contains("CF", item.CurrentContext);             // carried into FY 2026-27 without an SO
+        Assert.Equal("IT PPP 09/2025 · FY 2026-27 · CF", item.CurrentContext); // carried into FY 2026-27 without an SO; number not entered yet
         Assert.True(item.RequiresAttention);                     // 355 days at COB
         Assert.Null(item.LatestDirection);
+
+        // Once this year's number is entered, the context shows it with this year.
+        Assert.True((await db.Commands().SaveYearAsync(live, 2026, new ItProjectYearInput(null, "IT PPP 07/2026"), await db.RowVersionAsync(live), ItProjectTestDb.Actor())).Succeeded);
+        var refreshed = (await Reads(db).GetAsync("hod-1", "ito-1"))!.Sections.Single(item2 => item2.Kind == ConferenceItemKind.ItProject).Items.Single();
+        Assert.Equal("IT PPP 07/2026 · FY 2026-27 · CF", refreshed.CurrentContext);
 
         // A Project Officer without the ITO role gets no IT projects section.
         var po = await service.GetAsync("hod-1", "po-1");
