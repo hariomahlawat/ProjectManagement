@@ -119,6 +119,7 @@
         if (note) {
             note.hidden = !preview.summary;
             note.textContent = preview.summary || '';
+            note.classList.toggle('itp-stage-note--reopen', !!(preview.reopened && preview.reopened.length));
         }
     }
 

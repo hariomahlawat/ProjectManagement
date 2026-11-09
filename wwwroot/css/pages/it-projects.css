@@ -575,42 +575,99 @@
     margin-top: 1rem;
 }
 
-.itp-stage-row {
-    display: grid;
-    grid-template-columns: 1.6rem minmax(0, 1fr) 9.5rem;
-    gap: .6rem;
-    align-items: center;
-    padding: .55rem 0;
-    border-top: 1px solid var(--pm-border);
-}
-
-.itp-stage-row:first-child {
-    border-top: 0;
-}
-
-.itp-stage-row--cost {
-    grid-template-columns: 1.6rem minmax(0, 1fr) 9.5rem;
-}
-
-.itp-stage-row__tick .form-check-input {
-    width: 1.15rem;
-    height: 1.15rem;
+/* The stage editor: a vertical stepper (redesign PR 9). Each row draws the line into its marker
+   (top half) and on to the next row (bottom half), so the line joins up whatever the row heights. */
+.itp-stage-rows {
     margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.itp-stage-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) 9.5rem;
+    gap: .75rem;
+    align-items: center;
+    padding: .5rem 0;
+}
+
+.itp-stage-row::before,
+.itp-stage-row::after {
+    content: "";
+    position: absolute;
+    left: calc(1rem - 1px);
+    width: 2px;
+    background: var(--pm-border-strong);
+}
+
+.itp-stage-row::before {
+    top: 0;
+    height: 50%;
+}
+
+.itp-stage-row::after {
+    top: 50%;
+    bottom: 0;
+}
+
+.itp-stage-row:first-child::before,
+.itp-stage-row:last-child::after {
+    display: none;
+}
+
+.itp-stage-row--done::before,
+.itp-stage-row--done:has(+ .itp-stage-row--done)::after {
+    background: var(--itp-done);
+}
+
+.itp-stage-row__tick {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    cursor: pointer;
+}
+
+/* the tick is a round marker: hollow when open, filled with a check when done */
+.itp-stage-row__tick .form-check-input {
+    width: 2rem;
+    height: 2rem;
+    margin: 0;
+    border: 2px solid var(--pm-border-strong);
+    border-radius: 50%;
+    background-color: var(--pm-card);
+    box-shadow: 0 0 0 4px var(--pm-card);
+    cursor: pointer;
 }
 
 .itp-stage-row__tick .form-check-input:checked {
     background-color: var(--itp-done);
     border-color: var(--itp-done);
+    background-size: 1rem;
+}
+
+.itp-stage-row__tick .form-check-input:focus-visible {
+    box-shadow: 0 0 0 4px var(--pm-card), 0 0 0 6px var(--pm-primary);
+}
+
+.itp-stage-row--skipped .itp-stage-row__tick .form-check-input {
+    width: 1.1rem;
+    height: 1.1rem;
+    border-style: dashed;
+    cursor: default;
 }
 
 .itp-stage-row__name {
     display: block;
     font-size: var(--pm-font-size-sm);
-    font-weight: 600;
+    font-weight: 650;
     color: var(--pm-text-strong);
 }
 
 .itp-stage-row--skipped .itp-stage-row__name {
+    font-weight: 600;
     color: var(--pm-text-muted);
 }
 
@@ -618,16 +675,21 @@
 .itp-stage-row__sub {
     display: flex;
     align-items: center;
-    gap: .35rem;
-    margin-top: .1rem;
+    gap: .4rem;
+    margin: .15rem 0 0;
+    padding-left: 0;
     font-size: var(--pm-font-size-xs);
     color: var(--pm-text-muted);
 }
 
 .itp-stage-row__include .form-check-input {
-    width: .9rem;
-    height: .9rem;
+    float: none;
+    width: 1.75rem;
+    height: 1rem;
     margin: 0;
+    border-color: var(--pm-border-strong);
+    border-radius: 1rem;
+    cursor: pointer;
 }
 
 .itp-stage-row__inputs {
@@ -636,16 +698,21 @@
 }
 
 .itp-stage-row--skipped .itp-stage-row__inputs {
-    opacity: .5;
+    opacity: .45;
 }
 
 .itp-stage-note {
-    margin: .75rem 0 0;
-    padding: .55rem .75rem;
+    margin: .9rem 0 0;
+    padding: .6rem .8rem;
     border-radius: 10px;
-    font-size: var(--pm-font-size-xs);
+    font-size: var(--pm-font-size-sm);
+    background: var(--pm-success-soft-bg);
+    color: var(--pm-success-strong);
+}
+
+.itp-stage-note--reopen {
     background: var(--pm-warning-soft-bg);
-    color: var(--pm-warning-soft-text);
+    color: var(--pm-warning-strong);
 }
 
 /* ---- phones ------------------------------------------------------------------------------ */
@@ -767,7 +834,7 @@
     }
 
     .itp-stage-row {
-        grid-template-columns: 1.6rem minmax(0, 1fr);
+        grid-template-columns: 2rem minmax(0, 1fr);
     }
 
     .itp-stage-row__inputs {

@@ -350,7 +350,7 @@
             <div class="offcanvas-header">
                 <div>
                     <h5 id="itpStagesDrawerLabel" class="mb-0">Update stages</h5>
-                    <p class="itp-drawer__hint mb-0">Tick what is done. Dates are optional. Ticking a later stage completes the earlier ones.</p>
+                    <p class="itp-drawer__hint mb-0">Tick what is done; dates are optional. Ticking a later stage completes the earlier ones, and the line below says what Save will do.</p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
             </div>
@@ -369,12 +369,12 @@
                             </ul>
                         </div>
                     }
-                    <div class="itp-stage-rows">
+                    <ol class="itp-stage-rows">
                         @for (var i = 0; i < Model.Stages.Items.Count; i++)
                         {
                             var item = Model.Stages.Items[i];
                             var row = Model.StageRows.First(r => r.Code == item.StageCode);
-                            <div class="itp-stage-row @(row.IsOptional && !item.IsIncluded ? "itp-stage-row--skipped" : null) @(row.CarriesCost ? "itp-stage-row--cost" : null)" data-itp-stage data-itp-code="@row.Code" data-itp-label="@row.Label" data-itp-optional="@(row.IsOptional ? "true" : "false")">
+                            <li class="itp-stage-row @(row.IsOptional && !item.IsIncluded ? "itp-stage-row--skipped" : null) @(item.IsCompleted ? "itp-stage-row--done" : null) @(row.CarriesCost ? "itp-stage-row--cost" : null)" data-itp-stage data-itp-code="@row.Code" data-itp-label="@row.Label" data-itp-optional="@(row.IsOptional ? "true" : "false")">
                                 <input type="hidden" asp-for="Stages.Items[i].StageCode" />
                                 <label class="itp-stage-row__tick">
                                     <input type="checkbox" asp-for="Stages.Items[i].IsCompleted" class="form-check-input" data-itp-completed disabled="@(row.IsOptional && !item.IsIncluded)" />
@@ -384,27 +384,27 @@
                                     <span class="itp-stage-row__name">@row.Label</span>
                                     @if (row.IsOptional)
                                     {
-                                        <label class="itp-stage-row__include">
-                                            <input type="checkbox" asp-for="Stages.Items[i].IsIncluded" class="form-check-input" data-itp-included />
-                                            <span>include this stage</span>
+                                        <label class="itp-stage-row__include form-switch">
+                                            <input type="checkbox" asp-for="Stages.Items[i].IsIncluded" class="form-check-input" role="switch" data-itp-included />
+                                            <span>Include this stage</span>
                                         </label>
                                     }
                                     @if (row.CarriesCost)
                                     {
-                                        <span class="itp-stage-row__sub">SO date and cost in lakhs, both optional</span>
+                                        <span class="itp-stage-row__sub">Date and value, both optional</span>
                                     }
                                 </div>
                                 <div class="itp-stage-row__inputs">
                                     <input type="date" asp-for="Stages.Items[i].CompletedOn" asp-format="{0:yyyy-MM-dd}" class="form-control form-control-sm" data-itp-date aria-label="@row.Label completion date" disabled="@(row.IsOptional && !item.IsIncluded)" />
                                     @if (row.CarriesCost)
                                     {
-                                        <input type="number" asp-for="Stages.Items[i].CostLakhs" class="form-control form-control-sm" step="0.01" min="0" placeholder="cost (L)" data-itp-cost aria-label="SO cost in lakhs" />
+                                        <input type="number" asp-for="Stages.Items[i].CostLakhs" class="form-control form-control-sm" step="0.01" min="0" placeholder="Value, ₹ lakh" data-itp-cost aria-label="SO value in lakhs" />
                                     }
                                 </div>
-                            </div>
+                            </li>
                         }
-                    </div>
-                    <p class="itp-stage-note" data-itp-stage-note hidden></p>
+                    </ol>
+                    <p class="itp-stage-note" data-itp-stage-note role="status" aria-live="polite" hidden></p>
                     <div class="itp-drawer__actions">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
                         <button type="submit" class="btn btn-primary itp-btn-primary">Save stages</button>
