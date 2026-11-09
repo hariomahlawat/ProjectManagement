@@ -6,7 +6,10 @@ public enum ConferenceItemKind
 {
     Project = 1,
     ProjectIdea = 2,
-    ActionTask = 3
+    ActionTask = 3,
+
+    /// <summary>An IT project (Pages/ItProjects), reviewed under the ITO.</summary>
+    ItProject = 4
 }
 
 public sealed class OfficerConferenceVm
@@ -25,6 +28,9 @@ public sealed class OfficerConferenceVm
     public int CompletedProjectRetentionDays { get; init; }
     public int IdeaCount { get; init; }
     public int OtherTaskCount { get; init; }
+
+    /// <summary>Live IT projects under this officer: non-zero only for an ITO on the command review.</summary>
+    public int ItProjectCount { get; init; }
 
     public string? PreviousOfficerUserId { get; init; }
     public string? NextOfficerUserId { get; init; }
@@ -45,7 +51,8 @@ public sealed record OfficerConferenceOfficerOptionVm(
     int IdeaCount = 0,
     int OtherTaskCount = 0,
     int ActiveProjectCount = 0,
-    int RecentlyCompletedProjectCount = 0);
+    int RecentlyCompletedProjectCount = 0,
+    int ItProjectCount = 0);
 
 public sealed class OfficerConferenceSectionVm
 {
@@ -140,6 +147,7 @@ public sealed class ConferenceDirectionDigestItemVm
         ConferenceItemKind.Project => "Project",
         ConferenceItemKind.ProjectIdea => "Idea",
         ConferenceItemKind.ActionTask => "Task",
+        ConferenceItemKind.ItProject => "IT project",
         _ => "Item"
     };
 }

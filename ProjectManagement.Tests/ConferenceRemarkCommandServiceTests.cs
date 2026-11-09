@@ -9,11 +9,13 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.ConferenceRemarks;
+using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Services.ProjectIdeas;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.Services.Workspace;
@@ -209,6 +211,79 @@ public sealed class ConferenceRemarkCommandServiceTests
 
         Assert.Contains("not part of the selected officer", exception.Message);
     }
+
+    [Fact]
+    public async Task AddAsync_ItProject_WritesAConferenceRemarkWithTheStageWhenIssued()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        var actor = await scope.AddCommandUserAsync("command", RoleNames.Comdt);
+        var ito = await scope.AddCommandUserAsync("ito", RoleNames.Ito);
+        var project = ItProject(actor.Id);
+        project.Stages.Single(stage => stage.StageCode == ItProjectStages.Ppp).IsCompleted = true;
+        scope.Db.ItProjects.Add(project);
+        await scope.Db.SaveChangesAsync();
+
+        var result = await ItService(scope).AddAsync(
+            actor.Id,
+            new AddConferenceRemarkRequest(ito.Id, ConferenceItemKind.ItProject, project.Id, "Get the AoN signed."));
+
+        var remark = await scope.Db.ItProjectRemarks.SingleAsync();
+        Assert.Equal(ItProjectRemarkType.Conference, remark.Type);
+        Assert.Equal(RoleNames.Comdt, remark.AuthorRole);
+        Assert.Equal(ItProjectStages.Aon, remark.StageCode); // the stage the case was at
+        Assert.Equal(new DateOnly(2026, 7, 12), remark.EventDate); // today in India
+        Assert.Equal("Get the AoN signed.", result.Direction.Body);
+        Assert.Equal("Comdt", result.Direction.AuthorRole);
+        Assert.Equal("AoN", result.Direction.SnapshotValue);
+    }
+
+    [Fact]
+    public async Task AddAsync_ItProject_NeedsAnItoOfficerAndALiveCase()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        var actor = await scope.AddCommandUserAsync("command", RoleNames.HoD);
+        var ito = await scope.AddCommandUserAsync("ito", RoleNames.Ito);
+        var notIto = await scope.AddUserAsync("officer");
+        var project = ItProject(actor.Id);
+        var dropped = ItProject(actor.Id);
+        dropped.DroppedOn = new DateOnly(2026, 7, 1);
+        scope.Db.ItProjects.AddRange(project, dropped);
+        await scope.Db.SaveChangesAsync();
+        var service = ItService(scope);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.AddAsync(
+            actor.Id, new AddConferenceRemarkRequest(notIto.Id, ConferenceItemKind.ItProject, project.Id, "Direction")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.AddAsync(
+            actor.Id, new AddConferenceRemarkRequest(ito.Id, ConferenceItemKind.ItProject, dropped.Id, "Direction")));
+        Assert.False(await scope.Db.ItProjectRemarks.AnyAsync());
+    }
+
+    private static ConferenceRemarkCommandService ItService(TestScope scope)
+    {
+        var clock = new FixedClock(new DateTimeOffset(2026, 7, 12, 3, 0, 0, TimeSpan.Zero));
+        return new ConferenceRemarkCommandService(
+            scope.Db,
+            scope.UserManager,
+            new CapturingRemarkService(),
+            new CapturingIdeaCommandService(),
+            new CapturingTaskCollaborationService(),
+            clock,
+            new StubConferenceProjectScopeService("none", 0, isAllowed: false),
+            new ItProjectRemarkService(scope.Db, new ProjectManagement.Tests.Fakes.RecordingAudit(), clock));
+    }
+
+    private static ItProject ItProject(string userId) => new()
+    {
+        Title = "Core switches",
+        PppReferenceNumber = "IT PPP 09/2026",
+        FinancialYearStart = 2026,
+        Description = "Two core switches.",
+        CreatedByUserId = userId,
+        CreatedAtUtc = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+        UpdatedAtUtc = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+        RowVersion = Guid.NewGuid().ToByteArray(),
+        Stages = ItProjectStages.NewStageRows()
+    };
 
     private sealed class TestScope : IAsyncDisposable
     {

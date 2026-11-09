@@ -101,11 +101,20 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             return (ItProjectCommandResult.Fail(ConferenceRoleMessage), 0);
         }
 
-        var projectExists = await _db.ItProjects.AnyAsync(project => project.Id == itProjectId && !project.IsDeleted, cancellationToken);
-        if (!projectExists)
+        var project = await _db.ItProjects
+            .AsNoTracking()
+            .Include(candidate => candidate.Stages)
+            .SingleOrDefaultAsync(candidate => candidate.Id == itProjectId && !candidate.IsDeleted, cancellationToken);
+        if (project is null)
         {
             return (ItProjectCommandResult.Fail(ItProjectCommandService.NotFoundMessage), 0);
         }
+
+        // A conference direction records the stage the case was at when it was issued, as the
+        // other modules do ("Stage when issued"); a general remark is not tied to a stage.
+        var stageWhenIssued = input.Type == ItProjectRemarkType.Conference
+            ? ItProjectStatus.Resolve(project).CurrentStageCode
+            : null;
 
         var now = UtcNow();
         var remark = new ItProjectRemark
@@ -116,6 +125,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             Body = input.Body.Trim(),
             EventDate = input.EventDate,
             Type = input.Type,
+            StageCode = stageWhenIssued,
             CreatedAtUtc = now,
             RowVersion = NewRowVersion()
         };

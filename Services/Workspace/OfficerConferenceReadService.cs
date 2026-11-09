@@ -22,7 +22,7 @@ namespace ProjectManagement.Services.Workspace;
 /// All source data is loaded in bounded batch queries and conference directions remain
 /// native records in their respective modules.
 /// </summary>
-public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+public sealed partial class OfficerConferenceReadService : IOfficerConferenceReadService
 {
     private readonly ApplicationDbContext _db;
     private readonly IOfficerWorkloadReadService _workload;
@@ -96,7 +96,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             return Array.Empty<OfficerConferenceOfficerOptionVm>();
         }
 
-        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
+        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken, includeItProjects: true);
         return BuildOfficerOptions(orderedOfficers, selectedOfficerUserId);
     }
 
@@ -111,7 +111,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             return null;
         }
 
-        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
+        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken, includeItProjects: true);
         var selectedIndex = orderedOfficers
             .Select((officer, index) => new { officer, index })
             .FirstOrDefault(entry => string.Equals(
@@ -481,6 +481,37 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
 
         var officerOptions = BuildOfficerOptions(orderedOfficers, selected.UserId);
 
+        var sections = new List<OfficerConferenceSectionVm>
+        {
+            new()
+            {
+                Kind = ConferenceItemKind.Project,
+                Title = "Projects",
+                IconClass = "bi-kanban",
+                Items = projectItems
+            },
+            new()
+            {
+                Kind = ConferenceItemKind.ProjectIdea,
+                Title = "Ideas",
+                IconClass = "bi-lightbulb",
+                Items = ideaItems
+            },
+            new()
+            {
+                Kind = ConferenceItemKind.ActionTask,
+                Title = "Other tasks",
+                IconClass = "bi-list-check",
+                Items = taskItems
+            }
+        };
+
+        // Only an ITO officer carries IT projects, and only on the command review.
+        if (selected.ItProjects.Count > 0)
+        {
+            sections.Add(await BuildItProjectSectionAsync(selected, cancellationToken));
+        }
+
         return new OfficerConferenceVm
         {
             OfficerUserId = selected.UserId,
@@ -492,6 +523,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             RecentlyCompletedProjectCount = selected.RecentlyCompletedProjects.Count,
             IdeaCount = ideaItems.Count,
             OtherTaskCount = taskItems.Count,
+            ItProjectCount = selected.ItProjects.Count,
             CompletedProjectRetentionDays = _projectScope?.CompletedProjectRetentionDays ?? 0,
             PreviousOfficerUserId = includeOfficerNavigation && selectedIndex > 0
                 ? orderedOfficers[selectedIndex - 1].UserId
@@ -501,30 +533,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 : null,
             OfficerOptions = officerOptions,
             ActivityStrip = activityStrip,
-            Sections = new[]
-            {
-                new OfficerConferenceSectionVm
-                {
-                    Kind = ConferenceItemKind.Project,
-                    Title = "Projects",
-                    IconClass = "bi-kanban",
-                    Items = projectItems
-                },
-                new OfficerConferenceSectionVm
-                {
-                    Kind = ConferenceItemKind.ProjectIdea,
-                    Title = "Ideas",
-                    IconClass = "bi-lightbulb",
-                    Items = ideaItems
-                },
-                new OfficerConferenceSectionVm
-                {
-                    Kind = ConferenceItemKind.ActionTask,
-                    Title = "Other tasks",
-                    IconClass = "bi-list-check",
-                    Items = taskItems
-                }
-            }
+            Sections = sections
         };
     }
 
@@ -544,7 +553,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             return null;
         }
 
-        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
+        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken, includeItProjects: true);
         var selected = orderedOfficers.FirstOrDefault(officer => string.Equals(
             officer.UserId,
             officerUserId,
@@ -567,6 +576,8 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 => await BuildIdeaDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
             ConferenceItemKind.ActionTask when selected.OtherTasks.Any(item => item.TaskId == itemId)
                 => await BuildTaskDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
+            ConferenceItemKind.ItProject when selected.ItProjects.Any(item => item.Id == itemId)
+                => await BuildItProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
             _ => null
         };
     }
@@ -1099,7 +1110,8 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
 
     private async Task<IReadOnlyList<ConferenceOfficerContext>> LoadConferenceOfficersAsync(
         string requestingUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeItProjects = false)
     {
         var activeWorkloads = await _workload.GetAllAsync(requestingUserId, cancellationToken);
         IReadOnlyList<ConferenceProjectCarryover> carryovers = _projectScope is null
@@ -1156,7 +1168,12 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .ThenBy(officer => officer.OfficerName, StringComparer.OrdinalIgnoreCase);
 
         result.AddRange(carryoverOnlyOfficers);
-        return result;
+
+        // The command conference review also lists the ITO with the live IT projects. Other
+        // consumers (command desk, Notebook digest, the officer's own view) keep their scope.
+        return includeItProjects
+            ? await AttachItProjectsAsync(result, cancellationToken)
+            : result;
     }
 
     private static IReadOnlyList<OfficerConferenceOfficerOptionVm> BuildOfficerOptions(
@@ -1171,7 +1188,8 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 officer.Ideas.Count,
                 officer.OtherTasks.Count,
                 officer.ActiveProjects.Count,
-                officer.RecentlyCompletedProjects.Count))
+                officer.RecentlyCompletedProjects.Count,
+                officer.ItProjects.Count))
             .ToArray();
 
     private async Task<List<ProjectRow>> LoadProjectsAsync(
@@ -2081,9 +2099,13 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         IReadOnlyList<CommandOfficerProjectVm> ActiveProjects,
         IReadOnlyList<CommandOfficerIdeaVm> Ideas,
         IReadOnlyList<CommandOfficerTaskVm> OtherTasks,
-        IReadOnlyList<ConferenceProjectCarryover> RecentlyCompletedProjects)
+        IReadOnlyList<ConferenceProjectCarryover> RecentlyCompletedProjects,
+        IReadOnlyList<ItProjectConferenceRow>? ItProjectsInput = null)
     {
         public int ProjectCount => ActiveProjects.Count + RecentlyCompletedProjects.Count;
+
+        /// <summary>Live IT projects, for an officer who holds the ITO role on the command review.</summary>
+        public IReadOnlyList<ItProjectConferenceRow> ItProjects => ItProjectsInput ?? Array.Empty<ItProjectConferenceRow>();
     }
 
     private sealed record ConferenceProjectSource(
