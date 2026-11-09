@@ -95,18 +95,22 @@
                                 </ul>
                             </div>
                         }
+                        @if (Model.CanWriteConference)
+                        {
+                            <div class="itp-kind" role="radiogroup" aria-label="Kind of remark">
+                                <label class="itp-kind__opt">
+                                    <input type="radio" asp-for="Remark.Type" value="General" />
+                                    <span>Remark</span>
+                                </label>
+                                <label class="itp-kind__opt itp-kind__opt--conference">
+                                    <input type="radio" asp-for="Remark.Type" value="Conference" />
+                                    <span><i class="bi bi-people" aria-hidden="true"></i> Conference</span>
+                                </label>
+                            </div>
+                        }
                         <textarea asp-for="Remark.Body" class="form-control itp-composer__text" rows="3" maxlength="@ItProjectRemark.BodyMaxLength" placeholder="Write a remark as @Model.RemarkRole…"></textarea>
                         <div class="itp-composer__row">
                             <label class="itp-composer__field"><span>Event date</span><input type="date" asp-for="Remark.EventDate" asp-format="{0:yyyy-MM-dd}" class="form-control form-control-sm" /></label>
-                            <label class="itp-composer__field"><span>About</span>
-                                <select asp-for="Remark.StageCode" class="form-select form-select-sm">
-                                    <option value="">whole project</option>
-                                    @foreach (var stage in ItProjectStages.All)
-                                    {
-                                        <option value="@stage.Code">@stage.Label</option>
-                                    }
-                                </select>
-                            </label>
                             <span class="itp-composer__spacer"></span>
                             <span class="itp-composer__as">as <span class="itp-role @ItProjectBoardPresentation.RoleClass(Model.RemarkRole ?? "")">@Model.RemarkRole</span></span>
                             <button type="submit" class="btn btn-primary itp-btn-primary btn-sm">Add remark</button>
@@ -137,15 +141,15 @@
                                 var canEdit = Model.CanEditRemark(remark);
                                 var canDelete = Model.CanDeleteRemark(remark);
                                 var rowVersion = DetailsModel.EncodeRowVersion(remark.RowVersion);
-                            <li class="itp-remark" id="remark-@remark.Id">
+                            <li class="itp-remark @(remark.Type == ItProjectRemarkType.Conference ? "itp-remark--conference" : null)" id="remark-@remark.Id">
                                 <span class="itp-remark__avatar @ItProjectBoardPresentation.RoleClass(remark.AuthorRole)" aria-hidden="true">@ItProjectBoardPresentation.Initials(remark.AuthorName)</span>
                                 <div class="itp-remark__main">
                                     <div class="itp-remark__who">
                                         <span class="itp-remark__name">@remark.AuthorName</span>
                                         <span class="itp-role @ItProjectBoardPresentation.RoleClass(remark.AuthorRole)">@remark.AuthorRole</span>
-                                        @if (remark.StageCode is { } about && ItProjectStages.IsKnown(about))
+                                        @if (remark.Type == ItProjectRemarkType.Conference)
                                         {
-                                            <span class="itp-remark__about">@ItProjectStages.LabelOf(about)</span>
+                                            <span class="itp-remark__conf"><i class="bi bi-people" aria-hidden="true"></i> Conference</span>
                                         }
                                         <time class="itp-remark__when" datetime="@remark.EventDate.ToString("yyyy-MM-dd")">@ItProjectBoardPresentation.ShortDate(remark.EventDate)</time>
                                     </div>
@@ -179,15 +183,6 @@
                                                 <textarea name="RemarkEdit.Body" class="form-control itp-composer__text" rows="3" maxlength="@ItProjectRemark.BodyMaxLength" aria-label="Remark" required>@remark.Body</textarea>
                                                 <div class="itp-composer__row">
                                                     <label class="itp-composer__field"><span>Event date</span><input type="date" name="RemarkEdit.EventDate" value="@remark.EventDate.ToString("yyyy-MM-dd")" class="form-control form-control-sm" required /></label>
-                                                    <label class="itp-composer__field"><span>About</span>
-                                                        <select name="RemarkEdit.StageCode" class="form-select form-select-sm">
-                                                            <option value="" selected="@(remark.StageCode is null)">whole project</option>
-                                                            @foreach (var stage in ItProjectStages.All)
-                                                            {
-                                                                <option value="@stage.Code" selected="@(remark.StageCode == stage.Code)">@stage.Label</option>
-                                                            }
-                                                        </select>
-                                                    </label>
                                                     <span class="itp-composer__spacer"></span>
                                                     <a class="btn btn-outline-secondary btn-sm" href="#remark-@remark.Id" data-itp-remark-cancel>Cancel</a>
                                                     <button type="submit" class="btn btn-primary btn-sm">Save remark</button>

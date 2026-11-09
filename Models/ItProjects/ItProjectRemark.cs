@@ -5,9 +5,19 @@ using System.ComponentModel.DataAnnotations;
 namespace ProjectManagement.Models.ItProjects;
 
 /// <summary>
+/// The kind of an IT project remark. A conference remark (a "conference direction") is written
+/// by the Comdt or HoD, as on R&amp;D projects, ideas and tasks.
+/// </summary>
+public enum ItProjectRemarkType
+{
+    General = 0,
+    Conference = 1
+}
+
+/// <summary>
 /// A remark on an IT project (docs/ux/it-projects.md, "Remarks"): what the ITO, MCO, HoD or
 /// Comdt said, written as the role they held. Deliberately separate from the R&amp;D
-/// <c>Remark</c> table, which is bound to <c>Projects</c>. No type, no mentions.
+/// <c>Remark</c> table, which is bound to <c>Projects</c>. No mentions.
 /// </summary>
 public class ItProjectRemark
 {
@@ -29,10 +39,16 @@ public class ItProjectRemark
     [Required, MaxLength(BodyMaxLength)]
     public string Body { get; set; } = string.Empty;
 
+    /// <summary>General, or a conference direction (Comdt / HoD only).</summary>
+    public ItProjectRemarkType Type { get; set; }
+
     /// <summary>The date the remark is about, not the date it was typed.</summary>
     public DateOnly EventDate { get; set; }
 
-    /// <summary>Optional: the stage the remark is about (<see cref="ItProjectStages"/> code).</summary>
+    /// <summary>
+    /// Legacy: the stage a remark was about. Remarks are no longer tied to a stage (owner, 9 Nov
+    /// 2026); old values are kept for the record and not shown.
+    /// </summary>
     [MaxLength(8)]
     public string? StageCode { get; set; }
 
@@ -83,6 +99,8 @@ public class ItProjectRemarkAudit
     public string SnapshotBody { get; set; } = string.Empty;
 
     public DateOnly SnapshotEventDate { get; set; }
+
+    public ItProjectRemarkType SnapshotType { get; set; }
 
     [MaxLength(8)]
     public string? SnapshotStageCode { get; set; }

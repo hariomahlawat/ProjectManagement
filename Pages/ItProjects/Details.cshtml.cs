@@ -108,8 +108,12 @@ public class DetailsModel : PageModel
         [Display(Name = "Event date")]
         public DateOnly? EventDate { get; set; }
 
-        [Display(Name = "About")]
-        public string? StageCode { get; set; }
+        /// <summary>"Conference" for a conference remark (Comdt / HoD); anything else is a general remark.</summary>
+        public string? Type { get; set; }
+
+        public ItProjectRemarkType RemarkType => string.Equals(Type, "Conference", StringComparison.OrdinalIgnoreCase)
+            ? ItProjectRemarkType.Conference
+            : ItProjectRemarkType.General;
     }
 
     public sealed class RemarkEditInput
@@ -124,16 +128,18 @@ public class DetailsModel : PageModel
         [DataType(DataType.Date)]
         public DateOnly? EventDate { get; set; }
 
-        public string? StageCode { get; set; }
-
         public string RowVersion { get; set; } = string.Empty;
     }
 
-    /// <summary>Who may edit a remark: its author.</summary>
-    public bool CanEditRemark(ItProjectRemarkView remark) => CanRemark && remark.AuthorUserId == UserId;
+    /// <summary>Whether the user may write conference remarks: the Comdt or HoD, as in the other modules.</summary>
+    public bool CanWriteConference => CanRemark && ItProjectRemarkService.CanWriteConference(RemarkRole);
 
-    /// <summary>Who may delete a remark: its author, or an Admin as moderation.</summary>
-    public bool CanDeleteRemark(ItProjectRemarkView remark) => IsAdmin || (CanRemark && remark.AuthorUserId == UserId);
+    /// <summary>Who may edit a remark: its author (a conference remark only while they are the Comdt or HoD).</summary>
+    public bool CanEditRemark(ItProjectRemarkView remark)
+        => CanRemark && remark.AuthorUserId == UserId && (remark.Type != ItProjectRemarkType.Conference || CanWriteConference);
+
+    /// <summary>Who may delete a remark: its author (as for editing), or an Admin as moderation.</summary>
+    public bool CanDeleteRemark(ItProjectRemarkView remark) => IsAdmin || CanEditRemark(remark);
 
     private string? UserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -423,7 +429,7 @@ public class DetailsModel : PageModel
 
         var (result, _) = await _remarks.AddAsync(
             id,
-            new ItProjectRemarkInput(Remark.Body, Remark.EventDate!.Value, Remark.StageCode),
+            new ItProjectRemarkInput(Remark.Body, Remark.EventDate!.Value, Remark.RemarkType),
             RemarkActor(),
             cancellationToken);
 
@@ -466,7 +472,7 @@ public class DetailsModel : PageModel
         var result = await _remarks.EditAsync(
             id,
             RemarkEdit.Id,
-            new ItProjectRemarkInput(RemarkEdit.Body, RemarkEdit.EventDate!.Value, RemarkEdit.StageCode),
+            new ItProjectRemarkInput(RemarkEdit.Body, RemarkEdit.EventDate!.Value),
             DecodeRowVersion(RemarkEdit.RowVersion),
             RemarkActor(),
             cancellationToken);
@@ -782,11 +788,12 @@ public class DetailsModel : PageModel
         }
 
         RowVersion = RowVersionToken;
-        // A new remark is most often about the stage the case is at, so the composer starts there.
+        // The Comdt writes conference directions most of the time, so the composer starts there for
+        // them, as in the other modules; everyone else starts on a general remark.
         Remark = new RemarkInput
         {
             EventDate = ItProjectYearTypes.TodayIst(_clock.UtcNow),
-            StageCode = Status.Kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress ? Status.CurrentStageCode : null
+            Type = string.Equals(RemarkRole, RoleNames.Comdt, StringComparison.OrdinalIgnoreCase) ? "Conference" : "General"
         };
     }
 

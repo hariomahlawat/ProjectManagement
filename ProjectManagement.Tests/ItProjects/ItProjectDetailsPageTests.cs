@@ -423,7 +423,7 @@ public class ItProjectDetailsPageTests
 
         var ito = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
         await ito.OnGetAsync(id, CancellationToken.None);
-        ito.Remark = new DetailsModel.RemarkInput { Body = "SO draft with Accounts.", EventDate = new DateOnly(2026, 11, 2), StageCode = "SO" };
+        ito.Remark = new DetailsModel.RemarkInput { Body = "SO draft with Accounts.", EventDate = new DateOnly(2026, 11, 2) };
         var added = Assert.IsType<RedirectToPageResult>(await ito.OnPostRemarkAddAsync(id, CancellationToken.None));
         Assert.Equal("remarks", added.Fragment);
         Assert.Equal("Remark added.", ito.TempData["ToastSuccess"]);
@@ -447,7 +447,7 @@ public class ItProjectDetailsPageTests
         var author = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
         await author.OnGetAsync(id, CancellationToken.None);
         Assert.True(author.CanEditRemark(remark));
-        author.RemarkEdit = new DetailsModel.RemarkEditInput { Id = remark.Id, Body = "SO issued on 12 Nov.", EventDate = new DateOnly(2026, 11, 12), StageCode = "SO", RowVersion = DetailsModel.EncodeRowVersion(remark.RowVersion) };
+        author.RemarkEdit = new DetailsModel.RemarkEditInput { Id = remark.Id, Body = "SO issued on 12 Nov.", EventDate = new DateOnly(2026, 11, 12), RowVersion = DetailsModel.EncodeRowVersion(remark.RowVersion) };
         Assert.IsType<RedirectToPageResult>(await author.OnPostRemarkEditAsync(id, CancellationToken.None));
         Assert.Equal("Remark saved.", author.TempData["ToastSuccess"]);
 

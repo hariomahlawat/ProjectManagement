@@ -2548,14 +2548,6 @@ a.itp-fig--selected:hover {
     color: var(--pm-spec-6);
 }
 
-.itp-remark__about {
-    padding: .05rem .45rem;
-    border-radius: 6px;
-    background: var(--pm-surface);
-    color: var(--pm-text-secondary);
-    font-size: var(--pm-font-size-xxs);
-    font-weight: 600;
-}
 
 .itp-remark__body {
     margin-top: .3rem;
@@ -2639,4 +2631,71 @@ a.itp-fig--selected:hover {
     font-size: var(--pm-font-size-xs);
     color: var(--pm-text-muted);
     font-variant-numeric: tabular-nums;
+}
+
+/* ---- conference remarks (Comdt / HoD), as on R&D projects, ideas and tasks ------------------ */
+
+.itp-kind {
+    display: inline-flex;
+    gap: 2px;
+    margin-bottom: .5rem;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--pm-surface);
+}
+
+.itp-kind__opt {
+    position: relative;
+    margin: 0;
+    cursor: pointer;
+}
+
+.itp-kind__opt input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.itp-kind__opt span {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .25rem .7rem;
+    border-radius: 7px;
+    font-size: var(--pm-font-size-sm);
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+}
+
+.itp-kind__opt input:checked + span {
+    background: var(--pm-card);
+    color: var(--pm-text-strong);
+    box-shadow: var(--pm-shadow-card);
+}
+
+.itp-kind__opt--conference input:checked + span {
+    color: var(--pm-spec-6);
+}
+
+.itp-kind__opt input:focus-visible + span {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 1px;
+}
+
+.itp-remark__conf {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .05rem .45rem;
+    border-radius: 6px;
+    background: var(--pm-surface-violet);
+    color: var(--pm-spec-6);
+    font-size: var(--pm-font-size-xxs);
+    font-weight: 700;
+}
+
+.itp-remark--conference .itp-remark__body {
+    border-color: color-mix(in srgb, var(--pm-spec-6) 35%, var(--pm-border));
+    border-left: 3px solid var(--pm-spec-6);
+    background: var(--pm-surface-violet);
 }

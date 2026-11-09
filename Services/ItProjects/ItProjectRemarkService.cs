@@ -21,6 +21,11 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
     public const string NoRoleMessage = "Only the ITO, MCO, HoD or Comdt can write remarks on IT projects.";
     public const string NotAuthorMessage = "Only the author can change this remark.";
     public const string NotAuthorOrAdminMessage = "Only the author or an administrator can delete this remark.";
+    public const string ConferenceRoleMessage = "Only the Comdt or HoD can write or change a conference remark.";
+
+    /// <summary>Whether a remark role may write conference remarks (Comdt, HoD), as in the other modules.</summary>
+    public static bool CanWriteConference(string? remarkRole)
+        => remarkRole is not null && Configuration.Policies.ConferenceRemarks.ManageAllowedRoles.Contains(remarkRole, StringComparer.OrdinalIgnoreCase);
     public const int MinBodyLength = 2;
 
     private readonly ApplicationDbContext _db;
@@ -47,7 +52,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
                 remark.AuthorRole,
                 remark.Body,
                 remark.EventDate,
-                remark.StageCode,
+                remark.Type,
                 remark.CreatedAtUtc,
                 remark.LastEditedAtUtc,
                 remark.RowVersion
@@ -68,7 +73,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
                 row.AuthorRole,
                 row.Body,
                 row.EventDate,
-                row.StageCode,
+                row.Type,
                 row.CreatedAtUtc,
                 row.LastEditedAtUtc,
                 row.RowVersion))
@@ -91,6 +96,11 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             return (ItProjectCommandResult.Fail(errors), 0);
         }
 
+        if (input.Type == ItProjectRemarkType.Conference && !CanWriteConference(actor.RemarkRole))
+        {
+            return (ItProjectCommandResult.Fail(ConferenceRoleMessage), 0);
+        }
+
         var projectExists = await _db.ItProjects.AnyAsync(project => project.Id == itProjectId && !project.IsDeleted, cancellationToken);
         if (!projectExists)
         {
@@ -105,7 +115,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             AuthorRole = actor.RemarkRole!,
             Body = input.Body.Trim(),
             EventDate = input.EventDate,
-            StageCode = NormaliseStage(input.StageCode),
+            Type = input.Type,
             CreatedAtUtc = now,
             RowVersion = NewRowVersion()
         };
@@ -142,10 +152,15 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             return ItProjectCommandResult.Fail(NotAuthorMessage);
         }
 
+        if (remark.Type == ItProjectRemarkType.Conference && !CanWriteConference(actor.RemarkRole))
+        {
+            return ItProjectCommandResult.Fail(ConferenceRoleMessage);
+        }
+
+        // The type and any legacy stage stay as they are: remarks are no longer tied to a stage.
         var now = UtcNow();
         remark.Body = input.Body.Trim();
         remark.EventDate = input.EventDate;
-        remark.StageCode = NormaliseStage(input.StageCode);
         remark.LastEditedAtUtc = now;
         remark.AuditEntries.Add(Snapshot(remark, ItProjectRemarkAuditAction.Edited, actor, now));
 
@@ -166,6 +181,11 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         if (!isAuthor && !actor.IsAdmin)
         {
             return ItProjectCommandResult.Fail(NotAuthorOrAdminMessage);
+        }
+
+        if (!actor.IsAdmin && remark.Type == ItProjectRemarkType.Conference && !CanWriteConference(actor.RemarkRole))
+        {
+            return ItProjectCommandResult.Fail(ConferenceRoleMessage);
         }
 
         var now = UtcNow();
@@ -195,16 +215,13 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             errors.Add($"The remark must be {ItProjectRemark.BodyMaxLength} characters or fewer.");
         }
 
-        if (!string.IsNullOrWhiteSpace(input.StageCode) && !ItProjectStages.IsKnown(input.StageCode.Trim()))
+        if (!Enum.IsDefined(input.Type))
         {
-            errors.Add("Choose one of the project's stages, or the whole project.");
+            errors.Add("Choose a remark or a conference remark.");
         }
 
         return errors;
     }
-
-    private static string? NormaliseStage(string? stageCode)
-        => string.IsNullOrWhiteSpace(stageCode) ? null : ItProjectStages.Get(stageCode.Trim()).Code;
 
     /// <summary>
     /// The live remark with that id on that live project. A remark id from another project, or
@@ -264,6 +281,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         ActionAtUtc = now,
         SnapshotBody = remark.Body,
         SnapshotEventDate = remark.EventDate,
+        SnapshotType = remark.Type,
         SnapshotStageCode = remark.StageCode,
         SnapshotIsDeleted = remark.IsDeleted
     };
@@ -274,7 +292,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         ["RemarkId"] = remark.Id.ToString(CultureInfo.InvariantCulture),
         ["AuthorRole"] = remark.AuthorRole,
         ["EventDate"] = remark.EventDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-        ["StageCode"] = remark.StageCode
+        ["Type"] = remark.Type.ToString()
     };
 
     private static void EnsureActor(ItProjectRemarkActor actor)
