@@ -88,7 +88,7 @@ public class ItProjectDetailsPageTests
         var redirect = Assert.IsType<RedirectToPageResult>(result);
         Assert.Null(redirect.PageName);
         Assert.Equal(id, redirect.RouteValues!["id"]);
-        Assert.Equal("Stages saved. Completed: IT PPP / IPA, AoN, Bid, TEC.", page.TempData["ToastSuccess"]);
+        Assert.Equal("Stages saved. Completed: IT ARPPP / IPA, AoN, Bid, TEC.", page.TempData["ToastSuccess"]);
 
         await using var context = db.NewContext();
         var stages = await context.ItProjectStages.Where(stage => stage.ItProjectId == id).OrderBy(stage => stage.SortOrder).ToListAsync();
@@ -113,7 +113,7 @@ public class ItProjectDetailsPageTests
         Assert.IsType<PageResult>(result);
         Assert.Equal(DetailsModel.OpenStages, page.Open);
         var errors = page.ModelState[DetailsModel.OpenStages]!.Errors.Select(error => error.ErrorMessage).ToList();
-        Assert.Contains(errors, error => error.Contains("AoN cannot be completed before IT PPP / IPA"));
+        Assert.Contains(errors, error => error.Contains("AoN cannot be completed before IT ARPPP / IPA"));
         Assert.Equal(new DateOnly(2026, 5, 1), page.Stages.Items.Single(item => item.StageCode == "AON").CompletedOn); // the posted values stay in the drawer
         await using var context = db.NewContext();
         Assert.False(await context.ItProjectStages.AnyAsync(stage => stage.ItProjectId == id && stage.IsCompleted));
@@ -294,7 +294,7 @@ public class ItProjectDetailsPageTests
         Assert.Null(ItProjectBoardPresentation.CascadeSummary(Array.Empty<string>(), Array.Empty<string>()));
         Assert.Equal("Saving will also complete Bid.", ItProjectBoardPresentation.CascadeSummary(new[] { "BID" }, Array.Empty<string>()));
         Assert.Equal(
-            "Saving will also complete IT PPP / IPA, AoN, Bid, TEC, COB and SO.",
+            "Saving will also complete IT ARPPP / IPA, AoN, Bid, TEC, COB and SO.",
             ItProjectBoardPresentation.CascadeSummary(new[] { "PPP", "AON", "BID", "TEC", "COB", "SO" }, Array.Empty<string>()));
         Assert.Equal(
             "Saving will also complete Bid and also reopen SO and Delivery and ATP.",

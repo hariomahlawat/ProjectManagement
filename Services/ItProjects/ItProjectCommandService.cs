@@ -254,7 +254,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         var reference = string.IsNullOrWhiteSpace(input.PppReferenceNumber) ? null : input.PppReferenceNumber.Trim();
         if (reference is { Length: > ItProjectFinancialYear.ReferenceMaxLength })
         {
-            return ItProjectCommandResult.Fail($"The IT PPP reference number must be {ItProjectFinancialYear.ReferenceMaxLength} characters or fewer.");
+            return ItProjectCommandResult.Fail($"The IT ARPPP reference number must be {ItProjectFinancialYear.ReferenceMaxLength} characters or fewer.");
         }
 
         var project = await LoadForWriteAsync(id, cancellationToken);
@@ -272,7 +272,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
 
         if (before.IsOwnYear && reference is not null && !string.Equals(reference, project.PppReferenceNumber, StringComparison.Ordinal))
         {
-            return ItProjectCommandResult.Fail("The first year's IT PPP reference number is changed with Edit.");
+            return ItProjectCommandResult.Fail("The first year's IT ARPPP reference number is changed with Edit.");
         }
 
         // Only later years store a number; choosing the automatic type stores no type.
@@ -355,11 +355,11 @@ public sealed class ItProjectCommandService : IItProjectCommandService
 
         if (reference.Length == 0)
         {
-            errors.Add("Give the IT PPP reference number.");
+            errors.Add("Give the IT ARPPP reference number.");
         }
         else if (reference.Length > ReferenceMaxLength)
         {
-            errors.Add($"The IT PPP reference number must be {ReferenceMaxLength} characters or fewer.");
+            errors.Add($"The IT ARPPP reference number must be {ReferenceMaxLength} characters or fewer.");
         }
 
         if (description.Length == 0)

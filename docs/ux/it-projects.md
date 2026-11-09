@@ -1,6 +1,6 @@
 # IT projects (`/ItProjects`)
 
-A small, separate module for the organisation's own IT procurement projects (the IT PPP cases):
+A small, separate module for the organisation's own IT procurement projects (the IT ARPPP cases):
 what each one is, which stage it has reached, and what the ITO, MCO, HoD and Comdt have said
 about it. It is deliberately not the R&D Projects module: no plan, no approvals, no facts
 engine, no photos, no decks. This document records the owner decisions of 8 Nov 2026 and the
@@ -20,8 +20,8 @@ their own tables, services, pages and policies, and never reference `Projects`, 
 | Topic | Decision |
 | --- | --- |
 | Scope | IT projects only (no kind list, no SRE/infra for now) |
-| Required fields | Title, description, **IT PPP reference number** (free text, not unique, not a case file number), **Financial year** |
-| Financial year | The FY the IT PPP belongs to (April to March, shown as "2026-27"). Stored as the start year with `FinancialYearHelper`, as ARPP does. Picked from a list, defaulting to the current FY; the board filters and groups by it |
+| Required fields | Title, description, **IT ARPPP reference number** (free text, not unique, not a case file number), **Financial year** |
+| Financial year | The FY the IT ARPPP belongs to (April to March, shown as "2026-27"). Stored as the start year with `FinancialYearHelper`, as ARPP does. Picked from a list, defaulting to the current FY; the board filters and groups by it |
 | Other fields | None for users. Only bookkeeping: created/updated by and at, row version, soft delete, Dropped |
 | Stages | Nine fixed stages, in order (below). No time plan, no planned dates |
 | Stage completion | A stage is marked complete; its completion date is optional |
@@ -43,7 +43,7 @@ their own tables, services, pages and policies, and never reference `Projects`, 
 
 | Order | Code | Label | Default |
 | --- | --- | --- | --- |
-| 1 | `PPP` | IT PPP / IPA | active |
+| 1 | `PPP` | IT ARPPP / IPA | active |
 | 2 | `AON` | AoN | active |
 | 3 | `BID` | Bid | active |
 | 4 | `TEC` | TEC | active |
@@ -137,7 +137,7 @@ narrowing is one change.
 
 ### The project page (`/ItProjects/{id}`)
 
-1. **Header**: title, IT PPP reference number, FY chip, status chip, **Edit** and **Stages** (Manage),
+1. **Header**: title, IT ARPPP reference number, FY chip, status chip, **Edit** and **Stages** (Manage),
    **Mark dropped** / **Reinstate** (Manage).
 2. **Stepper**: the nine stages across the top; done, current, pending, skipped as on the board,
    with the date under each done stage and the cost under SO.
@@ -152,7 +152,7 @@ narrowing is one change.
 
 ### Create (`/ItProjects/Create`, Manage)
 
-Title, IT PPP reference number, financial year (list, current FY selected), description. Saves and opens the project page with the stage
+Title, IT ARPPP reference number, financial year (list, current FY selected), description. Saves and opens the project page with the stage
 editor, so stages reached so far can be entered at once.
 
 ## Wiring

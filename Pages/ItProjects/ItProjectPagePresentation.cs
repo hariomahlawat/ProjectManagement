@@ -163,7 +163,7 @@ public static class ItProjectPagePresentation
 
     /// <summary>
     /// One entry of the feed: a remark, or a run of stage events. A run of three or more is folded
-    /// into one line ("6 stages completed, IT PPP / IPA to COB") that opens to show them.
+    /// into one line ("6 stages completed, IT ARPPP / IPA to COB") that opens to show them.
     /// </summary>
     public sealed record FeedEntry(ItProjectRemarkView? Remark, IReadOnlyList<StageEvent> Stages, bool Folded)
     {

@@ -53,7 +53,7 @@ public class ItProjectFeedTests
         Assert.Equal(1, feed[2].Remark!.Id);
         Assert.True(feed[3].Folded);
         Assert.Equal(new[] { "TEC", "BID", "AON", "PPP" }, feed[3].Stages.Select(item => item.StageCode));
-        Assert.Equal("4 stages completed, IT PPP / IPA to TEC", feed[3].FoldedText);
+        Assert.Equal("4 stages completed, IT ARPPP / IPA to TEC", feed[3].FoldedText);
         Assert.Equal(4, feed.Count);
         Assert.DoesNotContain(feed.SelectMany(entry => entry.Stages), item => item.StageCode == "COB"); // no date: not on the timeline
     }

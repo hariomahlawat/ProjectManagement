@@ -19,7 +19,7 @@ public enum ItProjectYearType
 }
 
 /// <summary>
-/// What a later year's IT PPP says about a carried-over project: the IT PPP reference number it
+/// What a later year's IT ARPPP says about a carried-over project: the IT ARPPP reference number it
 /// was given in that year and, optionally, a type set by hand. The project's own year keeps its
 /// number on <see cref="ItProject.PppReferenceNumber"/>; no row means "number not yet entered,
 /// automatic type".
@@ -37,7 +37,7 @@ public class ItProjectFinancialYear
     /// <summary>Start year of the financial year, e.g. 2026 for 2026-27.</summary>
     public int FinancialYearStart { get; set; }
 
-    /// <summary>The IT PPP reference number in that year's IT PPP. Free text, not unique.</summary>
+    /// <summary>The IT ARPPP reference number in that year's IT ARPPP. Free text, not unique.</summary>
     [MaxLength(ReferenceMaxLength)]
     public string? PppReferenceNumber { get; set; }
 

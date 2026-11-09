@@ -89,7 +89,7 @@ type for that year changes.
 
 | Type | When |
 | --- | --- |
-| **New** | The year is the case's own IT PPP financial year |
+| **New** | The year is the case's own IT ARPPP financial year |
 | **CL** (committed liability) | A later year, and the SO was placed: the SO stage was complete before that year began (an SO marked complete without a date counts as placed) |
 | **CF** (carried forward) | A later year, and the SO was not yet placed |
 
@@ -99,9 +99,9 @@ type for that year changes.
 - A case is **live in a year** from its own financial year up to the current one, until it is
   delivered (Delivery and ATP date) or dropped (dropped date) before that year begins. A delivery
   without a date keeps the case in its own year only.
-- **A new IT PPP number each year**: CL and CF cases are listed again in the next year's IT PPP
-  under a new IT PPP reference number. The case keeps its first number on the project; each later
-  year holds its own number, entered by the ITO, HoD or Admin when that year's IT PPP is made
+- **A new IT ARPPP number each year**: CL and CF cases are listed again in the next year's IT ARPPP
+  under a new IT ARPPP reference number. The case keeps its first number on the project; each later
+  year holds its own number, entered by the ITO, HoD or Admin when that year's IT ARPPP is made
   ("number not entered" until then). Search finds a case by any year's number.
 - **Change by hand**: the same people can set the type of one case for one year (New, CL or CF),
   or go back to the automatic type. Both are stored in `ItProjectFinancialYear` (one row per case
@@ -121,7 +121,7 @@ type for that year changes.
 | Remarks feed | Stage completions shown in line with the remarks |
 | Wording | "Delivered" instead of "Completed"; "Update stages" instead of "Stages" |
 | Simplicity (9 Nov) | No metrics that repeat the page: the project header has one status line, no card strip and no time bar |
-| Year type | New / CL / CF per year as above, CL when the SO is placed, changeable by hand; a carried-over case gets a new IT PPP number in each later year |
+| Year type | New / CL / CF per year as above, CL when the SO is placed, changeable by hand; a carried-over case gets a new IT ARPPP number in each later year |
 
 ## Plan (small PRs, each merged when Codex and CI are clean)
 
@@ -130,7 +130,7 @@ PR 1 (#3036) is merged. The year type was added on 8 Nov as PR 2, so the later P
 | PR | Content | Tests |
 | --- | --- | --- |
 | 1 | `StageMovedAtUtc` column and its setting in the stage save; `ItProjectTiming` in the read service: time figure with its fallbacks, gaps, elapsed, waiting longest, dates missing, on order, ageing band | rule tests for each fallback (previous stage dated, undated with and without a recorded move, earlier date not borrowed), skipped and dropped; migration manifest and tail test |
-| 2 | Year type: `ItProjectYearTypes` rule, `ItProjectFinancialYear` table (later-year IT PPP number and type set by hand) and migration, save command with audit, read methods, search by any year's number | rule per year (own year, SO placed or not, undated SO, delivered or dropped before the year), override wins and resets, Manage only, migration manifest |
+| 2 | Year type: `ItProjectYearTypes` rule, `ItProjectFinancialYear` table (later-year IT ARPPP number and type set by hand) and migration, save command with audit, read methods, search by any year's number | rule per year (own year, SO placed or not, undated SO, delivered or dropped before the year), override wins and resets, Manage only, migration manifest |
 | 3 | Board header with FY segmented control (cases live in the year, type chips) and the four figure tiles split by type | figures from the read model, FY filter links |
 | 4 | "Where the cases are now" pipeline card | counts and ordering per stage, empty stages, overflow ("+3 more") |
 | 5 | Register: track rows, Now column, age badges, legend, narrow optional stages, one filter bar, sort, "Dates missing" link for Manage | sort orders, band order, search still works |
