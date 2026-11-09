@@ -73,6 +73,8 @@ public class ItProjectConferenceTests
         var conference = await service.GetAsync("hod-1", "ito-1");
         Assert.NotNull(conference);
         Assert.Equal(1, conference!.ItProjectCount);
+        // An ITO listed only for IT projects gets just that section (no Add idea / Add task).
+        Assert.Equal(new[] { ConferenceItemKind.ItProject }, conference.Sections.Select(item => item.Kind));
         var section = conference.Sections.Single(item => item.Kind == ConferenceItemKind.ItProject);
         var item = Assert.Single(section.Items);
         Assert.Equal(live, item.ItemId);                       // the delivered one is not live

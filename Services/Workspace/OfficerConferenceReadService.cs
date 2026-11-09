@@ -508,10 +508,18 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
             }
         };
 
-        // Only an ITO officer carries IT projects, and only on the command review.
+        // Only an ITO officer carries IT projects. An ITO who is listed only for them (no Project
+        // Officer workload) gets just that section: the project, idea and task sections, with
+        // their "Add idea" / "Add task" forms, do not apply to them.
         if (selected.ItProjects.Count > 0)
         {
-            sections.Add(await BuildItProjectSectionAsync(selected, cancellationToken));
+            var itSection = await BuildItProjectSectionAsync(selected, cancellationToken);
+            if (selected.ItProjectsOnly)
+            {
+                sections.Clear();
+            }
+
+            sections.Add(itSection);
         }
 
         return new OfficerConferenceVm
@@ -2110,7 +2118,8 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
         IReadOnlyList<CommandOfficerIdeaVm> Ideas,
         IReadOnlyList<CommandOfficerTaskVm> OtherTasks,
         IReadOnlyList<ConferenceProjectCarryover> RecentlyCompletedProjects,
-        IReadOnlyList<ItProjectConferenceRow>? ItProjectsInput = null)
+        IReadOnlyList<ItProjectConferenceRow>? ItProjectsInput = null,
+        bool ItProjectsOnly = false)
     {
         public int ProjectCount => ActiveProjects.Count + RecentlyCompletedProjects.Count;
 

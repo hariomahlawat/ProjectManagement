@@ -105,7 +105,8 @@ public sealed partial class OfficerConferenceReadService
                     Array.Empty<CommandOfficerIdeaVm>(),
                     Array.Empty<CommandOfficerTaskVm>(),
                     Array.Empty<ConferenceProjectCarryover>(),
-                    rows)));
+                    rows,
+                    ItProjectsOnly: true)));
         }
 
         return result;
