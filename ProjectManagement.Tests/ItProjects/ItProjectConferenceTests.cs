@@ -147,6 +147,29 @@ public class ItProjectConferenceTests
         Assert.Null(await service.GetDirectionHistoryAsync("hod-1", "po-1", ConferenceItemKind.ItProject, live));
     }
 
+    [Fact]
+    public async Task Ito_SeesTheItProjectsAndTheirDirectionsInTheirOwnView()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (live, _) = await SeedAsync(db);
+        Assert.True((await db.Remarks().AddAsync(live, new ItProjectRemarkInput("Close COB this week.", D(2026, 11, 8), ItProjectRemarkType.Conference), ItProjectTestDb.RemarkActor("hod-1", RoleNames.HoD))).Result.Succeeded);
+        var service = Reads(db, new CommandOfficerWorkloadVm { UserId = "po-1", OfficerName = "Lt Col Iyer" });
+
+        var own = await service.GetForProjectOfficerAsync("ito-1");
+        Assert.NotNull(own);
+        var item = Assert.Single(own!.Sections.Single(section => section.Kind == ConferenceItemKind.ItProject).Items);
+        Assert.Equal(live, item.ItemId);
+        Assert.Equal("Close COB this week.", item.LatestDirection!.Body);
+
+        var history = await service.GetDirectionHistoryForProjectOfficerAsync("ito-1", ConferenceItemKind.ItProject, live);
+        Assert.Single(history!.Cycles);
+
+        // A Project Officer without the ITO role sees no IT projects and cannot read their history.
+        var po = await service.GetForProjectOfficerAsync("po-1");
+        Assert.DoesNotContain(po!.Sections, section => section.Kind == ConferenceItemKind.ItProject);
+        Assert.Null(await service.GetDirectionHistoryForProjectOfficerAsync("po-1", ConferenceItemKind.ItProject, live));
+    }
+
     private sealed class Workload(IReadOnlyList<CommandOfficerWorkloadVm> officers) : IOfficerWorkloadReadService
     {
         public Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllAsync(string requestingUserId, CancellationToken cancellationToken = default)

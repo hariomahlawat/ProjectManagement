@@ -149,6 +149,8 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
             return null;
         }
 
+        // An officer who holds the ITO role also sees the IT projects in their own view.
+        selected = await WithOwnItProjectsAsync(selected, cancellationToken);
         var selfOnly = new[] { selected };
         return await BuildConferenceAsync(
             selected,
@@ -601,6 +603,14 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
         if (selected is null)
         {
             return null;
+        }
+
+        if (kind == ConferenceItemKind.ItProject)
+        {
+            selected = await WithOwnItProjectsAsync(selected, cancellationToken);
+            return selected.ItProjects.Any(item => item.Id == itemId)
+                ? await BuildItProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken)
+                : null;
         }
 
         var projectInScope = kind != ConferenceItemKind.Project
@@ -1169,8 +1179,8 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
 
         result.AddRange(carryoverOnlyOfficers);
 
-        // The command conference review also lists the ITO with the live IT projects. Other
-        // consumers (command desk, Notebook digest, the officer's own view) keep their scope.
+        // The command conference review also lists the ITO with the live IT projects. The command
+        // desk and the Notebook digest keep their scope; the officer's own view adds them separately.
         return includeItProjects
             ? await AttachItProjectsAsync(result, cancellationToken)
             : result;

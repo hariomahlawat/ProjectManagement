@@ -12,7 +12,8 @@ namespace ProjectManagement.Services.Workspace;
 /// <summary>
 /// IT projects on the conference review (owner, 9 Nov 2026). IT projects have no assigned
 /// Project Officer: the ITO runs them, so every live IT project appears under each officer who
-/// holds the ITO role, and an ITO with no other workload is still listed. Directions are the IT
+/// holds the ITO role, on the command review (where an ITO with no other workload is still
+/// listed) and in that officer's own conference view. Directions are the IT
 /// project's own conference remarks (<see cref="ItProjectRemark"/>, Type = Conference).
 /// </summary>
 public sealed partial class OfficerConferenceReadService
@@ -108,6 +109,21 @@ public sealed partial class OfficerConferenceReadService
         }
 
         return result;
+    }
+
+    /// <summary>The officer with the live IT projects when they hold the ITO role (their own conference view).</summary>
+    private async Task<ConferenceOfficerContext> WithOwnItProjectsAsync(
+        ConferenceOfficerContext officer,
+        CancellationToken cancellationToken)
+    {
+        var itoUserIds = await LoadUserIdsInRoleAsync(RoleNames.Ito, cancellationToken);
+        if (!itoUserIds.Contains(officer.UserId))
+        {
+            return officer;
+        }
+
+        var rows = await LoadLiveItProjectsAsync(cancellationToken);
+        return rows.Count == 0 ? officer : officer with { ItProjectsInput = rows };
     }
 
     /// <summary>The "IT projects" section of an ITO officer's conference review.</summary>
