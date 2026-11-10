@@ -94,6 +94,19 @@ test('fix keeps a condition group that holds @keyframes', () => {
   assert.equal(fix(supports).out, '@supports (animation-name: spin) {\n    @keyframes spin {\n        from { opacity: 0; }\n    }\n}\n\n.a {\n    color: blue;\n}\n');
 });
 
+test('a later value an older browser may reject leaves the earlier one as its fallback', () => {
+  assert.deepEqual(deadProps('.a { height: 100vh; } .a { height: 100dvh; }'), []);
+  assert.deepEqual(deadProps('.a { height: auto; } .a { height: calc(100vh - 1rem); } .a { height: calc(100dvh - 1rem); }'), ['.a height']);
+  assert.deepEqual(deadProps('.a { color: #333; } .a { color: color-mix(in srgb, red 50%, blue); }'), []);
+  assert.deepEqual(deadProps('.a { width: 50%; } .a { width: 40cqi; }'), []);
+  assert.deepEqual(deadProps('.a { background: #fff; } .a { background-color: oklch(70% 0.1 200); }'), []);
+  // A recent value overridden by a plain one is still dead, and so is a plain one under a plain one.
+  assert.deepEqual(deadProps('.a { height: 100dvh; } .a { height: 100vh; }'), ['.a height']);
+  // Names that only contain the letters are not recent values.
+  assert.deepEqual(deadProps('.a { margin: 1rem; } .a { margin: 2rem; }'), ['.a margin']);
+  assert.deepEqual(deadProps('.a { animation-name: x; } .a { animation-name: round-in; }'), ['.a animation-name']);
+});
+
 test('@container is a condition like @media', () => {
   assert.deepEqual(deadProps('.a { color: red; } @container card (min-width: 30rem) { .a { color: blue; } }'), []);
   assert.deepEqual(deadProps('@container card (min-width: 30rem) { .a { color: blue; } } .a { color: red; }'), ['.a color']);

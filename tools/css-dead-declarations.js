@@ -5,7 +5,9 @@
 // selector, in the same or an unconditional condition context, sets the same property (or a
 // shorthand that resets it) with equal or higher importance. Equal specificity plus later
 // source order always wins, so the earlier declaration is dead in every state — hover,
-// focus and theme included. Override layers leave these behind; this keeps them out.
+// focus and theme included. Override layers leave these behind; this keeps them out. A later
+// value an older browser may reject (see RECENT_VALUE) does not count: the earlier
+// declaration is that browser's fallback.
 //
 // Usage:
 //   node tools/css-dead-declarations.js <file.css>          report; exit 1 if any are dead
@@ -62,7 +64,7 @@ function parse(src) {
       i = src[stop] === ';' ? stop + 1 : stop;
       if (colon < 0) { if (text.trim()) throw new Error(`Unparsable declaration: ${text.trim()}`); continue; }
       const value = text.slice(colon + 1).trim();
-      decls.push({ prop: text.slice(0, colon).trim().toLowerCase(), important: /!\s*important\s*$/i.test(value), start, end: i });
+      decls.push({ prop: text.slice(0, colon).trim().toLowerCase(), important: /!\s*important\s*$/i.test(value), recent: RECENT_VALUE.test(value), start, end: i });
     }
     return decls;
   }
@@ -148,6 +150,14 @@ const flatten = (items, out = []) => {
   return out;
 };
 
+// Values an older browser may reject: it then drops that declaration and keeps the earlier
+// one, so a declaration using one of these does not make an earlier one dead (the earlier one
+// is that browser's fallback, e.g. `height: 100vh` before `height: 100dvh`). PRISM runs on an
+// offline LAN, where browsers can be several versions old. Listed: the dynamic, small and
+// large viewport units and container units (2022-23), color-mix(), oklch()/oklab()/lch()/lab()
+// (2023), light-dark() (2024) and the round()/mod()/rem() stepped functions (2024).
+const RECENT_VALUE = /\d(?:[dsl]v(?:h|w|i|b|min|max)|cq(?:w|h|i|b|min|max))\b|\b(?:color-mix|oklch|oklab|lch|lab|light-dark|round|mod|rem)\(/i;
+
 // SECTION: Property relationships
 // Each shorthand's actual longhands (the properties it resets). Listed explicitly: prefixes
 // are wrong in both directions (flex does not reset flex-direction; border-top does not
@@ -221,7 +231,7 @@ function findDead(src) {
   const rules = flatten(tree);
   const later = new Map(); // `${ctx}\0${selector}` -> declarations from later rules
   const key = (ctx, selector) => `${ctx}\u0000${selector}`;
-  const overriddenBy = (list, decl) => (list || []).some((d) => covers(d.prop, decl.prop) && (d.important || !decl.important));
+  const overriddenBy = (list, decl) => (list || []).some((d) => !d.recent && covers(d.prop, decl.prop) && (d.important || !decl.important));
   const dead = [];
   for (let r = rules.length - 1; r >= 0; r--) {
     const rule = rules[r];
