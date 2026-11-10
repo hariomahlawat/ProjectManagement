@@ -1090,6 +1090,9 @@ public sealed class OfficerConferenceReadServiceTests
             CancellationToken cancellationToken = default)
             => Task.FromResult(_officers);
 
+        public Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllWithItProjectsAsync(string requestingUserId, CancellationToken cancellationToken = default)
+            => GetAllAsync(requestingUserId, cancellationToken);
+
         public Task<CommandOfficerWorkloadVm?> GetOfficerAsync(
             string officerUserId,
             CancellationToken cancellationToken = default)

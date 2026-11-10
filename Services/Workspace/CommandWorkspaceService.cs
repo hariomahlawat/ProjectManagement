@@ -239,7 +239,8 @@ public sealed class CommandWorkspaceService
         CommandWorkspaceQuery query,
         CancellationToken cancellationToken)
     {
-        var officers = await _officerWorkloadReadService.GetAllAsync(
+        // The Officer workload view also lists each ITO with the live IT projects.
+        var officers = await _officerWorkloadReadService.GetAllWithItProjectsAsync(
             query.RequestingUserId,
             cancellationToken);
         var totalOngoingProjects = await _db.Projects

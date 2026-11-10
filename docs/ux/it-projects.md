@@ -31,7 +31,7 @@ their own tables, services, pages and policies, and never reference `Projects`, 
 | Approval | None. Manage roles edit directly; every change is audited |
 | Tasks | None. No link to the Action tracker |
 | Photos, videos, time plan | None |
-| Remarks | Yes, like the R&D remarks panel but simpler: no Internal/External type, no @mentions, no notifications. Since 9 Nov 2026: not tied to a stage, and the Comdt / HoD can write **conference** remarks as on projects, ideas and tasks, on the project page or from Workspace › Conference, where the live IT projects sit under each officer who holds the ITO role; a conference remark records the stage when it was issued |
+| Remarks | Yes, like the R&D remarks panel but simpler: no Internal/External type, no @mentions, no notifications. Since 9 Nov 2026: not tied to a stage, and the Comdt / HoD can write **conference** remarks as on projects, ideas and tasks, on the project page or from Workspace › Conference, where the live IT projects sit under each officer who holds the ITO role; a conference remark records the stage when it was issued. Since 10 Nov 2026 the Officer workload view lists them on each ITO's card too (docs/ux/command-desk.md) |
 | Remark writers | ITO, MCO, HoD, Comdt. Admin may delete any remark (moderation) but does not write |
 | Attachments | Yes: PDF and Office documents, Industry partners storage pattern |
 | Visibility | Every signed-in user can read the board, the project page, remarks and attachments |

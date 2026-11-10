@@ -9,6 +9,7 @@ using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.ConferenceRemarks;
+using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Usage;
 using ProjectManagement.ViewModels.Workspace;
@@ -2118,13 +2119,13 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
         IReadOnlyList<CommandOfficerIdeaVm> Ideas,
         IReadOnlyList<CommandOfficerTaskVm> OtherTasks,
         IReadOnlyList<ConferenceProjectCarryover> RecentlyCompletedProjects,
-        IReadOnlyList<ItProjectConferenceRow>? ItProjectsInput = null,
+        IReadOnlyList<LiveItProjectRow>? ItProjectsInput = null,
         bool ItProjectsOnly = false)
     {
         public int ProjectCount => ActiveProjects.Count + RecentlyCompletedProjects.Count;
 
         /// <summary>Live IT projects, for an officer who holds the ITO role on the command review.</summary>
-        public IReadOnlyList<ItProjectConferenceRow> ItProjects => ItProjectsInput ?? Array.Empty<ItProjectConferenceRow>();
+        public IReadOnlyList<LiveItProjectRow> ItProjects => ItProjectsInput ?? Array.Empty<LiveItProjectRow>();
     }
 
     private sealed record ConferenceProjectSource(

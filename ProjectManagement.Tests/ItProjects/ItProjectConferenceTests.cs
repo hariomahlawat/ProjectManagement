@@ -177,6 +177,9 @@ public class ItProjectConferenceTests
         public Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllAsync(string requestingUserId, CancellationToken cancellationToken = default)
             => Task.FromResult(officers);
 
+        public Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllWithItProjectsAsync(string requestingUserId, CancellationToken cancellationToken = default)
+            => GetAllAsync(requestingUserId, cancellationToken);
+
         public Task<CommandOfficerWorkloadVm?> GetOfficerAsync(string officerUserId, CancellationToken cancellationToken = default)
             => Task.FromResult(officers.SingleOrDefault(officer => officer.UserId == officerUserId));
 

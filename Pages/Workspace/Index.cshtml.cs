@@ -437,7 +437,9 @@ public class IndexModel : PageModel
         var userId = _userManager.GetUserId(User);
         if (string.IsNullOrWhiteSpace(userId)) return Challenge();
 
+        // The workload view lists Project Officers and, with the live IT projects, each ITO.
         var validOfficerIds = (await _userManager.GetUsersInRoleAsync(RoleNames.ProjectOfficer))
+            .Concat(await _userManager.GetUsersInRoleAsync(RoleNames.Ito))
             .Where(x => !x.IsDisabled && !x.PendingDeletion)
             .Select(x => x.Id)
             .ToHashSet(StringComparer.Ordinal);
