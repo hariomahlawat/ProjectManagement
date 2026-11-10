@@ -23,7 +23,6 @@
 .reference-readiness.is-repairable { border-color: rgba(255, 193, 7, .42); background: rgba(255, 193, 7, .06); }
 .reference-readiness.is-blocked { border-color: rgba(108, 117, 125, .22); }
 
-
 /* Reference-quality semantics and governance ergonomics. */
 .reference-readiness.is-caution {
     border-color: rgba(255, 193, 7, .52);
@@ -93,7 +92,7 @@
 }
 .person-account-link__search label { color: #34445b; font-size: .72rem; font-weight: 700; margin-bottom: .3rem; }
 .person-account-link__results { border-top: 1px solid #e8edf4; margin-top: .7rem; padding-top: .45rem; }
-.person-account-user { align-items: center; border-bottom: 1px solid #edf1f5; display: flex; gap: .75rem; justify-content: space-between; padding: .48rem .15rem; }
+.person-account-user { align-items: center; border-bottom: 1px solid #edf1f5; gap: .75rem; justify-content: space-between; padding: .48rem .15rem; }
 .person-account-user:last-child { border-bottom: 0; }
 .person-account-user.is-linked { opacity: .65; }
 @media (max-width: 900px) {
