@@ -345,6 +345,7 @@
     white-space:nowrap;
 }
 .cw-local-rail__role--command { --cw-hue:var(--cw-hue-violet); }
+.cw-local-rail__role--ito { --cw-hue:var(--cw-hue-cyan); }
 .cw-local-rail__toggle {
     width:30px;
     height:30px;

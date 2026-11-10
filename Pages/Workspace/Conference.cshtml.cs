@@ -24,6 +24,8 @@ public sealed class ConferenceModel : PageModel
     private readonly IActionTrackerClock _taskClock;
     private readonly ILogger<ConferenceModel> _logger;
 
+    private readonly IItoWorkspaceQuery? _itoWorkspace;
+
     public ConferenceModel(
         IOfficerConferenceReadService readService,
         CommandWorkspaceService commandWorkspaceService,
@@ -33,8 +35,10 @@ public sealed class ConferenceModel : PageModel
         IConferenceIdeaCommandService ideaCommandService,
         UserManager<ApplicationUser> users,
         IActionTrackerClock taskClock,
-        ILogger<ConferenceModel> logger)
+        ILogger<ConferenceModel> logger,
+        IItoWorkspaceQuery? itoWorkspace = null)
     {
+        _itoWorkspace = itoWorkspace;
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _commandWorkspaceService = commandWorkspaceService ?? throw new ArgumentNullException(nameof(commandWorkspaceService));
         _projectOfficerWorkspaceService = projectOfficerWorkspaceService ?? throw new ArgumentNullException(nameof(projectOfficerWorkspaceService));
@@ -101,10 +105,18 @@ public sealed class ConferenceModel : PageModel
                 ct: cancellationToken)
             : new ProjectOfficerWorkspaceVm();
 
+        // An ITO keeps the conference review and IT projects links on every workspace page.
+        var hasItoAccess = User.IsInRole(RoleNames.Ito);
+        var liveItProjectCount = hasItoAccess && _itoWorkspace is not null
+            ? await _itoWorkspace.CountLiveItProjectsAsync(cancellationToken)
+            : 0;
+
         CommandRail = new CommandWorkspaceRailVm
         {
             HasCommandAccess = true,
             HasProjectOfficerAccess = hasProjectOfficerAccess,
+            HasItoAccess = hasItoAccess,
+            LiveItProjectCount = liveItProjectCount,
             CanViewDocuments = hasProjectOfficerAccess,
             ActiveLens = "command",
             ActiveItem = "command-conference",

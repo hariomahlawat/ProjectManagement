@@ -8,7 +8,19 @@ public sealed class CommandWorkspaceRailVm
     public bool HasCommandAccess { get; init; }
     public bool HasProjectOfficerAccess { get; init; }
     public bool CanViewDocuments { get; init; }
-    public bool CanSwitchWorkspace => HasCommandAccess && HasProjectOfficerAccess;
+
+    /// <summary>
+    /// The officer holds the ITO role: the rail adds "My conference review" (where the live IT
+    /// projects sit) and a link to the IT projects board, even without the Project Officer role.
+    /// </summary>
+    public bool HasItoAccess { get; init; }
+    public int LiveItProjectCount { get; init; }
+
+    public bool HasPersonalAccess => HasProjectOfficerAccess || HasItoAccess;
+    public bool CanSwitchWorkspace => HasCommandAccess && HasPersonalAccess;
+
+    /// <summary>The personal lens opens the Briefing desk for a Project Officer, else the conference review.</summary>
+    public string PersonalLandingView => HasProjectOfficerAccess ? "overview" : "conference";
 
     public string ActiveLens { get; init; } = "command";
     public string ActiveItem { get; init; } = "command-officers";

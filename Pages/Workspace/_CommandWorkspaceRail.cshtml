@@ -15,11 +15,12 @@
         ? "page"
         : null;
 
-    var accessLabel = Model.HasCommandAccess && Model.HasProjectOfficerAccess
-        ? "Project Officer · Command"
-        : Model.HasCommandAccess
-            ? "Command"
-            : "Project Officer";
+    var accessLabel = string.Join(" · ", new[]
+    {
+        Model.HasProjectOfficerAccess ? "Project Officer" : null,
+        Model.HasItoAccess ? "ITO" : null,
+        Model.HasCommandAccess ? "Command" : null
+    }.Where(label => label is not null));
 }
 
 <aside class="cw-local-rail is-expanded" data-workspace-rail aria-label="Workspace navigation">
@@ -47,6 +48,10 @@
                 {
                     <span class="cw-local-rail__role cw-local-rail__role--po">PO</span>
                 }
+                @if (Model.HasItoAccess)
+                {
+                    <span class="cw-local-rail__role cw-local-rail__role--ito">ITO</span>
+                }
                 @if (Model.HasCommandAccess)
                 {
                     <span class="cw-local-rail__role cw-local-rail__role--command">Command</span>
@@ -70,7 +75,7 @@
             <span class="cw-workspace-lens__thumb" aria-hidden="true"></span>
             <a asp-page="/Workspace/Index"
                asp-route-mode="project-officer"
-               asp-route-view="overview"
+               asp-route-view="@Model.PersonalLandingView"
                class="@(activeLens == "personal" ? "is-active" : null)"
                aria-current="@(activeLens == "personal" ? "true" : null)"
                title="Open personal workspace landing"
@@ -92,18 +97,21 @@
     @* Folded, every item keeps its icon (distinct per destination, coloured by its group) and its
        name: the labels are hidden visually, not removed, so screen readers still announce them. *@
     <nav id="workspace-local-navigation">
-        @if (Model.HasProjectOfficerAccess)
+        @if (Model.HasPersonalAccess)
         {
             <div class="cw-local-rail__group cw-local-rail__group--personal">
                 <span class="cw-local-rail__group-label">My work</span>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="project-officer"
-                   asp-route-view="overview"
-                   class="@(Active("personal-overview"))"
-                   aria-current="@(Current("personal-overview"))"
-                   data-tooltip="Briefing desk">
-                    <i class="bi bi-briefcase" aria-hidden="true"></i><span>Briefing desk</span>
-                </a>
+                @if (Model.HasProjectOfficerAccess)
+                {
+                    <a asp-page="/Workspace/Index"
+                       asp-route-mode="project-officer"
+                       asp-route-view="overview"
+                       class="@(Active("personal-overview"))"
+                       aria-current="@(Current("personal-overview"))"
+                       data-tooltip="Briefing desk">
+                        <i class="bi bi-briefcase" aria-hidden="true"></i><span>Briefing desk</span>
+                    </a>
+                }
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="project-officer"
                    asp-route-view="conference"
@@ -112,18 +120,33 @@
                    data-tooltip="My conference review">
                     <i class="bi bi-calendar-check" aria-hidden="true"></i><span>My conference review</span>
                 </a>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="project-officer"
-                   asp-route-view="projects"
-                   class="@(Active("personal-projects"))"
-                   aria-current="@(Current("personal-projects"))"
-                   data-tooltip="Project register">
-                    <i class="bi bi-table" aria-hidden="true"></i><span>Project register</span>
-                    @if (Model.AssignedProjectCount > 0)
-                    {
-                        <b>@Model.AssignedProjectCount</b>
-                    }
-                </a>
+                @if (Model.HasProjectOfficerAccess)
+                {
+                    <a asp-page="/Workspace/Index"
+                       asp-route-mode="project-officer"
+                       asp-route-view="projects"
+                       class="@(Active("personal-projects"))"
+                       aria-current="@(Current("personal-projects"))"
+                       data-tooltip="Project register">
+                        <i class="bi bi-table" aria-hidden="true"></i><span>Project register</span>
+                        @if (Model.AssignedProjectCount > 0)
+                        {
+                            <b>@Model.AssignedProjectCount</b>
+                        }
+                    </a>
+                }
+                @* The ITO runs every live IT project; the board is where they are kept. *@
+                @if (Model.HasItoAccess)
+                {
+                    <a asp-page="/ItProjects/Index"
+                       data-tooltip="IT projects">
+                        <i class="bi bi-pc-display" aria-hidden="true"></i><span>IT projects</span>
+                        @if (Model.LiveItProjectCount > 0)
+                        {
+                            <b>@Model.LiveItProjectCount</b>
+                        }
+                    </a>
+                }
             </div>
         }
 
@@ -221,7 +244,7 @@
                     <i class="bi bi-activity" aria-hidden="true"></i><span>My ERP activity</span>
                 </a>
             }
-            else if (Model.HasProjectOfficerAccess)
+            else if (Model.HasPersonalAccess)
             {
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="project-officer"

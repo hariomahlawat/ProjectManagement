@@ -272,6 +272,16 @@ remark, stage or timeline checks.
 The PO menu has five entries: **Briefing desk**, **My conference review**, **Project register**,
 **My documents** and **My ERP activity**.
 
+An officer who holds the **ITO** role (10 Nov 2026) also gets an **IT projects** entry that opens the
+IT projects board, with the number of live IT projects, and an ITO chip beside PO/Command. An ITO
+without the Project Officer role has a personal workspace too: it opens on **My conference review**,
+where every live IT project sits with its latest direction and the ITO's reply (the rule the
+command conference review uses), and their menu is **My conference review**, **IT projects** and
+**My ERP activity**. Any other personal view sends them to the review. They can open a direction's
+history only for a live IT project. The rail is built on the workspace, Command desk, Conference
+review and Briefing decks pages; each sets the ITO flag (`IItoWorkspaceQuery`). Tests:
+`ItoWorkspaceTests`.
+
 - **Project register** (`view=projects`) is a table built from the desk's own project cards
   (stage and PDC, last update, record health with the gap breakdown, and readiness). The two
   pages cannot disagree. The project name opens the project page in the project's own tab

@@ -2,6 +2,9 @@
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
     var conference = Model.Conference;
+    // An ITO without the Project Officer role has only the IT projects section.
+    var itProjectsOnly = conference.Sections.Count > 0
+        && conference.Sections.All(section => section.Kind == ConferenceItemKind.ItProject);
 }
 
 <div class="officer-conference officer-conference--project-officer"
@@ -15,13 +18,20 @@
                     <span class="oc-eyebrow">My conference review</span>
                     <h1>@conference.OfficerDisplayName</h1>
                     <p>
-                        <span class="oc-header__metric"><strong>@conference.ActiveProjectCount</strong> active @(conference.ActiveProjectCount == 1 ? "project" : "projects")</span>
-                        @if (conference.RecentlyCompletedProjectCount > 0)
+                        @if (!itProjectsOnly)
                         {
-                            <span class="oc-header__metric oc-header__metric--carryover"><strong>@conference.RecentlyCompletedProjectCount</strong> recently completed</span>
+                            <span class="oc-header__metric"><strong>@conference.ActiveProjectCount</strong> active @(conference.ActiveProjectCount == 1 ? "project" : "projects")</span>
+                            @if (conference.RecentlyCompletedProjectCount > 0)
+                            {
+                                <span class="oc-header__metric oc-header__metric--carryover"><strong>@conference.RecentlyCompletedProjectCount</strong> recently completed</span>
+                            }
+                            <span class="oc-header__metric"><strong>@conference.IdeaCount</strong> @(conference.IdeaCount == 1 ? "idea" : "ideas")</span>
+                            <span class="oc-header__metric oc-header__metric--tasks @(conference.OtherTaskCount == 0 ? "is-zero" : string.Empty)"><strong>@conference.OtherTaskCount</strong> @(conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
                         }
-                        <span class="oc-header__metric"><strong>@conference.IdeaCount</strong> @(conference.IdeaCount == 1 ? "idea" : "ideas")</span>
-                        <span class="oc-header__metric oc-header__metric--tasks @(conference.OtherTaskCount == 0 ? "is-zero" : string.Empty)"><strong>@conference.OtherTaskCount</strong> @(conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
+                        @if (conference.ItProjectCount > 0 || itProjectsOnly)
+                        {
+                            <span class="oc-header__metric"><strong>@conference.ItProjectCount</strong> @(conference.ItProjectCount == 1 ? "IT project" : "IT projects")</span>
+                        }
                     </p>
                 </div>
             </div>

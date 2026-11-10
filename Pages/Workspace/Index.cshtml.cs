@@ -54,6 +54,8 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public string? ActivityPeriod { get; set; }
     [BindProperty(SupportsGet = true)] public string? Focus { get; set; }
 
+    private readonly IItoWorkspaceQuery? _itoWorkspace;
+
     public IndexModel(
         ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
         CommandWorkspaceService commandWorkspaceService,
@@ -61,8 +63,10 @@ public class IndexModel : PageModel
         UserManager<ApplicationUser> userManager,
         IAuthorizationService authorization,
         BriefingDeskCommandService deskCommands,
-        ILogger<IndexModel> logger)
+        ILogger<IndexModel> logger,
+        IItoWorkspaceQuery? itoWorkspace = null)
     {
+        _itoWorkspace = itoWorkspace;
         _projectOfficerWorkspaceService = projectOfficerWorkspaceService;
         _commandWorkspaceService = commandWorkspaceService;
         _conferenceReadService = conferenceReadService;
@@ -79,10 +83,13 @@ public class IndexModel : PageModel
 
         var hasCommandRole = User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD);
         var hasProjectOfficerRole = User.IsInRole(RoleNames.ProjectOfficer);
-        if (!hasCommandRole && !hasProjectOfficerRole) return RedirectToPage("/Dashboard/Index");
+        // The ITO runs the live IT projects, which sit in their conference review (10 Nov 2026).
+        var hasItoRole = User.IsInRole(RoleNames.Ito);
+        var hasPersonalWorkspace = hasProjectOfficerRole || hasItoRole;
+        if (!hasCommandRole && !hasPersonalWorkspace) return RedirectToPage("/Dashboard/Index");
 
         CanViewDocuments = (await _authorization.AuthorizeAsync(User, "DocRepo.View")).Succeeded;
-        IsCommandMode = hasCommandRole && (!string.Equals(Mode, "project-officer", StringComparison.OrdinalIgnoreCase) || !hasProjectOfficerRole);
+        IsCommandMode = hasCommandRole && (!string.Equals(Mode, "project-officer", StringComparison.OrdinalIgnoreCase) || !hasPersonalWorkspace);
 
         // The HoD's and the Comdt's workspace opens on the Command desk (owner decision,
         // 23 Oct 2026). A link that asks for a view (Officer workload, ERP adoption, …) still
@@ -146,6 +153,15 @@ public class IndexModel : PageModel
         else
         {
             var projectOfficerView = ProjectOfficerWorkspaceViewParser.Parse(View);
+
+            // An ITO without the Project Officer role has no desk, register or documents here:
+            // their work is the conference review (the live IT projects) and their ERP activity.
+            if (!hasProjectOfficerRole
+                && projectOfficerView is not (ProjectOfficerWorkspaceView.Conference or ProjectOfficerWorkspaceView.Activity))
+            {
+                return RedirectToPage("/Workspace/Index", new { mode = "project-officer", view = "conference" });
+            }
+
             if (projectOfficerView.IsFoldedIntoDesk(out var deskSection))
             {
                 return RedirectToPage("/Workspace/Index", null, new { mode = "project-officer", view = "overview" }, deskSection);
@@ -172,12 +188,18 @@ public class IndexModel : PageModel
                     {
                         OfficerUserId = userId,
                         OfficerName = Workspace.UserDisplayName,
-                        Sections = new[]
-                        {
-                            new OfficerConferenceSectionVm { Kind = ConferenceItemKind.Project, Title = "Projects", IconClass = "bi-kanban" },
-                            new OfficerConferenceSectionVm { Kind = ConferenceItemKind.ProjectIdea, Title = "Ideas", IconClass = "bi-lightbulb" },
-                            new OfficerConferenceSectionVm { Kind = ConferenceItemKind.ActionTask, Title = "Other tasks", IconClass = "bi-list-check" }
-                        }
+                        Sections = hasProjectOfficerRole
+                            ? new[]
+                            {
+                                new OfficerConferenceSectionVm { Kind = ConferenceItemKind.Project, Title = "Projects", IconClass = "bi-kanban" },
+                                new OfficerConferenceSectionVm { Kind = ConferenceItemKind.ProjectIdea, Title = "Ideas", IconClass = "bi-lightbulb" },
+                                new OfficerConferenceSectionVm { Kind = ConferenceItemKind.ActionTask, Title = "Other tasks", IconClass = "bi-list-check" }
+                            }
+                            : new[]
+                            {
+                                // An ITO with no live IT project sees the empty IT projects section.
+                                new OfficerConferenceSectionVm { Kind = ConferenceItemKind.ItProject, Title = "IT projects", IconClass = "bi-pc-display" }
+                            }
                     };
             }
 
@@ -193,7 +215,9 @@ public class IndexModel : PageModel
             hasCommandRole,
             hasProjectOfficerRole,
             CommandWorkspace,
-            Workspace);
+            Workspace,
+            hasItoRole,
+            hasItoRole && _itoWorkspace is not null ? await _itoWorkspace.CountLiveItProjectsAsync(ct) : 0);
 
         return Page();
     }
@@ -202,7 +226,9 @@ public class IndexModel : PageModel
         bool hasCommandAccess,
         bool hasProjectOfficerAccess,
         CommandWorkspaceVm command,
-        ProjectOfficerWorkspaceVm personal)
+        ProjectOfficerWorkspaceVm personal,
+        bool hasItoAccess = false,
+        int liveItProjectCount = 0)
     {
         var activeItem = IsCommandMode
             ? View switch
@@ -229,6 +255,8 @@ public class IndexModel : PageModel
         {
             HasCommandAccess = hasCommandAccess,
             HasProjectOfficerAccess = hasProjectOfficerAccess,
+            HasItoAccess = hasItoAccess,
+            LiveItProjectCount = liveItProjectCount,
             CanViewDocuments = hasProjectOfficerAccess && CanViewDocuments,
             ActiveLens = IsCommandMode ? "command" : "personal",
             ActiveItem = activeItem,
@@ -247,7 +275,8 @@ public class IndexModel : PageModel
         int itemId,
         CancellationToken ct)
     {
-        if (!User.IsInRole(RoleNames.ProjectOfficer))
+        // The read service returns history only for an item this officer holds (an ITO: the live IT projects).
+        if (!User.IsInRole(RoleNames.ProjectOfficer) && !User.IsInRole(RoleNames.Ito))
         {
             return Forbid();
         }
