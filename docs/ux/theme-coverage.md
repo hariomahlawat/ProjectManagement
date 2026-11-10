@@ -12,22 +12,22 @@ Totals: **6170** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
-76 literals.
+100 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `pages/project-portfolio.css` | 57 | 48 |
+| `navigation-shell.css` | 28 | 16 |
 | `projects/timeline.css` | 13 | 6 |
-| `navigation-shell.css` | 4 | 4 |
 | `pages/project-lifecycle-actions.css` | 2 | 2 |
 
 ## Wave 1: Dashboard, My Workspace, Projects lists, Calendar, shared site.css
 
-1604 literals.
+1580 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `site.css` | 323 | 259 |
+| `site.css` | 299 | 247 |
 | `officer-conference.css` | 202 | 139 |
 | `command-workspace.css` | 192 | 126 |
 | `pages/projects-completed-summary.css` | 186 | 140 |

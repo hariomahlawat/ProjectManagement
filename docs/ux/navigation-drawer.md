@@ -11,7 +11,7 @@ The drawer opened by **Menu** in the top bar. It lists every PRISM area the sign
 | Active item, URLs | `ViewComponents/NavigationDrawerViewComponent.cs` (active state via `ModuleSubNavActiveMatcher`, the sub-nav's rule) |
 | Markup | `Pages/Shared/Components/NavigationDrawer/Default.cshtml`, `_NavigationDrawerLink.cshtml` |
 | Behaviour | `wwwroot/js/navigation/drawer.js` (tests: `drawer.test.js`) |
-| Styles | `wwwroot/css/site.css` ("Navigation drawer"), `wwwroot/css/navigation-shell.css` ("Navigation drawer hardening", filter, sections, footer, reduced motion) |
+| Styles | `wwwroot/css/navigation-shell.css` only: the Menu button with the top bar, then "Navigation drawer: base styles", "Navigation drawer hardening" (which overrides some base rules, so keep it after them), the filter, sections, footer and reduced motion, and the drawer's dark-theme rules in the file's dark section |
 | Tests | `RoleBasedNavigationProviderTests`, `NavigationDrawerTests`, `NavigationReachabilityTests` |
 
 ## Sections
@@ -55,5 +55,6 @@ A section whose links are all unauthorized is dropped rather than shown empty.
 ## History
 
 - Nov 2026, PR 1 (#3049): bug fixes (dark-mode close button, dialog name, invalid `aria-hidden`, prefix-aware active state, empty sections, the dead *Project office reports* landing link, reduced motion).
-- Nov 2026, PR 2: the section layout above. Before it, the drawer had 61 entries for an admin, every group open, three nesting levels and no Workspace, Notebook or FFC map links.
-- Nov 2026, PR 3: the "Find a page…" filter, its keys, and reopening the last opened section.
+- Nov 2026, PR 2 (#3050): the section layout above. Before it, the drawer had 61 entries for an admin, every group open, three nesting levels and no Workspace, Notebook or FFC map links.
+- Nov 2026, PR 3 (#3051): the "Find a page…" filter, its keys, and reopening the last opened section.
+- Nov 2026: the drawer's styles moved out of `site.css` into `navigation-shell.css`, with no visual change (computed styles of every drawer element compared before and after, in light and dark, on desktop and phone).
