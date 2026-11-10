@@ -177,8 +177,6 @@
     .cw-filter-status { justify-self:start; }
 }
 @media (max-width:720px) {
-    .cw-officer-grid { grid-template-columns:1fr; padding:6px; }
-    .command-workspace { width:calc(100% - 12px); }
     .cw-workspace-segment__label { display:none; }
     .cw-command-bar { gap:4px; }
     .cw-workspace-segment { width:100%; border-right:0; padding-right:0; }
