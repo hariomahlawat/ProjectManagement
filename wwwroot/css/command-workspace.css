@@ -686,10 +686,8 @@
     .command-workspace .cw-local-rail:not(.is-expanded) .cw-local-rail__group { display:contents; }
     .command-workspace .cw-local-rail:not(.is-expanded) nav a { width:40px; min-height:36px; }
 }
-}
 
 /* SECTION: Officer cards remain fully readable and reorderable */
-.cw-officer-panel { margin-top:0; }
 .cw-officer-grid { position:relative; }
 .cw-officer-card { position:relative; }
 .cw-officer-card__header { padding-left:5px; }

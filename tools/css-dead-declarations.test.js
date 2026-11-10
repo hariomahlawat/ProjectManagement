@@ -1,8 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { findDead, fix } = require('./css-dead-declarations');
+const { findDead, fix, measureAll, readBaseline, compareToBaseline } = require('./css-dead-declarations');
 
 const deadProps = (css) => findDead(css).dead.map(({ rule, decl }) => `${rule.selectors.join(', ')} ${decl.prop}`);
 
@@ -96,13 +94,42 @@ test('fix keeps a condition group that holds @keyframes', () => {
   assert.equal(fix(supports).out, '@supports (animation-name: spin) {\n    @keyframes spin {\n        from { opacity: 0; }\n    }\n}\n\n.a {\n    color: blue;\n}\n');
 });
 
-test('navigation-shell.css has no dead declarations', () => {
-  const css = fs.readFileSync(path.join(__dirname, '..', 'wwwroot', 'css', 'navigation-shell.css'), 'utf8').replace(/\r\n/g, '\n');
-  assert.deepEqual(deadProps(css), [], 'Run: node tools/css-dead-declarations.js wwwroot/css/navigation-shell.css');
+test('@container is a condition like @media', () => {
+  assert.deepEqual(deadProps('.a { color: red; } @container card (min-width: 30rem) { .a { color: blue; } }'), []);
+  assert.deepEqual(deadProps('@container card (min-width: 30rem) { .a { color: blue; } } .a { color: red; }'), ['.a color']);
+  assert.deepEqual(deadProps('@container card (min-width: 30rem) { .a { gap: 1px; } } @container card (min-width: 30rem) { .a { gap: 2px; } }'), ['.a gap']);
+  assert.deepEqual(deadProps('@container card (min-width: 30rem) { .a { gap: 1px; } } @container (min-width: 30rem) { .a { gap: 2px; } }'), []);
 });
 
-test('notebook.css has no dead declarations', () => {
-  const css = fs.readFileSync(path.join(__dirname, '..', 'wwwroot', 'css', 'notebook.css'), 'utf8').replace(/\r\n/g, '\n');
-  const dead = deadProps(css);
-  assert.deepEqual(dead, [], 'Run: node tools/css-dead-declarations.js wwwroot/css/notebook.css --fix');
+test('@page and @font-face hold no style rules and are left as written', () => {
+  const css = '@page {\n    size: A4;\n    margin: 12mm;\n    @top-center { content: "PRISM"; }\n}\n\n@font-face {\n    font-family: Mulish;\n    src: url(a.woff2);\n}\n\n.a {\n    margin: 0;\n}\n\n@media print {\n    @page { margin: 0; }\n}\n';
+  assert.deepEqual(deadProps(css), []);
+  assert.equal(fix(css).out, css);
+});
+
+test('a stray closing brace stops the tool instead of being reported clean', () => {
+  // Browsers drop the rule after a stray brace, so the tool cannot reason about the file.
+  assert.throws(() => findDead('@media (max-width: 600px) { .a { color: red; } }\n}\n.b { color: blue; }'), /Unexpected CSS/);
+});
+
+test('no stylesheet has more dead declarations than the baseline, and every one can be read', () => {
+  const { counts, errors } = measureAll();
+  assert.deepEqual(errors, {}, 'The tool must be able to read every stylesheet under wwwroot/css.');
+  // Files not in the baseline (notebook.css and navigation-shell.css among them) must have none.
+  assert.equal(readBaseline()['wwwroot/css/notebook.css'], undefined);
+  assert.equal(readBaseline()['wwwroot/css/navigation-shell.css'], undefined);
+  assert.ok('wwwroot/css/notebook.css' in counts && 'wwwroot/css/navigation-shell.css' in counts);
+  const { grown } = compareToBaseline(counts, readBaseline());
+  assert.deepEqual(
+    grown.map((g) => `${g.file}: ${g.allowed} -> ${g.now}`),
+    [],
+    'Edit the earlier rule instead of overriding it. List them with: node tools/css-dead-declarations.js <file.css>'
+  );
+});
+
+test('the baseline only allows what is listed', () => {
+  const { grown, lowered } = compareToBaseline({ 'a.css': 0, 'b.css': 2, 'c.css': 1, 'd.css': 3 }, { 'b.css': 2, 'c.css': 4, 'd.css': 1 });
+  assert.deepEqual(grown, [{ file: 'd.css', allowed: 1, now: 3 }]);
+  assert.deepEqual(lowered, [{ file: 'c.css', allowed: 4, now: 1 }]);
+  assert.deepEqual(compareToBaseline({ 'new.css': 1 }, {}).grown, [{ file: 'new.css', allowed: 0, now: 1 }]);
 });
