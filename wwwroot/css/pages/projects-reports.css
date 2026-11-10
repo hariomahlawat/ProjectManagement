@@ -74,16 +74,11 @@
 /* Report catalogue -------------------------------------------------------- */
 .project-report-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: .8rem;
 }
 
 .project-report-card {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
     gap: 1rem;
-    padding: .9rem 1rem;
     border: 1px solid var(--reports-border);
     border-radius: 12px;
     background: var(--pm-card, #fff);
@@ -116,7 +111,6 @@
 }
 
 .project-report-card p {
-    max-width: 1040px;
     margin: 0;
     color: var(--reports-muted);
     font-size: .82rem;
@@ -140,14 +134,9 @@
 
 .project-report-card__aside {
     display: flex;
-    min-width: 190px;
-    align-items: center;
-    justify-content: flex-end;
-    gap: .9rem;
 }
 
 .project-report-card__availability {
-    text-align: right;
     white-space: nowrap;
 }
 
@@ -574,10 +563,7 @@
 
 @media (max-width: 1100px) {
     .project-report-card__aside {
-        min-width: 0;
         flex-direction: column;
-        align-items: flex-end;
-        gap: .45rem;
     }
 
     .report-order-note { display: none; }
@@ -593,20 +579,10 @@
         flex-direction: column;
     }
 
-    .project-report-card {
-        grid-template-columns: auto minmax(0, 1fr);
-    }
-
     .project-report-card__aside {
-        grid-column: 1 / -1;
         flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-        padding-top: .55rem;
-        border-top: 1px solid #edf1f5;
     }
 
-    .project-report-card__availability { text-align: left; }
     .report-workspace-actions { justify-content: flex-start; }
     .report-display-controls { align-items: flex-end; }
     .report-toolbar__fy { width: 210px; min-width: 0; }
@@ -617,12 +593,8 @@
 }
 
 @media (max-width: 680px) {
-    .project-report-card {
-        grid-template-columns: 1fr;
-    }
 
     .project-report-card__icon { width: 40px; height: 40px; }
-    .project-report-card__aside { grid-column: auto; }
 
     .report-command-strip {
         position: static;
@@ -795,16 +767,11 @@
 
 .ffc-projects-update-table {
     width: 100%;
-    min-width: 1280px;
     border-collapse: separate;
     border-spacing: 0;
     table-layout: fixed;
     font-size: .76rem;
     line-height: 1.38;
-}
-
-.ffc-projects-update-table--with-overall {
-    min-width: 1580px;
 }
 
 .ffc-projects-update-table col.col-serial { width: 4.6rem; }
@@ -926,10 +893,6 @@
     white-space: nowrap;
 }
 
-.report-refresh-button--pending {
-    box-shadow: 0 0 0 .14rem rgba(37, 99, 235, .12);
-}
-
 .ffc-report-group-row small {
     display: none;
 }
@@ -1007,12 +970,6 @@
     box-shadow:
         0 0 0 .16rem rgba(245, 158, 11, .16),
         0 1px 2px rgba(15, 23, 42, .08);
-}
-
-.report-export-actions [data-ffc-export][aria-disabled="true"] {
-    pointer-events: none;
-    opacity: .46;
-    filter: saturate(.55);
 }
 
 /* Reports catalogue — responsive wide-screen composition ----------------- */
@@ -1376,10 +1333,6 @@
 
 :where([data-bs-theme="dark"]) .ffc-report-overall {
     background: #16181b;
-}
-
-:where([data-bs-theme="dark"]) .report-refresh-button--pending {
-    box-shadow: 0 0 0 .14rem rgba(0, 0, 0, 0.4);
 }
 
 :where([data-bs-theme="dark"]) .report-update-state {
