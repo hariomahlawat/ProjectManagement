@@ -8,7 +8,7 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **6117** stylesheet literals in 71 files, **6** in inline view styles.
+Totals: **6113** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
@@ -85,11 +85,11 @@ Totals: **6117** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 4: Action tracker, tasks, office reports, admin and the rest
 
-1361 literals.
+1357 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `action-tracker.css` | 223 | 152 |
+| `action-tracker.css` | 219 | 151 |
 | `admin.css` | 170 | 136 |
 | `pages/approvals.css` | 157 | 98 |
 | `social-media.css` | 108 | 87 |
