@@ -32,12 +32,16 @@ how long?**
 
 ## The concept: a pipeline that shows waiting time
 
-1. **Figures that matter** (four tiles with a spectrum mark): In progress, **Waiting longest**
-   (days and the case), **On order, not yet delivered** (sum of SO value on cases at Delivery),
-   **Delivered** (count, this FY, last delivery date).
+1. **One quiet summary line** under the header: the New / CL / CF of the cases in progress in the
+   board's year (types with none left out) and the supply orders awaiting delivery, with their
+   value only where it was entered. It replaced four figure tiles after the production review of
+   10 Nov 2026: In progress and Delivered repeated the status pills, "missing a stage date"
+   repeated the Dates missing link, Waiting longest showed only "—" while no case had a stage
+   date, and an SO with no value showed "₹0.00 lakh".
 2. **Where the cases are now**: a chevron pipeline of the nine stages; under each, the live cases
-   at that stage as small cards with their time figure, edged amber or red when stage dates show
-   them ageing.
+   at that stage as small cards, edged amber or red when stage dates show them ageing. A card
+   shows days only from a stage date ("added 5 d ago" for a case not started); a recorded move
+   is left to the register's Now column, because cases entered together all show the same day.
    Optional stages are narrower and hatched when unused. Each card opens the case.
 3. **Register**: one row per case with a **track** (a line with the stage dots on it, filled to
    the current stage, which pulses) and a **Now** column ("At COB", the time figure from the
@@ -69,10 +73,13 @@ All colours are existing `--pm-*` tokens (theme coverage check), no new assets, 
 | Days at current stage | Uses the first of these that exists. (1) **Stage date**: today minus the completion date of the stage just before the current one (skipped stages ignored), on the PRISM stage start rule. This is the real figure and the only one that gets an ageing colour. (2) **Recorded move**: if that stage has no date, the day the system recorded the move to the current stage (`StageMovedAtUtc`, below), shown as "recorded 21 Aug" in light text, never coloured and never in "Waiting longest". (3) Otherwise "date not recorded". An earlier stage's date is never borrowed, because it would add the earlier stages' time to this one. A case with no stage done shows "added 5 d ago". |
 | Days between stages | Completion date minus the completion date of the stage just before it (skipped stages ignored); blank when either date is missing, never measured from an earlier stage. |
 | Elapsed | Today (or the Delivery date) minus the first dated completion. |
-| Waiting longest | Maximum days-at-stage over active, non-dropped cases in the current filter, from stage dates only; the tile says how many cases were left out for missing dates. |
+| Longest wait (sort) | Days-at-stage from stage dates only; cases without one sort after those with one. (The Waiting longest tile was removed on 10 Nov 2026.) |
 | Dates missing | Active cases with a completed stage that has no date. Shown to Manage roles only, as a link that filters the register to them. |
-| On order | Sum of SO cost on active cases whose SO is complete and Delivery is not. |
+| On order | Active cases whose SO is complete and Delivery is not, with the sum of the SO values entered; "value not entered" when none has one, never "₹0.00". |
 | Ageing band | From the stage-date figure only, the same for every stage (owner decision 8 Nov 2026): up to 30 days normal, 31–60 amber, over 60 red. |
+
+The key under the register lists only the marks the register actually draws, so a board with no
+stage dates does not explain ageing colours it cannot show.
 
 `StageMovedAtUtc` is one new nullable column on `ItProjects` (hand-written, additive migration;
 existing rows stay null, which simply means fallback 3). The stage save sets it only when the

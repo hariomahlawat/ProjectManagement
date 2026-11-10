@@ -116,15 +116,56 @@ public class ItProjectBoardYearTests
     }
 
     [Fact]
-    public void Notes_ReadPlainly()
+    public void SummaryLine_ShowsOnlyTheTypesThatHaveCases()
     {
-        var figures = new ItProjectBoardFigures(null, 2, 2, 0m, 0, 0, D(2025, 6, 30), 2026, 2026, 3, 2, 3, 1);
+        var figures = Figures(onOrderCount: 0, onOrderWithoutValue: 0, lakhs: 0m) with { ActiveNew = 6, ActiveCommittedLiability = 0, ActiveCarriedForward = 2 };
 
-        Assert.Equal("1 not started yet · 2 missing a stage date", ItProjectBoardPresentation.InProgressNote(figures));
-        Assert.Equal(" · 2 cases without stage dates left out", ItProjectBoardPresentation.LeftOutNote(2));
-        Assert.Equal("none yet in FY 2026-27 · last on 30 Jun 2025", ItProjectBoardPresentation.DeliveredNote(figures));
-        Assert.Equal("₹1,48,400.00", ItProjectBoardPresentation.Lakhs(148400m)); // Indian grouping
+        var types = ItProjectBoardPresentation.SummaryTypes(figures);
+
+        Assert.Equal(new[] { "New", "CF" }, types.Select(type => type.Code));
+        Assert.Equal(new[] { 6, 2 }, types.Select(type => type.Count));
+        Assert.Equal("Carried forward without an SO into FY 2026-27", types[1].Title);
     }
+
+    [Fact]
+    public void OnOrder_NeverShowsANilValueForOrdersWithoutOne()
+    {
+        // Production, 10 Nov 2026: one SO with no value showed "₹0.00 lakh".
+        Assert.Null(ItProjectBoardPresentation.OnOrderText(Figures(0, 0, 0m)));
+        Assert.Equal("1 supply order awaiting delivery, value not entered", ItProjectBoardPresentation.OnOrderText(Figures(1, 1, 0m)));
+        Assert.Equal("2 supply orders awaiting delivery, values not entered", ItProjectBoardPresentation.OnOrderText(Figures(2, 2, 0m)));
+        Assert.Equal("2 supply orders awaiting delivery, ₹ 1,48,400.00 L", ItProjectBoardPresentation.OnOrderText(Figures(2, 0, 148400m))); // Indian grouping
+        Assert.Equal("3 supply orders awaiting delivery, ₹ 62.00 L (1 without a value)", ItProjectBoardPresentation.OnOrderText(Figures(3, 1, 62m)));
+    }
+
+    [Fact]
+    public async Task Key_ListsOnlyTheMarksTheRegisterDraws()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        // Like production on 10 Nov 2026: stages ticked with no dates.
+        await SeedWithAsync(db, "Laptops", 2026, Input(S("PPP", true)));
+
+        var board = await db.Reads().GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.Active));
+        var key = ItProjectBoardPresentation.Key(board.Rows);
+
+        Assert.True(key.DoneNoDate);
+        Assert.True(key.Current);
+        Assert.True(key.NotYet);
+        Assert.True(key.Recorded);
+        Assert.False(key.Done);
+        Assert.False(key.StageDays);
+
+        await SeedWithAsync(db, "Switches", 2026, Input(S("AON", true, D(2026, 10, 1))));
+        board = await db.Reads().GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.Active));
+        key = ItProjectBoardPresentation.Key(board.Rows);
+
+        Assert.True(key.Done);
+        Assert.True(key.StageDays);
+        Assert.False(ItProjectBoardPresentation.Key(Array.Empty<ItProjectBoardRow>()).Any);
+    }
+
+    private static ItProjectBoardFigures Figures(int onOrderCount, int onOrderWithoutValue, decimal lakhs)
+        => new(null, 0, 0, lakhs, onOrderCount, 0, null, 2026, 2026, 0, 0, 0, 0, onOrderWithoutValue);
 
     private static async Task<int> SeedWithAsync(ItProjectTestDb db, string title, int fy, System.Collections.Generic.List<ItProjectStageInput>? stages)
     {

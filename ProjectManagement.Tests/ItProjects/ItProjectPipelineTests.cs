@@ -34,7 +34,10 @@ public class ItProjectPipelineTests
         Assert.Equal(9, columns.Count);
         Assert.Equal(new[] { notStarted }, columns["PPP"].Shown.Select(item => item.Id));
         Assert.Equal(new[] { stuck, recent, undated }, columns["TEC"].Shown.Select(item => item.Id));
-        Assert.Equal(new[] { "late", "calm", "nodate" }, columns["TEC"].Shown.Select(item => item.Tone));
+        Assert.Equal(new[] { "late", "calm", "calm" }, columns["TEC"].Shown.Select(item => item.Tone));
+        // A recorded move is left to the register: the card carries no time (production, 10 Nov 2026).
+        Assert.Null(columns["TEC"].Shown[2].TimeText);
+        Assert.Equal("added today", columns["PPP"].Shown[0].TimeText);
         Assert.Equal(new[] { onOrder }, columns["DLV"].Shown.Select(item => item.Id));
         Assert.Equal("₹ 62.00 L", columns["DLV"].Shown[0].SoCost);
         Assert.Equal(0, columns["AON"].Count); // the dropped case is not live

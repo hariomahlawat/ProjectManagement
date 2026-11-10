@@ -87,7 +87,8 @@ public sealed record ItProjectBoardFigures(
     int ActiveNew,
     int ActiveCommittedLiability,
     int ActiveCarriedForward,
-    int NotStartedCount);
+    int NotStartedCount,
+    int OnOrderWithoutValue = 0);
 
 public sealed record ItProjectBoard(
     IReadOnlyList<ItProjectBoardRow> Rows,
