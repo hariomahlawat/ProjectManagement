@@ -510,7 +510,7 @@ test('compact and digital Cover A renderers use the same identity-mode contract'
 });
 
 test('preflight has one findings scroll owner and reports review completion accurately', () => {
-  assert.match(css, /\.brochure-preflight-panel \.brochure-preflight-issues \{ max-height: none; overflow: visible;/);
+  assert.match(css, /\.brochure-preflight-panel \.brochure-preflight-issues \{[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/);
   assert.match(js, /All approvals are complete; review the warnings before final issue/);
   assert.match(js, /Publication preflight and all required approvals are complete/);
   assert.match(js, /Approve the Cover B hero and crop before final issue/);
