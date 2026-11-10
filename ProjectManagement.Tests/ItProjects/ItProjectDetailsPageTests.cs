@@ -671,6 +671,51 @@ public class ItProjectDetailsPageTests
         Assert.False(reloaded.YearTypes.Single().IsManual);
     }
 
+    [Fact]
+    public async Task DroppedProject_StageSaveAndPreviewAreRefusedWithAMessage()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync();
+        Assert.True((await db.Commands().DropAsync(id, new DateOnly(2026, 11, 1), "Merged", rowVersion, ItProjectTestDb.Actor())).Succeeded);
+
+        var page = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await page.OnGetAsync(id, CancellationToken.None);
+        Assert.True(page.IsDropped);
+        page.Stages.Items.Single(item => item.StageCode == "DLV").IsCompleted = true;
+
+        var save = await page.OnPostStagesAsync(id, null, CancellationToken.None);
+        Assert.IsType<RedirectToPageResult>(save);
+        Assert.Equal(ItProjectCommandService.DroppedStagesMessage, page.TempData["ToastError"]);
+
+        var preview = Assert.IsType<JsonResult>(await page.OnPostPreviewAsync(id, null, null, CancellationToken.None));
+        Assert.Contains("\"valid\":false", System.Text.Json.JsonSerializer.Serialize(preview.Value));
+
+        await using var context = db.NewContext();
+        Assert.DoesNotContain(await context.ItProjectStages.Where(stage => stage.ItProjectId == id).ToListAsync(), stage => stage.IsCompleted);
+    }
+
+    [Fact]
+    public async Task RecordDates_AreIndianCalendarDays()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+        await using (var context = db.NewContext())
+        {
+            var project = await context.ItProjects.SingleAsync(p => p.Id == id);
+            // 20:00 UTC on 7 Nov is 01:30 IST on 8 Nov.
+            project.CreatedAtUtc = new DateTime(2026, 11, 7, 20, 0, 0, DateTimeKind.Utc);
+            project.UpdatedAtUtc = new DateTime(2026, 11, 7, 18, 0, 0, DateTimeKind.Utc);
+            await context.SaveChangesAsync();
+        }
+
+        var page = Page(db, ItProjectTestDb.User("viewer"));
+        await page.OnGetAsync(id, CancellationToken.None);
+
+        Assert.Equal(new DateOnly(2026, 11, 8), page.AddedOn);
+        Assert.Equal(new DateOnly(2026, 11, 7), page.LastChangedOn);
+        Assert.Equal("2026-11-08", page.DropDateMax);
+    }
+
     internal static DetailsModel PageFor(ItProjectTestDb db, ClaimsPrincipal user) => Page(db, user);
 
     private static DetailsModel Page(ItProjectTestDb db, ClaimsPrincipal user)

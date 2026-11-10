@@ -23,6 +23,8 @@ public sealed class ItProjectCommandService : IItProjectCommandService
     public const int TitleMaxLength = 200;
     public const int ReferenceMaxLength = 100;
     public const int DroppedReasonMaxLength = 500;
+    public const string DroppedStagesMessage = "This IT project is dropped. Reinstate it before changing its stages.";
+    public const string DroppedInFutureMessage = "The dropped date cannot be later than today.";
 
     private readonly ApplicationDbContext _db;
     private readonly IAuditService _audit;
@@ -104,7 +106,21 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         project.FinancialYearStart = input.FinancialYearStart;
         project.Description = input.Description.Trim();
 
-        return await CommitAsync(project, rowVersion, actor, "ItProjects.Updated", new Dictionary<string, string?>
+        // A later year's row (its IT ARPPP number and any type set by hand) describes a year the
+        // project was carried into. When the project's own year moves to or past it, that row
+        // would turn into a type set by hand on the project's own year, so it goes; the audit
+        // entry keeps what it held.
+        var superseded = project.FinancialYears
+            .Where(year => year.FinancialYearStart <= project.FinancialYearStart)
+            .OrderBy(year => year.FinancialYearStart)
+            .ToList();
+        foreach (var year in superseded)
+        {
+            project.FinancialYears.Remove(year);
+            _db.ItProjectFinancialYears.Remove(year);
+        }
+
+        var data = new Dictionary<string, string?>
         {
             ["BeforeTitle"] = before["Title"],
             ["BeforePppReferenceNumber"] = before["PppReferenceNumber"],
@@ -112,7 +128,16 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             ["Title"] = project.Title,
             ["PppReferenceNumber"] = project.PppReferenceNumber,
             ["FinancialYear"] = FinancialYearHelper.Format(project.FinancialYearStart)
-        }, cancellationToken);
+        };
+        if (superseded.Count > 0)
+        {
+            data["RemovedYears"] = string.Join("; ", superseded.Select(year =>
+                $"{FinancialYearHelper.Format(year.FinancialYearStart)}: " +
+                $"{year.PppReferenceNumber ?? "no number"}, " +
+                $"{(year.TypeOverride is { } type ? ItProjectYearTypes.Code(type) + " set by hand" : "automatic type")}"));
+        }
+
+        return await CommitAsync(project, rowVersion, actor, "ItProjects.Updated", data, cancellationToken);
     }
 
     public async Task<ItProjectStageSaveResult> SaveStagesAsync(int id, IReadOnlyCollection<ItProjectStageInput> stages, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
@@ -130,6 +155,13 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         if (project is null)
         {
             return new ItProjectStageSaveResult(ItProjectCommandResult.Fail(NotFoundMessage), Array.Empty<string>(), Array.Empty<string>());
+        }
+
+        if (project.DroppedOn.HasValue)
+        {
+            // A dropped case has no stage to move to; completing it here would also get round the
+            // rule that a completed case cannot be dropped.
+            return new ItProjectStageSaveResult(ItProjectCommandResult.Fail(DroppedStagesMessage), Array.Empty<string>(), Array.Empty<string>());
         }
 
         var (autoCompleted, reopened) = ItProjectStageRules.Diff(project.Stages, rules.Stages);
@@ -187,6 +219,11 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         if (trimmed.Length > DroppedReasonMaxLength)
         {
             return ItProjectCommandResult.Fail($"The reason must be {DroppedReasonMaxLength} characters or fewer.");
+        }
+
+        if (droppedOn > ItProjectYearTypes.TodayIst(_clock.UtcNow))
+        {
+            return ItProjectCommandResult.Fail(DroppedInFutureMessage);
         }
 
         var project = await LoadForWriteAsync(id, cancellationToken);

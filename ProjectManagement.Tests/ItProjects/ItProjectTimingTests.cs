@@ -290,4 +290,28 @@ public class ItProjectTimingTests
         await using var context = db.NewContext();
         return await context.ItProjects.Where(project => project.Id == id).Select(project => project.StageMovedAtUtc).SingleAsync();
     }
+
+    [Fact]
+    public void Elapsed_FromTheFirstStage_IsEndToEnd()
+    {
+        var timing = Resolve(Project(
+            ("PPP", D(2024, 7, 10)), ("AON", null), ("BID", null), ("TEC", null), ("COB", null), ("SO", null), ("DLV", D(2025, 6, 30))));
+
+        Assert.Equal("PPP", timing.StartedStageCode);
+        Assert.True(timing.ElapsedIsEndToEnd);
+        Assert.Equal("end to end", ProjectManagement.Pages.ItProjects.ItProjectBoardPresentation.ElapsedSpan(timing));
+    }
+
+    [Fact]
+    public void Elapsed_WhenTheEarlyStagesHaveNoDate_SaysWhichStageItRunsFrom()
+    {
+        // Only SO and Delivery are dated: 132 days is SO to delivery, not the whole case.
+        var timing = Resolve(Project(
+            ("PPP", null), ("AON", null), ("BID", null), ("TEC", null), ("COB", null), ("SO", D(2026, 4, 10)), ("DLV", D(2026, 8, 20))));
+
+        Assert.Equal(132, timing.ElapsedDays);
+        Assert.Equal("SO", timing.StartedStageCode);
+        Assert.False(timing.ElapsedIsEndToEnd);
+        Assert.Equal("from SO", ProjectManagement.Pages.ItProjects.ItProjectBoardPresentation.ElapsedSpan(timing));
+    }
 }

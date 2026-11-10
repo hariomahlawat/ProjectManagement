@@ -192,6 +192,7 @@
         var tick = row.querySelector('[data-itp-completed]');
         var date = row.querySelector('[data-itp-date]');
         var include = row.querySelector('[data-itp-included]');
+        var cost = row.querySelector('[data-itp-cost]');
 
         if (tick) {
             tick.addEventListener('change', function () {
@@ -216,6 +217,14 @@
         }
         if (include) {
             include.addEventListener('change', function () {
+                touched[code] = true;
+                preview();
+            });
+        }
+        if (cost) {
+            // The SO value does not move the chain, but the server checks it, so a bad value
+            // is reported here before Save rather than only after it.
+            cost.addEventListener('change', function () {
                 touched[code] = true;
                 preview();
             });
@@ -262,10 +271,16 @@
         }
 
         event.preventDefault();
-        if (inFlight) {
-            inFlight.then(decide);
-        } else {
-            decide();
-        }
+        // Never submit again from inside this submit event: browsers ignore a submit started while
+        // one is being dispatched, so a save that needs no confirm would silently do nothing. A
+        // task (not a microtask, which still runs inside the dispatch) starts after it is over.
+        var pending = inFlight;
+        window.setTimeout(function () {
+            if (pending) {
+                pending.then(decide);
+            } else {
+                decide();
+            }
+        }, 0);
     });
 })();

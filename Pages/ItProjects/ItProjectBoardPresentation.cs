@@ -100,6 +100,13 @@ public static class ItProjectBoardPresentation
         _ => ItProjectStages.LabelOf(code)
     };
 
+    /// <summary>
+    /// "end to end" when the elapsed figure starts at the first stage; else the stage it starts
+    /// from ("from SO"), because undated early stages make the figure shorter than the case took.
+    /// </summary>
+    public static string ElapsedSpan(ItProjectTiming timing)
+        => timing.ElapsedIsEndToEnd ? "end to end" : $"from {ItProjectStages.LabelOf(timing.StartedStageCode!)}";
+
     /// <summary>The Now column of a register row.</summary>
     public sealed record NowCell(string Label, string? Badge, string BadgeTone, string? BadgeTitle, string? Note);
 
@@ -113,7 +120,7 @@ public static class ItProjectBoardPresentation
             case ItProjectStatusKind.Completed:
             {
                 var on = row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.Delivery)?.CompletedOn;
-                var span = row.Timing.ElapsedDays is { } days ? $"{days} days end to end" : null;
+                var span = row.Timing.ElapsedDays is { } days ? $"{days} days {ElapsedSpan(row.Timing)}" : null;
                 var note = string.Join(" · ", new[] { span, soText }.Where(part => part is not null));
                 return new NowCell(on is { } date ? $"Delivered {ShortDate(date)}" : "Delivered", null, "ok", null, note.Length == 0 ? null : note);
             }

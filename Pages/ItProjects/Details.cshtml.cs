@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using ProjectManagement.Configuration;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Infrastructure.Ui;
 using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Services;
@@ -328,6 +329,13 @@ public class DetailsModel : PageModel
             return Forbid();
         }
 
+        if (IsDropped)
+        {
+            // The stage drawer is not drawn for a dropped case, so say it here.
+            TempData.ToastError(ItProjectCommandService.DroppedStagesMessage);
+            return RedirectToPage(new { id });
+        }
+
         ReopenPending = string.IsNullOrWhiteSpace(reopen) ? null : reopen.Trim();
         if (!IsSectionValid(nameof(Stages)))
         {
@@ -366,6 +374,11 @@ public class DetailsModel : PageModel
         if (!CanManage)
         {
             return Forbid();
+        }
+
+        if (IsDropped)
+        {
+            return new JsonResult(new { valid = false, errors = new[] { ItProjectCommandService.DroppedStagesMessage } });
         }
 
         if (!IsSectionValid(nameof(Stages)))
@@ -717,6 +730,15 @@ public class DetailsModel : PageModel
     public string RowVersionToken => EncodeRowVersion(Project.RowVersion);
 
     public bool IsDropped => Project.DroppedOn.HasValue;
+
+    /// <summary>Today in India: the latest date the drop date picker offers (the command checks it too).</summary>
+    public string DropDateMax => ItProjectYearTypes.TodayIst(_clock.UtcNow).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>The day the project was added, in India (the stored time is UTC).</summary>
+    public DateOnly AddedOn => DateOnly.FromDateTime(IstClock.ToIst(Project.CreatedAtUtc));
+
+    /// <summary>The day of the last change, in India.</summary>
+    public DateOnly LastChangedOn => DateOnly.FromDateTime(IstClock.ToIst(Project.UpdatedAtUtc));
 
     public bool IsCompleted => Status.Kind == ItProjectStatusKind.Completed;
 

@@ -83,6 +83,10 @@ the R&D workflow metadata.
 | Completed | Delivery and ATP complete |
 | Dropped | `DroppedOn` set; wins over the others and keeps the stage flags as they were |
 
+A dropped project's stages are frozen: the stage editor is not offered and the command refuses a
+stage save until the project is reinstated, so a dropped case cannot become Completed (which
+could not itself be dropped). The dropped date cannot be later than today (India time).
+
 ## Data model (`Models/ItProjects`)
 
 - `ItProject`: `Id`, `Title` (200), `PppReferenceNumber` (100), `FinancialYearStart` (int,

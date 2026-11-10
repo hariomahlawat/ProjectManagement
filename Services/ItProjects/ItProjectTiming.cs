@@ -48,8 +48,16 @@ public sealed record ItProjectTiming(
     IReadOnlyList<ItProjectStageGap> Gaps,
     DateOnly? StartedOn,
     int? ElapsedDays,
-    bool HasMissingDates)
+    bool HasMissingDates,
+    string? StartedStageCode = null)
 {
+    /// <summary>
+    /// Whether <see cref="ElapsedDays"/> runs from the first stage. When the earliest stages have
+    /// no date it runs from the first dated one (<see cref="StartedStageCode"/>) and is shorter
+    /// than the case really took, so it must not be called "end to end".
+    /// </summary>
+    public bool ElapsedIsEndToEnd => StartedStageCode is null || string.Equals(StartedStageCode, ItProjectStages.Ppp, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Owner decision 8 Nov 2026: up to 30 days normal, 31 to 60 amber, over 60 red, for every stage.</summary>
     public const int NormalUpToDays = 30;
 
@@ -89,7 +97,9 @@ public sealed record ItProjectTiming(
             gaps.Add(new ItProjectStageGap(stage.StageCode, days));
         }
 
-        var startedOn = counted.FirstOrDefault(stage => stage.IsCompleted && stage.CompletedOn.HasValue)?.CompletedOn;
+        var started = counted.FirstOrDefault(stage => stage.IsCompleted && stage.CompletedOn.HasValue);
+        var startedOn = started?.CompletedOn;
+        var startedCode = started?.StageCode;
         var hasMissingDates = counted.Any(stage => stage.IsCompleted && !stage.CompletedOn.HasValue);
 
         DateOnly? end = status.Kind switch
@@ -102,13 +112,13 @@ public sealed record ItProjectTiming(
 
         if (status.Kind is ItProjectStatusKind.Completed or ItProjectStatusKind.Dropped)
         {
-            return new ItProjectTiming(ItProjectTimeBasis.Closed, null, null, ItProjectAgeBand.None, gaps, startedOn, elapsed, hasMissingDates);
+            return new ItProjectTiming(ItProjectTimeBasis.Closed, null, null, ItProjectAgeBand.None, gaps, startedOn, elapsed, hasMissingDates, startedCode);
         }
 
         if (status.Kind == ItProjectStatusKind.NotStarted)
         {
             var added = toLocalDate(project.CreatedAtUtc);
-            return new ItProjectTiming(ItProjectTimeBasis.SinceAdded, added, DaysFrom(added, today), ItProjectAgeBand.None, gaps, startedOn, elapsed, hasMissingDates);
+            return new ItProjectTiming(ItProjectTimeBasis.SinceAdded, added, DaysFrom(added, today), ItProjectAgeBand.None, gaps, startedOn, elapsed, hasMissingDates, startedCode);
         }
 
         var currentIndex = counted.FindIndex(stage => string.Equals(stage.StageCode, status.CurrentStageCode, StringComparison.OrdinalIgnoreCase));
@@ -117,16 +127,16 @@ public sealed record ItProjectTiming(
         if (previousStage?.CompletedOn is { } closedOn)
         {
             var days = DaysFrom(closedOn, today);
-            return new ItProjectTiming(ItProjectTimeBasis.StageDate, closedOn, days, BandOf(days), gaps, startedOn, elapsed, hasMissingDates);
+            return new ItProjectTiming(ItProjectTimeBasis.StageDate, closedOn, days, BandOf(days), gaps, startedOn, elapsed, hasMissingDates, startedCode);
         }
 
         if (project.StageMovedAtUtc is { } movedAtUtc)
         {
             var moved = toLocalDate(movedAtUtc);
-            return new ItProjectTiming(ItProjectTimeBasis.RecordedMove, moved, DaysFrom(moved, today), ItProjectAgeBand.None, gaps, startedOn, elapsed, hasMissingDates);
+            return new ItProjectTiming(ItProjectTimeBasis.RecordedMove, moved, DaysFrom(moved, today), ItProjectAgeBand.None, gaps, startedOn, elapsed, hasMissingDates, startedCode);
         }
 
-        return new ItProjectTiming(ItProjectTimeBasis.NotRecorded, null, null, ItProjectAgeBand.None, gaps, startedOn, elapsed, hasMissingDates);
+        return new ItProjectTiming(ItProjectTimeBasis.NotRecorded, null, null, ItProjectAgeBand.None, gaps, startedOn, elapsed, hasMissingDates, startedCode);
     }
 
     private static int DaysFrom(DateOnly from, DateOnly today) => Math.Max(0, today.DayNumber - from.DayNumber);

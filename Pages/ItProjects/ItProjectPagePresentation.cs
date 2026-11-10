@@ -35,7 +35,7 @@ public static class ItProjectPagePresentation
                 var on = stages.FirstOrDefault(stage => stage.StageCode == ItProjectStages.Delivery)?.CompletedOn;
                 return new HeroStatus(
                     on is { } date ? $"Delivered on {LongDate(date)}" : "Delivered",
-                    timing.ElapsedDays is { } days ? $"{Days(days)} end to end" : null,
+                    timing.ElapsedDays is { } days ? $"{Days(days)} {ItProjectBoardPresentation.ElapsedSpan(timing)}" : null,
                     "ok");
             }
 
