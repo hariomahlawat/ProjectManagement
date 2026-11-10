@@ -129,6 +129,8 @@ public class ItProjectWorkloadTests
         Assert.Equal("Maj", ito.Rank);
         Assert.Equal(0, ito.ProjectCount);
         Assert.Equal(1, ito.ItProjectCount);
+        // The card shows only the IT projects for an ITO with no Project Officer work.
+        Assert.True(ito.IsItProjectsOnly);
         var item = Assert.Single(ito.ItProjects);
         Assert.Equal(live, item.ItProjectId);                 // the delivered one is not live
         Assert.Equal("Core switches", item.Title);
@@ -140,6 +142,7 @@ public class ItProjectWorkloadTests
         // A Project Officer without the ITO role gets no IT projects.
         var po = cards.Single(card => card.UserId == "po-1");
         Assert.Equal(0, po.ItProjectCount);
+        Assert.False(po.IsItProjectsOnly);
         Assert.Empty(po.ItProjects);
         Assert.Equal(1, po.ProjectCount);
     }
@@ -172,6 +175,8 @@ public class ItProjectWorkloadTests
 
         Assert.Equal("Range telemetry", Assert.Single(ito.Projects).Name);
         Assert.Equal(live, Assert.Single(ito.ItProjects).ItProjectId);
+        // With Project Officer work the card keeps its project, idea and task sections.
+        Assert.False(ito.IsItProjectsOnly);
     }
 
     [Theory]

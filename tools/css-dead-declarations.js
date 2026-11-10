@@ -15,7 +15,9 @@
 // --fix only deletes dead declarations (and rules or @media blocks left empty), and merges
 // a later rule into the first rule with the same selector list and media context when no
 // rule in between declares a related property — so the cascade result cannot change.
-// Supports plain rules and @media (no nesting, @layer or @supports); throws otherwise.
+// Supports plain rules, @media and @supports (a condition, like @media; nested conditions
+// combine) and skips @keyframes, whose steps are not style rules. Other at-rules (@layer,
+// @container, nesting) throw, so a file the tool cannot reason about is never "clean".
 
 const fs = require('node:fs');
 
@@ -54,6 +56,16 @@ function parse(src) {
     }
     return decls;
   }
+  // Steps past a block body whose contents are not style rules (the opening brace is consumed).
+  function skipBlock() {
+    let depth = 1;
+    while (i < n && depth > 0) {
+      const stop = readUntil('{}');
+      if (stop >= n) { i = n; return; }
+      depth += src[stop] === '{' ? 1 : -1;
+      i = stop + 1;
+    }
+  }
   function parseBlock(endChar, ctx) {
     const items = [];
     while (i < n) {
@@ -66,9 +78,14 @@ function parse(src) {
       if (src[stop] !== '{') throw new Error(`Unexpected CSS near offset ${start}: ${src.slice(start, stop + 1).trim()}`);
       const prelude = src.slice(start, stop).trim();
       i = stop + 1;
-      if (prelude.startsWith('@media')) {
-        const media = prelude.replace(/\s+/g, ' ').toLowerCase();
-        items.push({ type: 'media', start, children: parseBlock('}', media), end: i });
+      if (/^@(media|supports)\b/i.test(prelude)) {
+        // A rule here applies only under this condition: it interacts with rules under the same
+        // condition, and an unconditional later rule overrides it (see findDead).
+        const condition = normaliseCondition(prelude);
+        items.push({ type: 'media', start, children: parseBlock('}', ctx ? `${ctx} ${condition}` : condition), end: i });
+      } else if (/^@(-[a-z]+-)?keyframes\b/i.test(prelude)) {
+        skipBlock();
+        items.push({ type: 'opaque', start, end: i });
       } else if (prelude.startsWith('@')) {
         throw new Error(`Unsupported at-rule: ${prelude}`);
       } else {
@@ -80,6 +97,14 @@ function parse(src) {
     return items;
   }
   return parseBlock(null, '');
+}
+
+// A condition's key: its text exactly as written, apart from the at-keyword's case. Any
+// normalisation risks equating two conditions with different results (case inside quoted
+// values, spacing inside selector() or after a CSS escape), so conditions written differently
+// stay apart. That can only miss a dead declaration, never remove a live one.
+function normaliseCondition(prelude) {
+  return prelude.trim().replace(/^@[-a-z]+/i, keyword => keyword.toLowerCase());
 }
 
 function splitSelectors(text) {
@@ -98,8 +123,13 @@ function splitSelectors(text) {
     .filter(Boolean);
 }
 
+const holdsOpaque = (items) => items.some((item) => item.type === 'opaque' || (item.type === 'media' && holdsOpaque(item.children)));
+
 const flatten = (items, out = []) => {
-  for (const item of items) item.type === 'media' ? flatten(item.children, out) : out.push(item);
+  for (const item of items) {
+    if (item.type === 'media') flatten(item.children, out);
+    else if (item.type === 'rule') out.push(item);
+  }
   return out;
 };
 
@@ -221,8 +251,11 @@ function removeDead(src) {
   const edits = [];
   (function walk(items) {
     for (const item of items) {
+      if (item.type === 'opaque') continue;
       if (item.type === 'media') {
-        if (flatten(item.children).every((r) => r.decls.every((d) => deadSet.has(d)))) {
+        // A group goes only when every rule in it is dead and it holds nothing opaque
+        // (@keyframes have no style rules, so they would otherwise look "all dead").
+        if (!holdsOpaque(item.children) && flatten(item.children).every((r) => r.decls.every((d) => deadSet.has(d)))) {
           const [start, end] = wholeLines(src, item.start, item.end);
           edits.push({ start, end });
         } else walk(item.children);
@@ -283,11 +316,16 @@ function foldRules(src) {
   return { out: applyEdits(src, edits), folded };
 }
 
-// Blank lines inside rule bodies go; runs of blank lines between rules collapse to one.
+// Blank lines inside rule bodies and before a closing brace go; runs of blank lines between
+// rules collapse to one.
 function tidy(src) {
   const bodies = flatten(parse(src)).map((r) => ({ start: r.bodyStart, end: r.bodyEnd }));
   const edits = bodies.map(({ start, end }) => ({ start, end, text: src.slice(start, end).replace(/\n[ \t]*(?=\n)/g, '') }));
-  return applyEdits(src, edits).replace(/\n[ \t]*\n([ \t]*\n)+/g, '\n\n').replace(/^\s*\n/, '');
+  return applyEdits(src, edits)
+    .replace(/\n[ \t]*\n([ \t]*\n)+/g, '\n\n')
+    // No blank line just before a closing brace (left when the last rule of a group goes).
+    .replace(/\n[ \t]*\n([ \t]*\})/g, '\n$1')
+    .replace(/^\s*\n/, '');
 }
 
 function fix(src) {

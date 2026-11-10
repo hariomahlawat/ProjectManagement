@@ -81,7 +81,8 @@ The Officer workload view (Workspace › Officer workload) reads
 progress, in board order, each with its state and IT PPP number). IT projects have no assigned Project
 Officer, so the ITO runs all of them; this is the rule the conference review uses, and both read the
 same query (`Services/ItProjects/LiveItProjects.cs`). An ITO with no other workload gets a card of
-their own, the Comdt/HoD's saved card order covers ITO cards, and the officer count in the rail counts
+their own that shows only the IT projects (no empty project, idea and task sections, as in the
+conference review), the Comdt/HoD's saved card order covers ITO cards, and the officer count in the rail counts
 them. The command desk and the conference commands keep reading `GetAllAsync`, whose scope is
 unchanged. Tests: `ItProjectWorkloadTests`.
 
