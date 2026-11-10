@@ -44,7 +44,7 @@
 
 .itp-title {
     font-size: 1.5rem;
-    font-weight: 650;
+    font-weight: 700;
     letter-spacing: -.01em;
     margin: 0 0 .2rem;
     color: var(--pm-text-strong);
@@ -331,7 +331,7 @@
 }
 
 .itp-facts dt {
-    font-weight: 500;
+    font-weight: 400;
     color: var(--pm-text-muted);
 }
 
@@ -662,7 +662,7 @@
 .itp-stage-row__name {
     display: block;
     font-size: var(--pm-font-size-sm);
-    font-weight: 650;
+    font-weight: 700;
     color: var(--pm-text-strong);
 }
 
@@ -918,7 +918,7 @@
 
 .itp-years__ref--none {
     color: var(--pm-text-muted);
-    font-weight: 500;
+    font-weight: 400;
     font-style: italic;
 }
 
@@ -1194,6 +1194,7 @@
 
 .itp-pcol__n {
     font-size: var(--pm-font-size-comfortable);
+    font-weight: 700;
     color: var(--pm-text-strong);
     font-variant-numeric: tabular-nums;
 }
@@ -1300,7 +1301,7 @@
 }
 
 .itp-tok--nodate .itp-tok__s {
-    font-weight: 500;
+    font-weight: 400;
     font-style: italic;
 }
 
@@ -1420,7 +1421,7 @@
     background: var(--pm-surface-subtle);
     border-bottom: 1px solid var(--pm-border);
     font-size: var(--pm-font-size-xxs);
-    font-weight: 650;
+    font-weight: 700;
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--pm-text-muted);
@@ -1455,7 +1456,7 @@
 
 .itp-reg__bandhead th span {
     margin-left: .45rem;
-    font-weight: 500;
+    font-weight: 400;
     color: var(--pm-text-muted);
 }
 
@@ -1478,7 +1479,7 @@
 }
 
 .itp-reg__title {
-    font-weight: 650;
+    font-weight: 700;
     line-height: 1.3;
     color: var(--pm-text-strong);
     text-decoration: none;
@@ -1506,9 +1507,9 @@
     border-radius: 6px;
     background: var(--pm-surface);
     color: var(--pm-text-secondary);
-    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-    font-size: var(--pm-font-size-xxs);
+    font-size: var(--pm-font-size-xs);
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
@@ -1522,15 +1523,22 @@
     opacity: .55;
 }
 
+/* Mulish ships at 400, 600 and 700 only: "bolder" on <b> would ask for 900 and get a faked bold. */
+.itp-page b,
+.itp-page strong {
+    font-weight: 700;
+}
+
 /* The track: nine stops on one line. Each stop draws the line to its left (in) and right (out)
    halves, so the line joins up whatever the column widths; optional stops are narrower. */
 .itp-trackhead,
 .itp-track {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, .55fr)) repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, .7fr)) repeat(2, minmax(0, 1fr));
 }
 
 .itp-trackhead__s {
+    letter-spacing: .02em;
     text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1552,7 +1560,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 1.4rem;
+    height: 1.75rem;
 }
 
 .itp-track__s::before,
@@ -1560,9 +1568,10 @@
     content: "";
     position: absolute;
     top: 50%;
-    height: 2px;
-    margin-top: -1px;
+    height: 3px;
+    margin-top: -1.5px;
     width: 50%;
+    border-radius: 2px;
     background: var(--pm-border-strong);
 }
 
@@ -1581,8 +1590,8 @@
 
 .itp-track__s--in::before,
 .itp-track__s--out::after {
-    height: 4px;
-    margin-top: -2px;
+    height: 5px;
+    margin-top: -2.5px;
     background: var(--pm-success);
 }
 
@@ -1590,10 +1599,11 @@
     position: relative;
     z-index: 1;
     display: block;
-    width: 14px;
-    height: 14px;
+    box-sizing: border-box;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
-    border: 2px solid var(--pm-border-strong);
+    border: 2.5px solid var(--pm-border-strong);
     background: var(--pm-card);
 }
 
@@ -1606,13 +1616,13 @@
 .itp-track__s--nodate i::after {
     content: "";
     position: absolute;
-    left: 3.5px;
-    top: 1px;
-    width: 3px;
-    height: 6px;
+    left: 50%;
+    top: 45%;
+    width: 5px;
+    height: 9px;
     border: solid var(--pm-card);
-    border-width: 0 1.6px 1.6px 0;
-    transform: rotate(45deg);
+    border-width: 0 2.5px 2.5px 0;
+    transform: translate(-50%, -50%) rotate(45deg);
 }
 
 .itp-track__s--nodate i {
@@ -1624,16 +1634,16 @@
 }
 
 .itp-track__s--skip i {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     border: 0;
     background: var(--pm-border-strong);
 }
 
 .itp-track__s--cur i {
-    width: 18px;
-    height: 18px;
-    border: 3px solid var(--pm-card);
+    width: 24px;
+    height: 24px;
+    border: 4px solid var(--pm-card);
     background: var(--pm-primary);
     box-shadow: 0 0 0 2px var(--pm-primary), 0 0 0 6px var(--pm-primary-soft);
     animation: itp-pulse 2.4s ease-in-out infinite;
@@ -1669,8 +1679,9 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 8px;
-    height: 1.6px;
+    width: 11px;
+    height: 2.5px;
+    border-radius: 1px;
     background: var(--pm-text-muted);
     transform: translate(-50%, -50%) rotate(45deg);
 }
@@ -1681,9 +1692,10 @@
 
 .itp-track__s em {
     position: absolute;
-    top: 1.35rem;
+    top: 1.95rem;
     font-style: normal;
-    font-size: var(--pm-font-size-xxs);
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
     color: var(--pm-text-muted);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
@@ -1722,7 +1734,7 @@
 .itp-now__label {
     display: block;
     font-size: var(--pm-font-size-sm);
-    font-weight: 650;
+    font-weight: 700;
     color: var(--pm-text-strong);
 }
 
@@ -1811,7 +1823,7 @@
 }
 
 .itp-key .itp-track__s {
-    width: 1.3rem;
+    width: 1.9rem;
 }
 
 .itp-key .itp-track__s::before,
