@@ -54,6 +54,7 @@ public class CreateModel : PageModel
         public int? FinancialYearStart { get; set; }
 
         [Required(ErrorMessage = "Give the project a description.")]
+        [StringLength(ItProjectCommandService.DescriptionMaxLength, ErrorMessage = "The description must be {1} characters or fewer.")]
         [Display(Name = "Description")]
         public string Description { get; set; } = string.Empty;
     }
@@ -61,7 +62,7 @@ public class CreateModel : PageModel
     public void OnGet()
     {
         Input.FinancialYearStart = CurrentFinancialYearStart();
-        FinancialYearOptions = BuildFinancialYearOptions(Input.FinancialYearStart.Value);
+        FinancialYearOptions = BuildFinancialYearOptions(Input.FinancialYearStart.Value, Input.FinancialYearStart.Value);
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
@@ -74,7 +75,7 @@ public class CreateModel : PageModel
         }
 
         // The picker must never be built from an unsupported year: the helper that formats it throws.
-        FinancialYearOptions = BuildFinancialYearOptions(yearIsValid ? Input.FinancialYearStart!.Value : current);
+        FinancialYearOptions = BuildFinancialYearOptions(yearIsValid ? Input.FinancialYearStart!.Value : current, current);
         if (!ModelState.IsValid)
         {
             return Page();
@@ -111,18 +112,25 @@ public class CreateModel : PageModel
     internal static bool IsSupportedFinancialYear(int startYear)
         => startYear is >= FinancialYearHelper.MinimumSupportedStartYear and <= FinancialYearHelper.MaximumSupportedStartYear;
 
-    /// <summary>
-    /// Next FY, the current one, then the past ten, all within the helper's supported range; the
-    /// chosen year is always offered. The caller passes a supported year.
-    /// </summary>
+    /// <summary>Options around <paramref name="selected"/> itself; see the overload taking the current year.</summary>
     internal static IReadOnlyList<SelectListItem> BuildFinancialYearOptions(int selected)
+        => BuildFinancialYearOptions(selected, selected);
+
+    /// <summary>
+    /// Next FY, the current one, then the past ten, counted from the current year (not from the
+    /// project's year, so editing an old project can still move it to this year in one step),
+    /// all within the helper's supported range; the chosen year is always offered. The caller
+    /// passes a supported selected year.
+    /// </summary>
+    internal static IReadOnlyList<SelectListItem> BuildFinancialYearOptions(int selected, int currentFinancialYearStart)
     {
         if (!IsSupportedFinancialYear(selected))
         {
             throw new ArgumentOutOfRangeException(nameof(selected), selected, "Unsupported financial year.");
         }
 
-        var years = Enumerable.Range(selected - PastFinancialYearsOffered, PastFinancialYearsOffered + 2)
+        var anchor = IsSupportedFinancialYear(currentFinancialYearStart) ? currentFinancialYearStart : selected;
+        var years = Enumerable.Range(anchor - PastFinancialYearsOffered, PastFinancialYearsOffered + 2)
             .Reverse()
             .Where(IsSupportedFinancialYear)
             .ToList();

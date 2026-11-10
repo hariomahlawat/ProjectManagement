@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
-using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.ItProjects;
 
 namespace ProjectManagement.Services.ItProjects;
@@ -48,7 +47,7 @@ public static class LiveItProjects
                 item.Project.PppReferenceNumber,
                 item.Project.FinancialYearStart,
                 item.Status,
-                ItProjectTiming.Resolve(item.Project, today, ToIstDate),
+                ItProjectTiming.Resolve(item.Project, today, ItProjectYearTypes.ToIstDate),
                 ItProjectYearTypes.Resolve(item.Project, currentYear, currentYear)))
             .OrderBy(row => row.Status.CurrentStageCode is null ? int.MaxValue : ItProjectStages.OrderOf(row.Status.CurrentStageCode))
             .ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
@@ -58,7 +57,4 @@ public static class LiveItProjects
     /// <summary>"Not started" or "At {stage}", the state line both views show.</summary>
     public static string StateText(ItProjectStatus status)
         => status.Kind == ItProjectStatusKind.NotStarted ? "Not started" : $"At {status.CurrentStageLabel}";
-
-    private static DateOnly ToIstDate(DateTime utc)
-        => DateOnly.FromDateTime(IstClock.ToIst(utc.Kind == DateTimeKind.Utc ? utc : DateTime.SpecifyKind(utc, DateTimeKind.Utc)));
 }

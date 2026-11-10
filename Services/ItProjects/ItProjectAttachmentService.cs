@@ -99,7 +99,8 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
 
         // Some browsers send a full client path; only the file name is kept.
         var fileName = Path.GetFileName((file.FileName ?? string.Empty).Replace('\\', '/')).Trim();
-        var errors = _validator.Validate(fileName, file.ContentType, file.Length);
+        var contentType = ItProjectAttachmentValidator.ResolveContentType(fileName, file.ContentType);
+        var errors = _validator.Validate(fileName, contentType, file.Length);
         if (errors.Count > 0)
         {
             return (ItProjectCommandResult.Fail(errors), Guid.Empty);
@@ -111,27 +112,35 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
             return (ItProjectCommandResult.Fail(ItProjectCommandService.NotFoundMessage), Guid.Empty);
         }
 
-        await using var memory = new MemoryStream();
-        await file.CopyToAsync(memory, cancellationToken);
-        memory.Position = 0;
-        if (memory.Length != file.Length)
+        // The upload is buffered in a temporary file, not in buffer: the limit is the configured
+        // MaxSizeMb (100 MB by default), and the content check, scan and store each read it again.
+        await using var buffer = new FileStream(
+            Path.Combine(Path.GetTempPath(), $"prism-itp-{Guid.NewGuid():N}.upload"),
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.None,
+            81920,
+            FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+        await file.CopyToAsync(buffer, cancellationToken);
+        buffer.Position = 0;
+        if (buffer.Length != file.Length)
         {
             // The declared length was checked; the bytes that arrived must be checked too.
-            var sizeErrors = _validator.Validate(fileName, file.ContentType, memory.Length);
+            var sizeErrors = _validator.Validate(fileName, contentType, buffer.Length);
             if (sizeErrors.Count > 0)
             {
                 return (ItProjectCommandResult.Fail(sizeErrors), Guid.Empty);
             }
         }
 
-        if (!_validator.ContentMatches(file.ContentType, memory))
+        if (!_validator.ContentMatches(contentType, buffer))
         {
             return (ItProjectCommandResult.Fail(ItProjectAttachmentValidator.ContentMismatchMessage), Guid.Empty);
         }
 
         try
         {
-            await _scanner.ScanOrThrowAsync(memory, cancellationToken);
+            await _scanner.ScanOrThrowAsync(buffer, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -139,11 +148,11 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
             return (ItProjectCommandResult.Fail(ScanFailedMessage), Guid.Empty);
         }
 
-        memory.Position = 0;
+        buffer.Position = 0;
         string storageKey;
         try
         {
-            storageKey = await _storage.SaveAsync(itProjectId, fileName, memory, cancellationToken);
+            storageKey = await _storage.SaveAsync(itProjectId, fileName, buffer, cancellationToken);
         }
         catch (ItProjectAttachmentRejectedException exception)
         {
@@ -155,8 +164,8 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
             ItProjectId = itProjectId,
             OriginalFileName = fileName,
             StorageKey = storageKey,
-            ContentType = file.ContentType,
-            SizeBytes = memory.Length,
+            ContentType = contentType,
+            SizeBytes = buffer.Length,
             UploadedByUserId = actor.UserId,
             UploadedAtUtc = UtcNow()
         };

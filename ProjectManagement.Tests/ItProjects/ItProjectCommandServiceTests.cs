@@ -312,4 +312,45 @@ public class ItProjectCommandServiceTests
         Assert.Equal(1, await context.ItProjectFinancialYears.CountAsync(year => year.ItProjectId == id));
         Assert.False(db.Audit.Entries.Last().Data.ContainsKey("RemovedYears"));
     }
+
+    [Fact]
+    public async Task UpdateDetails_WithoutAYearChange_KeepsAnOwnYearTypeSetByHand()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync(fy: 2026);
+        Assert.True((await db.Commands().SaveYearAsync(id, 2026, new ItProjectYearInput(ItProjectYearType.CarriedForward, null), rowVersion, ItProjectTestDb.Actor())).Succeeded);
+
+        var edit = await db.Commands().UpdateDetailsAsync(id, ItProjectTestDb.Details(title: "Renamed", fy: 2026), await db.RowVersionAsync(id), ItProjectTestDb.Actor());
+
+        Assert.True(edit.Succeeded, string.Join("; ", edit.Errors));
+        await using var context = db.NewContext();
+        var row = await context.ItProjectFinancialYears.SingleAsync(year => year.ItProjectId == id);
+        Assert.Equal(ItProjectYearType.CarriedForward, row.TypeOverride);
+    }
+
+    [Fact]
+    public async Task Description_IsLimited_ButAnOlderLongerOneSurvivesAnEditThatLeavesItAlone()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var tooLong = new string('d', ItProjectCommandService.DescriptionMaxLength + 1);
+
+        var (created, _) = await db.Commands().CreateAsync(new ItProjectDetailsInput("LAN", "IT PPP 1/2026", 2026, tooLong), ItProjectTestDb.Actor());
+        Assert.False(created.Succeeded);
+        Assert.Contains($"The description must be {ItProjectCommandService.DescriptionMaxLength} characters or fewer.", created.Errors);
+
+        // A description saved before the limit existed.
+        var (id, _) = await db.SeedAsync();
+        await using (var context = db.NewContext())
+        {
+            var project = await context.ItProjects.SingleAsync(p => p.Id == id);
+            project.Description = tooLong;
+            await context.SaveChangesAsync();
+        }
+
+        var keep = await db.Commands().UpdateDetailsAsync(id, new ItProjectDetailsInput("Renamed", "IT PPP 09/2025", 2025, tooLong), await db.RowVersionAsync(id), ItProjectTestDb.Actor());
+        Assert.True(keep.Succeeded, string.Join("; ", keep.Errors));
+
+        var grow = await db.Commands().UpdateDetailsAsync(id, new ItProjectDetailsInput("Renamed", "IT PPP 09/2025", 2025, tooLong + "x"), await db.RowVersionAsync(id), ItProjectTestDb.Actor());
+        Assert.False(grow.Succeeded);
+    }
 }

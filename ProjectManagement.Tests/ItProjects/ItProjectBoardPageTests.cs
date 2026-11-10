@@ -288,4 +288,16 @@ public class ItProjectBoardPageTests
 
         return id;
     }
+
+    [Fact]
+    public void FinancialYearOptions_CountFromTheCurrentYear_SoAnOldProjectCanMoveToThisYear()
+    {
+        var options = CreateModel.BuildFinancialYearOptions(2015, 2026).Select(option => int.Parse(option.Value)).ToList();
+
+        Assert.Equal(2027, options[0]); // next year first
+        Assert.Contains(2026, options);
+        Assert.Contains(2016, options);
+        Assert.Contains(2015, options); // the project's own year, older than the ten offered
+        Assert.Equal(options.OrderByDescending(year => year), options);
+    }
 }

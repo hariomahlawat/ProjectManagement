@@ -13,7 +13,6 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using ProjectManagement.Configuration;
-using ProjectManagement.Infrastructure;
 using ProjectManagement.Infrastructure.Ui;
 using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Services;
@@ -285,7 +284,7 @@ public class DetailsModel : PageModel
             ModelState.AddModelError($"{nameof(Details)}.{nameof(Details.FinancialYearStart)}", "Choose the financial year.");
         }
 
-        FinancialYearOptions = CreateModel.BuildFinancialYearOptions(yearIsValid ? Details.FinancialYearStart!.Value : Project.FinancialYearStart);
+        FinancialYearOptions = CreateModel.BuildFinancialYearOptions(yearIsValid ? Details.FinancialYearStart!.Value : Project.FinancialYearStart, CurrentFinancialYearStart());
         if (!IsSectionValid(nameof(Details)))
         {
             // Keep what was typed in the edit drawer, but give every other form its row version.
@@ -735,10 +734,10 @@ public class DetailsModel : PageModel
     public string DropDateMax => ItProjectYearTypes.TodayIst(_clock.UtcNow).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>The day the project was added, in India (the stored time is UTC).</summary>
-    public DateOnly AddedOn => DateOnly.FromDateTime(IstClock.ToIst(Project.CreatedAtUtc));
+    public DateOnly AddedOn => ItProjectYearTypes.ToIstDate(Project.CreatedAtUtc);
 
     /// <summary>The day of the last change, in India.</summary>
-    public DateOnly LastChangedOn => DateOnly.FromDateTime(IstClock.ToIst(Project.UpdatedAtUtc));
+    public DateOnly LastChangedOn => ItProjectYearTypes.ToIstDate(Project.UpdatedAtUtc);
 
     public bool IsCompleted => Status.Kind == ItProjectStatusKind.Completed;
 
@@ -790,7 +789,8 @@ public class DetailsModel : PageModel
     private void FillInputsFromProject(bool keepDrop = false)
     {
         FinancialYearOptions = CreateModel.BuildFinancialYearOptions(
-            CreateModel.IsSupportedFinancialYear(Project.FinancialYearStart) ? Project.FinancialYearStart : CurrentFinancialYearStart());
+            CreateModel.IsSupportedFinancialYear(Project.FinancialYearStart) ? Project.FinancialYearStart : CurrentFinancialYearStart(),
+            CurrentFinancialYearStart());
         Details = new DetailsInput
         {
             Title = Project.Title,

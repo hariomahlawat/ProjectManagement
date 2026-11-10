@@ -272,4 +272,38 @@ public class ItProjectYearTypeTests
 
         Assert.Equal(id, Assert.Single(board.Rows).Id);
     }
+
+    [Fact]
+    public async Task SaveYear_ATypeChosenByHand_StaysWhenTheAutomaticTypeLaterChanges()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync(fy: 2025);
+
+        // CF is today's automatic type for 2026-27; choosing it by hand pins it.
+        var pinned = await db.Commands().SaveYearAsync(id, 2026, Year(ItProjectYearType.CarriedForward), rowVersion, ItProjectTestDb.Actor());
+        Assert.True(pinned.Succeeded, string.Join("; ", pinned.Errors));
+
+        // An SO dated before 2026-27 began would make the automatic type CL.
+        var so = await db.Commands().SaveStagesAsync(id, Input(S("SO", true, D(2026, 2, 1))), await db.RowVersionAsync(id), ItProjectTestDb.Actor());
+        Assert.True(so.Result.Succeeded, string.Join("; ", so.Result.Errors));
+
+        var reads = db.Reads();
+        var year = reads.GetYearTypes((await reads.GetAsync(id))!).Single(type => type.FinancialYearStart == 2026);
+        Assert.Equal(ItProjectYearType.CarriedForward, year.Type);
+        Assert.True(year.IsManual);
+        Assert.Equal(ItProjectYearType.CommittedLiability, year.AutomaticType);
+
+        // "Automatic" lets it follow the rule again.
+        Assert.True((await db.Commands().SaveYearAsync(id, 2026, Year(null), await db.RowVersionAsync(id), ItProjectTestDb.Actor())).Succeeded);
+        var back = reads.GetYearTypes((await db.Reads().GetAsync(id))!).Single(type => type.FinancialYearStart == 2026);
+        Assert.Equal(ItProjectYearType.CommittedLiability, back.Type);
+        Assert.False(back.IsManual);
+    }
+
+    [Fact]
+    public void ToIstDate_IsTheIndianCalendarDay()
+    {
+        Assert.Equal(D(2026, 11, 8), ItProjectYearTypes.ToIstDate(new DateTime(2026, 11, 7, 18, 30, 0, DateTimeKind.Utc)));
+        Assert.Equal(D(2026, 11, 7), ItProjectYearTypes.ToIstDate(new DateTime(2026, 11, 7, 18, 29, 0, DateTimeKind.Unspecified)));
+    }
 }
