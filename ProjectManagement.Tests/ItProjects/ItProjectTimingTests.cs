@@ -234,6 +234,7 @@ public class ItProjectTimingTests
 
         Assert.Equal(62.00m, figures.OnOrderLakhs);
         Assert.Equal(1, figures.OnOrderCount);
+        Assert.Equal(0, figures.OnOrderWithoutValue);
 
         Assert.Equal(1, figures.DeliveredInFinancialYear);
         Assert.Equal(D(2026, 7, 1), figures.LastDeliveredOn);

@@ -194,7 +194,8 @@ public sealed class ItProjectReadService : IItProjectReadService
             ActiveNew: typed.Count(row => row.YearType!.Type == ItProjectYearType.New),
             ActiveCommittedLiability: typed.Count(row => row.YearType!.Type == ItProjectYearType.CommittedLiability),
             ActiveCarriedForward: typed.Count(row => row.YearType!.Type == ItProjectYearType.CarriedForward),
-            NotStartedCount: active.Count(row => row.Status.Kind == ItProjectStatusKind.NotStarted));
+            NotStartedCount: active.Count(row => row.Status.Kind == ItProjectStatusKind.NotStarted),
+            OnOrderWithoutValue: onOrder.Count(cell => cell!.CostLakhs is null));
     }
 
     private static ItProjectBoardRow ToRow(ItProject project, DateOnly today, ItProjectYearTypeInfo? yearType)

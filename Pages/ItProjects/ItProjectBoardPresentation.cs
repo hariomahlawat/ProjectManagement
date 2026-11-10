@@ -137,7 +137,7 @@ public static class ItProjectBoardPresentation
     }
 
     /// <summary>A case card in the "Where the cases are now" pipeline.</summary>
-    public sealed record PipelineCase(int Id, string Title, string TimeText, string? TimeTitle, string Tone, string? SoCost);
+    public sealed record PipelineCase(int Id, string Title, string? TimeText, string? TimeTitle, string Tone, string? SoCost);
 
     /// <summary>One stage column of the pipeline: the live cases at that stage, longest wait first.</summary>
     public sealed record PipelineColumn(
@@ -222,49 +222,81 @@ public static class ItProjectBoardPresentation
 
     private static string Days(int days) => days == 1 ? "1 d" : $"{days} d";
 
+    /// <summary>
+    /// A card carries a time only when it means something: days from a stage date, or "added"
+    /// for a case not started. A recorded move is left to the register's Now column, because
+    /// cases entered together all show the same day (production, 10 Nov 2026).
+    /// </summary>
     private static PipelineCase ToPipelineCase(ItProjectBoardRow row)
     {
-        var (text, title, tone) = TimeText(row.Timing);
+        var (text, title, tone) = row.Timing.Basis is ItProjectTimeBasis.StageDate or ItProjectTimeBasis.SinceAdded
+            ? TimeText(row.Timing)
+            : (null, null, "calm");
         var so = row.Status.CurrentStageCode == ItProjectStages.Delivery
             ? row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.So && cell.IsCompleted)?.CostLakhs
             : null;
         return new PipelineCase(row.Id, row.Title, text, title, tone, so is { } cost ? Cost(cost) : null);
     }
 
-    /// <summary>A lakh figure for a summary tile: "₹148.40".</summary>
-    public static string Lakhs(decimal lakhs) => $"₹{lakhs.ToString("#,##0.00", Culture)}";
+    /// <summary>A year-type chip of the summary line: "6 New", with its tooltip.</summary>
+    public sealed record SummaryType(string Code, int Count, string Title);
 
-    /// <summary>The second line of the In progress tile.</summary>
-    public static string InProgressNote(ItProjectBoardFigures figures)
+    /// <summary>The New / CL / CF of the cases still running in the board's year; types with none are left out.</summary>
+    public static IReadOnlyList<SummaryType> SummaryTypes(ItProjectBoardFigures figures)
     {
-        var parts = new List<string>();
-        if (figures.NotStartedCount > 0)
-        {
-            parts.Add($"{figures.NotStartedCount} not started yet");
-        }
-
-        if (figures.DatesMissingCount > 0)
-        {
-            parts.Add(figures.DatesMissingCount == 1 ? "1 missing a stage date" : $"{figures.DatesMissingCount} missing a stage date");
-        }
-
-        return parts.Count == 0 ? "All have their stage dates" : string.Join(" · ", parts);
+        var year = FinancialYearHelper.Format(figures.FinancialYearStart);
+        return new[]
+            {
+                new SummaryType("New", figures.ActiveNew, $"New in FY {year}"),
+                new SummaryType("CL", figures.ActiveCommittedLiability, $"Committed liability: SO placed, carried into FY {year}"),
+                new SummaryType("CF", figures.ActiveCarriedForward, $"Carried forward without an SO into FY {year}")
+            }
+            .Where(type => type.Count > 0)
+            .ToList();
     }
 
-    /// <summary>The note after "Waiting longest" when some cases have no stage date to count from.</summary>
-    public static string LeftOutNote(int casesWithoutStageDate) => casesWithoutStageDate switch
+    /// <summary>
+    /// The supply orders awaiting delivery, with their value only where it was entered:
+    /// "1 supply order awaiting delivery, value not entered". Null when there is none.
+    /// </summary>
+    public static string? OnOrderText(ItProjectBoardFigures figures)
     {
-        0 => string.Empty,
-        1 => " · 1 case without a stage date left out",
-        _ => $" · {casesWithoutStageDate} cases without stage dates left out"
-    };
+        var count = figures.OnOrderCount;
+        if (count == 0)
+        {
+            return null;
+        }
 
-    /// <summary>The second line of the Delivered tile: deliveries in the board's year and the last delivery.</summary>
-    public static string DeliveredNote(ItProjectBoardFigures figures)
+        var orders = count == 1 ? "1 supply order awaiting delivery" : $"{count} supply orders awaiting delivery";
+        var without = Math.Clamp(figures.OnOrderWithoutValue, 0, count);
+        if (without == count)
+        {
+            return count == 1 ? $"{orders}, value not entered" : $"{orders}, values not entered";
+        }
+
+        var value = Cost(figures.OnOrderLakhs);
+        return without == 0 ? $"{orders}, {value}" : $"{orders}, {value} ({without} without a value)";
+    }
+
+    /// <summary>Which entries of the key the register needs: only the marks it actually draws.</summary>
+    public sealed record BoardKey(bool Done, bool DoneNoDate, bool Current, bool NotYet, bool Skipped, bool StageDays, bool Recorded)
     {
-        var year = $"FY {FinancialYearHelper.Format(figures.FinancialYearStart)}";
-        var inYear = figures.DeliveredInFinancialYear == 0 ? $"none yet in {year}" : $"{figures.DeliveredInFinancialYear} in {year}";
-        return figures.LastDeliveredOn is { } last ? $"{inYear} · last on {last.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}" : inYear;
+        public bool Any => Done || DoneNoDate || Current || NotYet || Skipped || StageDays || Recorded;
+    }
+
+    public static BoardKey Key(IEnumerable<ItProjectBoardRow> rows)
+    {
+        var list = rows.ToList();
+        var states = list.SelectMany(Track).Select(stop => stop.State).ToHashSet(StringComparer.Ordinal);
+        var live = list.Where(row => row.Status.Kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress).ToList();
+        return new BoardKey(
+            Done: states.Contains("done"),
+            DoneNoDate: states.Contains("nodate"),
+            Current: states.Contains("cur"),
+            NotYet: states.Contains("pend"),
+            Skipped: states.Contains("skip"),
+            StageDays: live.Any(row => row.Timing.Basis == ItProjectTimeBasis.StageDate),
+            Recorded: live.Any(row => row.Timing.Basis == ItProjectTimeBasis.RecordedMove));
     }
 
     /// <summary>The status line of the project page: "In progress · COB", "Delivered", "Dropped".</summary>
