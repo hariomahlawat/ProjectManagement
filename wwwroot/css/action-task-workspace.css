@@ -78,7 +78,6 @@
 }
 .at-task-workspace-meta > span:not(.at-badge):not(.at-date-warning) { display: inline-flex; align-items: center; gap: .28rem; }
 .at-task-workspace-header .at-task-action-bar { margin-top: .5rem; padding-top: .48rem; border-top: 1px solid #e6ebf2; }
-.at-task-workspace-action-tray { margin-top: .5rem; }
 
 .at-task-workspace-grid {
     display: grid;
