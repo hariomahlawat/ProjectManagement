@@ -46,7 +46,8 @@ how long?**
 3. **Register**: one row per case with a **track** (a line with the stage dots on it, filled to
    the current stage, which pulses) and a **Now** column ("At COB", the time figure from the
    rule below, SO value). A completed stage without a date shows a hollow tick. Dates appear on row hover. Delivered cases show "Delivered 30 Jun 25 ·
-   356 days end to end". Status, sort (Stage order / Longest wait), FY and search sit in one bar;
+   356 days end to end". When the early stages have no date the figure runs from the first dated
+   stage and says so ("132 days from SO"), because it is then shorter than the case took. Status, sort (Stage order / Longest wait), FY and search sit in one bar;
    FY becomes a segmented control in the header.
 4. **Project page**: a hero card (reference, FY and status chips, title, description, actions)
    with **one status line**: where the case is and for how long ("At Delivery and ATP for 332 days ·
@@ -111,9 +112,14 @@ type for that year changes.
   year holds its own number, entered by the ITO, HoD or Admin when that year's IT ARPPP is made
   ("number not entered" until then). Search finds a case by any year's number.
 - **Change by hand**: the same people can set the type of one case for one year (New, CL or CF),
-  or go back to the automatic type. Both are stored in `ItProjectFinancialYear` (one row per case
+  or go back to the automatic type. A type chosen by hand for a later year is kept even when it is
+  the automatic type at the time, so it does not change when the automatic type later does; only
+  "Automatic" follows the rule. In the case's own year (always New automatically) only a different
+  type is stored. Both are stored in `ItProjectFinancialYear` (one row per case
   and later year: reference number, optional type), audited as `ItProjects.YearChanged`. The first
-  year's number is changed with Edit.
+  year's number is changed with Edit. When Edit moves the project's own year to or past a later
+  year's row, that row is removed (it would otherwise become a type set by hand on the own year);
+  the `ItProjects.Updated` audit entry lists what it held under `RemovedYears`. An edit that keeps the year leaves every row alone.
 - The board's **financial year filter** shows every case live in that year, each with its type
   chip, and the figure tiles split by type ("8 in progress · 3 New · 2 CL · 3 CF").
 

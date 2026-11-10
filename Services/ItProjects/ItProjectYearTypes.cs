@@ -56,6 +56,13 @@ public static class ItProjectYearTypes
     /// <summary>Today's date in India. The module's dates (stages, remarks, Dropped) are IST calendar dates.</summary>
     public static DateOnly TodayIst(DateTimeOffset utcNow) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utcNow, Ist).DateTime);
 
+    /// <summary>
+    /// The India calendar day of a stored UTC time. The module's one conversion: the board, the
+    /// project page, the workspace views and the timing figures all go through it.
+    /// </summary>
+    public static DateOnly ToIstDate(DateTime utc)
+        => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Ist));
+
     /// <summary>The financial year that is running now in India.</summary>
     public static int CurrentFinancialYear(DateTimeOffset utcNow) => FinancialYearHelper.GetStartYear(TodayIst(utcNow));
 

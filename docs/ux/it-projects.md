@@ -83,10 +83,14 @@ the R&D workflow metadata.
 | Completed | Delivery and ATP complete |
 | Dropped | `DroppedOn` set; wins over the others and keeps the stage flags as they were |
 
+A dropped project's stages are frozen: the stage editor is not offered and the command refuses a
+stage save until the project is reinstated, so a dropped case cannot become Completed (which
+could not itself be dropped). The dropped date cannot be later than today (India time).
+
 ## Data model (`Models/ItProjects`)
 
 - `ItProject`: `Id`, `Title` (200), `PppReferenceNumber` (100), `FinancialYearStart` (int,
-  indexed), `Description` (text), `CreatedByUserId`, `CreatedAtUtc`, `UpdatedByUserId`, `UpdatedAtUtc`, `DroppedOn` (date?),
+  indexed), `Description` (text; a save accepts up to 8000 characters, and an older longer description while it is left unchanged), `CreatedByUserId`, `CreatedAtUtc`, `UpdatedByUserId`, `UpdatedAtUtc`, `DroppedOn` (date?),
   `DroppedReason` (500?), `DroppedByUserId`, `IsDeleted`, `DeletedAtUtc`, `DeletedByUserId`,
   `RowVersion`, `StageMovedAtUtc` (added by the redesign, PR 1).
 - `ItProjectStage`: `Id`, `ItProjectId`, `StageCode` (8), `SortOrder`, `IsCompleted`,
@@ -165,7 +169,7 @@ editor, so stages reached so far can be entered at once.
 | Access governance | `AdminRoleAccessCatalog` entries for Manage and Remark |
 | Usage | `ErpUsageModuleCatalog` module for `/ItProjects` |
 | Audit | `ItProjects.Created/Updated/StagesChanged/Dropped/Reinstated/Deleted`, `ItProjects.RemarkAdded/Edited/Deleted`, `ItProjects.AttachmentUploaded/Deleted`; rows in `AuditActionPresentationCatalog` |
-| Storage | `{upload root}/it-projects/{projectId}/{guid}{ext}` (`FileSystemItProjectAttachmentStorage`); `IFileSecurityValidator` on every key and stored file, `IFileScanner` on every upload; downloads go through the project page's `Attachment` handler (View policy, resolved by project and attachment id), not a token URL. Allowed: PDF, Word, Excel, PowerPoint, within `ProjectDocuments:MaxSizeMb`; the bytes are checked against the declared type. Soft delete keeps the file |
+| Storage | `{upload root}/it-projects/{projectId}/{guid}{ext}` (`FileSystemItProjectAttachmentStorage`); `IFileSecurityValidator` on every key and stored file, `IFileScanner` on every upload; downloads go through the project page's `Attachment` handler (View policy, resolved by project and attachment id), not a token URL. Allowed: PDF, Word, Excel, PowerPoint, within `ProjectDocuments:MaxSizeMb`; the bytes are checked against the declared type. When the browser sends a generic type (`application/octet-stream`, `application/zip` and the like, common where Office is not installed) the extension names the type and the same content check applies; the resolved type is what is stored. An upload is buffered in a temporary file (deleted on close), not in memory. Soft delete keeps the file |
 | Migration | hand-written (`tools/Add-PrismMigration.ps1` for the id), manifest line, tail test in `AdminDataJobTidyUpTests` |
 | Styles | `wwwroot/css/pages/it-projects.css`, tokens only (theme coverage check) |
 | Script | `wwwroot/js/pages/it-projects.js` (board filter and search, stage editor confirm text) |

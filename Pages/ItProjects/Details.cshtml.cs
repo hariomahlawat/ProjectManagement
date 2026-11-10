@@ -284,7 +284,7 @@ public class DetailsModel : PageModel
             ModelState.AddModelError($"{nameof(Details)}.{nameof(Details.FinancialYearStart)}", "Choose the financial year.");
         }
 
-        FinancialYearOptions = CreateModel.BuildFinancialYearOptions(yearIsValid ? Details.FinancialYearStart!.Value : Project.FinancialYearStart);
+        FinancialYearOptions = CreateModel.BuildFinancialYearOptions(yearIsValid ? Details.FinancialYearStart!.Value : Project.FinancialYearStart, CurrentFinancialYearStart());
         if (!IsSectionValid(nameof(Details)))
         {
             // Keep what was typed in the edit drawer, but give every other form its row version.
@@ -328,6 +328,13 @@ public class DetailsModel : PageModel
             return Forbid();
         }
 
+        if (IsDropped)
+        {
+            // The stage drawer is not drawn for a dropped case, so say it here.
+            TempData.ToastError(ItProjectCommandService.DroppedStagesMessage);
+            return RedirectToPage(new { id });
+        }
+
         ReopenPending = string.IsNullOrWhiteSpace(reopen) ? null : reopen.Trim();
         if (!IsSectionValid(nameof(Stages)))
         {
@@ -366,6 +373,11 @@ public class DetailsModel : PageModel
         if (!CanManage)
         {
             return Forbid();
+        }
+
+        if (IsDropped)
+        {
+            return new JsonResult(new { valid = false, errors = new[] { ItProjectCommandService.DroppedStagesMessage } });
         }
 
         if (!IsSectionValid(nameof(Stages)))
@@ -718,6 +730,15 @@ public class DetailsModel : PageModel
 
     public bool IsDropped => Project.DroppedOn.HasValue;
 
+    /// <summary>Today in India: the latest date the drop date picker offers (the command checks it too).</summary>
+    public string DropDateMax => ItProjectYearTypes.TodayIst(_clock.UtcNow).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>The day the project was added, in India (the stored time is UTC).</summary>
+    public DateOnly AddedOn => ItProjectYearTypes.ToIstDate(Project.CreatedAtUtc);
+
+    /// <summary>The day of the last change, in India.</summary>
+    public DateOnly LastChangedOn => ItProjectYearTypes.ToIstDate(Project.UpdatedAtUtc);
+
     public bool IsCompleted => Status.Kind == ItProjectStatusKind.Completed;
 
     private async Task<bool> LoadAsync(int id, CancellationToken cancellationToken)
@@ -768,7 +789,8 @@ public class DetailsModel : PageModel
     private void FillInputsFromProject(bool keepDrop = false)
     {
         FinancialYearOptions = CreateModel.BuildFinancialYearOptions(
-            CreateModel.IsSupportedFinancialYear(Project.FinancialYearStart) ? Project.FinancialYearStart : CurrentFinancialYearStart());
+            CreateModel.IsSupportedFinancialYear(Project.FinancialYearStart) ? Project.FinancialYearStart : CurrentFinancialYearStart(),
+            CurrentFinancialYearStart());
         Details = new DetailsInput
         {
             Title = Project.Title,

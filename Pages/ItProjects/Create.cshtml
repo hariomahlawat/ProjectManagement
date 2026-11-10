@@ -44,7 +44,7 @@
 
         <div class="itp-form__field">
             <label asp-for="Input.Description" class="form-label"></label>
-            <textarea asp-for="Input.Description" class="form-control" rows="6" placeholder="What is being procured, for whom, and what it covers."></textarea>
+            <textarea asp-for="Input.Description" class="form-control" rows="6" maxlength="@ProjectManagement.Services.ItProjects.ItProjectCommandService.DescriptionMaxLength" placeholder="What is being procured, for whom, and what it covers."></textarea>
             <span asp-validation-for="Input.Description" class="text-danger"></span>
         </div>
 

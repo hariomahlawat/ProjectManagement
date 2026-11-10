@@ -24,6 +24,14 @@ public sealed class ItProjectCommandService : IItProjectCommandService
     public const int ReferenceMaxLength = 100;
     public const int DroppedReasonMaxLength = 500;
 
+    /// <summary>
+    /// The longest description a save accepts. The column is unbounded text, so an older, longer
+    /// description is still accepted while it is left unchanged.
+    /// </summary>
+    public const int DescriptionMaxLength = 8000;
+    public const string DroppedStagesMessage = "This IT project is dropped. Reinstate it before changing its stages.";
+    public const string DroppedInFutureMessage = "The dropped date cannot be later than today.";
+
     private readonly ApplicationDbContext _db;
     private readonly IAuditService _audit;
     private readonly IClock _clock;
@@ -40,7 +48,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         ArgumentNullException.ThrowIfNull(input);
         EnsureActor(actor);
 
-        var errors = ValidateDetails(input);
+        var errors = ValidateDetails(input, currentDescription: null);
         if (errors.Count > 0)
         {
             return (ItProjectCommandResult.Fail(errors), 0);
@@ -80,16 +88,16 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         ArgumentNullException.ThrowIfNull(input);
         EnsureActor(actor);
 
-        var errors = ValidateDetails(input);
-        if (errors.Count > 0)
-        {
-            return ItProjectCommandResult.Fail(errors);
-        }
-
         var project = await LoadForWriteAsync(id, cancellationToken);
         if (project is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
+        }
+
+        var errors = ValidateDetails(input, project.Description);
+        if (errors.Count > 0)
+        {
+            return ItProjectCommandResult.Fail(errors);
         }
 
         var before = new Dictionary<string, string?>
@@ -99,12 +107,28 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             ["FinancialYear"] = FinancialYearHelper.Format(project.FinancialYearStart)
         };
 
+        var previousYearStart = project.FinancialYearStart;
         project.Title = input.Title.Trim();
         project.PppReferenceNumber = input.PppReferenceNumber.Trim();
         project.FinancialYearStart = input.FinancialYearStart;
         project.Description = input.Description.Trim();
 
-        return await CommitAsync(project, rowVersion, actor, "ItProjects.Updated", new Dictionary<string, string?>
+        // A later year's row (its IT ARPPP number and any type set by hand) describes a year the
+        // project was carried into. When the project's own year moves to or past it, that row
+        // would turn into a type set by hand on the project's own year, so it goes; the audit
+        // entry keeps what it held. Only a change of year does this: a type set by hand on the
+        // own year, kept so it can be put back to automatic, is left alone by other edits.
+        var superseded = project.FinancialYears
+            .Where(year => project.FinancialYearStart != previousYearStart && year.FinancialYearStart <= project.FinancialYearStart)
+            .OrderBy(year => year.FinancialYearStart)
+            .ToList();
+        foreach (var year in superseded)
+        {
+            project.FinancialYears.Remove(year);
+            _db.ItProjectFinancialYears.Remove(year);
+        }
+
+        var data = new Dictionary<string, string?>
         {
             ["BeforeTitle"] = before["Title"],
             ["BeforePppReferenceNumber"] = before["PppReferenceNumber"],
@@ -112,7 +136,16 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             ["Title"] = project.Title,
             ["PppReferenceNumber"] = project.PppReferenceNumber,
             ["FinancialYear"] = FinancialYearHelper.Format(project.FinancialYearStart)
-        }, cancellationToken);
+        };
+        if (superseded.Count > 0)
+        {
+            data["RemovedYears"] = string.Join("; ", superseded.Select(year =>
+                $"{FinancialYearHelper.Format(year.FinancialYearStart)}: " +
+                $"{year.PppReferenceNumber ?? "no number"}, " +
+                $"{(year.TypeOverride is { } type ? ItProjectYearTypes.Code(type) + " set by hand" : "automatic type")}"));
+        }
+
+        return await CommitAsync(project, rowVersion, actor, "ItProjects.Updated", data, cancellationToken);
     }
 
     public async Task<ItProjectStageSaveResult> SaveStagesAsync(int id, IReadOnlyCollection<ItProjectStageInput> stages, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
@@ -130,6 +163,13 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         if (project is null)
         {
             return new ItProjectStageSaveResult(ItProjectCommandResult.Fail(NotFoundMessage), Array.Empty<string>(), Array.Empty<string>());
+        }
+
+        if (project.DroppedOn.HasValue)
+        {
+            // A dropped case has no stage to move to; completing it here would also get round the
+            // rule that a completed case cannot be dropped.
+            return new ItProjectStageSaveResult(ItProjectCommandResult.Fail(DroppedStagesMessage), Array.Empty<string>(), Array.Empty<string>());
         }
 
         var (autoCompleted, reopened) = ItProjectStageRules.Diff(project.Stages, rules.Stages);
@@ -187,6 +227,11 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         if (trimmed.Length > DroppedReasonMaxLength)
         {
             return ItProjectCommandResult.Fail($"The reason must be {DroppedReasonMaxLength} characters or fewer.");
+        }
+
+        if (droppedOn > ItProjectYearTypes.TodayIst(_clock.UtcNow))
+        {
+            return ItProjectCommandResult.Fail(DroppedInFutureMessage);
         }
 
         var project = await LoadForWriteAsync(id, cancellationToken);
@@ -275,9 +320,12 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             return ItProjectCommandResult.Fail("The first year's IT ARPPP reference number is changed with Edit.");
         }
 
-        // Only later years store a number; choosing the automatic type stores no type.
+        // Only later years store a number. In a later year a type chosen by hand is kept even when
+        // it is today's automatic type, so it stays put when the automatic type later changes (an
+        // SO dated before the year began turns CF into CL); "Automatic" (null) stores none. The
+        // own year is always New automatically, so there only a different type is stored.
         var storedReference = before.IsOwnYear ? null : reference;
-        var manual = input.Type is { } chosen && chosen != before.AutomaticType ? chosen : (ItProjectYearType?)null;
+        var manual = input.Type is { } chosen && (!before.IsOwnYear || chosen != before.AutomaticType) ? chosen : (ItProjectYearType?)null;
         var row = ItProjectYearTypes.YearRow(project, financialYearStart);
 
         if (row?.TypeOverride == manual && row?.PppReferenceNumber == storedReference)
@@ -337,7 +385,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
 
     // ---- helpers ---------------------------------------------------------------------------
 
-    private static List<string> ValidateDetails(ItProjectDetailsInput input)
+    private static List<string> ValidateDetails(ItProjectDetailsInput input, string? currentDescription)
     {
         var errors = new List<string>();
         var title = input.Title?.Trim() ?? string.Empty;
@@ -365,6 +413,11 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         if (description.Length == 0)
         {
             errors.Add("Give the project a description.");
+        }
+        else if (description.Length > DescriptionMaxLength &&
+                 !string.Equals(description, currentDescription?.Trim(), StringComparison.Ordinal))
+        {
+            errors.Add($"The description must be {DescriptionMaxLength} characters or fewer.");
         }
 
         if (input.FinancialYearStart is < FinancialYearHelper.MinimumSupportedStartYear or > FinancialYearHelper.MaximumSupportedStartYear)

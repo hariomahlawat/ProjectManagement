@@ -44,6 +44,20 @@ public sealed class ItProjectAttachmentValidator
         [Pptx] = new[] { ".pptx" }
     };
 
+    // Types a browser sends when it does not know the file (no Office installed, an unusual
+    // registry, a drag from a zip). For these the extension decides, and the content check below
+    // still has to agree, so nothing is let through on the name alone.
+    private static readonly HashSet<string> GenericContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "",
+        "application/octet-stream",
+        "application/zip",
+        "application/x-zip-compressed",
+        "application/x-pdf",
+        "application/vnd.ms-office",
+        "binary/octet-stream"
+    };
+
     private readonly long _maxSizeBytes;
 
     public ItProjectAttachmentValidator(IOptions<ProjectDocumentOptions> options)
@@ -56,6 +70,39 @@ public sealed class ItProjectAttachmentValidator
 
     /// <summary>The accept list for the file input, so the browser offers the same types the server allows.</summary>
     public static string AcceptList => string.Join(",", AllowedExtensionsByType.Values.SelectMany(ext => ext).OrderBy(ext => ext, StringComparer.Ordinal));
+
+    /// <summary>
+    /// The content type to check and store: an allowed declared type as is (in its canonical
+    /// spelling), or, when the browser sent a generic one, the type the extension names. Any other
+    /// declared type is returned unchanged so <see cref="Validate"/> rejects it.
+    /// </summary>
+    public static string ResolveContentType(string? fileName, string? declaredContentType)
+    {
+        var declared = (declaredContentType ?? string.Empty).Split(';')[0].Trim();
+        foreach (var allowed in AllowedExtensionsByType.Keys)
+        {
+            if (string.Equals(allowed, declared, StringComparison.OrdinalIgnoreCase))
+            {
+                return allowed;
+            }
+        }
+
+        if (!GenericContentTypes.Contains(declared))
+        {
+            return declared;
+        }
+
+        var ext = Path.GetExtension(fileName ?? string.Empty).ToLowerInvariant();
+        foreach (var (type, extensions) in AllowedExtensionsByType)
+        {
+            if (Array.IndexOf(extensions, ext) >= 0)
+            {
+                return type;
+            }
+        }
+
+        return declared;
+    }
 
     /// <summary>Name, declared type and size. Empty when acceptable.</summary>
     public IReadOnlyList<string> Validate(string? fileName, string? contentType, long length)

@@ -12,8 +12,6 @@ namespace ProjectManagement.Services.ItProjects;
 
 public sealed class ItProjectReadService : IItProjectReadService
 {
-    private static readonly TimeZoneInfo Ist = TimeZoneHelper.GetIst();
-
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
 
@@ -103,7 +101,7 @@ public sealed class ItProjectReadService : IItProjectReadService
             .Include(project => project.FinancialYears)
             .FirstOrDefaultAsync(project => project.Id == id && !project.IsDeleted, cancellationToken);
 
-    public ItProjectTiming GetTiming(ItProject project) => ItProjectTiming.Resolve(project, Today(), ToLocalDate);
+    public ItProjectTiming GetTiming(ItProject project) => ItProjectTiming.Resolve(project, Today(), ItProjectYearTypes.ToIstDate);
 
     public IReadOnlyList<ItProjectYearTypeInfo> GetYearTypes(ItProject project)
         => ItProjectYearTypes.ResolveAll(project, ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow));
@@ -139,10 +137,8 @@ public sealed class ItProjectReadService : IItProjectReadService
         _ => 3
     };
 
-    private DateOnly Today() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, Ist).DateTime);
+    private DateOnly Today() => ItProjectYearTypes.TodayIst(_clock.UtcNow);
 
-    private static DateOnly ToLocalDate(DateTime utc)
-        => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Ist));
 
     /// <summary>Title, the first IT ARPPP number or any later year's number, ignoring case.</summary>
     private static bool Matches(ItProject project, string search)
@@ -223,7 +219,7 @@ public sealed class ItProjectReadService : IItProjectReadService
             project.DroppedReason,
             project.UpdatedAtUtc,
             cells,
-            ItProjectTiming.Resolve(project, today, ToLocalDate),
+            ItProjectTiming.Resolve(project, today, ItProjectYearTypes.ToIstDate),
             yearType,
             project.FinancialYears
                 .Where(year => !string.IsNullOrWhiteSpace(year.PppReferenceNumber))
