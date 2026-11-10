@@ -5,7 +5,6 @@
     --itp-done: var(--pm-success);
     --itp-done-ink: var(--pm-text-inverted);
     --itp-cur: var(--pm-primary);
-    --itp-cur-ring: var(--pm-primary-soft);
     --itp-pend: var(--pm-border-strong);
     --itp-skip: var(--pm-surface-muted);
     --itp-skip-ink: var(--pm-text-muted);
@@ -192,10 +191,6 @@
     transform: translateX(12px);
 }
 
-@keyframes itp-pulse {
-    0%, 100% { box-shadow: 0 0 0 4px var(--itp-cur-ring); }
-    50% { box-shadow: 0 0 0 7px var(--itp-cur-ring); }
-}
 .itp-no-match {
     margin: 0;
     padding: 1.25rem 1rem;
@@ -1574,13 +1569,23 @@
     height: 1.75rem;
 }
 
+/* The register track is the project page's Journey at about 80%: big circles, thin lines, and a
+   ring in the row colour around each circle so the line stops just short of it (owner, 10 Nov 2026). */
+.itp-track {
+    --itp-halo: var(--pm-card);
+}
+
+.itp-reg__row:hover .itp-track {
+    --itp-halo: var(--pm-surface-subtle);
+}
+
 .itp-track__s::before,
 .itp-track__s::after {
     content: "";
     position: absolute;
     top: 50%;
-    height: 3px;
-    margin-top: -1.5px;
+    height: 2px;
+    margin-top: -1px;
     width: 50%;
     background: var(--pm-border-strong);
 }
@@ -1600,9 +1605,22 @@
 
 .itp-track__s--in::before,
 .itp-track__s--out::after {
-    height: 5px;
-    margin-top: -2.5px;
+    height: 3px;
+    margin-top: -1.5px;
     background: var(--pm-success);
+}
+
+/* into the current stage the line turns to the stage's colour, as on the Journey */
+.itp-track__s--cur.itp-track__s--in::before {
+    background: linear-gradient(90deg, var(--pm-success), var(--pm-primary));
+}
+
+.itp-track__s--cur.itp-track__s--warn.itp-track__s--in::before {
+    background: linear-gradient(90deg, var(--pm-success), var(--pm-warning));
+}
+
+.itp-track__s--cur.itp-track__s--late.itp-track__s--in::before {
+    background: linear-gradient(90deg, var(--pm-success), var(--pm-danger));
 }
 
 .itp-track__s i {
@@ -1610,11 +1628,12 @@
     z-index: 1;
     display: block;
     box-sizing: border-box;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    border: 2.5px solid var(--pm-border-strong);
+    border: 2px solid var(--pm-border-strong);
     background: var(--pm-card);
+    box-shadow: 0 0 0 3px var(--itp-halo);
 }
 
 .itp-track__s--done i {
@@ -1628,10 +1647,10 @@
     position: absolute;
     left: 50%;
     top: 45%;
-    width: 5px;
-    height: 9px;
+    width: 6px;
+    height: 10px;
     border: solid var(--pm-card);
-    border-width: 0 2.5px 2.5px 0;
+    border-width: 0 2.25px 2.25px 0;
     transform: translate(-50%, -50%) rotate(45deg);
 }
 
@@ -1643,40 +1662,42 @@
     border-color: var(--pm-success);
 }
 
+/* skipped: a small dashed ring, as on the Journey */
 .itp-track__s--skip i {
-    width: 8px;
-    height: 8px;
-    border: 0;
-    background: var(--pm-border-strong);
+    width: 11px;
+    height: 11px;
+    border-style: dashed;
 }
 
+/* current: the stage colour with a white centre and a soft halo */
 .itp-track__s--cur i {
-    width: 24px;
-    height: 24px;
-    border: 4px solid var(--pm-card);
+    border-color: var(--pm-primary);
     background: var(--pm-primary);
-    box-shadow: 0 0 0 2px var(--pm-primary), 0 0 0 6px var(--pm-primary-soft);
-    animation: itp-pulse 2.4s ease-in-out infinite;
+    box-shadow: 0 0 0 3px var(--itp-halo), 0 0 0 6px var(--pm-primary-soft);
+}
+
+.itp-track__s--cur i::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--pm-card);
+    transform: translate(-50%, -50%);
 }
 
 .itp-track__s--cur.itp-track__s--warn i {
+    border-color: var(--pm-warning);
     background: var(--pm-warning);
-    box-shadow: 0 0 0 2px var(--pm-warning), 0 0 0 6px var(--pm-warning-soft-bg);
+    box-shadow: 0 0 0 3px var(--itp-halo), 0 0 0 6px var(--pm-warning-soft-bg);
 }
 
 .itp-track__s--cur.itp-track__s--late i {
+    border-color: var(--pm-danger);
     background: var(--pm-danger);
-    box-shadow: 0 0 0 2px var(--pm-danger), 0 0 0 6px var(--pm-danger-soft-bg);
-}
-
-.itp-track__s--still i {
-    animation: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .itp-track__s--cur i {
-        animation: none;
-    }
+    box-shadow: 0 0 0 3px var(--itp-halo), 0 0 0 6px var(--pm-danger-soft-bg);
 }
 
 .itp-track__s--stop i {
@@ -1689,9 +1710,8 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 11px;
-    height: 2.5px;
-    border-radius: 1px;
+    width: 10px;
+    height: 2px;
     background: var(--pm-text-muted);
     transform: translate(-50%, -50%) rotate(45deg);
 }
@@ -1702,7 +1722,7 @@
 
 .itp-track__s em {
     position: absolute;
-    top: 1.95rem;
+    top: 2.05rem;
     font-style: normal;
     font-size: var(--pm-font-size-xs);
     font-weight: 600;
@@ -1830,6 +1850,10 @@
     display: inline-flex;
     align-items: center;
     gap: .4rem;
+}
+
+.itp-key {
+    --itp-halo: transparent;
 }
 
 .itp-key .itp-track__s {
