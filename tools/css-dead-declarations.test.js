@@ -71,6 +71,11 @@ test('conditions differing only inside quotes are different conditions', () => {
   assert.deepEqual(deadProps('@supports (grid-template-areas: "A A" "a .") { .a { color: red; } } @supports (grid-template-areas: "a a" "a .") { .a { color: blue; } }'), []);
   // Outside quotes, case and spacing do not matter.
   assert.deepEqual(deadProps('@SUPPORTS (DISPLAY:  grid) { .a { color: red; } } @supports (display: grid) { .a { color: blue; } }'), ['.a color']);
+
+  // Spacing around a colon is kept: ": hover" is not a valid selector, so these are different conditions.
+  assert.deepEqual(deadProps('@supports selector(:hover) { .a { color: red; } } @supports selector(: hover) { .a { color: blue; } }'), []);
+  assert.deepEqual(fix('@supports selector(:hover) { .a { color: red; } } @supports selector(: hover) { .a { color: blue; } }').out,
+    '@supports selector(:hover) { .a { color: red; } } @supports selector(: hover) { .a { color: blue; } }');
 });
 
 test('@keyframes steps are not style rules', () => {
