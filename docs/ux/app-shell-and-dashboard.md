@@ -80,6 +80,24 @@ pages, and never as a barber pole:
   the other command views (`wwwroot/css/command-workspace.css`) and Conference review
   (`wwwroot/css/officer-conference.css`).
 
+## Conference review by screen width
+
+Each conference row (the officer's own review and the command Conference review) has three
+columns: the item, the conference direction and the progress after it
+(`wwwroot/css/officer-conference.css`). The grid reads `--oc-grid-columns`, and the breakpoints
+change that variable. Setting `grid-template-columns` in a media query does not work there, because
+the later `.oc-item` rule wins at every width; until 10 Nov 2026 that left the rows three fixed
+columns wide on tablets and phones.
+
+- **1280px and wider:** three columns with minimum widths (260 / 285 / 380px).
+- **Below 1280px:** the three columns shrink in proportion instead of overflowing beside the rail.
+- **1100px and below:** two columns (item, direction), progress on its own row below.
+- **760px and below:** one column; item, direction and progress stack.
+- The header takes two rows at 1260px and below (its three parts need about 1252px).
+
+Checked at 16 widths from 1440px to 390px on both views: no horizontal scroll, and the layout at
+1280px and above is unchanged.
+
 ## My Workspace rail
 
 The rail (`Pages/Workspace/_CommandWorkspaceRail.cshtml`, "Workspace rail" section of

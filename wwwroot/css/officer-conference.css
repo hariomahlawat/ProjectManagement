@@ -1332,7 +1332,8 @@
 .oc-record-health--danger .oc-record-health__track::-webkit-progress-value { background: #bd3449; }
 .oc-record-health--danger .oc-record-health__track::-moz-progress-bar { background: #bd3449; }
 
-@media (max-width: 1240px) {
+/* The header's three columns need about 1252px; below that it takes two rows (was 1240px, which left 1241-1252px overflowing). */
+@media (max-width: 1260px) {
     .oc-header {
         grid-template-columns: minmax(300px, 1fr) auto;
     }
@@ -1690,7 +1691,7 @@
     font-size: .8125rem;
 }
 
-@media (max-width: 1240px) {
+@media (max-width: 1260px) {
     .oc-header {
         grid-template-columns: minmax(300px, 1fr) auto;
     }
@@ -1701,7 +1702,21 @@
     }
 }
 
+/* The row grid reads --oc-grid-columns (set above for wide screens). The narrower layouts
+   earlier in this file (two columns at 1100px, one at 760px) set grid-template-columns, which
+   the .oc-item rule above overrides at every width, so the breakpoints change the variable. */
+@media (max-width: 1279.98px) {
+    /* Below 1280px the three fixed minimums no longer fit beside the rail: let them shrink. */
+    .officer-conference {
+        --oc-grid-columns: minmax(0, 1.05fr) minmax(0, .95fr) minmax(0, 1.5fr);
+    }
+}
+
 @media (max-width: 1100px) {
+    .officer-conference {
+        --oc-grid-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+    }
+
     .oc-column-headings {
         display: none;
     }
@@ -1710,6 +1725,7 @@
 @media (max-width: 760px) {
     .officer-conference {
         --oc-topbar-height: 52px;
+        --oc-grid-columns: minmax(0, 1fr);
     }
 
     .oc-sticky-shell {
