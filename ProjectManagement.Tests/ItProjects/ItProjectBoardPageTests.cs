@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Pages.ItProjects;
@@ -300,4 +301,72 @@ public class ItProjectBoardPageTests
         Assert.Contains(2015, options); // the project's own year, older than the ten offered
         Assert.Equal(options.OrderByDescending(year => year), options);
     }
+
+    [Fact]
+    public async Task Create_AsCarriedOver_CreatesTheCaseAsCLInThisYear()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var page = CreatePage(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        page.OnGet();
+        Assert.Equal(2026, page.CurrentFinancialYear);
+        Assert.Equal("2025-26", page.FirstYearOptions[0].Text);
+        Assert.True(page.FirstYearOptions[0].Selected); // last year by default
+        Assert.DoesNotContain(page.FirstYearOptions, option => option.Value == "2026");
+        Assert.Equal(CreateModel.PastFinancialYearsOffered, page.FirstYearOptions.Count);
+
+        page.Input = new CreateModel.InputModel
+        {
+            Kind = "CL",
+            Title = "Core switches",
+            PppReferenceNumber = "IT ARPPP 04/2026",
+            FinancialYearStart = 2026,
+            FirstFinancialYearStart = 2024,
+            FirstPppReferenceNumber = null,
+            Description = "Twelve switches."
+        };
+        var result = await page.OnPostAsync(CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains("created as CL in FY 2026-27", (string)page.TempData["ToastSuccess"]!);
+        await using var context = db.NewContext();
+        var project = await context.ItProjects.Include(p => p.FinancialYears).SingleAsync();
+        Assert.Equal(2024, project.FinancialYearStart);
+        Assert.Equal(ItProjectCommandService.ReferenceNotRecorded, project.PppReferenceNumber);
+        var year = Assert.Single(project.FinancialYears);
+        Assert.Equal((2026, "IT ARPPP 04/2026", (ItProjectYearType?)ItProjectYearType.CommittedLiability), (year.FinancialYearStart, year.PppReferenceNumber, year.TypeOverride));
+    }
+
+    [Fact]
+    public async Task Create_AsCarriedOver_NeedsAnEarlierFirstYear_AndIgnoresTheNewYearPicker()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var page = CreatePage(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        page.Input = new CreateModel.InputModel
+        {
+            Kind = "CF",
+            Title = "Laptops",
+            PppReferenceNumber = "IT ARPPP 07/2026",
+            FinancialYearStart = null,
+            FirstFinancialYearStart = 2026,
+            Description = "Forty laptops."
+        };
+        page.ModelState.AddModelError("Input.FinancialYearStart", "Choose the financial year.");
+
+        var result = await page.OnPostAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(page.ModelState.ContainsKey("Input.FinancialYearStart"));
+        Assert.Contains(page.ModelState["Input.FirstFinancialYearStart"]!.Errors, error => error.ErrorMessage.Contains("first listed"));
+        await using var context = db.NewContext();
+        Assert.False(await context.ItProjects.AnyAsync());
+    }
+
+    [Theory]
+    [InlineData("CL", ItProjectYearType.CommittedLiability)]
+    [InlineData("cf", ItProjectYearType.CarriedForward)]
+    [InlineData("New", null)]
+    [InlineData("something", null)]
+    [InlineData(null, null)]
+    public void CarriedOverType_ReadsTheKind(string? kind, ItProjectYearType? expected)
+        => Assert.Equal(expected, CreateModel.CarriedOverType(kind));
 }

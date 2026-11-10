@@ -241,7 +241,7 @@ public class ItProjectCommandServiceTests
         var tomorrow = await db.Commands().DropAsync(id, new DateOnly(2026, 11, 9), "Merged", rowVersion, ItProjectTestDb.Actor());
         Assert.False(tomorrow.Succeeded);
         Assert.Contains(ItProjectCommandService.DroppedInFutureMessage, tomorrow.Errors);
-        Assert.Empty(db.Audit.Entries.Where(entry => entry.Action == "ItProjects.Dropped"));
+        Assert.DoesNotContain(db.Audit.Entries, entry => entry.Action == "ItProjects.Dropped");
 
         var today = await db.Commands().DropAsync(id, new DateOnly(2026, 11, 8), "Merged", await db.RowVersionAsync(id), ItProjectTestDb.Actor());
         Assert.True(today.Succeeded, string.Join("; ", today.Errors));
@@ -352,5 +352,75 @@ public class ItProjectCommandServiceTests
 
         var grow = await db.Commands().UpdateDetailsAsync(id, new ItProjectDetailsInput("Renamed", "IT PPP 09/2025", 2025, tooLong + "x"), await db.RowVersionAsync(id), ItProjectTestDb.Actor());
         Assert.False(grow.Succeeded);
+    }
+
+    // ---- carried over (CL / CF at creation) --------------------------------------------------
+
+    [Fact]
+    public async Task CreateCarriedOver_WritesTheFirstYearAndThisYearsNumberAndType()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+
+        // The test clock is in FY 2026-27.
+        var (result, id) = await db.Commands().CreateCarriedOverAsync(
+            new ItProjectCarriedOverInput("Core switches", "Twelve switches.", ItProjectYearType.CommittedLiability, " IT ARPPP 04/2026 ", 2024, " IT ARPPP 11/2024 "),
+            ItProjectTestDb.Actor("ito-1"));
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        var reads = db.Reads();
+        var project = (await reads.GetAsync(id))!;
+        Assert.Equal(2024, project.FinancialYearStart);
+        Assert.Equal("IT ARPPP 11/2024", project.PppReferenceNumber);
+        Assert.Equal(9, project.Stages.Count);
+
+        var years = reads.GetYearTypes(project);
+        Assert.Equal(new[] { 2024, 2025, 2026 }, years.Select(year => year.FinancialYearStart));
+        var now = years.Single(year => year.FinancialYearStart == 2026);
+        Assert.Equal(ItProjectYearType.CommittedLiability, now.Type);
+        Assert.True(now.IsManual); // CL before any SO date is entered
+        Assert.Equal("IT ARPPP 04/2026", now.PppReferenceNumber);
+        Assert.Equal(ItProjectYearType.CarriedForward, years.Single(year => year.FinancialYearStart == 2025).Type);
+
+        var audit = Assert.Single(db.Audit.Entries);
+        Assert.Equal("ItProjects.Created", audit.Action);
+        Assert.Equal("2026-27", audit.Data["CarriedOverInto"]);
+        Assert.Equal("CL", audit.Data["CarriedOverType"]);
+        Assert.Equal("IT ARPPP 04/2026", audit.Data["CarriedOverPppReferenceNumber"]);
+    }
+
+    [Fact]
+    public async Task CreateCarriedOver_WithoutTheFirstNumber_RecordsNotRecorded()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+
+        var (result, id) = await db.Commands().CreateCarriedOverAsync(
+            new ItProjectCarriedOverInput("Laptops", "Forty laptops.", ItProjectYearType.CarriedForward, "IT ARPPP 07/2026", 2025, "  "),
+            ItProjectTestDb.Actor());
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        var project = (await db.Reads().GetAsync(id))!;
+        Assert.Equal(ItProjectCommandService.ReferenceNotRecorded, project.PppReferenceNumber);
+        Assert.Equal(ItProjectYearType.CarriedForward, db.Reads().GetYearTypes(project).Last().Type);
+    }
+
+    [Theory]
+    [InlineData(ItProjectYearType.New, "IT ARPPP 1/2026", 2025, "Choose CL or CF")]
+    [InlineData(ItProjectYearType.CarriedForward, " ", 2025, "Give the IT ARPPP reference number in FY 2026-27.")]
+    [InlineData(ItProjectYearType.CarriedForward, "IT ARPPP 1/2026", 2026, "first listed before FY 2026-27")]
+    [InlineData(ItProjectYearType.CarriedForward, "IT ARPPP 1/2026", 1900, "Choose the financial year.")]
+    public async Task CreateCarriedOver_RejectsWhatACarriedOverCaseCannotBe(ItProjectYearType type, string currentReference, int firstYear, string expected)
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+
+        var (result, id) = await db.Commands().CreateCarriedOverAsync(
+            new ItProjectCarriedOverInput("Laptops", "Forty laptops.", type, currentReference, firstYear, null),
+            ItProjectTestDb.Actor());
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(0, id);
+        Assert.Contains(result.Errors, error => error.Contains(expected));
+        await using var context = db.NewContext();
+        Assert.False(await context.ItProjects.AnyAsync());
+        Assert.Empty(db.Audit.Entries);
     }
 }

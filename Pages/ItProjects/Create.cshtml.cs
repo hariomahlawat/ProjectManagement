@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using ProjectManagement.Configuration;
 using ProjectManagement.Infrastructure.Ui;
+using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Services;
 using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Utilities;
@@ -37,6 +38,16 @@ public class CreateModel : PageModel
 
     public IReadOnlyList<SelectListItem> FinancialYearOptions { get; private set; } = Array.Empty<SelectListItem>();
 
+    /// <summary>The years a carried-over case may have been first listed in: the ten before the current one.</summary>
+    public IReadOnlyList<SelectListItem> FirstYearOptions { get; private set; } = Array.Empty<SelectListItem>();
+
+    /// <summary>The financial year running now (IST), the year a carried-over case is CL or CF in.</summary>
+    public int CurrentFinancialYear { get; private set; }
+
+    public const string KindNew = "New";
+    public const string KindCommittedLiability = "CL";
+    public const string KindCarriedForward = "CF";
+
     public sealed class InputModel
     {
         [Required(ErrorMessage = "Give the project a title.")]
@@ -57,25 +68,69 @@ public class CreateModel : PageModel
         [StringLength(ItProjectCommandService.DescriptionMaxLength, ErrorMessage = "The description must be {1} characters or fewer.")]
         [Display(Name = "Description")]
         public string Description { get; set; } = string.Empty;
+
+        /// <summary>
+        /// New (a case in its own financial year), or CL / CF (already in this year's IT ARPPP,
+        /// carried over from an earlier year). For CL / CF, <see cref="PppReferenceNumber"/> is
+        /// this year's number.
+        /// </summary>
+        public string Kind { get; set; } = KindNew;
+
+        /// <summary>CL / CF only: the year the case was first listed in.</summary>
+        [Display(Name = "First listed in")]
+        public int? FirstFinancialYearStart { get; set; }
+
+        /// <summary>CL / CF only: the first year's IT ARPPP number, if it is known.</summary>
+        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The IT ARPPP reference number must be {1} characters or fewer.")]
+        [Display(Name = "First IT ARPPP reference number")]
+        public string? FirstPppReferenceNumber { get; set; }
     }
+
+    /// <summary>The year type a CL / CF choice stands for, or null for New (or anything unknown).</summary>
+    public static ItProjectYearType? CarriedOverType(string? kind) => (kind ?? string.Empty).Trim().ToUpperInvariant() switch
+    {
+        "CL" => ItProjectYearType.CommittedLiability,
+        "CF" => ItProjectYearType.CarriedForward,
+        _ => null
+    };
+
+    public bool IsCarriedOver => CarriedOverType(Input.Kind) is not null;
 
     public void OnGet()
     {
         Input.FinancialYearStart = CurrentFinancialYearStart();
         FinancialYearOptions = BuildFinancialYearOptions(Input.FinancialYearStart.Value, Input.FinancialYearStart.Value);
+        BuildFirstYearOptions(null);
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
         var current = CurrentFinancialYearStart();
+        var carriedOver = CarriedOverType(Input.Kind);
+        var yearKey = $"{nameof(Input)}.{nameof(Input.FinancialYearStart)}";
         var yearIsValid = Input.FinancialYearStart is { } posted && IsSupportedFinancialYear(posted);
-        if (Input.FinancialYearStart.HasValue && !yearIsValid)
+        if (carriedOver is null && Input.FinancialYearStart.HasValue && !yearIsValid)
         {
-            ModelState.AddModelError($"{nameof(Input)}.{nameof(Input.FinancialYearStart)}", "Choose the financial year.");
+            ModelState.AddModelError(yearKey, "Choose the financial year.");
+        }
+
+        if (carriedOver is not null)
+        {
+            // The New case's year picker is not used for a carried-over case.
+            ModelState.Remove(yearKey);
+            if (Input.FirstFinancialYearStart is not { } first || !IsSupportedFinancialYear(first) || first >= current)
+            {
+                ModelState.AddModelError($"{nameof(Input)}.{nameof(Input.FirstFinancialYearStart)}", "Choose the year the case was first listed in.");
+            }
+        }
+        else
+        {
+            Input.Kind = KindNew;
         }
 
         // The picker must never be built from an unsupported year: the helper that formats it throws.
         FinancialYearOptions = BuildFinancialYearOptions(yearIsValid ? Input.FinancialYearStart!.Value : current, current);
+        BuildFirstYearOptions(Input.FirstFinancialYearStart);
         if (!ModelState.IsValid)
         {
             return Page();
@@ -87,10 +142,16 @@ public class CreateModel : PageModel
             return Forbid();
         }
 
-        var (result, id) = await _commands.CreateAsync(
-            new ItProjectDetailsInput(Input.Title, Input.PppReferenceNumber, Input.FinancialYearStart!.Value, Input.Description),
-            new ItProjectActor(userId, User.Identity?.Name),
-            cancellationToken);
+        var actor = new ItProjectActor(userId, User.Identity?.Name);
+        var (result, id) = carriedOver is { } type
+            ? await _commands.CreateCarriedOverAsync(
+                new ItProjectCarriedOverInput(Input.Title, Input.Description, type, Input.PppReferenceNumber, Input.FirstFinancialYearStart!.Value, Input.FirstPppReferenceNumber),
+                actor,
+                cancellationToken)
+            : await _commands.CreateAsync(
+                new ItProjectDetailsInput(Input.Title, Input.PppReferenceNumber, Input.FinancialYearStart!.Value, Input.Description),
+                actor,
+                cancellationToken);
 
         if (!result.Succeeded)
         {
@@ -102,12 +163,36 @@ public class CreateModel : PageModel
             return Page();
         }
 
-        TempData.ToastSuccess($"IT project \"{Input.Title.Trim()}\" created. Tick the stages it has already reached.");
+        TempData.ToastSuccess(carriedOver is { } created
+            ? $"IT project \"{Input.Title.Trim()}\" created as {ItProjectYearTypes.Code(created)} in FY {FinancialYearHelper.Format(current)}. Tick the stages it has already reached."
+            : $"IT project \"{Input.Title.Trim()}\" created. Tick the stages it has already reached.");
         return RedirectToPage("./Details", new { id, open = DetailsModel.OpenStages });
     }
 
     private int CurrentFinancialYearStart()
-        => ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow);
+    {
+        CurrentFinancialYear = ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow);
+        return CurrentFinancialYear;
+    }
+
+    /// <summary>The ten years before the current one, newest first; last year is chosen by default.</summary>
+    private void BuildFirstYearOptions(int? selected)
+    {
+        var current = CurrentFinancialYearStart();
+        var chosen = selected is { } year && year < current && IsSupportedFinancialYear(year) ? year : current - 1;
+        var years = Enumerable.Range(current - PastFinancialYearsOffered, PastFinancialYearsOffered)
+            .Where(IsSupportedFinancialYear)
+            .ToList();
+        if (IsSupportedFinancialYear(chosen) && !years.Contains(chosen))
+        {
+            years.Add(chosen);
+        }
+
+        FirstYearOptions = years
+            .OrderByDescending(year => year)
+            .Select(year => new SelectListItem(FinancialYearHelper.Format(year), year.ToString(), year == chosen))
+            .ToList();
+    }
 
     internal static bool IsSupportedFinancialYear(int startYear)
         => startYear is >= FinancialYearHelper.MinimumSupportedStartYear and <= FinancialYearHelper.MaximumSupportedStartYear;

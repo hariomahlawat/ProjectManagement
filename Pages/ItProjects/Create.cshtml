@@ -1,4 +1,6 @@
 @page
+@using ProjectManagement.Pages.ItProjects
+@using ProjectManagement.Services.ItProjects
 @model ProjectManagement.Pages.ItProjects.CreateModel
 @{
     ViewData["Title"] = "New IT project";
@@ -13,7 +15,7 @@
         <div class="itp-head__identity">
             <div class="itp-crumb" aria-label="Breadcrumb">ERP / <a asp-page="./Index">IT projects</a> / New</div>
             <h1 class="itp-title">New IT project</h1>
-            <p class="itp-subtitle">Three things to start with. The stages come next, on the project's page.</p>
+            <p class="itp-subtitle">A few things to start with. The stages come next, on the project's page.</p>
             <div class="itp-rule" aria-hidden="true"></div>
         </div>
     </header>
@@ -27,14 +29,36 @@
             <span asp-validation-for="Input.Title" class="text-danger"></span>
         </div>
 
+        @{
+            var currentFy = ProjectManagement.Utilities.FinancialYearHelper.Format(Model.CurrentFinancialYear);
+            var kind = Model.IsCarriedOver ? Model.Input.Kind.ToUpperInvariant() : CreateModel.KindNew;
+        }
+        @* Without script every field shows; the script shows only the ones the chosen kind uses. *@
+        <fieldset class="itp-form__field" data-itp-kind>
+            <legend class="form-label fs-6">In the IT ARPPP</legend>
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="Input.Kind" id="itpKindNew" value="@CreateModel.KindNew" checked="@(kind == CreateModel.KindNew)" data-itp-kind-option />
+                <label class="btn btn-outline-secondary" for="itpKindNew">New</label>
+                <input type="radio" class="btn-check" name="Input.Kind" id="itpKindCl" value="@CreateModel.KindCommittedLiability" checked="@(kind == CreateModel.KindCommittedLiability)" data-itp-kind-option />
+                <label class="btn btn-outline-secondary" for="itpKindCl">CL</label>
+                <input type="radio" class="btn-check" name="Input.Kind" id="itpKindCf" value="@CreateModel.KindCarriedForward" checked="@(kind == CreateModel.KindCarriedForward)" data-itp-kind-option />
+                <label class="btn btn-outline-secondary" for="itpKindCf">CF</label>
+            </div>
+            <div class="form-text" data-itp-kind-show="new">New: a case in its own financial year.</div>
+            <div class="form-text" data-itp-kind-show="carried">
+                CL or CF: a case carried over into FY @currentFy from an earlier year. CL when the SO was placed before FY @currentFy began, CF when it was not.
+            </div>
+        </fieldset>
+
         <div class="itp-form__row">
             <div class="itp-form__field">
                 <label asp-for="Input.PppReferenceNumber" class="form-label"></label>
                 <input asp-for="Input.PppReferenceNumber" class="form-control" maxlength="100" placeholder="e.g. IT ARPPP 09/2025" />
-                <div class="form-text">As written on the IT ARPPP. It need not be unique.</div>
+                <div class="form-text" data-itp-kind-show="new">As written on the IT ARPPP. It need not be unique.</div>
+                <div class="form-text" data-itp-kind-show="carried">For CL or CF: the number in the FY @currentFy IT ARPPP.</div>
                 <span asp-validation-for="Input.PppReferenceNumber" class="text-danger"></span>
             </div>
-            <div class="itp-form__field itp-form__field--narrow">
+            <div class="itp-form__field itp-form__field--narrow" data-itp-kind-show="new">
                 <label asp-for="Input.FinancialYearStart" class="form-label"></label>
                 <select asp-for="Input.FinancialYearStart" asp-items="Model.FinancialYearOptions" class="form-select"></select>
                 <div class="form-text">April to March.</div>
@@ -42,9 +66,24 @@
             </div>
         </div>
 
+        <div class="itp-form__row" data-itp-kind-show="carried">
+            <div class="itp-form__field">
+                <label asp-for="Input.FirstPppReferenceNumber" class="form-label"></label>
+                <input asp-for="Input.FirstPppReferenceNumber" class="form-control" maxlength="100" placeholder="If known" />
+                <div class="form-text">For CL or CF: the number in the year it was first listed. Leave it empty if it is not known; it shows as "@ItProjectCommandService.ReferenceNotRecorded" and can be added later with Edit.</div>
+                <span asp-validation-for="Input.FirstPppReferenceNumber" class="text-danger"></span>
+            </div>
+            <div class="itp-form__field itp-form__field--narrow">
+                <label asp-for="Input.FirstFinancialYearStart" class="form-label"></label>
+                <select asp-for="Input.FirstFinancialYearStart" asp-items="Model.FirstYearOptions" class="form-select"></select>
+                <div class="form-text">For CL or CF.</div>
+                <span asp-validation-for="Input.FirstFinancialYearStart" class="text-danger"></span>
+            </div>
+        </div>
+
         <div class="itp-form__field">
             <label asp-for="Input.Description" class="form-label"></label>
-            <textarea asp-for="Input.Description" class="form-control" rows="6" maxlength="@ProjectManagement.Services.ItProjects.ItProjectCommandService.DescriptionMaxLength" placeholder="What is being procured, for whom, and what it covers."></textarea>
+            <textarea asp-for="Input.Description" class="form-control" rows="6" maxlength="@ItProjectCommandService.DescriptionMaxLength" placeholder="What is being procured, for whom, and what it covers."></textarea>
             <span asp-validation-for="Input.Description" class="text-danger"></span>
         </div>
 
@@ -57,4 +96,5 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/it-projects-create.js" asp-append-version="true" defer></script>
 }

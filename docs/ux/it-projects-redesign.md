@@ -111,6 +111,16 @@ type for that year changes.
   under a new IT ARPPP reference number. The case keeps its first number on the project; each later
   year holds its own number, entered by the ITO, HoD or Admin when that year's IT ARPPP is made
   ("number not entered" until then). Search finds a case by any year's number.
+- **Created as CL or CF** (owner, 10 Nov 2026): the module started long after the IT ARPPP did,
+  so most cases already sit in this year's IT ARPPP as carried over. The New IT project form asks
+  "In the IT ARPPP: New / CL / CF". New is as before. CL or CF asks for this year's IT ARPPP number,
+  the year the case was first listed (the ten years before this one, last year by default) and,
+  if known, its first number. One save (`CreateCarriedOverAsync`) creates the project in its first
+  year, with its first number or "Not recorded" (changed later with Edit), and this year's
+  `ItProjectFinancialYear` row with the number and the type set by hand, so the case reads as CL
+  or CF before any stage or SO date is entered. The years in between are typed automatically.
+  The `ItProjects.Created` audit entry adds `CarriedOverInto`, `CarriedOverType` and
+  `CarriedOverPppReferenceNumber`. No schema change.
 - **Change by hand**: the same people can set the type of one case for one year (New, CL or CF),
   or go back to the automatic type. A type chosen by hand for a later year is kept even when it is
   the automatic type at the time, so it does not change when the automatic type later does; only
