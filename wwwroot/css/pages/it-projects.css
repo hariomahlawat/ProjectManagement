@@ -1149,11 +1149,26 @@
 
 .itp-pipe__cols {
     display: grid;
-    grid-template-columns: repeat(5, minmax(7.5rem, 1fr)) repeat(2, minmax(4.5rem, .62fr)) repeat(2, minmax(7.5rem, 1fr));
+    grid-template-columns:
+        repeat(5, minmax(7.5rem, 1fr))
+        minmax(var(--itp-bm-min, 4.5rem), var(--itp-bm, .62fr))
+        minmax(var(--itp-pnc-min, 4.5rem), var(--itp-pnc, .62fr))
+        repeat(2, minmax(7.5rem, 1fr));
     gap: 6px;
     margin: 0;
     padding: 0;
     list-style: none;
+}
+
+/* BM and PNC are optional and narrow; one that holds a case gets a full column so its card reads. */
+.itp-pipe__cols:has(> .itp-pcol--has:nth-child(6)) {
+    --itp-bm: 1fr;
+    --itp-bm-min: 7.5rem;
+}
+
+.itp-pipe__cols:has(> .itp-pcol--has:nth-child(7)) {
+    --itp-pnc: 1fr;
+    --itp-pnc-min: 7.5rem;
 }
 
 .itp-pcol {
@@ -1571,7 +1586,6 @@
     height: 3px;
     margin-top: -1.5px;
     width: 50%;
-    border-radius: 2px;
     background: var(--pm-border-strong);
 }
 
