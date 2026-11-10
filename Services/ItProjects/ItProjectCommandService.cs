@@ -24,6 +24,9 @@ public sealed class ItProjectCommandService : IItProjectCommandService
     public const int ReferenceMaxLength = 100;
     public const int DroppedReasonMaxLength = 500;
 
+    /// <summary>The first year's IT ARPPP number of a carried-over case whose first number is not known.</summary>
+    public const string ReferenceNotRecorded = "Not recorded";
+
     /// <summary>
     /// The longest description a save accepts. The column is unbounded text, so an older, longer
     /// description is still accepted while it is left unchanged.
@@ -77,6 +80,90 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             ["Title"] = project.Title,
             ["PppReferenceNumber"] = project.PppReferenceNumber,
             ["FinancialYear"] = FinancialYearHelper.Format(project.FinancialYearStart)
+        });
+        await transaction.CommitAsync(cancellationToken);
+
+        return (ItProjectCommandResult.Ok(), project.Id);
+    }
+
+    public async Task<(ItProjectCommandResult Result, int Id)> CreateCarriedOverAsync(ItProjectCarriedOverInput input, ItProjectActor actor, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        EnsureActor(actor);
+
+        var currentYear = ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow);
+        var currentReference = input.CurrentYearPppReferenceNumber?.Trim() ?? string.Empty;
+        var firstReference = string.IsNullOrWhiteSpace(input.FirstPppReferenceNumber) ? null : input.FirstPppReferenceNumber.Trim();
+
+        // The project's own fields are checked as for any project; the first year's number is
+        // optional here, so the placeholder stands in for the check.
+        var errors = ValidateDetails(
+            new ItProjectDetailsInput(input.Title, firstReference ?? ReferenceNotRecorded, input.FirstFinancialYearStart, input.Description),
+            currentDescription: null);
+        if (input.Type is not (ItProjectYearType.CommittedLiability or ItProjectYearType.CarriedForward))
+        {
+            errors.Add("Choose CL or CF for a case carried over from an earlier year.");
+        }
+
+        if (currentReference.Length == 0)
+        {
+            errors.Add($"Give the IT ARPPP reference number in FY {FinancialYearHelper.Format(currentYear)}.");
+        }
+        else if (currentReference.Length > ItProjectFinancialYear.ReferenceMaxLength)
+        {
+            errors.Add($"The IT ARPPP reference number must be {ItProjectFinancialYear.ReferenceMaxLength} characters or fewer.");
+        }
+
+        if (input.FirstFinancialYearStart >= currentYear &&
+            input.FirstFinancialYearStart is >= FinancialYearHelper.MinimumSupportedStartYear and <= FinancialYearHelper.MaximumSupportedStartYear)
+        {
+            errors.Add($"A carried-over case was first listed before FY {FinancialYearHelper.Format(currentYear)}.");
+        }
+
+        if (errors.Count > 0)
+        {
+            return (ItProjectCommandResult.Fail(errors), 0);
+        }
+
+        var now = UtcNow();
+        var project = new ItProject
+        {
+            Title = input.Title.Trim(),
+            PppReferenceNumber = firstReference ?? ReferenceNotRecorded,
+            FinancialYearStart = input.FirstFinancialYearStart,
+            Description = input.Description.Trim(),
+            CreatedByUserId = actor.UserId,
+            CreatedAtUtc = now,
+            UpdatedByUserId = actor.UserId,
+            UpdatedAtUtc = now,
+            RowVersion = NewRowVersion(),
+            Stages = ItProjectStages.NewStageRows(),
+            FinancialYears =
+            {
+                // Chosen by hand, so the case reads as CL or CF from the start, before its stages
+                // (and the SO date the automatic type needs) are entered.
+                new ItProjectFinancialYear
+                {
+                    FinancialYearStart = currentYear,
+                    PppReferenceNumber = currentReference,
+                    TypeOverride = input.Type,
+                    UpdatedByUserId = actor.UserId,
+                    UpdatedAtUtc = now
+                }
+            }
+        };
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        _db.ItProjects.Add(project);
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync("ItProjects.Created", actor, project, new Dictionary<string, string?>
+        {
+            ["Title"] = project.Title,
+            ["PppReferenceNumber"] = project.PppReferenceNumber,
+            ["FinancialYear"] = FinancialYearHelper.Format(project.FinancialYearStart),
+            ["CarriedOverInto"] = FinancialYearHelper.Format(currentYear),
+            ["CarriedOverType"] = ItProjectYearTypes.Code(input.Type),
+            ["CarriedOverPppReferenceNumber"] = currentReference
         });
         await transaction.CommitAsync(cancellationToken);
 

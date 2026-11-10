@@ -15,6 +15,18 @@ public sealed record ItProjectDetailsInput(
     int FinancialYearStart,
     string Description);
 
+/// <summary>
+/// A case that is already in this year's IT ARPPP as CL or CF: it was first listed in an earlier
+/// year, whose IT ARPPP number may no longer be known.
+/// </summary>
+public sealed record ItProjectCarriedOverInput(
+    string Title,
+    string Description,
+    ItProjectYearType Type,
+    string CurrentYearPppReferenceNumber,
+    int FirstFinancialYearStart,
+    string? FirstPppReferenceNumber);
+
 /// <summary>One year's IT ARPPP entry for a project: the reference number in that year and an optional type set by hand.</summary>
 public sealed record ItProjectYearInput(ItProjectYearType? Type, string? PppReferenceNumber);
 
@@ -38,6 +50,13 @@ public interface IItProjectCommandService
 {
     /// <summary>Creates the project with its nine stage rows. Returns the new id, or the validation errors.</summary>
     Task<(ItProjectCommandResult Result, int Id)> CreateAsync(ItProjectDetailsInput input, ItProjectActor actor, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a case carried over into the current financial year as CL or CF: the project in the
+    /// year it was first listed (its first number, or <see cref="ItProjectCommandService.ReferenceNotRecorded"/>),
+    /// and this year's number and type, chosen by hand, in one transaction.
+    /// </summary>
+    Task<(ItProjectCommandResult Result, int Id)> CreateCarriedOverAsync(ItProjectCarriedOverInput input, ItProjectActor actor, CancellationToken cancellationToken = default);
 
     Task<ItProjectCommandResult> UpdateDetailsAsync(int id, ItProjectDetailsInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
 
