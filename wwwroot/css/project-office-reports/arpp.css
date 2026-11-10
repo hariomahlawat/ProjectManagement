@@ -79,7 +79,6 @@
     color: var(--arpp-muted);
 }
 
-
 .arpp-kpi--approved {
     border-color: rgba(25, 135, 84, .24);
     background: linear-gradient(135deg, rgba(25, 135, 84, .055), var(--bs-body-bg) 62%);
@@ -99,7 +98,6 @@
 }
 
 .arpp-kpi--categories {
-    justify-content: center;
     gap: .2rem;
 }
 
@@ -172,7 +170,6 @@
     color: var(--arpp-muted);
     font-size: .82rem;
 }
-
 
 .arpp-year-group__rows {
     white-space: nowrap;
@@ -416,7 +413,6 @@
 
 .arpp-table-wrap {
     width: 100%;
-    overflow-x: auto;
     overscroll-behavior-inline: contain;
 }
 
@@ -453,18 +449,6 @@
     min-width: 0;
     font-size: .78rem;
 }
-
-.arpp-col-order { width: 2.5rem; }
-.arpp-col-serial { min-width: 6rem; }
-.arpp-col-ppp { min-width: 13rem; }
-.arpp-col-reference { min-width: 17rem; }
-.arpp-col-project { min-width: 16rem; }
-.arpp-col-category { min-width: 7rem; }
-.arpp-col-cost { min-width: 9rem; }
-.arpp-col-cfa { min-width: 10rem; }
-.arpp-col-fund { min-width: 8rem; }
-.arpp-col-dfpds { min-width: 7rem; }
-.arpp-col-actions { width: 5.5rem; }
 
 .arpp-row-order {
     color: var(--arpp-muted);
@@ -1069,7 +1053,6 @@
     box-shadow: -.45rem 0 .55rem -.55rem rgba(0, 0, 0, .45);
 }
 
-
 .arpp-issued-identifier--not-applicable {
     background: var(--arpp-soft);
     color: var(--arpp-muted);
@@ -1304,7 +1287,6 @@
     font-size: .64rem;
     line-height: 1.25;
 }
-
 
 [data-bs-theme="dark"] .arpp-kpi--approved strong,
 [data-bs-theme="dark"] .arpp-year-position--approved > span,
