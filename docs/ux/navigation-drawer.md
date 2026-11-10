@@ -11,7 +11,7 @@ The drawer opened by **Menu** in the top bar. It lists every PRISM area the sign
 | Active item, URLs | `ViewComponents/NavigationDrawerViewComponent.cs` (active state via `ModuleSubNavActiveMatcher`, the sub-nav's rule) |
 | Markup | `Pages/Shared/Components/NavigationDrawer/Default.cshtml`, `_NavigationDrawerLink.cshtml` |
 | Behaviour | `wwwroot/js/navigation/drawer.js` (tests: `drawer.test.js`) |
-| Styles | `wwwroot/css/site.css` ("Navigation drawer"), `wwwroot/css/navigation-shell.css` ("Navigation drawer hardening", sections, footer, reduced motion) |
+| Styles | `wwwroot/css/site.css` ("Navigation drawer"), `wwwroot/css/navigation-shell.css` ("Navigation drawer hardening", filter, sections, footer, reduced motion) |
 | Tests | `RoleBasedNavigationProviderTests`, `NavigationDrawerTests`, `NavigationReachabilityTests` |
 
 ## Sections
@@ -40,7 +40,10 @@ A section whose links are all unauthorized is dropped rather than shown empty.
 ## Behaviour
 
 - Only the section holding the current page starts open (Main is always open). Opening a section closes the others (`drawer.js`, the `toggle` event on `details[data-drawer-section]`).
-- On open, focus goes to the current page's link when it is visible, otherwise to the first control (the close button). Tab is trapped in the panel; Escape and the overlay close it and focus returns to Menu.
+- When no section holds the current page (a Main page), the section the user last opened reopens. It is kept in the browser's `localStorage` under `prism.navDrawer.section`. This is a convenience only: blocked storage changes nothing else.
+- **Find a page.** `drawer.js` adds a search field above the sections; markup without sections gets none. Typing shows only the links whose name, together with their section's name, contains every word ("trackers vis" finds Visits). Matching sections open and the others hide; the accordion stands aside while filtering. Clearing the field, or closing the drawer, restores what was open. It filters the links already rendered for the user, so it needs no server call and works offline. A screen-reader status line announces the number of matches, and a message shows when nothing matches.
+- **Keys while open:** `/` focuses the filter (outside text fields); ↓ from the filter moves to the first visible link and ↑/↓ move between visible links (↑ from the first link returns to the filter); Enter in the filter opens the first match; Escape clears the filter, then closes the drawer; Ctrl/⌘+K closes the drawer and hands over to the global search. The drawer's key handler listens in the capture phase so that, while the dialog is open, its keys come before page-wide shortcuts (the global search also uses `/`).
+- On open, focus goes to the current page's link when it is visible, otherwise to the first control (the close button). Tab is trapped in the panel, including the section headers of closed sections; Escape and the overlay close it and focus returns to Menu.
 - The drawer is moved to `<body>` so the sticky top bar cannot clip it. The page behind does not scroll while it is open.
 - `prefers-reduced-motion` turns off the slide and fade.
 - Sections are `<details>`, so they still open and close without JavaScript.
@@ -53,4 +56,4 @@ A section whose links are all unauthorized is dropped rather than shown empty.
 
 - Nov 2026, PR 1 (#3049): bug fixes (dark-mode close button, dialog name, invalid `aria-hidden`, prefix-aware active state, empty sections, the dead *Project office reports* landing link, reduced motion).
 - Nov 2026, PR 2: the section layout above. Before it, the drawer had 61 entries for an admin, every group open, three nesting levels and no Workspace, Notebook or FFC map links.
-- Planned, PR 3: a "Find a page…" filter over the drawer's links and remembering the last opened section.
+- Nov 2026, PR 3: the "Find a page…" filter, its keys, and reopening the last opened section.

@@ -741,8 +741,52 @@ body.pm-drawer-open {
     flex: 0 0 auto;
 }
 
+/* "Find a page" filter, created by drawer.js above the sections. */
+.pm-drawer__filter {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.pm-drawer__filter-icon {
+    position: absolute;
+    top: 50%;
+    left: .75rem;
+    color: var(--pm-muted);
+    font-size: .85rem;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.pm-drawer__filter-input {
+    width: 100%;
+    min-height: 2.5rem;
+    padding: .45rem .75rem .45rem 2.1rem;
+    border: 1px solid var(--pm-border);
+    border-radius: .6rem;
+    background: var(--pm-card);
+    color: var(--pm-text);
+    font-size: .875rem;
+}
+
+.pm-drawer__filter-input::placeholder {
+    color: var(--pm-muted);
+    opacity: 1;
+}
+
+.pm-drawer__filter-input:focus-visible {
+    border-color: var(--pm-primary);
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 1px;
+}
+
+.pm-drawer__filter-empty {
+    margin: .5rem .75rem;
+    color: var(--pm-muted);
+    font-size: .85rem;
+}
+
 /* Sections (docs/ux/navigation-drawer.md): small uppercase dividers, not rows that read as links. */
-.pm-drawer__section + .pm-drawer__section {
+.pm-drawer__section:not([hidden]) ~ .pm-drawer__section:not([hidden]) {
     margin-top: .5rem;
     padding-top: .5rem;
     border-top: 1px solid var(--pm-border);
