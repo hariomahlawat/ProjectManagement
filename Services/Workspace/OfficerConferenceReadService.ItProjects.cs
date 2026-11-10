@@ -18,42 +18,9 @@ namespace ProjectManagement.Services.Workspace;
 /// </summary>
 public sealed partial class OfficerConferenceReadService
 {
-    private sealed record ItProjectConferenceRow(
-        int Id,
-        string Title,
-        string Reference,
-        int FinancialYearStart,
-        ItProjectStatus Status,
-        ItProjectTiming Timing,
-        ItProjectYearTypeInfo? YearType);
-
-    /// <summary>Live IT projects (not started or in progress), in board order.</summary>
-    private async Task<IReadOnlyList<ItProjectConferenceRow>> LoadLiveItProjectsAsync(CancellationToken cancellationToken)
-    {
-        var projects = await _db.ItProjects
-            .AsNoTracking()
-            .Where(project => !project.IsDeleted && project.DroppedOn == null)
-            .Include(project => project.Stages)
-            .Include(project => project.FinancialYears)
-            .ToListAsync(cancellationToken);
-
-        var today = ItProjectYearTypes.TodayIst(_clock.UtcNow);
-        var currentYear = ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow);
-        return projects
-            .Select(project => (Project: project, Status: ItProjectStatus.Resolve(project)))
-            .Where(item => item.Status.Kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress)
-            .Select(item => new ItProjectConferenceRow(
-                item.Project.Id,
-                item.Project.Title,
-                item.Project.PppReferenceNumber,
-                item.Project.FinancialYearStart,
-                item.Status,
-                ItProjectTiming.Resolve(item.Project, today, ToIstDate),
-                ItProjectYearTypes.Resolve(item.Project, currentYear, currentYear)))
-            .OrderBy(row => row.Status.CurrentStageCode is null ? int.MaxValue : ItProjectStages.OrderOf(row.Status.CurrentStageCode))
-            .ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
+    /// <summary>Live IT projects (not started or in progress), in board order; shared with the Officer workload view.</summary>
+    private Task<IReadOnlyList<LiveItProjectRow>> LoadLiveItProjectsAsync(CancellationToken cancellationToken)
+        => LiveItProjects.LoadAsync(_db, _clock.UtcNow, cancellationToken);
 
     /// <summary>
     /// Gives every officer who holds the ITO role the live IT projects, and adds ITO officers who
@@ -170,7 +137,7 @@ public sealed partial class OfficerConferenceReadService
             }
 
             var stageLabel = row.Status.CurrentStageLabel;
-            var stateName = row.Status.Kind == ItProjectStatusKind.NotStarted ? "Not started" : $"At {stageLabel}";
+            var stateName = LiveItProjects.StateText(row.Status);
             var late = row.Timing.Basis == ItProjectTimeBasis.StageDate && row.Timing.Band == ItProjectAgeBand.Red;
             var type = row.YearType is { IsOwnYear: false } carried ? $" · {carried.Code}" : string.Empty;
             items.Add(new OfficerConferenceItemVm
@@ -289,5 +256,4 @@ public sealed partial class OfficerConferenceReadService
             ActivityAtUtc = AsUtc(remark.CreatedAtUtc)
         };
 
-    private static DateOnly ToIstDate(DateTime utc) => DateOnly.FromDateTime(IstClock.ToIst(AsUtc(utc)));
 }

@@ -136,11 +136,19 @@ public sealed class CommandOfficerWorkloadVm
     public IReadOnlyList<CommandOfficerProjectVm> Projects { get; init; } = Array.Empty<CommandOfficerProjectVm>();
     public IReadOnlyList<CommandOfficerIdeaVm> Ideas { get; init; } = Array.Empty<CommandOfficerIdeaVm>();
     public IReadOnlyList<CommandOfficerTaskVm> OtherTasks { get; init; } = Array.Empty<CommandOfficerTaskVm>();
+
+    /// <summary>
+    /// Live IT projects, filled only for an officer who holds the ITO role and only on the Officer
+    /// workload view (IOfficerWorkloadReadService.GetAllWithItProjectsAsync). Empty everywhere else.
+    /// </summary>
+    public int ItProjectCount { get; init; }
+    public IReadOnlyList<CommandOfficerItProjectVm> ItProjects { get; init; } = Array.Empty<CommandOfficerItProjectVm>();
 }
 
 public sealed record CommandOfficerProjectVm(int ProjectId, string Name, string StageCode, string StageName, string OpenUrl);
 public sealed record CommandOfficerIdeaVm(int IdeaId, string Title, string Status, string OpenUrl);
 public sealed record CommandOfficerTaskVm(int TaskId, string Title, string Status, DateTime DueDate, string OpenUrl);
+public sealed record CommandOfficerItProjectVm(int ItProjectId, string Title, string State, string Reference, string OpenUrl);
 
 public sealed class OfficerWorkloadCardRenderVm
 {

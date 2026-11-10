@@ -221,6 +221,9 @@ public sealed class ConferenceTaskCommandServiceTests
                 ? _officers
                 : (IReadOnlyList<CommandOfficerWorkloadVm>)Array.Empty<CommandOfficerWorkloadVm>());
 
+        public Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllWithItProjectsAsync(string requestingUserId, CancellationToken cancellationToken = default)
+            => GetAllAsync(requestingUserId, cancellationToken);
+
         public Task<CommandOfficerWorkloadVm?> GetOfficerAsync(string officerUserId, CancellationToken cancellationToken = default)
             => Task.FromResult(_officers.FirstOrDefault(item => item.UserId == officerUserId));
 

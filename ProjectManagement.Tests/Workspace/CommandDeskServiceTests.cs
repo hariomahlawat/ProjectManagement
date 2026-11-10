@@ -271,6 +271,9 @@ public sealed class CommandDeskServiceTests
         public Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllAsync(string requestingUserId, CancellationToken cancellationToken = default)
             => Task.FromResult(_officers);
 
+        public Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllWithItProjectsAsync(string requestingUserId, CancellationToken cancellationToken = default)
+            => GetAllAsync(requestingUserId, cancellationToken);
+
         public Task<CommandOfficerWorkloadVm?> GetOfficerAsync(string officerUserId, CancellationToken cancellationToken = default)
             => Task.FromResult<CommandOfficerWorkloadVm?>(null);
 

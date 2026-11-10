@@ -7,6 +7,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels.Workspace;
 
@@ -15,6 +16,8 @@ namespace ProjectManagement.Services.Workspace;
 /// <summary>
 /// Canonical read service for the officer workload cards. Projects, ideas and action
 /// tasks are loaded in batches and normalised into the shared command-workspace model.
+/// The Officer workload view also gives each ITO the live IT projects
+/// (<see cref="GetAllWithItProjectsAsync"/>), the same rule as the conference review.
 /// </summary>
 public sealed class OfficerWorkloadReadService : IOfficerWorkloadReadService
 {
@@ -23,33 +26,55 @@ public sealed class OfficerWorkloadReadService : IOfficerWorkloadReadService
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+    private readonly IClock _clock;
 
     public OfficerWorkloadReadService(
         ApplicationDbContext db,
         UserManager<ApplicationUser> userManager,
-        IWorkflowStageMetadataProvider workflowStageMetadataProvider)
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IClock? clock = null)
     {
+        _clock = clock ?? new SystemClock();
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _workflowStageMetadataProvider = workflowStageMetadataProvider
             ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
     }
 
-    public async Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllAsync(
+    public Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllAsync(
         string requestingUserId,
         CancellationToken cancellationToken = default)
+        => GetAllCoreAsync(requestingUserId, includeItProjects: false, cancellationToken);
+
+    public Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllWithItProjectsAsync(
+        string requestingUserId,
+        CancellationToken cancellationToken = default)
+        => GetAllCoreAsync(requestingUserId, includeItProjects: true, cancellationToken);
+
+    private async Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllCoreAsync(
+        string requestingUserId,
+        bool includeItProjects,
+        CancellationToken cancellationToken)
     {
         var roleUsers = await _userManager.GetUsersInRoleAsync(RoleNames.ProjectOfficer);
         var users = roleUsers
             .Where(IsActiveUser)
             .ToList();
 
-        if (users.Count == 0)
+        IReadOnlyList<CommandOfficerWorkloadVm> result = users.Count == 0
+            ? Array.Empty<CommandOfficerWorkloadVm>()
+            : await BuildCardsAsync(users, cancellationToken);
+
+        if (includeItProjects)
+        {
+            result = await AttachItProjectsAsync(result, cancellationToken);
+        }
+
+        if (result.Count == 0)
         {
             return Array.Empty<CommandOfficerWorkloadVm>();
         }
 
-        var result = await BuildCardsAsync(users, cancellationToken);
         var defaultOrder = result
             .OrderBy(card => RankOrder(card.Rank))
             .ThenBy(card => card.OfficerName, StringComparer.OrdinalIgnoreCase)
@@ -57,6 +82,77 @@ public sealed class OfficerWorkloadReadService : IOfficerWorkloadReadService
 
         return await ApplySavedOrderAsync(defaultOrder, requestingUserId, cancellationToken);
     }
+
+    /// <summary>
+    /// Gives every active ITO the live IT projects and adds a card for an ITO with no other workload.
+    /// Nothing changes when there is no ITO or no live IT project.
+    /// </summary>
+    private async Task<IReadOnlyList<CommandOfficerWorkloadVm>> AttachItProjectsAsync(
+        IReadOnlyList<CommandOfficerWorkloadVm> cards,
+        CancellationToken cancellationToken)
+    {
+        var itoUsers = (await _userManager.GetUsersInRoleAsync(RoleNames.Ito))
+            .Where(IsActiveUser)
+            .ToList();
+        if (itoUsers.Count == 0)
+        {
+            return cards;
+        }
+
+        var rows = await LiveItProjects.LoadAsync(_db, _clock.UtcNow, cancellationToken);
+        if (rows.Count == 0)
+        {
+            return cards;
+        }
+
+        var itProjects = rows
+            .Select(row => new CommandOfficerItProjectVm(
+                row.Id,
+                row.Title,
+                LiveItProjects.StateText(row.Status),
+                row.YearType?.PppReferenceNumber ?? row.Reference,
+                $"/ItProjects/{row.Id}"))
+            .ToList();
+
+        var itoIds = itoUsers.Select(user => user.Id).ToHashSet(StringComparer.Ordinal);
+        var result = cards
+            .Select(card => itoIds.Contains(card.UserId) ? WithItProjects(card, itProjects) : card)
+            .ToList();
+
+        var listed = cards.Select(card => card.UserId).ToHashSet(StringComparer.Ordinal);
+        result.AddRange(itoUsers
+            .Where(user => !listed.Contains(user.Id))
+            .Select(user => WithItProjects(
+                new CommandOfficerWorkloadVm
+                {
+                    UserId = user.Id,
+                    OfficerName = string.IsNullOrWhiteSpace(user.FullName)
+                        ? user.UserName ?? "ITO"
+                        : user.FullName,
+                    Rank = user.Rank ?? string.Empty
+                },
+                itProjects)));
+
+        return result;
+    }
+
+    private static CommandOfficerWorkloadVm WithItProjects(
+        CommandOfficerWorkloadVm card,
+        IReadOnlyList<CommandOfficerItProjectVm> itProjects)
+        => new()
+        {
+            UserId = card.UserId,
+            OfficerName = card.OfficerName,
+            Rank = card.Rank,
+            ProjectCount = card.ProjectCount,
+            IdeaCount = card.IdeaCount,
+            OtherTaskCount = card.OtherTaskCount,
+            Projects = card.Projects,
+            Ideas = card.Ideas,
+            OtherTasks = card.OtherTasks,
+            ItProjectCount = itProjects.Count,
+            ItProjects = itProjects
+        };
 
     public async Task<CommandOfficerWorkloadVm?> GetOfficerAsync(
         string officerUserId,
@@ -92,7 +188,7 @@ public sealed class OfficerWorkloadReadService : IOfficerWorkloadReadService
 
         if (activeOfficerIds.Length == 0)
         {
-            return 0;
+            return (await ActiveItoIdsWithLiveItProjectsAsync(cancellationToken)).Count;
         }
 
         var projectOfficerIds = await _db.Projects
@@ -129,11 +225,30 @@ public sealed class OfficerWorkloadReadService : IOfficerWorkloadReadService
             .Distinct()
             .ToListAsync(cancellationToken);
 
+        var itoIds = await ActiveItoIdsWithLiveItProjectsAsync(cancellationToken);
+
         return projectOfficerIds
             .Concat(ideaOfficerIds)
             .Concat(taskOfficerIds)
+            .Concat(itoIds)
             .Distinct(StringComparer.Ordinal)
             .Count();
+    }
+
+    /// <summary>Active ITOs, when at least one IT project is live: the officers the IT projects add.</summary>
+    private async Task<IReadOnlyList<string>> ActiveItoIdsWithLiveItProjectsAsync(CancellationToken cancellationToken)
+    {
+        var itoIds = (await _userManager.GetUsersInRoleAsync(RoleNames.Ito))
+            .Where(IsActiveUser)
+            .Select(user => user.Id)
+            .ToList();
+        if (itoIds.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var rows = await LiveItProjects.LoadAsync(_db, _clock.UtcNow, cancellationToken);
+        return rows.Count == 0 ? Array.Empty<string>() : itoIds;
     }
 
     private async Task<IReadOnlyList<CommandOfficerWorkloadVm>> BuildCardsAsync(

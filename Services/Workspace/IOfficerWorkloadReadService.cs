@@ -13,9 +13,20 @@ public interface IOfficerWorkloadReadService
         string requestingUserId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The Officer workload view's cards: <see cref="GetAllAsync"/> plus, for every active officer who
+    /// holds the ITO role, the live IT projects (IT projects have no assigned Project Officer; the ITO
+    /// runs them). An ITO with no other workload gets a card of their own. Other consumers keep using
+    /// <see cref="GetAllAsync"/>, whose scope is unchanged.
+    /// </summary>
+    Task<IReadOnlyList<CommandOfficerWorkloadVm>> GetAllWithItProjectsAsync(
+        string requestingUserId,
+        CancellationToken cancellationToken = default);
+
     Task<CommandOfficerWorkloadVm?> GetOfficerAsync(
         string officerUserId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Officers with workload on the Officer workload view, ITO cards included.</summary>
     Task<int> CountActiveOfficersAsync(CancellationToken cancellationToken = default);
 }

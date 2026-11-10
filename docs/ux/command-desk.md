@@ -75,6 +75,16 @@ Both roles see the same data. Only **Waiting on you** depends on who is viewing.
 Project scope, officer assignment and current stage come from `IOfficerWorkloadReadService`, the
 same source as the Officer workload view. Dates are IST.
 
+The Officer workload view (Workspace › Officer workload) reads
+`IOfficerWorkloadReadService.GetAllWithItProjectsAsync`: the Project Officer cards plus, since
+10 Nov 2026, each active officer who holds the ITO role with the live IT projects (not started or in
+progress, in board order, each with its state and IT PPP number). IT projects have no assigned Project
+Officer, so the ITO runs all of them; this is the rule the conference review uses, and both read the
+same query (`Services/ItProjects/LiveItProjects.cs`). An ITO with no other workload gets a card of
+their own, the Comdt/HoD's saved card order covers ITO cards, and the officer count in the rail counts
+them. The command desk and the conference commands keep reading `GetAllAsync`, whose scope is
+unchanged. Tests: `ItProjectWorkloadTests`.
+
 ## Layout and screen width
 
 - My Workspace pages (the two desks, Conference review and the workspace views) use the `desk` page shell: at most 1840px wide (`--pm-shell-desk`) and centred. On these pages the top bar, sub-nav and footer use the same width (`pm-chrome-shell--desk`), so the side rail lines up with the menu button above it. Other modules that set the `workspace` shell (Process, Reports, Publications, Completed summary) stay full width. Briefing decks uses the `studio` shell: the page and the chrome both take the full window (less the desk gutter), so its slide preview and tables use a wide monitor while the rail still lines up with the menu button.
