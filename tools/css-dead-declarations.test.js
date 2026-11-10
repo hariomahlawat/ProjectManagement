@@ -73,6 +73,15 @@ test('@keyframes steps are not style rules', () => {
   assert.equal(fix(css).out, css);
 });
 
+test('fix keeps a condition group that holds @keyframes', () => {
+  // The group has no style rules, so every rule in it is trivially dead; it still must not go.
+  const css = '@media (prefers-reduced-motion: no-preference) {\n    @keyframes spin {\n        from { opacity: 0; }\n        to { opacity: 1; }\n    }\n}\n\n.a {\n    animation: spin 1s;\n}\n';
+  assert.equal(fix(css).out, css);
+  const supports = '@supports (animation-name: spin) {\n    @keyframes spin {\n        from { opacity: 0; }\n    }\n\n    .a {\n        color: red;\n    }\n}\n\n.a {\n    color: blue;\n}\n';
+  // The dead colour goes, the keyframes and their group stay.
+  assert.equal(fix(supports).out, '@supports (animation-name: spin) {\n    @keyframes spin {\n        from { opacity: 0; }\n    }\n}\n\n.a {\n    color: blue;\n}\n');
+});
+
 test('navigation-shell.css has no dead declarations', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'wwwroot', 'css', 'navigation-shell.css'), 'utf8').replace(/\r\n/g, '\n');
   assert.deepEqual(deadProps(css), [], 'Run: node tools/css-dead-declarations.js wwwroot/css/navigation-shell.css');

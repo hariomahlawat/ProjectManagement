@@ -115,6 +115,8 @@ function splitSelectors(text) {
     .filter(Boolean);
 }
 
+const holdsOpaque = (items) => items.some((item) => item.type === 'opaque' || (item.type === 'media' && holdsOpaque(item.children)));
+
 const flatten = (items, out = []) => {
   for (const item of items) {
     if (item.type === 'media') flatten(item.children, out);
@@ -243,7 +245,9 @@ function removeDead(src) {
     for (const item of items) {
       if (item.type === 'opaque') continue;
       if (item.type === 'media') {
-        if (flatten(item.children).every((r) => r.decls.every((d) => deadSet.has(d)))) {
+        // A group goes only when every rule in it is dead and it holds nothing opaque
+        // (@keyframes have no style rules, so they would otherwise look "all dead").
+        if (!holdsOpaque(item.children) && flatten(item.children).every((r) => r.decls.every((d) => deadSet.has(d)))) {
           const [start, end] = wholeLines(src, item.start, item.end);
           edits.push({ start, end });
         } else walk(item.children);
@@ -304,11 +308,16 @@ function foldRules(src) {
   return { out: applyEdits(src, edits), folded };
 }
 
-// Blank lines inside rule bodies go; runs of blank lines between rules collapse to one.
+// Blank lines inside rule bodies and before a closing brace go; runs of blank lines between
+// rules collapse to one.
 function tidy(src) {
   const bodies = flatten(parse(src)).map((r) => ({ start: r.bodyStart, end: r.bodyEnd }));
   const edits = bodies.map(({ start, end }) => ({ start, end, text: src.slice(start, end).replace(/\n[ \t]*(?=\n)/g, '') }));
-  return applyEdits(src, edits).replace(/\n[ \t]*\n([ \t]*\n)+/g, '\n\n').replace(/^\s*\n/, '');
+  return applyEdits(src, edits)
+    .replace(/\n[ \t]*\n([ \t]*\n)+/g, '\n\n')
+    // No blank line just before a closing brace (left when the last rule of a group goes).
+    .replace(/\n[ \t]*\n([ \t]*\})/g, '\n$1')
+    .replace(/^\s*\n/, '');
 }
 
 function fix(src) {
