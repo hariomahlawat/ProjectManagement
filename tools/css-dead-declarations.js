@@ -2,7 +2,7 @@
 'use strict';
 
 // Dead CSS declarations: a declaration can never apply when a later rule with the same
-// selector, in the same or an unconditional media context, sets the same property (or a
+// selector, in the same or an unconditional condition context, sets the same property (or a
 // shorthand that resets it) with equal or higher importance. Equal specificity plus later
 // source order always wins, so the earlier declaration is dead in every state — hover,
 // focus and theme included. Override layers leave these behind; this keeps them out.
@@ -11,15 +11,25 @@
 //   node tools/css-dead-declarations.js <file.css>          report; exit 1 if any are dead
 //   node tools/css-dead-declarations.js <file.css> --fix    remove them, fold same-selector
 //                                                           rules where provably safe, tidy
+//   node tools/css-dead-declarations.js --all               check every stylesheet under
+//                                                           wwwroot/css against the baseline
+//   node tools/css-dead-declarations.js --all --write       lower the baseline after a cleanup
+//                                                           (--allow-increase to raise it)
+//
+// The baseline (tools/css-dead-declarations-baseline.json) lists each stylesheet's dead
+// declarations; a file not listed must have none. `npm test` fails when a file goes above its
+// number or cannot be read, and --write never raises a number without --allow-increase.
 //
 // --fix only deletes dead declarations (and rules or @media blocks left empty), and merges
 // a later rule into the first rule with the same selector list and media context when no
 // rule in between declares a related property — so the cascade result cannot change.
-// Supports plain rules, @media and @supports (a condition, like @media; nested conditions
-// combine) and skips @keyframes, whose steps are not style rules. Other at-rules (@layer,
-// @container, nesting) throw, so a file the tool cannot reason about is never "clean".
+// Supports plain rules and the conditions @media, @supports and @container (nested
+// conditions combine), and skips @keyframes, @page and @font-face, which hold no style rules
+// for elements. Other at-rules (@layer, @scope, @import, nesting) and stray braces throw, so a
+// file the tool cannot reason about is never "clean".
 
 const fs = require('node:fs');
+const path = require('node:path');
 
 // SECTION: Parsing (keeps source offsets so edits preserve formatting)
 function parse(src) {
@@ -78,12 +88,16 @@ function parse(src) {
       if (src[stop] !== '{') throw new Error(`Unexpected CSS near offset ${start}: ${src.slice(start, stop + 1).trim()}`);
       const prelude = src.slice(start, stop).trim();
       i = stop + 1;
-      if (/^@(media|supports)\b/i.test(prelude)) {
+      if (/^@(media|supports|container)\b/i.test(prelude)) {
         // A rule here applies only under this condition: it interacts with rules under the same
-        // condition, and an unconditional later rule overrides it (see findDead).
+        // condition, and an unconditional later rule overrides it (see findDead). For
+        // @container the same element always queries the same container, so the same
+        // condition text gives the same result for it.
         const condition = normaliseCondition(prelude);
         items.push({ type: 'media', start, children: parseBlock('}', ctx ? `${ctx} ${condition}` : condition), end: i });
-      } else if (/^@(-[a-z]+-)?keyframes\b/i.test(prelude)) {
+      } else if (/^@((-[a-z]+-)?keyframes|page|font-face)\b/i.test(prelude)) {
+        // Keyframe steps, page boxes (and their margin boxes) and font faces are not style
+        // rules for elements: nothing in them overrides, or is overridden by, a style rule.
         skipBlock();
         items.push({ type: 'opaque', start, end: i });
       } else if (prelude.startsWith('@')) {
@@ -123,6 +137,7 @@ function splitSelectors(text) {
     .filter(Boolean);
 }
 
+// Not a style rule: kept as written by fix, and keeps its enclosing condition group.
 const holdsOpaque = (items) => items.some((item) => item.type === 'opaque' || (item.type === 'media' && holdsOpaque(item.children)));
 
 const flatten = (items, out = []) => {
@@ -343,21 +358,99 @@ function fix(src) {
   return { out: tidy(out), removed, folded };
 }
 
-module.exports = { parse, findDead, removeDead, foldRules, tidy, fix, covers };
+// SECTION: Baseline ratchet over every stylesheet
+const ROOT = path.join(__dirname, '..');
+const CSS_ROOT = path.join(ROOT, 'wwwroot', 'css');
+const BASELINE_PATH = path.join(__dirname, 'css-dead-declarations-baseline.json');
+
+function stylesheets(dir = CSS_ROOT) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...stylesheets(full));
+    else if (entry.name.endsWith('.css')) out.push(full);
+  }
+  return out.sort();
+}
+
+const relative = (file) => path.relative(ROOT, file).split(path.sep).join('/');
+
+// Dead declarations per stylesheet; a file the tool cannot read is reported under `errors`.
+function measureAll() {
+  const counts = {};
+  const errors = {};
+  for (const file of stylesheets()) {
+    try {
+      counts[relative(file)] = findDead(fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n')).dead.length;
+    } catch (error) {
+      errors[relative(file)] = error.message.split('\n')[0];
+    }
+  }
+  return { counts, errors };
+}
+
+function readBaseline() {
+  return fs.existsSync(BASELINE_PATH) ? JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf8')) : {};
+}
+
+// Files above their baseline (a file not listed is allowed none), and files below it.
+function compareToBaseline(counts, baseline) {
+  const grown = [];
+  const lowered = [];
+  for (const [file, now] of Object.entries(counts)) {
+    const allowed = baseline[file] || 0;
+    if (now > allowed) grown.push({ file, allowed, now });
+    else if (now < allowed) lowered.push({ file, allowed, now });
+  }
+  return { grown, lowered };
+}
+
+function writeBaseline(counts) {
+  const kept = Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0).sort(([a], [b]) => a.localeCompare(b)));
+  fs.writeFileSync(BASELINE_PATH, `${JSON.stringify(kept, null, 2)}\n`);
+}
+
+function runAll(argv) {
+  const write = argv.includes('--write');
+  const allowIncrease = argv.includes('--allow-increase');
+  const { counts, errors } = measureAll();
+  for (const [file, message] of Object.entries(errors)) console.error(`${file}: cannot be checked: ${message}`);
+  if (Object.keys(errors).length) return 1;
+  const { grown, lowered } = compareToBaseline(counts, readBaseline());
+  if (write) {
+    if (grown.length && !allowIncrease) {
+      for (const g of grown) console.error(`Not raising ${g.file}: ${g.allowed} -> ${g.now}. Edit the earlier rule instead of overriding it, or pass --allow-increase.`);
+      return 1;
+    }
+    writeBaseline(counts);
+    console.log(`Baseline written: ${Object.values(counts).reduce((a, b) => a + b, 0)} dead declaration(s) in ${Object.values(counts).filter(Boolean).length} file(s).`);
+    return 0;
+  }
+  for (const g of grown) console.error(`${g.file}: ${g.now} dead declaration(s), baseline ${g.allowed}. Run: node tools/css-dead-declarations.js ${g.file}`);
+  if (lowered.length) console.log(`${lowered.length} file(s) are below the baseline; run "node tools/css-dead-declarations.js --all --write" to lock that in.`);
+  return grown.length ? 1 : 0;
+}
+
+module.exports = { parse, findDead, removeDead, foldRules, tidy, fix, covers, measureAll, readBaseline, compareToBaseline };
 
 if (require.main === module) {
-  const [file, flag] = process.argv.slice(2);
-  if (!file) { console.error('Usage: node tools/css-dead-declarations.js <file.css> [--fix]'); process.exit(2); }
-  const raw = fs.readFileSync(file, 'utf8');
-  const src = raw.replace(/\r\n/g, '\n');
-  if (flag === '--fix') {
-    const { out, removed, folded } = fix(src);
-    fs.writeFileSync(file, raw.includes('\r\n') ? out.replace(/\n/g, '\r\n') : out);
-    console.log(`${file}: removed ${removed} dead declaration(s), folded ${folded} rule(s).`);
+  const args = process.argv.slice(2);
+  if (args[0] === '--all') {
+    process.exitCode = runAll(args);
   } else {
-    const { dead } = findDead(src);
-    dead.forEach(({ rule, decl }) => console.log(`${rule.ctx || '(all)'} | ${rule.selectors.join(', ')} | ${decl.prop}`));
-    console.log(`${file}: ${dead.length} dead declaration(s).`);
-    process.exitCode = dead.length ? 1 : 0;
+    const [file, flag] = args;
+    if (!file) { console.error('Usage: node tools/css-dead-declarations.js <file.css> [--fix] | --all [--write [--allow-increase]]'); process.exit(2); }
+    const raw = fs.readFileSync(file, 'utf8');
+    const src = raw.replace(/\r\n/g, '\n');
+    if (flag === '--fix') {
+      const { out, removed, folded } = fix(src);
+      fs.writeFileSync(file, raw.includes('\r\n') ? out.replace(/\n/g, '\r\n') : out);
+      console.log(`${file}: removed ${removed} dead declaration(s), folded ${folded} rule(s).`);
+    } else {
+      const { dead } = findDead(src);
+      dead.forEach(({ rule, decl }) => console.log(`${rule.ctx || '(all)'} | ${rule.selectors.join(', ')} | ${decl.prop}`));
+      console.log(`${file}: ${dead.length} dead declaration(s).`);
+      process.exitCode = dead.length ? 1 : 0;
+    }
   }
 }
