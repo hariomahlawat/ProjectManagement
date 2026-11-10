@@ -33,7 +33,7 @@
     --pm-surface-mint: #f0f7f3;
     --pm-surface-violet: #f7f1ff;
     /* Page / surface tokens */
-    --pm-page-bg: #f6f7fb; /* body background */
+    /* body background */
     --pm-skeleton: #e5e7eb;
     /* -- SECTION: Text -- */
     --pm-text: #0b1220;
@@ -767,11 +767,9 @@
 }
 
 body {
-    font-family: var(--bs-body-font-family);
     font-size: var(--bs-body-font-size);
     line-height: var(--bs-body-line-height);
     color: var(--pm-text);
-    background-color: var(--pm-page-bg);
 }
 
 /* --- Layout shell --- */
@@ -816,10 +814,8 @@ main[role="main"] {
 }
 
 .pm-card {
-    border: 1px solid var(--pm-border-subtle, #e5e7eb);
     border-radius: 1rem;
     background-color: var(--pm-card, #ffffff);
-    box-shadow: 0 18px 30px -24px rgba(15, 23, 42, .2);
     overflow: visible;
 }
 
@@ -849,12 +845,8 @@ main[role="main"] {
 }
 
 .pm-card-header {
-    display: flex;
     flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 1rem;
     padding: 1rem 1.5rem;
-    background-color: var(--pm-card);
     box-shadow: inset 0 -1px 0 rgba(45, 108, 223, .12);
     border-bottom: 1px solid rgba(15, 23, 42, .06);
 }
@@ -2789,8 +2781,6 @@ summary::marker {
    If it had positioning before, remove it. The card itself can keep its shadow. */
 .pm-login-card {
   position: static;
-  border: 1px solid var(--pm-border);
-  box-shadow: var(--pm-shadow);
 }
 
 /* ---------- Feature cards ---------- */
@@ -4200,7 +4190,6 @@ body.has-project-photo-preview-dialog {
 .notification-menu {
   display: flex;
   flex-direction: column;
-  max-height: min(80vh, 32rem);
 }
 
 .notification-menu__body {
@@ -4593,7 +4582,6 @@ body.has-project-photo-preview-dialog {
 }
 
 @media (max-width: 576px) {
-    
 
     .visit-form__footer {
         justify-content: flex-start;
@@ -5306,11 +5294,7 @@ body.has-project-photo-preview-dialog {
 }
 
 .pm-brand {
-    font-weight: 600;
     font-size: 1rem;
-    color: var(--pm-text-strong, #0f172a);
-    text-decoration: none;
-    white-space: nowrap;
 }
 
 .pm-top-tabs {
@@ -5564,10 +5548,8 @@ body.has-project-photo-preview-dialog {
 }
 
 .pm-hero__eyebrow {
-    display: flex;
     flex-wrap: wrap;
     gap: .5rem;
-    margin-bottom: .75rem;
 }
 
 .pm-pill {
@@ -5603,10 +5585,7 @@ body.has-project-photo-preview-dialog {
 }
 
 .pm-hero__highlights {
-    display: grid;
     grid-template-columns: repeat(3, minmax(0,1fr));
-    gap: .75rem;
-    margin-bottom: 1.25rem;
 }
 
 .pm-highlight {
@@ -5827,17 +5806,12 @@ body.has-project-photo-preview-dialog {
         text-align: center;
     }
 
-    .pm-hero__left {
-        max-width: 40rem;
-    }
-
     .pm-hero__cta {
         justify-content: center;
     }
 
     .pm-hero__right {
         position: static;
-        justify-content: center;
     }
 }
 /* Hero art watermark */
@@ -5859,7 +5833,6 @@ body.has-project-photo-preview-dialog {
 
     .pm-hero__art img {
         width: 100%;
-        height: auto;
         object-fit: contain;
     }
 
@@ -5937,10 +5910,7 @@ body.has-project-photo-preview-dialog {
 .pm-hero__brandline {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
     margin: 0 0 0.75rem 0;
-    color: var(--pm-accent-slate-strong, #475569);
-    font-size: 0.85rem;
     font-weight: 600;
 }
 
@@ -6115,30 +6085,6 @@ body.has-project-photo-preview-dialog {
 }
 
 /* SECTION: Security strip */
-.pm-security-strip__list {
-    list-style: none;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: .75rem 1.25rem;
-    padding: 0;
-}
-
-.pm-security-strip__item {
-    display: inline-flex;
-    align-items: center;
-    gap: .5rem;
-    font-size: .9rem;
-    color: var(--pm-text-secondary, #4b5563);
-    background: var(--pm-surface-subtle, #f8fafc);
-    border: 1px solid rgba(0,0,0,.05);
-    border-radius: 999px;
-    padding: .35rem .7rem;
-    white-space: nowrap;
-}
-
-    .pm-security-strip__item i {
-        font-size: 1rem;
-    }
 
 .pm-security-strip__list {
     list-style: none;
@@ -6164,16 +6110,6 @@ body.has-project-photo-preview-dialog {
     .pm-security-strip__item i {
         font-size: 1rem;
     }
-
-@media (max-width: 991.98px) {
-    .pm-security-strip__list {
-        grid-template-columns: 1fr;
-    }
-
-    .pm-security-strip__item {
-        white-space: normal;
-    }
-}
 
 .pm-chip-wrap {
     display: flex;
@@ -6454,7 +6390,6 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    margin-bottom: 1.75rem;
 }
 
 .pm-hero__highlights li {
@@ -6782,10 +6717,6 @@ main[role="main"].analytics-main > .pm-page-shell {
     background: color-mix(in srgb, var(--bs-primary) 10%, transparent);
 }
 
-.notification-icon-button:disabled {
-    opacity: .38;
-}
-
 .notification-menu__body {
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
@@ -6939,8 +6870,6 @@ main[role="main"].analytics-main > .pm-page-shell {
 }
 
 .notification-menu__summary {
-    display: -webkit-box;
-    overflow: hidden;
     color: var(--pm-text-secondary);
     font-size: .78rem;
     line-height: 1.4;
@@ -7000,24 +6929,6 @@ main[role="main"].analytics-main > .pm-page-shell {
 
 .notification-menu__centre-link:hover {
     text-decoration: underline;
-}
-
-.notification-menu__status {
-    max-width: 13rem;
-    min-height: 1rem;
-    color: var(--pm-text-muted);
-    font-size: .7rem;
-    text-align: right;
-}
-
-.notification-menu__status.is-error,
-.notification-centre__status.is-error {
-    color: var(--bs-danger);
-}
-
-.notification-menu__status.is-success,
-.notification-centre__status.is-success {
-    color: var(--bs-success);
 }
 
 .notification-menu__empty {
@@ -7302,7 +7213,6 @@ main[role="main"].analytics-main > .pm-page-shell {
 }
 
 .notification-card__title {
-    display: inline-block;
     max-width: 100%;
     color: var(--pm-text);
     font-size: .96rem;
@@ -7326,7 +7236,6 @@ main[role="main"].analytics-main > .pm-page-shell {
     font-size: .82rem;
     line-height: 1.45;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
     overflow-wrap: anywhere;
 }
 
@@ -7489,10 +7398,6 @@ main[role="main"].analytics-main > .pm-page-shell {
         flex-direction: column;
     }
 
-    .notification-menu__status {
-        max-width: none;
-        text-align: left;
-    }
 }
 
 /* ============================================================
@@ -7657,10 +7562,8 @@ main[role="main"].analytics-main > .pm-page-shell {
 
 .notification-inbox__page-header {
     display: flex;
-    align-items: flex-end;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: .85rem;
     padding-inline: .2rem;
 }
 
@@ -7676,7 +7579,6 @@ main[role="main"].analytics-main > .pm-page-shell {
 
 .notification-inbox__title {
     margin: 0;
-    font-size: clamp(1.45rem, 2vw, 1.9rem);
     font-weight: 800;
     letter-spacing: -.03em;
 }
@@ -7684,7 +7586,6 @@ main[role="main"].analytics-main > .pm-page-shell {
 .notification-inbox__subtitle {
     margin: .2rem 0 0;
     color: var(--pm-text-secondary);
-    font-size: .82rem;
 }
 
 .notification-inbox__summary {
@@ -7824,7 +7725,6 @@ main[role="main"].analytics-main > .pm-page-shell {
 .notification-inbox__selection-actions {
     display: flex;
     align-items: center;
-    gap: .18rem;
 }
 
 .notification-inbox__default-actions[hidden],
@@ -7957,21 +7857,16 @@ main[role="main"].analytics-main > .pm-page-shell {
 }
 
 .notification-inbox__date-group {
-    padding: .38rem .8rem .3rem 4.65rem;
     border-bottom: 1px solid var(--notification-inbox-border);
     color: var(--pm-text-muted);
     background: color-mix(in srgb, var(--pm-card) 97%, var(--pm-text) 3%);
-    font-size: .62rem;
     font-weight: 800;
-    letter-spacing: .06em;
-    text-transform: uppercase;
 }
 
 .notification-inbox-row {
     position: relative;
     min-height: 4.05rem;
     display: grid;
-    grid-template-columns: 2rem 2.2rem minmax(10.5rem, 14rem) minmax(14rem, 1fr) 6.4rem 6.6rem;
     align-items: center;
     gap: .55rem;
     padding: .45rem .7rem;
@@ -8108,7 +8003,6 @@ main[role="main"].analytics-main > .pm-page-shell {
 .notification-inbox-row__project {
     overflow: hidden;
     color: var(--pm-text);
-    font-size: .76rem;
     font-weight: 600;
     line-height: 1.25;
     text-overflow: ellipsis;
@@ -8315,11 +8209,6 @@ main[role="main"].analytics-main > .pm-page-shell {
         grid-template-columns: 13.4rem minmax(0, 1fr);
     }
 
-    .notification-inbox-row {
-        grid-template-columns: 1.8rem 2.05rem minmax(8.5rem, 11rem) minmax(12rem, 1fr) 5.8rem 4.6rem;
-        gap: .42rem;
-    }
-
     .notification-inbox-row__quick-actions .notification-inbox__icon-button:nth-child(2) {
         display: none;
     }
@@ -8371,20 +8260,10 @@ main[role="main"].analytics-main > .pm-page-shell {
         grid-template-columns: minmax(12rem, 1fr) 8rem minmax(9rem, 11rem) minmax(8rem, 10rem) 2.15rem;
     }
 
-    .notification-inbox-row {
-        grid-template-columns: 1.8rem 2.05rem minmax(8rem, 10rem) minmax(10rem, 1fr) 5.4rem;
-    }
-
-    .notification-inbox-row__quick-actions {
-        position: absolute;
-        right: .4rem;
-        background: inherit;
-    }
 }
 
 @media (max-width: 767.98px) {
     .notification-inbox__page-header {
-        align-items: flex-start;
         flex-direction: column;
     }
 
@@ -8414,29 +8293,8 @@ main[role="main"].analytics-main > .pm-page-shell {
         display: none;
     }
 
-    .notification-inbox-row {
-        min-height: 5rem;
-        grid-template-columns: 1.6rem 2.05rem minmax(0, 1fr) 4.8rem;
-        grid-template-rows: auto auto;
-        align-items: start;
-        gap: .2rem .45rem;
-        padding: .58rem .55rem;
-    }
-
-    .notification-inbox-row__select {
-        grid-row: 1 / span 2;
-        padding-top: .42rem;
-    }
-
-    .notification-inbox-row__icon {
-        grid-row: 1 / span 2;
-        margin-top: .12rem;
-    }
-
     .notification-inbox-row__source {
         grid-column: 3;
-        display: block;
-        padding-left: .62rem;
     }
 
     .notification-inbox-row__project {
@@ -8445,13 +8303,6 @@ main[role="main"].analytics-main > .pm-page-shell {
 
     .notification-inbox-row__category {
         display: none;
-    }
-
-    .notification-inbox-row__message {
-        grid-column: 3 / 5;
-        grid-row: 2;
-        display: block;
-        white-space: normal;
     }
 
     .notification-inbox-row__title,
@@ -8466,28 +8317,15 @@ main[role="main"].analytics-main > .pm-page-shell {
         display: none;
     }
 
-    .notification-inbox-row__time {
-        grid-column: 4;
-        grid-row: 1;
-        align-self: center;
-    }
-
     .notification-inbox-row__quick-actions {
         top: .35rem;
     }
 
-    .notification-inbox__date-group {
-        padding-left: 3.85rem;
-    }
 }
 
 @media (max-width: 479.98px) {
     .notification-inbox__subtitle {
         display: none;
-    }
-
-    .notification-inbox__title {
-        font-size: 1.35rem;
     }
 
     .notification-inbox__selection-count {
@@ -8723,12 +8561,6 @@ main[role="main"].analytics-main > .pm-page-shell {
         padding-left: .65rem;
     }
 
-    .notification-inbox-row {
-        min-height: 5.55rem;
-        grid-template-columns: 1.6rem 2.05rem minmax(0, 1fr) 4.8rem;
-        grid-template-rows: auto auto auto;
-    }
-
     .notification-inbox-row__select,
     .notification-inbox-row__icon {
         grid-row: 1 / span 3;
@@ -8742,8 +8574,6 @@ main[role="main"].analytics-main > .pm-page-shell {
     .notification-inbox-row__actor {
         grid-column: 3 / 5;
         grid-row: 3;
-        min-height: 1rem;
-        font-size: .64rem;
     }
 
     .notification-inbox-row__time {
@@ -8751,15 +8581,9 @@ main[role="main"].analytics-main > .pm-page-shell {
         grid-row: 1;
     }
 
-    .notification-inbox__date-group {
-        padding-left: 5.65rem;
-    }
 }
 
 @media (max-width: 479.98px) {
-    .notification-inbox-row__actor {
-        display: none;
-    }
 
     .notification-inbox-row {
         min-height: 5rem;
@@ -10422,10 +10246,6 @@ main[role="main"].analytics-main > .pm-page-shell {
 
 :where([data-bs-theme="dark"]) .pm-how-panel {
     background: #16181b;
-}
-
-:where([data-bs-theme="dark"]) .pm-security-strip__item {
-    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 :where([data-bs-theme="dark"]) .pm-security-strip__item {
