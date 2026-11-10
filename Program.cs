@@ -710,6 +710,7 @@ builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWo
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.BriefingDeskCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IProjectOfficerConferenceActionQuery, ProjectManagement.Services.Workspace.ProjectOfficerConferenceActionQuery>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerWorkloadReadService, ProjectManagement.Services.Workspace.OfficerWorkloadReadService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IItoWorkspaceQuery, ProjectManagement.Services.Workspace.ItoWorkspaceQuery>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceProjectScopeService, ProjectManagement.Services.Workspace.ConferenceProjectScopeService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerConferenceReadService, ProjectManagement.Services.Workspace.OfficerConferenceReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ConferenceRemarks.IConferenceRemarkCommandService, ProjectManagement.Services.ConferenceRemarks.ConferenceRemarkCommandService>();

@@ -32,6 +32,8 @@ public sealed class IndexModel : PageModel
     private readonly UserManager<ApplicationUser> _users;
     private readonly ILogger<IndexModel> _logger;
 
+    private readonly IItoWorkspaceQuery? _itoWorkspace;
+
     public IndexModel(
         IProjectBriefingDeckService deckService,
         IProjectBriefingSelectionService selectionService,
@@ -40,8 +42,10 @@ public sealed class IndexModel : PageModel
         CommandWorkspaceService commandWorkspaceService,
         ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
         UserManager<ApplicationUser> users,
-        ILogger<IndexModel> logger)
+        ILogger<IndexModel> logger,
+        IItoWorkspaceQuery? itoWorkspace = null)
     {
+        _itoWorkspace = itoWorkspace;
         _deckService = deckService ?? throw new ArgumentNullException(nameof(deckService));
         _selectionService = selectionService ?? throw new ArgumentNullException(nameof(selectionService));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
@@ -1346,10 +1350,18 @@ public sealed class IndexModel : PageModel
                 ct: cancellationToken)
             : new ProjectOfficerWorkspaceVm();
 
+        // An ITO keeps the conference review and IT projects links on every workspace page.
+        var hasItoAccess = User.IsInRole(RoleNames.Ito);
+        var liveItProjectCount = hasItoAccess && _itoWorkspace is not null
+            ? await _itoWorkspace.CountLiveItProjectsAsync(cancellationToken)
+            : 0;
+
         CommandRail = new CommandWorkspaceRailVm
         {
             HasCommandAccess = true,
             HasProjectOfficerAccess = hasProjectOfficerAccess,
+            HasItoAccess = hasItoAccess,
+            LiveItProjectCount = liveItProjectCount,
             CanViewDocuments = hasProjectOfficerAccess,
             ActiveLens = "command",
             ActiveItem = "command-briefing-decks",

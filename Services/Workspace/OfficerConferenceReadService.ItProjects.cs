@@ -90,8 +90,17 @@ public sealed partial class OfficerConferenceReadService
             return officer;
         }
 
+        // Same rule as the command review: an ITO with no Project Officer workload gets only the
+        // IT projects section, not empty project, idea and task sections. With no live IT project
+        // that section is shown empty ("No IT project in progress.").
         var rows = await LoadLiveItProjectsAsync(cancellationToken);
-        return rows.Count == 0 ? officer : officer with { ItProjectsInput = rows };
+        var noOtherWork = officer.ProjectCount == 0 && officer.Ideas.Count == 0 && officer.OtherTasks.Count == 0;
+        if (rows.Count == 0 && !noOtherWork)
+        {
+            return officer;
+        }
+
+        return officer with { ItProjectsInput = rows, ItProjectsOnly = noOtherWork };
     }
 
     /// <summary>The "IT projects" section of an ITO officer's conference review.</summary>

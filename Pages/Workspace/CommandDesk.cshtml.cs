@@ -21,12 +21,16 @@ public sealed class CommandDeskModel : PageModel
     private readonly ProjectOfficerWorkspaceService _projectOfficerWorkspaceService;
     private readonly UserManager<ApplicationUser> _users;
 
+    private readonly IItoWorkspaceQuery? _itoWorkspace;
+
     public CommandDeskModel(
         CommandDeskService desk,
         CommandWorkspaceService commandWorkspaceService,
         ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
-        UserManager<ApplicationUser> users)
+        UserManager<ApplicationUser> users,
+        IItoWorkspaceQuery? itoWorkspace = null)
     {
+        _itoWorkspace = itoWorkspace;
         _desk = desk ?? throw new ArgumentNullException(nameof(desk));
         _commandWorkspaceService = commandWorkspaceService ?? throw new ArgumentNullException(nameof(commandWorkspaceService));
         _projectOfficerWorkspaceService = projectOfficerWorkspaceService ?? throw new ArgumentNullException(nameof(projectOfficerWorkspaceService));
@@ -59,10 +63,18 @@ public sealed class CommandDeskModel : PageModel
                 ct: ct)
             : new ProjectOfficerWorkspaceVm();
 
+        // An ITO keeps the conference review and IT projects links on every workspace page.
+        var hasItoAccess = User.IsInRole(RoleNames.Ito);
+        var liveItProjectCount = hasItoAccess && _itoWorkspace is not null
+            ? await _itoWorkspace.CountLiveItProjectsAsync(ct)
+            : 0;
+
         CommandRail = new CommandWorkspaceRailVm
         {
             HasCommandAccess = true,
             HasProjectOfficerAccess = hasProjectOfficerAccess,
+            HasItoAccess = hasItoAccess,
+            LiveItProjectCount = liveItProjectCount,
             CanViewDocuments = hasProjectOfficerAccess,
             ActiveLens = "command",
             ActiveItem = "command-desk",
