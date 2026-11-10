@@ -33,7 +33,7 @@ public class ItoWorkspaceTests
 {
     private static DateOnly D(int year, int month, int day) => new(year, month, day);
 
-    private static async Task<(int Live, int Delivered)> SeedAsync(ItProjectTestDb db)
+    private static async Task<(int Live, int Delivered)> SeedAsync(ItProjectTestDb db, bool withLiveItProject = true)
     {
         await using (var context = db.NewContext())
         {
@@ -43,8 +43,13 @@ public class ItoWorkspaceTests
             await context.SaveChangesAsync();
         }
 
-        var (live, liveVersion) = await db.SeedAsync("Core switches", "IT PPP 09/2025", 2025);
-        Assert.True((await db.Commands().SaveStagesAsync(live, Input(S("TEC", true, D(2025, 11, 18))), liveVersion, ItProjectTestDb.Actor())).Result.Succeeded);
+        var live = 0;
+        if (withLiveItProject)
+        {
+            (live, var liveVersion) = await db.SeedAsync("Core switches", "IT PPP 09/2025", 2025);
+            Assert.True((await db.Commands().SaveStagesAsync(live, Input(S("TEC", true, D(2025, 11, 18))), liveVersion, ItProjectTestDb.Actor())).Result.Succeeded);
+        }
+
         var (delivered, deliveredVersion) = await db.SeedAsync("Fibre ring", "IT PPP 10/2024", 2024);
         Assert.True((await db.Commands().SaveStagesAsync(delivered, Input(S("DLV", true, D(2025, 6, 30))), deliveredVersion, ItProjectTestDb.Actor())).Result.Succeeded);
         return (live, delivered);
@@ -169,6 +174,24 @@ public class ItoWorkspaceTests
         Assert.Equal(
             new[] { ConferenceItemKind.Project, ConferenceItemKind.ProjectIdea, ConferenceItemKind.ActionTask, ConferenceItemKind.ItProject },
             both!.Sections.Select(section => section.Kind));
+    }
+
+    [Fact]
+    public async Task OwnReview_ShowsTheEmptyItProjectsSection_WhenNoItProjectIsLive()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        await SeedAsync(db, withLiveItProject: false);
+        await using var context = db.NewContext();
+
+        // Only a delivered IT project: the ITO still gets the IT projects section, empty, and not
+        // the Project Officer's empty project, idea and task sections.
+        var review = await new OfficerConferenceReadService(context, new NoWorkload(), new WorkflowStageMetadataProvider(), db.Clock)
+            .GetForProjectOfficerAsync("ito-1");
+
+        var section = Assert.Single(review!.Sections);
+        Assert.Equal(ConferenceItemKind.ItProject, section.Kind);
+        Assert.Empty(section.Items);
+        Assert.Equal(0, review.ItProjectCount);
     }
 
     [Fact]

@@ -512,7 +512,7 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
         // Only an ITO officer carries IT projects. An ITO who is listed only for them (no Project
         // Officer workload) gets just that section: the project, idea and task sections, with
         // their "Add idea" / "Add task" forms, do not apply to them.
-        if (selected.ItProjects.Count > 0)
+        if (selected.ItProjects.Count > 0 || selected.ItProjectsOnly)
         {
             var itSection = await BuildItProjectSectionAsync(selected, cancellationToken);
             if (selected.ItProjectsOnly)
