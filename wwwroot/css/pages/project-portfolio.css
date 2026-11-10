@@ -8,9 +8,7 @@
 
 .project-portfolio .pm-card {
     border-color: var(--portfolio-border);
-    border-radius: .95rem;
     overflow: visible;
-    box-shadow: 0 7px 20px rgba(15, 23, 42, .045);
 }
 
 /*
@@ -30,51 +28,34 @@
     margin-bottom: .75rem;
     padding: 0;
     overflow: visible;
-    border: 1px solid #c7d0dd;
-    border-left: 3px solid var(--project-command-accent);
     border-radius: .95rem;
-    background-color: #fff;
-    background:
-        radial-gradient(circle at 94% 0%, var(--project-command-glow), transparent 34%),
-        var(--pm-card, #fff);
-    background-clip: padding-box;
     box-shadow: 0 7px 20px rgba(15, 23, 42, .055);
 }
 
 .project-portfolio .project-command-header--completed {
     --project-command-accent: #4c9f6a;
     --project-command-glow: rgba(25, 135, 84, .08);
-    border-color: #a9ceb8;
-    border-left-color: var(--project-command-accent);
 }
 
 .project-portfolio .project-command-header--cancelled {
     --project-command-accent: #d25b67;
     --project-command-glow: rgba(220, 53, 69, .07);
-    border-color: #e6b6bb;
-    border-left-color: var(--project-command-accent);
 }
 
 @supports (color: color-mix(in srgb, #000 50%, #fff)) {
     .project-portfolio .project-command-header {
         --project-command-accent: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 62%, #fff);
         --project-command-glow: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 8%, transparent);
-        border-color: color-mix(in srgb, var(--pm-border, #d9e1ec) 72%, #94a3b8 28%);
-        border-left-color: var(--project-command-accent);
     }
 
     .project-portfolio .project-command-header--completed {
         --project-command-accent: color-mix(in srgb, var(--bs-success, #198754) 78%, #fff);
         --project-command-glow: color-mix(in srgb, var(--bs-success, #198754) 8%, transparent);
-        border-color: color-mix(in srgb, var(--bs-success, #198754) 34%, var(--portfolio-border));
-        border-left-color: var(--project-command-accent);
     }
 
     .project-portfolio .project-command-header--cancelled {
         --project-command-accent: color-mix(in srgb, var(--bs-danger, #dc3545) 72%, #fff);
         --project-command-glow: color-mix(in srgb, var(--bs-danger, #dc3545) 7%, transparent);
-        border-color: color-mix(in srgb, var(--bs-danger, #dc3545) 30%, var(--portfolio-border));
-        border-left-color: var(--project-command-accent);
     }
 }
 
@@ -95,8 +76,6 @@
     padding: .9rem 1rem .8rem;
 }
 
-.project-command-header__identity { min-width: 0; }
-
 .project-command-header__eyebrow {
     margin-bottom: .22rem;
     color: var(--pm-accent-blue, #3f6ff0);
@@ -109,7 +88,6 @@
 .project-command-header__title {
     margin: 0;
     color: var(--pm-text-strong, #0f172a);
-    font-size: clamp(1.55rem, 2.2vw, 2.15rem);
     font-weight: 750;
     line-height: 1.12;
     overflow-wrap: anywhere;
@@ -265,7 +243,6 @@
     min-width: 0;
     padding: .7rem .8rem;
     border: 1px solid var(--portfolio-border);
-    border-radius: .75rem;
     background: color-mix(in srgb, var(--pm-surface-bg, #fff) 84%, var(--portfolio-soft));
     color: inherit;
     text-align: left;
@@ -302,7 +279,6 @@ button.project-intelligence-card:hover {
 
 .project-intelligence-card strong {
     color: var(--pm-text-strong, #0f172a);
-    font-size: .98rem;
 }
 
 .project-intelligence-card--cancellation strong {
@@ -321,7 +297,6 @@ button.project-intelligence-card:hover {
     font-size: .75rem;
 }
 
-.project-portfolio-layout { align-items: flex-start; }
 .project-portfolio-main,
 .project-portfolio-rail { min-width: 0; }
 
@@ -341,7 +316,6 @@ button.project-intelligence-card:hover {
 
 /* Project profile */
 .project-profile-card .project-photo-cover-frame {
-    min-height: 7rem;
     border-radius: .8rem;
     overflow: hidden;
     background: var(--portfolio-soft);
@@ -350,24 +324,17 @@ button.project-intelligence-card:hover {
 .project-profile-card .project-photo-cover-empty {
     display: grid;
     place-content: center;
-    min-height: 7rem;
-    padding: 1rem;
 }
 
 .project-profile-card .project-photo-cover-empty__icon {
     margin-inline: auto;
-    width: 2.4rem;
-    height: 2.4rem;
     display: grid;
     place-items: center;
-    border-radius: .75rem;
     background: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 10%, var(--pm-card, #fff));
     color: var(--pm-accent-blue, #3f6ff0);
 }
 
 .project-profile-card .project-photo-cover-empty__title {
-    margin-top: .5rem;
-    font-size: .88rem;
     font-weight: 700;
 }
 
@@ -428,7 +395,6 @@ button.project-intelligence-card:hover {
     color: var(--pm-text-strong, #0f172a);
     font-size: .9rem;
     text-overflow: ellipsis;
-    white-space: nowrap;
 }
 .project-lifecycle-summary__grid > div > span:last-child {
     margin-top: .08rem;
@@ -479,15 +445,11 @@ button.project-intelligence-card:hover {
     box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
 }
 .project-files-empty {
-    display: grid;
     place-items: center;
-    min-height: 5.75rem;
-    padding: .9rem 1rem;
     border: 1px dashed var(--portfolio-border);
     border-radius: .8rem;
     background: var(--pm-surface-subtle, #f8fafc);
     color: var(--portfolio-muted);
-    text-align: center;
 }
 .project-files-card .table-responsive {
     max-height: 24rem;
@@ -559,8 +521,6 @@ button.project-intelligence-card:hover {
     min-width: 0;
     margin-left: auto;
     color: var(--portfolio-muted);
-    font-size: .72rem;
-    font-weight: 600;
     white-space: nowrap;
 }
 .project-lifecycle-panel .pm-item.is-expanded .pm-item-compact-meta { display: none; }
@@ -632,10 +592,8 @@ button.project-intelligence-card:hover {
     }
 
     .project-command-header__main { padding: .82rem; }
-    .project-command-header__meta { flex-direction: column; gap: .3rem; }
     .project-command-header__actions .btn-primary { flex: 1 1 auto; }
     .project-intelligence-strip {
-        grid-template-columns: 1fr;
         padding: .75rem .82rem .82rem;
     }
     .project-lifecycle-summary__grid { grid-template-columns: 1fr; }
@@ -645,16 +603,7 @@ button.project-intelligence-card:hover {
 
 @media print {
     .project-portfolio .project-command-header {
-        border-left-color: #6b8de7;
         box-shadow: none;
-    }
-    .project-portfolio .project-command-header--completed {
-        border-color: #198754;
-        border-left-color: #198754;
-    }
-    .project-portfolio .project-command-header--cancelled {
-        border-color: #b02a37;
-        border-left-color: #b02a37;
     }
 
     .project-command-header__actions,
@@ -784,7 +733,6 @@ button.project-intelligence-card:hover {
     transform: rotate(180deg);
 }
 
-
 .project-lifecycle-summary__grid strong.project-lifecycle-summary__action {
     display: -webkit-box;
     overflow: hidden;
@@ -816,17 +764,12 @@ button.project-intelligence-card:hover {
     }
 }
 
-
 /* Outcome-driven completed stages */
 .pm-stage-outcome {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .55rem;
-    margin-top: .65rem;
 }
 .pm-stage-outcome > div {
     min-width: 0;
-    padding: .62rem .68rem;
     border: 1px solid var(--portfolio-border);
     border-radius: .68rem;
     background: var(--portfolio-soft);
@@ -1382,7 +1325,6 @@ button.project-intelligence-card:hover {
         gap: .15rem;
     }
 }
-
 
 /* Exploitation and transfer portfolio section */
 .project-portfolio-files-column,
@@ -2196,7 +2138,6 @@ button.project-intelligence-card:hover {
     }
 }
 
-
 /* V5: wider, bounded project workspace */
 .project-portfolio-shell {
     width: min(calc(100% - 2rem), 108rem);
@@ -2277,7 +2218,6 @@ button.project-intelligence-card:hover {
 .project-cover-float picture,
 .project-cover-float img { display: block; width: 100%; height: 100%; }
 .project-cover-float img { object-position: center; }
-.project-profile-flow .project-facts { min-width: 18rem; }
 .project-profile-flow .project-description-block { margin-top: .75rem; }
 .project-profile-missing--clear { clear: both; }
 
@@ -2323,7 +2263,6 @@ button.project-intelligence-card:hover {
         width: min(100%, 20rem);
         margin: 0 auto 1rem;
     }
-    .project-profile-flow .project-facts { min-width: 0; }
     .remarks-deleted-toggle { margin-left: 0; }
 }
 
@@ -2459,7 +2398,6 @@ button.project-intelligence-card:hover {
     transform: translateY(-1px);
 }
 
-
 .project-record-health__gap--readonly {
     grid-template-columns: auto minmax(0, 1fr);
     cursor: default;
@@ -2539,7 +2477,6 @@ button.project-intelligence-card:hover {
 }
 
 .project-intelligence-card__edit-icon {
-    color: var(--pm-accent-blue, #3f6ff0);
     font-size: .78rem;
 }
 
@@ -3254,7 +3191,6 @@ button.project-intelligence-card--tot:focus-visible {
     border: 1px solid var(--portfolio-border, #dfe5ef);
     border-radius: .8rem;
     background: var(--bs-body-bg, #fff);
-    overflow: hidden;
     box-shadow: 0 6px 18px rgba(31, 47, 76, .045);
 }
 
@@ -3272,8 +3208,6 @@ button.project-intelligence-card--tot:focus-visible {
     font-size: .78rem;
     line-height: 1.35;
 }
-
-
 
 .project-jdp-editor__related-projects {
     border-top: 1px solid var(--portfolio-border, #dfe5ef);
@@ -3345,7 +3279,6 @@ button.project-intelligence-card--tot:focus-visible {
 .project-exploitation-grid--single > .card {
     width: 100%;
 }
-
 
 /* ==========================================================================
    V6: Overview visual pass
@@ -3496,9 +3429,6 @@ button.project-intelligence-card--tot:focus-visible {
 
 /* Key facts: label/value tiles that wrap beside the cover. */
 .project-profile-flow .project-facts {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
-    gap: .5rem;
     min-width: 0;
 }
 .project-facts__item {
@@ -3678,10 +3608,6 @@ button.project-intelligence-card--tot:focus-visible {
     .project-intelligence-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
     .project-intelligence-card { padding: .6rem .65rem; }
     .project-intelligence-card strong { font-size: .95rem; }
-    .project-profile-flow .project-facts {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: .4rem;
-    }
     .project-facts__item .project-facts__value { margin-bottom: 0; }
 }
 
@@ -4476,7 +4402,6 @@ a.project-intelligence-card:focus-visible {
     color: var(--pm-danger-soft-text);
     background: var(--pm-card);
 }
-
 
 /* ============================================================
    Project JDP panel: each partner's primary contact (Industry Directory redesign, PR 3)
