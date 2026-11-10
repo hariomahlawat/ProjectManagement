@@ -366,9 +366,6 @@
         display: none;
     }
 
-    .ffc-detailed-card .pm-card__body {
-        padding: .45rem;
-    }
 }
 
 [data-bs-theme="dark"] .ffc-dtable,
@@ -396,7 +393,6 @@
 [data-bs-theme="dark"] .ffc-dtable__group-iso {
     color: #9aa0a6;
 }
-
 
 /* SECTION: Filter bar and totals above the table */
 .ffc-detailed-filters {
