@@ -20,9 +20,9 @@ set -euo pipefail
 # 1 violations found, 2 the check could not run (missing path; ripgrep missing, without
 # PCRE2, or failing).
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
+# The tool checks come first and use only shell builtins, so a missing tool always exits 2.
+# Before, SCRIPT_DIR ran dirname first; with no PATH that left `cd ""`, which bash 5.3 treats
+# as an error, so set -e exited 1 ("violations found") instead of 2.
 if ! command -v rg >/dev/null 2>&1; then
   echo "Error: ripgrep (rg) is required to run the view guardrails." >&2
   exit 2
@@ -32,6 +32,9 @@ if ! rg --pcre2-version >/dev/null 2>&1; then
   echo "Error: this ripgrep was built without PCRE2 support (rg --pcre2), which the view guardrails need." >&2
   exit 2
 fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 search_paths=()
 if [ "$#" -gt 0 ]; then
