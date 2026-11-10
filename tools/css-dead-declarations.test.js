@@ -66,6 +66,13 @@ test('@supports is a condition like @media, and nested conditions combine', () =
   assert.deepEqual(deadProps('@media (max-width: 600px) { @supports (gap: 1px) { .a { gap: 1px; } } } .a { gap: 2px; }'), ['.a gap']);
 });
 
+test('conditions differing only inside quotes are different conditions', () => {
+  // Quoted values are case-sensitive: "A A" and "a a" can make one condition true and the other false.
+  assert.deepEqual(deadProps('@supports (grid-template-areas: "A A" "a .") { .a { color: red; } } @supports (grid-template-areas: "a a" "a .") { .a { color: blue; } }'), []);
+  // Outside quotes, case and spacing do not matter.
+  assert.deepEqual(deadProps('@SUPPORTS (DISPLAY:  grid) { .a { color: red; } } @supports (display: grid) { .a { color: blue; } }'), ['.a color']);
+});
+
 test('@keyframes steps are not style rules', () => {
   assert.deepEqual(deadProps('@keyframes spin { from { opacity: 0; } to { opacity: 1; } } .a { opacity: 1; } @keyframes spin { from { opacity: 0; } }'), []);
   // fix leaves keyframes exactly as they are.

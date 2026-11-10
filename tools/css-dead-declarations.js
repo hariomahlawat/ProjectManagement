@@ -78,10 +78,10 @@ function parse(src) {
       if (src[stop] !== '{') throw new Error(`Unexpected CSS near offset ${start}: ${src.slice(start, stop + 1).trim()}`);
       const prelude = src.slice(start, stop).trim();
       i = stop + 1;
-      if (prelude.startsWith('@media') || prelude.startsWith('@supports')) {
+      if (/^@(media|supports)\b/i.test(prelude)) {
         // A rule here applies only under this condition: it interacts with rules under the same
         // condition, and an unconditional later rule overrides it (see findDead).
-        const condition = prelude.replace(/\s+/g, ' ').toLowerCase();
+        const condition = normaliseCondition(prelude);
         items.push({ type: 'media', start, children: parseBlock('}', ctx ? `${ctx} ${condition}` : condition), end: i });
       } else if (/^@(-[a-z]+-)?keyframes\b/i.test(prelude)) {
         skipBlock();
@@ -97,6 +97,18 @@ function parse(src) {
     return items;
   }
   return parseBlock(null, '');
+}
+
+// A condition's key: whitespace collapsed and letters lowercased, except inside quoted
+// strings, whose values are case-sensitive (e.g. grid-template-areas names).
+function normaliseCondition(prelude) {
+  return prelude
+    .split(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/)
+    .map((part, index) => (index % 2
+      ? part
+      : part.replace(/\s+/g, ' ').toLowerCase().replace(/\(\s+/g, '(').replace(/\s+\)/g, ')').replace(/\s*:\s*/g, ': ')))
+    .join('')
+    .trim();
 }
 
 function splitSelectors(text) {
