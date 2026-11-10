@@ -97,7 +97,6 @@
 .arpp-v2-page-header__eyebrow {
     display: block;
     margin-bottom: .2rem;
-    color: var(--arpp-v2-muted);
     font-size: .72rem;
     font-weight: 700;
     letter-spacing: .075em;
@@ -143,7 +142,6 @@
 
 .arpp-v2-summary__item > span {
     display: block;
-    color: var(--arpp-v2-muted);
     font-size: .72rem;
     font-weight: 700;
     letter-spacing: .045em;
@@ -153,7 +151,6 @@
 .arpp-v2-summary__item > strong {
     display: block;
     margin-top: .25rem;
-    color: var(--arpp-text);
     font-size: 1.45rem;
     line-height: 1.1;
 }
@@ -166,8 +163,6 @@
     line-height: 1.35;
 }
 
-.arpp-v2-summary__item--published > strong { color: var(--arpp-success); }
-.arpp-v2-summary__item--working > strong { color: var(--arpp-warning); }
 .arpp-v2-summary__item--reconcile > strong { color: var(--arpp-v2-primary); }
 
 .arpp-v2-filterbar {
@@ -222,7 +217,6 @@
 
 .arpp-v2-year__title span {
     display: block;
-    color: var(--arpp-v2-muted);
     font-size: .68rem;
     font-weight: 700;
     letter-spacing: .06em;
@@ -252,7 +246,6 @@
 }
 
 .arpp-v2-year__position strong {
-    color: var(--arpp-text);
     font-size: .95rem;
 }
 
@@ -288,7 +281,6 @@
 }
 
 .arpp-v2-record__continuity {
-    color: var(--arpp-v2-muted);
     font-size: .73rem;
 }
 
@@ -305,7 +297,6 @@
     align-items: center;
     gap: .35rem .75rem;
     margin-top: .4rem;
-    color: var(--arpp-v2-muted);
     font-size: .75rem;
 }
 
@@ -320,7 +311,6 @@
     padding: .12rem .42rem;
     border: 1px solid var(--arpp-v2-border);
     border-radius: 999px;
-    background: var(--arpp-v2-surface-soft);
 }
 
 .arpp-v2-record__values {
@@ -332,7 +322,6 @@
 
 .arpp-v2-record__value span {
     display: block;
-    color: var(--arpp-v2-muted);
     font-size: .68rem;
     font-weight: 600;
     letter-spacing: .035em;
@@ -344,9 +333,6 @@
     margin-top: .12rem;
     font-size: .95rem;
 }
-
-.arpp-v2-record__value--approved strong { color: var(--arpp-success); }
-.arpp-v2-record__value--delisted strong { color: var(--arpp-warning); }
 
 .arpp-v2-record__actions {
     display: flex;
@@ -377,7 +363,6 @@
 
 .arpp-record-v2__header p {
     margin: .3rem 0 0;
-    color: var(--arpp-v2-muted);
     font-size: .84rem;
 }
 
@@ -420,7 +405,6 @@
 
 .arpp-record-v2__state-copy > .bi {
     margin-top: .15rem;
-    color: var(--arpp-text);
 }
 
 .arpp-record-v2__state-copy strong {
@@ -430,7 +414,6 @@
 
 .arpp-record-v2__state-copy p {
     margin: .18rem 0 0;
-    color: var(--arpp-v2-muted);
     font-size: .77rem;
     line-height: 1.4;
 }
@@ -442,7 +425,6 @@
     margin: .4rem 0 0;
     padding: 0;
     list-style: none;
-    color: var(--arpp-v2-muted);
     font-size: .73rem;
 }
 
@@ -451,9 +433,6 @@
     align-items: center;
     gap: .3rem;
 }
-
-.arpp-record-v2__readiness .is-ready .bi { color: var(--bs-success); }
-.arpp-record-v2__readiness .is-pending .bi { color: var(--bs-warning); }
 
 .arpp-record-v2__readiness-action {
     font-weight: 600;
@@ -541,7 +520,6 @@
 
 .arpp-record-v2__metric span {
     display: block;
-    color: var(--arpp-v2-muted);
     font-size: .69rem;
     font-weight: 700;
     letter-spacing: .04em;
@@ -557,12 +535,8 @@
 .arpp-record-v2__metric small {
     display: block;
     margin-top: .25rem;
-    color: var(--arpp-v2-muted);
     font-size: .73rem;
 }
-
-.arpp-record-v2__metric--approved strong { color: var(--arpp-success); }
-.arpp-record-v2__metric--delisted strong { color: var(--arpp-warning); }
 
 .arpp-record-v2__overview-section {
     margin-top: .8rem;
@@ -613,8 +587,6 @@
 .arpp-v2-table thead th {
     padding: .58rem .65rem;
     border-bottom: 1px solid var(--arpp-v2-border);
-    background: var(--arpp-surface-muted);
-    color: var(--arpp-text-muted);
     font-size: .69rem;
     font-weight: 700;
     letter-spacing: .035em;
@@ -629,9 +601,6 @@
 }
 
 .arpp-v2-table tbody tr:last-child td { border-bottom: 0; }
-.arpp-v2-table tbody tr.arpp-row--delisted td {
-    background: var(--arpp-warning-soft);
-}
 
 .arpp-v2-project-cell {
     min-width: 19rem;
@@ -652,7 +621,6 @@
 
 .arpp-v2-project-cell__issued strong,
 .arpp-v2-project-cell__linked strong {
-    color: var(--arpp-v2-muted);
     font-size: .7rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -667,7 +635,6 @@
     flex-wrap: wrap;
     gap: .25rem .55rem;
     margin-top: .22rem;
-    color: var(--arpp-v2-muted);
     font-size: .72rem;
 }
 
@@ -691,7 +658,6 @@
     padding: .68rem .72rem;
     border: 1px solid var(--arpp-border);
     border-radius: var(--arpp-radius);
-    background: var(--arpp-surface);
 }
 
 .arpp-v2-file__icon {
@@ -719,7 +685,6 @@
 .arpp-v2-file__identity span {
     display: block;
     margin-top: .15rem;
-    color: var(--arpp-v2-muted);
     font-size: .72rem;
 }
 
@@ -777,13 +742,11 @@
     overflow: hidden;
     border: 1px solid var(--arpp-v2-border);
     border-radius: .8rem;
-    background: var(--arpp-v2-surface);
 }
 
 .arpp-v2-form-panel__header {
     padding: .8rem 1rem;
     border-bottom: 1px solid var(--arpp-v2-border);
-    background: var(--arpp-v2-surface-soft);
 }
 
 .arpp-v2-form-panel__header h2 {
@@ -1027,7 +990,6 @@
 }
 
 .arpp-record-v2__identity-strip strong {
-    color: var(--bs-body-color);
     font-size: .68rem;
     font-weight: 700;
     letter-spacing: .035em;
@@ -1041,7 +1003,6 @@
         gap: .35rem;
     }
 }
-
 
 /* Visual-system and density completion --------------------------- */
 .arpp-page,

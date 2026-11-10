@@ -415,7 +415,6 @@
 }
 
 .project-photo-management-grid {
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 1rem;
 }
 
@@ -604,10 +603,6 @@
     flex-direction: column;
   }
 
-  .project-photo-management-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .project-photo-management-card__actions {
     justify-content: stretch;
   }
@@ -618,9 +613,6 @@
 }
 
 @media (max-width: 520px) {
-  .project-photo-management-grid {
-    grid-template-columns: 1fr;
-  }
 
   .project-photo-actions {
     bottom: .35rem;

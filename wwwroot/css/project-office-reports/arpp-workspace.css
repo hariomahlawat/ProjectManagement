@@ -49,7 +49,6 @@ body.arpp-workspace-active {
 .arpp-workspace-v2__product {
     display: block;
     margin-bottom: .1rem;
-    color: var(--arpp-primary);
     font-size: .67rem;
     font-weight: 700;
     letter-spacing: .065em;
@@ -79,8 +78,6 @@ body.arpp-workspace-active {
     padding: .14rem .4rem;
     border: 1px solid var(--arpp-workspace-border);
     border-radius: 999px;
-    background: var(--arpp-workspace-soft);
-    color: var(--arpp-workspace-muted);
     font-size: .68rem;
     font-weight: 600;
 }
@@ -305,15 +302,7 @@ body.arpp-workspace-active {
     text-align: center;
 }
 
-.arpp-workspace-v2__filters button:hover {
-    background: var(--arpp-surface-muted);
-    color: var(--arpp-text);
-}
-
 .arpp-workspace-v2__filters button.is-active {
-    border-color: color-mix(in srgb, var(--bs-primary) 25%, var(--arpp-workspace-border));
-    background: var(--arpp-primary-soft);
-    color: var(--arpp-primary);
     font-weight: 600;
 }
 
@@ -322,7 +311,6 @@ body.arpp-workspace-active {
     padding: .6rem;
     border: 1px solid color-mix(in srgb, var(--bs-danger) 28%, var(--arpp-workspace-border));
     border-radius: .6rem;
-    background: color-mix(in srgb, var(--bs-danger-bg-subtle) 42%, var(--bs-body-bg));
 }
 
 .arpp-workspace-v2__issues-header {
@@ -354,9 +342,6 @@ body.arpp-workspace-active {
     width: 100%;
     overflow: hidden;
     padding: .35rem .45rem;
-    border-color: color-mix(in srgb, var(--bs-danger) 30%, var(--arpp-workspace-border));
-    background: var(--arpp-surface);
-    color: var(--arpp-danger);
     font-size: .7rem;
     text-align: left;
     text-overflow: ellipsis;
@@ -570,8 +555,6 @@ body.arpp-workspace-active {
 }
 
 .arpp-workspace-v2__table .arpp-issued-identifier--not-applicable {
-    background: var(--arpp-workspace-soft);
-    color: var(--arpp-workspace-muted);
     font-style: italic;
 }
 
@@ -593,10 +576,6 @@ body.arpp-workspace-active {
 
 .arpp-workspace-v2__table .arpp-row--jump-target td {
     background: var(--arpp-primary-soft);
-}
-
-.arpp-workspace-v2__table tr.is-validation-target td {
-    background: var(--arpp-surface);
 }
 
 .arpp-workspace-v2__table tr.is-validation-target {
@@ -745,9 +724,6 @@ body.arpp-workspace-active {
         transform: translateX(0);
     }
 
-    .arpp-workspace-v2__navigator-header .btn {
-        display: inline-grid;
-    }
 }
 
 @media (max-width: 767.98px) {
@@ -938,11 +914,6 @@ body.arpp-workspace-active {
     font-weight: 600;
 }
 
-.arpp-workspace-v2.has-validation:not(.is-dirty) .arpp-workspace-v2__save-state {
-    color: var(--arpp-warning);
-}
-
-
 /* Production finishing refinements ------------------------------- */
 .arpp-workspace-v2__issues-toggle {
     width: auto;
@@ -968,25 +939,14 @@ body.arpp-workspace-active {
     position: sticky;
     right: 0;
     border-left: 1px solid var(--arpp-workspace-border);
-    background: var(--arpp-surface);
-    box-shadow: -.35rem 0 .65rem rgba(15, 23, 42, .035);
 }
 
 .arpp-workspace-v2__table .arpp-col-actions {
     z-index: 10;
-    background: var(--arpp-surface-muted);
 }
 
 .arpp-workspace-v2__table .arpp-actions-cell {
     z-index: 4;
-}
-
-.arpp-workspace-v2__table tbody tr:hover .arpp-actions-cell {
-    background: var(--arpp-surface-hover);
-}
-
-.arpp-workspace-v2__table tr.is-validation-target .arpp-actions-cell {
-    background: var(--arpp-surface);
 }
 
 .arpp-workspace-v2.has-validation:not(.is-dirty) .arpp-workspace-v2__save-state {
@@ -1009,10 +969,8 @@ body.arpp-workspace-active {
     .arpp-workspace-v2__table .arpp-actions-cell {
         position: static;
         border-left: 0;
-        box-shadow: none;
     }
 }
-
 
 /* Visual-system and density completion --------------------------- */
 .arpp-workspace-v2__product {
@@ -1080,10 +1038,6 @@ body.arpp-workspace-active {
     background: var(--arpp-surface);
 }
 
-.arpp-workspace-v2__table tr.is-validation-target td:nth-child(2) {
-    box-shadow: inset .2rem 0 0 var(--arpp-danger);
-}
-
 .arpp-workspace-v2__table .arpp-issued-identifier--not-applicable {
     border-color: var(--arpp-border);
     background: var(--arpp-surface-subtle);
@@ -1127,7 +1081,6 @@ body.arpp-workspace-active {
 }
 
 .arpp-workspace-v2__table-viewport::after {
-    right: 0;
     background: linear-gradient(270deg, rgba(23, 32, 51, .12), transparent);
 }
 
@@ -1202,7 +1155,6 @@ body.arpp-workspace-active {
         grid-column: 1;
     }
 }
-
 
 /* Final workspace interaction polish ------------------------------ */
 .arpp-workspace-v2__header [data-arpp-save-button]:disabled {

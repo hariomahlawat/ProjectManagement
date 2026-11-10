@@ -8,33 +8,33 @@ repaints it. Not counted: dark rules, `@media print`, `var()` fallbacks and the 
 definitions in `site.css`. The npm test suite fails if any file gains literals; see
 [the dark theme doc](dark-theme-palette.md) for how to convert a page.
 
-Totals: **6111** stylesheet literals in 71 files, **6** in inline view styles.
+Totals: **6082** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 0: shell and Project Overview (done in #2700)
 
-97 literals.
+91 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
-| `pages/project-portfolio.css` | 57 | 48 |
+| `pages/project-portfolio.css` | 51 | 48 |
 | `navigation-shell.css` | 25 | 16 |
 | `projects/timeline.css` | 13 | 6 |
 | `pages/project-lifecycle-actions.css` | 2 | 2 |
 
 ## Wave 1: Dashboard, My Workspace, Projects lists, Calendar, shared site.css
 
-1578 literals.
+1568 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `site.css` | 297 | 246 |
-| `officer-conference.css` | 202 | 139 |
+| `officer-conference.css` | 201 | 139 |
 | `command-workspace.css` | 192 | 126 |
 | `pages/projects-completed-summary.css` | 186 | 140 |
-| `calendar.css` | 184 | 113 |
-| `workspace.css` | 148 | 100 |
+| `calendar.css` | 179 | 111 |
+| `workspace.css` | 146 | 98 |
 | `projects/ongoing-conference.css` | 87 | 50 |
-| `projects/index.css` | 68 | 63 |
+| `projects/index.css` | 66 | 60 |
 | `widgets/project-pulse.css` | 46 | 24 |
 | `projects/create.css` | 44 | 24 |
 | `todo-widget.css` | 39 | 22 |
@@ -46,12 +46,12 @@ Totals: **6111** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 2: Notebook, Photos, Documents, Search
 
-911 literals.
+908 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `notebook.css` | 348 | 243 |
-| `pages/photos-people.css` | 183 | 114 |
+| `pages/photos-people.css` | 180 | 113 |
 | `pages/photos-library.css` | 125 | 85 |
 | `pages/photos-person-profile.css` | 75 | 55 |
 | `pages/photos-curation.css` | 53 | 38 |
@@ -64,15 +64,15 @@ Totals: **6111** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 3: Project pages and reports
 
-2168 literals.
+2165 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `pages/projects-publications.css` | 1283 | 809 |
-| `project-ideas.css` | 228 | 150 |
+| `project-ideas.css` | 227 | 149 |
 | `pages/project-briefing-decks.css` | 162 | 113 |
 | `project-ideas-board.css` | 124 | 76 |
-| `pages/projects-reports.css` | 89 | 64 |
+| `pages/projects-reports.css` | 87 | 63 |
 | `site-ipr.css` | 78 | 50 |
 | `pages/projects-completed-summary-edit.css` | 66 | 40 |
 | `pages/projects-compendium.css` | 41 | 22 |
@@ -85,14 +85,14 @@ Totals: **6111** stylesheet literals in 71 files, **6** in inline view styles.
 
 ## Wave 4: Action tracker, tasks, office reports, admin and the rest
 
-1357 literals.
+1350 literals.
 
 | Stylesheet | Literals | Dark rules |
 | --- | ---: | ---: |
 | `action-tracker.css` | 219 | 151 |
-| `admin.css` | 170 | 136 |
+| `admin.css` | 166 | 135 |
 | `pages/approvals.css` | 157 | 98 |
-| `social-media.css` | 108 | 87 |
+| `social-media.css` | 107 | 86 |
 | `erp-usage.css` | 80 | 58 |
 | `activities/details.css` | 69 | 45 |
 | `pages/industry-partners.css` | 69 | 47 |
@@ -101,7 +101,7 @@ Totals: **6111** stylesheet literals in 71 files, **6** in inline view styles.
 | `action-task-actions.css` | 51 | 27 |
 | `tasks.css` | 50 | 28 |
 | `action-task-details-redesign.css` | 37 | 25 |
-| `project-office-reports/ffc-record-workspace.css` | 36 | 17 |
+| `project-office-reports/ffc-record-workspace.css` | 35 | 17 |
 | `project-office-reports/arpp.css` | 33 | 36 |
 | `landing.css` | 26 | 1 |
 | `project-office-reports/ffc-powerpoint-export.css` | 26 | 17 |
@@ -110,7 +110,7 @@ Totals: **6111** stylesheet literals in 71 files, **6** in inline view styles.
 | `action-task-peek.css` | 21 | 15 |
 | `project-office-reports/ffc-footprint.css` | 15 | 11 |
 | `pages/media-intelligence.css` | 11 | 5 |
-| `project-office-reports/arpp-workspace.css` | 9 | 10 |
+| `project-office-reports/arpp-workspace.css` | 8 | 10 |
 | `pages/media-sources.css` | 5 | 3 |
 | `project-office-reports/ffc-map.css` | 4 | 4 |
 | `project-office-reports/ffc-portfolio.css` | 4 | 4 |

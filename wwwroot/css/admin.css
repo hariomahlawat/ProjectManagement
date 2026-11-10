@@ -130,19 +130,12 @@
     scrollbar-width: thin;
 }
 
-.admin-sidebar__group {
-    padding: .3rem 0 .55rem;
-}
-
 .admin-sidebar__group + .admin-sidebar__group {
-    margin-top: .18rem;
     border-top: 1px solid #edf1f6;
-    padding-top: .7rem;
 }
 
 .admin-sidebar__group-label {
     margin: 0;
-    padding: 0 .58rem .35rem;
     color: var(--admin-text-muted);
     font-size: .61rem;
     font-weight: 800;
@@ -177,11 +170,6 @@
     border-color: #e0e7f0;
     background: var(--pm-surface-subtle, #f8fafc);
     color: var(--admin-text);
-}
-
-.admin-sidebar__item:focus-visible {
-    outline: 2px solid rgba(49, 94, 232, .38);
-    outline-offset: 1px;
 }
 
 .admin-sidebar__item.is-active {
@@ -1416,35 +1404,15 @@
 .admin-filter-toolbar__field label {
     display: block;
     margin-bottom: .25rem;
-    color: var(--admin-text-muted);
-    font-size: .62rem;
-    font-weight: 750;
     letter-spacing: .02em;
 }
-.admin-filter-toolbar__actions { display: flex; gap: .45rem; }
 .admin-filter-toolbar__actions .btn { display: inline-flex; align-items: center; gap: .35rem; }
 
 .admin-active-filters {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: .4rem;
-    padding: .55rem .8rem;
     border-bottom: 1px solid var(--admin-border);
-    background: #fafcff;
 }
-.admin-active-filters__label { color: var(--admin-text-muted); font-size: .64rem; font-weight: 700; }
 .admin-filter-chip {
-    display: inline-flex;
-    min-height: 1.75rem;
-    align-items: center;
     gap: .35rem;
-    padding: .2rem .52rem;
-    border: 1px solid #d8e1ef;
-    border-radius: 999px;
-    background: var(--admin-surface);
-    color: #42526b;
-    font-size: .64rem;
     font-weight: 680;
     text-decoration: none;
 }
@@ -1543,7 +1511,7 @@
     background: #fbfcfe;
 }
 .admin-pagination-bar__summary { color: var(--admin-text-muted); font-size: .65rem; }
-.admin-pagination { display: flex; align-items: center; gap: .25rem; margin: 0; padding: 0; list-style: none; }
+.admin-pagination { margin: 0; list-style: none; }
 .admin-pagination a,
 .admin-pagination span { display: inline-grid; min-width: 1.85rem; height: 1.85rem; place-items: center; border: 1px solid var(--admin-border); border-radius: .48rem; background: var(--admin-surface); color: var(--admin-text-secondary); font-size: .65rem; font-weight: 700; text-decoration: none; }
 .admin-pagination a:hover { border-color: var(--admin-primary); color: var(--admin-primary); }
@@ -1929,7 +1897,7 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-review-queue { margin-top: .8rem; }
 .admin-monitoring-table { min-width: 70rem; }
 .admin-user-cell--static { pointer-events: none; }
-.admin-review-reason { display: inline-block; max-width: 19rem; color: var(--admin-text-secondary); font-size: .62rem; line-height: 1.4; }
+.admin-review-reason { max-width: 19rem; font-size: .62rem; }
 .admin-source-summary strong,
 .admin-source-summary span { display: block; }
 .admin-source-summary strong { color: var(--admin-text); font-size: .63rem; }
@@ -2099,7 +2067,6 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     .admin-audit-detail-list > div:last-child { border-bottom: 0; }
 }
 
-
 /* ============================================================
    Phase 4 — Recovery, retention and controlled maintenance
    ============================================================ */
@@ -2107,17 +2074,8 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-monitoring-metrics--six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 
 .admin-recovery-filter-toolbar {
-    display: grid;
-    grid-template-columns: minmax(15rem, 1.5fr) minmax(10rem, .75fr) minmax(5rem, .32fr) auto;
-    gap: .75rem;
     padding: .9rem 1rem;
     border-bottom: 1px solid var(--admin-border);
-}
-.admin-recovery-filter-toolbar--documents {
-    grid-template-columns: minmax(13rem, 1.4fr) minmax(9rem, .8fr) minmax(8rem, .65fr) repeat(2, minmax(8rem, .62fr)) minmax(9rem, .7fr) minmax(5rem, .35fr) auto;
-}
-.admin-recovery-filter-toolbar--calendar {
-    grid-template-columns: minmax(14rem, 1.4fr) minmax(9rem, .7fr) repeat(2, minmax(8rem, .62fr)) minmax(5rem, .35fr) auto;
 }
 .admin-recovery-table td { vertical-align: top; }
 .admin-recovery-people { display: grid; gap: .45rem; }
@@ -2168,7 +2126,7 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 
 .admin-recovery-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(19rem, .65fr); gap: .85rem; margin-bottom: .85rem; align-items: start; }
 .admin-recovery-link-list { display: grid; }
-.admin-recovery-link-list a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .65rem; padding: .72rem .85rem; border-top: 1px solid var(--admin-border); color: inherit; text-decoration: none; }
+.admin-recovery-link-list a { display: grid; align-items: center; gap: .65rem; padding: .72rem .85rem; border-top: 1px solid var(--admin-border); color: inherit; text-decoration: none; }
 .admin-recovery-link-list a:first-child { border-top: 0; }
 .admin-recovery-link-list a:hover { background: var(--admin-surface-subtle); }
 .admin-recovery-link-list__icon { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: .62rem; background: var(--admin-primary-soft); color: var(--admin-primary); }
@@ -2176,11 +2134,8 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-recovery-link-list strong { color: var(--admin-text); font-size: .66rem; }
 .admin-recovery-link-list small { color: var(--admin-text-muted); font-size: .55rem; }
 .admin-recovery-link-list > a > i { color: var(--admin-text-muted); }
-.admin-recovery-retention { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
 .admin-recovery-retention > div { display: grid; gap: .15rem; padding: .8rem; border-top: 1px solid var(--admin-border); }
 .admin-recovery-retention > div:nth-child(odd) { border-right: 1px solid var(--admin-border); }
-.admin-recovery-retention dt { color: var(--admin-text-muted); font-size: .54rem; font-weight: 650; }
-.admin-recovery-retention dd { margin: 0; color: var(--admin-text); font-size: .66rem; font-weight: 680; }
 .admin-recovery-activity-list { display: grid; }
 .admin-recovery-activity-list article { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .65rem; padding: .68rem .85rem; border-top: 1px solid var(--admin-border); }
 .admin-recovery-activity-list article:first-child { border-top: 0; }
@@ -2248,9 +2203,7 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 
 @media (max-width: 1399.98px) {
     .admin-monitoring-metrics--six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .admin-recovery-filter-toolbar--documents { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .admin-recovery-filter-toolbar--documents .admin-filter-toolbar__field--search { grid-column: span 2; }
-    .admin-recovery-filter-toolbar--documents .admin-filter-toolbar__actions { grid-column: span 2; justify-content: flex-end; }
+    .admin-recovery-filter-toolbar--documents .admin-filter-toolbar__actions { grid-column: span 2; }
 }
 @media (max-width: 1199.98px) {
     .admin-monitoring-metrics--four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2260,19 +2213,8 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     .admin-control-principles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .admin-control-principles article:nth-child(3) { border-left: 0; border-top: 1px solid var(--admin-border); }
     .admin-control-principles article:nth-child(4) { border-top: 1px solid var(--admin-border); }
-    .admin-recovery-filter-toolbar--calendar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .admin-recovery-filter-toolbar--calendar .admin-filter-toolbar__field--search { grid-column: span 2; }
 }
 @media (max-width: 991.98px) {
-    .admin-recovery-filter-toolbar,
-    .admin-recovery-filter-toolbar--documents,
-    .admin-recovery-filter-toolbar--calendar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .admin-recovery-filter-toolbar .admin-filter-toolbar__field--search,
-    .admin-recovery-filter-toolbar--documents .admin-filter-toolbar__field--search,
-    .admin-recovery-filter-toolbar--calendar .admin-filter-toolbar__field--search { grid-column: 1 / -1; }
-    .admin-recovery-filter-toolbar .admin-filter-toolbar__actions,
-    .admin-recovery-filter-toolbar--documents .admin-filter-toolbar__actions,
-    .admin-recovery-filter-toolbar--calendar .admin-filter-toolbar__actions { grid-column: 1 / -1; justify-content: flex-end; }
     .admin-ingestion-control { align-items: stretch; flex-direction: column; }
     .admin-ingestion-control form .btn { width: 100%; justify-content: center; }
     .admin-import-form__footer,
@@ -2335,7 +2277,6 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     line-height: 1.35;
 }
 
-
 /* ==========================================================================
    Phase 5 — Recovery corrections and Master Data governance
    ========================================================================== */
@@ -2347,9 +2288,6 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.5rem), 1fr));
     gap: .72rem;
     margin-bottom: .8rem;
-}
-.admin-recovery-metric-grid--compact {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
 }
 .admin-recovery-metric-grid .admin-monitoring-metric,
 .admin-master-summary-grid .admin-monitoring-metric {
@@ -2640,8 +2578,7 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-filter-toolbar__field { display: grid; gap: .22rem; }
 .admin-filter-toolbar__field label { color: var(--admin-text-muted); font-size: .56rem; font-weight: 680; }
 .admin-filter-toolbar__actions { display: flex; align-items: center; gap: .4rem; }
-.admin-order-control { display: flex; align-items: center; gap: .2rem; }
-.admin-order-control > span { min-width: 1.6rem; color: var(--admin-text-secondary); font-size: .62rem; text-align: center; }
+.admin-order-control > span { color: var(--admin-text-secondary); font-size: .62rem; text-align: center; }
 .admin-order-control form { margin: 0; }
 
 .admin-flat-lookup-table { min-width: 52rem; }
@@ -3255,7 +3192,6 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 @media (max-width: 1500px) { .admin-holiday-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .admin-holiday-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); } .admin-holiday-toolbar .admin-filter-toolbar__actions { grid-column: 1 / -1; justify-content: flex-end; } }
 @media (max-width: 800px) { .admin-holiday-summary, .admin-holiday-toolbar { grid-template-columns: 1fr; } .admin-year-stepper { grid-template-columns: auto 1fr auto; } .admin-holiday-toolbar .admin-filter-toolbar__actions { grid-column: auto; } }
 
-
 /* Dark: tokens used with literal fallbacks but never defined for Light, so only Dark sets them. */
 [data-bs-theme="dark"] {
     --admin-ink: #e6e8eb;
@@ -3455,10 +3391,6 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 :where([data-bs-theme="dark"]) .admin-user-status-card.is-active {
     border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
     box-shadow: inset 0 0 0 1px rgba(110, 168, 254, 0.25);
-}
-
-:where([data-bs-theme="dark"]) .admin-active-filters {
-    background: #16181b;
 }
 
 :where([data-bs-theme="dark"]) .admin-filter-chip {
@@ -4609,7 +4541,6 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     }
     .admin-card-sort__link.is-active { border-color: var(--admin-primary); background: var(--admin-primary-soft); color: var(--admin-primary-strong); }
 }
-
 
 /* Restore deleted items › Briefing decks (docs/ux/admin-review-3-fixes.md, PR 15): one row per
    deck, stacked on a phone so Restore stays in reach without a sideways scroll. */

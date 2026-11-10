@@ -505,11 +505,8 @@
     display: flex;
     justify-content: flex-end;
     gap: .5rem;
-    padding: .7rem;
     border: 1px solid var(--ffc-border);
-    border-radius: .85rem;
     background: rgba(255, 255, 255, .94);
-    box-shadow: 0 12px 28px rgba(15, 23, 42, .12);
     backdrop-filter: blur(12px);
 }
 
@@ -963,17 +960,7 @@
 }
 
 .ffc-upload-assurance {
-    display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: .65rem;
-    padding: .75rem;
-    border-radius: .7rem;
-    background: var(--ffc-success-soft);
-    color: var(--ffc-success);
-}
-
-.ffc-upload-assurance .bi {
-    margin-top: .12rem;
 }
 
 .ffc-upload-assurance strong,
@@ -1341,7 +1328,6 @@ button[data-ffc-submitting-text]:disabled {
 
 :where([data-bs-theme="dark"]) .ffc-editor-page__actions {
     background: rgba(22, 24, 27, 0.94);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
 }
 
 :where([data-bs-theme="dark"]) .ffc-source-choice__option:has(input:checked) {

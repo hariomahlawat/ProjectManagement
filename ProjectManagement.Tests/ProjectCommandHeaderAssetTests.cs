@@ -30,9 +30,9 @@ public sealed class ProjectCommandHeaderAssetTests
         Assert.Contains("text-wrap: balance;", css, StringComparison.Ordinal);
         Assert.Contains("padding: .9rem 1rem .8rem;", css, StringComparison.Ordinal);
         Assert.Contains("padding: .85rem 1rem 1rem;", css, StringComparison.Ordinal);
-        Assert.Contains("border: 1px solid #c7d0dd;", css, StringComparison.Ordinal);
-        Assert.Contains("border-left: 3px solid var(--project-command-accent);", css, StringComparison.Ordinal);
-        Assert.Contains("background-color: #fff;", css, StringComparison.Ordinal);
+        // The overview polish gives every header state one calm surface (no coloured left edge
+        // or corner glow); it is the border and background that apply.
+        Assert.Contains(".project-portfolio .project-command-header--cancelled {\n    border: 1px solid var(--portfolio-border);\n    background: var(--pm-card);", css.Replace("\r\n", "\n"), StringComparison.Ordinal);
         Assert.Contains("var(--pm-card, #fff);", css, StringComparison.Ordinal);
         Assert.Contains("overflow: visible;", css, StringComparison.Ordinal);
         Assert.Contains(".project-portfolio .project-command-header--completed {", css, StringComparison.Ordinal);

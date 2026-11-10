@@ -536,21 +536,10 @@
     line-height: 1.35;
 }
 
-.project-card__metadata dt {
-    color: var(--pm-text-muted);
-    font-weight: 600;
-}
-
 .project-card__metadata dd {
     overflow: hidden;
-    color: #475467;
-    font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.project-card__metadata .is-missing dd {
-    color: #b54708;
 }
 
 .project-card__stage,
@@ -1130,18 +1119,6 @@
 
 :where([data-bs-theme="dark"]) .project-card__metadata {
     border-top: 1px solid #2c3035;
-}
-
-:where([data-bs-theme="dark"]) .project-card__metadata dt {
-    color: #8a9097;
-}
-
-:where([data-bs-theme="dark"]) .project-card__metadata dd {
-    color: #b4b9bf;
-}
-
-:where([data-bs-theme="dark"]) .project-card__metadata .is-missing dd {
-    color: #f7a06e;
 }
 
 :where([data-bs-theme="dark"]) .project-card__stage,

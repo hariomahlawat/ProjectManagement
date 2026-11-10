@@ -1,4 +1,4 @@
-/* Progress Review – print styles
+/* Progress Review ï¿½ print styles
  * This file only overrides layout/colour for printing.
  * Screen styles continue to come from progress-review.css.
  */
@@ -31,7 +31,7 @@
 
     /* 2. Hide chrome / navigation / buttons */
 
-    /* App frame (header / sidebar / footer) – class names are defensive */
+    /* App frame (header / sidebar / footer) ï¿½ class names are defensive */
     .pm-app-shell__header,
     .pm-app-shell__sidebar,
     .pm-app-shell__footer,
@@ -74,7 +74,6 @@
 
     .progress-review__canvas {
         border: none !important;
-        box-shadow: none !important;
     }
 
     /* 4. Lighten backgrounds so they don't become dark blocks */
@@ -110,7 +109,7 @@
 
     /* 6. Page-break behaviour
      * Let the browser break naturally; only small blocks are protected.
-     * Do NOT set page-break-inside on the whole canvas – that caused blanks.
+     * Do NOT set page-break-inside on the whole canvas ï¿½ that caused blanks.
      */
 
     .pr-category-block,
