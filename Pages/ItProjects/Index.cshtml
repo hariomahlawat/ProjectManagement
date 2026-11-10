@@ -107,7 +107,7 @@
                                     {
                                         <li>
                                             <a class="itp-tok itp-tok--@item.Tone" asp-page="./Details" asp-route-id="@item.Id">
-                                                <span class="itp-tok__t">@item.Title</span>
+                                                <span class="itp-tok__t" title="@item.Title">@item.Title</span>
                                                 @{
                                                     var tokLine = string.Join(" · ", new[] { item.TimeText, item.SoCost }.Where(part => part is not null));
                                                 }
