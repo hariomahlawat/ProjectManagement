@@ -66,11 +66,13 @@ test('@supports is a condition like @media, and nested conditions combine', () =
   assert.deepEqual(deadProps('@media (max-width: 600px) { @supports (gap: 1px) { .a { gap: 1px; } } } .a { gap: 2px; }'), ['.a gap']);
 });
 
-test('conditions differing only inside quotes are different conditions', () => {
+test('conditions are compared as written, so ones that differ in text stay apart', () => {
   // Quoted values are case-sensitive: "A A" and "a a" can make one condition true and the other false.
   assert.deepEqual(deadProps('@supports (grid-template-areas: "A A" "a .") { .a { color: red; } } @supports (grid-template-areas: "a a" "a .") { .a { color: blue; } }'), []);
-  // Outside quotes, case and spacing do not matter.
-  assert.deepEqual(deadProps('@SUPPORTS (DISPLAY:  grid) { .a { color: red; } } @supports (display: grid) { .a { color: blue; } }'), ['.a color']);
+  // The at-keyword's case does not matter; the condition is otherwise compared as written.
+  assert.deepEqual(deadProps('@SUPPORTS (display: grid) { .a { color: red; } } @supports (display: grid) { .a { color: blue; } }'), ['.a color']);
+  // Spacing after an escape is significant: "gr\69 d" is grid, "gr\69  d" is two words and invalid.
+  assert.deepEqual(deadProps('@supports (display: gr\\69 d) { .a { color: red; } } @supports (display: gr\\69  d) { .a { color: blue; } }'), []);
 
   // Spacing around a colon is kept: ": hover" is not a valid selector, so these are different conditions.
   assert.deepEqual(deadProps('@supports selector(:hover) { .a { color: red; } } @supports selector(: hover) { .a { color: blue; } }'), []);

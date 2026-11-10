@@ -99,19 +99,12 @@ function parse(src) {
   return parseBlock(null, '');
 }
 
-// A condition's key: whitespace collapsed and letters lowercased, except inside quoted
-// strings, whose values are case-sensitive (e.g. grid-template-areas names). Spacing around
-// colons is kept as written: inside selector() it changes the result (":hover" is a valid
-// selector, ": hover" is not), so conditions differing there stay apart. That can only miss a
-// dead declaration, never remove a live one.
+// A condition's key: its text exactly as written, apart from the at-keyword's case. Any
+// normalisation risks equating two conditions with different results (case inside quoted
+// values, spacing inside selector() or after a CSS escape), so conditions written differently
+// stay apart. That can only miss a dead declaration, never remove a live one.
 function normaliseCondition(prelude) {
-  return prelude
-    .split(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/)
-    .map((part, index) => (index % 2
-      ? part
-      : part.replace(/\s+/g, ' ').toLowerCase().replace(/\(\s+/g, '(').replace(/\s+\)/g, ')')))
-    .join('')
-    .trim();
+  return prelude.trim().replace(/^@[-a-z]+/i, keyword => keyword.toLowerCase());
 }
 
 function splitSelectors(text) {
