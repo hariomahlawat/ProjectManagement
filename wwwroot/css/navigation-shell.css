@@ -692,6 +692,333 @@
 }
 
 /* ============================================================
+   Navigation drawer: base styles (moved from site.css; docs/ux/navigation-drawer.md).
+   They come before the hardening rules below, which override some of them.
+   ============================================================ */
+.pm-drawer-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.pm-drawer-toggle__button {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .35rem .75rem;
+    border: 1px solid rgba(15, 23, 42, .12);
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(45, 108, 223, .1), rgba(45, 108, 223, .03));
+    color: var(--pm-primary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.pm-drawer-toggle__button:hover,
+.pm-drawer-toggle__button:focus {
+    box-shadow: 0 10px 18px -12px rgba(45, 108, 223, .6);
+    transform: translateY(-1px);
+    color: var(--pm-primary-hover);
+}
+
+.pm-drawer-toggle__button:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 2px;
+}
+
+.pm-drawer-toggle__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: rgba(45, 108, 223, .16);
+    color: var(--pm-primary);
+    font-size: 1rem;
+}
+
+.pm-drawer-toggle__label {
+    font-size: var(--pm-font-size-xs);
+}
+
+.pm-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: flex;
+    align-items: stretch;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.pm-drawer.is-open {
+    pointer-events: auto;
+    visibility: visible;
+}
+
+.pm-drawer__overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(11, 18, 32, .55);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+}
+
+.pm-drawer.is-open .pm-drawer__overlay {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.pm-drawer__panel {
+    position: relative;
+    width: min(22rem, 92vw);
+    max-width: 100%;
+    height: 100%;
+    background: linear-gradient(160deg, rgba(248, 250, 255, .98), rgba(232, 237, 250, .95));
+    box-shadow: 0 24px 36px -30px rgba(15, 23, 42, .42);
+    border-right: 1px solid rgba(15, 23, 42, .08);
+    transform: translateX(-100%);
+    transition: transform .32s cubic-bezier(.4, 0, .2, 1);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem 1.25rem 1rem;
+}
+
+.pm-drawer.is-open .pm-drawer__panel {
+    transform: translateX(0);
+}
+
+.pm-drawer__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+}
+
+.pm-drawer__brand {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+}
+
+.pm-drawer__brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: .85rem;
+    background: linear-gradient(135deg, rgba(45, 108, 223, .2), rgba(45, 108, 223, .05));
+    color: var(--pm-primary);
+    font-size: 1.1rem;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, .6);
+}
+
+.pm-drawer__title {
+    margin: 0;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--pm-text);
+    letter-spacing: .01em;
+}
+
+.pm-drawer__close {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: 0;
+    border-radius: .75rem;
+    background: transparent;
+    color: var(--pm-text-secondary);
+    font-size: 1.1rem;
+    line-height: 1;
+    transition: background-color .2s ease, color .2s ease;
+}
+
+.pm-drawer__close:hover,
+.pm-drawer__close:focus {
+    background-color: rgba(45, 108, 223, .12);
+    color: var(--pm-primary);
+}
+
+.pm-drawer__close:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 2px;
+}
+
+.pm-drawer__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow-y: auto;
+    padding-right: .25rem;
+}
+
+.pm-drawer__nav {
+    display: block;
+}
+
+/* ---------- Navigation drawer items ---------- */
+.pm-drawer__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .125rem;
+}
+
+.pm-drawer__group {
+    margin: 0;
+}
+
+.pm-drawer__section-summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+    /* hide marker in modern browsers */
+    .pm-drawer__section-summary::marker {
+        content: "";
+    }
+
+.pm-drawer__entry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .65rem;
+    padding: .4rem .75rem;
+    border-radius: .6rem;
+    border: 1px solid transparent;
+    font-weight: 500;
+    font-size: var(--pm-font-size-sm);
+    line-height: 1.35;
+    color: var(--pm-text-secondary);
+    background: none;
+    text-decoration: none;
+    transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.pm-drawer__entry:hover,
+.pm-drawer__entry:focus {
+    color: var(--pm-text);
+    background: rgba(15, 23, 42, .06);
+    text-decoration: none;
+}
+
+.pm-drawer__entry:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 2px;
+}
+
+.pm-drawer__entry.is-active {
+    color: var(--pm-text);
+    font-weight: 600;
+    background: rgba(45, 108, 223, .14);
+    border-color: rgba(45, 108, 223, .24);
+}
+
+.pm-drawer__content {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pm-drawer__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    color: var(--pm-muted);
+    font-size: .95rem;
+    flex-shrink: 0;
+}
+
+.pm-drawer__entry.is-active .pm-drawer__icon {
+    color: var(--pm-primary);
+}
+
+.pm-drawer__text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pm-drawer__external {
+    flex-shrink: 0;
+    font-size: .75rem;
+    color: var(--pm-muted);
+}
+
+.pm-drawer__meta {
+    font-size: var(--pm-font-size-xxs);
+    color: var(--pm-muted);
+    margin-left: auto;
+}
+
+/* ===========================
+   Drawer badges
+   =========================== */
+.pm-drawer__badge {
+    min-width: 2rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+}
+
+.pm-drawer__caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--pm-muted);
+    transition: transform .2s ease, color .2s ease;
+}
+
+.pm-drawer__group[open] > .pm-drawer__section-summary .pm-drawer__caret {
+    transform: rotate(180deg);
+    color: var(--pm-text-secondary);
+}
+
+.pm-drawer__group-panel {
+    margin-top: .25rem;
+    padding-left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+}
+
+.pm-drawer__accent--danger {
+    color: #b42318;
+}
+
+.pm-drawer__accent--danger .pm-drawer__icon {
+    color: #b42318;
+}
+
+.pm-drawer__accent--danger.is-active {
+    background: rgba(220, 53, 69, .16);
+    border-color: rgba(220, 53, 69, .32);
+    color: #8f1e13;
+}
+
+.pm-drawer__accent--danger:hover,
+.pm-drawer__accent--danger:focus {
+    color: #8f1e13;
+    background: rgba(220, 53, 69, .12);
+}
+
+/* ============================================================
    Navigation drawer hardening
    The drawer is portalled to <body> by drawer.js. These rules keep
    it viewport-bound, opaque and independently scrollable.
@@ -1168,6 +1495,62 @@ body.pm-drawer-open {
 [data-bs-theme="dark"] .pm-drawer__panel {
     background: var(--pm-dark-card);
     box-shadow: 18px 0 42px rgba(0, 0, 0, .5);
+}
+
+/* Navigation drawer, dark theme (moved from site.css). */
+[data-bs-theme="dark"] .pm-drawer__overlay {
+    background: rgba(14, 15, 17, 0.6);
+}
+[data-bs-theme="dark"] .pm-drawer__panel {
+    border-right-color: var(--pm-dark-hairline);
+}
+[data-bs-theme="dark"] .pm-drawer__brand-mark {
+    background: color-mix(in srgb, var(--pm-dark-accent) 18%, var(--pm-dark-card));
+    box-shadow: none;
+}
+[data-bs-theme="dark"] .pm-drawer__entry:hover,
+[data-bs-theme="dark"] .pm-drawer__entry:focus {
+    background: var(--pm-dark-tile);
+}
+[data-bs-theme="dark"] .pm-drawer__entry.is-active {
+    background: color-mix(in srgb, var(--pm-dark-accent) 14%, var(--pm-dark-card));
+    border-color: color-mix(in srgb, var(--pm-dark-accent) 30%, var(--pm-dark-card));
+}
+[data-bs-theme="dark"] .pm-drawer__close:hover,
+[data-bs-theme="dark"] .pm-drawer__close:focus {
+    background-color: var(--pm-dark-raised);
+}
+[data-bs-theme="dark"] .pm-drawer__accent--danger,
+[data-bs-theme="dark"] .pm-drawer__accent--danger .pm-drawer__icon,
+[data-bs-theme="dark"] .pm-drawer__accent--danger:hover,
+[data-bs-theme="dark"] .pm-drawer__accent--danger:focus,
+[data-bs-theme="dark"] .pm-drawer__accent--danger.is-active {
+    color: #f87171;
+}
+[data-bs-theme="dark"] .pm-drawer__accent--danger:hover,
+[data-bs-theme="dark"] .pm-drawer__accent--danger:focus,
+[data-bs-theme="dark"] .pm-drawer__accent--danger.is-active {
+    background: color-mix(in srgb, #f87171 12%, var(--pm-dark-card));
+    border-color: color-mix(in srgb, #f87171 30%, var(--pm-dark-card));
+}
+
+:where([data-bs-theme="dark"]) .pm-drawer-toggle__button {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: linear-gradient(135deg, rgba(110, 168, 254, 0.14), rgba(110, 168, 254, 0.04));
+}
+
+:where([data-bs-theme="dark"]) .pm-drawer-toggle__button:hover,
+:where([data-bs-theme="dark"]) .pm-drawer-toggle__button:focus {
+    box-shadow: 0 10px 18px -12px rgba(0, 0, 0, 0.6);
+}
+
+:where([data-bs-theme="dark"]) .pm-drawer-toggle__icon {
+    background: rgba(110, 168, 254, 0.22);
+}
+
+:where([data-bs-theme="dark"]) .pm-drawer__panel {
+    background: linear-gradient(160deg, rgba(22, 24, 27, 0.98), rgba(110, 168, 254, 0.3));
+    box-shadow: 0 24px 36px -30px rgba(0, 0, 0, 0.6);
 }
 
 [data-bs-theme="dark"] .pm-theme-choice__option[aria-pressed="true"] {
