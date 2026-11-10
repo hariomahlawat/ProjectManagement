@@ -1019,7 +1019,6 @@
 
 .calendar-event-form-body {
   flex: 1 1 auto;
-  padding: 18px 20px 24px;
   overflow-y: auto;
   background: #f7f9fc;
 }
@@ -1031,10 +1030,7 @@
 }
 
 .calendar-form-section {
-  margin-bottom: 14px;
-  padding: 18px;
   border: 1px solid #dde5f0;
-  border-radius: 14px;
   background: var(--pm-card, #fff);
   box-shadow: 0 3px 12px rgba(15, 23, 42, .035);
 }
@@ -1048,7 +1044,6 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
-  margin-bottom: 15px;
 }
 
 .calendar-form-section-header h6 {
@@ -1118,7 +1113,6 @@
 }
 
 .calendar-event-editor textarea.form-control {
-  min-height: 112px;
   resize: vertical;
   line-height: 1.45;
 }
@@ -1134,7 +1128,6 @@
   padding: 7px 9px 7px 2.7rem;
   border: 1px solid #dbe3ee;
   border-radius: 999px;
-  background: var(--pm-surface-subtle, #f8fafc);
 }
 
 .calendar-all-day-switch .form-check-input {
@@ -1142,7 +1135,6 @@
 }
 
 .calendar-all-day-switch .form-check-label {
-  color: #425068;
   font-size: .76rem;
   font-weight: 700;
   white-space: nowrap;
@@ -1174,7 +1166,6 @@
 }
 
 .calendar-repeat-options {
-  margin-top: 13px;
   padding: 14px;
   border: 1px solid #e0e6ef;
   border-radius: 11px;
@@ -1437,15 +1428,6 @@
     max-width: 280px;
   }
 
-  .calendar-event-form-body {
-    padding: 12px 12px 18px;
-  }
-
-  .calendar-form-section {
-    padding: 14px;
-    border-radius: 12px;
-  }
-
   .calendar-timing-header {
     align-items: flex-start;
   }
@@ -1540,11 +1522,6 @@
   background: var(--pm-surface-subtle, #f8fafc);
 }
 
-.calendar-all-day-switch .form-check-input:checked {
-  background-color: #315ee8;
-  border-color: #315ee8;
-}
-
 .calendar-inline-hint {
   display: inline-flex;
   align-items: center;
@@ -1557,26 +1534,6 @@
 
 .calendar-inline-hint i {
   color: #5575d8;
-}
-
-.calendar-date-time-grid {
-  display: grid;
-  gap: 12px;
-}
-
-.calendar-date-time-row {
-  padding: 12px;
-  border: 1px solid #e4eaf3;
-  border-radius: 11px;
-  background: #fbfcfe;
-}
-
-.calendar-date-time-heading {
-  margin-bottom: 8px;
-}
-
-.calendar-date-time-heading .form-label {
-  margin-bottom: 0;
 }
 
 .calendar-date-time-inputs {
@@ -1693,10 +1650,6 @@
 @media (max-width: 575.98px) {
   .calendar-event-form-body {
     padding: 12px 12px 22px;
-  }
-
-  .calendar-date-time-row {
-    padding: 10px;
   }
 
   .calendar-advanced-summary,
@@ -2196,10 +2149,6 @@
     border: 1px solid #2c3035;
 }
 
-:where([data-bs-theme="dark"]) .calendar-all-day-switch .form-check-label {
-    color: #b4b9bf;
-}
-
 :where([data-bs-theme="dark"]) .calendar-duration-hint {
     color: #9aa0a6;
 }
@@ -2260,11 +2209,6 @@
 
 :where([data-bs-theme="dark"]) .calendar-editor-footer #btnSaveEvent {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.53);
-}
-
-:where([data-bs-theme="dark"]) .calendar-all-day-switch .form-check-input:checked {
-    background-color: #315ee8;
-    border-color: #6ea8fe;
 }
 
 :where([data-bs-theme="dark"]) .calendar-inline-hint {
