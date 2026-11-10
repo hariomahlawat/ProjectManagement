@@ -137,8 +137,6 @@
 .ip-toolbar {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 14px 16px 12px;
 }
 
 .ip-search-form {
@@ -311,13 +309,6 @@
   background: #edf2ff;
   color: #3856a6;
   font-weight: 750;
-}
-
-.ip-org-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  font-size: 0.83rem;
 }
 
 .ip-organisation-link,
@@ -1403,11 +1394,6 @@ button.ip-primary-contact-card {
   }
 
   .ip-primary-action {
-    padding-right: 11px;
-    padding-left: 11px;
-  }
-
-  .ip-primary-action {
     font-size: 0;
   }
 
@@ -1422,14 +1408,6 @@ button.ip-primary-contact-card {
 
   .ip-context-banner .btn {
     margin-left: 46px;
-  }
-
-  .ip-toolbar {
-    display: block;
-  }
-
-  .ip-result-count {
-    margin-top: 8px;
   }
 
   .ip-directory-table-wrap {
@@ -1564,15 +1542,6 @@ button.ip-primary-contact-card {
     top: 14px;
     right: 10px;
     width: auto;
-  }
-
-  .ip-mobile-only {
-    display: inline-block !important;
-  }
-
-  .ip-org-avatar {
-    width: 34px;
-    height: 34px;
   }
 
   .ip-pagination {
@@ -1941,7 +1910,6 @@ button.ip-primary-contact-card {
     background: rgba(22, 24, 27, 0.72);
 }
 
-
 /* ============================================================
    Directory list: contact-first rows (Industry Directory redesign, PR 1)
    Colours come only from the page tokens and Bootstrap's palette
@@ -2037,7 +2005,6 @@ button.ip-primary-contact-card {
 .ip-mobile-only {
   display: none !important;
 }
-
 
 .ip-empty-value {
   color: var(--ip-muted);
