@@ -37,12 +37,6 @@ html {
     gap: 1rem;
     min-height: 70vh;
     width: 100%;
-    max-width: 100%;
-    min-width: 0;
-}
-
-.at-shell.has-selection {
-    grid-template-columns: 88px minmax(0, 1fr);
 }
 
 .at-rail {
@@ -168,7 +162,6 @@ html {
     font-size: var(--at-font-sm);
 }
 
-
 /* SECTION: Create modal segmented mode selector */
 .at-create-choice-grid {
     display: grid;
@@ -231,14 +224,7 @@ html {
     gap: 0.9rem;
 }
 
-.at-create-flow-actions {
-    display: flex;
-    justify-content: flex-end;
-}
-
 .at-panel-note {
-    color: var(--at-muted);
-    font-size: var(--at-font-sm);
     margin: 0 0 0.85rem;
 }
 
@@ -283,7 +269,6 @@ html {
     color: var(--at-muted);
     font-size: var(--at-font-sm);
 }
-
 
 .at-task-details-panel {
     scroll-margin-top: 6rem;
@@ -495,8 +480,6 @@ html {
 
 .at-detail-assignee {
     color: var(--at-text);
-    font-size: var(--at-font-md);
-    font-weight: var(--at-weight-semibold);
 }
 
 .at-detail-meta {
@@ -508,7 +491,6 @@ html {
     justify-content: space-between;
     align-items: start;
     gap: 0.75rem;
-    margin-bottom: 0.45rem;
 }
 
 .at-inspector-close {
@@ -633,8 +615,6 @@ html {
 
 .at-details-collapsible > summary {
     cursor: pointer;
-    font-size: var(--at-font-base);
-    font-weight: var(--at-weight-semibold);
 }
 
 .at-action-toolbar {
@@ -683,7 +663,6 @@ html {
     text-decoration: underline;
 }
 
-
 /* SECTION: Register enterprise grid polish */
 .at-register-filter-panel {
     padding: 0.65rem 0.75rem;
@@ -695,7 +674,6 @@ html {
     gap: 0.45rem;
     align-items: end;
 }
-
 
 .at-register-scope-field {
     display: flex;
@@ -1260,7 +1238,6 @@ html {
         top: 0;
         right: 0;
         bottom: 0;
-        width: min(460px, 90vw);
         padding: 5rem 1rem 1rem;
         background: rgba(15, 23, 42, 0.2);
         backdrop-filter: blur(2px);
@@ -1342,7 +1319,6 @@ html {
 
 .at-inspector-shell {
     height: 100%;
-    display: flex;
     flex-direction: column;
     min-height: 0;
 }
@@ -1351,27 +1327,17 @@ html {
     position: sticky;
     top: 0;
     z-index: 4;
-    margin-bottom: 0;
-    padding-bottom: 0.5rem;
-    background: var(--bs-body-bg, #fff);
-    border-bottom: 1px solid var(--at-border);
 }
 
 .at-inspector-body {
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
-    padding: 0.6rem 0 0.75rem;
 }
 
 .at-inspector-footer {
     position: sticky;
     bottom: 0;
     z-index: 5;
-    background: var(--bs-body-bg, #fff);
-    border-top: 1px solid var(--at-border);
-    padding-top: 0.45rem;
-    padding-bottom: 0.2rem;
 }
 
 .at-context-panel-host {
@@ -1548,10 +1514,6 @@ html {
     font-weight: 700;
 }
 
-.at-board-grid.is-sprints {
-    grid-template-columns: repeat(5, minmax(185px, 1fr));
-}
-
 .at-card-action-form {
     padding: 0 0.65rem 0.65rem;
 }
@@ -1593,9 +1555,6 @@ html {
 }
 
 /* SECTION: Sprint closure review workflow */
-.at-closure-review {
-    border-color: #fecaca;
-}
 
 .at-closure-review.is-readonly {
     border-color: var(--at-border);
@@ -1638,8 +1597,6 @@ html {
     border-radius: 12px;
     background: #fffbeb;
     color: #78350f;
-    padding: 0.75rem 0.9rem;
-    margin-bottom: 0.9rem;
 }
 
 .at-closure-recommendations ul {
@@ -1666,9 +1623,6 @@ html {
 
 .at-closure-task-row {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) 140px 130px 150px 150px;
-    gap: 0.75rem;
-    align-items: center;
     padding: 0.7rem 0.8rem;
     border-bottom: 1px solid var(--at-border);
 }
@@ -1678,7 +1632,6 @@ html {
 }
 
 .at-closure-task-head {
-    background: var(--pm-surface-subtle, #f8fafc);
     color: var(--at-muted);
     font-size: var(--at-font-sm);
     font-weight: var(--at-weight-bold);
@@ -1699,19 +1652,11 @@ html {
     font-weight: var(--at-weight-semibold);
 }
 
-.at-closure-actions {
-    display: flex;
-    justify-content: flex-end;
-}
-
 .at-active-sprint-dashboard {
     margin-bottom: 1rem;
 }
 
 @media (max-width: 767px) {
-    .at-closure-task-row {
-        grid-template-columns: 1fr;
-    }
 
     .at-closure-task-head {
         display: none;
@@ -1767,15 +1712,6 @@ html {
 }
 
 /* SECTION: Compact sprint lifecycle history */
-.at-sprint-history-panel {
-    padding: 0.7rem 0.85rem;
-}
-
-.at-sprint-history-panel > summary {
-    cursor: pointer;
-    color: var(--at-text);
-    font-weight: var(--at-weight-bold);
-}
 
 .at-sprint-history-list {
     display: grid;
@@ -1871,7 +1807,6 @@ html {
 .at-sprint-execution-main {
     display: grid;
     gap: 0.85rem;
-    min-width: 0;
 }
 
 .at-sprint-selector-compact {
@@ -1976,10 +1911,6 @@ html {
     min-height: 12rem;
 }
 
-.at-sprint-task-card .at-card-subject {
-    font-size: var(--at-font-base);
-}
-
 .at-card-facts {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -2008,8 +1939,6 @@ html {
 
 .at-open-details-label {
     color: var(--at-blue);
-    font-size: var(--at-font-sm);
-    font-weight: var(--at-weight-medium);
 }
 
 .at-overdue-marker {
@@ -2044,8 +1973,6 @@ html {
 
 .at-backlog-summary-grid strong {
     color: var(--at-text);
-    font-size: 0.98rem;
-    font-weight: var(--at-weight-bold);
 }
 
 .at-backlog-summary-grid span {
@@ -2086,11 +2013,6 @@ html {
     background: linear-gradient(180deg, var(--pm-card, #ffffff) 0%, var(--pm-surface-subtle, #f8fafc) 100%);
 }
 
-.at-inspector-header .at-panel-title {
-    font-size: 0.98rem;
-    line-height: 1.25;
-}
-
 .at-inspector-body {
     overflow: auto;
     padding: 0.85rem 1rem;
@@ -2113,8 +2035,6 @@ html {
 .at-progress-timeline h3 {
     margin: 0;
     color: var(--at-text);
-    font-size: var(--at-font-base);
-    font-weight: var(--at-weight-bold);
 }
 
 .at-progress-timeline {
@@ -2179,7 +2099,6 @@ html {
     }
 }
 
-
 /* SECTION: Phase 2A typography and density pass */
 .at-shell .btn-sm,
 .at-shell .form-control-sm,
@@ -2197,12 +2116,7 @@ html {
     font-size: var(--at-font-base);
 }
 
-.at-sprint-task-card .at-task-card-link {
-    padding: 0.55rem 0.6rem;
-}
-
 .at-sprint-task-card .at-card-subject {
-    font-size: var(--at-font-md);
     font-weight: var(--at-weight-semibold);
 }
 
@@ -2313,10 +2227,6 @@ html {
     min-width: 0;
 }
 
-.at-sprint-task-card .at-card-footer {
-    gap: 0.35rem;
-}
-
 .at-shell.has-selection .at-sprint-layout-refined {
     grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
 }
@@ -2402,7 +2312,6 @@ html {
 .at-mywork-empty {
     display: grid;
     gap: 0.25rem;
-    max-width: 36rem;
     padding: 1.25rem;
 }
 
@@ -2541,7 +2450,6 @@ html {
     }
 }
 
-
 /* SECTION: Sprint Board due/exception section stays nested and avoids horizontal-first interaction. */
 .at-planning-due-exceptions-section {
     display: grid;
@@ -2665,8 +2573,6 @@ html {
 
 .at-planning-backlog-card {
     display: grid;
-    gap: 0.5rem;
-    padding: 0.75rem;
     border: 1px solid var(--at-border);
     border-radius: 12px;
     background: var(--at-surface-soft);
@@ -2767,10 +2673,6 @@ html {
     margin-bottom: 0.55rem;
 }
 
-.at-execute-attention {
-    padding: 0.75rem 0.85rem;
-}
-
 .at-execute-attention > summary,
 .at-sprint-closed-section > summary {
     display: flex;
@@ -2780,10 +2682,6 @@ html {
     cursor: pointer;
     color: var(--at-text);
     font-weight: var(--at-weight-bold);
-}
-
-.at-execute-attention .at-attention-grid {
-    margin-top: 0.75rem;
 }
 
 .at-sprint-closed-section {
@@ -2998,22 +2896,16 @@ html {
 
 .at-execute-status-board {
     gap: 0.7rem;
-    max-width: 100%;
-    overflow-x: visible;
     padding-bottom: 0.2rem;
 }
 
 .at-execute-status-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.75rem;
-    align-items: start;
-    min-width: max-content;
 }
 
 .at-execute-status-section {
     min-width: 0;
-    min-height: 10rem;
 }
 
 .at-execute-status-section .at-task-cards,
@@ -3056,10 +2948,6 @@ html {
     margin-top: 0.65rem;
 }
 
-.at-shell.is-planning-board.has-selection .at-execute-status-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
 .at-shell.is-planning-board.has-selection .at-planning-view-toggle {
     padding-right: 0;
 }
@@ -3085,11 +2973,6 @@ html {
         justify-content: flex-start;
     }
 
-    .at-execute-status-grid,
-    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
-        grid-template-columns: repeat(2, minmax(220px, 1fr));
-        min-width: 0;
-    }
 }
 
 @media (max-width: 767px) {
@@ -3113,7 +2996,6 @@ html {
     }
 }
 
-
 /* SECTION: Drawer-open Execute board stays width-safe while the fixed inspector overlays the page. */
 .at-shell.is-planning-board.has-selection .at-planning-execute-panel,
 .at-shell.is-planning-board.has-selection .at-execute-status-board {
@@ -3123,7 +3005,6 @@ html {
 
 .at-shell.is-planning-board.has-selection .at-execute-status-grid {
     width: 100%;
-    min-width: 0;
 }
 
 @media (max-width: 1200px) {
@@ -3172,23 +3053,12 @@ html {
 }
 
 .at-kanban-scroll {
-    max-width: 100%;
-    overflow-x: auto;
-    overflow-y: visible;
     padding: 0 0.9rem 0.9rem;
 }
 
 .at-kanban-scroll .at-planning-secondary-grid {
     border-top: 1px solid var(--at-border);
     padding: 0.9rem 0 0;
-}
-
-.at-shell.is-planning-board.has-selection .at-planning-kanban-view {
-    max-width: calc(100vw - 88px - 2rem);
-}
-
-.at-shell.is-planning-board.has-selection .at-kanban-scroll {
-    padding-right: 0;
 }
 
 .at-sprint-task-card .at-task-card-link {
@@ -3200,7 +3070,6 @@ html {
 }
 
 .at-sprint-task-card .at-card-subject {
-    font-size: var(--at-font-sm);
     line-height: 1.2;
 }
 
@@ -3214,18 +3083,12 @@ html {
 }
 
 .at-sprint-task-card .at-card-footer {
-    justify-content: flex-start;
     flex-wrap: wrap;
-    gap: 0.25rem 0.35rem;
     margin-top: 0.35rem;
 }
 
 .at-sprint-task-card .at-card-footer .at-open-details-label {
     margin-left: auto;
-}
-
-.at-sprint-task-card .at-card-action-form {
-    padding: 0 0.5rem 0.5rem;
 }
 
 .at-sprint-task-card .at-card-action-form .btn-sm {
@@ -3239,7 +3102,6 @@ html {
     justify-content: space-between;
     gap: 0.75rem;
     min-width: 0;
-    padding: 0.65rem 0.75rem;
 }
 
 .at-execute-board-title {
@@ -3248,7 +3110,6 @@ html {
 
 .at-execute-board-title h2 {
     margin: 0.05rem 0 0;
-    font-size: 1rem;
     line-height: 1.2;
 }
 
@@ -3296,9 +3157,6 @@ html {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .at-shell.is-planning-board.has-selection .at-planning-kanban-view {
-        max-width: 100%;
-    }
 }
 
 @media (max-width: 767px) {
@@ -3311,14 +3169,6 @@ html {
         flex-direction: column;
     }
 
-    .at-execute-status-grid,
-    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .at-shell.is-planning-board.has-selection .at-kanban-scroll {
-        padding-right: 0.9rem;
-    }
 }
 
 /* SECTION: Phase 3A-4 Sprint Board polish, contained Kanban scrolling, and compact empty states. */
@@ -3496,9 +3346,6 @@ html {
 }
 
 .at-closure-recommendations {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.55rem;
     font-size: var(--at-font-md);
     margin-bottom: 0.65rem;
 }
@@ -3534,10 +3381,6 @@ html {
     .at-planning-backlog-filter-shell .at-planning-backlog-filter {
         grid-template-columns: 1fr;
         align-items: stretch;
-    }
-
-    .at-closure-recommendations {
-        display: block;
     }
 
     .at-closure-recommendations ul {
@@ -3648,38 +3491,20 @@ html {
     }
 
     .at-pending-closure-inline {
-        align-items: flex-start;
         flex-direction: column;
     }
 }
 
 /* SECTION: Production Sprint Board uses responsive active-status columns without horizontal scrolling. */
-.at-execute-status-board {
-    overflow-x: visible;
-}
-
-.at-execute-status-grid,
-.at-shell.is-planning-board.has-selection .at-execute-status-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    min-width: 0;
-}
 
 .at-execute-board-summary {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
     border: 1px solid var(--at-border);
     border-radius: 999px;
     background: var(--pm-surface-subtle, #f8fafc);
-    color: var(--at-muted);
     padding: 0.25rem 0.65rem;
     font-size: var(--at-font-sm);
     font-weight: var(--at-weight-semibold);
     white-space: nowrap;
-}
-
-.at-execute-board-summary strong {
-    color: var(--at-text);
 }
 
 .at-secondary-panel > summary,
@@ -3705,33 +3530,12 @@ html {
 .at-action-more-separator {
     border-top: 1px solid var(--at-border);
     margin-top: 0.35rem;
-    padding: 0.45rem 0.75rem 0.1rem;
-    color: var(--at-muted);
-    font-size: var(--at-font-xs);
-    font-weight: var(--at-weight-bold);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
 }
-
 
 .at-scope-badge-invalid {
     border-color: #fecaca;
     background: #fef2f2;
     color: #991b1b;
-}
-
-@media (max-width: 1200px) {
-    .at-execute-status-grid,
-    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 767px) {
-    .at-execute-status-grid,
-    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
-        grid-template-columns: 1fr;
-    }
 }
 
 /* SECTION: Command Centre exception dashboard cleanup */
@@ -3822,7 +3626,6 @@ html {
 .at-recent-activity .at-details-collapsible {
     padding: 0.55rem 0.7rem;
 }
-
 
 /* SECTION: Sprint Board cleanup compacts planning cards, disclosures, and command summary. */
 .at-planning-command-summary,
@@ -4403,7 +4206,7 @@ html {
 .at-board-nav a:hover { background: #f4f7fc; color: #2456e6; }
 .at-board-nav a.active { background: #eaf1ff; color: #2456e6; }
 .at-sprint-command-strip { margin-bottom: 10px; }
-.at-execute-board-header { min-height: 58px; padding: 10px 13px; }
+.at-execute-board-header { min-height: 58px; }
 .at-execute-board-title h2 { font-size: 16px; }
 .at-execute-board-title p { margin: 2px 0 0; }
 
@@ -4416,12 +4219,11 @@ html {
 .at-filter-disclosure { position: relative; }
 .at-filter-disclosure > summary { list-style: none; min-height: 38px; display: inline-flex; align-items: center; gap: 7px; padding: 7px 11px; border: 1px solid #d7e0ec; border-radius: 8px; background: var(--pm-card, #fff); color: #42516a; font-size: 13px; font-weight: 750; cursor: pointer; }
 .at-filter-disclosure > summary::-webkit-details-marker { display: none; }
-.at-filter-count { font-size: 10px; color: #2456e6; }
 .at-filter-disclosure[open] > .at-filter-grid,
 .at-filter-disclosure[open] > .at-filter-actions { display: grid; }
-.at-filter-grid { position: absolute; right: 0; top: 45px; z-index: 40; width: min(760px, calc(100vw - 150px)); grid-template-columns: repeat(5,minmax(130px,1fr)); gap: 10px; padding: 14px; background: var(--pm-card, #fff); border: 1px solid #d9e2ee; border-radius: 12px 12px 0 0; box-shadow: 0 18px 44px rgba(22,39,70,.14); }
+.at-filter-grid { right: 0; top: 45px; z-index: 40; gap: 10px; padding: 14px; background: var(--pm-card, #fff); border: 1px solid #d9e2ee; }
 .at-filter-grid .form-label { margin-bottom: 4px; font-size: 11px; font-weight: 800; color: #62718a; }
-.at-filter-actions { position: absolute; right: 0; top: 144px; z-index: 41; width: min(760px, calc(100vw - 150px)); display: flex !important; justify-content: flex-end; gap: 7px; padding: 10px 14px; background: #fafbfd; border: 1px solid #d9e2ee; border-top: 0; border-radius: 0 0 12px 12px; box-shadow: 0 18px 44px rgba(22,39,70,.14); }
+.at-filter-actions { right: 0; top: 144px; z-index: 41; justify-content: flex-end; gap: 7px; padding: 10px 14px; background: #fafbfd; border: 1px solid #d9e2ee; border-top: 0; }
 .at-register-scope-toggle { flex: 0 0 auto; }
 .at-register-scope-option { min-height: 36px; }
 .at-register-table td, .at-register-table th { padding-top: 9px; padding-bottom: 9px; }
@@ -4441,7 +4243,6 @@ html {
     .at-overview-strip { grid-template-columns: repeat(3,minmax(0,1fr)); }
     .at-attention-feed-body { grid-template-columns: 1fr; }
     .at-attention-feed-group { border-right: 0; }
-    .at-filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
     .at-filter-actions { top: 205px; }
 }
 
@@ -4453,10 +4254,8 @@ html {
     .at-simple-header { align-items: flex-start; }
     .at-overview-strip { grid-template-columns: repeat(2,minmax(0,1fr)); }
     .at-sprint-glance, .at-sprint-glance-main { align-items: flex-start; flex-direction: column; }
-    .at-simple-filter-row { flex-wrap: wrap; }
-    .at-filter-disclosure { margin-left: auto; }
-    .at-filter-grid, .at-filter-actions { position: fixed; left: 10px; right: 10px; width: auto; }
-    .at-filter-grid { top: 150px; grid-template-columns: 1fr; max-height: calc(100vh - 260px); overflow: auto; }
+    .at-filter-grid, .at-filter-actions { left: 10px; right: 10px; }
+    .at-filter-grid { top: 150px; }
     .at-filter-actions { top: auto; bottom: 20px; }
     .at-simple-task-groups .at-mywork-task-card { display: block; }
     .at-simple-task-groups .at-mywork-card-actions { margin-top: 8px; justify-content: flex-start; }
@@ -5076,7 +4875,6 @@ details[open] > summary .at-disclosure-chevron {
     border-color: #3a3f45;
 }
 
-
 :where([data-bs-theme="dark"]) .at-scope-badge-closed {
     color: #e6e8eb;
     background: #25282d;
@@ -5389,10 +5187,6 @@ details[open] > summary .at-disclosure-chevron {
 :where([data-bs-theme="dark"]) .at-filter-disclosure > summary {
     border: 1px solid #2c3035;
     color: #b4b9bf;
-}
-
-:where([data-bs-theme="dark"]) .at-filter-count {
-    color: #6ea8fe;
 }
 
 :where([data-bs-theme="dark"]) .at-filter-grid {
