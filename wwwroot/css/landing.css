@@ -293,13 +293,10 @@ body:has(.lp),
 }
 
 .lp-btn--ghost {
-    border-color: var(--lp-line);
-    background: var(--lp-surface);
     color: var(--lp-text);
 }
 
 .lp-btn--ghost:hover {
-    border-color: var(--pm-border-strong);
     color: var(--lp-text);
     transform: translateY(-1px);
 }
@@ -509,13 +506,10 @@ body:has(.lp),
     gap: 0.55rem;
     margin: 0 0 1.75rem;
     padding: 0.35rem 0.9rem 0.35rem 0.4rem;
-    border: 1px solid var(--lp-line);
     border-radius: 999px;
-    background: var(--lp-surface);
     color: var(--lp-text);
     font-size: 0.86rem;
     font-weight: 600;
-    box-shadow: 0 6px 18px -12px color-mix(in srgb, var(--lp-shadow) 40%, transparent);
 }
 
 .lp-badge img {
@@ -742,7 +736,6 @@ body:has(.lp),
 
 .lp-tile {
     --lp-hue: var(--lp-accent);
-    position: relative;
     isolation: isolate;
     display: flex;
     flex-direction: column;
@@ -750,19 +743,11 @@ body:has(.lp),
     min-width: 0;
     padding: 1.6rem;
     overflow: hidden;
-    border: 1px solid var(--lp-line);
-    border-radius: 22px;
-    background: var(--lp-surface);
     transition: transform 0.3s var(--lp-ease), border-color 0.3s ease, box-shadow 0.3s var(--lp-ease);
 }
 
 /* A soft wash of the tile's hue, strongest in the top corner. */
 .lp-tile::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background: radial-gradient(120% 70% at 0% 0%, color-mix(in srgb, var(--lp-hue) 10%, transparent), transparent 60%);
     transition: opacity 0.3s ease;
 }
 
@@ -879,7 +864,6 @@ body:has(.lp),
     display: grid;
     gap: 1rem;
     padding: 1.1rem;
-    background: var(--lp-surface);
 }
 
 .lp-mock__title-row {
@@ -1015,7 +999,6 @@ body:has(.lp),
     gap: 0.5rem;
     padding: 0.5rem 0.65rem;
     border-radius: 10px;
-    background: var(--lp-surface);
     font-weight: 600;
 }
 
@@ -1036,7 +1019,6 @@ body:has(.lp),
     padding: 0.6rem 0.75rem;
     border: 1px solid color-mix(in srgb, var(--lp-spec-4) 50%, var(--lp-line));
     border-radius: 11px;
-    background: var(--lp-surface);
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--lp-spec-4) 12%, transparent);
 }
 
@@ -1179,7 +1161,6 @@ body:has(.lp),
     gap: 0.4rem;
     padding: 0.45rem 0.75rem;
     border-radius: 10px;
-    background: var(--lp-surface);
     font-weight: 700;
 }
 
@@ -1192,22 +1173,15 @@ body:has(.lp),
 .lp-trust {
     padding: clamp(4rem, 8vw, 6rem) 0;
     border-top: 1px solid var(--lp-line);
-    background: var(--lp-surface);
 }
 
 .lp-trust__grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1px;
-    overflow: hidden;
-    border: 1px solid var(--lp-line);
-    border-radius: 22px;
-    background: var(--lp-line);
 }
 
 .lp-trust__grid article {
     padding: 1.8rem 1.6rem;
-    background: var(--lp-surface);
 }
 
 .lp-trust__grid .bi {
@@ -1345,9 +1319,6 @@ body:has(.lp),
 }
 
 @media (max-width: 640px) {
-    .lp-hero {
-        padding-top: 2.25rem;
-    }
 
     .lp-hero__actions .lp-btn {
         flex: 1 1 100%;
@@ -1375,20 +1346,15 @@ body:has(.lp),
         align-items: center;
         gap: 0.4rem;
         padding: 0.3rem 0.65rem;
-        border: 1px solid var(--lp-line);
         border-radius: 999px;
-        background: var(--lp-surface);
         color: var(--lp-text);
         font-size: 0.8rem;
         font-weight: 600;
     }
 
     .lp-hero__legend li::before {
-        content: "";
         width: 8px;
         height: 8px;
-        border-radius: 50%;
-        background: var(--lp-hue);
     }
 
     /* Workflow becomes a vertical line. */
