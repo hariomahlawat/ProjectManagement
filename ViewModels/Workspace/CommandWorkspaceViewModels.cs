@@ -155,6 +155,12 @@ public sealed class CommandOfficerWorkloadVm
     /// </summary>
     public int ItProjectCount { get; init; }
     public IReadOnlyList<CommandOfficerItProjectVm> ItProjects { get; init; } = Array.Empty<CommandOfficerItProjectVm>();
+
+    /// <summary>
+    /// An ITO with IT projects and no Project Officer work: the card shows only the IT projects,
+    /// as the conference review does, not empty project, idea and task sections.
+    /// </summary>
+    public bool IsItProjectsOnly => ItProjectCount > 0 && ProjectCount == 0 && IdeaCount == 0 && OtherTaskCount == 0;
 }
 
 public sealed record CommandOfficerProjectVm(int ProjectId, string Name, string StageCode, string StageName, string OpenUrl);

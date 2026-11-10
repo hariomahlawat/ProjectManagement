@@ -53,6 +53,31 @@ test('fix removes dead declarations and only folds rules with nothing competing 
   assert.equal(out, '.a {\n    margin-top: 0;\n    padding: 1px;\n}\n\n.b {\n    margin: 0;\n}\n\n.c {\n    color: blue;\n}\n\n.a {\n    color: green;\n}\n');
 });
 
+test('@supports is a condition like @media, and nested conditions combine', () => {
+  // A later @supports rule applies only where supported, so the unconditional one survives.
+  assert.deepEqual(deadProps('.a { color: red; } @supports (display: grid) { .a { color: blue; } }'), []);
+  // A later unconditional rule overrides the @supports one wherever it applies.
+  assert.deepEqual(deadProps('@supports (display: grid) { .a { color: blue; } } .a { color: red; }'), ['.a color']);
+  // The same condition twice: the later one wins.
+  assert.deepEqual(deadProps('@supports (gap: 1px) { .a { gap: 1px; } } @supports (gap: 1px) { .a { gap: 2px; } }'), ['.a gap']);
+  // Different conditions, or the same condition at another media scope, do not interact.
+  assert.deepEqual(deadProps('@supports (gap: 1px) { .a { gap: 1px; } } @supports not (gap: 1px) { .a { gap: 2px; } }'), []);
+  assert.deepEqual(deadProps('@media (max-width: 600px) { @supports (gap: 1px) { .a { gap: 1px; } } } @supports (gap: 1px) { .a { gap: 2px; } }'), []);
+  assert.deepEqual(deadProps('@media (max-width: 600px) { @supports (gap: 1px) { .a { gap: 1px; } } } .a { gap: 2px; }'), ['.a gap']);
+});
+
+test('@keyframes steps are not style rules', () => {
+  assert.deepEqual(deadProps('@keyframes spin { from { opacity: 0; } to { opacity: 1; } } .a { opacity: 1; } @keyframes spin { from { opacity: 0; } }'), []);
+  // fix leaves keyframes exactly as they are.
+  const css = '@keyframes spin {\n    from { opacity: 0; }\n    to { opacity: 1; }\n}\n\n.a {\n    color: red;\n}\n';
+  assert.equal(fix(css).out, css);
+});
+
+test('navigation-shell.css has no dead declarations', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'wwwroot', 'css', 'navigation-shell.css'), 'utf8').replace(/\r\n/g, '\n');
+  assert.deepEqual(deadProps(css), [], 'Run: node tools/css-dead-declarations.js wwwroot/css/navigation-shell.css');
+});
+
 test('notebook.css has no dead declarations', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'wwwroot', 'css', 'notebook.css'), 'utf8').replace(/\r\n/g, '\n');
   const dead = deadProps(css);

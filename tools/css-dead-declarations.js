@@ -15,7 +15,9 @@
 // --fix only deletes dead declarations (and rules or @media blocks left empty), and merges
 // a later rule into the first rule with the same selector list and media context when no
 // rule in between declares a related property — so the cascade result cannot change.
-// Supports plain rules and @media (no nesting, @layer or @supports); throws otherwise.
+// Supports plain rules, @media and @supports (a condition, like @media; nested conditions
+// combine) and skips @keyframes, whose steps are not style rules. Other at-rules (@layer,
+// @container, nesting) throw, so a file the tool cannot reason about is never "clean".
 
 const fs = require('node:fs');
 
@@ -54,6 +56,16 @@ function parse(src) {
     }
     return decls;
   }
+  // Steps past a block body whose contents are not style rules (the opening brace is consumed).
+  function skipBlock() {
+    let depth = 1;
+    while (i < n && depth > 0) {
+      const stop = readUntil('{}');
+      if (stop >= n) { i = n; return; }
+      depth += src[stop] === '{' ? 1 : -1;
+      i = stop + 1;
+    }
+  }
   function parseBlock(endChar, ctx) {
     const items = [];
     while (i < n) {
@@ -66,9 +78,14 @@ function parse(src) {
       if (src[stop] !== '{') throw new Error(`Unexpected CSS near offset ${start}: ${src.slice(start, stop + 1).trim()}`);
       const prelude = src.slice(start, stop).trim();
       i = stop + 1;
-      if (prelude.startsWith('@media')) {
-        const media = prelude.replace(/\s+/g, ' ').toLowerCase();
-        items.push({ type: 'media', start, children: parseBlock('}', media), end: i });
+      if (prelude.startsWith('@media') || prelude.startsWith('@supports')) {
+        // A rule here applies only under this condition: it interacts with rules under the same
+        // condition, and an unconditional later rule overrides it (see findDead).
+        const condition = prelude.replace(/\s+/g, ' ').toLowerCase();
+        items.push({ type: 'media', start, children: parseBlock('}', ctx ? `${ctx} ${condition}` : condition), end: i });
+      } else if (/^@(-[a-z]+-)?keyframes\b/i.test(prelude)) {
+        skipBlock();
+        items.push({ type: 'opaque', start, end: i });
       } else if (prelude.startsWith('@')) {
         throw new Error(`Unsupported at-rule: ${prelude}`);
       } else {
@@ -99,7 +116,10 @@ function splitSelectors(text) {
 }
 
 const flatten = (items, out = []) => {
-  for (const item of items) item.type === 'media' ? flatten(item.children, out) : out.push(item);
+  for (const item of items) {
+    if (item.type === 'media') flatten(item.children, out);
+    else if (item.type === 'rule') out.push(item);
+  }
   return out;
 };
 
@@ -221,6 +241,7 @@ function removeDead(src) {
   const edits = [];
   (function walk(items) {
     for (const item of items) {
+      if (item.type === 'opaque') continue;
       if (item.type === 'media') {
         if (flatten(item.children).every((r) => r.decls.every((d) => deadSet.has(d)))) {
           const [start, end] = wholeLines(src, item.start, item.end);
