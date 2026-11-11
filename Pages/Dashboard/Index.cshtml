@@ -25,9 +25,9 @@
     var projectTypes = pulse?.OngoingBucketFilters
         .Where(x => !string.Equals(x.Key, "total", StringComparison.OrdinalIgnoreCase))
         .ToList() ?? new List<ProjectManagement.Areas.Dashboard.Components.ProjectPulse.OngoingBucketFilterVm>();
-    var completedCategories = pulse?.UniqueCompletedByTechnicalCategory.Take(6).ToList()
-        ?? new List<ProjectManagement.Areas.Dashboard.Components.ProjectPulse.TreemapNode>();
-    var completedTotal = Math.Max(1, pulse?.CompletedUniqueCount ?? 0);
+    var analytics = Model.Analytics;
+    string AnalyticsTabUrl(string? tab) => (tab is null ? Url.Page("/Analytics/Index") : Url.Page("/Analytics/Index", new { tab })) ?? "#";
+    string Count(int count, string noun) => count == 1 ? $"1 {noun}" : $"{count} {noun}s";
     var outputTiles = Model.OpsSignals.Tiles.ToList();
     var topFfcCountries = Model.FfcSimulatorMap.Countries
         .Where(x => x.TotalUnits > 0)
@@ -121,19 +121,17 @@
             <h1>Dashboard</h1>
             <span class="db-header__date">@Model.DashboardLoadedAtIst.ToString("dddd, d MMMM yyyy", CultureInfo.InvariantCulture)</span>
         </div>
-        @if (pulse is not null)
-        {
-            <a class="btn btn-primary btn-sm db-primary-action" href="@pulse.AnalyticsUrl"><i class="bi bi-graph-up-arrow"></i><span>Open analytics</span></a>
-        }
     </header>
 
     <main class="db-sections">
         <div class="db-top-grid">
+            @* Left column: the ongoing portfolio, then the completed one. Right column: the Analytics card. *@
+            <div class="db-top-stack">
             <section class="db-panel db-hue-5 db-reveal" aria-labelledby="portfolio-pulse-title">
                 <div class="db-section-head">
                     <div>
                         <span class="db-section-icon"><i class="bi bi-activity"></i></span>
-                        <div><h2 id="portfolio-pulse-title">Portfolio pulse</h2><p>@(pulse?.OngoingCount ?? 0) ongoing projects across the development lifecycle</p></div>
+                        <div><h2 id="portfolio-pulse-title">Portfolio pulse (all ongoing IR&amp;D projects)</h2><p>@(pulse?.OngoingCount ?? 0) projects across the development lifecycle</p></div>
                     </div>
                     <a href="@(pulse?.OngoingUrl ?? "#")" class="db-text-link">View ongoing projects <i class="bi bi-arrow-right"></i></a>
                 </div>
@@ -141,6 +139,16 @@
                 @if (pulse is not null)
                 {
                     <div class="db-pulse-layout">
+                        @if (projectTypes.Count > 0)
+                        {
+                            <div class="db-pulse-block db-pulse-block--classes" role="list" aria-label="Ongoing projects by classification">
+                                @foreach (var item in projectTypes)
+                                {
+                                    <a class="db-stage db-stage--pill" href="@OngoingCategoryUrl(item.Key)" role="listitem" title="View ongoing @item.Label"><span>@item.Label</span><strong>@item.Count</strong></a>
+                                }
+                            </div>
+                        }
+
                         <article class="db-pulse-block db-pulse-block--lifecycle">
                             <div class="db-block-heading"><h3>Lifecycle distribution</h3><span>@pulse.OngoingCount total</span></div>
                             @{
@@ -182,20 +190,6 @@
                                 }
                             </div>
                         </article>
-
-                        <article class="db-pulse-block db-pulse-block--classification">
-                            <div class="db-block-heading"><h3>Project classification</h3><span>Ongoing</span></div>
-                            <div class="db-classification-list">
-                                @foreach (var item in projectTypes)
-                                {
-                                    var width = pulse.OngoingCount > 0 ? Math.Max(6, item.Count * 100d / pulse.OngoingCount) : 0;
-                                    <a class="db-classification-row" href="@OngoingCategoryUrl(item.Key)">
-                                        <div><span>@item.Label</span><strong>@item.Count</strong></div>
-                                        <div class="db-meter"><span style="--meter-width:@width.ToString("0.##", CultureInfo.InvariantCulture)%"></span></div>
-                                    </a>
-                                }
-                            </div>
-                        </article>
                     </div>
                 }
                 else
@@ -204,34 +198,153 @@
                 }
             </section>
 
-            <section class="db-panel db-hue-6 db-reveal" aria-labelledby="completed-title">
+            @* Completed projects: the figures and the last ten years, from the Completed analytics; the proliferation count from the pulse. *@
+            @{
+                var done = analytics?.Completed;
+                var doneTotal = done?.Total ?? pulse?.CompletedCount;
+            }
+            @if (doneTotal is not null)
+            {
+                var yearMax = Math.Max(1, done is null || done.LastYears.Count == 0 ? 1 : done.LastYears.Max(point => point.Count));
+                <section class="db-panel db-hue-6 db-reveal db-completed" aria-labelledby="completed-title">
+                    <a class="db-completed__figures" href="@AnalyticsTabUrl("Completed")">
+                        <h2 id="completed-title">Completed projects</h2>
+                        <p>
+                            <span><strong>@doneTotal</strong> all time</span>
+                            @if (done is not null)
+                            {
+                                <span><strong>@done.ThisYear</strong> in @done.Year</span>
+                                @if (done.RecentAverage is { } average)
+                                {
+                                    <span><strong>@average.PerYear.ToString("0.0", CultureInfo.InvariantCulture)</strong> a year, @(average.Years == 1 ? average.ToYear.ToString() : $"{average.FromYear} to {average.ToYear}")</span>
+                                }
+                            }
+                        </p>
+                    </a>
+                    @if (pulse is not null && pulse.ProliferationEligible > 0)
+                    {
+                        <a href="@pulse.ProliferationEligibleUrl" class="db-text-link db-completed__more">@Count(pulse.ProliferationEligible, "project") ready for proliferation <i class="bi bi-arrow-right"></i></a>
+                    }
+                    @if (done is not null && done.LastYears.Count > 0)
+                    {
+                        <a class="db-completed__chart" href="@AnalyticsTabUrl("Completed")" aria-label="Projects completed per year, @done.LastYears[0].Year to @done.Year: open the Completed analytics">
+                            <span class="db-completed__bars" aria-hidden="true">
+                                @foreach (var point in done.LastYears)
+                                {
+                                    var barHeight = point.Count * 100d / yearMax;
+                                    <span class="db-completed__year @(point.Year == done.Year ? "is-current" : "")" title="@point.Year: @point.Count completed">
+                                        <em>@point.Count</em>
+                                        <i style="--bar-h:@barHeight.ToString("0.##", CultureInfo.InvariantCulture)"></i>
+                                    </span>
+                                }
+                            </span>
+                            <span class="db-completed__axis" aria-hidden="true"><span>@done.LastYears[0].Year</span><span>Completed per year</span><span>@done.Year</span></span>
+                        </a>
+                    }
+                </section>
+            }
+            </div>
+
+            @* Analytics card: a few figures from each Analytics mode (DashboardAnalyticsService); every block opens its mode. *@
+            <section class="db-panel db-hue-6 db-reveal db-analytics-card" aria-labelledby="analytics-title">
                 <div class="db-section-head db-section-head--compact">
                     <div>
-                        <span class="db-section-icon"><i class="bi bi-check2-circle"></i></span>
-                        <div><h2 id="completed-title">Completed projects</h2><p>Portfolio outcomes and technical composition</p></div>
+                        <span class="db-section-icon"><i class="bi bi-graph-up-arrow"></i></span>
+                        <div><h2 id="analytics-title">Analytics</h2><p>ARPP and CoE today, with the slowest stages</p></div>
                     </div>
-                    <a href="@(pulse?.CompletedUrl ?? "#")" class="db-text-link">View all <i class="bi bi-arrow-right"></i></a>
+                    <a href="@AnalyticsTabUrl(null)" class="db-text-link">Open analytics <i class="bi bi-arrow-right"></i></a>
                 </div>
-                <div class="db-completed-compact">
-                    <div class="db-completed-summary">
-                        <div class="db-summary-stat db-summary-stat--primary"><span>Total completed</span><strong>@(pulse?.CompletedCount ?? 0)</strong></div>
-                        <div class="db-summary-stat"><span>Original projects</span><strong>@(pulse?.CompletedUniqueCount ?? 0)</strong></div>
-                        <div class="db-summary-stat"><span>Rebuild projects</span><strong>@(pulse?.CompletedRebuildCount ?? 0)</strong></div>
-                        <a href="@(pulse?.ProliferationEligibleUrl ?? "#")" class="db-summary-stat db-summary-stat--accent"><span>Ready for proliferation</span><strong>@(pulse?.ProliferationEligible ?? 0)</strong></a>
-                    </div>
-                    <div class="db-category-bars" aria-label="Completed projects by technical category">
-                        @foreach (var category in completedCategories)
+                @if (analytics is null || !analytics.HasAnything)
+                {
+                    <div class="db-empty">Analytics figures are temporarily unavailable.</div>
+                }
+                else
+                {
+                    <div class="db-analytics">
+                        @if (analytics.Arpp is { } arpp)
                         {
-                            var share = category.Count * 100d / completedTotal;
-                            var categoryUrl = string.IsNullOrWhiteSpace(category.Url) ? pulse?.CompletedUrl ?? "#" : category.Url;
-                            <a class="db-category-row" href="@categoryUrl">
-                                <span>@category.Label</span>
-                                <div class="db-category-track"><i style="--bar-width:@share.ToString("0.##", CultureInfo.InvariantCulture)%"></i></div>
-                                <strong>@category.Count <small>@share.ToString("0")%</small></strong>
+                            var arppSegments = new[]
+                            {
+                                (Label: "Completed", Count: arpp.CompletedCount, Opacity: "1"),
+                                (Label: "SO placed", Count: arpp.SupplyOrderCount, Opacity: ".72"),
+                                (Label: "AoN to SO", Count: arpp.AonToSupplyOrderCount, Opacity: ".48"),
+                                (Label: "Pre-AoN", Count: arpp.PreAonCount, Opacity: ".28")
+                            };
+                            var arppNotes = new List<string> { $"New {arpp.NewCount}", $"CL {arpp.CommittedLiabilityCount}", $"CF {arpp.CarryForwardCount}" };
+                            if (arpp.NotKnownCount > 0) { arppNotes.Add($"{arpp.NotKnownCount} not known"); }
+                            <a class="db-analytics__block" href="@AnalyticsTabUrl("Arpp")" aria-label="ARPP FY @arpp.FinancialYearDisplay: open the ARPP analytics">
+                                <div class="db-block-heading">
+                                    <h3>ARPP FY @arpp.FinancialYearDisplay</h3>
+                                    <span>@arpp.ListedCount listed · IPA @arpp.ListedIpaDisplay@(arpp.AsOfDate is { } asOf ? $" · on {asOf:d MMM yyyy}" : "")</span>
+                                </div>
+                                <div class="db-lifecycle">
+                                    <div class="db-lifecycle__bar" aria-hidden="true">
+                                        @foreach (var item in arppSegments)
+                                        {
+                                            <i style="--seg-share:@item.Count;--seg-opacity:@item.Opacity"></i>
+                                        }
+                                    </div>
+                                    <div class="db-lifecycle__stats">
+                                        @foreach (var item in arppSegments)
+                                        {
+                                            <div class="db-lifecycle__segment" style="--seg-opacity:@item.Opacity"><span>@item.Label</span><strong>@item.Count</strong></div>
+                                        }
+                                    </div>
+                                </div>
+                                <p class="db-analytics__note">@string.Join(" · ", arppNotes)</p>
+                            </a>
+                        }
+
+                        @if (analytics.Coe is { } coe)
+                        {
+                            var coeMax = Math.Max(1, coe.Subcategories.Count == 0 ? 1 : coe.Subcategories.Max(row => row.Total));
+                            <a class="db-analytics__block" href="@AnalyticsTabUrl("Coe")" aria-label="CoE (AR/VR): open the CoE analytics">
+                                <div class="db-block-heading">
+                                    <h3>CoE (AR/VR)</h3>
+                                    <span>@Count(coe.Total, "project") · @coe.Ongoing ongoing · @coe.Completed completed</span>
+                                </div>
+                                @if (coe.Subcategories.Count > 0)
+                                {
+                                    <div class="db-coe-rows">
+                                        @foreach (var row in coe.Subcategories)
+                                        {
+                                            <div class="db-coe-row" title="@row.Name: @row.Ongoing ongoing, @row.Completed completed, @row.Cancelled cancelled">
+                                                <span>@row.Name</span>
+                                                <div class="db-coe-row__bar" aria-hidden="true">
+                                                    @if (row.Ongoing > 0) { <i class="is-ongoing" style="--seg-share:@row.Ongoing"></i> }
+                                                    @if (row.Completed > 0) { <i class="is-completed" style="--seg-share:@row.Completed"></i> }
+                                                    @if (row.Cancelled > 0) { <i class="is-cancelled" style="--seg-share:@row.Cancelled"></i> }
+                                                    @if (coeMax > row.Total) { <i class="is-rest" style="--seg-share:@(coeMax - row.Total)"></i> }
+                                                </div>
+                                                <strong>@row.Total</strong>
+                                            </div>
+                                        }
+                                    </div>
+                                    <p class="db-analytics__note db-coe-key">
+                                        <span class="is-ongoing">Ongoing</span>
+                                        <span class="is-completed">Completed</span>
+                                        @if (coe.Cancelled > 0) { <span class="is-cancelled">Cancelled</span> }
+                                        @if (coe.MoreSubcategoryCount > 0) { <em>+ @coe.MoreSubcategoryCount more @(coe.MoreSubcategoryCount == 1 ? "sub-category" : "sub-categories")</em> }
+                                    </p>
+                                }
+                            </a>
+                        }
+
+                        @if (analytics.SlowestStages.Count > 0)
+                        {
+                            <a class="db-analytics__block db-analytics__block--slow" href="@AnalyticsTabUrl("Insights")" aria-label="Slowest stages: open the Insights analytics">
+                                <div class="db-block-heading"><h3>Slowest stages</h3><span title="Each figure is the stage's median days, then its ratio to the portfolio median">Median days</span></div>
+                                <ol class="db-slow-stages">
+                                    @foreach (var stage in analytics.SlowestStages)
+                                    {
+                                        var ratio = stage.RatioToPortfolioMedian >= 10 ? stage.RatioToPortfolioMedian.ToString("0", CultureInfo.InvariantCulture) : stage.RatioToPortfolioMedian.ToString("0.0", CultureInfo.InvariantCulture);
+                                        <li><span>@stage.StageName</span><strong>@stage.MedianDays<small>@(ratio)×</small></strong></li>
+                                    }
+                                </ol>
                             </a>
                         }
                     </div>
-                </div>
+                }
             </section>
         </div>
 
