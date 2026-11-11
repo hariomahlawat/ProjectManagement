@@ -168,8 +168,8 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
                 return;
             }
 
-            _db.Faces.RemoveRange(trackedExisting);
             var sequence = 0;
+            var createdFaces = new List<(MediaFace Face, DetectedFaceData Detection)>();
             foreach (var detection in detections)
             {
                 sequence++;
@@ -238,7 +238,34 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
                 }
 
                 _db.Faces.Add(face);
+                createdFaces.Add((face, detection));
             }
+
+            // Carry human triage over before removing the old detections: deleting a face
+            // cascades to its review decisions and assignment history, and EF applies that
+            // cascade to tracked dependents as soon as the face is marked deleted.
+            var triageMoved = await CarryOverHumanTriageAsync(trackedExisting, createdFaces, now, cancellationToken);
+            if (triageMoved)
+            {
+                // (MediaAssetId, SequenceNumber) is unique. Inserting a new face, moving
+                // decisions onto it and deleting the old face that holds the same sequence
+                // number in one save is a dependency cycle EF cannot order. Insert the new
+                // faces on temporary negative sequence numbers first, then delete the old
+                // faces and assign the final numbers. Both saves share this transaction.
+                foreach (var (face, _) in createdFaces)
+                {
+                    face.SequenceNumber = -face.SequenceNumber;
+                }
+
+                await _db.SaveChangesAsync(cancellationToken);
+
+                foreach (var (face, _) in createdFaces)
+                {
+                    face.SequenceNumber = -face.SequenceNumber;
+                }
+            }
+
+            _db.Faces.RemoveRange(trackedExisting);
 
             asset.FaceAnalysisStatus = MediaProcessingStatus.Ready;
             asset.FaceAnalysisVersion = CurrentAnalysisVersion;
@@ -458,6 +485,141 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
             refreshed,
             assetId);
         return refreshed;
+    }
+
+    /// <summary>
+    /// Minimum overlap for treating a new detection as the same face as an old one when
+    /// carrying human triage across re-analysis. Stricter than embedding refresh because
+    /// a wrong match would attach someone else's review decisions to a face.
+    /// </summary>
+    private const double TriageCarryOverMinimumOverlap = 0.5d;
+
+    /// <summary>
+    /// Re-analysis (for example after a detector or embedder upgrade) replaces every face
+    /// on a photograph without a confirmed person. Human triage on those faces, such as
+    /// "not a face", "leave unidentified", rejected suggestions and removed-assignment
+    /// history, used to be deleted with them, and the same work returned to the review
+    /// queue. Each old face that carries triage is matched one-to-one to the new
+    /// detection it overlaps most, and the triage moves to that face. Machine-generated
+    /// pending suggestions are not carried; candidate search recomputes them.
+    /// </summary>
+    private async Task<bool> CarryOverHumanTriageAsync(
+        IReadOnlyList<MediaFace> oldFaces,
+        IReadOnlyList<(MediaFace Face, DetectedFaceData Detection)> newFaces,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (oldFaces.Count == 0 || newFaces.Count == 0)
+        {
+            return false;
+        }
+
+        var oldFaceIds = oldFaces.Select(face => face.Id).ToArray();
+        var humanDecisions = await _db.FaceReviewDecisions
+            .Where(decision => oldFaceIds.Contains(decision.MediaFaceId)
+                               && decision.Decision != FaceReviewDecisionType.Pending)
+            .ToListAsync(cancellationToken);
+        var decisionsByFace = humanDecisions
+            .GroupBy(decision => decision.MediaFaceId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        var triaged = oldFaces
+            .Where(face => face.IsSuppressed
+                           || decisionsByFace.ContainsKey(face.Id)
+                           || face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc != null))
+            .ToList();
+        if (triaged.Count == 0)
+        {
+            return false;
+        }
+
+        var pairs = triaged
+            .SelectMany(oldFace => newFaces.Select(created => (
+                Old: oldFace,
+                New: created.Face,
+                Overlap: IntersectionOverUnion(oldFace, created.Detection))))
+            .Where(pair => pair.Overlap >= TriageCarryOverMinimumOverlap)
+            .OrderByDescending(pair => pair.Overlap)
+            .ToList();
+
+        var matchedOld = new HashSet<Guid>();
+        var matchedNew = new HashSet<Guid>();
+        var carried = 0;
+        foreach (var (oldFace, newFace, _) in pairs)
+        {
+            if (!matchedOld.Add(oldFace.Id))
+            {
+                continue;
+            }
+
+            if (!matchedNew.Add(newFace.Id))
+            {
+                matchedOld.Remove(oldFace.Id);
+                continue;
+            }
+
+            if (oldFace.IsSuppressed)
+            {
+                newFace.IsSuppressed = true;
+                newFace.QualityStatus = FaceQualityStatus.Suppressed;
+                newFace.SuppressedAtUtc = oldFace.SuppressedAtUtc;
+                newFace.SuppressedByUserId = oldFace.SuppressedByUserId;
+                newFace.CandidateSearchStatus = FaceCandidateSearchStatus.NotRequested;
+                newFace.CandidateSearchFailureReason = null;
+                newFace.CandidateSearchCompletedAtUtc = now;
+                foreach (var embedding in newFace.Embeddings)
+                {
+                    embedding.InvalidatedAtUtc = now;
+                }
+            }
+
+            if (decisionsByFace.TryGetValue(oldFace.Id, out var decisions))
+            {
+                foreach (var decision in decisions)
+                {
+                    decision.MediaFace = newFace;
+                    decision.MediaFaceId = newFace.Id;
+                    decision.ConcurrencyToken = Guid.NewGuid();
+                }
+
+                if (!newFace.IsSuppressed
+                    && decisions.Any(decision => decision.Decision == FaceReviewDecisionType.Ignored
+                                                 && decision.CandidatePersonId == null))
+                {
+                    // "Leave unidentified" closes the face for review; keep it closed.
+                    newFace.CandidateSearchStatus = FaceCandidateSearchStatus.Ready;
+                    newFace.CandidateSearchFailureReason = null;
+                    newFace.CandidateSearchCompletedAtUtc = now;
+                }
+            }
+
+            foreach (var assignment in oldFace.PersonAssignments
+                         .Where(assignment => assignment.RemovedAtUtc != null)
+                         .ToList())
+            {
+                oldFace.PersonAssignments.Remove(assignment);
+                assignment.MediaFace = newFace;
+                assignment.MediaFaceId = newFace.Id;
+                newFace.PersonAssignments.Add(assignment);
+            }
+
+            carried++;
+        }
+
+        // Make the moved foreign keys visible before the old faces are marked deleted, so
+        // the cascade does not reach the decisions and history that now belong elsewhere.
+        _db.ChangeTracker.DetectChanges();
+
+        if (carried < triaged.Count)
+        {
+            _logger.LogInformation(
+                "Re-analysis carried human triage for {Carried} of {Triaged} face(s) on media asset {AssetId}; unmatched faces were no longer detected.",
+                carried,
+                triaged.Count,
+                oldFaces[0].MediaAssetId);
+        }
+
+        return carried > 0;
     }
 
     private static double IntersectionOverUnion(MediaFace face, DetectedFaceData detection)
