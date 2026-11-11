@@ -48,17 +48,135 @@
                 <p>Everything happens in this browser. Nothing is uploaded or saved in PRISM; you download the result.</p>
             </div>
             <div class="pdft-grid phot-grid" role="list">
+                <a class="pdft-card" role="listitem" href="#passport">
+                    <span class="pdft-card__icon pdft-accent--blue" aria-hidden="true"><i class="bi bi-person-bounding-box"></i></span>
+                    <span class="pdft-card__title">Passport photo</span>
+                    <span class="pdft-card__text">Crop to an exact size with a face guide, then save a file at the pixels and file size a form asks for.</span>
+                </a>
                 <a class="pdft-card" role="listitem" href="#reduce">
                     <span class="pdft-card__icon pdft-accent--orange" aria-hidden="true"><i class="bi bi-arrows-angle-contract"></i></span>
                     <span class="pdft-card__title">Reduce size</span>
                     <span class="pdft-card__text">Type the size you need, such as under 100 KB, and get the best quality that fits. Works on many photos at once.</span>
                 </a>
             </div>
-            <div class="pdft-drop phot-home-drop" data-drop>
-                <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-files">
-                    <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose photos
+        </section>
+
+        @* ---------- Passport photo ---------- *@
+        <section class="pdft-view" data-view="passport" hidden aria-labelledby="photPassportTitle">
+            <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-passport-input tabindex="-1" aria-hidden="true" />
+            <div class="phot-head">
+                <a class="phot-head__back" href="#" data-nav-home>
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
+                </a>
+                <h1 id="photPassportTitle">Passport photo</h1>
+                <span class="phot-head__file" data-passport-file></span>
+                <button type="button" class="btn btn-outline-secondary phot-head__action" data-action="change-photo" hidden>
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Change photo
                 </button>
-                <p class="pdft-drop__hint">or drop photos here. JPG, PNG or WEBP.</p>
+            </div>
+
+            <div class="pdft-drop" data-drop data-empty>
+                <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-photo">
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose a photo
+                </button>
+                <p class="pdft-drop__hint">or drop a photo here. JPG, PNG or WEBP. A plain, light background works best.</p>
+            </div>
+
+            <div class="phot-layout" data-workspace data-drop hidden>
+                <div class="phot-layout__main">
+                    <div class="phot-stage">
+                        <div class="phot-crop" data-crop tabindex="0" role="group" aria-label="Photo position. Drag to move it, or use the arrow keys; plus and minus zoom.">
+                            <canvas class="phot-crop__canvas" data-crop-canvas></canvas>
+                            <div class="phot-crop__frame" data-crop-frame aria-hidden="true">
+                                <div class="phot-crop__guide" data-crop-guide>
+                                    <span class="phot-crop__oval"></span>
+                                    <span class="phot-crop__rule phot-crop__rule--top"></span>
+                                    <span class="phot-crop__label phot-crop__label--top">Top of head</span>
+                                    <span class="phot-crop__rule phot-crop__rule--chin"></span>
+                                    <span class="phot-crop__label phot-crop__label--chin">Chin</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="phot-stage__bar phot-stage__bar--tools">
+                            <label class="phot-stage__control" for="photZoom">Zoom
+                                <input type="range" class="form-range" id="photZoom" min="100" max="400" step="1" value="100" data-zoom />
+                            </label>
+                            <label class="phot-stage__control" for="photStraighten">Straighten
+                                <input type="range" class="form-range" id="photStraighten" min="-15" max="15" step="0.5" value="0" data-straighten />
+                                <span class="phot-stage__value" data-straighten-value>0°</span>
+                            </label>
+                            <button type="button" class="btn btn-outline-light btn-sm" data-action="rotate">
+                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Rotate
+                            </button>
+                            <div class="form-check phot-stage__check">
+                                <input class="form-check-input" type="checkbox" id="photGuide" checked data-guide />
+                                <label class="form-check-label" for="photGuide">Face guide</label>
+                            </div>
+                        </div>
+                        <p class="phot-stage__hint">Drag the photo so the face fills the oval, with the top of the head and the chin near the two lines.</p>
+                    </div>
+                </div>
+
+                <aside class="phot-layout__side" aria-label="Passport photo settings">
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">1</span>Photo size</h2>
+                        <div class="phot-sizes" role="group" aria-label="Photo size" data-sizes></div>
+                        <div class="phot-custom" data-custom-size hidden>
+                            <div class="phot-custom__field">
+                                <label for="photCustomWidth">Width</label>
+                                <input type="text" inputmode="decimal" class="form-control" id="photCustomWidth" value="35" maxlength="6" data-custom-width />
+                            </div>
+                            <div class="phot-custom__field">
+                                <label for="photCustomHeight">Height</label>
+                                <input type="text" inputmode="decimal" class="form-control" id="photCustomHeight" value="45" maxlength="6" data-custom-height />
+                            </div>
+                            <div class="phot-custom__field">
+                                <label for="photCustomUnit">Unit</label>
+                                <select class="form-select" id="photCustomUnit" data-custom-unit>
+                                    <option value="mm" selected>mm</option>
+                                    <option value="inch">inch</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">2</span>Clean up</h2>
+                        <div class="phot-fix">
+                            <button type="button" class="phot-toggle" aria-pressed="false" data-action="fix-lighting">
+                                <i class="bi bi-magic" aria-hidden="true"></i> Fix lighting
+                            </button>
+                            <span class="phot-hint">Corrects a dull photo and a yellow or blue colour cast.</span>
+                        </div>
+                        <label class="phot-slider" for="photBrightness">Brightness
+                            <input type="range" class="form-range" id="photBrightness" min="-50" max="50" step="1" value="0" data-brightness />
+                            <span class="phot-slider__value" data-brightness-value>0</span>
+                        </label>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">3</span>Save</h2>
+                        <div class="phot-custom">
+                            <div class="phot-custom__field">
+                                <label for="photOutWidth">Width (px)</label>
+                                <input type="text" inputmode="numeric" class="form-control" id="photOutWidth" maxlength="5" data-out-width />
+                            </div>
+                            <div class="phot-custom__field">
+                                <label for="photOutHeight">Height (px)</label>
+                                <input type="text" inputmode="numeric" class="form-control" id="photOutHeight" maxlength="5" data-out-height />
+                            </div>
+                            <div class="phot-custom__field">
+                                <label for="photOutLimit">Under (KB)</label>
+                                <input type="text" inputmode="decimal" class="form-control" id="photOutLimit" maxlength="6" placeholder="No limit" data-out-limit />
+                            </div>
+                        </div>
+                        <p class="phot-hint">Change the pixels or the file size if a form asks for something else. The photo is saved as a JPG at 300 dpi.</p>
+                        <p class="phot-result" data-passport-result aria-live="polite"></p>
+                        <button type="button" class="btn btn-primary btn-lg" data-action="download-passport" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> Download photo
+                        </button>
+                    </div>
+                </aside>
             </div>
         </section>
 
@@ -198,6 +316,8 @@
 
     <script src="~/js/tools-shared/zip-writer.js" asp-append-version="true"></script>
     <script src="~/js/photo-tools/photo-tools-core.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-canvas.js" asp-append-version="true"></script>
     <script src="~/js/photo-tools/photo-tools-app.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-passport.js" asp-append-version="true"></script>
 </body>
 </html>

@@ -38,9 +38,26 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Tool | What it does |
 | --- | --- |
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none), smaller dimensions, save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
+| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 
-Passport photo, print sheet, signature and the editor are planned (see the build plan) and are
-not on the page yet.
+Print sheet, signature and the editor are planned (see the build plan) and are not on the page
+yet.
+
+### How a passport photo is made
+
+- The crop frame has the shape of the saved photo and stays still; the photo moves under it. The
+  photo can never leave an empty corner in the frame (`coverScale`, `clampOffset`).
+- Sizes are pixels at 300 dpi (35 × 45 mm is 413 × 531 px). The saved JPG carries 300 dpi in its
+  header (`setJpegDpi`), so it prints at its true size.
+- The screen works on a copy no larger than 1600 px; the saved photo is drawn again from the
+  full-size photo, so zooming in does not cost sharpness that the original has.
+- The dimensions are never changed to meet a KB limit, only the JPG quality (down to 0.2). If the
+  limit still cannot be met, the page says what the smallest possible size is.
+- **Fix lighting** measures the whole photo once (`measureLighting`): it stretches the range
+  between the darkest and brightest half percent, and corrects most of a colour cast. The same
+  correction is applied to the preview and the saved photo. It does not change the background to
+  white; a plain, light background is still needed.
+- The face guide is an aid for placing the head. It is not a check against any authority's rules.
 
 ### How the target size is reached
 
@@ -61,9 +78,11 @@ see-through areas with white.
 | File | Role |
 | --- | --- |
 | `Pages/Tools/Photo/Index.cshtml` | Standalone page with its own minimal shell (`Layout = null`). |
-| `wwwroot/js/photo-tools/photo-tools-core.js` | Pure rules: target-size search, resize maths, output type and names, greyscale. Runs in Node for tests. |
+| `wwwroot/js/photo-tools/photo-tools-core.js` | Pure rules: target-size search, resize maths, output type and names, greyscale, lighting, passport sizes and crop limits, JPG print resolution. Runs in Node for tests. |
 | `wwwroot/js/photo-tools/photo-tools-core.test.js` | Node tests, part of `npm test`. |
+| `wwwroot/js/photo-tools/photo-tools-canvas.js` | Browser helpers shared by the tools: open a photo, draw it at a new size, canvas to file bytes, save, show an error. |
 | `wwwroot/js/photo-tools/photo-tools-app.js` | Shell, routing (`#tool`) and Reduce size. |
+| `wwwroot/js/photo-tools/photo-tools-passport.js` | Passport photo. |
 | `wwwroot/js/tools-shared/zip-writer.js` | ZIP writer shared with PDF Tools. |
 | `wwwroot/css/photo-tools.css` | Photo Tools styles. The shell (top bar, home cards, drop zone) is shared with PDF Tools through `pdf-tools.css`. Bootstrap theme variables only, so Light and Dark both work. |
 
