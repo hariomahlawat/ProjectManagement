@@ -402,6 +402,8 @@
                             <button type="button" aria-pressed="false" data-tool="cleanup"><i class="bi bi-magic" aria-hidden="true"></i> Clean up</button>
                             <button type="button" aria-pressed="false" data-tool="adjust"><i class="bi bi-sliders" aria-hidden="true"></i> Adjust</button>
                             <button type="button" aria-pressed="false" data-tool="filters"><i class="bi bi-palette" aria-hidden="true"></i> Filters</button>
+                            <button type="button" aria-pressed="false" data-tool="markup"><i class="bi bi-pencil-square" aria-hidden="true"></i> Mark up</button>
+                            <button type="button" aria-pressed="false" data-tool="hide"><i class="bi bi-eye-slash" aria-hidden="true"></i> Blur</button>
                         </div>
 
                         <div class="phot-tool" data-tool-panel="crop">
@@ -491,6 +493,31 @@
                         <div class="phot-tool" data-tool-panel="filters" hidden>
                             <div class="phot-filters" role="group" aria-label="Filters" data-filters></div>
                             <p class="phot-hint">Press a filter to use it. Undo takes it back.</p>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="markup" hidden>
+                            <div class="phot-chips" role="group" aria-label="What to draw" data-mark-kinds></div>
+                            <div class="phot-field">
+                                <span class="phot-field__label" id="photMarkColour">Colour</span>
+                                <div class="phot-swatches" role="group" aria-labelledby="photMarkColour" data-mark-colours></div>
+                            </div>
+                            <div class="phot-field">
+                                <span class="phot-field__label" id="photMarkSize">Size</span>
+                                <div class="phot-segment" role="group" aria-labelledby="photMarkSize" data-mark-sizes></div>
+                            </div>
+                            <div class="phot-field" data-mark-text-row hidden>
+                                <label for="photMarkText">Text</label>
+                                <input type="text" class="form-control" id="photMarkText" maxlength="80" autocomplete="off" data-mark-text />
+                            </div>
+                            <p class="phot-hint" data-mark-note aria-live="polite"></p>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="hide" hidden>
+                            <div class="phot-segment phot-segment--start" role="group" aria-label="How to hide it">
+                                <button type="button" aria-pressed="true" data-hide-mode="blur">Blur</button>
+                                <button type="button" aria-pressed="false" data-hide-mode="pixelate">Pixelate</button>
+                            </div>
+                            <p class="phot-hint">Drag over a face, a number or anything else to hide. It is removed from the saved photo for good: nobody can bring it back from the file.</p>
                         </div>
                     </div>
 
