@@ -277,13 +277,6 @@
     z-index: 3;
 }
 
-.photos-tile__cover {
-    align-items: center;
-    display: inline-flex;
-    gap: .22rem;
-    z-index: 3;
-}
-
 .photos-empty {
     background: var(--pm-surface-subtle, #f8fafc);
     margin-top: 1.2rem;
@@ -343,7 +336,6 @@
     .photos-grid--count-1 { max-width: 100%; }
     .photos-grid--count-1 .photos-tile { flex: 1 1 100%; height: min(58vw, 260px); }
     .photos-tile__meta, .photos-tile__shade { display: none; }
-    .photos-tile__cover i { font-size: .74rem; }
     .photos-tile__play { height: 2.45rem; width: 2.45rem; }
 }
 
@@ -419,17 +411,6 @@
 
 @media (prefers-reduced-motion: reduce) {
     .photos-tile__placeholder { animation: none; }
-}
-
-.photos-tile__people {
-    align-items: center;
-    display: inline-flex;
-    gap: .28rem;
-    max-width: calc(100% - 5.5rem);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    z-index: 3;
 }
 
 .photos-viewer__people {
@@ -524,7 +505,7 @@
 .photos-grid { display:flex !important; flex-wrap:wrap; gap:4px !important; min-height:120px; overflow:hidden; width:100%; }
 .photos-grid.is-layout-ready { min-height:0; }
 .photos-tile { background:#e7ebf1; border:0 !important; border-radius:.28rem !important; box-shadow:none !important; cursor:pointer; flex:0 0 auto; margin:0 !important; min-height:110px; overflow:hidden; padding:0; position:relative; transform:none !important; }
-.photos-tile img { height:100%; object-fit:cover; transition:filter .18s ease, transform .28s ease; width:100%; }
+.photos-tile img { height:100%; object-fit:cover; transition:opacity .25s ease, filter .18s ease, transform .28s ease; width:100%; }
 .photos-tile:hover img { filter:brightness(.88); transform:scale(1.015); }
 .photos-tile__placeholder { background:linear-gradient(100deg,#edf0f5 30%,#f8f9fb 48%,#edf0f5 66%); inset:0; position:absolute; }
 .photos-tile.is-loaded .photos-tile__placeholder { display:none; }
@@ -534,15 +515,11 @@
 .photos-tile:hover .photos-tile__meta, .photos-tile:focus-visible .photos-tile__meta { opacity:1; }
 .photos-tile__meta strong { font-size:.73rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .photos-tile__meta span { font-size:.63rem; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.photos-tile__people, .photos-tile__cover, .photos-tile__duration { backdrop-filter:blur(8px); background:rgba(18,27,43,.68) !important; border:0 !important; border-radius:999px !important; color:#fff; font-size:.62rem; font-weight:700; padding:.26rem .45rem; position:absolute; }
-.photos-tile__people { left:.42rem; top:.42rem; }
-.photos-tile__cover { right:.42rem; top:.42rem; }
+.photos-tile__duration { backdrop-filter:blur(8px); background:rgba(18,27,43,.68) !important; border:0 !important; border-radius:999px !important; color:#fff; font-size:.62rem; font-weight:700; padding:.26rem .45rem; position:absolute; }
 .photos-tile__duration { bottom:.42rem; right:.42rem; }
 .photos-tile__select { align-items:center; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.12); border-radius:50%; color:#4169d8; display:none; height:1.55rem; justify-content:center; left:.45rem; position:absolute; top:.45rem; width:1.55rem; z-index:6; }
 .photos-library.is-selecting { padding-bottom:6rem; }
 .photos-library.is-selecting .photos-tile__select { display:flex; }
-.photos-library.is-selecting .photos-tile__people { top:2.35rem; z-index:5; }
-.photos-library.is-selecting .photos-tile__cover { z-index:5; }
 .photos-tile.is-selected .photos-tile__select { background:#3569e8; color:#fff; }
 .photos-tile.is-selected::after { border:3px solid #3569e8; border-radius:.3rem; content:""; inset:0; pointer-events:none; position:absolute; }
 .collections-grid { display:grid; gap:1.05rem; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); }
@@ -868,10 +845,6 @@
     color: #fff;
 }
 
-:where([data-bs-theme="dark"]) .photos-tile__cover {
-    border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
 :where([data-bs-theme="dark"]) .photos-empty__icon {
     background: color-mix(in srgb, #6ea8fe 11%, #16181b);
     color: #6ea8fe;
@@ -1000,8 +973,6 @@
     color: #fff;
 }
 
-:where([data-bs-theme="dark"]) .photos-tile__people,
-:where([data-bs-theme="dark"]) .photos-tile__cover,
 :where([data-bs-theme="dark"]) .photos-tile__duration {
     background: rgba(0, 0, 0, 0.72) !important;
     color: #fff;
