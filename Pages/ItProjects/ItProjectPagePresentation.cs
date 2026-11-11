@@ -20,6 +20,34 @@ public static class ItProjectPagePresentation
     /// </summary>
     public sealed record HeroStatus(string Text, string? Note, string Tone);
 
+    /// <summary>The last thing that happened on the case: when (India date), by whom, and what.</summary>
+    public sealed record Activity(DateOnly On, string? Who, string What);
+
+    /// <summary>
+    /// The latest of a details or stage save (the project row), a remark added or edited and a file
+    /// attached. "Last change" used the project row alone, so a case with recent remarks looked
+    /// untouched for months (owner, 11 Nov 2026).
+    /// </summary>
+    public static Activity LastActivity(
+        ItProject project,
+        string? projectUpdatedBy,
+        IEnumerable<ItProjectRemarkView> remarks,
+        IEnumerable<ItProjectAttachmentView> attachments)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        var candidates = new List<(DateTime AtUtc, string? Who, string What)>
+        {
+            (project.UpdatedAtUtc, projectUpdatedBy, "Details or stages saved")
+        };
+        candidates.AddRange((remarks ?? Enumerable.Empty<ItProjectRemarkView>()).Select(remark =>
+            (remark.LastEditedAtUtc ?? remark.CreatedAtUtc, (string?)remark.AuthorName, remark.LastEditedAtUtc.HasValue ? "Remark edited" : "Remark added")));
+        candidates.AddRange((attachments ?? Enumerable.Empty<ItProjectAttachmentView>()).Select(file =>
+            (file.UploadedAtUtc, (string?)file.UploadedByName, "File attached")));
+
+        var latest = candidates.OrderByDescending(item => item.AtUtc).First();
+        return new Activity(ItProjectYearTypes.ToIstDate(latest.AtUtc), latest.Who, latest.What);
+    }
+
     public static string LongDate(DateOnly date) => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
 
     /// <summary>Where the case is and for how long, in one sentence.</summary>

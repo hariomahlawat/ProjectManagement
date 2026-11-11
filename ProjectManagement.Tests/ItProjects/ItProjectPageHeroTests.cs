@@ -111,4 +111,26 @@ public class ItProjectPageHeroTests
 
         return id;
     }
+
+    [Fact]
+    public void LastActivity_IsTheLatestOfASaveARemarkAndAFile()
+    {
+        var project = new ItProject { UpdatedAtUtc = new DateTime(2026, 6, 19, 6, 0, 0, DateTimeKind.Utc), Stages = ItProjectStages.NewStageRows() };
+        var remarks = new[]
+        {
+            new ItProjectRemarkView(1, "hod-1", "Mahesh Kini", "HoD", "RFP draft.", new DateOnly(2026, 10, 27), ItProjectRemarkType.General,
+                new DateTime(2026, 10, 9, 5, 0, 0, DateTimeKind.Utc), new DateTime(2026, 10, 27, 20, 0, 0, DateTimeKind.Utc), Array.Empty<byte>())
+        };
+        var files = new[]
+        {
+            new ItProjectAttachmentView(Guid.NewGuid(), "SO.pdf", "application/pdf", 10, "ito-1", "Maj Rathi", new DateTime(2026, 10, 20, 5, 0, 0, DateTimeKind.Utc))
+        };
+
+        var latest = ItProjectPagePresentation.LastActivity(project, "Hari Om", remarks, files);
+        // 20:00 UTC on 27 Oct is 28 Oct in India.
+        Assert.Equal(new ItProjectPagePresentation.Activity(new DateOnly(2026, 10, 28), "Mahesh Kini", "Remark edited"), latest);
+
+        var onlyTheSave = ItProjectPagePresentation.LastActivity(project, "Hari Om", Array.Empty<ItProjectRemarkView>(), Array.Empty<ItProjectAttachmentView>());
+        Assert.Equal(new ItProjectPagePresentation.Activity(new DateOnly(2026, 6, 19), "Hari Om", "Details or stages saved"), onlyTheSave);
+    }
 }

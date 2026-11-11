@@ -36,15 +36,22 @@
         @* Without script every field shows; the script shows only the ones the chosen kind uses. *@
         <fieldset class="itp-form__field" data-itp-kind>
             <legend class="form-label fs-6">In the IT ARPPP</legend>
-            <div class="btn-group" role="group">
-                <input type="radio" class="btn-check" name="Input.Kind" id="itpKindNew" value="@CreateModel.KindNew" checked="@(kind == CreateModel.KindNew)" data-itp-kind-option />
-                <label class="btn btn-outline-secondary" for="itpKindNew">New</label>
-                <input type="radio" class="btn-check" name="Input.Kind" id="itpKindCl" value="@CreateModel.KindCommittedLiability" checked="@(kind == CreateModel.KindCommittedLiability)" data-itp-kind-option />
-                <label class="btn btn-outline-secondary" for="itpKindCl">CL</label>
-                <input type="radio" class="btn-check" name="Input.Kind" id="itpKindCf" value="@CreateModel.KindCarriedForward" checked="@(kind == CreateModel.KindCarriedForward)" data-itp-kind-option />
-                <label class="btn btn-outline-secondary" for="itpKindCf">CF</label>
+            @* The same radio pills as the remark composer's Remark / Conference choice. *@
+            <div class="itp-kind" role="radiogroup" aria-label="In the IT ARPPP">
+                <label class="itp-kind__opt">
+                    <input type="radio" name="Input.Kind" id="itpKindNew" value="@CreateModel.KindNew" checked="@(kind == CreateModel.KindNew)" data-itp-kind-option />
+                    <span>New</span>
+                </label>
+                <label class="itp-kind__opt">
+                    <input type="radio" name="Input.Kind" id="itpKindCl" value="@CreateModel.KindCommittedLiability" checked="@(kind == CreateModel.KindCommittedLiability)" data-itp-kind-option />
+                    <span>CL · committed liability</span>
+                </label>
+                <label class="itp-kind__opt">
+                    <input type="radio" name="Input.Kind" id="itpKindCf" value="@CreateModel.KindCarriedForward" checked="@(kind == CreateModel.KindCarriedForward)" data-itp-kind-option />
+                    <span>CF · carried forward</span>
+                </label>
             </div>
-            <div class="form-text" data-itp-kind-show="new">New: a case in its own financial year.</div>
+            <div class="form-text" data-itp-kind-show="new">New: first listed in the IT ARPPP of the financial year chosen below.</div>
             <div class="form-text" data-itp-kind-show="carried">
                 CL or CF: a case carried over into FY @currentFy from an earlier year. CL when the SO was placed before FY @currentFy began, CF when it was not.
             </div>
@@ -53,7 +60,7 @@
         <div class="itp-form__row">
             <div class="itp-form__field">
                 <label asp-for="Input.PppReferenceNumber" class="form-label"></label>
-                <input asp-for="Input.PppReferenceNumber" class="form-control" maxlength="100" placeholder="e.g. IT ARPPP 09/2025" />
+                <input asp-for="Input.PppReferenceNumber" class="form-control" maxlength="100" placeholder="e.g. IT PPP 09/2026" />
                 <div class="form-text" data-itp-kind-show="new">As written on the IT ARPPP. It need not be unique.</div>
                 <div class="form-text" data-itp-kind-show="carried">For CL or CF: the number in the FY @currentFy IT ARPPP.</div>
                 <span asp-validation-for="Input.PppReferenceNumber" class="text-danger"></span>

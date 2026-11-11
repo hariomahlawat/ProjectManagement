@@ -76,7 +76,7 @@ internal sealed class ItProjectTestDb : IAsyncDisposable
     public ItProjectAttachmentService Attachments(ApplicationDbContext? context = null, IFileScanner? scanner = null) =>
         new(context ?? NewContext(), Storage, AttachmentValidator(), scanner ?? new PassScanner(), Audit, Clock);
 
-    public static ItProjectRemarkActor RemarkActor(string userId, string? role, bool isAdmin = false) => new(userId, userId, role, isAdmin);
+    public static ItProjectRemarkActor RemarkActor(string userId, string? role, bool isAdmin = false) => new(userId, userId, role, isAdmin, IsHoD: role == Configuration.RoleNames.HoD);
 
     public static ItProjectActor Actor(string userId = "ito-1") => new(userId, userId);
 

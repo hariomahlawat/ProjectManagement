@@ -245,7 +245,8 @@
                                             <span class="itp-type itp-type--@yearType.Code.ToLowerInvariant()" title="@yearType.Label in FY @FinancialYearHelper.Format(yearType.FinancialYearStart)@(yearType.IsManual ? ", set by hand" : null)">@yearType.Code</span>
                                         }
                                         <span class="itp-ref">@row.DisplayReference</span>
-                                        <span>@ItProjectBoardPresentation.FinancialYear(row.FinancialYearStart)</span>
+                                        @* A carried-over case shows this year's number; the year beside it is the year it was first listed. *@
+                                        <span>@(row.YearType is { IsOwnYear: false } ? "since " : null)@ItProjectBoardPresentation.FinancialYear(row.FinancialYearStart)</span>
                                     </div>
                                 </td>
                                 <td class="itp-reg__trackcol">
@@ -313,11 +314,11 @@
                 }
                 @if (key.StageDays)
                 {
-                    <span class="itp-key__i"><span class="itp-age itp-age--calm">≤ 30 d</span><span class="itp-age itp-age--warn">31–60 d</span><span class="itp-age itp-age--late">&gt; 60 d</span> days at the stage, from stage dates</span>
+                    <span class="itp-key__i"><span class="itp-age itp-age--calm">≤ @(ItProjectTiming.NormalUpToDays) d</span><span class="itp-age itp-age--warn">@(ItProjectTiming.NormalUpToDays + 1)–@(ItProjectTiming.AmberUpToDays) d</span><span class="itp-age itp-age--late">&gt; @(ItProjectTiming.AmberUpToDays) d</span> days at the stage, from stage dates; at Delivery and ATP ≤ @(ItProjectTiming.DeliveryNormalUpToDays), @(ItProjectTiming.DeliveryNormalUpToDays + 1)–@(ItProjectTiming.DeliveryAmberUpToDays), &gt; @(ItProjectTiming.DeliveryAmberUpToDays) d</span>
                 }
                 @if (key.Recorded)
                 {
-                    <span class="itp-key__i"><span class="itp-age itp-age--nodate">recorded 21 Aug</span> no date on the previous stage: when the move was recorded</span>
+                    <span class="itp-key__i"><span class="itp-age itp-age--nodate">recorded <i>date</i></span> no date on the previous stage: counted from when the move was recorded</span>
                 }
             </div>
         }

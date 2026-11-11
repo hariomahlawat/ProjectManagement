@@ -51,7 +51,7 @@ public class ItProjectRegisterTests
         Assert.True(stops["BM"].LineOut);
         Assert.Equal("cur", stops["DLV"].State);
         Assert.Equal("late", stops["DLV"].Tone);     // 304 days since SO on 8 Jan 2026 (test clock 8 Nov 2026)
-        Assert.Equal("304 d", stops["DLV"].Label);
+        Assert.Equal("now", stops["DLV"].Label);      // the 304 d is in the Now column only
         Assert.False(stops["PPP"].LineIn);
         Assert.False(stops["DLV"].LineOut);
     }

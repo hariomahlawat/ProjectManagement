@@ -23,7 +23,15 @@ public sealed record ItProjectRemarkView(
 public sealed record ItProjectRemarkInput(string Body, DateOnly EventDate, ItProjectRemarkType Type = ItProjectRemarkType.General);
 
 /// <summary>Who is acting on a remark: the user, the remark role they hold (null for none), and whether they are an Admin.</summary>
-public sealed record ItProjectRemarkActor(string UserId, string? UserName, string? RemarkRole, bool IsAdmin);
+/// <summary>
+/// Who is acting on a remark. <paramref name="IsHoD"/> is whether the user holds the HoD role at
+/// all (a Comdt who is also HoD writes as Comdt but may still delete any remark as HoD).
+/// </summary>
+public sealed record ItProjectRemarkActor(string UserId, string? UserName, string? RemarkRole, bool IsAdmin, bool IsHoD = false)
+{
+    /// <summary>Owner decision 11 Nov 2026: an Admin or the HoD may delete any remark.</summary>
+    public bool CanDeleteAnyRemark => IsAdmin || IsHoD;
+}
 
 public interface IItProjectRemarkService
 {
