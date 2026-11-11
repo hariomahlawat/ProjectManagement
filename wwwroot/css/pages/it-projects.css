@@ -861,7 +861,7 @@
 
 .itp-years__row {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
     align-items: center;
     gap: .35rem .45rem;
     padding: .45rem 0;
@@ -920,23 +920,97 @@
     font-style: italic;
 }
 
-.itp-years__form {
+.itp-years__hand {
+    margin-left: .45rem;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 400;
+    color: var(--pm-text-muted);
+}
+
+/* A year reads as plain text; Edit opens that one row (owner, 11 Nov 2026). */
+.itp-years__edit {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .15rem .4rem;
+    border-radius: 6px;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    color: var(--pm-text-muted);
+    text-decoration: none;
+}
+
+.itp-years__edit:hover,
+.itp-years__edit:focus-visible {
+    background: var(--pm-surface);
+    color: var(--pm-primary);
+}
+
+.itp-years__editor {
     grid-column: 1 / -1;
+}
+
+.itp-years__editor:not([open]) {
+    display: none;
+}
+
+.itp-years__editor:target {
+    display: block;
+}
+
+.itp-years__editor:target > summary ~ * {
+    display: block;
+}
+
+.itp-years__row:has(.itp-years__editor[open]) .itp-years__edit,
+.itp-years__row:has(.itp-years__editor:target) .itp-years__edit {
+    visibility: hidden;
+}
+
+.itp-years__form {
     display: flex;
-    flex-wrap: wrap;
-    gap: .35rem;
+    flex-direction: column;
+    gap: .5rem;
+    margin-top: .25rem;
+    padding: .7rem .75rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 10px;
+    background: var(--pm-surface-subtle);
 }
 
-.itp-years__form .form-control {
-    flex: 1 1 9rem;
-    min-width: 0;
-    border-radius: 8px;
+.itp-years__field {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    margin: 0;
 }
 
+.itp-years__field > span {
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+}
+
+.itp-years__form .form-control,
 .itp-years__form .form-select {
-    flex: 0 1 auto;
-    width: auto;
     border-radius: 8px;
+}
+
+.itp-years__hint {
+    margin: 0;
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
+.itp-years__buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: .4rem;
+}
+
+.itp-hero__since {
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
 }
 
 /* ---- board header, year control and summary figures (redesign PR 3) ----------------------- */

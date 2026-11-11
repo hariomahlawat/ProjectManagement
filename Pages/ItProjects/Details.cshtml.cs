@@ -72,6 +72,12 @@ public class DetailsModel : PageModel
     /// <summary>The project's type and IT ARPPP number in the latest year it counts in.</summary>
     public ItProjectYearTypeInfo? LatestYear => YearTypes.LastOrDefault();
 
+    /// <summary>
+    /// The number the case goes by now: the latest year's when it has one, as on the register row,
+    /// else the first year's.
+    /// </summary>
+    public string DisplayReference => LatestYear?.PppReferenceNumber ?? Project.PppReferenceNumber;
+
     /// <summary>New / CL / CF in every financial year the project counts in, oldest first.</summary>
     public IReadOnlyList<ItProjectYearTypeInfo> YearTypes { get; private set; } = Array.Empty<ItProjectYearTypeInfo>();
 

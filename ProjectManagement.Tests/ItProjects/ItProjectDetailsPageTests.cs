@@ -639,11 +639,14 @@ public class ItProjectDetailsPageTests
         var page = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
         await page.OnGetAsync(id, CancellationToken.None);
         Assert.Equal(new[] { "New", "CF" }, page.YearTypes.Select(type => type.Code));
+        // Until this year's number is entered the page goes by the first one, as the register does.
+        Assert.Equal(page.Project.PppReferenceNumber, page.DisplayReference);
 
         Assert.IsType<RedirectToPageResult>(await page.OnPostYearAsync(id, 2026, "CL", "IT PPP 03/2026", CancellationToken.None));
 
         var reloaded = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
         await reloaded.OnGetAsync(id, CancellationToken.None);
+        Assert.Equal("IT PPP 03/2026", reloaded.DisplayReference);
         var year = reloaded.YearTypes.Single(type => type.FinancialYearStart == 2026);
         Assert.Equal("CL", year.Code);
         Assert.True(year.IsManual);
@@ -654,6 +657,25 @@ public class ItProjectDetailsPageTests
         await reset.OnGetAsync(id, CancellationToken.None);
         Assert.False(reset.YearTypes.Single(type => type.FinancialYearStart == 2026).IsManual);
         Assert.Equal("IT PPP 03/2026", reset.YearTypes.Single(type => type.FinancialYearStart == 2026).PppReferenceNumber);
+    }
+
+    [Fact]
+    public async Task Year_TheFirstYearsNumberIsChangedFromItsRow()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync(fy: 2025);
+        var page = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        await page.OnGetAsync(id, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(await page.OnPostYearAsync(id, 2025, "auto", "IT PPP 11/2025", CancellationToken.None));
+
+        var reloaded = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        await reloaded.OnGetAsync(id, CancellationToken.None);
+        Assert.Equal("IT PPP 11/2025", reloaded.Project.PppReferenceNumber);
+        var first = reloaded.YearTypes.Single(type => type.IsOwnYear);
+        Assert.Equal("IT PPP 11/2025", first.PppReferenceNumber);
+        Assert.Equal("New", first.Code);
+        Assert.False(first.IsManual);
     }
 
     [Fact]

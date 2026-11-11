@@ -70,7 +70,8 @@ public interface IItProjectCommandService
     /// <summary>
     /// Saves what one financial year's IT ARPPP says about the project: a later year's IT ARPPP
     /// reference number, and a New / CL / CF type set by hand (null or the automatic type means
-    /// automatic). The first year's number stays on the project and is changed with Edit.
+    /// automatic). The first year's number stays on the project: a number given for that year
+    /// replaces it (as Edit does), and no number leaves it unchanged.
     /// </summary>
     Task<ItProjectCommandResult> SaveYearAsync(int id, int financialYearStart, ItProjectYearInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
 

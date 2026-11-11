@@ -402,9 +402,14 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             return ItProjectCommandResult.Fail($"This IT project does not count in FY {FinancialYearHelper.Format(financialYearStart)}.");
         }
 
-        if (before.IsOwnYear && reference is not null && !string.Equals(reference, project.PppReferenceNumber, StringComparison.Ordinal))
+        // The first year's number lives on the project itself, and a project always has one: a
+        // number given for the own year replaces it (the Record card's first-year row and the Edit
+        // drawer both change it), and no number leaves it as it is.
+        var referenceBefore = before.IsOwnYear ? project.PppReferenceNumber : before.PppReferenceNumber;
+        var ownReferenceChanged = before.IsOwnYear && reference is not null && !string.Equals(reference, project.PppReferenceNumber, StringComparison.Ordinal);
+        if (ownReferenceChanged)
         {
-            return ItProjectCommandResult.Fail("The first year's IT ARPPP reference number is changed with Edit.");
+            project.PppReferenceNumber = reference!;
         }
 
         // Only later years store a number. In a later year a type chosen by hand is kept even when
@@ -414,18 +419,20 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         var storedReference = before.IsOwnYear ? null : reference;
         var manual = input.Type is { } chosen && (!before.IsOwnYear || chosen != before.AutomaticType) ? chosen : (ItProjectYearType?)null;
         var row = ItProjectYearTypes.YearRow(project, financialYearStart);
+        var rowUnchanged = row?.TypeOverride == manual && row?.PppReferenceNumber == storedReference;
 
-        if (row?.TypeOverride == manual && row?.PppReferenceNumber == storedReference)
+        if (rowUnchanged && !ownReferenceChanged)
         {
             return ItProjectCommandResult.Ok();
         }
 
-        if (manual is null && storedReference is null)
+        // When only the first year's number changed, the year row (if any) stays as it is.
+        if (!rowUnchanged && manual is null && storedReference is null)
         {
             project.FinancialYears.Remove(row!);
             _db.ItProjectFinancialYears.Remove(row!);
         }
-        else
+        else if (!rowUnchanged)
         {
             if (row is null)
             {
@@ -445,7 +452,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             ["FinancialYear"] = FinancialYearHelper.Format(financialYearStart),
             ["TypeBefore"] = ItProjectYearTypes.Code(before.Type) + (before.IsManual ? " (set by hand)" : " (automatic)"),
             ["TypeAfter"] = ItProjectYearTypes.Code(afterType) + (manual is null ? " (automatic)" : " (set by hand)"),
-            ["ReferenceBefore"] = before.IsOwnYear ? project.PppReferenceNumber : before.PppReferenceNumber,
+            ["ReferenceBefore"] = referenceBefore,
             ["ReferenceAfter"] = before.IsOwnYear ? project.PppReferenceNumber : storedReference
         }, cancellationToken);
     }
