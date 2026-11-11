@@ -29,12 +29,18 @@ public abstract class ItProjectCreatePageModel : PageModel
 
     private readonly IItProjectCommandService _commands;
     private readonly IClock _clock;
+    private readonly IItProjectReadService? _reads;
 
-    protected ItProjectCreatePageModel(IItProjectCommandService commands, IClock clock)
+    /// <param name="reads">Needed only by a module that assigns a Project Officer, for the list to choose from.</param>
+    protected ItProjectCreatePageModel(IItProjectCommandService commands, IClock clock, IItProjectReadService? reads = null)
     {
         _commands = commands ?? throw new ArgumentNullException(nameof(commands));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _reads = reads;
     }
+
+    /// <summary>"No officer yet", then the active Project Officers; empty in a module that assigns none.</summary>
+    public IReadOnlyList<SelectListItem> OfficerOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     /// <summary>The module this page belongs to. Fixed by the page class, never by the request.</summary>
     public abstract string ModuleCode { get; }
@@ -94,6 +100,9 @@ public abstract class ItProjectCreatePageModel : PageModel
         [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The reference number must be {1} characters or fewer.")]
         [Display(Name = "First reference number")]
         public string? FirstPppReferenceNumber { get; set; }
+
+        /// <summary>The Project Officer the project starts with, in a module that assigns one; empty for none.</summary>
+        public string? ProjectOfficerUserId { get; set; }
     }
 
     /// <summary>The year type a CL / CF choice stands for, or null for New (or anything unknown).</summary>
@@ -106,11 +115,25 @@ public abstract class ItProjectCreatePageModel : PageModel
 
     public bool IsCarriedOver => CarriedOverType(Input.Kind) is not null;
 
-    public void OnGet()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Input.FinancialYearStart = CurrentFinancialYearStart();
         FinancialYearOptions = BuildFinancialYearOptions(Input.FinancialYearStart.Value, Input.FinancialYearStart.Value);
         BuildFirstYearOptions(null);
+        await BuildOfficerOptionsAsync(cancellationToken);
+    }
+
+    private async Task BuildOfficerOptionsAsync(CancellationToken cancellationToken)
+    {
+        if (!Module.HasAssignedOfficer || _reads is null)
+        {
+            return;
+        }
+
+        var officers = await _reads.GetAssignableOfficersAsync(cancellationToken);
+        var options = new List<SelectListItem> { new("No officer yet", string.Empty) };
+        options.AddRange(officers.Select(officer => new SelectListItem(officer.Name, officer.UserId)));
+        OfficerOptions = options;
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
@@ -141,6 +164,9 @@ public abstract class ItProjectCreatePageModel : PageModel
         // The picker must never be built from an unsupported year: the helper that formats it throws.
         FinancialYearOptions = BuildFinancialYearOptions(yearIsValid ? Input.FinancialYearStart!.Value : current, current);
         BuildFirstYearOptions(Input.FirstFinancialYearStart);
+        await BuildOfficerOptionsAsync(cancellationToken);
+        // The form offers an officer only in a module that assigns one; a posted value elsewhere is dropped.
+        var officerUserId = Module.HasAssignedOfficer ? Input.ProjectOfficerUserId : null;
         if (!ModelState.IsValid)
         {
             return Page();
@@ -155,11 +181,11 @@ public abstract class ItProjectCreatePageModel : PageModel
         var actor = new ItProjectActor(userId, User.Identity?.Name, ModuleCode);
         var (result, id) = carriedOver is { } type
             ? await _commands.CreateCarriedOverAsync(
-                new ItProjectCarriedOverInput(Input.Title, Input.Description, type, Input.PppReferenceNumber, Input.FirstFinancialYearStart!.Value, Input.FirstPppReferenceNumber),
+                new ItProjectCarriedOverInput(Input.Title, Input.Description, type, Input.PppReferenceNumber, Input.FirstFinancialYearStart!.Value, Input.FirstPppReferenceNumber, officerUserId),
                 actor,
                 cancellationToken)
             : await _commands.CreateAsync(
-                new ItProjectDetailsInput(Input.Title, Input.PppReferenceNumber, Input.FinancialYearStart!.Value, Input.Description),
+                new ItProjectDetailsInput(Input.Title, Input.PppReferenceNumber, Input.FinancialYearStart!.Value, Input.Description, officerUserId),
                 actor,
                 cancellationToken);
 

@@ -173,7 +173,7 @@ public class ItProjectBoardPageTests
         await using var db = await ItProjectTestDb.CreateAsync();
 
         var page = CreatePage(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
-        page.OnGet();
+        await page.OnGetAsync(System.Threading.CancellationToken.None);
         Assert.Equal(2026, page.Input.FinancialYearStart);
         Assert.Equal("2027-28", page.FinancialYearOptions[0].Text);
         Assert.Equal("2026-27", page.FinancialYearOptions[1].Text);
@@ -307,7 +307,7 @@ public class ItProjectBoardPageTests
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var page = CreatePage(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
-        page.OnGet();
+        await page.OnGetAsync(System.Threading.CancellationToken.None);
         Assert.Equal(2026, page.CurrentFinancialYear);
         Assert.Equal("2025-26", page.FirstYearOptions[0].Text);
         Assert.True(page.FirstYearOptions[0].Selected); // last year by default

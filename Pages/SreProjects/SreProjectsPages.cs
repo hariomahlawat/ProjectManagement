@@ -27,8 +27,8 @@ public class IndexModel : ItProjectBoardPageModel
 [Authorize(Policy = Policies.SreProjects.Manage)]
 public class CreateModel : ItProjectCreatePageModel
 {
-    public CreateModel(IItProjectCommandService commands, IClock clock)
-        : base(commands, clock)
+    public CreateModel(IItProjectCommandService commands, IClock clock, IItProjectReadService reads)
+        : base(commands, clock, reads)
     {
     }
 

@@ -36,6 +36,9 @@ public abstract class ItProjectDetailsPageModel : PageModel
 
     public const string OpenRemark = "remark";
 
+    /// <summary>Opens the officer drawer (modules that assign a Project Officer).</summary>
+    public const string OpenOfficer = "officer";
+
     /// <summary>Fragment of the attachments card, where attachment posts return.</summary>
     public const string AttachmentsFragment = "attachments";
 
@@ -183,6 +186,29 @@ public abstract class ItProjectDetailsPageModel : PageModel
     public bool CanWorkOn { get; private set; }
 
     public string? UpdatedByName { get; private set; }
+
+    /// <summary>Whether this module assigns a Project Officer to each project (MOLTI and SRE; not IT).</summary>
+    public bool AssignsOfficer => Module.HasAssignedOfficer;
+
+    /// <summary>The assigned officer's name; null when unassigned, or when that user no longer exists.</summary>
+    public string? OfficerName { get; private set; }
+
+    /// <summary>The day the officer was assigned, in India.</summary>
+    public DateOnly? OfficerAssignedOn => Project.ProjectOfficerAssignedAtUtc is { } at ? ItProjectYearTypes.ToIstDate(at) : null;
+
+    /// <summary>The people the project can be assigned to, for the manage roles' officer drawer.</summary>
+    public IReadOnlyList<SelectListItem> OfficerOptions { get; private set; } = Array.Empty<SelectListItem>();
+
+    [BindProperty]
+    public OfficerInput Officer { get; set; } = new();
+
+    public sealed class OfficerInput
+    {
+        /// <summary>The chosen officer; empty means no officer.</summary>
+        public string? UserId { get; set; }
+
+        public string RowVersion { get; set; } = string.Empty;
+    }
 
     public IReadOnlyList<SelectListItem> FinancialYearOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -637,6 +663,37 @@ public abstract class ItProjectDetailsPageModel : PageModel
         return new ItProjectRemarkActor(actor.UserId, actor.UserName, RemarkRole, IsAdmin, IsHoD, ModuleCode);
     }
 
+    /// <summary>
+    /// Assigns, changes or removes the project's officer. Admin and HoD only: the officer works
+    /// on the project but does not hand it on.
+    /// </summary>
+    public async Task<IActionResult> OnPostOfficerAsync(int id, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (!CanManage || !AssignsOfficer)
+        {
+            return Forbid();
+        }
+
+        var result = await _commands.AssignOfficerAsync(id, Officer.UserId, DecodeRowVersion(Officer.RowVersion), Actor(), cancellationToken);
+        if (!result.Succeeded)
+        {
+            // Nothing was typed that is worth keeping: say why and show the page as it stands.
+            TempData.ToastError(string.Join(" ", result.Errors));
+            return RedirectToPage(new { id });
+        }
+
+        var chosen = string.IsNullOrWhiteSpace(Officer.UserId) ? null : await _reads.GetUserDisplayNameAsync(Officer.UserId.Trim(), cancellationToken);
+        TempData.ToastSuccess(chosen is null
+            ? "No officer is assigned to this project now."
+            : $"{chosen} is now the Project Officer of this project.");
+        return RedirectToPage(new { id });
+    }
+
     public async Task<IActionResult> OnPostDropAsync(int id, CancellationToken cancellationToken)
     {
         if (!await LoadAsync(id, cancellationToken))
@@ -807,6 +864,17 @@ public abstract class ItProjectDetailsPageModel : PageModel
         UpdatedByName = project.UpdatedByUserId is { } userId
             ? await _reads.GetUserDisplayNameAsync(userId, cancellationToken)
             : null;
+        if (AssignsOfficer)
+        {
+            OfficerName = project.ProjectOfficerUserId is { } officerId
+                ? await _reads.GetUserDisplayNameAsync(officerId, cancellationToken)
+                : null;
+            if (CanManage)
+            {
+                OfficerOptions = await BuildOfficerOptionsAsync(project.ProjectOfficerUserId, OfficerName, cancellationToken);
+            }
+        }
+
         YearTypes = _reads.GetYearTypes(project);
         Timing = _reads.GetTiming(project);
         HeroStatus = ItProjectPagePresentation.Status(project, Status, Timing);
@@ -845,6 +913,7 @@ public abstract class ItProjectDetailsPageModel : PageModel
         }
 
         RowVersion = RowVersionToken;
+        Officer = new OfficerInput { UserId = Project.ProjectOfficerUserId, RowVersion = RowVersionToken };
         // The Comdt writes conference directions most of the time, so the composer starts there for
         // them, as in the other modules; everyone else starts on a general remark.
         Remark = new RemarkInput
@@ -955,7 +1024,7 @@ public abstract class ItProjectDetailsPageModel : PageModel
     {
         if (result.ConcurrencyConflict)
         {
-            TempData.ToastError(ItProjectCommandService.ConcurrencyConflictMessage);
+            TempData.ToastError(ItProjectModules.Reword(ItProjectCommandService.ConcurrencyConflictMessage, ModuleCode));
             return RedirectToPage(new { id = Project.Id });
         }
 
@@ -994,6 +1063,23 @@ public abstract class ItProjectDetailsPageModel : PageModel
         }
 
         return "Stages saved.";
+    }
+
+    /// <summary>
+    /// "No officer", then the active Project Officers by name. The current officer stays in the
+    /// list even after losing the role or the account, so the drawer shows the project as it is.
+    /// </summary>
+    private async Task<IReadOnlyList<SelectListItem>> BuildOfficerOptionsAsync(string? currentId, string? currentName, CancellationToken cancellationToken)
+    {
+        var officers = await _reads.GetAssignableOfficersAsync(cancellationToken);
+        var options = new List<SelectListItem> { new("No officer", string.Empty, currentId is null) };
+        options.AddRange(officers.Select(officer => new SelectListItem(officer.Name, officer.UserId, officer.UserId == currentId)));
+        if (currentId is not null && officers.All(officer => officer.UserId != currentId))
+        {
+            options.Add(new SelectListItem($"{currentName ?? "Unknown user"} (no longer a Project Officer)", currentId, true));
+        }
+
+        return options;
     }
 
     private ItProjectActor Actor()

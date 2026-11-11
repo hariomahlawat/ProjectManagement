@@ -54,6 +54,28 @@
                 </div>
                 <h1 class="itp-hero__title">@Model.Project.Title</h1>
                 <p class="itp-hero__desc itp-desc">@Model.Project.Description</p>
+                @* Modules that assign a Project Officer: who runs this project. Admin and HoD assign. *@
+                @if (Model.AssignsOfficer)
+                {
+                    <p class="itp-hero__officer">
+                        @if (Model.Project.ProjectOfficerUserId is null)
+                        {
+                            <span class="itp-officer itp-officer--none"><i class="bi bi-person-dash" aria-hidden="true"></i>No officer assigned</span>
+                        }
+                        else
+                        {
+                            <span class="itp-officer"><i class="bi bi-person" aria-hidden="true"></i>Project Officer: <b>@(Model.OfficerName ?? "Unknown user")</b></span>
+                            @if (Model.OfficerAssignedOn is { } assignedOn)
+                            {
+                                <span class="itp-hero__since">since @ItProjectPagePresentation.LongDate(assignedOn)</span>
+                            }
+                        }
+                        @if (Model.CanManage)
+                        {
+                            <button type="button" class="btn btn-link btn-sm itp-hero__officer-edit" data-bs-toggle="offcanvas" data-bs-target="#itpOfficerDrawer" aria-controls="itpOfficerDrawer">@(Model.Project.ProjectOfficerUserId is null ? "Assign officer" : "Change")</button>
+                        }
+                    </p>
+                }
             </div>
             @if (Model.CanWorkOn)
             {
@@ -575,5 +597,32 @@
                 </div>
             </div>
         }
+    }
+    @* The officer drawer: Admin and HoD only (the officer works on the project but does not hand it on). *@
+    @if (Model.AssignsOfficer && Model.CanManage)
+    {
+        <div class="offcanvas offcanvas-end itp-drawer" tabindex="-1" id="itpOfficerDrawer" aria-labelledby="itpOfficerDrawerLabel">
+            <div class="offcanvas-header">
+                <div>
+                    <h5 id="itpOfficerDrawerLabel" class="mb-0">Project Officer</h5>
+                    <p class="itp-drawer__hint mb-0">The officer can edit this project, update its stages and files, and write remarks on it. Everyone else can still read it.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                <form method="post" asp-page-handler="Officer" asp-route-id="@Model.Project.Id" novalidate>
+                    <input type="hidden" asp-for="Officer.RowVersion" />
+                    <div class="itp-form__field">
+                        <label asp-for="Officer.UserId" class="form-label">Assigned to</label>
+                        <select asp-for="Officer.UserId" asp-items="Model.OfficerOptions" class="form-select"></select>
+                        <div class="form-text">Users with the Project Officer role. Choose "No officer" to unassign.</div>
+                    </div>
+                    <div class="itp-drawer__actions">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+                        <button type="submit" class="btn btn-primary itp-btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     }
 </div>

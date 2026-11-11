@@ -23,7 +23,7 @@
     // ---- open the drawer the address asks for -------------------------------------------------
 
     var open = page.getAttribute('data-itp-open');
-    var drawerIds = { stages: 'itpStagesDrawer', edit: 'itpEditDrawer', drop: 'itpDropDrawer' };
+    var drawerIds = { stages: 'itpStagesDrawer', edit: 'itpEditDrawer', drop: 'itpDropDrawer', officer: 'itpOfficerDrawer' };
     if (open && drawerIds[open] && window.bootstrap && window.bootstrap.Offcanvas) {
         var drawer = document.getElementById(drawerIds[open]);
         if (drawer) {

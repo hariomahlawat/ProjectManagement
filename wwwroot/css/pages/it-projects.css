@@ -2836,3 +2836,37 @@
         display: none;
     }
 }
+
+/* ---- assigned Project Officer (MOLTI and SRE projects; docs/ux/molti-sre-projects.md) ---- */
+
+.itp-officer {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    color: var(--pm-text-secondary);
+}
+
+/* Waiting for an officer: said plainly, not as an alarm. */
+.itp-officer--none {
+    color: var(--pm-text-muted);
+    font-style: italic;
+}
+
+.itp-hero__officer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .6rem;
+    margin: .6rem 0 0;
+    font-size: var(--pm-font-size-sm);
+}
+
+.itp-hero__officer b {
+    color: var(--pm-text);
+    font-weight: 600;
+}
+
+.itp-hero__officer-edit {
+    padding: 0;
+    font-size: inherit;
+}

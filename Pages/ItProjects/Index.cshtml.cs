@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -66,6 +67,30 @@ public abstract class ItProjectBoardPageModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Group { get; set; }
 
+    /// <summary>
+    /// "unassigned" shows the projects with no officer, "mine" the viewer's own (modules that
+    /// assign a Project Officer; ignored elsewhere).
+    /// </summary>
+    [BindProperty(SupportsGet = true)]
+    public string? Officer { get; set; }
+
+    public ItProjectOfficerFilter OfficerFilter => !Module.HasAssignedOfficer
+        ? ItProjectOfficerFilter.Any
+        : (Officer ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "unassigned" => ItProjectOfficerFilter.Unassigned,
+            "mine" => ItProjectOfficerFilter.Mine,
+            _ => ItProjectOfficerFilter.Any
+        };
+
+    /// <summary>The route value of the current officer filter, so links keep it.</summary>
+    public string? OfficerKey => OfficerFilter switch
+    {
+        ItProjectOfficerFilter.Unassigned => "unassigned",
+        ItProjectOfficerFilter.Mine => "mine",
+        _ => null
+    };
+
     public ItProjectBoardScope BoardScope { get; private set; } = ItProjectBoardScope.Active;
 
     public bool GroupByFinancialYear => string.Equals(Group, "fy", StringComparison.OrdinalIgnoreCase);
@@ -108,7 +133,7 @@ public abstract class ItProjectBoardPageModel : PageModel
 
         // One query for every scope: the tiles need all rows, and the scope only picks which
         // rows the board draws.
-        Board = await _reads.GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.All, Fy, Q, BoardSort, ModuleCode), cancellationToken);
+        Board = await _reads.GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.All, Fy, Q, BoardSort, ModuleCode, OfficerFilter, User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)), cancellationToken);
         ScopedRows = OnlyMissingDates
             ? Board.Rows.Where(row => InScope(row.Status.Kind, ItProjectBoardScope.Active) && row.Timing.HasMissingDates).ToList()
             : Board.Rows.Where(row => InScope(row.Status.Kind, BoardScope)).ToList();
