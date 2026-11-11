@@ -32,6 +32,9 @@ how long?**
 
 ## The concept: a pipeline that shows waiting time
 
+0. **Header**: the title with a short spectrum rule under it, as on the Dashboard (168px), and no
+   lead sentence; the pipeline card below no longer has its own spectrum strip, so the spectrum
+   appears once on the page (owner, 11 Nov 2026). New IT project uses the same rule.
 1. **One quiet summary line** under the header: the New / CL / CF of the cases in progress in the
    board's year (types with none left out) and the supply orders awaiting delivery, with their
    value only where it was entered. It replaced four figure tiles after the production review of
