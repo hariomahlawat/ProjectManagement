@@ -191,6 +191,64 @@ namespace ProjectManagement.Tests
             Assert.Equal(expected, ev.When);
         }
 
+        [Fact]
+        public async Task OnGetAsync_AnalyticsCardDropsArppForACallerTheArppPolicyDoesNotAdmit()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+
+            await using var context = new ApplicationDbContext(options);
+            using var serviceProvider = new ServiceCollection().BuildServiceProvider();
+
+            var userManager = new UserManager<ApplicationUser>(
+                new UserStore<ApplicationUser>(context),
+                Options.Create(new IdentityOptions()),
+                new PasswordHasher<ApplicationUser>(),
+                Array.Empty<IUserValidator<ApplicationUser>>(),
+                Array.Empty<IPasswordValidator<ApplicationUser>>(),
+                new UpperInvariantLookupNormalizer(),
+                new IdentityErrorDescriber(),
+                serviceProvider,
+                NullLogger<UserManager<ApplicationUser>>.Instance);
+
+            // No authorization service is wired, so the ARPP policy cannot pass: the card must fail closed.
+            var page = new IndexModel(
+                new StubNotebookService(),
+                userManager,
+                context,
+                new StubProjectPulseService(),
+                new StubOpsSignalsService(),
+                new StubSearchHealthService(),
+                NullLogger<IndexModel>.Instance,
+                new StubDashboardAnalyticsService())
+            {
+                PageContext = new PageContext(new ActionContext(
+                    new DefaultHttpContext
+                    {
+                        User = new ClaimsPrincipal(new ClaimsIdentity())
+                    },
+                    new RouteData(),
+                    new ActionDescriptor()))
+            };
+
+            await page.OnGetAsync(CancellationToken.None);
+
+            Assert.NotNull(page.Analytics);
+            Assert.Null(page.Analytics!.Arpp);
+            Assert.NotNull(page.Analytics.Coe);
+        }
+
+        private sealed class StubDashboardAnalyticsService : IDashboardAnalyticsService
+        {
+            public Task<DashboardAnalyticsVm> GetAsync(CancellationToken cancellationToken = default) =>
+                Task.FromResult(new DashboardAnalyticsVm(
+                    new DashboardArppVm(2026, "2026-27", null, 38, "₹196.65 Cr", 4, 13, 13, 7, 11, 22, 5, 1, 1, 0),
+                    new DashboardCoeVm(18, 15, 2, 1, Array.Empty<DashboardCoeSubcategoryVm>(), false),
+                    null,
+                    Array.Empty<DashboardSlowStageVm>()));
+        }
+
         private sealed class StubNotebookService : INotebookService
         {
             public Task<NotebookIndexVm> GetIndexAsync(string ownerId, string view, string? query, string? filter, string? tag, Guid? selectedId, CancellationToken ct = default) =>

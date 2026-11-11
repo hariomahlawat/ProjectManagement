@@ -741,6 +741,7 @@ builder.Services.Configure<TodoOptions>(
     builder.Configuration.GetSection("Todo"));
 builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();
 builder.Services.AddScoped<IProjectPulseService, ProjectPulseService>();
+builder.Services.AddScoped<IDashboardAnalyticsService, DashboardAnalyticsService>();
 builder.Services.AddScoped<IOpsSignalsService, OpsSignalsService>();
 builder.Services.AddScoped<ISearchHealthService, SearchHealthService>();
 builder.Services.AddHostedService<LoginAggregationWorker>();

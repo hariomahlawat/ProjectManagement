@@ -42,6 +42,8 @@ namespace ProjectManagement.Pages.Dashboard
         private readonly IOpsSignalsService _opsSignalsService;
         private readonly ISearchHealthService _searchHealthService;
         private readonly ILogger<IndexModel> _logger;
+        private readonly IDashboardAnalyticsService? _dashboardAnalytics;
+        private readonly IAuthorizationService? _authorization;
         private static readonly TimeZoneInfo IST = IstClock.TimeZone;
 
         public IndexModel(
@@ -51,8 +53,12 @@ namespace ProjectManagement.Pages.Dashboard
             IProjectPulseService projectPulse,
             IOpsSignalsService opsSignalsService,
             ISearchHealthService searchHealthService,
-            ILogger<IndexModel> logger)
+            ILogger<IndexModel> logger,
+            IDashboardAnalyticsService? dashboardAnalytics = null,
+            IAuthorizationService? authorization = null)
         {
+            _dashboardAnalytics = dashboardAnalytics;
+            _authorization = authorization;
             _notebook = notebook;
             _users = users;
             _db = db;
@@ -68,6 +74,9 @@ namespace ProjectManagement.Pages.Dashboard
         public bool HasMyProjects => MyProjectSections.Any(section => section.Items.Count > 0);
         // SECTION: Dashboard KPI widgets
         public ProjectPulseVm? ProjectPulse { get; private set; }
+
+        /// <summary>The Analytics card; null when it could not be read. Its ARPP part is already removed for a caller the ARPP view policy does not admit.</summary>
+        public DashboardAnalyticsVm? Analytics { get; private set; }
         public OpsSignalsVm OpsSignals { get; private set; } = new() { Tiles = Array.Empty<OpsTileVm>() };
         public FfcSimulatorMapVm FfcSimulatorMap { get; private set; } = new();
         public SearchHealthVm SearchHealth { get; private set; } = new();
@@ -385,6 +394,23 @@ namespace ProjectManagement.Pages.Dashboard
                 ProjectPulse = null;
             }
 
+            if (_dashboardAnalytics is not null)
+            {
+                try
+                {
+                    var analytics = await _dashboardAnalytics.GetAsync(cancellationToken);
+                    // The summary is shared by every user; the ARPP figures keep the ARPP view policy (fail closed).
+                    Analytics = analytics.Arpp is not null && !await CanViewArppAsync()
+                        ? analytics with { Arpp = null }
+                        : analytics;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Dashboard widget failed: Analytics");
+                    Analytics = null;
+                }
+            }
+
             try
             {
                 OpsSignals = await _opsSignalsService.GetAsync(
@@ -568,6 +594,19 @@ namespace ProjectManagement.Pages.Dashboard
                 FfcSimulatorMap = new FfcSimulatorMapVm();
             }
             // END SECTION
+        }
+
+        private async Task<bool> CanViewArppAsync()
+        {
+            if (_authorization is null || User?.Identity?.IsAuthenticated != true)
+            {
+                return false;
+            }
+
+            var result = await _authorization.AuthorizeAsync(
+                User,
+                ProjectManagement.Areas.ProjectOfficeReports.Application.ProjectOfficeReportsPolicies.ViewArpp);
+            return result.Succeeded;
         }
 
         private async Task LoadMyProjectsAsync(
