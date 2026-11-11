@@ -7,6 +7,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels.Workspace;
@@ -84,57 +85,98 @@ public sealed class OfficerWorkloadReadService : IOfficerWorkloadReadService
     }
 
     /// <summary>
-    /// Gives every active ITO the live IT projects and adds a card for an ITO with no other workload.
-    /// Nothing changes when there is no ITO or no live IT project.
+    /// Puts the live projects of the IT projects engine on the cards: every live IT project on
+    /// each active ITO's card (the ITO runs them all), and each live MOLTI or SRE project on the
+    /// card of the Project Officer assigned to it. An officer who has such projects and no other
+    /// workload gets a card too. Nothing changes when there is nothing to add.
     /// </summary>
     private async Task<IReadOnlyList<CommandOfficerWorkloadVm>> AttachItProjectsAsync(
         IReadOnlyList<CommandOfficerWorkloadVm> cards,
         CancellationToken cancellationToken)
     {
-        var itoUsers = (await _userManager.GetUsersInRoleAsync(RoleNames.Ito))
-            .Where(IsActiveUser)
+        var byOfficer = await LiveEngineProjectsByOfficerAsync(cancellationToken);
+        if (byOfficer.Count == 0)
+        {
+            return cards;
+        }
+
+        var result = cards
+            .Select(card => byOfficer.TryGetValue(card.UserId, out var rows) ? WithItProjects(card, ToCardProjects(rows)) : card)
             .ToList();
-        if (itoUsers.Count == 0)
+
+        var listed = cards.Select(card => card.UserId).ToHashSet(StringComparer.Ordinal);
+        var missing = byOfficer.Keys.Where(id => !listed.Contains(id)).ToArray();
+        if (missing.Length > 0)
         {
-            return cards;
+            var users = await _userManager.Users
+                .AsNoTracking()
+                .Where(user => missing.Contains(user.Id))
+                .ToListAsync(cancellationToken);
+            result.AddRange(users
+                .Where(IsActiveUser)
+                .Select(user => WithItProjects(
+                    new CommandOfficerWorkloadVm
+                    {
+                        UserId = user.Id,
+                        OfficerName = string.IsNullOrWhiteSpace(user.FullName)
+                            ? user.UserName ?? "Officer"
+                            : user.FullName,
+                        Rank = user.Rank ?? string.Empty
+                    },
+                    ToCardProjects(byOfficer[user.Id]))));
         }
 
-        var rows = await LiveItProjects.LoadAsync(_db, _clock.UtcNow, cancellationToken);
-        if (rows.Count == 0)
+        return result;
+    }
+
+    /// <summary>
+    /// The live engine projects under each officer: the IT projects under every active ITO, then
+    /// the MOLTI and SRE projects under their assigned officer. Officers with none are absent.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, List<LiveItProjectRow>>> LiveEngineProjectsByOfficerAsync(CancellationToken cancellationToken)
+    {
+        var byOfficer = new Dictionary<string, List<LiveItProjectRow>>(StringComparer.Ordinal);
+
+        var itoIds = (await _userManager.GetUsersInRoleAsync(RoleNames.Ito))
+            .Where(IsActiveUser)
+            .Select(user => user.Id)
+            .ToList();
+        if (itoIds.Count > 0)
         {
-            return cards;
+            var itRows = await LiveItProjects.LoadAsync(_db, _clock.UtcNow, cancellationToken);
+            if (itRows.Count > 0)
+            {
+                foreach (var id in itoIds)
+                {
+                    byOfficer[id] = itRows.ToList();
+                }
+            }
         }
 
-        var itProjects = rows
+        foreach (var row in await LiveItProjects.LoadAssignedAsync(_db, _clock.UtcNow, cancellationToken))
+        {
+            if (!byOfficer.TryGetValue(row.ProjectOfficerUserId!, out var rows))
+            {
+                byOfficer[row.ProjectOfficerUserId!] = rows = new List<LiveItProjectRow>();
+            }
+
+            rows.Add(row);
+        }
+
+        return byOfficer;
+    }
+
+    private static IReadOnlyList<CommandOfficerItProjectVm> ToCardProjects(IEnumerable<LiveItProjectRow> rows)
+        => rows
             .Select(row => new CommandOfficerItProjectVm(
                 row.Id,
                 row.Title,
                 LiveItProjects.StateText(row.Status),
                 row.YearType?.PppReferenceNumber ?? row.Reference,
-                $"/ItProjects/{row.Id}"))
+                LiveItProjects.OpenUrl(row),
+                ItProjectModules.Get(row.Module).Name,
+                LiveItProjects.IconOf(row.Module)))
             .ToList();
-
-        var itoIds = itoUsers.Select(user => user.Id).ToHashSet(StringComparer.Ordinal);
-        var result = cards
-            .Select(card => itoIds.Contains(card.UserId) ? WithItProjects(card, itProjects) : card)
-            .ToList();
-
-        var listed = cards.Select(card => card.UserId).ToHashSet(StringComparer.Ordinal);
-        result.AddRange(itoUsers
-            .Where(user => !listed.Contains(user.Id))
-            .Select(user => WithItProjects(
-                new CommandOfficerWorkloadVm
-                {
-                    UserId = user.Id,
-                    OfficerName = string.IsNullOrWhiteSpace(user.FullName)
-                        ? user.UserName ?? "ITO"
-                        : user.FullName,
-                    Rank = user.Rank ?? string.Empty
-                },
-                itProjects)));
-
-        return result;
-    }
 
     private static CommandOfficerWorkloadVm WithItProjects(
         CommandOfficerWorkloadVm card,
@@ -235,21 +277,9 @@ public sealed class OfficerWorkloadReadService : IOfficerWorkloadReadService
             .Count();
     }
 
-    /// <summary>Active ITOs, when at least one IT project is live: the officers the IT projects add.</summary>
+    /// <summary>The officers the engine projects add: active ITOs when an IT project is live, and officers with a live MOLTI or SRE project assigned.</summary>
     private async Task<IReadOnlyList<string>> ActiveItoIdsWithLiveItProjectsAsync(CancellationToken cancellationToken)
-    {
-        var itoIds = (await _userManager.GetUsersInRoleAsync(RoleNames.Ito))
-            .Where(IsActiveUser)
-            .Select(user => user.Id)
-            .ToList();
-        if (itoIds.Count == 0)
-        {
-            return Array.Empty<string>();
-        }
-
-        var rows = await LiveItProjects.LoadAsync(_db, _clock.UtcNow, cancellationToken);
-        return rows.Count == 0 ? Array.Empty<string>() : itoIds;
-    }
+        => (await LiveEngineProjectsByOfficerAsync(cancellationToken)).Keys.ToList();
 
     private async Task<IReadOnlyList<CommandOfficerWorkloadVm>> BuildCardsAsync(
         IReadOnlyCollection<ApplicationUser> users,

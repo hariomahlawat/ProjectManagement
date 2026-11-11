@@ -147,6 +147,16 @@
                         }
                     </a>
                 }
+                @* MOLTI and SRE projects sit under the Project Officer assigned to them: a link to
+                   each board the officer has live projects on, narrowed to their own. *@
+                @foreach (var moduleLink in Model.AssignedModuleLinks)
+                {
+                    <a asp-page="@moduleLink.Page" asp-route-officer="mine"
+                       data-tooltip="@moduleLink.Name">
+                        <i class="bi @moduleLink.Icon" aria-hidden="true"></i><span>@moduleLink.Name</span>
+                        <b>@moduleLink.Count</b>
+                    </a>
+                }
             </div>
         }
 

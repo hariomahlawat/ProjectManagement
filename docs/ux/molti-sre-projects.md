@@ -173,8 +173,28 @@ IT projects show none of these.
 | Conference remark | officer must hold the ITO role | officer must be the project's assigned officer |
 | Officer's own workspace | ITO sees an IT projects link and count | a Project Officer sees a link and count for each module they hold projects in |
 
-Unassigned live projects appear in no officer's review. The board's Unassigned filter is where
+Unassigned live projects appear in no officer's review. The board's "No officer" switch is where
 Admin and HoD find them.
+
+How it is built (PR 5):
+
+- **One feed.** `LiveItProjects.LoadAsync` is the live IT projects (for every ITO);
+  `LiveItProjects.LoadAssignedAsync` is the live MOLTI and SRE projects whose officer is still an
+  active Project Officer. A project whose officer lost the role is nobody's workload, as it
+  gives them no rights. Both views read these two, so they cannot drift apart.
+- **Officer workload.** A card lists its engine projects a module at a time, each under its own
+  heading. An officer with such projects and no other workload still gets a card.
+- **Conference review.** Engine projects keep the one item kind (`ConferenceItemKind.ItProject`;
+  the ids are one sequence), and a section carries its `ModuleCode`, so an officer can have a
+  "MOLTI projects" and an "SRE projects" section. A Project Officer keeps the project, idea
+  and task sections; only an officer listed purely as the ITO gets the IT section alone.
+- **Conference remark.** The direction is the project's own conference remark. The selected
+  officer must be the one the project sits under: an ITO for an IT project, the assigned officer
+  (still an active Project Officer) for a MOLTI or SRE project.
+- **Rail.** `IItoWorkspaceQuery.GetAssignedModuleLinksAsync` gives a link per module the signed-in
+  officer has live projects in, to that board with `officer=mine`.
+- **Wording.** "The ITO has not written a remark" reads "The officer has not ..." for MOLTI and
+  SRE projects; stage snapshots use the module's stage labels.
 
 ## Wiring
 

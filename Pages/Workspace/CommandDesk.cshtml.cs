@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -75,6 +76,7 @@ public sealed class CommandDeskModel : PageModel
             HasProjectOfficerAccess = hasProjectOfficerAccess,
             HasItoAccess = hasItoAccess,
             LiveItProjectCount = liveItProjectCount,
+            AssignedModuleLinks = await AssignedModuleLinksAsync(ct),
             CanViewDocuments = hasProjectOfficerAccess,
             ActiveLens = "command",
             ActiveItem = "command-desk",
@@ -89,4 +91,10 @@ public sealed class CommandDeskModel : PageModel
 
         return Page();
     }
+
+    /// <summary>The MOLTI and SRE modules in which the signed-in officer has live projects assigned, for the rail.</summary>
+    private async Task<IReadOnlyList<WorkspaceModuleLinkVm>> AssignedModuleLinksAsync(CancellationToken cancellationToken)
+        => _itoWorkspace is null
+            ? Array.Empty<WorkspaceModuleLinkVm>()
+            : await _itoWorkspace.GetAssignedModuleLinksAsync(User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier), cancellationToken);
 }

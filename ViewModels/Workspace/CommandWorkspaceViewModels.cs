@@ -16,6 +16,12 @@ public sealed class CommandWorkspaceRailVm
     public bool HasItoAccess { get; init; }
     public int LiveItProjectCount { get; init; }
 
+    /// <summary>
+    /// The modules that assign a Project Officer (MOLTI and SRE projects) in which this officer
+    /// has live projects: the rail links each board, narrowed to their own.
+    /// </summary>
+    public IReadOnlyList<WorkspaceModuleLinkVm> AssignedModuleLinks { get; init; } = Array.Empty<WorkspaceModuleLinkVm>();
+
     public bool HasPersonalAccess => HasProjectOfficerAccess || HasItoAccess;
     public bool CanSwitchWorkspace => HasCommandAccess && HasPersonalAccess;
 
@@ -166,7 +172,19 @@ public sealed class CommandOfficerWorkloadVm
 public sealed record CommandOfficerProjectVm(int ProjectId, string Name, string StageCode, string StageName, string OpenUrl);
 public sealed record CommandOfficerIdeaVm(int IdeaId, string Title, string Status, string OpenUrl);
 public sealed record CommandOfficerTaskVm(int TaskId, string Title, string Status, DateTime DueDate, string OpenUrl);
-public sealed record CommandOfficerItProjectVm(int ItProjectId, string Title, string State, string Reference, string OpenUrl);
+/// <param name="ModuleName">The module the project belongs to, as the card heads its list: "IT projects", "MOLTI projects".</param>
+/// <param name="ModuleIcon">The module's icon.</param>
+public sealed record CommandOfficerItProjectVm(
+    int ItProjectId,
+    string Title,
+    string State,
+    string Reference,
+    string OpenUrl,
+    string ModuleName = "IT projects",
+    string ModuleIcon = "bi-pc-display");
+
+/// <summary>A link on the workspace rail to a module in which the officer has projects assigned, with how many are live.</summary>
+public sealed record WorkspaceModuleLinkVm(string Name, string Page, string Icon, int Count);
 
 public sealed class OfficerWorkloadCardRenderVm
 {
