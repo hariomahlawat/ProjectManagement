@@ -39,9 +39,10 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | --- | --- |
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none), smaller dimensions, save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
+| Print sheet | On the Passport photo screen. The finished photo repeated on one sheet of 4 × 6 inch photo paper or A4, each copy inside a thin cut line. One JPG at 300 dpi. |
+| Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
 
-Print sheet, signature and the editor are planned (see the build plan) and are not on the page
-yet.
+The editor is planned (see the build plan) and is not on the page yet.
 
 ### How a passport photo is made
 
@@ -58,6 +59,26 @@ yet.
   correction is applied to the preview and the saved photo. It does not change the background to
   white; a plain, light background is still needed.
 - The face guide is an aid for placing the head. It is not a check against any authority's rules.
+
+### How a print sheet is made
+
+- The sheet is the paper in pixels at 300 dpi (4 × 6 inch is 1200 × 1800, A4 is 2480 × 3508), so
+  each copy prints at its true size when the sheet is printed at actual size (100%). The page
+  says so, because "fit to page" would shrink the photos.
+- `sheetLayout` places as many copies as fit, 2 mm apart, in a centred grid, and turns the paper
+  on its side when that fits more: eight 35 × 45 mm photos on 4 × 6 inch paper, thirty on A4.
+- An edge is left clear for the printer (3 mm on photo paper, 5 mm on A4).
+- The copies are the same pixels as the downloaded photo, with the same clean-up.
+
+### How a signature is cleaned
+
+- **Clean paper** is on by default. `measurePaper` reads the whole photo once: the paper is the
+  usual brightness, the ink the darkest half percent. `cleanPaper` then makes everything near the
+  paper white and everything near the ink black, keeping the soft edge of each stroke.
+- The result is black ink on white, whatever the colour of the pen.
+- It is one rule for the whole photo. A strong shadow across the paper can be left grey; the page
+  asks for plain white paper photographed from straight above.
+- If no clear ink is found the photo is left as it is and the page says so.
 
 ### How the target size is reached
 
@@ -78,11 +99,11 @@ see-through areas with white.
 | File | Role |
 | --- | --- |
 | `Pages/Tools/Photo/Index.cshtml` | Standalone page with its own minimal shell (`Layout = null`). |
-| `wwwroot/js/photo-tools/photo-tools-core.js` | Pure rules: target-size search, resize maths, output type and names, greyscale, lighting, passport sizes and crop limits, JPG print resolution. Runs in Node for tests. |
+| `wwwroot/js/photo-tools/photo-tools-core.js` | Pure rules: target-size search, resize maths, output type and names, greyscale, lighting, passport and signature sizes, crop limits, print sheet layout, signature clean-up, JPG print resolution. Runs in Node for tests. |
 | `wwwroot/js/photo-tools/photo-tools-core.test.js` | Node tests, part of `npm test`. |
 | `wwwroot/js/photo-tools/photo-tools-canvas.js` | Browser helpers shared by the tools: open a photo, draw it at a new size, canvas to file bytes, save, show an error. |
 | `wwwroot/js/photo-tools/photo-tools-app.js` | Shell, routing (`#tool`) and Reduce size. |
-| `wwwroot/js/photo-tools/photo-tools-passport.js` | Passport photo. |
+| `wwwroot/js/photo-tools/photo-tools-passport.js` | Passport photo, signature and print sheet. |
 | `wwwroot/js/tools-shared/zip-writer.js` | ZIP writer shared with PDF Tools. |
 | `wwwroot/css/photo-tools.css` | Photo Tools styles. The shell (top bar, home cards, drop zone) is shared with PDF Tools through `pdf-tools.css`. Bootstrap theme variables only, so Light and Dark both work. |
 

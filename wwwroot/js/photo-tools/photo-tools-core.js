@@ -202,6 +202,95 @@
     Object.freeze({ key: '20x25', label: '20 × 25 mm', note: 'Stamp size', width: 236, height: 295 })
   ]);
 
+  // A signature box is wide and low. The last one is for online forms that ask for pixels.
+  const SIGNATURE_SIZES = Object.freeze([
+    Object.freeze({ key: 'sig-35x15', label: '35 × 15 mm', note: 'Signature box on most forms', width: 413, height: 177 }),
+    Object.freeze({ key: 'sig-50x20', label: '50 × 20 mm', note: 'Larger signature box', width: 591, height: 236 }),
+    Object.freeze({ key: 'sig-140x60', label: '140 × 60 px', note: 'Online forms that ask for pixels', width: 140, height: 60 })
+  ]);
+
+  // Paper in pixels at 300 dpi. The margin is the edge a printer may not reach.
+  const SHEET_SIZES = Object.freeze([
+    Object.freeze({ key: '4x6', label: '4 × 6 inch photo paper', width: 1200, height: 1800, margin: 35 }),
+    Object.freeze({ key: 'a4', label: 'A4 paper', width: 2480, height: 3508, margin: 59 })
+  ]);
+
+  const SHEET_GAP = 24; // 2 mm between copies, room for the scissors
+
+  /**
+   * Places as many copies of a photo as fit on a sheet of paper, in a centred grid. The paper is
+   * turned on its side when that fits more. All measures are pixels at the print resolution.
+   */
+  function sheetLayout(sheet, photoWidth, photoHeight) {
+    const gap = SHEET_GAP;
+    const fit = (width, height) => {
+      const columns = Math.max(0, Math.floor((width - sheet.margin * 2 + gap) / (photoWidth + gap)));
+      const rows = Math.max(0, Math.floor((height - sheet.margin * 2 + gap) / (photoHeight + gap)));
+      return { width, height, columns, rows, count: columns * rows };
+    };
+    const upright = fit(sheet.width, sheet.height);
+    const sideways = fit(sheet.height, sheet.width);
+    const best = sideways.count > upright.count ? sideways : upright;
+    const positions = [];
+    if (best.count > 0) {
+      const left = Math.round((best.width - (best.columns * (photoWidth + gap) - gap)) / 2);
+      const top = Math.round((best.height - (best.rows * (photoHeight + gap) - gap)) / 2);
+      for (let row = 0; row < best.rows; row += 1) {
+        for (let column = 0; column < best.columns; column += 1) {
+          positions.push({ x: left + column * (photoWidth + gap), y: top + row * (photoHeight + gap) });
+        }
+      }
+    }
+    return { ...best, positions };
+  }
+
+  /**
+   * Finds the paper and the ink in a photographed signature: the paper is the usual brightness
+   * (most of the picture), the ink the darkest half percent. Null when there is no clear ink.
+   */
+  function measurePaper(pixels) {
+    const histogram = new Uint32Array(256);
+    const count = pixels.length / 4;
+    if (!count) return null;
+    for (let i = 0; i < pixels.length; i += 4) {
+      histogram[Math.round(0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2])] += 1;
+    }
+    const level = (share) => {
+      let seen = 0;
+      for (let value = 0; value < 256; value += 1) {
+        seen += histogram[value];
+        if (seen > count * share) return value;
+      }
+      return 255;
+    };
+    const ink = level(0.005);
+    const paper = level(0.5);
+    return paper - ink >= 40 ? { ink, paper } : null;
+  }
+
+  /**
+   * Turns a photographed signature into dark ink on white paper, in place. Brightness near the
+   * paper becomes white, near the ink black, and the soft edge of each stroke is kept.
+   */
+  function cleanPaper(pixels, levels) {
+    if (!levels) return pixels;
+    const range = levels.paper - levels.ink;
+    const black = levels.ink + range * 0.15;
+    const white = levels.paper - range * 0.25;
+    const table = new Uint8ClampedArray(256);
+    for (let value = 0; value < 256; value += 1) {
+      const t = Math.min(1, Math.max(0, (value - black) / (white - black)));
+      table[value] = Math.round(255 * t * t * (3 - 2 * t));
+    }
+    for (let i = 0; i < pixels.length; i += 4) {
+      const shade = table[Math.round(0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2])];
+      pixels[i] = shade;
+      pixels[i + 1] = shade;
+      pixels[i + 2] = shade;
+    }
+    return pixels;
+  }
+
   /** A length in mm or inches as pixels at the print resolution. */
   function lengthToPixels(value, unit, dpi) {
     const number = Number(String(value ?? '').trim().replace(',', '.'));
@@ -342,6 +431,11 @@
     applyLighting,
     PRINT_DPI,
     PASSPORT_SIZES,
+    SIGNATURE_SIZES,
+    SHEET_SIZES,
+    sheetLayout,
+    measurePaper,
+    cleanPaper,
     lengthToPixels,
     coverScale,
     clampOffset,

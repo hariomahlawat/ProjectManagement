@@ -707,3 +707,47 @@
         height: clamp(300px, 52vh, 460px);
     }
 }
+
+/* ---------- Passport photo: Photo / Signature switch and print sheet ---------- */
+
+.phot-head__mode {
+    flex: 0 0 auto;
+}
+
+.phot-sheet {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+.phot-sheet__title {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-weight: 700;
+    color: var(--bs-emphasis-color);
+}
+
+.phot-sheet__row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.phot-sheet__row .form-select {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.phot-sheet__row .btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.phot-sheet .phot-hint {
+    margin: 0.5rem 0 0;
+}
+
+@media (max-width: 575.98px) {
+    .phot-sheet__row {
+        flex-direction: column;
+    }
+}

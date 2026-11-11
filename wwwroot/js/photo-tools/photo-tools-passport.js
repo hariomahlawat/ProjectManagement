@@ -1,8 +1,10 @@
-// PRISM Photo Tools — Passport photo.
+// PRISM Photo Tools — Passport photo, signature and print sheet.
 //
 // The crop frame stays still and the photo moves under it: drag, zoom, straighten, rotate.
 // The saved file is an exact number of pixels (413 x 531 for 35 x 45 mm at 300 dpi) and can
-// be held under a file size. Everything happens on canvases in this browser.
+// be held under a file size. Signature is the same screen with a wide frame and a clean-up
+// that makes the paper white. The print sheet repeats the finished photo on one sheet of
+// paper. Everything happens on canvases in this browser.
 (() => {
   'use strict';
 
@@ -50,6 +52,42 @@
   const outLimit = $('[data-out-limit]');
   const resultLine = $('[data-passport-result]');
   const downloadButton = $('[data-action="download-passport"]');
+  const downloadLabel = $('[data-download-passport-label]');
+  const title = $('[data-passport-title]');
+  const dropHint = $('[data-passport-drop-hint]');
+  const stageHint = $('[data-stage-hint]');
+  const sizeTitle = $('[data-size-title]');
+  const paperButton = $('[data-action="clean-paper"]');
+  const paperHint = $('[data-paper-hint]');
+  const sheetPaper = $('[data-sheet-paper]');
+  const sheetNote = $('[data-sheet-note]');
+  const sheetButton = $('[data-action="download-sheet"]');
+
+  // What each mode says. The screen is otherwise the same.
+  const MODES = {
+    photo: {
+      title: 'Passport photo',
+      sizeTitle: 'Photo size',
+      sizeLabel: 'Photo size',
+      sizes: core.PASSPORT_SIZES,
+      custom: ['35', '45'],
+      dropHint: 'or drop a photo here. JPG, PNG or WEBP. A plain, light background works best.',
+      stageHint: 'Drag the photo so the face fills the oval, with the top of the head and the chin near the two lines.',
+      download: 'Download photo',
+      suffix: 'passport'
+    },
+    signature: {
+      title: 'Signature',
+      sizeTitle: 'Signature size',
+      sizeLabel: 'Signature size',
+      sizes: core.SIGNATURE_SIZES,
+      custom: ['35', '15'],
+      dropHint: 'or drop a photo of your signature here. Sign in dark ink on plain white paper and photograph it from straight above.',
+      stageHint: 'Drag and zoom so the signature fills the frame with a little space around it.',
+      download: 'Download signature',
+      suffix: 'signature'
+    }
+  };
 
   // The photo: `full` is every pixel, `base` a smaller copy for the screen, `preview` the
   // base with the lighting fix and brightness applied.
@@ -60,6 +98,9 @@
   let preview = null;
   let lighting = null;
   let fixOn = false;
+  let mode = 'photo';
+  let paper = null;
+  let paperOn = true;
 
   // Where the photo sits: the photo centre's distance from the frame centre (screen px), its
   // tilt, and how far it is zoomed past "just fills the frame".
@@ -152,15 +193,30 @@
   // Photo
   // ---------------------------------------------------------------------------
 
+  /** The clean-up chosen for this mode, applied to a canvas. Preview and saved file share it. */
+  function applyLook(context, width, height) {
+    const amount = Number(brightness.value);
+    const wanted = mode === 'signature' ? paperOn && paper : fixOn || amount;
+    if (!wanted) return;
+    const pixels = context.getImageData(0, 0, width, height);
+    if (mode === 'signature') {
+      core.cleanPaper(pixels.data, paper);
+    } else {
+      core.applyLighting(pixels.data, fixOn ? lighting : null, amount);
+    }
+    context.putImageData(pixels, 0, 0);
+  }
+
   function rebuildPreview() {
     const context = preview.getContext('2d', { willReadFrequently: true });
     context.drawImage(base, 0, 0);
-    const amount = Number(brightness.value);
-    if (fixOn || amount) {
-      const pixels = context.getImageData(0, 0, preview.width, preview.height);
-      core.applyLighting(pixels.data, fixOn ? lighting : null, amount);
-      context.putImageData(pixels, 0, 0);
-    }
+    applyLook(context, preview.width, preview.height);
+  }
+
+  function showPaperHint() {
+    paperHint.textContent = full && !paper
+      ? 'No clear ink was found on this photo, so it is left as it is.'
+      : 'Makes the paper white and the ink black.';
   }
 
   /** Takes a new full-size photo (a new file, or the same one turned a quarter). */
@@ -172,6 +228,8 @@
     base = shared.drawPhoto(full, small.width, small.height, {});
     const pixels = base.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, base.width, base.height);
     lighting = core.measureLighting(pixels.data);
+    paper = core.measurePaper(pixels.data);
+    showPaperHint();
     preview = shared.newCanvas(base.width, base.height);
     rebuildPreview();
 
@@ -231,7 +289,7 @@
   }
 
   function renderSizes() {
-    const matching = customOpen ? null : core.PASSPORT_SIZES.find(item => item.width === size.width && item.height === size.height);
+    const matching = customOpen ? null : MODES[mode].sizes.find(item => item.width === size.width && item.height === size.height);
     for (const button of $$('[data-size]')) {
       const pressed = button.dataset.size === 'custom' ? !matching : button.dataset.size === matching?.key;
       button.setAttribute('aria-pressed', String(pressed));
@@ -250,8 +308,9 @@
   }
 
   function buildSizes() {
+    sizes.replaceChildren();
     const options = [
-      ...core.PASSPORT_SIZES,
+      ...MODES[mode].sizes,
       { key: 'custom', label: 'Custom', note: 'mm, inch or pixels' }
     ];
     for (const option of options) {
@@ -317,6 +376,86 @@
     downloadButton.disabled = true;
     resultLine.className = 'phot-result is-problem';
     resultLine.textContent = `Enter a width and height between ${MIN_PIXELS} and ${MAX_PIXELS} pixels.`;
+    renderSheet();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Photo or signature
+  // ---------------------------------------------------------------------------
+
+  function setMode(next) {
+    mode = next;
+    const words = MODES[mode];
+    title.textContent = words.title;
+    sizeTitle.textContent = words.sizeTitle;
+    sizes.setAttribute('aria-label', words.sizeLabel);
+    dropHint.textContent = words.dropHint;
+    stageHint.textContent = words.stageHint;
+    downloadLabel.textContent = words.download;
+    for (const button of $$('[data-mode]')) {
+      button.setAttribute('aria-pressed', String(button.dataset.mode === mode));
+    }
+    for (const element of $$('[data-photo-only]')) element.hidden = mode !== 'photo';
+    for (const element of $$('[data-signature-only]')) element.hidden = mode !== 'signature';
+    guide.hidden = mode !== 'photo' || !guideToggle.checked;
+
+    customOpen = false;
+    [customWidth.value, customHeight.value] = words.custom;
+    customUnit.value = 'mm';
+    buildSizes();
+    if (preview) rebuildPreview();
+    setSize(words.sizes[0].width, words.sizes[0].height);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Print sheet
+  // ---------------------------------------------------------------------------
+
+  function sheetChoice() {
+    const sheet = core.SHEET_SIZES.find(item => item.key === sheetPaper.value) || core.SHEET_SIZES[0];
+    return { sheet, plan: core.sheetLayout(sheet, size.width, size.height) };
+  }
+
+  function renderSheet() {
+    const { plan } = sheetChoice();
+    const usable = Boolean(full) && !sizeProblem && plan.count > 0;
+    sheetButton.disabled = !usable;
+    if (sizeProblem) {
+      sheetNote.textContent = '';
+    } else if (!plan.count) {
+      sheetNote.textContent = 'This photo size is too big for this paper.';
+    } else {
+      const copies = plan.count === 1 ? '1 photo' : `${plan.count} photos`;
+      sheetNote.textContent = `${copies} on one sheet, with cut lines. Print at actual size (100%), not "fit to page".`;
+    }
+  }
+
+  /** One sheet of paper at 300 dpi with the finished photo repeated, each inside a thin cut line. */
+  async function downloadSheet() {
+    const { sheet, plan } = sheetChoice();
+    if (!full || !frame.width || sizeProblem || !plan.count) return;
+    shared.clearError();
+    sheetButton.disabled = true;
+    try {
+      const photo = renderOutput();
+      const page = shared.newCanvas(plan.width, plan.height);
+      const context = page.getContext('2d');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, plan.width, plan.height);
+      context.strokeStyle = '#9a9a9a';
+      context.lineWidth = 2;
+      for (const { x, y } of plan.positions) {
+        context.drawImage(photo, x, y);
+        context.strokeRect(x - 1, y - 1, size.width + 2, size.height + 2);
+      }
+      const bytes = core.setJpegDpi(await shared.canvasToBytes(page, JPEG, core.BEST_QUALITY), core.PRINT_DPI);
+      shared.saveBlob(new Blob([bytes], { type: JPEG.mime }), `${core.baseName(fileName)}-print-${sheet.key}.jpg`);
+    } catch (error) {
+      if (!(error instanceof core.PhotoToolError)) console.error(error);
+      shared.showError(error instanceof core.PhotoToolError ? error.message : 'The print sheet could not be made.');
+    } finally {
+      renderSheet();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -365,13 +504,8 @@
     context.scale(drawScale, drawScale);
     context.drawImage(source, -sourceSize.width / 2, -sourceSize.height / 2);
 
-    const amount = Number(brightness.value);
-    if (fixOn || amount) {
-      context.setTransform(1, 0, 0, 1, 0, 0);
-      const pixels = context.getImageData(0, 0, size.width, size.height);
-      core.applyLighting(pixels.data, fixOn ? lighting : null, amount);
-      context.putImageData(pixels, 0, 0);
-    }
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    applyLook(context, size.width, size.height);
     return output;
   }
 
@@ -418,6 +552,7 @@
 
   /** The saved file is prepared again shortly after the last change. */
   function queueSave() {
+    renderSheet();
     if (!full) return;
     if (sizeProblem) {
       showSizeProblem();
@@ -528,8 +663,29 @@
   $('[data-action="rotate"]').addEventListener('click', rotateQuarter);
 
   guideToggle.addEventListener('change', () => {
-    guide.hidden = !guideToggle.checked;
+    guide.hidden = mode !== 'photo' || !guideToggle.checked;
   });
+
+  for (const button of $$('[data-mode]')) {
+    button.addEventListener('click', () => {
+      if (button.dataset.mode !== mode) setMode(button.dataset.mode);
+    });
+  }
+
+  paperButton.addEventListener('click', () => {
+    paperOn = !paperOn;
+    paperButton.setAttribute('aria-pressed', String(paperOn));
+    if (!preview) return;
+    rebuildPreview();
+    draw();
+    queueSave();
+  });
+
+  for (const sheet of core.SHEET_SIZES) {
+    sheetPaper.append(new Option(sheet.label, sheet.key));
+  }
+  sheetPaper.addEventListener('change', renderSheet);
+  sheetButton.addEventListener('click', downloadSheet);
 
   fixButton.addEventListener('click', () => {
     fixOn = !fixOn;
@@ -563,7 +719,7 @@
 
   downloadButton.addEventListener('click', () => {
     if (!saved) return;
-    shared.saveBlob(new Blob([saved.bytes], { type: JPEG.mime }), `${core.baseName(fileName)}-passport.jpg`);
+    shared.saveBlob(new Blob([saved.bytes], { type: JPEG.mime }), `${core.baseName(fileName)}-${MODES[mode].suffix}.jpg`);
   });
 
   // The stage has no size while its screen is hidden, and changes size with the window.
@@ -573,4 +729,5 @@
   outWidth.value = String(size.width);
   outHeight.value = String(size.height);
   renderSizes();
+  renderSheet();
 })();

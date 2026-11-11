@@ -227,3 +227,47 @@ test('setJpegDpi writes the print resolution into a JFIF header only', () => {
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   assert.equal(tools.setJpegDpi(png, 300), png);
 });
+
+test('sheetLayout fills the paper and turns it when that fits more', () => {
+  const [photoPaper, a4] = tools.SHEET_SIZES;
+
+  const passport = tools.sheetLayout(photoPaper, 413, 531);
+  assert.equal(passport.count, 8, '35 x 45 mm: eight on 4 x 6 inch paper');
+  assert.deepEqual([passport.width, passport.height, passport.columns, passport.rows], [1800, 1200, 4, 2]);
+  assert.equal(passport.positions.length, 8);
+  for (const { x, y } of passport.positions) {
+    assert.ok(x >= photoPaper.margin && x + 413 <= passport.width - photoPaper.margin);
+    assert.ok(y >= photoPaper.margin && y + 531 <= passport.height - photoPaper.margin);
+  }
+  const [first, second] = passport.positions;
+  assert.equal(second.x - first.x, 413 + 24, 'copies are a cutting gap apart');
+
+  const onA4 = tools.sheetLayout(a4, 413, 531);
+  assert.deepEqual([onA4.width, onA4.columns, onA4.rows, onA4.count], [2480, 5, 6, 30]);
+
+  const tooBig = tools.sheetLayout(photoPaper, 2000, 2000);
+  assert.equal(tooBig.count, 0);
+  assert.deepEqual(tooBig.positions, []);
+});
+
+test('measurePaper finds paper and ink, and cleanPaper makes black on white', () => {
+  // 97 paper pixels, some a little shadowed, and 3 ink pixels.
+  const values = [...Array(60).fill(190), ...Array(37).fill(170), 40, 40, 115];
+  const pixels = new Uint8ClampedArray(values.flatMap(value => [value, value, value, 255]));
+  const levels = tools.measurePaper(pixels);
+  assert.deepEqual(levels, { ink: 40, paper: 190 });
+
+  tools.cleanPaper(pixels, levels);
+  assert.equal(pixels[0], 255, 'paper is white');
+  assert.equal(pixels[60 * 4], 255, 'lightly shadowed paper is white too');
+  assert.equal(pixels[97 * 4], 0, 'ink is black');
+  const edge = pixels[99 * 4];
+  assert.ok(edge > 0 && edge < 255, 'the soft edge of a stroke stays soft');
+  assert.equal(pixels[3], 255, 'alpha is untouched');
+
+  const blank = new Uint8ClampedArray(Array(40).fill(200));
+  assert.equal(tools.measurePaper(blank), null, 'a blank sheet has no ink to find');
+  assert.equal(tools.measurePaper(new Uint8ClampedArray(0)), null);
+  const same = new Uint8ClampedArray([10, 20, 30, 255]);
+  assert.deepEqual(Array.from(tools.cleanPaper(same, null)), [10, 20, 30, 255]);
+});
