@@ -1,7 +1,7 @@
 // PRISM Photo Tools — Edit photo.
 //
-// One photo, changed by a list of steps (crop, turn, flip, straighten, resize). The original
-// is never altered: the edited photo is the original with the steps applied in order, so
+// One photo, changed by a list of steps (crop, turn, flip, straighten, resize, clean-ups,
+// adjustments and filters). The original is never altered: the edited photo is the original with the steps applied in order, so
 // Undo simply drops the last step. Everything happens on canvases in this browser.
 (() => {
   'use strict';
@@ -51,11 +51,21 @@
   const resultLine = $('[data-edit-result]');
   const downloadButton = $('[data-action="download-edit"]');
 
+  const cleanups = $('[data-cleanups]');
+  const adjustSliders = $$('[data-adjust]');
+  const adjustApply = $('[data-action="apply-adjust"]');
+  const adjustReset = $('[data-action="reset-adjust"]');
+  const filters = $('[data-filters]');
+
   const HINTS = {
     crop: 'Drag the box, or its corners and sides, over the part to keep. Then press Crop.',
     rotate: 'Turn or flip the photo, or move Straighten until the horizon is level.',
-    resize: 'Type the new size in pixels, or pick a quick size. Then press Resize.'
+    resize: 'Type the new size in pixels, or pick a quick size. Then press Resize.',
+    cleanup: 'One press fixes a common problem. Hold "see the original" to compare.',
+    adjust: 'Move the sliders and watch the photo. Then press Apply.',
+    filters: 'Each filter is shown on your photo. Press one to use it.'
   };
+  const FILTER_THUMB_SIDE = 132;
 
   // `original` is the opened photo; `current` is the original with every step applied;
   // `small` and `originalSmall` are copies no larger than the screen needs.
@@ -85,6 +95,15 @@
   /** One step applied to a photo, giving a new canvas. The same code serves screen and file. */
   function applyStep(source, step) {
     const size = shared.sizeOf(source);
+    if (core.isPixelStep(step)) {
+      const output = shared.newCanvas(size.width, size.height);
+      const context = output.getContext('2d', { willReadFrequently: true });
+      context.drawImage(source, 0, 0);
+      const pixels = context.getImageData(0, 0, size.width, size.height);
+      core.applyPixelStep(pixels.data, size.width, size.height, step);
+      context.putImageData(pixels, 0, 0);
+      return output;
+    }
     if (step.type === 'resize') {
       return shared.drawPhoto(source, step.width, step.height, {});
     }
@@ -127,6 +146,8 @@
     straightenApply.disabled = true;
     resetCrop();
     fillResize();
+    resetAdjust();
+    if (tool === 'filters') drawFilters();
     undoButton.disabled = steps.length === 0;
     redoButton.disabled = undone.length === 0;
     originalButton.disabled = steps.length === 0;
@@ -175,6 +196,7 @@
   function shown() {
     if (showingOriginal) return originalSmall;
     if (tool === 'rotate' && tilt) return applyStep(small, { type: 'straighten', degrees: tilt });
+    if (tool === 'adjust' && adjustChanged()) return applyStep(small, { type: 'adjust', ...adjustValues() });
     return small;
   }
 
@@ -222,7 +244,46 @@
     straightenApply.disabled = true;
     resetCrop();
     fillResize();
+    resetAdjust();
+    if (tool === 'filters') drawFilters();
     layout();
+  }
+
+  // Clean up, adjust, filters ---------------------------------------------------
+
+  function adjustValues() {
+    return Object.fromEntries(adjustSliders.map(slider => [slider.dataset.adjust, Number(slider.value)]));
+  }
+
+  function adjustChanged() {
+    return adjustSliders.some(slider => Number(slider.value) !== 0);
+  }
+
+  function showAdjust() {
+    for (const slider of adjustSliders) {
+      const amount = Number(slider.value);
+      $(`[data-adjust-value="${slider.dataset.adjust}"]`).textContent = `${amount > 0 ? '+' : ''}${amount}`;
+    }
+    adjustApply.disabled = !adjustChanged();
+    adjustReset.disabled = !adjustChanged();
+  }
+
+  function resetAdjust() {
+    for (const slider of adjustSliders) slider.value = '0';
+    showAdjust();
+  }
+
+  /** Each filter button shows the filter on a small copy of the photo as it is now. */
+  function drawFilters() {
+    const fit = core.resizeDimensions(small.width, small.height, { type: 'longest', value: FILTER_THUMB_SIDE });
+    const thumb = shared.drawPhoto(small, fit.width, fit.height, {});
+    for (const button of Array.from(filters.children)) {
+      const picture = button.querySelector('canvas');
+      const result = applyStep(thumb, { type: 'filter', key: button.dataset.filter });
+      picture.width = result.width;
+      picture.height = result.height;
+      picture.getContext('2d').drawImage(result, 0, 0);
+    }
   }
 
   // Crop ----------------------------------------------------------------------
@@ -532,6 +593,51 @@
     if (event.key === ' ' || event.key === 'Enter') holdOriginal(true);
   });
   originalButton.addEventListener('keyup', () => holdOriginal(false));
+
+  for (const item of core.CLEAN_UPS) {
+    const row = document.createElement('div');
+    row.className = 'phot-fix';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'phot-toggle';
+    button.textContent = item.label;
+    button.addEventListener('click', () => {
+      if (current) addStep({ type: 'cleanup', key: item.key });
+    });
+    const note = document.createElement('span');
+    note.className = 'phot-hint';
+    note.textContent = item.note;
+    row.append(button, note);
+    cleanups.append(row);
+  }
+
+  for (const slider of adjustSliders) {
+    slider.addEventListener('input', () => {
+      showAdjust();
+      if (current) layout();
+    });
+  }
+  adjustApply.addEventListener('click', () => {
+    if (current && adjustChanged()) addStep({ type: 'adjust', ...adjustValues() });
+  });
+  adjustReset.addEventListener('click', () => {
+    resetAdjust();
+    if (current) layout();
+  });
+
+  for (const item of core.FILTERS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'phot-filter';
+    button.dataset.filter = item.key;
+    const label = document.createElement('span');
+    label.textContent = item.label;
+    button.append(document.createElement('canvas'), label);
+    button.addEventListener('click', () => {
+      if (current) addStep({ type: 'filter', key: item.key });
+    });
+    filters.append(button);
+  }
 
   for (const shape of core.CROP_SHAPES) {
     cropShape.append(new Option(shape.label, shape.key));
