@@ -323,3 +323,46 @@ test('the controls fade after a still moment and return on a key press', (t) => 
   assert.equal(viewer.classList.contains('is-idle'), false);
   window.close();
 });
+
+test('a gallery that gives thumbnails gets a strip of the nearby ones, and can add items while open', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <div class="photos-viewer" data-photos-viewer hidden aria-hidden="true">
+      <div data-viewer-close></div>
+      <div role="dialog">
+        <strong data-viewer-title></strong><span data-viewer-position></span>
+        <button type="button" data-viewer-close></button>
+        <button type="button" data-viewer-prev></button><div data-viewer-media></div><button type="button" data-viewer-next></button>
+        <div data-viewer-strip hidden></div>
+      </div>
+    </div></body></html>`, { url: 'http://localhost/Photos', runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const { window } = dom;
+  window.eval(viewerScript);
+  const viewer = window.document.querySelector('[data-photos-viewer]');
+  const make = (count) => Array.from({ length: count }, (_, i) => ({
+    key: `asset-${i + 1}`, kind: 'photo', displayUrl: `/m/${i + 1}`, thumbUrl: `/t/${i + 1}`, title: `Picture ${i + 1}` }));
+  const nearEnd = [];
+  const controller = window.PMMediaViewer.attach(viewer, { items: make(30), onNearEnd: (index, count) => nearEnd.push([index, count]) });
+  const strip = viewer.querySelector('[data-viewer-strip]');
+
+  controller.open(0);
+  assert.equal(strip.hidden, false);
+  assert.equal(strip.children.length, 11, 'the current item and ten after it');
+  assert.equal(strip.querySelector('.is-current img').getAttribute('src'), '/t/1');
+  assert.deepEqual(nearEnd, []);
+
+  strip.children[5].click();
+  assert.equal(viewer.querySelector('[data-viewer-title]').textContent, 'Picture 6');
+  assert.equal(viewer.querySelector('[data-viewer-media]').dataset.enter, 'next');
+  assert.equal(strip.children.length, 16, 'five before, the current item, ten after');
+
+  controller.open(28);
+  assert.deepEqual(nearEnd, [[28, 30]], 'the gallery is told when the end is near');
+  controller.setItems(make(60));
+  assert.equal(viewer.querySelector('[data-viewer-position]').textContent, '29 of 60');
+  assert.equal(strip.children.length, 21);
+  assert.equal(viewer.querySelector('[data-viewer-title]').textContent, 'Picture 29', 'the open item stays');
+
+  controller.setItems([{ key: 'only', kind: 'photo', displayUrl: '/m/only' }]);
+  assert.equal(strip.hidden, true, 'no strip for one item or without thumbnails');
+  window.close();
+});

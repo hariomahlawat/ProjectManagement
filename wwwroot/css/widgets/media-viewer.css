@@ -128,7 +128,17 @@
 
 /* The header and arrows fade while the pointer is still, leaving only the picture. */
 .photos-viewer.is-idle .photos-viewer__header,
-.photos-viewer.is-idle .photos-viewer__nav { opacity: 0; pointer-events: none; }
+.photos-viewer.is-idle .photos-viewer__nav,
+.photos-viewer.is-idle .photos-viewer__strip { opacity: 0; pointer-events: none; }
+
+/* A strip of nearby thumbnails along the bottom of the stage (galleries that provide them). */
+.photos-viewer__strip { align-items: center; bottom: 0; display: flex; gap: .25rem; justify-content: center; left: 0; overflow: hidden; padding: .6rem 1rem .75rem; position: absolute; right: 0; transition: opacity .25s ease; z-index: 2; }
+.photos-viewer__strip[hidden] { display: none; }
+.photos-viewer__thumb { background: color-mix(in srgb, currentColor 8%, transparent); border: 0; border-radius: .25rem; flex: none; height: 3.25rem; opacity: .55; overflow: hidden; padding: 0; transition: opacity .15s ease, width .15s ease; width: 2.5rem; }
+.photos-viewer__thumb img { display: block; height: 100%; object-fit: cover; width: 100%; }
+.photos-viewer__thumb:hover { opacity: .9; }
+.photos-viewer__thumb.is-current { margin: 0 .35rem; opacity: 1; outline: 2px solid currentColor; outline-offset: 1px; width: 4.4rem; }
+.photos-viewer__stage:has(.photos-viewer__strip:not([hidden])) .photos-viewer__media { padding-bottom: 5.25rem; }
 .photos-viewer.is-idle { cursor: none; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -193,8 +203,9 @@
     .photos-viewer__actions button[data-viewer-zoom-out],
     .photos-viewer__actions button[data-viewer-zoom-in],
     .photos-viewer__actions button[data-viewer-zoom-reset],
-    .photos-viewer__actions a[data-viewer-original],
-    .photos-viewer__actions a[data-viewer-download] { display: none; }
+    .photos-viewer__actions a[data-viewer-original] { display: none; }
+    .photos-viewer__thumb { height: 2.6rem; width: 2rem; }
+    .photos-viewer__thumb.is-current { width: 3.4rem; }
     .photos-viewer__media { padding: .5rem 0; }
     .photos-viewer__nav { background: transparent; height: 100%; top: 0; transform: none; width: 3rem; }
     .photos-viewer__nav--prev { left: 0; }
