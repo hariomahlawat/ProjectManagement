@@ -149,6 +149,17 @@ public interface IFaceCandidateSearchService
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
         IReadOnlyCollection<FaceCandidateSearchInput> inputs,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Batch search where the caller applies rejections itself. Identity grouping searches
+    /// with a group centroid on behalf of every member, so a rejection recorded on the
+    /// representative face alone must not remove a person for the whole group.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
+        IReadOnlyCollection<FaceCandidateSearchInput> inputs,
+        bool excludeRejectedForInputFace,
+        CancellationToken cancellationToken)
+        => SearchBatchAsync(inputs, cancellationToken);
 }
 
 public interface IFaceCandidateSuggestionService

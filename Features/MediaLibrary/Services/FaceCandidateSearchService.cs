@@ -66,8 +66,14 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
         return result.GetValueOrDefault(faceId) ?? Array.Empty<FaceCandidate>();
     }
 
+    public Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
+        IReadOnlyCollection<FaceCandidateSearchInput> inputs,
+        CancellationToken cancellationToken)
+        => SearchBatchAsync(inputs, excludeRejectedForInputFace: true, cancellationToken);
+
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
         IReadOnlyCollection<FaceCandidateSearchInput> inputs,
+        bool excludeRejectedForInputFace,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(inputs);
@@ -152,7 +158,9 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                 continue;
             }
 
-            var rejectedRows = await _db.FaceReviewDecisions
+            var rejectedRows = !excludeRejectedForInputFace
+                ? new()
+                : await _db.FaceReviewDecisions
                 .AsNoTracking()
                 .Where(decision => faceIds.Contains(decision.MediaFaceId)
                                    && decision.CandidatePersonId.HasValue

@@ -95,34 +95,66 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
             .ThenByDescending(group => group.Members.Max(member => member.MediaDateUtc))
             .ToList();
 
+        foreach (var group in acceptedGroups)
+        {
+            group.RecalculateRepresentative();
+        }
+
+        // One search for every group. Searching group by group reloaded the whole trusted
+        // reference corpus (up to MaximumCandidateReferenceEmbeddings) once per group on
+        // every refresh. Rejections are applied below at group level, so the search must not
+        // drop a person merely because the representative face alone was rejected for them.
+        var searchInputs = acceptedGroups
+            .Select(group => new FaceCandidateSearchInput(
+                group.Representative.FaceId,
+                group.Representative.AssetId,
+                group.Centroid,
+                group.Representative.ModelKey,
+                group.Representative.ModelVersion,
+                group.Representative.Dimension))
+            .ToList();
+        var searchResults = await _candidateSearch.SearchBatchAsync(
+            searchInputs,
+            excludeRejectedForInputFace: false,
+            cancellationToken);
+
+        var allMemberFaceIds = acceptedGroups
+            .SelectMany(group => group.Members.Select(member => member.FaceId))
+            .Distinct()
+            .ToList();
+        var allRejectedPairs = await _db.FaceReviewDecisions
+            .AsNoTracking()
+            .Where(decision => allMemberFaceIds.Contains(decision.MediaFaceId)
+                               && decision.CandidatePersonId.HasValue
+                               && decision.Decision == FaceReviewDecisionType.Rejected)
+            .Select(decision => new
+            {
+                decision.MediaFaceId,
+                PersonId = decision.CandidatePersonId!.Value,
+                decision.ModelKey,
+                decision.ModelVersion
+            })
+            .ToListAsync(cancellationToken);
+
         var result = new List<FaceIdentityGroup>(acceptedGroups.Count);
         foreach (var group in acceptedGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            group.RecalculateRepresentative();
             var representative = group.Representative;
-            var searchedCandidates = await _candidateSearch.SearchAsync(
-                representative.FaceId,
-                group.Centroid,
-                representative.ModelKey,
-                representative.ModelVersion,
-                representative.Dimension,
-                cancellationToken);
+            var searchedCandidates = searchResults.GetValueOrDefault(representative.FaceId)
+                                     ?? Array.Empty<FaceCandidate>();
 
             var memberFaceIds = group.Members.Select(member => member.FaceId).ToArray();
+            var memberFaceIdSet = memberFaceIds.ToHashSet();
             // Rejections are face/person-specific. Rejecting one reviewed appearance must
             // not suppress a plausible group-to-person suggestion for every unreviewed
             // member. Hide the person only when every current group member has been
             // explicitly rejected for that person.
-            var rejectedPairs = await _db.FaceReviewDecisions
-                .AsNoTracking()
-                .Where(decision => memberFaceIds.Contains(decision.MediaFaceId)
-                                   && decision.CandidatePersonId.HasValue
-                                   && decision.Decision == FaceReviewDecisionType.Rejected
+            var rejectedPairs = allRejectedPairs
+                .Where(decision => memberFaceIdSet.Contains(decision.MediaFaceId)
                                    && decision.ModelKey == representative.ModelKey
                                    && decision.ModelVersion == representative.ModelVersion)
-                .Select(decision => new { decision.MediaFaceId, PersonId = decision.CandidatePersonId!.Value })
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             var rejectedByPerson = rejectedPairs
                 .GroupBy(item => item.PersonId)
