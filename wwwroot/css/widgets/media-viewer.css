@@ -108,6 +108,10 @@
     transition: transform .12s ease;
 }
 
+/* Photos are moved by dragging. A video cannot be, so its stage scrolls as before and a
+   zoomed video's playback controls can always be brought back into view. */
+.photos-viewer__media.has-video { overflow: auto; touch-action: auto; }
+
 .photos-viewer__media img { cursor: zoom-in; user-select: none; -webkit-user-drag: none; }
 .photos-viewer__media.is-zoomed img { cursor: grab; }
 .photos-viewer__media.is-panning img { cursor: grabbing; transition: none; }
