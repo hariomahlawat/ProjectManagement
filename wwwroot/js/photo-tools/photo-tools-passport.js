@@ -240,6 +240,7 @@
   }
 
   function setSize(width, height) {
+    sizeProblem = false;
     size = { width, height };
     outWidth.value = String(width);
     outHeight.value = String(height);
@@ -295,13 +296,21 @@
       showSizeProblem();
       return;
     }
+    sizeProblem = false;
     size = { width, height };
     renderSizes();
     layout();
     queueSave();
   }
 
+  /**
+   * The typed size is not usable. Nothing can be downloaded until it is put right, whatever else
+   * changes in the meantime, because the last good size is no longer what the page shows.
+   */
+  let sizeProblem = false;
+
   function showSizeProblem() {
+    sizeProblem = true;
     clearTimeout(saveTimer);
     saveRun += 1;
     saved = null;
@@ -367,7 +376,7 @@
   }
 
   async function save() {
-    if (!full || !frame.width) return;
+    if (!full || !frame.width || sizeProblem) return;
     const mine = ++saveRun;
     const limitText = outLimit.value.trim();
     const targetBytes = core.parseTargetBytes(limitText, 'KB');
@@ -410,6 +419,10 @@
   /** The saved file is prepared again shortly after the last change. */
   function queueSave() {
     if (!full) return;
+    if (sizeProblem) {
+      showSizeProblem();
+      return;
+    }
     saveRun += 1;
     saved = null;
     downloadButton.disabled = true;
