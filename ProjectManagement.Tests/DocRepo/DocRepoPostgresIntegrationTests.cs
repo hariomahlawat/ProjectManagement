@@ -29,9 +29,6 @@ public sealed class DocRepoPostgresIntegrationTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 28, 9, 30, 0, TimeSpan.Zero);
 
-    // Match the application (Program.cs), which runs Npgsql with legacy timestamp behaviour.
-    static DocRepoPostgresIntegrationTests() => AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-
     [PostgresMigrationFact]
     public async Task OcrQueue_ClaimsEachDocumentOnce_AndDropsAResultWhoseClaimNoLongerHolds()
     {

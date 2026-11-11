@@ -25,8 +25,6 @@ namespace ProjectManagement.Tests.Admin;
 /// </summary>
 public sealed class AdminSearchEscapingPostgresTests
 {
-    static AdminSearchEscapingPostgresTests() => AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-
     [AdminSearchPostgresFact]
     public async Task ListsAndRecovery_TreatPercentAndUnderscoreAsOrdinaryCharacters()
     {
