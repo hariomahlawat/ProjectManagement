@@ -202,7 +202,8 @@
 
 @media (max-width: 900px) {
     .photos-viewer.is-info-open .photos-viewer__dialog { grid-template-columns: minmax(0, 1fr); }
-    .photos-viewer__info { bottom: 0; grid-column: 1; grid-row: 2; max-height: 62%; position: absolute; transform: translateY(100%); width: 100%; }
+    /* As a sheet over the stage, the details panel sits above the arrows and the thumbnail strip. */
+    .photos-viewer__info { bottom: 0; grid-column: 1; grid-row: 2; max-height: 62%; position: absolute; transform: translateY(100%); width: 100%; z-index: 4; }
     .photos-viewer.is-info-open .photos-viewer__info { transform: none; }
     .photos-viewer__media { padding: 1rem 3.5rem; }
 }
