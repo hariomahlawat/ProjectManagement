@@ -283,6 +283,49 @@
         {
             await RenderPageActions();
         }
+        @if ((Model.View == "photos" || Model.IsAlbumDetail) && Model.Groups.Count > 0 && !Model.OrganizeAlbum)
+        {
+            <div class="photos-selection-bar" data-photos-selection-bar hidden aria-live="polite">
+                <button type="button" class="photos-selection-bar__close" data-selection-cancel aria-label="Stop selecting" title="Stop selecting"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                <div class="photos-selection-bar__count"><strong data-selection-count>0 selected</strong><span data-selection-note></span></div>
+                <div class="photos-selection-bar__actions">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-selection-select-all>Select all shown</button>
+                    @if (Model.IsAddMediaMode && Model.AddMediaTargetAlbum is not null)
+                    {
+                        <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="AddItems" data-selection-album-form>
+                            <input type="hidden" name="albumId" value="@Model.AddMediaTargetAlbum.Id" />
+                            <input type="hidden" name="returnUrl" value="@Model.BuildAlbumUrl(Model.AddMediaTargetAlbum.Id)" />
+                            <button type="submit" class="btn btn-sm btn-primary" data-selection-add-album disabled><i class="bi bi-folder-plus"></i> Add selected</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" asp-page="/Photos/Download" data-selection-download-form>
+                            <button type="submit" class="btn btn-sm btn-primary" data-selection-download disabled><i class="bi bi-file-zip"></i> Download ZIP</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-selection-add-album disabled data-bs-toggle="modal" data-bs-target="#addToAlbumModal"><i class="bi bi-folder-plus"></i> Add to album</button>
+                        @if (Model.IsAlbumDetail && Model.CanManageCurrentAlbum && Model.CurrentAlbum is not null)
+                        {
+                            <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="RemoveItems" data-selection-remove-album-form>
+                                <input type="hidden" name="albumId" value="@Model.CurrentAlbum.Id" />
+                                <input type="hidden" name="returnUrl" value="@Model.CurrentReturnUrl" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-selection-remove-album disabled><i class="bi bi-folder-minus"></i> Remove</button>
+                            </form>
+                            <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="SetCover" data-selection-cover-form>
+                                <input type="hidden" name="albumId" value="@Model.CurrentAlbum.Id" />
+                                <input type="hidden" name="returnUrl" value="@Model.CurrentReturnUrl" />
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" data-selection-set-cover disabled title="Select exactly one photo"><i class="bi bi-image"></i> Set cover</button>
+                            </form>
+                        }
+                        @if (Model.CanManagePeople && Model.PeopleFeatureEnabled)
+                        {
+                            <a class="btn btn-sm btn-outline-primary disabled" href="@Url.Page("/Photos/People/Review", new { Mode = "unidentified" })" data-selection-review-people data-base-url="@Url.Page("/Photos/People/Review", new { Mode = "unidentified" })" aria-disabled="true"><i class="bi bi-people"></i> Review people</a>
+                        }
+                    }
+                    <button type="button" class="btn btn-sm btn-link" data-selection-clear>Clear</button>
+                </div>
+            </div>
+        }
     </div>
 
     @if (Model.IsAlbumDetail && Model.CurrentAlbum is not null)
@@ -826,48 +869,6 @@
         }
     }
 
-    @if ((Model.View == "photos" || Model.IsAlbumDetail) && Model.Groups.Count > 0 && !Model.OrganizeAlbum)
-    {
-        <div class="photos-selection-bar" data-photos-selection-bar hidden aria-live="polite">
-            <div class="photos-selection-bar__count"><strong data-selection-count>0 selected</strong><span data-selection-note></span></div>
-            <div class="photos-selection-bar__actions">
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-selection-select-all>Select page</button>
-                @if (Model.IsAddMediaMode && Model.AddMediaTargetAlbum is not null)
-                {
-                    <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="AddItems" data-selection-album-form>
-                        <input type="hidden" name="albumId" value="@Model.AddMediaTargetAlbum.Id" />
-                        <input type="hidden" name="returnUrl" value="@Model.BuildAlbumUrl(Model.AddMediaTargetAlbum.Id)" />
-                        <button type="submit" class="btn btn-sm btn-primary" data-selection-add-album disabled><i class="bi bi-folder-plus"></i> Add selected</button>
-                    </form>
-                }
-                else
-                {
-                    <form method="post" asp-page="/Photos/Download" data-selection-download-form>
-                        <button type="submit" class="btn btn-sm btn-primary" data-selection-download disabled><i class="bi bi-file-zip"></i> Download ZIP</button>
-                    </form>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-selection-add-album disabled data-bs-toggle="modal" data-bs-target="#addToAlbumModal"><i class="bi bi-folder-plus"></i> Add to album</button>
-                    @if (Model.IsAlbumDetail && Model.CanManageCurrentAlbum && Model.CurrentAlbum is not null)
-                    {
-                        <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="RemoveItems" data-selection-remove-album-form>
-                            <input type="hidden" name="albumId" value="@Model.CurrentAlbum.Id" />
-                            <input type="hidden" name="returnUrl" value="@Model.CurrentReturnUrl" />
-                            <button type="submit" class="btn btn-sm btn-outline-danger" data-selection-remove-album disabled><i class="bi bi-folder-minus"></i> Remove</button>
-                        </form>
-                        <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="SetCover" data-selection-cover-form>
-                            <input type="hidden" name="albumId" value="@Model.CurrentAlbum.Id" />
-                            <input type="hidden" name="returnUrl" value="@Model.CurrentReturnUrl" />
-                            <button type="submit" class="btn btn-sm btn-outline-secondary" data-selection-set-cover disabled title="Select exactly one photo"><i class="bi bi-image"></i> Set cover</button>
-                        </form>
-                    }
-                    @if (Model.CanManagePeople && Model.PeopleFeatureEnabled)
-                    {
-                        <a class="btn btn-sm btn-outline-primary disabled" href="@Url.Page("/Photos/People/Review", new { Mode = "unidentified" })" data-selection-review-people data-base-url="@Url.Page("/Photos/People/Review", new { Mode = "unidentified" })" aria-disabled="true"><i class="bi bi-people"></i> Review people</a>
-                    }
-                }
-                <button type="button" class="btn btn-sm btn-link" data-selection-clear>Clear</button>
-            </div>
-        </div>
-    }
 </div>
 
 <div class="modal fade" id="createAlbumModal" tabindex="-1" aria-labelledby="createAlbumModalTitle" aria-hidden="true">
