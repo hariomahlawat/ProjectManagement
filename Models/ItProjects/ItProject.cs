@@ -13,6 +13,22 @@ public class ItProject
 {
     public int Id { get; set; }
 
+    /// <summary>
+    /// The module the project belongs to (<see cref="ItProjectModules"/>). Set when the project is
+    /// created and never changed; every query is scoped by it.
+    /// </summary>
+    [Required, MaxLength(ItProjectModules.CodeMaxLength)]
+    public string Module { get; set; } = ItProjectModules.It;
+
+    /// <summary>
+    /// The Project Officer who runs the project, in the modules that assign one
+    /// (docs/ux/molti-sre-projects.md); null when unassigned, and always null for IT projects.
+    /// </summary>
+    [MaxLength(450)]
+    public string? ProjectOfficerUserId { get; set; }
+
+    public DateTime? ProjectOfficerAssignedAtUtc { get; set; }
+
     [Required, MaxLength(200)]
     public string Title { get; set; } = string.Empty;
 

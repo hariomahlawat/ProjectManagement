@@ -39,10 +39,13 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
-    public async Task<IReadOnlyList<ItProjectRemarkView>> ListAsync(int itProjectId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<ItProjectRemarkView>> ListAsync(int itProjectId, CancellationToken cancellationToken = default)
+        => ListAsync(itProjectId, ItProjectModules.It, cancellationToken);
+
+    public async Task<IReadOnlyList<ItProjectRemarkView>> ListAsync(int itProjectId, string module, CancellationToken cancellationToken = default)
     {
         var rows = await _db.ItProjectRemarks.AsNoTracking()
-            .Where(remark => remark.ItProjectId == itProjectId && !remark.IsDeleted)
+            .Where(remark => remark.ItProjectId == itProjectId && !remark.IsDeleted && remark.ItProject != null && remark.ItProject.Module == module)
             .OrderByDescending(remark => remark.EventDate)
             .ThenByDescending(remark => remark.CreatedAtUtc)
             .Select(remark => new
@@ -104,7 +107,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         var project = await _db.ItProjects
             .AsNoTracking()
             .Include(candidate => candidate.Stages)
-            .SingleOrDefaultAsync(candidate => candidate.Id == itProjectId && !candidate.IsDeleted, cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Id == itProjectId && candidate.Module == actor.Module && !candidate.IsDeleted, cancellationToken);
         if (project is null)
         {
             return (ItProjectCommandResult.Fail(ItProjectCommandService.NotFoundMessage), 0);
@@ -151,7 +154,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             return ItProjectCommandResult.Fail(errors);
         }
 
-        var remark = await LoadAsync(itProjectId, remarkId, cancellationToken);
+        var remark = await LoadAsync(itProjectId, remarkId, actor.Module, cancellationToken);
         if (remark is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -181,7 +184,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
     {
         EnsureActor(actor);
 
-        var remark = await LoadAsync(itProjectId, remarkId, cancellationToken);
+        var remark = await LoadAsync(itProjectId, remarkId, actor.Module, cancellationToken);
         if (remark is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -243,7 +246,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
     /// from a soft-deleted project, is "not found": the route's project is the one the caller
     /// has been authorised for (engineering invariant 6).
     /// </summary>
-    private Task<ItProjectRemark?> LoadAsync(int itProjectId, int remarkId, CancellationToken cancellationToken)
+    private Task<ItProjectRemark?> LoadAsync(int itProjectId, int remarkId, string module, CancellationToken cancellationToken)
         => _db.ItProjectRemarks
             .Include(remark => remark.AuditEntries)
             .FirstOrDefaultAsync(remark =>
@@ -251,6 +254,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
                 remark.ItProjectId == itProjectId &&
                 !remark.IsDeleted &&
                 remark.ItProject != null &&
+                remark.ItProject.Module == module &&
                 !remark.ItProject.IsDeleted,
                 cancellationToken);
 

@@ -297,6 +297,20 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(Policies.ItProjects.ManageRoles));
     options.AddPolicy(Policies.ItProjects.Remark, policy =>
         policy.RequireRole(Policies.ItProjects.RemarkRoles));
+    // MOLTI projects and SRE projects (docs/ux/molti-sre-projects.md). The assigned Project
+    // Officer's rights on a project are a per-project check in ItProjectAccess.
+    options.AddPolicy(Policies.MoltiProjects.View, policy =>
+        policy.RequireAuthenticatedUser());
+    options.AddPolicy(Policies.MoltiProjects.Manage, policy =>
+        policy.RequireRole(Policies.MoltiProjects.ManageRoles));
+    options.AddPolicy(Policies.MoltiProjects.Remark, policy =>
+        policy.RequireRole(Policies.MoltiProjects.RemarkRoles));
+    options.AddPolicy(Policies.SreProjects.View, policy =>
+        policy.RequireAuthenticatedUser());
+    options.AddPolicy(Policies.SreProjects.Manage, policy =>
+        policy.RequireRole(Policies.SreProjects.ManageRoles));
+    options.AddPolicy(Policies.SreProjects.Remark, policy =>
+        policy.RequireRole(Policies.SreProjects.RemarkRoles));
     // SECTION: Industry partner authorization policies
     // NOTE: The Industry Partners page is available to every authenticated user.
     options.AddPolicy(Policies.IndustryPartners.View, policy =>

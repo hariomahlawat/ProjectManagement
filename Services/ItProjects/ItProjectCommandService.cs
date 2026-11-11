@@ -60,6 +60,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         var now = UtcNow();
         var project = new ItProject
         {
+            Module = actor.Module,
             Title = input.Title.Trim(),
             PppReferenceNumber = input.PppReferenceNumber.Trim(),
             FinancialYearStart = input.FinancialYearStart,
@@ -128,6 +129,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         var now = UtcNow();
         var project = new ItProject
         {
+            Module = actor.Module,
             Title = input.Title.Trim(),
             PppReferenceNumber = firstReference ?? ReferenceNotRecorded,
             FinancialYearStart = input.FirstFinancialYearStart,
@@ -175,7 +177,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         ArgumentNullException.ThrowIfNull(input);
         EnsureActor(actor);
 
-        var project = await LoadForWriteAsync(id, cancellationToken);
+        var project = await LoadForWriteAsync(id, actor.Module, cancellationToken);
         if (project is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -246,7 +248,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             return new ItProjectStageSaveResult(ItProjectCommandResult.Fail(rules.Errors), Array.Empty<string>(), Array.Empty<string>());
         }
 
-        var project = await LoadForWriteAsync(id, cancellationToken);
+        var project = await LoadForWriteAsync(id, actor.Module, cancellationToken);
         if (project is null)
         {
             return new ItProjectStageSaveResult(ItProjectCommandResult.Fail(NotFoundMessage), Array.Empty<string>(), Array.Empty<string>());
@@ -321,7 +323,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             return ItProjectCommandResult.Fail(DroppedInFutureMessage);
         }
 
-        var project = await LoadForWriteAsync(id, cancellationToken);
+        var project = await LoadForWriteAsync(id, actor.Module, cancellationToken);
         if (project is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -351,7 +353,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
     public async Task<ItProjectCommandResult> ReinstateAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
-        var project = await LoadForWriteAsync(id, cancellationToken);
+        var project = await LoadForWriteAsync(id, actor.Module, cancellationToken);
         if (project is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -389,7 +391,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             return ItProjectCommandResult.Fail($"The IT ARPPP reference number must be {ItProjectFinancialYear.ReferenceMaxLength} characters or fewer.");
         }
 
-        var project = await LoadForWriteAsync(id, cancellationToken);
+        var project = await LoadForWriteAsync(id, actor.Module, cancellationToken);
         if (project is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -460,7 +462,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
     public async Task<ItProjectCommandResult> DeleteAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
-        var project = await LoadForWriteAsync(id, cancellationToken);
+        var project = await LoadForWriteAsync(id, actor.Module, cancellationToken);
         if (project is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -522,11 +524,12 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         return errors;
     }
 
-    private Task<ItProject?> LoadForWriteAsync(int id, CancellationToken cancellationToken)
+    /// <summary>The live project with that id in the actor's module; a project of another module is "not found".</summary>
+    private Task<ItProject?> LoadForWriteAsync(int id, string module, CancellationToken cancellationToken)
         => _db.ItProjects
             .Include(project => project.Stages)
             .Include(project => project.FinancialYears)
-            .FirstOrDefaultAsync(project => project.Id == id && !project.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(project => project.Id == id && project.Module == module && !project.IsDeleted, cancellationToken);
 
     private async Task<ItProjectCommandResult> CommitAsync(
         ItProject project,
@@ -564,6 +567,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
     private Task AuditAsync(string action, ItProjectActor actor, ItProject project, Dictionary<string, string?> data)
     {
         data["ItProjectId"] = project.Id.ToString(CultureInfo.InvariantCulture);
+        data["Module"] = project.Module;
         return _audit.LogAsync(action, userId: actor.UserId, userName: actor.UserName, data: data);
     }
 
@@ -588,6 +592,11 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         if (string.IsNullOrWhiteSpace(actor.UserId))
         {
             throw new InvalidOperationException("The acting user is required.");
+        }
+
+        if (!ItProjectModules.IsKnown(actor.Module))
+        {
+            throw new InvalidOperationException("The module the user is acting in is not known.");
         }
     }
 

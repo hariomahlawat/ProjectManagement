@@ -49,8 +49,10 @@ One additive, hand-written migration on `ItProjects`:
 | Column | Type | Notes |
 | --- | --- | --- |
 | `Module` | varchar(8), not null, default `'IT'` | Every existing row becomes IT. Indexed with `FinancialYearStart` |
-| `ProjectOfficerUserId` | varchar(450), null | FK to users, `SET NULL` on delete. Indexed |
+| `ProjectOfficerUserId` | varchar(450), null | Indexed. No foreign key, like the other user ids on the row; rights also need the Project Officer role, so a removed or demoted user has none |
 | `ProjectOfficerAssignedAtUtc` | timestamp, null | For "assigned since" on the page |
+
+Migration `20270102080020_AddItProjectModuleAndOfficer` (PR 2).
 
 No other table changes: stages, financial years, remarks, remark audits and attachments hang off
 the project and need no module of their own. Attachment files stay under
@@ -105,7 +107,7 @@ the project on every call, so it gains the rule there and every handler and serv
 it. A Project Officer who is not assigned to a project can read it and nothing more. An officer
 who is unassigned loses the rights at once; their remarks stay, with their name.
 
-Every query is scoped by module. There are eleven `db.ItProjects` query sites today (read,
+Every query is scoped by module (PR 2). Reads take the module (`ItProjectBoardQuery.Module`, `GetAsync(id, module)`, and the same on remark and attachment lists and downloads); writes take it from the actor (`ItProjectActor.Module`, `ItProjectRemarkActor.Module`). Calls that name no module mean IT projects, so existing IT code is unchanged. There are eleven `db.ItProjects` query sites today (read,
 command, remark and attachment services, `LiveItProjects`, conference remarks); each takes the
 module, and a project opened through another module's route is "not found". A test walks the
 services to prove an IT call never returns a MOLTI or SRE row.
