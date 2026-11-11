@@ -501,13 +501,15 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
             {
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                // Computed outside the update: DateTimeOffset.UtcNow.Add(...) inside
+                // SetProperty cannot be translated to SQL and failed every renewal.
+                var expiresAtUtc = DateTimeOffset.UtcNow.Add(LeaseDuration);
                 var renewed = await db.PrismMediaOutboxMessages
                     .Where(message => messageIds.Contains(message.Id)
                                       && message.Status == PrismMediaOutboxStatus.Processing
                                       && message.LockedBy == _workerId)
                     .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(message => message.LockExpiresAtUtc,
-                            DateTimeOffset.UtcNow.Add(LeaseDuration)),
+                        .SetProperty(message => message.LockExpiresAtUtc, expiresAtUtc),
                         cancellationToken);
                 if (renewed == 0)
                 {
