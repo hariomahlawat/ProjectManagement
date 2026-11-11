@@ -92,9 +92,11 @@ public sealed class MediaClassifier : IMediaClassifier
             return Empty("Classification is disabled or not applicable.", stopwatch);
         }
 
-        await using var copy = new MemoryStream();
-        await stream.CopyToAsync(copy, cancellationToken);
-        var bytes = copy.ToArray();
+        var bytes = await ReadBoundedAsync(stream, _options.Processing.MaxImageFileSizeBytes, cancellationToken);
+        // Image.Identify reads only the header, so oversized dimensions are rejected
+        // before Image.Load allocates the full pixel buffer.
+        var header = Image.Identify(bytes);
+        MediaImageBounds.EnsureWithinPixelLimit(header.Width, header.Height, _options.Processing.MaxImagePixels);
         using var image = Image.Load<Rgba32>(bytes);
         var metrics = Measure(image, _options.Classification.AnalysisMaxDimension);
         var profile = AnalyseStructure(metrics);
@@ -798,4 +800,32 @@ public sealed class MediaClassifier : IMediaClassifier
         double DesignedGraphic,
         double DiagramStructure,
         double NaturalPhoto);
+
+    private static async Task<byte[]> ReadBoundedAsync(
+        Stream source,
+        long maximumBytes,
+        CancellationToken cancellationToken)
+    {
+        using var destination = new MemoryStream();
+        var buffer = new byte[128 * 1024];
+        long total = 0;
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            total += read;
+            if (total > maximumBytes)
+            {
+                throw new MediaProcessingPermanentException("The image exceeds the configured processing size limit.");
+            }
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+
+        return destination.ToArray();
+    }
 }

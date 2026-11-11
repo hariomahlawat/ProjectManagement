@@ -72,6 +72,7 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
         try
         {
             using var encoded = SKData.CreateCopy(imageBytes);
+            EnsureWithinPixelLimit(encoded);
             using var bitmap = SKBitmap.Decode(encoded)
                 ?? throw new InvalidDataException("The image could not be decoded for face analysis.");
 
@@ -163,6 +164,7 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
         try
         {
             using var encoded = SKData.CreateCopy(imageBytes);
+            EnsureWithinPixelLimit(encoded);
             using var bitmap = SKBitmap.Decode(encoded)
                 ?? throw new InvalidDataException("The image could not be decoded for face-presence analysis.");
             var detections = Detect(bitmap, _options.Classification.FacePresenceMinimumConfidence);
@@ -210,6 +212,20 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
         {
             _analysisGate.Release();
         }
+    }
+
+    /// <summary>
+    /// Reads only the image header and rejects dimensions above the configured pixel limit
+    /// before SKBitmap.Decode allocates a full-size buffer.
+    /// </summary>
+    private void EnsureWithinPixelLimit(SKData encoded)
+    {
+        using var codec = SKCodec.Create(encoded)
+            ?? throw new InvalidDataException("The image format could not be read for face analysis.");
+        MediaImageBounds.EnsureWithinPixelLimit(
+            codec.Info.Width,
+            codec.Info.Height,
+            _options.Processing.MaxImagePixels);
     }
 
     private IReadOnlyList<RawFaceDetection> Detect(SKBitmap source, double minimumConfidence)

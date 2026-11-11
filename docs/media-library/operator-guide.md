@@ -60,3 +60,17 @@ When an external-folder scan finds and reads a file that was earlier recorded as
 temporarily unavailable, it is restored automatically. Media hidden by an outage before
 this behaviour shipped can be restored with **Recheck unavailable media** in
 `/Admin/MediaSources`.
+
+## Very large images
+
+`MediaLibrary:Processing:MaxImagePixels` (default 100,000,000, i.e. 100 megapixels) caps
+the decoded size of any image that processing will open. It is checked from the image
+header before decoding, because the file-size limit alone does not bound memory: a small,
+highly compressible file can declare enormous dimensions. Thumbnails and previews of JPEG
+photographs are decoded at reduced scale, so ordinary camera images are well within the
+limit. Images above it are recorded as a permanent processing failure and are not retried.
+
+A job whose every attempt ends with the worker's lease expiring, for example because an
+image brought the process down, is moved to dead-letter with the failure code
+`RepeatedWorkerLoss` instead of being retried indefinitely. It is not included in
+**Retry recoverable jobs**; check the source file before retrying it individually.

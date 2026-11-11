@@ -10,6 +10,9 @@ namespace ProjectManagement.Features.MediaLibrary.Hosted;
 
 public sealed class MediaProcessingWorker : BackgroundService
 {
+    private const string ExpiredWorkerLockCode = "ExpiredWorkerLock";
+    internal const string RepeatedWorkerLossCode = "RepeatedWorkerLoss";
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly MediaLibraryOptions _options;
     private readonly IMediaProcessingRuntimeState _runtime;
@@ -141,7 +144,7 @@ public sealed class MediaProcessingWorker : BackgroundService
                 .SetProperty(job => job.AvailableAfterUtc, now)
                 .SetProperty(job => job.LockedBy, (string?)null)
                 .SetProperty(job => job.LockExpiresAtUtc, (DateTimeOffset?)null)
-                .SetProperty(job => job.FailureCode, "ExpiredWorkerLock")
+                .SetProperty(job => job.FailureCode, ExpiredWorkerLockCode)
                 .SetProperty(job => job.FailureMessage, "The previous worker lock expired before completion; the job was recovered automatically.")
                 .SetProperty(job => job.UpdatedAtUtc, now), cancellationToken);
 
@@ -151,7 +154,7 @@ public sealed class MediaProcessingWorker : BackgroundService
         }
     }
 
-    private async Task<ClaimedJob?> ClaimNextAsync(CancellationToken cancellationToken)
+    internal async Task<ClaimedJob?> ClaimNextAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
@@ -201,6 +204,35 @@ public sealed class MediaProcessingWorker : BackgroundService
         if (job is null)
         {
             await transaction.CommitAsync(cancellationToken);
+            return null;
+        }
+
+        // An attempt is counted when a job is claimed, but its outcome is recorded only if
+        // the worker survives to record it. A job whose earlier attempts all ended with an
+        // expired lease (a hang, or an image that brought the process down) would otherwise
+        // be claimed again after every restart, indefinitely. Once it has used every attempt
+        // that way, stop and dead-letter it. The failure code is deliberately not in the
+        // bulk "retry recoverable" set, so an administrator retries it individually.
+        var previousAttemptLostLease = job.Status == MediaProcessingJobStatus.Running
+            || string.Equals(job.FailureCode, ExpiredWorkerLockCode, StringComparison.Ordinal);
+        if (previousAttemptLostLease && job.AttemptCount >= Math.Max(1, job.MaxAttempts))
+        {
+            job.Status = MediaProcessingJobStatus.DeadLetter;
+            job.LockedBy = null;
+            job.LockExpiresAtUtc = null;
+            job.CompletedAtUtc = null;
+            job.AvailableAfterUtc = now;
+            job.FailureCode = RepeatedWorkerLossCode;
+            job.FailureMessage =
+                $"Processing stopped responding or ended the worker on all {job.AttemptCount} attempt(s), so the job was stopped to protect the server. Check the source file before retrying it.";
+            job.UpdatedAtUtc = now;
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            _logger.LogError(
+                "Media job {JobId} for asset {AssetId} lost its worker lease on all {Attempts} attempt(s) and was moved to dead-letter.",
+                job.Id,
+                job.MediaAssetId,
+                job.AttemptCount);
             return null;
         }
 
@@ -560,7 +592,7 @@ public sealed class MediaProcessingWorker : BackgroundService
     private static string Trim(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength];
 
-    private sealed record ClaimedJob(
+    internal sealed record ClaimedJob(
         long Id,
         long MediaAssetId,
         MediaProcessingJobType JobType,
