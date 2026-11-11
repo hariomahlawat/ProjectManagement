@@ -399,6 +399,9 @@
                             <button type="button" aria-pressed="true" data-tool="crop"><i class="bi bi-crop" aria-hidden="true"></i> Crop</button>
                             <button type="button" aria-pressed="false" data-tool="rotate"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Rotate</button>
                             <button type="button" aria-pressed="false" data-tool="resize"><i class="bi bi-aspect-ratio" aria-hidden="true"></i> Resize</button>
+                            <button type="button" aria-pressed="false" data-tool="cleanup"><i class="bi bi-magic" aria-hidden="true"></i> Clean up</button>
+                            <button type="button" aria-pressed="false" data-tool="adjust"><i class="bi bi-sliders" aria-hidden="true"></i> Adjust</button>
+                            <button type="button" aria-pressed="false" data-tool="filters"><i class="bi bi-palette" aria-hidden="true"></i> Filters</button>
                         </div>
 
                         <div class="phot-tool" data-tool-panel="crop">
@@ -453,6 +456,41 @@
                             <button type="button" class="btn btn-primary" data-action="apply-resize" disabled>
                                 <i class="bi bi-check-lg" aria-hidden="true"></i> Resize
                             </button>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="cleanup" hidden>
+                            <div class="phot-cleanups" data-cleanups></div>
+                            <p class="phot-hint">Each press is one step. Undo takes it back.</p>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="adjust" hidden>
+                            <label class="phot-slider phot-slider--named" for="photAdjustBrightness">Brightness
+                                <input type="range" class="form-range" id="photAdjustBrightness" min="-50" max="50" step="1" value="0" autocomplete="off" data-adjust="brightness" />
+                                <span class="phot-slider__value" data-adjust-value="brightness">0</span>
+                            </label>
+                            <label class="phot-slider phot-slider--named" for="photAdjustContrast">Contrast
+                                <input type="range" class="form-range" id="photAdjustContrast" min="-50" max="50" step="1" value="0" autocomplete="off" data-adjust="contrast" />
+                                <span class="phot-slider__value" data-adjust-value="contrast">0</span>
+                            </label>
+                            <label class="phot-slider phot-slider--named" for="photAdjustSaturation">Colour
+                                <input type="range" class="form-range" id="photAdjustSaturation" min="-50" max="50" step="1" value="0" autocomplete="off" data-adjust="saturation" />
+                                <span class="phot-slider__value" data-adjust-value="saturation">0</span>
+                            </label>
+                            <label class="phot-slider phot-slider--named" for="photAdjustWarmth">Warmth
+                                <input type="range" class="form-range" id="photAdjustWarmth" min="-50" max="50" step="1" value="0" autocomplete="off" data-adjust="warmth" />
+                                <span class="phot-slider__value" data-adjust-value="warmth">0</span>
+                            </label>
+                            <div class="phot-tool__actions">
+                                <button type="button" class="btn btn-primary" data-action="apply-adjust" disabled>
+                                    <i class="bi bi-check-lg" aria-hidden="true"></i> Apply
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" data-action="reset-adjust" disabled>Reset</button>
+                            </div>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="filters" hidden>
+                            <div class="phot-filters" role="group" aria-label="Filters" data-filters></div>
+                            <p class="phot-hint">Press a filter to use it. Undo takes it back.</p>
                         </div>
                     </div>
 
