@@ -106,6 +106,15 @@ public sealed class MediaProcessingOptions
     public int BatchSize { get; set; } = 1;
     public int MaxAttempts { get; set; } = 5;
     public long MaxImageFileSizeBytes { get; set; } = 209_715_200;
+
+    /// <summary>
+    /// Largest image, in decoded pixels (width x height), that processing will decode.
+    /// The file-size limit alone does not bound memory: a small, highly compressible file
+    /// can declare enormous dimensions, and a full decode needs about four bytes per pixel.
+    /// Images above this limit are recorded as a permanent processing failure.
+    /// </summary>
+    public long MaxImagePixels { get; set; } = 100_000_000;
+
     public int ThumbnailMaxPixels { get; set; } = 480;
     public int PreviewMaxPixels { get; set; } = 1920;
     public int WebpQuality { get; set; } = 84;

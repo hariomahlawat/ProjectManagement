@@ -202,6 +202,11 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
             failures.Add("MediaLibrary:Processing:MaxImageFileSizeBytes must be between 1 MB and 2 GB.");
         }
 
+        if (options.Processing.MaxImagePixels is < 1_000_000 or > 1_000_000_000)
+        {
+            failures.Add("MediaLibrary:Processing:MaxImagePixels must be between 1,000,000 and 1,000,000,000.");
+        }
+
         if (options.Processing.ThumbnailMaxPixels is < 128 or > 2048)
         {
             failures.Add("MediaLibrary:Processing:ThumbnailMaxPixels must be between 128 and 2048.");

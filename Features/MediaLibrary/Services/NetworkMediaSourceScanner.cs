@@ -360,6 +360,21 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             asset.Height = metadata.Height;
             asset.DurationSeconds = metadata.DurationSeconds;
             asset.IsAvailable = true;
+            if (asset.AvailabilityStatus is MediaAvailabilityStatus.SourceMissing
+                or MediaAvailabilityStatus.AccessDenied
+                or MediaAvailabilityStatus.TemporarilyUnavailable)
+            {
+                // The scan has just found and read this file, so a reachability failure
+                // recorded earlier (for example during a share outage) no longer applies.
+                // Content-level states (Corrupt, Unsupported) are left for processing to
+                // re-establish. Without this the asset stayed hidden from Photos even
+                // though IsAvailable was restored.
+                asset.AvailabilityStatus = MediaAvailabilityStatus.Available;
+                asset.UnavailableReason = null;
+                asset.UnavailableSinceUtc = null;
+                asset.LastAvailabilityCheckUtc = now;
+            }
+
             asset.IsDeleted = false;
             asset.LastSeenAtUtc = now;
             asset.LastSeenScanId = scanId;
@@ -388,11 +403,13 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             await QueueJobsAsync(
                 changedAssets,
                 MediaProcessingJobType.AnalyseAsset,
+                respectAdministratorHold: false,
                 now,
                 cancellationToken);
             await QueueJobsAsync(
                 classificationRefreshAssets,
                 MediaProcessingJobType.ClassifyMedia,
+                respectAdministratorHold: true,
                 now,
                 cancellationToken);
         }
@@ -435,9 +452,10 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
         asset.ClassificationConcurrencyToken = Guid.NewGuid();
     }
 
-    private async Task QueueJobsAsync(
+    internal async Task QueueJobsAsync(
         IReadOnlyCollection<MediaAsset> assets,
         MediaProcessingJobType jobType,
+        bool respectAdministratorHold,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -475,6 +493,14 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             {
                 // The asset concurrency token has already been advanced for changed or stale
                 // content. The running processor will yield and the worker will retry this job.
+                continue;
+            }
+
+            // An unchanged file whose job repeatedly took the worker down is not re-run just
+            // because its classifier version is stale; a crashing classification never
+            // records one. Changed or restored content is queued as before.
+            if (respectAdministratorHold && MediaProcessingFailurePolicy.IsHeldForAdministrator(job))
+            {
                 continue;
             }
 

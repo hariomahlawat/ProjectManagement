@@ -1,3 +1,5 @@
+using ProjectManagement.Features.MediaLibrary.Domain;
+
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 /// <summary>
@@ -8,6 +10,14 @@ public static class MediaProcessingFailurePolicy
 {
     public const string SourceUnavailableMarker = "[SourceUnavailable] ";
 
+    /// <summary>
+    /// Recorded when every attempt at a job ended with the worker's lease expiring (a hang,
+    /// or an image that brought the process down). It is treated as permanent so neither
+    /// the bulk retry nor automatic catalogue requeues run it again; an administrator must
+    /// force a retry after checking the source.
+    /// </summary>
+    public const string RepeatedWorkerLossCode = "RepeatedWorkerLoss";
+
     public static readonly string[] PermanentFailureCodeNames =
     {
         nameof(MediaContentUnavailableException),
@@ -15,7 +25,8 @@ public static class MediaProcessingFailurePolicy
         nameof(FileNotFoundException),
         nameof(DirectoryNotFoundException),
         nameof(NotSupportedException),
-        nameof(InvalidDataException)
+        nameof(InvalidDataException),
+        RepeatedWorkerLossCode
     };
 
     public static readonly string[] RecoverableFailureCodeNames =
@@ -25,6 +36,7 @@ public static class MediaProcessingFailurePolicy
         nameof(TimeoutException),
         nameof(UnauthorizedAccessException),
         nameof(MediaProcessingSupersededException),
+        nameof(MediaSourceStorageUnreachableException),
         "ExpiredWorkerLock",
         "WorkerStopping"
     };
@@ -51,6 +63,15 @@ public static class MediaProcessingFailurePolicy
     public static bool IsPermanentFailureCode(string? failureCode)
         => !string.IsNullOrWhiteSpace(failureCode)
            && PermanentFailureCodes.Contains(failureCode);
+
+    /// <summary>
+    /// True for a job dead-lettered because it repeatedly lost its worker. Automatic
+    /// requeues (catalogue synchronisation, classifier refresh) must leave it alone unless
+    /// the source content itself has changed.
+    /// </summary>
+    public static bool IsHeldForAdministrator(MediaProcessingJob job)
+        => job.Status == MediaProcessingJobStatus.DeadLetter
+           && string.Equals(job.FailureCode, RepeatedWorkerLossCode, StringComparison.Ordinal);
 
     public static string MarkSourceUnavailable(string message)
         => SourceUnavailableMarker + message;

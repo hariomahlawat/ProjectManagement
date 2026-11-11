@@ -87,7 +87,7 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
                         cancellationToken);
                 }
 
-                using var oriented = DecodeOriented(bytes);
+                using var oriented = DecodeOriented(bytes, maxPixels, _options.Processing.MaxImagePixels);
                 using var resized = ResizeToFit(oriented, maxPixels);
                 using var image = SKImage.FromBitmap(resized);
                 using var encoded = image.Encode(SKEncodedImageFormat.Webp, _options.Processing.WebpQuality)
@@ -122,7 +122,7 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
         }
     }
 
-    private static SKBitmap DecodeOriented(byte[] bytes)
+    private static SKBitmap DecodeOriented(byte[] bytes, int targetLongestSide, long maximumDecodedPixels)
     {
         if (bytes.Length == 0)
         {
@@ -141,9 +141,25 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
                 throw new MediaProcessingPermanentException("The image has invalid dimensions.");
             }
 
+            // Thumbnails and previews never need more than the target size. Codecs that can
+            // decode at reduced scale (notably JPEG, by 1/2, 1/4 or 1/8) do so here, which
+            // keeps large camera images cheap. Other formats report their full size.
+            var longestSide = Math.Max(codec.Info.Width, codec.Info.Height);
+            var decodeSize = longestSide > targetLongestSide
+                ? codec.GetScaledDimensions((float)targetLongestSide / longestSide)
+                : new SKSizeI(codec.Info.Width, codec.Info.Height);
+            if (decodeSize.Width <= 0 || decodeSize.Height <= 0)
+            {
+                decodeSize = new SKSizeI(codec.Info.Width, codec.Info.Height);
+            }
+
+            // Checked against the header before allocating, so an image that declares huge
+            // dimensions cannot exhaust memory however small the file is.
+            MediaImageBounds.EnsureWithinPixelLimit(decodeSize.Width, decodeSize.Height, maximumDecodedPixels);
+
             var source = new SKBitmap(
-                codec.Info.Width,
-                codec.Info.Height,
+                decodeSize.Width,
+                decodeSize.Height,
                 codec.Info.ColorType,
                 codec.Info.AlphaType);
             var result = codec.GetPixels(source.Info, source.GetPixels());
