@@ -220,6 +220,14 @@
                                 }
                             }
                         </p>
+                        @* How the all-time total splits: first builds, and rebuilds of an earlier project. *@
+                        @if (pulse is not null)
+                        {
+                            <p class="db-completed__split">
+                                <span><strong>@pulse.CompletedUniqueCount</strong> original</span>
+                                <span><strong>@pulse.CompletedRebuildCount</strong> rebuild</span>
+                            </p>
+                        }
                     </a>
                     @if (pulse is not null && pulse.ProliferationEligible > 0)
                     {
