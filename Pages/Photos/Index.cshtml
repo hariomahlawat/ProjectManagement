@@ -42,6 +42,8 @@
         Model.Year.HasValue
     }.Count(value => value);
     var showQuickFilters = !Model.IsAlbumsWorkspace && !Model.IsAlbumDetail;
+    // Type and source show as chips, so the "active filters" row lists only the others.
+    var hasListedFilters = !string.IsNullOrWhiteSpace(Model.Q) || moreFilterCount > 0 || Model.IsCollectionDetail;
     var galleryHeading = Model.IsPersonalPhotoProfile
         ? "My Photos"
         : Model.IsSinglePersonProfile
@@ -653,7 +655,7 @@
         </div>
     }
 
-    @if (hasFilters)
+    @if (hasFilters && hasListedFilters)
     {
         <div class="photos-active-filters">
             @if (!string.IsNullOrWhiteSpace(Model.Q)) { <span class="photos-filter-chip"><i class="bi bi-search"></i>@Model.Q</span> }
