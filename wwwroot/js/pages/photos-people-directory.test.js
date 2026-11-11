@@ -74,3 +74,13 @@ test('cancelling the selection clears it from navigation', () => {
     const next = new URL(document.querySelector('.people-pagination a').getAttribute('href'), 'http://localhost');
     assert.deepEqual(next.searchParams.getAll('SelectedIds'), []);
 });
+
+test('the People page uses the same slim bar and sections as Photos', () => {
+    const page = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/People/Index.cshtml'), 'utf8');
+    assert.match(page, /class="photos-bar" data-photos-bar/);
+    const sections = page.slice(page.indexOf('<nav class="photos-sections"'), page.indexOf('</nav>', page.indexOf('<nav class="photos-sections"')));
+    for (const label of ['>Photos<', '>Albums<', '>People<', '>Collections<']) assert.ok(sections.includes(label), label);
+    assert.match(page, /class="photos-search" role="search" data-people-search-form/);
+    assert.doesNotMatch(page, /people-primary-tabs|class="people-header"/);
+    assert.match(source, /--photos-bar-top/);
+});

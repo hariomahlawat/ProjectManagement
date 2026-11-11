@@ -4,6 +4,14 @@
     const workspace = document.querySelector('[data-people-directory]');
     if (!workspace) return;
 
+    // The slim bar sticks just below the application's top bar, whatever its height.
+    const topbar = document.querySelector('.pm-topbar');
+    if (topbar && workspace.querySelector('[data-photos-bar]')) {
+        const syncBarOffset = () => workspace.style.setProperty('--photos-bar-top', `${topbar.offsetHeight}px`);
+        syncBarOffset();
+        if ('ResizeObserver' in window) new ResizeObserver(syncBarOffset).observe(topbar);
+    }
+
     const searchForm = workspace.querySelector('[data-people-search-form]');
     const searchInput = workspace.querySelector('[data-people-search-input]');
     if (searchForm && searchInput) {
