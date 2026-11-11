@@ -46,3 +46,17 @@ service identity and grant that identity read/list access to the source folder.
 Scans are incremental and batched. A PostgreSQL lease prevents two PRISM instances from
 scanning the same source concurrently. The Photos browser retrieves a bounded external
 window for each page rather than imposing the prototype's former 1,000-item ceiling.
+
+## Storage outages
+
+If a source folder, NAS share or the PRISM upload volume is briefly unreachable, the
+processing worker treats the failure as temporary: the job is retried with back-off and
+the media stays visible in Photos. A file is recorded as missing only when its storage
+root is reachable and the file itself is absent. Jobs that exhaust their retries during a
+long outage are dead-lettered with a recoverable failure code, so **Retry recoverable
+jobs** picks them up once storage is back.
+
+When an external-folder scan finds and reads a file that was earlier recorded as missing, access-denied or
+temporarily unavailable, it is restored automatically. Media hidden by an outage before
+this behaviour shipped can be restored with **Recheck unavailable media** in
+`/Admin/MediaSources`.
