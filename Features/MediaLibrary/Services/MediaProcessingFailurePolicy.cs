@@ -25,6 +25,7 @@ public static class MediaProcessingFailurePolicy
         nameof(TimeoutException),
         nameof(UnauthorizedAccessException),
         nameof(MediaProcessingSupersededException),
+        nameof(MediaSourceStorageUnreachableException),
         "ExpiredWorkerLock",
         "WorkerStopping"
     };

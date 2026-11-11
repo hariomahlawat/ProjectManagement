@@ -360,6 +360,21 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             asset.Height = metadata.Height;
             asset.DurationSeconds = metadata.DurationSeconds;
             asset.IsAvailable = true;
+            if (asset.AvailabilityStatus is MediaAvailabilityStatus.SourceMissing
+                or MediaAvailabilityStatus.AccessDenied
+                or MediaAvailabilityStatus.TemporarilyUnavailable)
+            {
+                // The scan has just found and read this file, so a reachability failure
+                // recorded earlier (for example during a share outage) no longer applies.
+                // Content-level states (Corrupt, Unsupported) are left for processing to
+                // re-establish. Without this the asset stayed hidden from Photos even
+                // though IsAvailable was restored.
+                asset.AvailabilityStatus = MediaAvailabilityStatus.Available;
+                asset.UnavailableReason = null;
+                asset.UnavailableSinceUtc = null;
+                asset.LastAvailabilityCheckUtc = now;
+            }
+
             asset.IsDeleted = false;
             asset.LastSeenAtUtc = now;
             asset.LastSeenScanId = scanId;

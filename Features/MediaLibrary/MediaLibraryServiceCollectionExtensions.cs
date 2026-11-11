@@ -36,6 +36,7 @@ public static class MediaLibraryServiceCollectionExtensions
 
         services.AddSingleton<IFileSystemPathResolver, FileSystemPathResolver>();
         services.AddSingleton<IMediaCachePathResolver, MediaCachePathResolver>();
+        services.AddSingleton<IMediaStorageRootProbe, MediaStorageRootProbe>();
         services.AddSingleton<IMediaProcessingRuntimeState>(_ =>
         {
             var state = new MediaProcessingRuntimeState();
