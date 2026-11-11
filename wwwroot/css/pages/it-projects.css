@@ -44,10 +44,12 @@
     color: var(--pm-text-secondary);
 }
 
+/* The one place the whole spectrum appears on the board and on New IT project: a short rule
+   under the title, the Dashboard's size (owner, 11 Nov 2026). */
 .itp-rule {
     height: 3px;
-    width: 7.5rem;
-    border-radius: 3px;
+    width: 168px;
+    border-radius: 999px;
     margin-top: .65rem;
     background: linear-gradient(90deg, var(--pm-spec-1), var(--pm-spec-2), var(--pm-spec-3), var(--pm-spec-4), var(--pm-spec-5), var(--pm-spec-6));
 }
@@ -1048,11 +1050,6 @@
     color: var(--pm-text-strong);
 }
 
-.itp-board-head__lead {
-    margin: .3rem 0 0;
-    color: var(--pm-text-secondary);
-}
-
 .itp-board-head__actions {
     margin-left: auto;
     display: flex;
@@ -1117,7 +1114,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: .4rem;
-    margin: -.5rem 0 1.25rem;
+    margin: -.25rem 0 1.25rem;
     font-size: var(--pm-font-size-sm);
     color: var(--pm-text-secondary);
 }
@@ -1196,14 +1193,6 @@
     background: var(--pm-card);
     box-shadow: var(--pm-shadow-card);
     overflow: hidden;
-}
-
-.itp-pipe::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--pm-spec-1), var(--pm-spec-2), var(--pm-spec-3), var(--pm-spec-4), var(--pm-spec-5), var(--pm-spec-6));
 }
 
 .itp-pipe__top {
