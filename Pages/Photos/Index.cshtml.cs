@@ -1563,6 +1563,15 @@ public sealed partial class IndexModel : PageModel
         }
     }
 
+    // The heading over a group of collections: where the pictures were added in PRISM.
+    public static string CollectionGroupTitle(string? typeLabel)
+    {
+        var label = (typeLabel ?? string.Empty).Trim();
+        if (label.Length == 0) return "Other";
+        if (label.EndsWith("y", StringComparison.OrdinalIgnoreCase) && label.Length > 1) return label[..^1] + "ies";
+        return label.EndsWith("s", StringComparison.OrdinalIgnoreCase) ? label : label + "s";
+    }
+
     // What a day's pictures came from, for the day heading: up to two names, then "and N more".
     public static string DaySourceSummary(IReadOnlyCollection<MediaItem> items)
     {

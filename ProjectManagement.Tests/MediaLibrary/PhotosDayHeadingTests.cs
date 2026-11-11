@@ -26,6 +26,16 @@ public sealed class PhotosDayHeadingTests
     public void A_day_without_named_sources_still_has_a_label()
         => Assert.Equal("Photos", IndexModel.DaySourceSummary(new[] { Item(" ") }));
 
+    [Theory]
+    [InlineData("Project", "Projects")]
+    [InlineData("Visit", "Visits")]
+    [InlineData("Activity", "Activities")]
+    [InlineData("External folders", "External folders")]
+    [InlineData("", "Other")]
+    [InlineData(null, "Other")]
+    public void Collections_are_grouped_under_a_plural_heading(string? typeLabel, string expected)
+        => Assert.Equal(expected, IndexModel.CollectionGroupTitle(typeLabel));
+
     private static IndexModel.MediaItem Item(string context)
         => new()
         {

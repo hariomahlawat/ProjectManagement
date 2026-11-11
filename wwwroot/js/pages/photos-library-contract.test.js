@@ -72,3 +72,10 @@ test('a tick on a picture or beside a day starts selecting; the top bar holds th
     assert.match(libraryScript, /if \(!selecting && \(!onTick \|\| !isSelectable\(tile\)\)\) return;/);
     assert.match(libraryScript, /selected\.size === 0 && !startedByButton && !targetedCuration/);
 });
+
+test('albums start with a New album tile and collections are grouped by where they were added', () => {
+    assert.match(photosPage, /class="collection-card album-card album-card--new" data-bs-toggle="modal" data-bs-target="#createAlbumModal"/);
+    assert.match(photosPage, /Model\.Collections\.GroupBy\(collection => collection\.TypeLabel\)/);
+    assert.match(photosPage, /IndexModel\.CollectionGroupTitle\(collectionGroup\.Key\)/);
+    assert.doesNotMatch(photosPage, /Organisation-wide media albums/);
+});
