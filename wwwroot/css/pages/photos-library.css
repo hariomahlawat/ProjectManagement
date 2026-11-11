@@ -1162,3 +1162,10 @@
 .photos-day:hover .photos-day__select, .photos-day__select:focus-visible, .photos-library.is-selecting .photos-day__select { opacity:1; }
 .photos-day__select.is-selected { background:var(--pm-primary); border-color:var(--pm-primary); color:var(--pm-text-inverted); opacity:1; }
 .photos-tile.is-selected img { transform:scale(.9); }
+
+/* A blurred element becomes the frame its fixed children are placed against. On phones the
+   selection actions are a card fixed to the bottom of the screen, so the bar that holds them
+   must not blur there, or the card would sit on the bar and scroll away with it. */
+@media (max-width: 767.98px) {
+    .photos-bar { backdrop-filter:none; -webkit-backdrop-filter:none; background:var(--bs-body-bg); }
+}
