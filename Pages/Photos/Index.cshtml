@@ -33,6 +33,17 @@
         Model.Year.HasValue,
         Model.IsCollectionDetail
     }.Count(value => value);
+    // Type and source are chips under the bar; the drawer holds the less-used filters.
+    var moreFilterCount = new[]
+    {
+        Model.Classification != "all",
+        Model.ProjectId.HasValue,
+        showPeopleFilterChip,
+        Model.Year.HasValue
+    }.Count(value => value);
+    var showQuickFilters = !Model.IsAlbumsWorkspace && !Model.IsAlbumDetail;
+    // Type and source show as chips, so the "active filters" row lists only the others.
+    var hasListedFilters = !string.IsNullOrWhiteSpace(Model.Q) || moreFilterCount > 0 || Model.IsCollectionDetail;
     var galleryHeading = Model.IsPersonalPhotoProfile
         ? "My Photos"
         : Model.IsSinglePersonProfile
@@ -248,7 +259,7 @@
                 }
                 else
                 {
-                    <button class="photos-control" type="button" data-bs-toggle="offcanvas" data-bs-target="#photosFilters"><i class="bi bi-sliders2"></i><span>Filters</span>@if(activeFilterCount>0){<b>@activeFilterCount</b>}</button>
+                    <button class="photos-control" type="button" data-bs-toggle="offcanvas" data-bs-target="#photosFilters"><i class="bi bi-sliders2"></i><span>More filters</span>@if(moreFilterCount>0){<b>@moreFilterCount</b>}</button>
                 }
                 <div class="dropdown photos-sort">
                     <button class="photos-control" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Sort @(Model.IsAlbumsWorkspace ? "albums" : "media")">
@@ -261,11 +272,6 @@
                 </div>
                 @if (!Model.IsAlbumsWorkspace)
                 {
-                    <nav class="photos-segments" aria-label="Media type">
-                        <a class="@(Model.Kind == "all" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("all")">All</a>
-                        <a class="@(Model.Kind == "photo" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("photo")">Photos</a>
-                        <a class="@(Model.Kind == "video" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("video")">Videos</a>
-                    </nav>
                     @if (Model.IsPeopleGallery && Model.Groups.Count > 0)
                     {
                         <button type="button" class="photos-control photos-control--select" data-photos-select-toggle aria-pressed="false"><i class="bi bi-check2-circle"></i><span>Select</span></button>
@@ -379,6 +385,20 @@
         <div class="alert alert-warning photos-flash" role="status">@Model.AddMediaTargetWarning</div>
     }
 
+    <div class="photos-subbar">
+    @if (showQuickFilters)
+    {
+        <nav class="photos-chips" aria-label="Quick filters">
+            <a class="photos-chip @(Model.Kind == "all" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("all")" aria-current="@(Model.Kind == "all" ? "true" : null)">Everything</a>
+            <a class="photos-chip @(Model.Kind == "photo" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("photo")" aria-current="@(Model.Kind == "photo" ? "true" : null)">Photos</a>
+            <a class="photos-chip @(Model.Kind == "video" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("video")" aria-current="@(Model.Kind == "video" ? "true" : null)">Videos</a>
+            <span class="photos-chips__sep" aria-hidden="true"></span>
+            @foreach (var (sourceKey, sourceLabel) in Model.QuickSourceFilters)
+            {
+                <a class="photos-chip @(Model.Source == sourceKey ? "is-active" : null)" href="@Model.BuildSourceUrl(Model.Source == sourceKey ? "all" : sourceKey)" aria-current="@(Model.Source == sourceKey ? "true" : null)">@sourceLabel</a>
+            }
+        </nav>
+    }
     <div class="photos-summary">
         @if (Model.IsAlbumsWorkspace)
         {
@@ -408,6 +428,7 @@
             <span class="photos-summary__separator" aria-hidden="true">·</span>
             <span class="photos-summary__metric"><strong>@Model.Stats.Videos</strong> video@(Model.Stats.Videos == 1 ? "" : "s")</span>
         }
+    </div>
     </div>
 
     @if (Model.ShowPersonDiscovery && Model.IsSinglePersonProfile && personProfile is not null)
@@ -630,16 +651,14 @@
     {
         <div class="photos-catalogue-status" role="status">
             <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
-            <span><strong>@Model.SourceVisibleCount visible</strong> · @Model.CatalogueBackedCount fully processed · @Model.AwaitingCatalogueCount awaiting catalogue intelligence</span>
+            <span><strong>@Model.SourceVisibleCount visible</strong> · @Model.CatalogueBackedCount fully processed · @Model.AwaitingCatalogueCount still being processed</span>
         </div>
     }
 
-    @if (hasFilters)
+    @if (hasFilters && hasListedFilters)
     {
         <div class="photos-active-filters">
             @if (!string.IsNullOrWhiteSpace(Model.Q)) { <span class="photos-filter-chip"><i class="bi bi-search"></i>@Model.Q</span> }
-            @if (Model.Source != "all") { <span class="photos-filter-chip"><i class="bi bi-folder2"></i>@Model.Source</span> }
-            @if (Model.Kind != "all") { <span class="photos-filter-chip"><i class="bi bi-images"></i>@Model.Kind</span> }
             @if (Model.Classification != "all") { <span class="photos-filter-chip"><i class="bi bi-stars"></i>@Model.Classification.Replace("-", " ")</span> }
             @if (Model.ProjectId.HasValue) { <span class="photos-filter-chip"><i class="bi bi-folder"></i>@(Model.SelectedProjectName ?? $"Project {Model.ProjectId}")</span> }
             @if (Model.Year.HasValue) { <span class="photos-filter-chip"><i class="bi bi-calendar3"></i>@Model.Year</span> }
@@ -767,10 +786,17 @@
     else
     {
         <div class="photos-timeline">
+            @{ var currentMonth = string.Empty; }
             @foreach (var day in (Model.Sort == "oldest"
                 ? Model.Groups.GroupBy(group => group.Date.Date).OrderBy(group => group.Key)
                 : Model.Groups.GroupBy(group => group.Date.Date).OrderByDescending(group => group.Key)))
             {
+                var monthKey = day.Key.ToString("yyyyMM");
+                if (!Model.IsAlbumDetail && monthKey != currentMonth)
+                {
+                    currentMonth = monthKey;
+                    <h2 class="photos-month" id="month-@monthKey">@day.Key.ToString("MMMM yyyy")</h2>
+                }
                 var dayItems = Model.IsAlbumDetail
                     ? day.SelectMany(group => group.Items).ToList()
                     : (Model.Sort == "oldest"
@@ -779,7 +805,7 @@
                 <section class="photos-day @(Model.IsAlbumDetail ? "photos-day--album" : null)" aria-labelledby="day-@day.Key.ToString("yyyyMMdd")">
                     @if (!Model.IsAlbumDetail)
                     {
-                        <header class="photos-day__header"><h2 id="day-@day.Key.ToString("yyyyMMdd")">@day.Key.ToString("dd MMMM yyyy")</h2><span>@day.Key.ToString("dddd") · @dayItems.Count item@(dayItems.Count == 1 ? "" : "s")</span></header>
+                        <header class="photos-day__header"><h3 id="day-@day.Key.ToString("yyyyMMdd")">@day.Key.ToString("dddd d MMMM")</h3><span>@IndexModel.DaySourceSummary(dayItems) · @dayItems.Count item@(dayItems.Count == 1 ? "" : "s")</span></header>
                     }
                     <div class="photos-grid @(Model.OrganizeAlbum ? "photos-grid--organize" : null)" role="group" aria-label="@(Model.IsAlbumDetail ? $"Media in {Model.CurrentAlbum?.Name}" : $"Media for {day.Key:dd MMMM yyyy}")" data-album-sortable="@(Model.OrganizeAlbum ? "true" : null)">
                         @foreach (var item in dayItems)
@@ -908,7 +934,7 @@
 <div class="modal fade" id="createAlbumModal" tabindex="-1" aria-labelledby="createAlbumModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="Create" class="modal-content">
-            <div class="modal-header"><div><span class="photos-library__eyebrow">Organisation-wide curation</span><h2 class="modal-title fs-5" id="createAlbumModalTitle">Create album</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-header"><h2 class="modal-title fs-5" id="createAlbumModalTitle">Create album</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
             <div class="modal-body photos-album-form">
                 <input type="hidden" name="returnUrl" value="@Model.CurrentReturnUrl" />
                 <div><label class="form-label" for="createAlbumName">Album name</label><input class="form-control" id="createAlbumName" name="name" maxlength="160" required autocomplete="off" /></div>
@@ -925,7 +951,7 @@
 <div class="modal fade" id="addToAlbumModal" tabindex="-1" aria-labelledby="addToAlbumModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="AddItems" class="modal-content" data-selection-album-form>
-            <div class="modal-header"><div><span class="photos-library__eyebrow">Organisation-wide curation</span><h2 class="modal-title fs-5" id="addToAlbumModalTitle">Add selected media to album</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-header"><h2 class="modal-title fs-5" id="addToAlbumModalTitle">Add to album</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
             <div class="modal-body photos-album-form">
                 <input type="hidden" name="returnUrl" value="@Model.CurrentReturnUrl" />
                 @if (Model.ManageableAlbums.Count > 0)
@@ -967,7 +993,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="Update">
-                    <div class="modal-header"><div><span class="photos-library__eyebrow">Album governance</span><h2 class="modal-title fs-5" id="editAlbumModalTitle">Edit album</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                    <div class="modal-header"><h2 class="modal-title fs-5" id="editAlbumModalTitle">Edit album</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
                     <div class="modal-body photos-album-form">
                         <input type="hidden" name="albumId" value="@Model.CurrentAlbum.Id" /><input type="hidden" name="concurrencyToken" value="@Model.CurrentAlbum.ConcurrencyToken" /><input type="hidden" name="returnUrl" value="@Model.CurrentReturnUrl" />
                         <div><label class="form-label" for="editAlbumName">Album name</label><input class="form-control" id="editAlbumName" name="name" value="@Model.CurrentAlbum.Name" maxlength="160" required /></div>
@@ -998,11 +1024,11 @@
     <div class="modal fade" id="editCaptionModal" tabindex="-1" aria-labelledby="editCaptionModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <form method="post" asp-page="/Photos/Albums/Actions" asp-page-handler="UpdateCaption" class="modal-content" data-caption-form>
-                <div class="modal-header"><div><span class="photos-library__eyebrow">Media information</span><h2 class="modal-title fs-5" id="editCaptionModalTitle">Edit editorial caption</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                <div class="modal-header"><h2 class="modal-title fs-5" id="editCaptionModalTitle">Edit caption</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
                 <div class="modal-body photos-album-form">
                     <input type="hidden" name="assetId" data-caption-asset-id /><input type="hidden" name="concurrencyToken" data-caption-token /><input type="hidden" name="returnUrl" value="@Model.CurrentReturnUrl" />
                     <label class="form-label" for="editorialCaption">Caption</label><textarea class="form-control" id="editorialCaption" name="caption" maxlength="1024" rows="4" data-caption-value></textarea>
-                    <p class="photos-form-note"><i class="bi bi-shield-check"></i> This is an editorial Photos caption. It does not overwrite the title or caption in the owning Project, Visit, Activity or Event.</p>
+                    <p class="photos-form-note"><i class="bi bi-shield-check"></i> This caption is used in Photos only. It does not change the title or caption in the project, visit, activity or event.</p>
                 </div>
                 <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save caption</button></div>
             </form>
@@ -1021,8 +1047,7 @@
 <div class="offcanvas offcanvas-end photos-filters" tabindex="-1" id="photosFilters" aria-labelledby="photosFiltersTitle">
     <div class="offcanvas-header">
         <div>
-            <span class="photos-library__eyebrow">Refine library</span>
-            <h2 class="offcanvas-title" id="photosFiltersTitle">Filters</h2>
+            <h2 class="offcanvas-title" id="photosFiltersTitle">More filters</h2>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
@@ -1036,30 +1061,10 @@
             @if (Model.IsSinglePersonProfile && Model.FindMore) { <input type="hidden" name="FindMore" value="true" /> }
             @if (Model.Sort != "newest") { <input type="hidden" name="Sort" value="@Model.Sort" /> }
             @if (Model.IsCollectionDetail) { <input type="hidden" name="Collection" value="@Model.Collection" /> }
+            <input type="hidden" name="Source" value="@Model.Source" />
+            <input type="hidden" name="Kind" value="@Model.Kind" />
             <div>
-                <label for="sourceFilter">Source</label>
-                <select id="sourceFilter" name="Source" class="form-select">
-                    <option value="all" selected="@(Model.Source == "all")">All sources</option>
-                    <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
-                    <option value="visits" selected="@(Model.Source == "visits")">Visits to SDD</option>
-                    <option value="events" selected="@(Model.Source == "events")">Events</option>
-                    <option value="activities" selected="@(Model.Source == "activities")">Institutional activities</option>
-                    @if (Model.ExternalSourcesEnabled)
-                    {
-                        <option value="external" selected="@(Model.Source == "external")">External folders</option>
-                    }
-                </select>
-            </div>
-            <div>
-                <label for="kindFilter">Media type</label>
-                <select id="kindFilter" name="Kind" class="form-select">
-                    <option value="all" selected="@(Model.Kind == "all")">Photos and videos</option>
-                    <option value="photo" selected="@(Model.Kind == "photo")">Photos only</option>
-                    <option value="video" selected="@(Model.Kind == "video")">Videos only</option>
-                </select>
-            </div>
-            <div>
-                <label for="classificationFilter">Automatic classification</label>
+                <label for="classificationFilter">Kind of picture</label>
                 <select id="classificationFilter" name="Classification" class="form-select">
                     <option value="all" selected="@(Model.Classification == "all")">All classifications</option>
                     <option value="photograph" selected="@(Model.Classification == "photograph")">Photographs</option>
@@ -1070,7 +1075,7 @@
                     <option value="graphic" selected="@(Model.Classification == "graphic")">Graphics</option>
                     <option value="unknown" selected="@(Model.Classification == "unknown")">Not yet classified</option>
                 </select>
-                <small>Classification is deterministic, auditable and can be overridden by authorised administrators.</small>
+                <small>PRISM sorts pictures into these kinds automatically. An administrator can correct a wrong one.</small>
             </div>
             <div>
                 <label for="projectFilter">Project</label>
@@ -1153,7 +1158,7 @@
                 <button type="button" data-viewer-zoom-in title="Zoom in" aria-label="Zoom in"><i class="bi bi-plus-lg"></i></button>
                 <a href="#" data-viewer-original target="_blank" rel="noopener" title="Open original" aria-label="Open original"><i class="bi bi-arrows-fullscreen"></i></a>
                 <a href="#" data-viewer-download title="Download" aria-label="Download"><i class="bi bi-download"></i></a>
-                <button type="button" data-viewer-info aria-pressed="false" title="Show information" aria-label="Show information"><i class="bi bi-info-circle"></i></button>
+                <button type="button" data-viewer-info aria-pressed="false" title="Show details" aria-label="Show details"><i class="bi bi-info-circle"></i></button>
                 <button type="button" data-viewer-close title="Close" aria-label="Close"><i class="bi bi-x-lg"></i></button>
             </div>
         </header>
@@ -1163,7 +1168,7 @@
             <button type="button" class="photos-viewer__nav photos-viewer__nav--next" data-viewer-next aria-label="Next item"><i class="bi bi-chevron-right"></i></button>
         </main>
         <aside class="photos-viewer__info" data-viewer-info-panel aria-hidden="true">
-            <h2>Information</h2>
+            <h2>Details</h2>
             <dl>
                 <div><dt>Collection</dt><dd data-info-context></dd></div>
                 <div><dt>Date</dt><dd data-info-date></dd></div>

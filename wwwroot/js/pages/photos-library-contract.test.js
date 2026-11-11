@@ -32,3 +32,12 @@ test('one slim bar holds the four sections, search and controls', () => {
     assert.doesNotMatch(photosPage, /photos-primary-tabs|photos-collection-tabs|Unified organisational media/);
     assert.match(libraryScript, /--photos-bar-top/);
 });
+
+test('type and source are chips; the timeline has month and day headings', () => {
+    assert.match(photosPage, /class="photos-chips"/);
+    assert.match(photosPage, /Model\.BuildSourceUrl\(Model\.Source == sourceKey \? "all" : sourceKey\)/);
+    assert.doesNotMatch(photosPage, /photos-segments|id="sourceFilter"|id="kindFilter"/);
+    assert.match(photosPage, /<h2 class="photos-month" id="month-@monthKey">/);
+    assert.match(photosPage, /IndexModel\.DaySourceSummary\(dayItems\)/);
+    assert.match(pageModel, /targetSource is "all" or "projects" \? ProjectId : null/);
+});
