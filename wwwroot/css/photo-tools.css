@@ -876,14 +876,24 @@
 }
 
 @media (max-width: 575.98px) {
+    /* Short enough that the photo and the tools under it are on the screen together. */
     .phot-edit {
-        height: clamp(280px, 52vh, 460px);
+        height: clamp(240px, 44vh, 400px);
         padding: 16px;
     }
 
     .phot-edit__size {
         margin-left: 0;
         flex-basis: 100%;
+    }
+
+    /* Undo and Redo are icons here, so the three buttons fit on one row. */
+    .phot-stage__bar--tools {
+        gap: 0.5rem;
+    }
+
+    .phot-stage__bar--tools .btn {
+        min-width: 44px;
     }
 
     .phot-turns {
@@ -963,6 +973,11 @@
     .phot-cleanups .phot-toggle {
         flex-basis: auto;
     }
+
+    /* Stacked, the note is as tall as its words, not as tall as it was wide. */
+    .phot-cleanups .phot-hint {
+        flex: 0 0 auto;
+    }
 }
 
 /* ---------- Edit photo: mark up and blur ---------- */
@@ -1005,4 +1020,63 @@
 
 .phot-segment--start {
     align-self: flex-start;
+}
+
+/* ---------- Phones, Dark theme and keyboard ---------- */
+
+/* The grey outline button from Bootstrap is too faint on the Dark theme. */
+.phot .btn-outline-secondary {
+    --bs-btn-color: var(--bs-body-color);
+    --bs-btn-border-color: var(--bs-border-color);
+}
+
+/* The photo takes the keyboard while Mark up or Blur is open. */
+.phot-edit__photo:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+/* Everything pressed with a finger is at least 44px. */
+@media (max-width: 575.98px), (pointer: coarse) {
+    .phot .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        min-height: 44px;
+    }
+
+    .phot .form-select,
+    .phot .form-control,
+    .phot-chips button,
+    .phot-segment button {
+        min-height: 44px;
+    }
+
+    .phot-swatch {
+        width: 44px;
+        height: 44px;
+    }
+
+    .phot .form-check {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+    }
+
+    .phot .form-check-input {
+        flex: 0 0 auto;
+        margin-top: 0;
+    }
+
+    .phot .form-check-label {
+        padding-left: 0.5rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .phot-field .form-select,
+    .phot-field .form-control {
+        width: 100%;
+    }
 }
