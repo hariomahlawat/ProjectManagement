@@ -384,6 +384,16 @@ test('sharpenPixels and softenPixels leave flat areas alone and work on edges', 
   const calm = tools.softenPixels(speck.slice(), 5, 5);
   assert.ok(at(calm, 5, 2, 2)[0] < 200 && at(calm, 5, 2, 2)[0] > 50);
   assert.equal(calm[3], 255, 'alpha is untouched');
+
+  // A white shape on a see-through background keeps a clean edge: invisible pixels do not count.
+  const cutOut = new Uint8ClampedArray(5 * 5 * 4);
+  cutOut.set([255, 255, 255, 255], (2 * 5 + 2) * 4);
+  for (const change of [tools.softenPixels, tools.sharpenPixels]) {
+    const result = change(cutOut.slice(), 5, 5);
+    assert.deepEqual(at(result, 5, 2, 2), [255, 255, 255], `${change.name} leaves the lone white pixel white`);
+    assert.equal(result[(2 * 5 + 2) * 4 + 3], 255);
+    assert.equal(result[3], 0, 'the see-through part stays see-through');
+  }
 });
 
 test('evenLighting lifts the dark side and leaves an evenly lit photo alone', () => {

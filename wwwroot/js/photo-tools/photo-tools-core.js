@@ -521,18 +521,25 @@
     return pixels;
   }
 
-  /** A copy of RGBA pixels with each pixel averaged with its eight neighbours (alpha untouched). */
+  /**
+   * A copy of RGBA pixels with each pixel averaged with its eight neighbours (alpha untouched).
+   * Each neighbour counts by how solid it is, so the see-through part of a PNG or WEBP does not
+   * darken the edge of what is next to it.
+   */
   function blurredCopy(pixels, width, height) {
-    const across = new Uint8ClampedArray(pixels.length);
+    // Colour times alpha in the first three places, alpha in the fourth.
+    const across = new Float32Array(pixels.length);
     const output = new Uint8ClampedArray(pixels.length);
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const i = (y * width + x) * 4;
-        const left = (y * width + Math.max(0, x - 1)) * 4;
-        const right = (y * width + Math.min(width - 1, x + 1)) * 4;
-        across[i] = (pixels[left] + pixels[i] + pixels[right]) / 3;
-        across[i + 1] = (pixels[left + 1] + pixels[i + 1] + pixels[right + 1]) / 3;
-        across[i + 2] = (pixels[left + 2] + pixels[i + 2] + pixels[right + 2]) / 3;
+        for (const j of [(y * width + Math.max(0, x - 1)) * 4, i, (y * width + Math.min(width - 1, x + 1)) * 4]) {
+          const alpha = pixels[j + 3];
+          across[i] += pixels[j] * alpha;
+          across[i + 1] += pixels[j + 1] * alpha;
+          across[i + 2] += pixels[j + 2] * alpha;
+          across[i + 3] += alpha;
+        }
       }
     }
     for (let y = 0; y < height; y += 1) {
@@ -542,10 +549,17 @@
         const i = (y * width + x) * 4;
         const above = (up + x) * 4;
         const below = (down + x) * 4;
-        output[i] = (across[above] + across[i] + across[below]) / 3;
-        output[i + 1] = (across[above + 1] + across[i + 1] + across[below + 1]) / 3;
-        output[i + 2] = (across[above + 2] + across[i + 2] + across[below + 2]) / 3;
+        const weight = across[above + 3] + across[i + 3] + across[below + 3];
         output[i + 3] = pixels[i + 3];
+        if (weight > 0) {
+          output[i] = (across[above] + across[i] + across[below]) / weight;
+          output[i + 1] = (across[above + 1] + across[i + 1] + across[below + 1]) / weight;
+          output[i + 2] = (across[above + 2] + across[i + 2] + across[below + 2]) / weight;
+        } else {
+          output[i] = pixels[i];
+          output[i + 1] = pixels[i + 1];
+          output[i + 2] = pixels[i + 2];
+        }
       }
     }
     return output;
