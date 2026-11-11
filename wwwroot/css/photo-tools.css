@@ -836,10 +836,11 @@
 
 .phot-segment--full {
     display: flex;
+    flex-wrap: wrap;
 }
 
 .phot-segment--full button {
-    flex: 1 1 0;
+    flex: 1 1 30%;
     padding: 0 0.4rem;
     white-space: nowrap;
 }
@@ -891,14 +892,6 @@
 }
 
 /* ---------- Edit photo: clean up, adjust, filters ---------- */
-
-.phot-segment--full {
-    flex-wrap: wrap;
-}
-
-.phot-segment--full button {
-    flex: 1 1 30%;
-}
 
 .phot-cleanups {
     display: flex;
