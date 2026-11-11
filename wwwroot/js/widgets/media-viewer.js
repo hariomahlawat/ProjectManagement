@@ -157,6 +157,8 @@
 
             setZoom(1);
             mediaHost.replaceChildren();
+            // A video keeps a scrolling stage: zoomed in, its own controls must stay reachable.
+            mediaHost.classList.toggle('has-video', item.kind === 'video');
 
             if (item.kind === 'video') {
                 const video = doc.createElement('video');
@@ -410,11 +412,17 @@
             }
         });
         const endPointer = (event) => {
+            const wasPinching = pinch !== null;
             pointers.delete(event.pointerId);
             if (pointers.size < 2) pinch = null;
             if (pointers.size === 0) {
                 dragOrigin = null;
                 mediaHost.classList.remove('is-panning');
+            } else if (wasPinching && pointers.size === 1 && zoom > 1) {
+                // A pinch that ends with one finger still down carries on as a drag.
+                const [remaining] = [...pointers.values()];
+                dragOrigin = { x: remaining.x - pan.x, y: remaining.y - pan.y };
+                mediaHost.classList.add('is-panning');
             }
         };
         ['pointerup', 'pointercancel', 'pointerleave'].forEach((name) => mediaHost.addEventListener(name, endPointer));
