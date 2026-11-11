@@ -611,6 +611,14 @@
         <button type="button" class="btn btn-sm btn-primary" data-library-refresh>Refresh</button>
     </div>
 
+    @if (!string.IsNullOrWhiteSpace(Model.PeopleFilterNotice))
+    {
+        <div class="photos-library-warning" role="status">
+            <i class="bi bi-person-exclamation" aria-hidden="true"></i>
+            <span>@Model.PeopleFilterNotice</span>
+        </div>
+    }
+
     @if (!string.IsNullOrWhiteSpace(Model.ExternalLibraryWarning))
     {
         <div class="photos-library-warning" role="status">

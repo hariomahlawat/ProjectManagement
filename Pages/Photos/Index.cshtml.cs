@@ -129,6 +129,12 @@ public sealed partial class IndexModel : PageModel
     public bool MatchAllSelectedPeople => !string.Equals(PeopleMatch, "any", StringComparison.OrdinalIgnoreCase);
     public bool ExternalLibraryAvailable { get; private set; } = true;
     public string? ExternalLibraryWarning { get; private set; }
+
+    /// <summary>
+    /// Explains a people filter that no longer matches everyone requested, for example a
+    /// bookmarked link to a person who has since been hidden or merged.
+    /// </summary>
+    public string? PeopleFilterNotice { get; private set; }
     public bool IsUsingCatalogue { get; private set; }
     public bool CatalogueCatchUpPending { get; private set; }
     public int SourceVisibleCount { get; private set; }
@@ -166,7 +172,25 @@ public sealed partial class IndexModel : PageModel
         }
 
         NormalizeRequest();
-        await LoadSelectedPeopleAsync(cancellationToken);
+        var requestedPeopleCount = PeopleFeatureEnabled ? PersonIds.Length : 0;
+        var selectedPeopleResolved = await LoadSelectedPeopleAsync(cancellationToken);
+        var requestedPeopleUnavailable = selectedPeopleResolved
+                                         && requestedPeopleCount > 0
+                                         && PersonIds.Length == 0;
+        if (requestedPeopleUnavailable)
+        {
+            PeopleFilterNotice = requestedPeopleCount == 1
+                ? "The person in this link is no longer available in Photos. No other photographs have been substituted."
+                : "The people in this link are no longer available in Photos. No other photographs have been substituted.";
+        }
+        else if (selectedPeopleResolved && requestedPeopleCount > 0 && PersonIds.Length < requestedPeopleCount)
+        {
+            var removed = requestedPeopleCount - PersonIds.Length;
+            PeopleFilterNotice = removed == 1
+                ? "One person in this link is no longer available in Photos and was removed from the filter."
+                : $"{removed} people in this link are no longer available in Photos and were removed from the filter.";
+        }
+
         await LoadPersonPhotoProfileAsync(cancellationToken);
         await LoadAddMediaTargetAsync(cancellationToken);
 
@@ -175,6 +199,17 @@ public sealed partial class IndexModel : PageModel
         SourceVisibleCount = sourceSnapshot.TotalCount;
         CatalogueBackedCount = catalogueFreshness.IndexedAssetCount;
         LibraryRevision = BuildLibraryRevision(sourceSnapshot, catalogueFreshness);
+
+        if (requestedPeopleUnavailable && !IsAlbumsWorkspace && !IsAlbumDetail)
+        {
+            // Never widen a people filter to the whole library: the link names people who
+            // are no longer available, so show nothing rather than unrelated photographs.
+            Items = Array.Empty<MediaItem>();
+            Groups = Array.Empty<MediaGroup>();
+            Collections = Array.Empty<CollectionCard>();
+            Stats = new LibraryStats();
+            return;
+        }
 
         if (IsAlbumsWorkspace)
         {
@@ -552,12 +587,17 @@ public sealed partial class IndexModel : PageModel
         }
     }
 
-    private async Task LoadSelectedPeopleAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Loads the selected people and narrows <see cref="PersonIds"/> to those still
+    /// available. Returns false when the lookup itself failed, so callers do not mistake
+    /// an outage for people having been removed.
+    /// </summary>
+    private async Task<bool> LoadSelectedPeopleAsync(CancellationToken cancellationToken)
     {
         if (!PeopleFeatureEnabled || PersonIds.Length == 0)
         {
             SelectedPeople = Array.Empty<PersonOption>();
-            return;
+            return true;
         }
 
         try
@@ -593,6 +633,8 @@ public sealed partial class IndexModel : PageModel
             {
                 PeopleMatch = "all";
             }
+
+            return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -602,6 +644,7 @@ public sealed partial class IndexModel : PageModel
         {
             _logger.LogWarning(exception, "Unable to load the selected people gallery header.");
             SelectedPeople = Array.Empty<PersonOption>();
+            return false;
         }
     }
 
@@ -806,7 +849,10 @@ public sealed partial class IndexModel : PageModel
         PageNumber = result.PageNumber;
         HasPreviousPage = result.HasPreviousPage;
         HasNextPage = result.HasNextPage;
-        Collections = result.Collections.Select(MapCollection).ToList();
+        var coverVersions = await LoadCoverCacheVersionsAsync(
+            result.Collections.Select(collection => collection.CoverAssetId),
+            cancellationToken);
+        Collections = result.Collections.Select(row => MapCollection(row, coverVersions)).ToList();
         Stats = new LibraryStats
         {
             Total = result.TotalItems,
@@ -816,11 +862,55 @@ public sealed partial class IndexModel : PageModel
         };
     }
 
-    private CollectionCard MapCollection(MediaCollectionSummary row)
+    /// <summary>
+    /// Cover thumbnails are cached by the browser like timeline tiles, so their URLs carry
+    /// the asset's cache version; a replaced cover then loads fresh instead of showing the
+    /// old image until the browser cache expires. One batched read per page.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<long, int>> LoadCoverCacheVersionsAsync(
+        IEnumerable<long?> coverAssetIds,
+        CancellationToken cancellationToken)
     {
-        var coverUrl = row.CoverAssetId.HasValue
-            ? Url.Page("/Photos/Media", new { id = row.CoverAssetId.Value, variant = "thumb" })
-            : null;
+        var ids = coverAssetIds
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<long, int>();
+        }
+
+        try
+        {
+            return await _mediaDb.Assets
+                .AsNoTracking()
+                .Where(asset => ids.Contains(asset.Id))
+                .Select(asset => new { asset.Id, asset.CacheVersion })
+                .ToDictionaryAsync(asset => asset.Id, asset => asset.CacheVersion, cancellationToken);
+        }
+        catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
+        {
+            _logger.LogDebug(ex, "Cover cache versions could not be read; cover URLs are unversioned.");
+            return new Dictionary<long, int>();
+        }
+    }
+
+    private string? BuildCoverUrl(long? coverAssetId, IReadOnlyDictionary<long, int> coverVersions)
+    {
+        if (!coverAssetId.HasValue)
+        {
+            return null;
+        }
+
+        return coverVersions.TryGetValue(coverAssetId.Value, out var version)
+            ? Url.Page("/Photos/Media", new { id = coverAssetId.Value, variant = "thumb", v = version })
+            : Url.Page("/Photos/Media", new { id = coverAssetId.Value, variant = "thumb" });
+    }
+
+    private CollectionCard MapCollection(MediaCollectionSummary row, IReadOnlyDictionary<long, int> coverVersions)
+    {
+        var coverUrl = BuildCoverUrl(row.CoverAssetId, coverVersions);
 
         return new CollectionCard(
             row.CollectionKey,
@@ -1177,7 +1267,7 @@ public sealed partial class IndexModel : PageModel
                 ContextTitle = row.ProjectName, ContextSubtitle = "Project media",
                 Title = string.IsNullOrWhiteSpace(row.Caption) ? row.OriginalFileName : row.Caption,
                 Caption = row.Caption, OriginalFileName = row.OriginalFileName,
-                MediaDate = DateTime.SpecifyKind(row.CreatedUtc, DateTimeKind.Utc),
+                MediaDate = DateTime.SpecifyKind(row.CreatedUtc, DateTimeKind.Utc).ToLocalTime(),
                 ThumbnailUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "md", v = row.Version }) ?? display,
                 DisplayUrl = display,
                 OriginalUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "original", v = row.Version }) ?? display,
@@ -1211,7 +1301,7 @@ public sealed partial class IndexModel : PageModel
             ContextTitle = row.ProjectName, ContextSubtitle = "Project media",
             Title = string.IsNullOrWhiteSpace(row.Title) ? row.OriginalFileName : row.Title,
             Caption = row.Description, OriginalFileName = row.OriginalFileName,
-            MediaDate = DateTime.SpecifyKind(row.CreatedUtc, DateTimeKind.Utc),
+            MediaDate = DateTime.SpecifyKind(row.CreatedUtc, DateTimeKind.Utc).ToLocalTime(),
             ThumbnailUrl = Url.Page("/Projects/Videos/Poster", new { id = row.ProjectId, videoId = row.Id, v = row.Version }) ?? string.Empty,
             DisplayUrl = Url.Page("/Projects/Videos/Stream", new { id = row.ProjectId, videoId = row.Id, v = row.Version }) ?? string.Empty,
             OriginalUrl = Url.Page("/Projects/Videos/Stream", new { id = row.ProjectId, videoId = row.Id, v = row.Version }) ?? string.Empty,

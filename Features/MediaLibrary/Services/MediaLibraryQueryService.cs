@@ -124,7 +124,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                         || (asset.RelativePath != null && EF.Functions.ILike(asset.RelativePath, pattern, "\\"))
                         || asset.AlbumItems.Any(item => !item.MediaAlbum.IsArchived
                             && EF.Functions.ILike(item.MediaAlbum.Name, pattern, "\\"))
-                        || asset.Faces.Any(face => face.PersonAssignments.Any(assignment =>
+                        || asset.Faces.Any(face => !face.IsSuppressed && face.PersonAssignments.Any(assignment =>
                             assignment.RemovedAtUtc == null
                             && assignment.MediaPerson.Status == MediaPersonStatus.Confirmed
                             && !assignment.MediaPerson.IsHidden
