@@ -41,6 +41,7 @@ public sealed partial class IndexModel : PageModel
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
     private readonly MediaLibraryOptions _mediaOptions;
     private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
@@ -55,8 +56,10 @@ public sealed partial class IndexModel : PageModel
         IPrismMediaSourceSnapshotService sourceSnapshot,
         IOptions<MediaLibraryOptions> mediaOptions,
         IProtectedFileUrlBuilder fileUrlBuilder,
+        IMediaAssetVisibilityPolicy visibility,
         ILogger<IndexModel> logger)
     {
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
         _library = library ?? throw new ArgumentNullException(nameof(library));
@@ -603,6 +606,9 @@ public sealed partial class IndexModel : PageModel
         try
         {
             var selectedIds = PersonIds;
+            var visibleAssetIds = _visibility
+                .Apply(_mediaDb.Assets.AsNoTracking())
+                .Select(asset => asset.Id);
             var rows = await _mediaDb.Persons
                 .AsNoTracking()
                 .Where(person => selectedIds.Contains(person.Id)
@@ -611,12 +617,12 @@ public sealed partial class IndexModel : PageModel
                 .Select(person => new PersonOption(
                     person.Id,
                     person.DisplayName,
+                    // Same definition as the People directory and the person gallery,
+                    // including the source rules (enabled, visible) of the visibility policy.
                     person.FaceAssignments
                         .Where(assignment => assignment.RemovedAtUtc == null
                                              && !assignment.MediaFace.IsSuppressed
-                                             && assignment.MediaFace.MediaAsset.IsAvailable
-                                             && !assignment.MediaFace.MediaAsset.IsDeleted
-                                             && !assignment.MediaFace.MediaAsset.IsArchived)
+                                             && visibleAssetIds.Contains(assignment.MediaFace.MediaAssetId))
                         .Select(assignment => assignment.MediaFace.MediaAssetId)
                         .Distinct()
                         .Count(),
