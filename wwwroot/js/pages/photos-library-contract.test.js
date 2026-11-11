@@ -24,3 +24,11 @@ test('timeline tiles carry no cover or people badges', () => {
     assert.doesNotMatch(photosPage, /photos-tile__cover/);
     assert.doesNotMatch(photosPage, /photos-tile__people/);
 });
+
+test('one slim bar holds the four sections, search and controls', () => {
+    assert.match(photosPage, /class="photos-bar" data-photos-bar/);
+    const sections = photosPage.slice(photosPage.indexOf('<nav class="photos-sections"'), photosPage.indexOf('</nav>', photosPage.indexOf('<nav class="photos-sections"')));
+    for (const label of ['>Photos<', '>Albums<', '>People<', '>Collections<']) assert.ok(sections.includes(label), label);
+    assert.doesNotMatch(photosPage, /photos-primary-tabs|photos-collection-tabs|Unified organisational media/);
+    assert.match(libraryScript, /--photos-bar-top/);
+});

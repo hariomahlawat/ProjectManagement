@@ -7,6 +7,14 @@
 
     const tiles = Array.from(root.querySelectorAll('[data-media-item]'));
 
+    // The slim bar sticks just below the application's top bar, whatever its height.
+    const topbar = document.querySelector('.pm-topbar');
+    if (topbar && root.querySelector('[data-photos-bar]')) {
+        const syncBarOffset = () => root.style.setProperty('--photos-bar-top', `${topbar.offsetHeight}px`);
+        syncBarOffset();
+        if ('ResizeObserver' in window) new ResizeObserver(syncBarOffset).observe(topbar);
+    }
+
     // Keep an open Photos page current without making catalogue discovery depend on
     // navigation. The background worker discovers PRISM-owned media; this lightweight
     // check only refreshes the UI after the rendered result set changes.

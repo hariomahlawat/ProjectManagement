@@ -22,6 +22,7 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'pages', 'it-projects-create.test.js'),
   path.join('wwwroot', 'js', 'pages', 'photos-people-directory.test.js'),
   path.join('wwwroot', 'js', 'pages', 'photos-curation-contract.test.js'),
+  path.join('wwwroot', 'js', 'pages', 'photos-library-contract.test.js'),
   path.join('wwwroot', 'js', 'pages', 'photos-person-linkage-contract.test.js'),
   path.join('wwwroot', 'js', 'pages', 'photos-person-profile-contract.test.js'),
   path.join('wwwroot', 'js', 'calendar.test.js'),

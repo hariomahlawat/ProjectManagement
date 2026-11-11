@@ -1166,3 +1166,25 @@
 :where([data-bs-theme="dark"]) .photos-collection-context span {
     border-left: 1px solid #2c3035;
 }
+
+/* One slim bar: sections, search and controls. It replaces the page header, the tab row and
+   the search card, so pictures start directly under it. Theme tokens only. */
+.photos-bar { align-items:center; background:color-mix(in srgb, var(--bs-body-bg) 88%, transparent); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:flex; flex-wrap:wrap; gap:.5rem .75rem; margin:0 0 .35rem; padding:.55rem 0; position:sticky; top:var(--photos-bar-top, 3.5rem); z-index:20; }
+.photos-sections { background:var(--pm-surface-muted); border-radius:.7rem; display:flex; gap:.125rem; padding:.2rem; }
+.photos-sections a { border-radius:.55rem; color:var(--pm-text-muted); font-size:.82rem; font-weight:700; padding:.42rem .85rem; text-decoration:none; white-space:nowrap; }
+.photos-sections a:hover { color:var(--pm-text); }
+.photos-sections a.is-active { background:var(--pm-card); box-shadow:var(--pm-shadow-card); color:var(--pm-text); }
+.photos-bar .photos-search { background:var(--pm-card); border:1px solid var(--pm-border); border-radius:999px; flex:1 1 16rem; max-width:34rem; min-width:12rem; padding:0 .85rem; }
+.photos-bar .photos-search:focus-within { border-color:var(--pm-primary); }
+.photos-bar .photos-search input { min-height:2.3rem; padding-left:0; padding-right:0; }
+.photos-bar .photos-toolbar__controls { margin-left:auto; }
+.photos-bar .photos-action { min-height:2.3rem; }
+.photos-library > .photos-summary { margin-top:0; }
+
+@media (max-width: 640px) {
+    .photos-bar { position:static; }
+    .photos-sections { overflow-x:auto; width:100%; }
+    .photos-sections a { flex:1; text-align:center; }
+    .photos-bar .photos-search { border-bottom:1px solid var(--pm-border); flex-basis:100%; max-width:none; }
+    .photos-bar .photos-toolbar__controls { flex-wrap:wrap; margin-left:0; }
+}

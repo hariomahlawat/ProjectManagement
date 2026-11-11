@@ -37,8 +37,9 @@
 
     <nav class="people-primary-tabs" aria-label="Photos sections">
         <a asp-page="/Photos/Index" asp-route-View="photos">Photos</a>
-        <a asp-page="/Photos/Index" asp-route-View="collections">Collections</a>
+        <a asp-page="/Photos/Index" asp-route-View="collections" asp-route-CollectionTab="albums">Albums</a>
         <a class="is-active" asp-page="./Index">People</a>
+        <a asp-page="/Photos/Index" asp-route-View="collections" asp-route-CollectionTab="source">Collections</a>
     </nav>
 
     @if (!Model.FeatureEnabled)
