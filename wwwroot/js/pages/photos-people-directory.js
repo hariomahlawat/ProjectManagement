@@ -34,6 +34,51 @@
     const selected = () => selections.filter(input => input.checked);
     const selectedCount = () => selected().length + persistedSelections.length;
 
+    // SECTION: Keep the selection across search, sort and paging
+    // Ticked people live only in this page's checkboxes. Searching, sorting or changing
+    // page reloads the directory, so write the current selection into those forms and
+    // links; the server renders it back (off-page selections as persisted inputs).
+    const navigationForms = [searchForm, workspace.querySelector('.people-sort')].filter(Boolean);
+    const pageLinks = [...workspace.querySelectorAll('.people-pagination a[href]')];
+
+    function selectedIds() {
+        return [...selected(), ...persistedSelections].map(input => input.value);
+    }
+
+    function syncSelectionIntoNavigation() {
+        const ids = selectedIds();
+        const match = ids.length > 1 ? (matchValue?.value === 'any' ? 'any' : 'all') : null;
+
+        navigationForms.forEach(form => {
+            form.querySelectorAll('input[type="hidden"][name="SelectedIds"], input[type="hidden"][name="PeopleMatch"]')
+                .forEach(input => input.remove());
+            ids.forEach(id => {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'SelectedIds';
+                hidden.value = id;
+                form.appendChild(hidden);
+            });
+            if (match) {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'PeopleMatch';
+                hidden.value = match;
+                form.appendChild(hidden);
+            }
+        });
+
+        pageLinks.forEach(link => {
+            const url = new URL(link.getAttribute('href'), window.location.href);
+            [...url.searchParams.keys()]
+                .filter(key => key === 'SelectedIds' || /^SelectedIds\[\d+\]$/.test(key) || key === 'PeopleMatch')
+                .forEach(key => url.searchParams.delete(key));
+            ids.forEach(id => url.searchParams.append('SelectedIds', id));
+            if (match) url.searchParams.set('PeopleMatch', match);
+            link.setAttribute('href', `${url.pathname}${url.search}${url.hash}`);
+        });
+    }
+
     function setCardState(input) {
         const card = input.closest('[data-person-card]');
         card?.classList.toggle('is-selected', input.checked);
@@ -66,6 +111,8 @@
         matchButtons.forEach(button => {
             button.disabled = totalChosen < 2;
         });
+
+        syncSelectionIntoNavigation();
     }
 
     function enterSelectionMode() {

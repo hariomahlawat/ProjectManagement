@@ -33,6 +33,26 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
         Assert.Contains("NOT EXISTS", sql.ToUpperInvariant());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Collection_representative_rows_are_chosen_in_the_database(bool coverOnly)
+    {
+        using var db = CreateContext();
+
+        var sql = MediaCollectionQueryService.BuildRepresentativeIdsQuery(
+                db.Assets,
+                new[] { "project:1", "external:nas:root" },
+                coverOnly)
+            .ToQueryString()
+            .ToUpperInvariant();
+
+        // One id per collection, chosen in the database (grouped, with a LIMIT 1 pick per
+        // group), not every asset of each listed collection.
+        Assert.Contains("GROUP BY", sql);
+        Assert.Contains("LIMIT 1", sql);
+    }
+
     [Fact]
     public void Recently_seen_sort_places_people_without_photos_last()
     {

@@ -55,8 +55,9 @@ public sealed class PersonPhotoDiscoveryQueryService : IPersonPhotoDiscoveryQuer
             where assignment.MediaPersonId == personId
                   && assignment.RemovedAtUtc == null
                   && !face.IsSuppressed
-                  && asset.Kind == MediaAssetKind.Photo
                   && visibleAssetIds.Contains(asset.Id)
+            // Same definition as the People directory and the person gallery, which list
+            // every kind of media in which the person was confirmed.
             select new { asset.Id, asset.MediaDateUtc };
 
         var confirmedPhotoCount = await confirmedRows.Select(row => row.Id).Distinct().CountAsync(cancellationToken);

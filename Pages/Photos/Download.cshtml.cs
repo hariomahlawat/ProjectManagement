@@ -68,6 +68,10 @@ public sealed class DownloadModel : PageModel
                     => NotFound(message),
                 MediaBulkDownloadFailureReason.SourceReadFailed
                     => StatusCode(StatusCodes.Status409Conflict, message),
+                MediaBulkDownloadFailureReason.Busy
+                    => StatusCode(StatusCodes.Status429TooManyRequests, message),
+                MediaBulkDownloadFailureReason.InsufficientStorage
+                    => StatusCode(StatusCodes.Status507InsufficientStorage, message),
                 _ => StatusCode(StatusCodes.Status500InternalServerError, message)
             };
         }

@@ -76,3 +76,17 @@ image brought the process down, is moved to dead-letter with the failure code
 failure: neither **Retry recoverable jobs** nor catalogue synchronisation runs it again
 (unless the file itself changes). Check the source file, then use **Force retry** on the
 job.
+
+## Photos ZIP downloads
+
+Each selection download is built as a temporary archive on the media cache volume, which
+derivatives and face crops also use. Builds are limited per application instance:
+
+- `MediaLibrary:BulkDownload:MaxConcurrentArchives` (default 2): archives built at once.
+  Each user may build one archive at a time; another request is refused with "Another ZIP
+  is being prepared" (HTTP 429).
+- `MediaLibrary:BulkDownload:MinimumFreeSpaceBytes` (default 1 GB): free space that must
+  remain after the archive is written. A request that would leave less is refused
+  (HTTP 507) instead of filling the volume.
+
+`MaxItems` and `MaxSourceBytes` continue to cap the size of one archive.

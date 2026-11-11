@@ -27,6 +27,7 @@ public sealed class MediaBulkDownloadService : IMediaBulkDownloadService
     private readonly IMediaCachePathResolver _cachePaths;
     private readonly MediaBulkDownloadOptions _options;
     private readonly ILogger<MediaBulkDownloadService> _logger;
+    private readonly MediaBulkDownloadThrottle _throttle;
 
     public MediaBulkDownloadService(
         MediaLibraryDbContext db,
@@ -34,8 +35,10 @@ public sealed class MediaBulkDownloadService : IMediaBulkDownloadService
         IMediaContentProviderResolver contentResolver,
         IMediaCachePathResolver cachePaths,
         IOptions<MediaLibraryOptions> options,
-        ILogger<MediaBulkDownloadService> logger)
+        ILogger<MediaBulkDownloadService> logger,
+        MediaBulkDownloadThrottle? throttle = null)
     {
+        _throttle = throttle ?? MediaBulkDownloadThrottle.Shared;
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _contentResolver = contentResolver ?? throw new ArgumentNullException(nameof(contentResolver));
@@ -160,9 +163,35 @@ public sealed class MediaBulkDownloadService : IMediaBulkDownloadService
                 skippedCount: assets.Count);
         }
 
+        if (!_throttle.TryEnter(requestedByUserId, out var buildLease))
+        {
+            return Failure(
+                MediaBulkDownloadFailureReason.Busy,
+                "Another ZIP is being prepared. Wait for it to finish, then try again.",
+                requestedByUserId,
+                stopwatch,
+                requestedIds.Length,
+                assets.Count,
+                sourceBytes: knownSourceBytes);
+        }
+
+        using var buildLeaseScope = buildLease;
+
         var temporaryDirectory = Path.Combine(_cachePaths.CacheRoot, "bulk-downloads");
         Directory.CreateDirectory(temporaryDirectory);
         CleanupAbandonedArchives(temporaryDirectory);
+
+        if (!HasRoomForArchive(temporaryDirectory, knownSourceBytes))
+        {
+            return Failure(
+                MediaBulkDownloadFailureReason.InsufficientStorage,
+                "The server does not have enough free space to prepare this ZIP right now. Select fewer items or try again later.",
+                requestedByUserId,
+                stopwatch,
+                requestedIds.Length,
+                assets.Count,
+                sourceBytes: knownSourceBytes);
+        }
         var temporaryPath = Path.Combine(
             temporaryDirectory,
             $"bulk-{Guid.NewGuid():N}.zip.partial");
@@ -544,6 +573,82 @@ public sealed class MediaBulkDownloadService : IMediaBulkDownloadService
         var stem = Path.GetFileNameWithoutExtension(candidate);
         var stemLength = Math.Max(1, maximumLength - extension.Length);
         return stem[..Math.Min(stem.Length, stemLength)] + extension;
+    }
+
+    /// <summary>
+    /// True when writing an archive of about <paramref name="expectedBytes"/> would still
+    /// leave the configured free space on the cache volume. If free space cannot be read
+    /// (for example an unusual mount), the request is allowed, as before.
+    /// </summary>
+    private bool HasRoomForArchive(string temporaryDirectory, long expectedBytes)
+    {
+        try
+        {
+            var volume = FindVolume(Path.GetFullPath(temporaryDirectory));
+            if (volume is null)
+            {
+                return true;
+            }
+
+            var available = volume.AvailableFreeSpace;
+            return available - Math.Max(0L, expectedBytes) >= Math.Max(0L, _options.MinimumFreeSpaceBytes);
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or ArgumentException)
+        {
+            _logger.LogDebug(exception, "Free space on the media cache volume could not be read.");
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// The mounted volume that contains <paramref name="fullPath"/>: the ready drive with
+    /// the longest root that prefixes it. Path.GetPathRoot alone gives "/" on Linux, which
+    /// is the wrong filesystem when the cache sits on its own mount or container volume.
+    /// </summary>
+    internal static DriveInfo? FindVolume(string fullPath)
+    {
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        DriveInfo? best = null;
+        var bestLength = -1;
+        foreach (var drive in DriveInfo.GetDrives())
+        {
+            string root;
+            try
+            {
+                if (!drive.IsReady)
+                {
+                    continue;
+                }
+
+                root = drive.RootDirectory.FullName;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
+            var matches = fullPath.StartsWith(prefix, comparison)
+                          || string.Equals(fullPath.TrimEnd(Path.DirectorySeparatorChar), root.TrimEnd(Path.DirectorySeparatorChar), comparison);
+            if (matches && root.Length > bestLength)
+            {
+                best = drive;
+                bestLength = root.Length;
+            }
+        }
+
+        if (best is not null)
+        {
+            return best;
+        }
+
+        // Paths not under any listed mount (for example a UNC share) keep the old behaviour.
+        var pathRoot = Path.GetPathRoot(fullPath);
+        return string.IsNullOrWhiteSpace(pathRoot) ? null : new DriveInfo(pathRoot);
     }
 
     private void CleanupAbandonedArchives(string temporaryDirectory)

@@ -385,8 +385,11 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                     .Select(person => new MediaLibraryPersonOption(
                         person.Id,
                         person.DisplayName,
+                        // Same definition as the People directory and the person gallery:
+                        // visible assets with an active assignment on a non-suppressed face.
                         person.FaceAssignments
                             .Where(assignment => assignment.RemovedAtUtc == null
+                                                 && !assignment.MediaFace.IsSuppressed
                                                  && visiblePeopleAssetIds.Contains(assignment.MediaFace.MediaAssetId))
                             .Select(assignment => assignment.MediaFace.MediaAssetId)
                             .Distinct()
