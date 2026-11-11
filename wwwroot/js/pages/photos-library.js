@@ -5,7 +5,7 @@
     const viewer = document.querySelector('[data-photos-viewer]');
     if (!root || !viewer) return;
 
-    const tiles = Array.from(root.querySelectorAll('[data-media-item]'));
+    let tiles = Array.from(root.querySelectorAll('[data-media-item]'));
 
     // The slim bar sticks just below the application's top bar, whatever its height.
     const topbar = document.querySelector('.pm-topbar');
@@ -93,7 +93,7 @@
     // its information panel (collection, people, albums, caption, file details).
     const value = (tile, name) => tile.dataset[name] || '';
     const mediaKey = tile => tile.dataset.mediaKey || tile.dataset.assetId || String(tiles.indexOf(tile) + 1);
-    const items = tiles.map(tile => ({
+    const buildItems = () => tiles.map(tile => ({
         key: mediaKey(tile),
         kind: value(tile, 'kind') === 'video' ? 'video' : 'photo',
         displayUrl: value(tile, 'displayUrl'),
@@ -104,6 +104,7 @@
         downloadUrl: value(tile, 'downloadUrl') || value(tile, 'originalUrl'),
         tile
     }));
+    let items = buildItems();
 
     const parseLinks = (raw) => {
         try {
@@ -193,8 +194,14 @@
         onRender: renderInfo
     });
 
+    // One listener for every tile, including tiles added later as the user scrolls.
     if (root.dataset.organizeAlbum !== 'true') {
-        tiles.forEach((tile, index) => tile.addEventListener('click', () => mediaViewer.open(index, tile)));
+        root.addEventListener('click', (event) => {
+            const tile = event.target?.closest?.('[data-media-item]') ?? null;
+            if (!tile || tile.matches(':disabled')) return;
+            const index = tiles.indexOf(tile);
+            if (index >= 0) mediaViewer.open(index, tile);
+        });
     }
 
     const markUnavailable = (image) => {
@@ -218,12 +225,13 @@
         markUnavailable(image);
     };
 
-    document.querySelectorAll('[data-media-image]').forEach((image) => {
+    const watchImageFailure = (image) => {
         image.addEventListener('error', () => handleImageFailure(image));
         if (image.complete && image.naturalWidth === 0) {
             handleImageFailure(image);
         }
-    });
+    };
+    document.querySelectorAll('[data-media-image]').forEach(watchImageFailure);
 
 
     const parseRatio = (tile) => {
@@ -315,31 +323,193 @@
         grid.classList.add('is-layout-ready');
     }
 
-    const grids = Array.from(root.querySelectorAll('.photos-grid'));
-    const layoutAll = () => grids.forEach(layoutGrid);
+    const layoutAll = () => root.querySelectorAll('.photos-grid').forEach(layoutGrid);
     let layoutFrame = 0;
     const queueLayout = () => {
         cancelAnimationFrame(layoutFrame);
         layoutFrame = requestAnimationFrame(layoutAll);
     };
 
+    // Every grid is as wide as the library, so watching the library covers grids added later.
     if ('ResizeObserver' in window) {
-        const observer = new ResizeObserver(queueLayout);
-        grids.forEach(grid => observer.observe(grid));
+        new ResizeObserver(queueLayout).observe(root);
     } else {
         window.addEventListener('resize', queueLayout, { passive: true });
     }
 
-    document.querySelectorAll('[data-media-image]').forEach((image) => {
+    const watchImageLoad = (image) => {
         const markLoaded = () => {
             image.closest('[data-media-item]')?.classList.add('is-loaded');
-            queueLayout();
         };
-        image.addEventListener('load', markLoaded, { once: true });
+        image.addEventListener('load', markLoaded);
         if (image.complete && image.naturalWidth > 0) markLoaded();
-    });
+    };
+    document.querySelectorAll('[data-media-image]').forEach(watchImageLoad);
 
     layoutAll();
+
+    // Continuous scroll: when the user nears the end, the next part of the timeline is fetched
+    // from the same page (same filters, same access rules) and added below. Without script,
+    // or if a part fails to load, the Previous / Next links still work.
+    const timeline = root.querySelector('[data-photos-timeline]');
+    const more = root.querySelector('[data-photos-more]');
+    const pagination = root.querySelector('[data-photos-pagination]');
+    let nextPartUrl = timeline?.dataset.nextPartUrl || '';
+    let loadingPart = false;
+    let moreObserver = null;
+
+    const itemLabel = (count) => `${count} item${count === 1 ? '' : 's'}`;
+
+    function appendTimelinePart(html) {
+        const holder = document.createElement('template');
+        holder.innerHTML = html;
+        const added = [];
+
+        Array.from(holder.content.children).forEach((node) => {
+            if (node.classList.contains('photos-month')) {
+                if (!node.id || !document.getElementById(node.id)) timeline.append(node);
+                return;
+            }
+            if (!node.classList.contains('photos-day')) return;
+
+            // A day split across two parts continues in the day already on the page.
+            const headingId = node.getAttribute('aria-labelledby');
+            const existingHeading = headingId ? document.getElementById(headingId) : null;
+            const existingDay = existingHeading?.closest('.photos-day');
+            const existingGrid = existingDay?.querySelector('.photos-grid');
+            if (existingGrid) {
+                const incoming = Array.from(node.querySelectorAll('[data-media-item]'));
+                incoming.forEach(tile => existingGrid.append(tile));
+                added.push(...incoming);
+                const count = existingDay.querySelector('[data-day-count]');
+                if (count) {
+                    const total = existingGrid.querySelectorAll('[data-media-item]').length;
+                    count.dataset.dayCount = String(total);
+                    count.textContent = itemLabel(total);
+                }
+                return;
+            }
+
+            timeline.append(node);
+            added.push(...node.querySelectorAll('[data-media-item]'));
+        });
+
+        if (added.length === 0) return;
+        added.forEach((tile) => {
+            const image = tile.querySelector('[data-media-image]');
+            if (image) {
+                watchImageFailure(image);
+                watchImageLoad(image);
+            }
+        });
+        tiles = Array.from(root.querySelectorAll('[data-media-item]'));
+        items = buildItems();
+        mediaViewer.setItems(items);
+        layoutAll();
+        root.dispatchEvent(new CustomEvent('photos:tiles-changed'));
+    }
+
+    // The page links come back when a part cannot be loaded. By then earlier parts may have
+    // been added, so Next must open the part that failed, not the page after the first one.
+    function showPaginationFallback() {
+        if (!pagination) return;
+        const nextLink = pagination.querySelector('[data-photos-next-page]');
+        if (nextLink && nextPartUrl) {
+            try {
+                const url = new URL(nextPartUrl, window.location.href);
+                url.searchParams.delete('handler');
+                nextLink.setAttribute('href', `${url.pathname}${url.search}`);
+                // The timeline now spans several pages, so "Page 1" would mislead.
+                pagination.querySelector('[data-photos-page-label]')?.setAttribute('hidden', '');
+            } catch {
+                // Keep the link the page was rendered with.
+            }
+        }
+        pagination.hidden = false;
+    }
+
+    async function loadNextPart() {
+        if (!timeline || !nextPartUrl || loadingPart) return;
+        loadingPart = true;
+        more?.querySelector('[data-photos-more-loading]')?.removeAttribute('hidden');
+        more?.querySelector('[data-photos-more-error]')?.setAttribute('hidden', '');
+        try {
+            const response = await fetch(nextPartUrl, {
+                headers: { 'X-Requested-With': 'PhotosTimelinePart' },
+                cache: 'no-store',
+                credentials: 'same-origin'
+            });
+            // A real part always carries the next-part header, even when empty. A redirect (an
+            // expired sign-in lands on the login page) or any other page does not, and must not
+            // be taken for "no more pictures".
+            const nextHeader = response.headers.get('X-Photos-Next-Part');
+            if (!response.ok || response.redirected || nextHeader === null) {
+                throw new Error(`Timeline part failed: ${response.status}`);
+            }
+            const html = await response.text();
+            nextPartUrl = nextHeader;
+            appendTimelinePart(html);
+            if (!nextPartUrl && more) {
+                more.hidden = true;
+            } else if (moreObserver && more) {
+                // An observer reports changes only. Watching again asks "still near the end?",
+                // so a short part on a tall screen is followed by the next one.
+                moreObserver.unobserve(more);
+                moreObserver.observe(more);
+            }
+        } catch {
+            more?.querySelector('[data-photos-more-loading]')?.setAttribute('hidden', '');
+            more?.querySelector('[data-photos-more-error]')?.removeAttribute('hidden');
+            showPaginationFallback();
+        } finally {
+            loadingPart = false;
+        }
+    }
+
+    if (timeline && more && nextPartUrl && 'IntersectionObserver' in window) {
+        more.hidden = false;
+        if (pagination) pagination.hidden = true;
+        moreObserver = new IntersectionObserver((entries) => {
+            if (entries.some(entry => entry.isIntersecting)) void loadNextPart();
+        }, { rootMargin: '1200px 0px' });
+        moreObserver.observe(more);
+        more.querySelector('[data-photos-more-retry]')?.addEventListener('click', () => void loadNextPart());
+    }
+
+    // The month list on the right edge. A month already on the page is scrolled to; any other
+    // month is opened by its own link, which starts the timeline at that month.
+    const scrubber = root.querySelector('[data-photos-scrubber]');
+    if (scrubber && timeline) {
+        const barHeight = () => (root.querySelector('[data-photos-bar]')?.getBoundingClientRect().bottom || 0) + 12;
+        scrubber.addEventListener('click', (event) => {
+            const link = event.target?.closest?.('a[data-month]') ?? null;
+            const heading = link ? document.getElementById(`month-${link.dataset.month}`) : null;
+            if (!heading) return;
+            event.preventDefault();
+            window.scrollTo({ top: heading.getBoundingClientRect().top + window.scrollY - barHeight(), behavior: 'smooth' });
+        });
+
+        let scrubberFrame = 0;
+        const markCurrentMonth = () => {
+            const limit = barHeight() + 40;
+            let current = '';
+            timeline.querySelectorAll('.photos-month').forEach((heading) => {
+                if (!current || heading.getBoundingClientRect().top < limit) current = heading.id.replace('month-', '');
+            });
+            scrubber.querySelectorAll('a[data-month]').forEach((link) => {
+                const isCurrent = link.dataset.month === current;
+                link.classList.toggle('is-current', isCurrent);
+                if (isCurrent) link.setAttribute('aria-current', 'true');
+                else link.removeAttribute('aria-current');
+            });
+        };
+        window.addEventListener('scroll', () => {
+            cancelAnimationFrame(scrubberFrame);
+            scrubberFrame = requestAnimationFrame(markCurrentMonth);
+        }, { passive: true });
+        root.addEventListener('photos:tiles-changed', markCurrentMonth);
+        markCurrentMonth();
+    }
 
     if (root.dataset.organizeAlbum !== 'true') {
         window.addEventListener('hashchange', () => mediaViewer.syncWithHash());
@@ -363,7 +533,7 @@
     const cancelUrl = library.dataset.selectionCancelUrl || '';
     const targetedCuration = autoStart && cancelUrl.length > 0;
 
-    const tiles = Array.from(library.querySelectorAll('[data-media-item]'));
+    let tiles = Array.from(library.querySelectorAll('[data-media-item]'));
     const actionBar = library.querySelector('[data-photos-selection-bar]');
     const countLabel = actionBar?.querySelector('[data-selection-count]');
     const noteLabel = actionBar?.querySelector('[data-selection-note]');
@@ -582,12 +752,12 @@
 
     const intersect = (a, b) => !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
 
-    library.querySelectorAll('.photos-grid').forEach(grid => {
-        grid.addEventListener('pointerdown', event => {
-            if (!selecting || event.pointerType !== 'mouse' || event.button !== 0) return;
-            dragStart = { x: event.clientX, y: event.clientY };
-            dragGrid = grid;
-        });
+    library.addEventListener('pointerdown', event => {
+        if (!selecting || event.pointerType !== 'mouse' || event.button !== 0) return;
+        const grid = event.target?.closest?.('.photos-grid') ?? null;
+        if (!grid) return;
+        dragStart = { x: event.clientX, y: event.clientY };
+        dragGrid = grid;
     });
 
     document.addEventListener('pointermove', event => {
@@ -629,6 +799,12 @@
     document.addEventListener('pointercancel', removeLasso);
     document.addEventListener('keydown', event => {
         if (selecting && event.key === 'Escape') leaveSelectionMode();
+    });
+
+    // Tiles added while scrolling join the selection mode that is already active.
+    library.addEventListener('photos:tiles-changed', () => {
+        tiles = Array.from(library.querySelectorAll('[data-media-item]'));
+        render();
     });
 
     render();

@@ -352,6 +352,16 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             warnings,
             cancellationToken);
 
+        IReadOnlyList<MediaLibraryMonthCount> months = request.IncludeMonths
+            ? await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryMonthCount>>(
+                MediaLibraryQueryOperation.Months,
+                async () => await BuildMonthCountsQuery(filteredQuery, TimeZoneInfo.Local.BaseUtcOffset)
+                    .ToListAsync(cancellationToken),
+                Array.Empty<MediaLibraryMonthCount>(),
+                warnings,
+                cancellationToken)
+            : Array.Empty<MediaLibraryMonthCount>();
+
         var projects = await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryProjectOption>>(
             MediaLibraryQueryOperation.Projects,
             async () =>
@@ -432,7 +442,26 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             true,
             hasPrismCatalogue,
             warnings,
-            summaryWarning);
+            summaryWarning)
+        {
+            Months = months
+        };
+    }
+
+    // Counted and grouped in the database: one row per calendar month of the filtered result.
+    // The timeline shows dates in the server's local time, so the months are local too: a
+    // photo taken late on the last evening of a month (UTC) belongs to the month the page
+    // shows it under. The zone's standard offset is used; where daylight saving applies, a
+    // photo within an hour of a month boundary in summer can still be counted next door.
+    public static IQueryable<MediaLibraryMonthCount> BuildMonthCountsQuery(
+        IQueryable<MediaAsset> filteredQuery,
+        TimeSpan localOffset)
+    {
+        var offsetMinutes = localOffset.TotalMinutes;
+        return filteredQuery
+            .Select(asset => asset.MediaDateUtc.AddMinutes(offsetMinutes))
+            .GroupBy(localDate => new { localDate.Year, localDate.Month })
+            .Select(group => new MediaLibraryMonthCount(group.Key.Year, group.Key.Month, group.Count()));
     }
 
     private IQueryable<MediaAsset> BuildBaseQuery()

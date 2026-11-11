@@ -1171,3 +1171,21 @@
     .photos-subbar .photos-summary { margin-left:0; }
     .photos-month { font-size:1.25rem; }
 }
+
+/* Continuous scroll and the month list on the right edge. Theme tokens only. */
+.photos-earlier { align-items:center; color:var(--pm-primary); display:inline-flex; font-size:.82rem; font-weight:700; gap:.35rem; margin:0 0 .6rem; text-decoration:none; }
+.photos-earlier:hover { text-decoration:underline; }
+.photos-more { color:var(--pm-text-muted); display:flex; font-size:.82rem; justify-content:center; padding:1.5rem 0 .5rem; }
+.photos-more__loading, .photos-more__error { align-items:center; display:inline-flex; gap:.5rem; }
+.photos-scrubber { align-items:flex-end; display:none; flex-direction:column; gap:.1rem; max-height:calc(100vh - 11rem); overflow-y:auto; position:fixed; right:.5rem; scrollbar-width:none; top:9rem; z-index:15; }
+.photos-scrubber a, .photos-scrubber__year { border-radius:999px; font-size:.72rem; font-variant-numeric:tabular-nums; padding:.12rem .5rem; }
+.photos-scrubber a { color:var(--pm-text-muted); font-weight:600; text-decoration:none; }
+.photos-scrubber a:hover { background:var(--pm-surface-muted); color:var(--pm-text); }
+.photos-scrubber a.is-current { background:var(--pm-primary); color:var(--pm-text-inverted); }
+.photos-scrubber__year { color:var(--pm-text); font-weight:700; margin-top:.35rem; }
+
+/* The month list needs a free strip beside the pictures, so it shows on wide screens only. */
+@media (min-width: 1200px) {
+    .photos-scrubber { display:flex; }
+    .photos-library:has([data-photos-scrubber]) .photos-timeline { padding-right:3.25rem; }
+}
