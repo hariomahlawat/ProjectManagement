@@ -57,10 +57,20 @@ the project and need no module of their own. Attachment files stay under
 `{upload root}/it-projects/{projectId}/…` for all three modules (project ids are unique across
 modules), so no file moves.
 
-Rollback: the columns are nullable or defaulted, so the previous build runs against the migrated
-database. During a rolling deploy an old process would list a MOLTI row on the IT board; no such
-row can exist until the new build is serving, and the deployment SOP's outage step covers the
-rest.
+Deployment and rollback:
+
+- **Overlap.** The columns are nullable or defaulted, so a process of the previous build that is
+  still running keeps working while the migration is applied. It would list a MOLTI or SRE row
+  on the IT board, but no such row can exist until the new build is serving, and the deployment
+  SOP's outage step covers the rest.
+- **Rollback.** The previous build does not start against the migrated database: startup
+  (`DatabaseStartupMigrator`) refuses a migration history that holds a migration the deployed
+  build does not know. Going back therefore follows the offline update and rollback SOP
+  ([deployment/offline-ws2022.md](../deployment/offline-ws2022.md), section D2): restore the
+  database backup taken before the update, or run the reviewed reverse migration (the
+  migration's `Down` drops the two indexes and three columns), then start the previous build.
+  Either way MOLTI and SRE projects entered since the update are lost (a restore also loses
+  every other change since the backup), so the release note must say so.
 
 ## One catalogue for what differs (`ItProjectModules`)
 
