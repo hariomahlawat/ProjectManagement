@@ -96,8 +96,14 @@
             option.classList.toggle('is-active', active);
             option.setAttribute('aria-selected', String(active));
         });
-        if (index >= 0) input.setAttribute('aria-activedescendant', options[index].id);
-        else input.removeAttribute('aria-activedescendant');
+        if (index >= 0) {
+            input.setAttribute('aria-activedescendant', options[index].id);
+            // Focus stays in the search box, so the browser does not bring the highlighted
+            // suggestion into view by itself when the list is longer than the panel.
+            options[index].scrollIntoView?.({ block: 'nearest' });
+        } else {
+            input.removeAttribute('aria-activedescendant');
+        }
     }
 
     function render() {

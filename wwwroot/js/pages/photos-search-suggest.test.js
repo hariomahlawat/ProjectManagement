@@ -82,9 +82,14 @@ test('arrow keys move through the suggestions and Enter opens the highlighted on
 
     assert.equal(press('Enter').defaultPrevented, false, 'with nothing highlighted Enter submits the search');
 
+    // The list can be longer than the panel: the highlighted suggestion is scrolled into view.
+    const shown = [];
+    window.Element.prototype.scrollIntoView = function (options) { shown.push([this.id, options.block]); };
+
     press('ArrowDown');
     const first = panel.querySelector('[role="option"]');
     assert.equal(first.classList.contains('is-active'), true);
+    assert.deepEqual(shown, [[first.id, 'nearest']]);
     assert.equal(input.getAttribute('aria-activedescendant'), first.id);
 
     let opened = '';
@@ -93,7 +98,9 @@ test('arrow keys move through the suggestions and Enter opens the highlighted on
     assert.equal(opened, '/Photos?PersonIds=1');
 
     press('ArrowUp');
-    assert.equal(panel.querySelectorAll('[role="option"]')[2].classList.contains('is-active'), true, 'wraps to the last suggestion');
+    const last = panel.querySelectorAll('[role="option"]')[2];
+    assert.equal(last.classList.contains('is-active'), true, 'wraps to the last suggestion');
+    assert.deepEqual(shown.at(-1), [last.id, 'nearest'], 'the last suggestion is brought into view when the highlight wraps');
 
     assert.equal(press('Escape').defaultPrevented, true);
     assert.equal(panel.hidden, true);
