@@ -51,7 +51,9 @@ how long?**
    FY becomes a segmented control in the header.
 4. **Project page**: a hero card (reference, FY and status chips, title, description, actions)
    with **one status line**: where the case is and for how long ("At Delivery and ATP for 332 days ·
-   since SO closed on 12 Dec 2025"), plus a New / CL / CF chip for a carried-over case. Then
+   since SO closed on 12 Dec 2025"). The chips lead with the latest year the case counts in (type,
+   that year's IT ARPPP number, the year), as the register row does; a carried-over case then says
+   "first listed FY 2025-26 as IT PPP 02/2025" (owner, 11 Nov 2026). Then
    **Journey**: the stepper with the days between stages above the line. (A five-card "now strip"
    and a "where the time went" bar were built and then removed on 9 Nov 2026: they repeated what the
    page already shows. Keep the page lean; no extra metrics.)
@@ -126,8 +128,12 @@ type for that year changes.
   the automatic type at the time, so it does not change when the automatic type later does; only
   "Automatic" follows the rule. In the case's own year (always New automatically) only a different
   type is stored. Both are stored in `ItProjectFinancialYear` (one row per case
-  and later year: reference number, optional type), audited as `ItProjects.YearChanged`. The first
-  year's number is changed with Edit. When Edit moves the project's own year to or past a later
+  and later year: reference number, optional type), audited as `ItProjects.YearChanged`. On the
+  Record card every year reads as plain text with its own **Edit**, which opens that one row
+  (number, type, Save, Cancel); a type set by hand says so beside the number. The first year has
+  the same Edit: its number is the project's own (also changed with Edit details) and its type
+  can be set by hand like any other (owner, 11 Nov 2026; before that later years were always an
+  open form and the first year had none). When Edit details moves the project's own year to or past a later
   year's row, that row is removed (it would otherwise become a type set by hand on the own year);
   the `ItProjects.Updated` audit entry lists what it held under `RemovedYears`. An edit that keeps the year leaves every row alone.
 - The board's **financial year filter** shows every case live in that year, each with its type

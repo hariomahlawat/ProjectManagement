@@ -57,6 +57,43 @@
                 event.preventDefault();
                 details.open = false;
             }
+            return;
+        }
+
+        // ---- Record card: a year's editor opens in its row, one at a time -----------------------
+
+        var yearEdit = event.target.closest('[data-itp-year-edit]');
+        if (yearEdit) {
+            var yearEditor = document.getElementById(yearEdit.getAttribute('href').slice(1));
+            if (yearEditor) {
+                event.preventDefault();
+                Array.prototype.forEach.call(page.querySelectorAll('.itp-years__editor[open]'), function (other) {
+                    other.open = false;
+                });
+                yearEditor.open = true;
+                var first = yearEditor.querySelector('input[name="yearReference"]');
+                if (first) {
+                    first.focus();
+                }
+            }
+            return;
+        }
+
+        var yearCancel = event.target.closest('[data-itp-year-cancel]');
+        if (yearCancel) {
+            var yearDetails = yearCancel.closest('details');
+            if (yearDetails) {
+                event.preventDefault();
+                var yearForm = yearDetails.querySelector('form');
+                if (yearForm) {
+                    yearForm.reset(); // Cancel puts back what the row shows
+                }
+                yearDetails.open = false;
+                var opener = page.querySelector('[data-itp-year-edit][href="#' + yearDetails.id + '"]');
+                if (opener) {
+                    opener.focus();
+                }
+            }
         }
     });
 

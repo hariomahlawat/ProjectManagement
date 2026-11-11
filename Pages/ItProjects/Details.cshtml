@@ -16,17 +16,35 @@
 }
 
 <div class="itp-page itp-page--details" data-itp-details data-itp-open="@Model.Open">
-    <div class="itp-crumb" aria-label="Breadcrumb">ERP / <a asp-page="./Index">IT projects</a> / @Model.Project.PppReferenceNumber</div>
+    <div class="itp-crumb" aria-label="Breadcrumb">ERP / <a asp-page="./Index">IT projects</a> / @Model.DisplayReference</div>
     <header class="itp-hero">
         <div class="itp-hero__top">
             <div class="itp-hero__id">
                 <div class="itp-hero__chips">
-                    <span class="itp-ref" title="IT ARPPP reference number in its first year">@Model.Project.PppReferenceNumber</span>
-                    <span class="itp-chip itp-chip--fy">@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</span>
-                    @* The type in the latest year the case counts in, New in its own year too, so it shows without scrolling. *@
+                    @* The latest year the case counts in comes first: its type, that year's number and
+                       the year, which is what the register row shows. A carried-over case then says
+                       where it was first listed (owner, 11 Nov 2026). *@
                     @if (Model.LatestYear is { } latest)
                     {
-                        <span class="itp-type itp-type--@latest.Code.ToLowerInvariant()" title="@latest.Label in FY @FinancialYearHelper.Format(latest.FinancialYearStart)@(latest.PppReferenceNumber is { } number ? $", {number}" : ", number not entered")">@latest.Code@(latest.IsOwnYear ? null : $" · FY {FinancialYearHelper.Format(latest.FinancialYearStart)}")</span>
+                        <span class="itp-type itp-type--@latest.Code.ToLowerInvariant()" title="@latest.Label in FY @FinancialYearHelper.Format(latest.FinancialYearStart)@(latest.IsManual ? ", set by hand" : null)">@latest.Code</span>
+                        @if (latest.PppReferenceNumber is { } latestNumber)
+                        {
+                            <span class="itp-ref" title="IT ARPPP reference number in FY @FinancialYearHelper.Format(latest.FinancialYearStart)">@latestNumber</span>
+                        }
+                        else
+                        {
+                            <span class="itp-hero__since">number not entered</span>
+                        }
+                        <span class="itp-chip itp-chip--fy">@ItProjectBoardPresentation.FinancialYear(latest.FinancialYearStart)</span>
+                        @if (!latest.IsOwnYear)
+                        {
+                            <span class="itp-hero__since">first listed @ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart) as @Model.Project.PppReferenceNumber</span>
+                        }
+                    }
+                    else
+                    {
+                        <span class="itp-ref" title="IT ARPPP reference number in its first year">@Model.Project.PppReferenceNumber</span>
+                        <span class="itp-chip itp-chip--fy">@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</span>
                     }
                 </div>
                 <h1 class="itp-hero__title">@Model.Project.Title</h1>
@@ -35,7 +53,7 @@
             @if (Model.CanManage)
             {
                 <div class="itp-hero__actions">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#itpEditDrawer" aria-controls="itpEditDrawer">Edit</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#itpEditDrawer" aria-controls="itpEditDrawer">Edit details</button>
                     @* A dropped case's stages are frozen until it is reinstated (the command refuses them too). *@
                     @if (!Model.IsDropped)
                     {
@@ -243,32 +261,46 @@
                         {
                             var fyLabel = ItProjectBoardPresentation.FinancialYear(year.FinancialYearStart);
                             var how = year.IsManual ? $"set by hand (automatic: {ItProjectYearTypes.Code(year.AutomaticType)})" : "automatic";
-                            <li class="itp-years__row">
+                            var editorId = $"itp-year-edit-{year.FinancialYearStart}";
+                            <li class="itp-years__row" id="itp-year-@year.FinancialYearStart">
                                 <span class="itp-years__fy">@fyLabel</span>
                                 <span class="itp-years__type itp-years__type--@year.Code.ToLowerInvariant()" title="@year.Label, @how">@year.Code</span>
-                                <span class="itp-years__ref @(year.PppReferenceNumber is null ? "itp-years__ref--none" : null)">@(year.PppReferenceNumber ?? "number not entered")</span>
-                                @* The first year is New and its number is changed with Edit, so it has no form, unless a type
-                                   was once set there by hand: then the form stays so it can be put back to automatic. *@
-                                @if (Model.CanManage && (!year.IsOwnYear || year.IsManual))
+                                <span class="itp-years__ref @(year.PppReferenceNumber is null ? "itp-years__ref--none" : null)">@(year.PppReferenceNumber ?? "number not entered")@if (year.IsManual)
+                                    {
+                                        <small class="itp-years__hand">set by hand</small>
+                                    }</span>
+                                @* Every year reads as plain text until its Edit is used, the first year too: its
+                                   number is the project's own, and its type can be set by hand like any other
+                                   (owner, 11 Nov 2026). Without script the link jumps to the editor and :target opens it. *@
+                                @if (Model.CanManage)
                                 {
-                                    <form method="post" asp-page-handler="Year" asp-route-id="@Model.Project.Id" class="itp-years__form">
-                                        <input type="hidden" asp-for="RowVersion" />
-                                        <input type="hidden" name="fy" value="@year.FinancialYearStart" />
-                                        @if (!year.IsOwnYear)
-                                        {
-                                            <label class="visually-hidden" for="itpYearRef@(year.FinancialYearStart)">IT ARPPP reference number in @fyLabel</label>
-                                            <input id="itpYearRef@(year.FinancialYearStart)" name="yearReference" value="@year.PppReferenceNumber" maxlength="@ItProjectFinancialYear.ReferenceMaxLength"
-                                                   class="form-control form-control-sm" placeholder="IT ARPPP no. in @fyLabel" autocomplete="off" />
-                                        }
-                                        <label class="visually-hidden" for="itpYearType@(year.FinancialYearStart)">Type in @fyLabel</label>
-                                        <select id="itpYearType@(year.FinancialYearStart)" name="yearType" class="form-select form-select-sm">
-                                            <option value="auto" selected="@(!year.IsManual)">Automatic (@ItProjectYearTypes.Code(year.AutomaticType))</option>
-                                            <option value="New" selected="@(year.IsManual && year.Type == ItProjectYearType.New)">New</option>
-                                            <option value="CL" selected="@(year.IsManual && year.Type == ItProjectYearType.CommittedLiability)">CL</option>
-                                            <option value="CF" selected="@(year.IsManual && year.Type == ItProjectYearType.CarriedForward)">CF</option>
-                                        </select>
-                                        <button type="submit" class="btn btn-sm btn-outline-secondary">Save</button>
-                                    </form>
+                                    <a class="itp-years__edit" href="#@editorId" data-itp-year-edit aria-label="Edit @fyLabel"><i class="bi bi-pencil" aria-hidden="true"></i><span>Edit</span></a>
+                                    <details class="itp-years__editor" id="@editorId">
+                                        <summary class="visually-hidden">Edit @fyLabel</summary>
+                                        <form method="post" asp-page-handler="Year" asp-route-id="@Model.Project.Id" class="itp-years__form">
+                                            <input type="hidden" asp-for="RowVersion" />
+                                            <input type="hidden" name="fy" value="@year.FinancialYearStart" />
+                                            <label class="itp-years__field">
+                                                <span>IT ARPPP number in @fyLabel</span>
+                                                <input name="yearReference" value="@year.PppReferenceNumber" maxlength="@ItProjectFinancialYear.ReferenceMaxLength"
+                                                       class="form-control form-control-sm" autocomplete="off" required="@year.IsOwnYear" />
+                                            </label>
+                                            <label class="itp-years__field">
+                                                <span>Type</span>
+                                                <select name="yearType" class="form-select form-select-sm">
+                                                    <option value="auto" selected="@(!year.IsManual)">Automatic (@ItProjectYearTypes.Code(year.AutomaticType))</option>
+                                                    <option value="New" selected="@(year.IsManual && year.Type == ItProjectYearType.New)">New</option>
+                                                    <option value="CL" selected="@(year.IsManual && year.Type == ItProjectYearType.CommittedLiability)">CL</option>
+                                                    <option value="CF" selected="@(year.IsManual && year.Type == ItProjectYearType.CarriedForward)">CF</option>
+                                                </select>
+                                            </label>
+                                            <p class="itp-years__hint">@(year.IsOwnYear ? "A case is New in its first year. Pick a type only to set it by hand." : "Automatic follows the SO date. Pick a type to set it by hand.")</p>
+                                            <div class="itp-years__buttons">
+                                                <a class="btn btn-outline-secondary btn-sm" href="#itp-year-@year.FinancialYearStart" data-itp-year-cancel>Cancel</a>
+                                                <button type="submit" class="btn btn-primary itp-btn-primary btn-sm">Save</button>
+                                            </div>
+                                        </form>
+                                    </details>
                                 }
                             </li>
                         }

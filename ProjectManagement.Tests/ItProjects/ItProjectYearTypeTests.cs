@@ -213,15 +213,44 @@ public class ItProjectYearTypeTests
     }
 
     [Fact]
-    public async Task SaveYear_OwnYearNumberIsChangedWithEditOnly()
+    public async Task SaveYear_OwnYearNumberReplacesTheProjectsNumber_WithoutAYearRow()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var (id, rowVersion) = await db.SeedAsync(fy: 2026);
+        var numberBefore = (await db.Reads().GetAsync(id))!.PppReferenceNumber;
 
-        var result = await db.Commands().SaveYearAsync(id, 2026, Year(null, "IT PPP 99/2026"), rowVersion, ItProjectTestDb.Actor());
+        var result = await db.Commands().SaveYearAsync(id, 2026, Year(null, "  IT PPP 99/2026 "), rowVersion, ItProjectTestDb.Actor());
 
-        Assert.False(result.Succeeded);
-        Assert.Contains("Edit", result.Errors.Single());
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        Assert.Equal("IT PPP 99/2026", (await db.Reads().GetAsync(id))!.PppReferenceNumber);
+        await using (var context = db.NewContext())
+        {
+            Assert.False(await context.ItProjectFinancialYears.AnyAsync());
+        }
+
+        var audit = db.Audit.Entries.Last();
+        Assert.Equal("ItProjects.YearChanged", audit.Action);
+        Assert.Equal(numberBefore, audit.Data!["ReferenceBefore"]);
+        Assert.Equal("IT PPP 99/2026", audit.Data["ReferenceAfter"]);
+        Assert.Equal("New (automatic)", audit.Data["TypeAfter"]);
+    }
+
+    [Fact]
+    public async Task SaveYear_OwnYearWithoutANumber_KeepsTheProjectsNumber()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync(fy: 2026);
+        var numberBefore = (await db.Reads().GetAsync(id))!.PppReferenceNumber;
+
+        // A type set by hand on the first year, with the number box left empty.
+        var result = await db.Commands().SaveYearAsync(id, 2026, Year(ItProjectYearType.CarriedForward, " "), rowVersion, ItProjectTestDb.Actor());
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        var project = (await db.Reads().GetAsync(id))!;
+        Assert.Equal(numberBefore, project.PppReferenceNumber);
+        var year = db.Reads().GetYearTypes(project).Single();
+        Assert.Equal("CF", year.Code);
+        Assert.True(year.IsManual);
     }
 
     [Fact]
