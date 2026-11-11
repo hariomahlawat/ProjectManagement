@@ -52,7 +52,12 @@ test('the timeline continues while scrolling and keeps the page links as a fallb
     assert.match(pageModel, /OnGetTimelinePartAsync/);
     assert.match(pageModel, /await OnGetAsync\(cancellationToken\);/);
     assert.match(libraryScript, /X-Photos-Next-Part/);
-    assert.match(libraryScript, /if \(pagination\) pagination\.hidden = false;/);
+    // After a failed part the Next link continues from the part that failed.
+    assert.match(photosPage, /data-photos-next-page/);
+    const fallback = libraryScript.slice(libraryScript.indexOf('function showPaginationFallback'), libraryScript.indexOf('async function loadNextPart'));
+    assert.match(fallback, /searchParams\.delete\('handler'\)/);
+    assert.match(fallback, /nextLink\.setAttribute\('href'/);
+    assert.match(fallback, /pagination\.hidden = false;/);
     assert.match(libraryScript, /photos:tiles-changed/);
 });
 
