@@ -1,7 +1,9 @@
 // Full-screen photo and video viewer, shared by the Photos gallery and the project pages
 // (Overview, project photos, project videos). One implementation: previous/next, keyboard
-// (arrows, Esc, + - 0, i), touch swipe, zoom, video playback, focus kept inside while open
-// and returned to the thumbnail on close.
+// (arrows, Esc, + - 0, i), touch swipe, zoom (buttons, mouse wheel, pinch, double-click) with
+// drag to look around, video playback, focus kept inside while open and returned to the
+// thumbnail on close. A photo opens from its thumbnail and slides to the next one; the
+// neighbouring photos are fetched ahead, and the controls fade while the pointer is still.
 //
 //   PMMediaViewer.attach(viewerElement, options) -> controller
 //     options.items       the items to show (see below); or pass items to open()
@@ -24,6 +26,8 @@
     const ZOOM_MAX = 3;
     const ZOOM_STEP = 0.25;
     const SWIPE_MIN_PX = 50;
+    const WHEEL_ZOOM_FACTOR = 1.15;
+    const IDLE_AFTER_MS = 2800;
     const OPEN_CLASS = 'photos-viewer-open';
     const focusableSelector = [
         'a[href]:not([hidden])',
@@ -67,6 +71,8 @@
         let returnHash = '';
         let inertedElements = [];
         let zoom = 1;
+        let pan = { x: 0, y: 0 };
+        let idleTimer = 0;
 
         const isOpen = () => !viewer.hidden;
         const isMediaHash = (hash) => Boolean(hashPrefix) && hash.startsWith(hashPrefix);
@@ -110,9 +116,28 @@
             link.hidden = !href;
         }
 
+        // A zoomed photo can be dragged, but never further than its own edge.
+        function applyPan() {
+            const image = mediaHost.querySelector('img');
+            if (!image || zoom <= 1) {
+                pan = { x: 0, y: 0 };
+            } else {
+                const maxX = (image.offsetWidth * (zoom - 1)) / 2;
+                const maxY = (image.offsetHeight * (zoom - 1)) / 2;
+                pan = {
+                    x: Math.min(maxX, Math.max(-maxX, pan.x)),
+                    y: Math.min(maxY, Math.max(-maxY, pan.y))
+                };
+            }
+            mediaHost.style.setProperty('--viewer-pan-x', `${pan.x}px`);
+            mediaHost.style.setProperty('--viewer-pan-y', `${pan.y}px`);
+        }
+
         function setZoom(nextZoom) {
             zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, nextZoom));
             mediaHost.style.setProperty('--viewer-zoom', String(zoom));
+            mediaHost.classList.toggle('is-zoomed', zoom > 1);
+            applyPan();
             if (zoomLabel) zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
             if (zoomOutButton) zoomOutButton.disabled = zoom <= ZOOM_MIN;
             if (zoomInButton) zoomInButton.disabled = zoom >= ZOOM_MAX;
@@ -142,6 +167,7 @@
                 image.src = item.displayUrl || '';
                 image.alt = item.alt || item.title || '';
                 image.decoding = 'async';
+                image.draggable = false;
                 image.addEventListener('dblclick', () => setZoom(zoom === 1 ? 2 : 1));
                 mediaHost.append(image);
             }
@@ -155,12 +181,53 @@
             if (nextButton) nextButton.hidden = items.length < 2;
 
             if (onRender) onRender(item, currentIndex, viewer);
+            preloadNeighbours();
+        }
+
+        // Fetch the photos on either side now, so moving to them shows a picture at once.
+        function preloadNeighbours() {
+            if (typeof win.Image !== 'function' || items.length < 2) return;
+            [1, -1].forEach((delta) => {
+                const neighbour = items[(currentIndex + delta + items.length) % items.length];
+                if (!neighbour || neighbour.kind === 'video' || !neighbour.displayUrl) return;
+                const image = new win.Image();
+                image.decoding = 'async';
+                image.src = neighbour.displayUrl;
+            });
         }
 
         function step(delta) {
             if (!isOpen() || items.length < 2) return;
+            mediaHost.dataset.enter = delta > 0 ? 'next' : 'previous';
             render(currentIndex + delta);
             writeHash();
+        }
+
+        // The photo grows out of the thumbnail that was pressed. With nothing to measure
+        // (opened from a link, or no layout) it simply fades in.
+        function setOpenOrigin(trigger) {
+            const from = trigger && typeof trigger.getBoundingClientRect === 'function' ? trigger.getBoundingClientRect() : null;
+            const stage = mediaHost.getBoundingClientRect();
+            if (!from || !from.width || !stage.width) {
+                mediaHost.dataset.enter = 'fade';
+                return;
+            }
+            const scale = Math.min(0.7, Math.max(0.12, from.width / stage.width));
+            mediaHost.style.setProperty('--viewer-from-x', `${from.left + from.width / 2 - (stage.left + stage.width / 2)}px`);
+            mediaHost.style.setProperty('--viewer-from-y', `${from.top + from.height / 2 - (stage.top + stage.height / 2)}px`);
+            mediaHost.style.setProperty('--viewer-from-scale', String(scale));
+            mediaHost.dataset.enter = 'open';
+        }
+
+        // The header and arrows fade while nothing moves, and return on any pointer or key.
+        function wake() {
+            viewer.classList.remove('is-idle');
+            win.clearTimeout(idleTimer);
+            if (!isOpen()) return;
+            idleTimer = win.setTimeout(() => {
+                if (!isOpen() || viewer.classList.contains('is-info-open') || mediaHost.querySelector('video')) return;
+                viewer.classList.add('is-idle');
+            }, IDLE_AFTER_MS);
         }
 
         function open(index, trigger, openOptions = {}) {
@@ -179,10 +246,13 @@
                 setBackgroundInert(true);
             }
 
+            const wasOpen = isOpen();
             render(index);
             viewer.hidden = false;
             viewer.setAttribute('aria-hidden', 'false');
             doc.body.classList.add(OPEN_CLASS);
+            if (!wasOpen) setOpenOrigin(trigger);
+            wake();
             if (!openOptions.fromHash) writeHash();
             q('[data-viewer-close]:not(.photos-viewer__backdrop)')?.focus({ preventScroll: true });
         }
@@ -204,6 +274,9 @@
 
             viewer.hidden = true;
             viewer.setAttribute('aria-hidden', 'true');
+            win.clearTimeout(idleTimer);
+            viewer.classList.remove('is-idle');
+            delete mediaHost.dataset.enter;
             setInfoOpen(false);
             mediaHost.replaceChildren();
             setZoom(1);
@@ -245,6 +318,55 @@
         zoomResetButton?.addEventListener('click', () => setZoom(1));
         infoButton?.addEventListener('click', () => setInfoOpen(!viewer.classList.contains('is-info-open')));
 
+        // Mouse wheel zooms a photo in and out (never below its fitted size).
+        mediaHost.addEventListener('wheel', (event) => {
+            if (!mediaHost.querySelector('img')) return;
+            event.preventDefault();
+            const factor = event.deltaY < 0 ? WHEEL_ZOOM_FACTOR : 1 / WHEEL_ZOOM_FACTOR;
+            setZoom(Math.max(1, zoom * factor));
+        }, { passive: false });
+
+        // One pointer drags a zoomed photo; two pointers pinch to zoom.
+        const pointers = new Map();
+        let dragOrigin = null;
+        let pinch = null;
+        const pointerDistance = () => {
+            const [first, second] = [...pointers.values()];
+            return Math.hypot(first.x - second.x, first.y - second.y);
+        };
+        mediaHost.addEventListener('pointerdown', (event) => {
+            if (!mediaHost.querySelector('img')) return;
+            pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+            if (pointers.size === 2) {
+                pinch = { distance: pointerDistance() || 1, zoom };
+                dragOrigin = null;
+            } else if (zoom > 1) {
+                dragOrigin = { x: event.clientX - pan.x, y: event.clientY - pan.y };
+                mediaHost.classList.add('is-panning');
+            }
+        });
+        mediaHost.addEventListener('pointermove', (event) => {
+            if (!pointers.has(event.pointerId)) return;
+            pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+            if (pinch && pointers.size === 2) {
+                setZoom(Math.max(1, pinch.zoom * (pointerDistance() / pinch.distance)));
+            } else if (dragOrigin) {
+                pan = { x: event.clientX - dragOrigin.x, y: event.clientY - dragOrigin.y };
+                applyPan();
+            }
+        });
+        const endPointer = (event) => {
+            pointers.delete(event.pointerId);
+            if (pointers.size < 2) pinch = null;
+            if (pointers.size === 0) {
+                dragOrigin = null;
+                mediaHost.classList.remove('is-panning');
+            }
+        };
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach((name) => mediaHost.addEventListener(name, endPointer));
+
+        ['pointermove', 'pointerdown'].forEach((name) => viewer.addEventListener(name, wake, { passive: true }));
+
         // Touch: a horizontal swipe moves to the previous or next item (not while zoomed in,
         // when a drag is for looking around the picture).
         let touchStart = null;
@@ -266,6 +388,7 @@
 
         doc.addEventListener('keydown', (event) => {
             if (!isOpen()) return;
+            wake();
 
             if (event.key === 'Tab') {
                 const focusable = [...viewer.querySelectorAll(focusableSelector)]
