@@ -411,89 +411,53 @@
             </div>
         </section>
 
-        <section class="db-dual-grid db-reveal" aria-label="Engagement and innovation">
-            <article class="db-panel db-hue-4 db-engagement-card">
+        @* Three slim cards: a few figures each, and a link to the module. *@
+        <section class="db-trio-grid db-reveal" aria-label="Activities, ideas and IT projects">
+            <article class="db-panel db-hue-4 db-slim">
                 <div class="db-section-head">
-                    <div><span class="db-section-icon"><i class="bi bi-people"></i></span><div><h2>Institutional activities</h2><p>Recent engagement, monthly activity and leading activity types</p></div></div>
-                    <a asp-page="/Activities/Index" class="db-text-link">View activities <i class="bi bi-arrow-right"></i></a>
+                    <div><span class="db-section-icon"><i class="bi bi-people"></i></span><div><h2>Institutional activities</h2><p>Last 12 months</p></div></div>
+                    <a asp-page="/Activities/Index" class="db-text-link" aria-label="View activities">View <i class="bi bi-arrow-right"></i></a>
                 </div>
-                <div class="db-activity-overview">
-                    <div class="db-activity-kpis">
-                        <div><span>Total activities</span><strong>@Model.ActivitySummary.TotalActivities</strong></div>
-                        <div><span>Last 30 days</span><strong>@Model.ActivitySummary.Last30DaysCount</strong></div>
-                    </div>
-                    <div class="db-activity-trend" data-db-activity-trend data-values='@Html.Raw(Json(Model.ActivitySummary.MonthlyTrend))' data-labels='@Html.Raw(Json(Model.ActivitySummary.MonthlyLabels))'>
-                        <div class="db-activity-trend__head"><span>Monthly activity</span><small>Last 12 months</small></div>
-                        <canvas role="img" aria-label="Institutional activities recorded per month for the last 12 months"></canvas>
-                        @if (Model.ActivitySummary.MonthlyLabels.Count > 0)
+                @if (Model.ActivitySummary.TopTypes.Count > 0)
+                {
+                    <div class="db-figures">
+                        @foreach (var type in Model.ActivitySummary.TopTypes)
                         {
-                            <div class="db-activity-trend__axis" aria-hidden="true">
-                                <span>@Model.ActivitySummary.MonthlyLabels.First()</span>
-                                <span>@Model.ActivitySummary.MonthlyLabels.Last()</span>
-                            </div>
+                            <a asp-page="/Activities/Index" asp-route-ActivityTypeId="@type.ActivityTypeId" class="db-figure" title="View @type.Name activities"><strong>@type.Count</strong><span>@type.Name</span></a>
                         }
                     </div>
+                }
+                else
+                {
+                    <div class="db-empty db-empty--slim">No activities in the last 12 months.</div>
+                }
+            </article>
+
+            <article class="db-panel db-hue-6 db-slim">
+                <div class="db-section-head">
+                    <div><span class="db-section-icon"><i class="bi bi-lightbulb"></i></span><div><h2>Innovation pipeline</h2></div></div>
+                    <a asp-page="/ProjectIdeas/Index" class="db-text-link" aria-label="Open ideation board">Open <i class="bi bi-arrow-right"></i></a>
                 </div>
-                <div class="db-activity-detail">
-                    <div class="db-top-types">
-                        <h3>Top activity types</h3>
-                        @if (Model.ActivitySummary.TopTypes.Count > 0)
-                        {
-                            var maxType = Math.Max(1, Model.ActivitySummary.TopTypes.Max(x => x.Count));
-                            var totalActivities = Math.Max(1, Model.ActivitySummary.TotalActivities);
-                            @foreach (var type in Model.ActivitySummary.TopTypes)
-                            {
-                                var width = type.Count * 100d / maxType;
-                                var share = (int)Math.Round(type.Count * 100d / totalActivities);
-                                <a asp-page="/Activities/Index" asp-route-ActivityTypeId="@type.ActivityTypeId" class="db-type-row"><span>@type.Name</span><div><i style="--type-width:@width.ToString("0.##", CultureInfo.InvariantCulture)%"></i></div><strong>@type.Count <small>@share%</small></strong></a>
-                            }
-                        }
-                        else { <div class="db-empty db-empty--compact">No activity types recorded.</div> }
-                    </div>
-                    <div class="db-recent-activities">
-                        <h3>Recent activities</h3>
-                        @foreach (var activity in Model.ActivitySummary.RecentActivities)
-                        {
-                            var occurredIst = TimeZoneInfo.ConvertTime(activity.OccurredAtUtc, ProjectManagement.Infrastructure.IstClock.TimeZone);
-                            <a asp-page="/Activities/Details" asp-route-id="@activity.Id" class="db-recent-row" title="@activity.Title">
-                                <div>
-                                    <strong>@activity.Title</strong>
-                                    <span>
-                                        @activity.Type · @occurredIst.ToString("dd MMM yyyy")
-                                        @if (!string.IsNullOrWhiteSpace(activity.Location))
-                                        {
-                                            <text> · @activity.Location</text>
-                                        }
-                                    </span>
-                                </div>
-                                <i class="bi bi-chevron-right"></i>
-                            </a>
-                        }
-                        @if (Model.ActivitySummary.RecentActivities.Count == 0) { <div class="db-empty db-empty--compact">No activities recorded.</div> }
-                    </div>
+                <div class="db-figures">
+                    <div class="db-figure"><strong>@Model.IdeaSummary.ActiveCount</strong><span>Active ideas</span></div>
+                    <div class="db-figure"><strong>@Model.IdeaSummary.OnHoldCount</strong><span>On hold</span></div>
                 </div>
             </article>
 
-            <article class="db-panel db-hue-6 db-innovation-card">
-                <div class="db-section-head">
-                    <div><span class="db-section-icon"><i class="bi bi-lightbulb"></i></span><div><h2>Innovation pipeline</h2><p>Active and on-hold ideas progressing through refinement</p></div></div>
-                    <a asp-page="/ProjectIdeas/Index" class="db-text-link">Open ideation board <i class="bi bi-arrow-right"></i></a>
-                </div>
-                <div class="db-idea-summary">
-                    <div class="db-idea-summary__primary"><strong>@Model.IdeaSummary.ActiveCount</strong><span>Active ideas</span></div>
-                    <div><strong>@Model.IdeaSummary.OnHoldCount</strong><span>On hold</span></div>
-                    <div><strong>@Model.IdeaSummary.UpdatedLast30Days</strong><span>Updated · 30 days</span></div>
-                    <div><strong>@Model.IdeaSummary.IdeasWithDiscussion</strong><span>With discussion</span></div>
-                    <div><strong>@Model.IdeaSummary.DocumentCount</strong><span>Supporting documents</span></div>
-                </div>
-                <div class="db-idea-list">
-                    @foreach (var idea in Model.IdeaSummary.LatestIdeas)
-                    {
-                        <a asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id" class="db-idea-row" title="@idea.Title"><div><strong>@idea.Title</strong><span>@idea.Status · @idea.OwnerName · Updated @idea.UpdatedAt.ToString("dd MMM yyyy")</span></div><div><span><i class="bi bi-chat"></i> @idea.CommentCount</span><span><i class="bi bi-paperclip"></i> @idea.DocumentCount</span></div></a>
-                    }
-                    @if (Model.IdeaSummary.LatestIdeas.Count == 0) { <div class="db-empty db-empty--compact">No active or on-hold ideas recorded.</div> }
-                </div>
-            </article>
+            @if (Model.ItProjects is { } it)
+            {
+                <article class="db-panel db-hue-5 db-slim">
+                    <div class="db-section-head">
+                        <div><span class="db-section-icon"><i class="bi bi-pc-display"></i></span><div><h2>IT projects</h2><p>FY @it.FinancialYearDisplay</p></div></div>
+                        <a asp-page="/ItProjects/Index" class="db-text-link" aria-label="Open IT projects">Open <i class="bi bi-arrow-right"></i></a>
+                    </div>
+                    <div class="db-figures">
+                        <div class="db-figure"><strong>@it.Listed</strong><span>Listed</span></div>
+                        <div class="db-figure"><strong>@it.Completed</strong><span>Completed</span></div>
+                        <div class="db-figure"><strong>@it.Ongoing</strong><span>Ongoing</span></div>
+                    </div>
+                </article>
+            }
         </section>
 
         <section class="db-panel db-hue-5 db-ffc-panel db-reveal" aria-labelledby="ffc-title" data-ffc-map-scope>
