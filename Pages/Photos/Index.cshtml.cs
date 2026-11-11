@@ -1519,6 +1519,49 @@ public sealed partial class IndexModel : PageModel
     public string BuildMediaTypeUrl(string kind)
         => BuildPhotosUrl(PersonIds, kind: kind, pageNumber: 1);
 
+    public string BuildSourceUrl(string source)
+        => BuildPhotosUrl(PersonIds, pageNumber: 1, source: source);
+
+    // The source chips under the bar, in the order they are shown.
+    public IReadOnlyList<(string Key, string Label)> QuickSourceFilters
+    {
+        get
+        {
+            var filters = new List<(string Key, string Label)>
+            {
+                ("projects", "Projects"),
+                ("visits", "Visits"),
+                ("events", "Events"),
+                ("activities", "Activities")
+            };
+            if (ExternalSourcesEnabled)
+            {
+                filters.Add(("external", "External folders"));
+            }
+
+            return filters;
+        }
+    }
+
+    // What a day's pictures came from, for the day heading: up to two names, then "and N more".
+    public static string DaySourceSummary(IReadOnlyCollection<MediaItem> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        var names = items
+            .Select(item => DisplayContext(item) ?? item.ContextTitle)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return names.Count switch
+        {
+            0 => "Photos",
+            1 => names[0],
+            2 => $"{names[0]} · {names[1]}",
+            _ => $"{names[0]} · {names[1]} and {names.Count - 2} more"
+        };
+    }
+
     public string BuildPageUrl(int pageNumber)
     {
         if (IsAlbumsWorkspace)
@@ -1571,18 +1614,22 @@ public sealed partial class IndexModel : PageModel
         string? view = null,
         string? collection = null,
         string? sort = null,
-        bool? findMore = null)
+        bool? findMore = null,
+        string? source = null)
     {
         var targetView = view ?? View;
         var targetKind = kind ?? Kind;
+        var targetSource = source ?? Source;
+        // A project filter only makes sense with all sources or project media.
+        var targetProjectId = targetSource is "all" or "projects" ? ProjectId : null;
         var values = new RouteValueDictionary
         {
             ["View"] = targetView,
             ["Q"] = Q,
-            ["Source"] = Source == "all" ? null : Source,
+            ["Source"] = targetSource == "all" ? null : targetSource,
             ["Kind"] = targetKind == "all" ? null : targetKind,
             ["Classification"] = Classification == "all" ? null : Classification,
-            ["ProjectId"] = ProjectId,
+            ["ProjectId"] = targetProjectId,
             ["Year"] = Year,
             ["Sort"] = (sort ?? Sort) == "newest" ? null : (sort ?? Sort),
             ["Collection"] = collection ?? Collection,
