@@ -26,19 +26,9 @@
     min-width: 0;
 }
 
+/* The app's standard breadcrumb (Dashboard / module / page), as on Tasks and ToT. */
 .itp-crumb {
-    font-size: var(--pm-font-size-xs);
-    color: var(--pm-text-muted);
     margin-bottom: .45rem;
-}
-
-.itp-crumb a {
-    color: inherit;
-    text-decoration: none;
-}
-
-.itp-crumb a:hover {
-    color: var(--pm-primary);
 }
 
 .itp-title {

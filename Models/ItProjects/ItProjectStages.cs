@@ -25,7 +25,8 @@ public static class ItProjectStages
     /// <summary>Stages in order. Optional stages are skipped by default.</summary>
     public static readonly IReadOnlyList<Definition> All = new[]
     {
-        new Definition(Ppp, 1, "IT ARPPP / IPA", IsOptional: false, CarriesCost: false),
+        // The IPA cost (the cost approved in principle) sits on the first stage; the SO value on SO.
+        new Definition(Ppp, 1, "IT ARPPP / IPA", IsOptional: false, CarriesCost: true),
         new Definition(Aon, 2, "AoN", IsOptional: false, CarriesCost: false),
         new Definition(Bid, 3, "Bid", IsOptional: false, CarriesCost: false),
         new Definition(Tec, 4, "TEC", IsOptional: false, CarriesCost: false),

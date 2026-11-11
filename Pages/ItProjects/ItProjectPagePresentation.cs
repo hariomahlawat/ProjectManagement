@@ -224,7 +224,8 @@ public static class ItProjectPagePresentation
         foreach (var stage in project.Stages.Where(stage => !stage.IsSkipped && stage.IsCompleted && stage.CompletedOn.HasValue))
         {
             var label = ItProjectStages.LabelOf(stage.StageCode);
-            var text = stage.StageCode == ItProjectStages.So && stage.CostLakhs is { } cost
+            // The IPA cost on the first stage and the SO value on SO ride along with their stage.
+            var text = stage.CostLakhs is { } cost
                 ? $"{label} completed · {ItProjectBoardPresentation.Cost(cost)}"
                 : $"{label} completed";
             events.Add((stage.CompletedOn!.Value, 1, -stage.SortOrder, new StageEvent(stage.StageCode, label, text, stage.CompletedOn.Value)));

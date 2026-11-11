@@ -39,7 +39,8 @@ public sealed record ItProjectStageRulesResult(
 /// 2. A completion date implies completion (a dated stage counts as ticked).
 /// 3. Dates are optional. Where present they must not go backwards in stage order.
 /// 4. Only Benchmarking and PNC may be skipped. A skipped stage is neither complete nor dated.
-/// 5. The SO cost is optional, in lakhs, never negative, and kept whether or not SO is complete.
+/// 5. The IPA cost (on IT ARPPP / IPA) and the SO cost are optional, in lakhs, never negative, and
+///    kept whether or not their stage is complete.
 /// </summary>
 public static class ItProjectStageRules
 {
@@ -109,7 +110,7 @@ public static class ItProjectStageRules
             }
             else if (item.CostLakhs.HasValue)
             {
-                errors.Add($"Only the SO stage carries a cost ({definition.Label}).");
+                errors.Add($"Only the IT ARPPP / IPA and SO stages carry a cost ({definition.Label}).");
             }
 
             // Rule 2: a date means done.

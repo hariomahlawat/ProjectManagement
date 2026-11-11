@@ -244,7 +244,7 @@ public class DetailsModel : PageModel
         /// <summary>Optional stages only: true means the stage is part of this project's chain.</summary>
         public bool IsIncluded { get; set; } = true;
 
-        [Range(0, 99_999_999.99, ErrorMessage = "The SO cost cannot be negative.")]
+        [Range(0, 99_999_999.99, ErrorMessage = "The cost cannot be negative.")]
         public decimal? CostLakhs { get; set; }
     }
 

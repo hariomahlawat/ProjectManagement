@@ -16,7 +16,12 @@
 <div class="itp-page" data-itp-board data-itp-server-search="@(string.IsNullOrWhiteSpace(Model.Q) ? "false" : "true")">
     <header class="itp-board-head">
         <div class="itp-board-head__identity">
-            <div class="itp-crumb" aria-label="Breadcrumb">ERP / IT projects</div>
+            <nav aria-label="Breadcrumb" class="itp-crumb">
+                <ol class="breadcrumb small mb-0">
+                    <li class="breadcrumb-item"><a asp-page="/Dashboard/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">IT projects</li>
+                </ol>
+            </nav>
             <h1 class="itp-board-head__title">IT projects</h1>
             <p class="itp-board-head__lead">Every IT ARPPP case, where it stands and how long it has been there.</p>
         </div>
