@@ -342,6 +342,7 @@ public sealed partial class IndexModel
             Albums = item.Albums,
             MediaDate = item.MediaDate,
             ThumbnailUrl = item.ThumbnailUrl,
+            GridThumbnailUrl = item.GridThumbnailUrl,
             DisplayUrl = item.DisplayUrl,
             OriginalUrl = item.OriginalUrl,
             DownloadUrl = item.DownloadUrl,

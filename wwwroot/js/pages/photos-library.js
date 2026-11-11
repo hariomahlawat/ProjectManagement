@@ -198,10 +198,22 @@
         tile.disabled = true;
     };
 
+    // Tiles ask for a small picture. A library that does not have that size falls back once
+    // to the larger thumbnail before the tile is shown as unavailable.
+    const handleImageFailure = (image) => {
+        const fallback = image.dataset.fallbackSrc;
+        if (fallback && image.dataset.fallbackTried !== 'true') {
+            image.dataset.fallbackTried = 'true';
+            image.src = fallback;
+            return;
+        }
+        markUnavailable(image);
+    };
+
     document.querySelectorAll('[data-media-image]').forEach((image) => {
-        image.addEventListener('error', () => markUnavailable(image), { once: true });
+        image.addEventListener('error', () => handleImageFailure(image));
         if (image.complete && image.naturalWidth === 0) {
-            markUnavailable(image);
+            handleImageFailure(image);
         }
     });
 

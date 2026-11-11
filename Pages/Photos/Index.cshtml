@@ -824,7 +824,7 @@
                                                 draggable="@(Model.OrganizeAlbum ? "true" : null)"
                                                 aria-label="@(alreadyInTargetAlbum ? $"{item.Title} is already in {Model.AddMediaTargetAlbum?.Name}" : Model.OrganizeAlbum ? $"Reorder {item.Title}" : $"Open {item.Title}")">
                                             <span class="photos-tile__placeholder" aria-hidden="true"></span>
-                                            <img src="@item.ThumbnailUrl" alt="" loading="lazy" decoding="async" data-media-image />
+                                            <img src="@(item.GridThumbnailUrl ?? item.ThumbnailUrl)" alt="" loading="lazy" decoding="async" data-media-image data-fallback-src="@(item.GridThumbnailUrl is null ? null : item.ThumbnailUrl)" />
                                             <span class="photos-tile__unavailable" aria-hidden="true"><i class="bi bi-image"></i><strong>Media unavailable</strong><small>Source file could not be opened</small></span>
                                             <span class="photos-tile__shade"></span>
                                             <span class="photos-tile__select" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
@@ -832,10 +832,6 @@
                                             {
                                                 <span class="photos-tile__play"><i class="bi bi-play-fill" aria-hidden="true"></i></span>
                                                 <span class="photos-tile__duration">@IndexModel.FormatDuration(item.DurationSeconds)</span>
-                                            }
-                                            @if (item.IsCover)
-                                            {
-                                                <span class="photos-tile__cover" title="Cover media"><i class="bi bi-bookmark-star-fill"></i></span>
                                             }
                                             @if (item.IsAlbumCover)
                                             {
@@ -848,10 +844,6 @@
                                             @if (Model.OrganizeAlbum)
                                             {
                                                 <span class="photos-tile__drag" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
-                                            }
-                                            @if (item.People.Count > 0 || item.UnidentifiedFaceCount > 0)
-                                            {
-                                                <span class="photos-tile__people" title="@IndexModel.PeopleBadgeTitle(item)"><i class="bi bi-person-fill"></i> @IndexModel.PeopleBadgeLabel(item)</span>
                                             }
                                             <span class="photos-tile__meta"><strong>@item.Title</strong>@if (!string.IsNullOrWhiteSpace(IndexModel.DisplayContext(item))) { <span>@IndexModel.DisplayContext(item)</span> }</span>
                                         </button>

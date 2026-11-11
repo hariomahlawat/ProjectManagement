@@ -21,6 +21,7 @@ namespace ProjectManagement.Pages.Photos;
 public sealed partial class IndexModel : PageModel
 {
     private const int PageSize = 120;
+    private const string GridThumbnailSize = "sm";
     private const int CollectionPageSize = 48;
     private const int AlbumPageSize = 48;
 
@@ -727,6 +728,7 @@ public sealed partial class IndexModel : PageModel
         string thumbnail;
         string display;
         string original;
+        string? gridThumbnail = null;
         string? download = null;
         string? sourceUrl;
 
@@ -735,6 +737,7 @@ public sealed partial class IndexModel : PageModel
             case MediaAssetOrigin.ProjectPhoto:
                 display = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "xl", v = version }) ?? string.Empty;
                 thumbnail = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "md", v = version }) ?? display;
+                gridThumbnail = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = GridThumbnailSize, v = version });
                 original = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "original", v = version }) ?? display;
                 download = Url.Page("/Projects/Photos/Download", new { id = parentId, photoId = id, size = "original" });
                 sourceUrl = Url.Page("/Projects/Photos/Index", new { id = parentId });
@@ -751,6 +754,7 @@ public sealed partial class IndexModel : PageModel
             case MediaAssetOrigin.VisitPhoto:
                 display = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "xl", v = version }) ?? string.Empty;
                 thumbnail = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "md", v = version }) ?? display;
+                gridThumbnail = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = GridThumbnailSize, v = version });
                 original = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "original", v = version }) ?? display;
                 sourceUrl = Url.Page("/Visits/Details", new { area = "ProjectOfficeReports", id = parentId });
                 break;
@@ -820,6 +824,7 @@ public sealed partial class IndexModel : PageModel
             Albums = row.Albums.Select(album => new AlbumSummary(album.Id, album.Name)).ToList(),
             MediaDate = row.MediaDateUtc.ToLocalTime().DateTime,
             ThumbnailUrl = thumbnail,
+            GridThumbnailUrl = gridThumbnail,
             DisplayUrl = display,
             OriginalUrl = original,
             DownloadUrl = download,
@@ -1275,6 +1280,7 @@ public sealed partial class IndexModel : PageModel
                 Caption = row.Caption, OriginalFileName = row.OriginalFileName,
                 MediaDate = DateTime.SpecifyKind(row.CreatedUtc, DateTimeKind.Utc).ToLocalTime(),
                 ThumbnailUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "md", v = row.Version }) ?? display,
+                GridThumbnailUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = GridThumbnailSize, v = row.Version }),
                 DisplayUrl = display,
                 OriginalUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "original", v = row.Version }) ?? display,
                 DownloadUrl = Url.Page("/Projects/Photos/Download", new { id = row.ProjectId, photoId = row.Id, size = "original" }),
@@ -1344,6 +1350,7 @@ public sealed partial class IndexModel : PageModel
                 Title = string.IsNullOrWhiteSpace(row.Caption) ? MediaCollectionTitleFormatter.FormatVisitTitle(row.VisitorName) : row.Caption,
                 Caption = row.Caption, MediaDate = row.DateOfVisit.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local),
                 ThumbnailUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "md", v = row.VersionStamp }) ?? display,
+                GridThumbnailUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = GridThumbnailSize, v = row.VersionStamp }),
                 DisplayUrl = display,
                 OriginalUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "original", v = row.VersionStamp }) ?? display,
                 SourceUrl = Url.Page("/Visits/Details", new { area = "ProjectOfficeReports", id = row.VisitId }),
@@ -1747,43 +1754,6 @@ public sealed partial class IndexModel : PageModel
         }));
     }
 
-    public static string PeopleBadgeTitle(MediaItem item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        if (item.People.Count > 0)
-        {
-            var confirmed = string.Join(", ", item.People.Select(person => person.Name));
-            return item.UnidentifiedFaceCount > 0
-                ? $"{confirmed}; {item.UnidentifiedFaceCount} unidentified"
-                : confirmed;
-        }
-
-        return item.UnidentifiedFaceCount == 1
-            ? "1 unidentified person"
-            : $"{item.UnidentifiedFaceCount} unidentified people";
-    }
-
-    public static string PeopleBadgeLabel(MediaItem item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        if (item.People.Count == 1 && item.UnidentifiedFaceCount == 0)
-        {
-            return item.People[0].Name;
-        }
-
-        if (item.People.Count > 0)
-        {
-            var additional = item.People.Count - 1 + item.UnidentifiedFaceCount;
-            return additional > 0
-                ? $"{item.People[0].Name} +{additional}"
-                : item.People[0].Name;
-        }
-
-        return item.UnidentifiedFaceCount == 1
-            ? "1 unidentified"
-            : $"{item.UnidentifiedFaceCount} unidentified";
-    }
-
     public static string ClassificationLabel(MediaClassification classification)
         => classification switch
         {
@@ -1850,6 +1820,9 @@ public sealed partial class IndexModel : PageModel
         public IReadOnlyList<AlbumSummary> Albums { get; init; } = Array.Empty<AlbumSummary>();
         public required DateTime MediaDate { get; init; }
         public required string ThumbnailUrl { get; init; }
+        // A smaller picture for timeline tiles (about 215px tall). When it cannot be loaded the
+        // page falls back to ThumbnailUrl, so a library without this size keeps working.
+        public string? GridThumbnailUrl { get; init; }
         public required string DisplayUrl { get; init; }
         public required string OriginalUrl { get; init; }
         public string? DownloadUrl { get; init; }
