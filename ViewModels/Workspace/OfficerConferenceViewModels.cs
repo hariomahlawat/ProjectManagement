@@ -8,7 +8,11 @@ public enum ConferenceItemKind
     ProjectIdea = 2,
     ActionTask = 3,
 
-    /// <summary>An IT project (Pages/ItProjects), reviewed under the ITO.</summary>
+    /// <summary>
+    /// A project of the IT projects engine: an IT project, reviewed under the ITO, or a MOLTI or
+    /// SRE project, reviewed under the Project Officer assigned to it. The ids are one sequence,
+    /// so the kind and the id still name one project.
+    /// </summary>
     ItProject = 4
 }
 
@@ -29,8 +33,14 @@ public sealed class OfficerConferenceVm
     public int IdeaCount { get; init; }
     public int OtherTaskCount { get; init; }
 
-    /// <summary>Live IT projects under this officer: non-zero only for an ITO on the command review.</summary>
+    /// <summary>
+    /// Live projects of the IT projects engine under this officer: IT projects for an ITO, MOLTI
+    /// and SRE projects for their assigned officer.
+    /// </summary>
     public int ItProjectCount { get; init; }
+
+    /// <summary>The same projects counted per module, for the header ("2 IT projects", "1 MOLTI project").</summary>
+    public IReadOnlyList<ConferenceModuleCountVm> ModuleProjectCounts { get; init; } = Array.Empty<ConferenceModuleCountVm>();
 
     public string? PreviousOfficerUserId { get; init; }
     public string? NextOfficerUserId { get; init; }
@@ -52,13 +62,32 @@ public sealed record OfficerConferenceOfficerOptionVm(
     int OtherTaskCount = 0,
     int ActiveProjectCount = 0,
     int RecentlyCompletedProjectCount = 0,
-    int ItProjectCount = 0);
+    int ItProjectCount = 0)
+{
+    /// <summary>The engine projects counted per module, for the officer picker.</summary>
+    public IReadOnlyList<ConferenceModuleCountVm> ModuleProjectCounts { get; init; } = Array.Empty<ConferenceModuleCountVm>();
+}
+
+/// <summary>How many live projects of one module sit under an officer, with the words to say it.</summary>
+public sealed record ConferenceModuleCountVm(int Count, string Singular, string Plural)
+{
+    public string Label => Count == 1 ? Singular : Plural;
+}
 
 public sealed class OfficerConferenceSectionVm
 {
     public ConferenceItemKind Kind { get; init; }
     public string Title { get; init; } = string.Empty;
     public string IconClass { get; init; } = string.Empty;
+
+    /// <summary>
+    /// For a section of the IT projects engine: the module it lists ("IT", "MOLTI", "SRE"). An
+    /// officer can have a section per module, so the kind alone does not name the section.
+    /// </summary>
+    public string? ModuleCode { get; init; }
+
+    /// <summary>One item of the section, for the column heading and the empty text: "IT project", "MOLTI project".</summary>
+    public string? ItemLabel { get; init; }
     public IReadOnlyList<OfficerConferenceItemVm> Items { get; init; }
         = Array.Empty<OfficerConferenceItemVm>();
 }
@@ -67,6 +96,9 @@ public sealed class OfficerConferenceItemVm
 {
     public ConferenceItemKind Kind { get; init; }
     public int ItemId { get; init; }
+
+    /// <summary>What the item is called when the kind does not say it: "MOLTI project". Null for the kind's own name.</summary>
+    public string? ItemLabel { get; init; }
     public string Title { get; init; } = string.Empty;
     public string OpenUrl { get; init; } = string.Empty;
 

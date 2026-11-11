@@ -47,9 +47,10 @@
                     <span><strong>@officer.IdeaCount</strong> @Count(officer.IdeaCount, "idea", "ideas")</span>
                     <span><strong>@officer.OtherTaskCount</strong> @Count(officer.OtherTaskCount, "other task", "other tasks")</span>
                 }
-                @if (officer.ItProjectCount > 0)
+                @foreach (var moduleGroup in officer.ItProjects.GroupBy(project => project.ModuleName))
                 {
-                    <span><strong>@officer.ItProjectCount</strong> @Count(officer.ItProjectCount, "IT project", "IT projects")</span>
+                    var moduleSingular = moduleGroup.Key.EndsWith("s", StringComparison.Ordinal) ? moduleGroup.Key[..^1] : moduleGroup.Key;
+                    <span><strong>@moduleGroup.Count()</strong> @Count(moduleGroup.Count(), moduleSingular, moduleGroup.Key)</span>
                 }
             </p>
         </div>
@@ -84,13 +85,14 @@
                 }
             </section>
         }
-        @* IT projects have no assigned Project Officer; the ITO runs them all (docs/ux/command-desk.md). *@
-        @if (officer.ItProjectCount > 0)
+        @* IT projects have no assigned Project Officer; the ITO runs them all (docs/ux/command-desk.md).
+           MOLTI and SRE projects sit on the card of the officer assigned to them, a list per module. *@
+        @foreach (var moduleGroup in officer.ItProjects.GroupBy(project => project.ModuleName))
         {
             <section class="cw-work-section cw-work-section--projects cw-work-section--it-projects">
-                <div class="cw-work-section__heading"><span><i class="bi bi-pc-display" aria-hidden="true"></i>IT projects</span><b>@officer.ItProjectCount</b></div>
+                <div class="cw-work-section__heading"><span><i class="bi @moduleGroup.First().ModuleIcon" aria-hidden="true"></i>@moduleGroup.Key</span><b>@moduleGroup.Count()</b></div>
                 <ul>
-                    @foreach (var itProject in officer.ItProjects)
+                    @foreach (var itProject in moduleGroup)
                     {
                         <li><a href="@itProject.OpenUrl" title="@itProject.Title">@itProject.Title</a><span>@itProject.State · @itProject.Reference</span></li>
                     }

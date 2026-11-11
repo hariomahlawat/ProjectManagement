@@ -10,11 +10,13 @@ using ProjectManagement.ViewModels.Workspace;
 namespace ProjectManagement.Services.Workspace;
 
 /// <summary>
-/// IT projects on the conference review (owner, 9 Nov 2026). IT projects have no assigned
+/// The projects of the IT projects engine on the conference review. IT projects have no assigned
 /// Project Officer: the ITO runs them, so every live IT project appears under each officer who
-/// holds the ITO role, on the command review (where an ITO with no other workload is still
-/// listed) and in that officer's own conference view. Directions are the IT
-/// project's own conference remarks (<see cref="ItProjectRemark"/>, Type = Conference).
+/// holds the ITO role (owner, 9 Nov 2026), on the command review (where an ITO with no other
+/// workload is still listed) and in that officer's own conference view. MOLTI and SRE projects
+/// appear under the Project Officer assigned to them, a section per module; an unassigned one
+/// appears under nobody (docs/ux/molti-sre-projects.md). Directions are the project's own
+/// conference remarks (<see cref="ItProjectRemark"/>, Type = Conference).
 /// </summary>
 public sealed partial class OfficerConferenceReadService
 {
@@ -23,31 +25,60 @@ public sealed partial class OfficerConferenceReadService
         => LiveItProjects.LoadAsync(_db, _clock.UtcNow, cancellationToken);
 
     /// <summary>
-    /// Gives every officer who holds the ITO role the live IT projects, and adds ITO officers who
-    /// have no other conference workload. Nothing changes when there is no ITO or no live IT project.
+    /// The live engine projects under each officer: the IT projects under every officer who holds
+    /// the ITO role, then the MOLTI and SRE projects under their assigned officer. Officers with
+    /// none are absent. <paramref name="itoUserIds"/> comes back so the caller can tell an ITO.
+    /// </summary>
+    private async Task<(IReadOnlyDictionary<string, List<LiveItProjectRow>> ByOfficer, IReadOnlySet<string> ItoUserIds)> LoadEngineProjectsByOfficerAsync(
+        CancellationToken cancellationToken)
+    {
+        var byOfficer = new Dictionary<string, List<LiveItProjectRow>>(StringComparer.Ordinal);
+        var itoUserIds = await LoadUserIdsInRoleAsync(RoleNames.Ito, cancellationToken);
+        if (itoUserIds.Count > 0)
+        {
+            var itRows = await LoadLiveItProjectsAsync(cancellationToken);
+            if (itRows.Count > 0)
+            {
+                foreach (var id in itoUserIds)
+                {
+                    byOfficer[id] = itRows.ToList();
+                }
+            }
+        }
+
+        foreach (var row in await LiveItProjects.LoadAssignedAsync(_db, _clock.UtcNow, cancellationToken))
+        {
+            if (!byOfficer.TryGetValue(row.ProjectOfficerUserId!, out var rows))
+            {
+                byOfficer[row.ProjectOfficerUserId!] = rows = new List<LiveItProjectRow>();
+            }
+
+            rows.Add(row);
+        }
+
+        return (byOfficer, itoUserIds);
+    }
+
+    /// <summary>
+    /// Gives each officer their live engine projects, and adds the officers who have them and no
+    /// other conference workload. Nothing changes when there is nothing to add.
     /// </summary>
     private async Task<IReadOnlyList<ConferenceOfficerContext>> AttachItProjectsAsync(
         IReadOnlyList<ConferenceOfficerContext> officers,
         CancellationToken cancellationToken)
     {
-        var itoUserIds = await LoadUserIdsInRoleAsync(RoleNames.Ito, cancellationToken);
-        if (itoUserIds.Count == 0)
-        {
-            return officers;
-        }
-
-        var rows = await LoadLiveItProjectsAsync(cancellationToken);
-        if (rows.Count == 0)
+        var (byOfficer, itoUserIds) = await LoadEngineProjectsByOfficerAsync(cancellationToken);
+        if (byOfficer.Count == 0)
         {
             return officers;
         }
 
         var result = officers
-            .Select(officer => itoUserIds.Contains(officer.UserId) ? officer with { ItProjectsInput = rows } : officer)
+            .Select(officer => byOfficer.TryGetValue(officer.UserId, out var rows) ? officer with { ItProjectsInput = rows } : officer)
             .ToList();
 
         var listed = officers.Select(officer => officer.UserId).ToHashSet(StringComparer.Ordinal);
-        var missing = itoUserIds.Where(id => !listed.Contains(id)).ToArray();
+        var missing = byOfficer.Keys.Where(id => !listed.Contains(id)).ToArray();
         if (missing.Length > 0)
         {
             var identities = await _db.Users
@@ -56,7 +87,7 @@ public sealed partial class OfficerConferenceReadService
                 .Select(user => new
                 {
                     user.Id,
-                    Name = string.IsNullOrWhiteSpace(user.FullName) ? user.UserName ?? "ITO" : user.FullName,
+                    Name = string.IsNullOrWhiteSpace(user.FullName) ? user.UserName ?? "Officer" : user.FullName,
                     user.Rank
                 })
                 .ToListAsync(cancellationToken);
@@ -72,20 +103,32 @@ public sealed partial class OfficerConferenceReadService
                     Array.Empty<CommandOfficerIdeaVm>(),
                     Array.Empty<CommandOfficerTaskVm>(),
                     Array.Empty<ConferenceProjectCarryover>(),
-                    rows,
-                    ItProjectsOnly: true)));
+                    byOfficer[identity.Id],
+                    // Listed only for these projects: an ITO, or an officer with nothing else under them.
+                    ItProjectsOnly: IsEngineOnly(itoUserIds.Contains(identity.Id), byOfficer[identity.Id]))));
         }
 
         return result;
     }
 
-    /// <summary>The officer with the live IT projects when they hold the ITO role (their own conference view).</summary>
+    /// <summary>
+    /// Whether an officer with no other workload shows only the engine sections. True for an ITO
+    /// whose rows are all IT projects: the project, idea and task sections, with their "Add"
+    /// forms, belong to Project Officers. An officer with MOLTI or SRE projects is a Project
+    /// Officer and keeps the full review.
+    /// </summary>
+    private static bool IsEngineOnly(bool isIto, IReadOnlyCollection<LiveItProjectRow> rows)
+        => isIto && rows.All(row => row.Module == ItProjectModules.It);
+
+    /// <summary>The officer with their live engine projects (their own conference view).</summary>
     private async Task<ConferenceOfficerContext> WithOwnItProjectsAsync(
         ConferenceOfficerContext officer,
         CancellationToken cancellationToken)
     {
-        var itoUserIds = await LoadUserIdsInRoleAsync(RoleNames.Ito, cancellationToken);
-        if (!itoUserIds.Contains(officer.UserId))
+        var (byOfficer, itoUserIds) = await LoadEngineProjectsByOfficerAsync(cancellationToken);
+        var isIto = itoUserIds.Contains(officer.UserId);
+        IReadOnlyList<LiveItProjectRow> rows = byOfficer.TryGetValue(officer.UserId, out var found) ? found : Array.Empty<LiveItProjectRow>();
+        if (!isIto && rows.Count == 0)
         {
             return officer;
         }
@@ -93,22 +136,52 @@ public sealed partial class OfficerConferenceReadService
         // Same rule as the command review: an ITO with no Project Officer workload gets only the
         // IT projects section, not empty project, idea and task sections. With no live IT project
         // that section is shown empty ("No IT project in progress.").
-        var rows = await LoadLiveItProjectsAsync(cancellationToken);
         var noOtherWork = officer.ProjectCount == 0 && officer.Ideas.Count == 0 && officer.OtherTasks.Count == 0;
         if (rows.Count == 0 && !noOtherWork)
         {
             return officer;
         }
 
-        return officer with { ItProjectsInput = rows, ItProjectsOnly = noOtherWork };
+        return officer with { ItProjectsInput = rows, ItProjectsOnly = noOtherWork && IsEngineOnly(isIto, rows) };
     }
 
-    /// <summary>The "IT projects" section of an ITO officer's conference review.</summary>
-    private async Task<OfficerConferenceSectionVm> BuildItProjectSectionAsync(
+    /// <summary>
+    /// One section per module the officer has live engine projects in, in catalogue order. An
+    /// officer listed only as the ITO gets the IT projects section even when it is empty.
+    /// </summary>
+    private async Task<IReadOnlyList<OfficerConferenceSectionVm>> BuildItProjectSectionsAsync(
         ConferenceOfficerContext officer,
         CancellationToken cancellationToken)
     {
-        var ids = officer.ItProjects.Select(row => row.Id).ToArray();
+        var sections = new List<OfficerConferenceSectionVm>();
+        foreach (var module in ItProjectModules.All)
+        {
+            var rows = officer.ItProjects.Where(row => row.Module == module.Code).ToList();
+            if (rows.Count > 0 || (module.Code == ItProjectModules.It && officer.ItProjectsOnly))
+            {
+                sections.Add(await BuildItProjectSectionAsync(officer, module, rows, cancellationToken));
+            }
+        }
+
+        return sections;
+    }
+
+    /// <summary>The engine projects under an officer, counted per module, for the header and the officer picker.</summary>
+    private static IReadOnlyList<ConferenceModuleCountVm> ModuleCounts(IReadOnlyList<LiveItProjectRow> rows)
+        => ItProjectModules.All
+            .Select(module => new ConferenceModuleCountVm(rows.Count(row => row.Module == module.Code), module.Singular, module.Name))
+            .Where(count => count.Count > 0)
+            .ToList();
+
+    /// <summary>One module's section of an officer's conference review: "IT projects", "MOLTI projects".</summary>
+    private async Task<OfficerConferenceSectionVm> BuildItProjectSectionAsync(
+        ConferenceOfficerContext officer,
+        ItProjectModules.Definition module,
+        IReadOnlyList<LiveItProjectRow> moduleRows,
+        CancellationToken cancellationToken)
+    {
+        var runner = LiveItProjects.RunnerText(module.Code);
+        var ids = moduleRows.Select(row => row.Id).ToArray();
         var remarks = await _db.ItProjectRemarks
             .AsNoTracking()
             .Where(remark => ids.Contains(remark.ItProjectId) && !remark.IsDeleted)
@@ -118,8 +191,8 @@ public sealed partial class OfficerConferenceReadService
             .ToDictionary(group => group.Key, group => group.ToList());
         var authorNames = await LoadAuthorNamesAsync(remarks.Select(remark => remark.AuthorUserId), cancellationToken);
 
-        var items = new List<OfficerConferenceItemVm>(officer.ItProjects.Count);
-        foreach (var row in officer.ItProjects)
+        var items = new List<OfficerConferenceItemVm>(moduleRows.Count);
+        foreach (var row in moduleRows)
         {
             var projectRemarks = byProject.TryGetValue(row.Id, out var found) ? found : new List<ItProjectRemark>();
             var directions = projectRemarks
@@ -153,8 +226,9 @@ public sealed partial class OfficerConferenceReadService
             {
                 Kind = ConferenceItemKind.ItProject,
                 ItemId = row.Id,
+                ItemLabel = module.Singular,
                 Title = row.Title,
-                OpenUrl = $"/ItProjects/{row.Id}",
+                OpenUrl = LiveItProjects.OpenUrl(row),
                 // Code and name are the same, so the row shows the stage once ("At COB").
                 CurrentStateCode = stateName,
                 CurrentStateName = stateName,
@@ -162,11 +236,11 @@ public sealed partial class OfficerConferenceReadService
                 CurrentContext = $"{row.YearType?.PppReferenceNumber ?? row.Reference} · FY {FinancialYearHelper.Format(row.YearType?.FinancialYearStart ?? row.FinancialYearStart)}{type}",
                 AttentionText = late ? $"{row.Timing.DaysAtStage} days at {stageLabel}" : null,
                 RequiresAttention = late,
-                LatestDirection = latest is null ? null : ItProjectDirection(latest, authorNames),
+                LatestDirection = latest is null ? null : ItProjectDirection(latest, authorNames, module.Code),
                 DirectionCount = directions.Count,
                 ProgressEntries = progress,
                 EmptyProgressText = latest is not null && progress.Count == 0
-                    ? "Progress update awaited. The ITO has not written a remark since the direction was issued."
+                    ? $"Progress update awaited. {runner} has not written a remark since the direction was issued."
                     : null,
                 ProgressSummary = string.Empty,
                 LatestProgressText = null
@@ -176,18 +250,22 @@ public sealed partial class OfficerConferenceReadService
         return new OfficerConferenceSectionVm
         {
             Kind = ConferenceItemKind.ItProject,
-            Title = "IT projects",
-            IconClass = "bi-pc-display",
+            Title = module.Name,
+            IconClass = LiveItProjects.IconOf(module.Code),
+            ModuleCode = module.Code,
+            ItemLabel = module.Singular,
             Items = items
         };
     }
 
-    /// <summary>Every conference direction on an IT project, each with the ITO's latest remark before the next one.</summary>
+    /// <summary>Every conference direction on an engine project, each with its officer's latest remark before the next one.</summary>
     private async Task<ConferenceDirectionHistoryVm> BuildItProjectDirectionHistoryAsync(
         string officerUserId,
         int itProjectId,
+        string module,
         CancellationToken cancellationToken)
     {
+        var runner = LiveItProjects.RunnerText(module);
         var remarks = await _db.ItProjectRemarks
             .AsNoTracking()
             .Where(remark => remark.ItProjectId == itProjectId && !remark.IsDeleted)
@@ -223,12 +301,12 @@ public sealed partial class OfficerConferenceReadService
 
             cycles.Add(new ConferenceDirectionCycleVm
             {
-                Direction = ItProjectDirection(direction, authorNames),
+                Direction = ItProjectDirection(direction, authorNames, module),
                 ProgressEntries = progress,
                 EmptyProgressText = progress.Length == 0
                     ? next is null
-                        ? "Progress update awaited. The ITO has not written a remark since the direction was issued."
-                        : "The ITO wrote no remark before the next conference direction."
+                        ? $"Progress update awaited. {runner} has not written a remark since the direction was issued."
+                        : $"{runner} wrote no remark before the next conference direction."
                     : null,
                 SequenceNumber = index + 1,
                 TotalDirections = directions.Count,
@@ -244,7 +322,7 @@ public sealed partial class OfficerConferenceReadService
         };
     }
 
-    private static ConferenceDirectionVm ItProjectDirection(ItProjectRemark direction, IReadOnlyDictionary<string, string> authorNames)
+    private static ConferenceDirectionVm ItProjectDirection(ItProjectRemark direction, IReadOnlyDictionary<string, string> authorNames, string module)
         => new()
         {
             Id = direction.Id,
@@ -253,7 +331,7 @@ public sealed partial class OfficerConferenceReadService
             AuthorRole = DisplayRole(direction.AuthorRole),
             CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
             SnapshotLabel = "Stage when issued",
-            SnapshotValue = direction.StageCode is { } code && ItProjectStages.IsKnown(code) ? ItProjectStages.LabelOf(code) : "Not recorded"
+            SnapshotValue = direction.StageCode is { } code && ItProjectStages.IsKnown(code) ? ItProjectStages.LabelOf(code, module) : "Not recorded"
         };
 
     private static ConferenceProgressEntryVm ItProjectProgressEntry(ItProjectRemark remark, IReadOnlyDictionary<string, string> authorNames)

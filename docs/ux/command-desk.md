@@ -86,6 +86,11 @@ conference review), the Comdt/HoD's saved card order covers ITO cards, and the o
 them. The command desk and the conference commands keep reading `GetAllAsync`, whose scope is
 unchanged. Tests: `ItProjectWorkloadTests`.
 
+Since 11 Nov 2026 the same call also puts each live MOLTI or SRE project on the card of the Project
+Officer assigned to it, a list per module (`LiveItProjects.LoadAssignedAsync`;
+docs/ux/molti-sre-projects.md). An unassigned one is on no card. Tests:
+`ItProjectAssignedWorkspaceTests`.
+
 ## Layout and screen width
 
 - My Workspace pages (the two desks, Conference review and the workspace views) use the `desk` page shell: at most 1840px wide (`--pm-shell-desk`) and centred. On these pages the top bar, sub-nav and footer use the same width (`pm-chrome-shell--desk`), so the side rail lines up with the menu button above it. Other modules that set the `workspace` shell (Process, Reports, Publications, Completed summary) stay full width. Briefing decks uses the `studio` shell: the page and the chrome both take the full window (less the desk gutter), so its slide preview and tables use a wide monitor while the rail still lines up with the menu button.

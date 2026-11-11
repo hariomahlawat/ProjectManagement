@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -217,7 +218,8 @@ public class IndexModel : PageModel
             CommandWorkspace,
             Workspace,
             hasItoRole,
-            hasItoRole && _itoWorkspace is not null ? await _itoWorkspace.CountLiveItProjectsAsync(ct) : 0);
+            hasItoRole && _itoWorkspace is not null ? await _itoWorkspace.CountLiveItProjectsAsync(ct) : 0,
+            await AssignedModuleLinksAsync(ct));
 
         return Page();
     }
@@ -228,7 +230,8 @@ public class IndexModel : PageModel
         CommandWorkspaceVm command,
         ProjectOfficerWorkspaceVm personal,
         bool hasItoAccess = false,
-        int liveItProjectCount = 0)
+        int liveItProjectCount = 0,
+        IReadOnlyList<WorkspaceModuleLinkVm>? assignedModuleLinks = null)
     {
         var activeItem = IsCommandMode
             ? View switch
@@ -257,6 +260,7 @@ public class IndexModel : PageModel
             HasProjectOfficerAccess = hasProjectOfficerAccess,
             HasItoAccess = hasItoAccess,
             LiveItProjectCount = liveItProjectCount,
+            AssignedModuleLinks = assignedModuleLinks ?? Array.Empty<WorkspaceModuleLinkVm>(),
             CanViewDocuments = hasProjectOfficerAccess && CanViewDocuments,
             ActiveLens = IsCommandMode ? "command" : "personal",
             ActiveItem = activeItem,
@@ -495,4 +499,9 @@ public class IndexModel : PageModel
         public List<string> OfficerUserIds { get; init; } = new();
     }
 
+    /// <summary>The MOLTI and SRE modules in which the signed-in officer has live projects assigned, for the rail.</summary>
+    private async Task<IReadOnlyList<WorkspaceModuleLinkVm>> AssignedModuleLinksAsync(CancellationToken cancellationToken)
+        => _itoWorkspace is null
+            ? Array.Empty<WorkspaceModuleLinkVm>()
+            : await _itoWorkspace.GetAssignedModuleLinksAsync(User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier), cancellationToken);
 }
