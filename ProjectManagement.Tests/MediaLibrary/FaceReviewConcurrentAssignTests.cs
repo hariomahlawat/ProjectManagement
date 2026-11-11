@@ -125,6 +125,44 @@ public sealed class FaceReviewConcurrentAssignTests
             service.RejectAsync(FaceId, Bob, "reviewer-a", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Merging_people_carries_rejections_over_to_the_merged_person()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        // A reviewer said this face is not Alice (the duplicate record), and Bob currently
+        // has a pending suggestion for the same face.
+        db.FaceReviewDecisions.Add(new MediaFaceReviewDecision
+        {
+            MediaFaceId = FaceId,
+            CandidatePersonId = Alice,
+            Decision = FaceReviewDecisionType.Rejected,
+            ModelKey = "sface",
+            ModelVersion = "1",
+            DecidedByUserId = "reviewer-a",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        });
+        db.FaceReviewDecisions.Add(new MediaFaceReviewDecision
+        {
+            MediaFaceId = FaceId,
+            CandidatePersonId = Bob,
+            Decision = FaceReviewDecisionType.Pending,
+            ModelKey = "sface",
+            ModelVersion = "1",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        await CreateService(db).MergePeopleAsync(Alice, Bob, "admin", "Duplicate record.", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var decisions = await db.FaceReviewDecisions.AsNoTracking().ToListAsync();
+        var rejection = Assert.Single(decisions, decision => decision.Decision == FaceReviewDecisionType.Rejected);
+        Assert.Equal(Bob, rejection.CandidatePersonId);
+        Assert.DoesNotContain(decisions, decision => decision.Decision == FaceReviewDecisionType.Pending);
+    }
+
     private static FaceReviewService CreateService(MediaLibraryDbContext db)
     {
         var options = new MediaLibraryOptions
