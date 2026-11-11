@@ -93,6 +93,15 @@
             </div>
         </div>
 
+        @if (m.HasAssignedOfficer)
+        {
+            <div class="itp-form__field itp-form__field--narrow">
+                <label asp-for="Input.ProjectOfficerUserId" class="form-label">Project Officer</label>
+                <select asp-for="Input.ProjectOfficerUserId" asp-items="Model.OfficerOptions" class="form-select"></select>
+                <div class="form-text">Optional. The officer runs the project; it can be assigned or changed later.</div>
+            </div>
+        }
+
         <div class="itp-form__field">
             <label asp-for="Input.Description" class="form-label"></label>
             <textarea asp-for="Input.Description" class="form-control" rows="6" maxlength="@ItProjectCommandService.DescriptionMaxLength" placeholder="What is being procured, for whom, and what it covers."></textarea>

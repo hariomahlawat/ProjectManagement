@@ -27,11 +27,11 @@
         <div class="itp-board-head__actions">
             <nav class="itp-fy" aria-label="Financial year">
                 <a class="itp-fy__item @(Model.Fy is null ? "itp-fy__item--on" : null)" aria-current="@(Model.Fy is null ? "page" : null)"
-                   asp-page="./Index" asp-route-scope="@scopeKey" asp-route-q="@Model.Q" asp-route-group="@Model.Group">All years</a>
+                   asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="@scopeKey" asp-route-q="@Model.Q" asp-route-group="@Model.Group">All years</a>
                 @foreach (var year in Model.RecentYears)
                 {
                     <a class="itp-fy__item @(Model.Fy == year ? "itp-fy__item--on" : null)" aria-current="@(Model.Fy == year ? "page" : null)"
-                       asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@year" asp-route-q="@Model.Q" asp-route-group="@Model.Group">@FinancialYearHelper.Format(year)</a>
+                       asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="@scopeKey" asp-route-fy="@year" asp-route-q="@Model.Q" asp-route-group="@Model.Group">@FinancialYearHelper.Format(year)</a>
                 }
                 @if (Model.EarlierYears.Count > 0)
                 {
@@ -39,6 +39,7 @@
                         <input type="hidden" name="scope" value="@scopeKey" />
                         <input type="hidden" name="q" value="@Model.Q" />
                         <input type="hidden" name="group" value="@Model.Group" />
+                        <input type="hidden" name="officer" value="@Model.OfficerKey" />
                         <label class="visually-hidden" for="itpEarlierYear">Earlier financial year</label>
                         <select id="itpEarlierYear" name="fy" class="form-select form-select-sm @(Model.EarlierYears.Contains(Model.Fy ?? 0) ? "itp-fy__select--on" : null)" data-auto-submit>
                             <option value="" selected="@(!Model.EarlierYears.Contains(Model.Fy ?? 0))">Earlier</option>
@@ -119,7 +120,7 @@
                                 </ul>
                                 @if (column.Hidden > 0)
                                 {
-                                    <a class="itp-pcol__more" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-fragment="itpRegister">+ @column.Hidden more</a>
+                                    <a class="itp-pcol__more" asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-fragment="itpRegister">+ @column.Hidden more</a>
                                 }
                             }
                         </li>
@@ -136,32 +137,59 @@
         <input type="hidden" name="fy" value="@Model.Fy" />
         <input type="hidden" name="sort" value="@Model.SortKey" />
         <input type="hidden" name="dates" value="@(Model.OnlyMissingDates ? "missing" : null)" />
+        <input type="hidden" name="officer" value="@Model.OfficerKey" />
         <nav class="itp-pills" aria-label="Status">
-            <a class="itp-pill @(scopeKey == "active" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Active <b>@Model.Board.ActiveCount</b></a>
-            <a class="itp-pill @(scopeKey == "completed" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="completed" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Delivered <b>@Model.Board.CompletedCount</b></a>
-            <a class="itp-pill @(scopeKey == "dropped" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="dropped" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Dropped <b>@Model.Board.DroppedCount</b></a>
-            <a class="itp-pill @(scopeKey == "all" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="all" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">All <b>@Model.AllCount</b></a>
+            <a class="itp-pill @(scopeKey == "active" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Active <b>@Model.Board.ActiveCount</b></a>
+            <a class="itp-pill @(scopeKey == "completed" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="completed" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Delivered <b>@Model.Board.CompletedCount</b></a>
+            <a class="itp-pill @(scopeKey == "dropped" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="dropped" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Dropped <b>@Model.Board.DroppedCount</b></a>
+            <a class="itp-pill @(scopeKey == "all" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="all" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">All <b>@Model.AllCount</b></a>
         </nav>
         <div class="itp-sort" role="group" aria-label="Sort">
             <a class="itp-sort__item @(Model.BoardSort == ItProjectBoardSort.StageOrder ? "itp-sort__item--on" : null)" aria-current="@(Model.BoardSort == ItProjectBoardSort.StageOrder ? "true" : null)"
-               asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-dates="@Model.Dates" asp-fragment="itpRegister">Stage order</a>
+               asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-dates="@Model.Dates" asp-fragment="itpRegister">Stage order</a>
             <a class="itp-sort__item @(Model.BoardSort == ItProjectBoardSort.LongestWait ? "itp-sort__item--on" : null)" aria-current="@(Model.BoardSort == ItProjectBoardSort.LongestWait ? "true" : null)"
-               asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-dates="@Model.Dates" asp-route-sort="wait" asp-fragment="itpRegister">Longest wait</a>
+               asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-dates="@Model.Dates" asp-route-sort="wait" asp-fragment="itpRegister">Longest wait</a>
         </div>
-        <a class="itp-toggle @(Model.GroupByFinancialYear ? "itp-toggle--on" : null)" asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-sort="@Model.SortKey" asp-route-dates="@(Model.OnlyMissingDates ? "missing" : null)" asp-route-group="@(Model.GroupByFinancialYear ? null : "fy")" asp-fragment="itpRegister" role="switch" aria-checked="@(Model.GroupByFinancialYear ? "true" : "false")">
+        <a class="itp-toggle @(Model.GroupByFinancialYear ? "itp-toggle--on" : null)" asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-sort="@Model.SortKey" asp-route-dates="@(Model.OnlyMissingDates ? "missing" : null)" asp-route-group="@(Model.GroupByFinancialYear ? null : "fy")" asp-fragment="itpRegister" role="switch" aria-checked="@(Model.GroupByFinancialYear ? "true" : "false")">
             <i aria-hidden="true"></i><span>Group by FY</span>
         </a>
         @if (Model.CanManage && Model.Board.Figures.DatesMissingCount > 0)
         {
             @if (Model.OnlyMissingDates)
             {
-                <a class="itp-datenote itp-datenote--on" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister"
+                <a class="itp-datenote itp-datenote--on" asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister"
                    title="Show every case again">Dates missing on @ItProjectBoardPresentation.Cases(Model.Board.Figures.DatesMissingCount) <i class="bi bi-x-lg" aria-hidden="true"></i></a>
             }
             else
             {
-                <a class="itp-datenote" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-route-dates="missing" asp-fragment="itpRegister"
+                <a class="itp-datenote" asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-route-dates="missing" asp-fragment="itpRegister"
                    title="Live cases with a completed stage that has no date: add the dates so the board can count the wait">Dates missing on @ItProjectBoardPresentation.Cases(Model.Board.Figures.DatesMissingCount)</a>
+            }
+        }
+        @* Modules that assign a Project Officer: the projects waiting for one (for the people who
+           assign), and the viewer's own. Each is a switch; the counts are of live cases. *@
+        @if (m.HasAssignedOfficer)
+        {
+            var officerFilter = Model.OfficerFilter;
+            @if (officerFilter == ItProjectOfficerFilter.Unassigned)
+            {
+                <a class="itp-datenote itp-datenote--on" asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister"
+                   title="Show every case again">No officer assigned <i class="bi bi-x-lg" aria-hidden="true"></i></a>
+            }
+            else if (Model.CanManage && Model.Board.UnassignedActiveCount > 0)
+            {
+                <a class="itp-datenote" asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-route-officer="unassigned" asp-fragment="itpRegister"
+                   title="Live cases that no Project Officer has been assigned to">No officer on @ItProjectBoardPresentation.Cases(Model.Board.UnassignedActiveCount)</a>
+            }
+            @if (officerFilter == ItProjectOfficerFilter.Mine)
+            {
+                <a class="itp-datenote itp-datenote--on" asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister"
+                   title="Show every case again">My projects <i class="bi bi-x-lg" aria-hidden="true"></i></a>
+            }
+            else if (Model.Board.MineActiveCount > 0)
+            {
+                <a class="itp-datenote" asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-route-officer="mine" asp-fragment="itpRegister"
+                   title="Live cases assigned to you">My projects (@Model.Board.MineActiveCount)</a>
             }
         }
         <label class="itp-search">
@@ -175,7 +203,7 @@
     @if (Model.ScopedRows.Count == 0)
     {
         <div class="itp-empty">
-            @if (!string.IsNullOrWhiteSpace(Model.Q) || Model.Fy.HasValue)
+            @if (!string.IsNullOrWhiteSpace(Model.Q) || Model.Fy.HasValue || Model.OfficerKey is not null)
             {
                 <p class="itp-empty__title">No @(m.Singular) matches.</p>
                 <p class="itp-empty__text">Try another word, or <a asp-page="./Index" asp-route-scope="@scopeKey">clear the filters</a>.</p>
@@ -197,7 +225,7 @@
             else
             {
                 <p class="itp-empty__title">Nothing @(scopeKey == "all" ? "here" : scopeKey == "completed" ? "delivered" : scopeKey).</p>
-                <p class="itp-empty__text"><a asp-page="./Index" asp-route-scope="all" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">Show all @Model.AllCount</a>.</p>
+                <p class="itp-empty__text"><a asp-page="./Index" asp-route-officer="@Model.OfficerKey" asp-route-scope="all" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">Show all @Model.AllCount</a>.</p>
             }
         </div>
     }
@@ -245,6 +273,17 @@
                                         <span class="itp-ref">@row.DisplayReference</span>
                                         @* A carried-over case shows this year's number; the year beside it is the year it was first listed. *@
                                         <span>@(row.YearType is { IsOwnYear: false } ? "since " : null)@ItProjectBoardPresentation.FinancialYear(row.FinancialYearStart)</span>
+                                        @if (m.HasAssignedOfficer)
+                                        {
+                                            @if (row.ProjectOfficerUserId is null)
+                                            {
+                                                <span class="itp-officer itp-officer--none"><i class="bi bi-person-dash" aria-hidden="true"></i>No officer</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="itp-officer" title="Project Officer"><i class="bi bi-person" aria-hidden="true"></i>@(row.ProjectOfficerName ?? "Unknown user")</span>
+                                            }
+                                        }
                                     </div>
                                 </td>
                                 <td class="itp-reg__trackcol">

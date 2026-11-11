@@ -143,14 +143,24 @@ its own policy attribute, its own menu highlight and its own usage count, and re
   Delete. For IT projects the two are the same people.
 
 Board, create and project page look and behave as the IT ones do. Additions for MOLTI and SRE
-only (PR 4):
+only (PR 4, done):
 
-1. **Project page header**: the assigned officer's name, or "No officer assigned". Admin and HoD
-   get **Assign officer** / **Change officer** / **Unassign** (a PrismConfirm form modal with a
-   list of active Project Officers). Every change is audited with the old and new officer.
-2. **Board**: the officer's name on each row, an **Unassigned** filter for Admin and HoD, and a
-   **My projects** filter for a Project Officer.
+1. **Project page header**: "Project Officer: *name*, since *date*", or "No officer assigned".
+   Admin and HoD get **Assign officer** / **Change**, which opens a drawer with the active Project
+   Officers by name and "No officer" to unassign. The officer cannot reassign the project. A
+   current officer who has lost the role or the account stays in the list, marked so, and has no
+   rights. `?open=officer` opens the drawer.
+2. **Board**: the officer's name (or "No officer") on each row. Two switches beside the search
+   box, each counting live cases: **No officer on n cases** for Admin and HoD, and **My projects
+   (n)** for a user with projects assigned. The address carries `officer=unassigned|mine`; like
+   the year and the search, the status counts and the pipeline follow it.
 3. **Create** (Admin, HoD): the IT form plus an optional officer.
+4. **The command**: `IItProjectCommandService.AssignOfficerAsync` assigns, changes or (with no
+   user) unassigns. Only an active user who holds the Project Officer role can be chosen
+   (`ItProjectOfficers`, the same query as the list). Saving the officer a project already has
+   changes nothing. Audit actions `ItProjects.OfficerAssigned` / `OfficerChanged` /
+   `OfficerUnassigned` carry the old and new officer; a project created with an officer records
+   it on `ItProjects.Created`.
 
 IT projects show none of these.
 
@@ -171,9 +181,9 @@ Admin and HoD find them.
 | Concern | Change |
 | --- | --- |
 | Navigation | two more left-drawer entries, each behind its own View policy |
-| Access governance | `AdminRoleAccessCatalog` groups for MOLTI projects and SRE projects, with a line saying the assigned officer also has access |
+| Access governance | `AdminRoleAccessCatalog` groups for MOLTI projects and SRE projects: view, keep, write remarks, and "Run the ... projects assigned to them" for the Project Officer role (PR 4) |
 | Usage | two more `ErpUsageModuleCatalog` modules |
-| Audit | the existing `ItProjects.*` actions carry the module in their data (PR 2). Naming the module in the audit log's readable line, and the officer assigned / changed / unassigned action, come with PR 4 |
+| Audit | the existing `ItProjects.*` actions carry the module in their data (PR 2). The officer assigned / changed / unassigned actions came with PR 4. The audit log shows these actions by their raw name and data, as it does the other `ItProjects.*` actions |
 | Docs | this file, `it-projects.md` (decision row "IT projects only" is superseded), `docs/data-domain.md`, `docs/razor-pages.md` |
 
 Out of scope until asked: Dashboard cards for MOLTI and SRE, notifications on assignment, Search

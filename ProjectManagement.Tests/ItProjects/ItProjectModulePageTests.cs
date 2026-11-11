@@ -51,7 +51,9 @@ public class ItProjectModulePageTests
         var instance = page.Name switch
         {
             nameof(IndexModel) => Activator.CreateInstance(page, db.Reads()),
-            nameof(CreateModel) => Activator.CreateInstance(page, db.Commands(), db.Clock),
+            nameof(CreateModel) => page == typeof(CreateModel)
+                ? Activator.CreateInstance(page, db.Commands(), db.Clock)
+                : Activator.CreateInstance(page, db.Commands(), db.Clock, db.Reads()),
             _ => Activator.CreateInstance(page, db.Reads(), db.Commands(), db.Remarks(), db.Attachments(), db.Clock)
         };
         Assert.Equal(module, (string)page.GetProperty("ModuleCode")!.GetValue(instance)!);
@@ -102,7 +104,7 @@ public class ItProjectModulePageTests
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var context = ItProjectBoardPageTests.Context(ItProjectTestDb.User("hod-1", RoleNames.HoD));
-        var page = new Sre.CreateModel(db.Commands(), db.Clock)
+        var page = new Sre.CreateModel(db.Commands(), db.Clock, db.Reads())
         {
             PageContext = context,
             TempData = new TempDataDictionary(context.HttpContext, new NullTempData()),
@@ -315,7 +317,9 @@ public class ItProjectModulePageTests
 
         var group = catalog.BuildForRoles(all).Single(candidate => candidate.Key == key);
         Assert.Equal(title, group.Title);
-        Assert.Equal(new[] { $"{key}-view", $"{key}-manage", $"{key}-remark" }, group.Items.Select(item => item.Key));
+        Assert.Equal(new[] { $"{key}-view", $"{key}-manage", $"{key}-remark", $"{key}-assigned" }, group.Items.Select(item => item.Key));
+        Assert.Contains($"{key}-assigned", catalog.ForRoles(new[] { RoleNames.ProjectOfficer }, all).Select(item => item.Key));
+        Assert.DoesNotContain($"{key}-assigned", catalog.ForRoles(new[] { RoleNames.HoD }, all).Select(item => item.Key));
         Assert.All(group.Items, item => Assert.DoesNotMatch(@"\bIT\b", item.Title + " " + item.Description));
 
         string[] KeysFor(string role) => catalog.ForRoles(new[] { role }, all).Select(item => item.Key).ToArray();

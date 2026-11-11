@@ -34,6 +34,8 @@ public sealed class ItProjectCommandService : IItProjectCommandService
     public const int DescriptionMaxLength = 8000;
     public const string DroppedStagesMessage = "This IT project is dropped. Reinstate it before changing its stages.";
     public const string DroppedInFutureMessage = "The dropped date cannot be later than today.";
+    public const string NoOfficerInModuleMessage = "IT projects are run by the ITO; no Project Officer is assigned to them.";
+    public const string NotAnOfficerMessage = "Choose an active user who holds the Project Officer role.";
 
     private readonly ApplicationDbContext _db;
     private readonly IAuditService _audit;
@@ -81,6 +83,9 @@ public sealed class ItProjectCommandService : IItProjectCommandService
     public async Task<ItProjectCommandResult> DeleteAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
         => (await DeleteCoreAsync(id, rowVersion, actor, cancellationToken)).In(actor.Module);
 
+    public async Task<ItProjectCommandResult> AssignOfficerAsync(int id, string? officerUserId, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+        => (await AssignOfficerCoreAsync(id, officerUserId, rowVersion, actor, cancellationToken)).In(actor.Module);
+
     // ---- the commands, worded for IT projects ------------------------------------------------
 
     private async Task<(ItProjectCommandResult Result, int Id)> CreateCoreAsync(ItProjectDetailsInput input, ItProjectActor actor, CancellationToken cancellationToken = default)
@@ -89,6 +94,12 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         EnsureActor(actor);
 
         var errors = ValidateDetails(input, currentDescription: null);
+        var officerId = NormaliseOfficer(input.ProjectOfficerUserId);
+        if (await OfficerErrorAsync(officerId, actor.Module, cancellationToken) is { } officerError)
+        {
+            errors.Add(officerError);
+        }
+
         if (errors.Count > 0)
         {
             return (ItProjectCommandResult.Fail(errors), 0);
@@ -98,6 +109,8 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         var project = new ItProject
         {
             Module = actor.Module,
+            ProjectOfficerUserId = officerId,
+            ProjectOfficerAssignedAtUtc = officerId is null ? null : now,
             Title = input.Title.Trim(),
             PppReferenceNumber = input.PppReferenceNumber.Trim(),
             FinancialYearStart = input.FinancialYearStart,
@@ -117,7 +130,8 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         {
             ["Title"] = project.Title,
             ["PppReferenceNumber"] = project.PppReferenceNumber,
-            ["FinancialYear"] = FinancialYearHelper.Format(project.FinancialYearStart)
+            ["FinancialYear"] = FinancialYearHelper.Format(project.FinancialYearStart),
+            ["ProjectOfficerUserId"] = project.ProjectOfficerUserId
         });
         await transaction.CommitAsync(cancellationToken);
 
@@ -158,6 +172,12 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             errors.Add($"A carried-over case was first listed before FY {FinancialYearHelper.Format(currentYear)}.");
         }
 
+        var officerId = NormaliseOfficer(input.ProjectOfficerUserId);
+        if (await OfficerErrorAsync(officerId, actor.Module, cancellationToken) is { } officerError)
+        {
+            errors.Add(officerError);
+        }
+
         if (errors.Count > 0)
         {
             return (ItProjectCommandResult.Fail(errors), 0);
@@ -167,6 +187,8 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         var project = new ItProject
         {
             Module = actor.Module,
+            ProjectOfficerUserId = officerId,
+            ProjectOfficerAssignedAtUtc = officerId is null ? null : now,
             Title = input.Title.Trim(),
             PppReferenceNumber = firstReference ?? ReferenceNotRecorded,
             FinancialYearStart = input.FirstFinancialYearStart,
@@ -202,7 +224,8 @@ public sealed class ItProjectCommandService : IItProjectCommandService
             ["FinancialYear"] = FinancialYearHelper.Format(project.FinancialYearStart),
             ["CarriedOverInto"] = FinancialYearHelper.Format(currentYear),
             ["CarriedOverType"] = ItProjectYearTypes.Code(input.Type),
-            ["CarriedOverPppReferenceNumber"] = currentReference
+            ["CarriedOverPppReferenceNumber"] = currentReference,
+            ["ProjectOfficerUserId"] = project.ProjectOfficerUserId
         });
         await transaction.CommitAsync(cancellationToken);
 
@@ -516,7 +539,86 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         }, cancellationToken);
     }
 
+    private async Task<ItProjectCommandResult> AssignOfficerCoreAsync(int id, string? officerUserId, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken)
+    {
+        EnsureActor(actor);
+        var officerId = NormaliseOfficer(officerUserId);
+
+        var project = await LoadForWriteAsync(id, actor.Module, cancellationToken);
+        if (project is null)
+        {
+            return ItProjectCommandResult.Fail(NotFoundMessage);
+        }
+
+        if (!ItProjectModules.HasAssignedOfficer(project.Module))
+        {
+            return ItProjectCommandResult.Fail(NoOfficerInModuleMessage);
+        }
+
+        if (await OfficerErrorAsync(officerId, project.Module, cancellationToken) is { } officerError)
+        {
+            return ItProjectCommandResult.Fail(officerError);
+        }
+
+        var before = project.ProjectOfficerUserId;
+        if (string.Equals(before, officerId, StringComparison.Ordinal))
+        {
+            return ItProjectCommandResult.Ok();
+        }
+
+        project.ProjectOfficerUserId = officerId;
+        project.ProjectOfficerAssignedAtUtc = officerId is null ? null : UtcNow();
+
+        var action = before is null ? "ItProjects.OfficerAssigned"
+            : officerId is null ? "ItProjects.OfficerUnassigned"
+            : "ItProjects.OfficerChanged";
+        return await CommitAsync(project, rowVersion, actor, action, new Dictionary<string, string?>
+        {
+            ["Title"] = project.Title,
+            ["OfficerBeforeUserId"] = before,
+            ["OfficerBefore"] = await UserNameAsync(before, cancellationToken),
+            ["OfficerAfterUserId"] = officerId,
+            ["OfficerAfter"] = await UserNameAsync(officerId, cancellationToken)
+        }, cancellationToken);
+    }
+
     // ---- helpers ---------------------------------------------------------------------------
+
+    private static string? NormaliseOfficer(string? userId) => string.IsNullOrWhiteSpace(userId) ? null : userId.Trim();
+
+    /// <summary>
+    /// Why this user cannot be the project's officer, or null when they can (or none is asked
+    /// for). An officer belongs only to a module that assigns one, and must be an active user
+    /// who holds the Project Officer role, as <see cref="ItProjectAccess.IsAssignedOfficer"/>
+    /// requires before it gives them any right.
+    /// </summary>
+    private async Task<string?> OfficerErrorAsync(string? officerId, string module, CancellationToken cancellationToken)
+    {
+        if (officerId is null)
+        {
+            return null;
+        }
+
+        if (!ItProjectModules.HasAssignedOfficer(module))
+        {
+            return NoOfficerInModuleMessage;
+        }
+
+        return await ItProjectOfficers.IsAssignableAsync(_db, officerId, cancellationToken) ? null : NotAnOfficerMessage;
+    }
+
+    private async Task<string?> UserNameAsync(string? userId, CancellationToken cancellationToken)
+    {
+        if (userId is null)
+        {
+            return null;
+        }
+
+        return await _db.Users.AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : user.FullName)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
 
     private static List<string> ValidateDetails(ItProjectDetailsInput input, string? currentDescription)
     {

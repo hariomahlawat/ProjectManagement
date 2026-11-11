@@ -14,11 +14,17 @@ namespace ProjectManagement.Services.ItProjects;
 /// </summary>
 public sealed record ItProjectActor(string UserId, string? UserName = null, string Module = ItProjectModules.It);
 
+/// <param name="ProjectOfficerUserId">
+/// On create only, in a module that assigns one: the Project Officer the project starts with, or
+/// null for none. Ignored on edit (the officer changes through
+/// <see cref="IItProjectCommandService.AssignOfficerAsync"/>).
+/// </param>
 public sealed record ItProjectDetailsInput(
     string Title,
     string PppReferenceNumber,
     int FinancialYearStart,
-    string Description);
+    string Description,
+    string? ProjectOfficerUserId = null);
 
 /// <summary>
 /// A case that is already in this year's IT ARPPP as CL or CF: it was first listed in an earlier
@@ -30,7 +36,8 @@ public sealed record ItProjectCarriedOverInput(
     ItProjectYearType Type,
     string CurrentYearPppReferenceNumber,
     int FirstFinancialYearStart,
-    string? FirstPppReferenceNumber);
+    string? FirstPppReferenceNumber,
+    string? ProjectOfficerUserId = null);
 
 /// <summary>One year's IT ARPPP entry for a project: the reference number in that year and an optional type set by hand.</summary>
 public sealed record ItProjectYearInput(ItProjectYearType? Type, string? PppReferenceNumber);
@@ -88,6 +95,14 @@ public interface IItProjectCommandService
     /// replaces it (as Edit does), and no number leaves it unchanged.
     /// </summary>
     Task<ItProjectCommandResult> SaveYearAsync(int id, int financialYearStart, ItProjectYearInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Assigns, changes or (with a null user id) removes the Project Officer of a project, in a
+    /// module that assigns one (docs/ux/molti-sre-projects.md). The officer must be an active
+    /// user who holds the Project Officer role. Saving the officer the project already has
+    /// changes nothing.
+    /// </summary>
+    Task<ItProjectCommandResult> AssignOfficerAsync(int id, string? officerUserId, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);
 
     /// <summary>Soft delete. The row and its stages stay for audit and a later restore.</summary>
     Task<ItProjectCommandResult> DeleteAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default);

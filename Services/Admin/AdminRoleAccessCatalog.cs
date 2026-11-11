@@ -397,6 +397,15 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
                 Policies.MoltiProjects.RemarkRoles,
                 Group.MoltiProjects,
                 30),
+            // The officer assigned to a project works on that project alone: a per-project rule
+            // (ItProjectAccess), listed here so the role page shows what the role can lead to.
+            Access(
+                "molti-projects-assigned",
+                "Run the MOLTI projects assigned to them",
+                "On a MOLTI project that Admin or the HoD has assigned to them: edit its details, record stage completion, IPA cost and SO cost, upload and remove attachments, mark it dropped or reinstate it, and write remarks. They cannot delete it or change its officer.",
+                Roles(RoleNames.ProjectOfficer),
+                Group.MoltiProjects,
+                40),
 
             AllRoles(
                 "sre-projects-view",
@@ -418,6 +427,15 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
                 Policies.SreProjects.RemarkRoles,
                 Group.SreProjects,
                 30),
+            // The officer assigned to a project works on that project alone: a per-project rule
+            // (ItProjectAccess), listed here so the role page shows what the role can lead to.
+            Access(
+                "sre-projects-assigned",
+                "Run the SRE projects assigned to them",
+                "On a SRE project that Admin or the HoD has assigned to them: edit its details, record stage completion, IPA cost and SO cost, upload and remove attachments, mark it dropped or reinstate it, and write remarks. They cannot delete it or change its officer.",
+                Roles(RoleNames.ProjectOfficer),
+                Group.SreProjects,
+                40),
 
             AllRoles(
                 "industry-view-contact",
