@@ -41,8 +41,10 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | On the Passport photo screen. The finished photo repeated on one sheet of 4 × 6 inch photo paper or A4, each copy inside a thin cut line. One JPG at 300 dpi. |
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
+| Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
 
-The editor is planned (see the build plan) and is not on the page yet.
+Clean up, filters, mark up and blur are planned for the editor (see the build plan) and are not
+on the page yet.
 
 ### How a passport photo is made
 
@@ -80,6 +82,24 @@ The editor is planned (see the build plan) and is not on the page yet.
   asks for plain white paper photographed from straight above.
 - If no clear ink is found the photo is left as it is and the page says so.
 
+### How editing works
+
+- The opened photo is never altered. The edited photo is the original with a list of steps
+  applied in order (`crop`, `rotate`, `flip`, `straighten`, `resize`). Undo drops the last step
+  and replays the rest; Redo puts it back. Only the original and the current result are held in
+  memory, however many steps there are.
+- The same function applies a step to the screen copy (no larger than 1600 px) and to the
+  full-size photo, so what is saved is what was shown.
+- The crop box rules are pure functions in the core (`defaultCrop`, `moveCrop`, `resizeCrop`):
+  the box cannot leave the photo, cannot be smaller than 16 px, and keeps its shape when one is
+  chosen. Cropping copies pixels one for one; nothing is re-scaled.
+- Straighten turns the photo and trims it to the largest upright piece of the same shape
+  (`straightenedSize`), so no empty corner shows.
+- Resize accepts 16 to 10000 px a side. Making a photo bigger, or changing its shape, is allowed
+  and the page says what it costs.
+- A crop or straighten that was not applied is dropped when the tool is changed.
+- Ctrl+Z and Ctrl+Y work while the screen is open, except while typing in a box.
+
 ### How the target size is reached
 
 For JPG and WEBP the tool first tries top quality (0.92). If that is over the target it searches
@@ -99,11 +119,12 @@ see-through areas with white.
 | File | Role |
 | --- | --- |
 | `Pages/Tools/Photo/Index.cshtml` | Standalone page with its own minimal shell (`Layout = null`). |
-| `wwwroot/js/photo-tools/photo-tools-core.js` | Pure rules: target-size search, resize maths, output type and names, greyscale, lighting, passport and signature sizes, crop limits, print sheet layout, signature clean-up, JPG print resolution. Runs in Node for tests. |
+| `wwwroot/js/photo-tools/photo-tools-core.js` | Pure rules: target-size search, resize maths, output type and names, greyscale, lighting, passport and signature sizes, crop limits, print sheet layout, signature clean-up, JPG print resolution, editor steps and crop box. Runs in Node for tests. |
 | `wwwroot/js/photo-tools/photo-tools-core.test.js` | Node tests, part of `npm test`. |
 | `wwwroot/js/photo-tools/photo-tools-canvas.js` | Browser helpers shared by the tools: open a photo, draw it at a new size, canvas to file bytes, save, show an error. |
 | `wwwroot/js/photo-tools/photo-tools-app.js` | Shell, routing (`#tool`) and Reduce size. |
 | `wwwroot/js/photo-tools/photo-tools-passport.js` | Passport photo, signature and print sheet. |
+| `wwwroot/js/photo-tools/photo-tools-editor.js` | Edit photo. |
 | `wwwroot/js/tools-shared/zip-writer.js` | ZIP writer shared with PDF Tools. |
 | `wwwroot/css/photo-tools.css` | Photo Tools styles. The shell (top bar, home cards, drop zone) is shared with PDF Tools through `pdf-tools.css`. Bootstrap theme variables only, so Light and Dark both work. |
 
