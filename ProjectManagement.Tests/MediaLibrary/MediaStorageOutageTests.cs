@@ -95,6 +95,63 @@ public sealed class MediaStorageOutageTests : IDisposable
     }
 
     [Fact]
+    public async Task Restored_asset_stops_being_a_reconciliation_candidate()
+    {
+        await using var db = CreateContext();
+        await SeedHistoricalAssetAsync(db, _existingRoot);
+        File.WriteAllText(Path.Combine(_existingRoot, "photo.jpg"), "jpeg");
+        // A dead-lettered job of another type used to keep the asset a candidate for ever.
+        db.ProcessingJobs.Add(new MediaProcessingJob
+        {
+            MediaAssetId = 1,
+            JobType = MediaProcessingJobType.ClassifyMedia,
+            Status = MediaProcessingJobStatus.DeadLetter,
+            FailureCode = nameof(FileNotFoundException),
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync();
+        var service = CreateRecoveryService(db);
+
+        var first = await service.ReconcileHistoricalAsync(50, CancellationToken.None);
+        var second = await service.ReconcileHistoricalAsync(50, CancellationToken.None);
+
+        Assert.Equal(1, first.Restored);
+        Assert.False(first.HasMore);
+        Assert.Equal(0, second.Examined);
+        Assert.DoesNotContain(await db.ProcessingJobs.AsNoTracking().ToListAsync(),
+            job => job.Status == MediaProcessingJobStatus.DeadLetter);
+    }
+
+    [Fact]
+    public async Task Reconciliation_does_not_take_a_running_jobs_lease()
+    {
+        await using var db = CreateContext();
+        await SeedHistoricalAssetAsync(db, _existingRoot);
+        File.WriteAllText(Path.Combine(_existingRoot, "photo.jpg"), "jpeg");
+        var analyse = await db.ProcessingJobs.SingleAsync();
+        analyse.JobType = MediaProcessingJobType.ClassifyMedia;
+        db.ProcessingJobs.Add(new MediaProcessingJob
+        {
+            MediaAssetId = 1,
+            JobType = MediaProcessingJobType.AnalyseAsset,
+            Status = MediaProcessingJobStatus.Running,
+            LockedBy = "worker-1",
+            LockExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(10),
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        await CreateRecoveryService(db).ReconcileHistoricalAsync(50, CancellationToken.None);
+
+        var running = await db.ProcessingJobs.AsNoTracking()
+            .SingleAsync(job => job.JobType == MediaProcessingJobType.AnalyseAsset);
+        Assert.Equal(MediaProcessingJobStatus.Running, running.Status);
+        Assert.Equal("worker-1", running.LockedBy);
+    }
+
+    [Fact]
     public void Storage_unreachable_failures_are_recoverable()
     {
         var failure = new MediaSourceStorageUnreachableException("share offline");
