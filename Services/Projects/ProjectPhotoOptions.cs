@@ -7,8 +7,15 @@ namespace ProjectManagement.Services.Projects
     {
         public long MaxFileSizeBytes { get; set; } = 5 * 1024 * 1024;
 
+        /// <summary>
+        /// Not enforced for project photos. Small images are accepted on purpose and flagged
+        /// as low resolution below 400 x 300 (see ProjectPhotoService). The key is kept so
+        /// existing ProjectPhotos configuration still binds; visit and social-media photo
+        /// options use their own minimums, which are enforced.
+        /// </summary>
         public int MinWidth { get; set; } = 720;
 
+        /// <summary>Not enforced for project photos; see <see cref="MinWidth"/>.</summary>
         public int MinHeight { get; set; } = 540;
 
         // Protect the server from images that are small on disk but extremely large when decoded.

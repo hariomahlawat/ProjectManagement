@@ -102,6 +102,14 @@ public sealed class FileSystemMediaContentProvider : IMediaContentProvider
             return Task.FromResult<MediaContentDescriptor?>(null);
         }
 
+        // Scans never index links, but a catalogued file or folder could be replaced by a
+        // symbolic link or junction afterwards. Following it would serve whatever the link
+        // points at, outside the source folder, so a linked path is treated as unavailable.
+        if (IsLinkedPath(_paths.ResolveRoot(asset.Source.RootPath), file))
+        {
+            return Task.FromResult<MediaContentDescriptor?>(null);
+        }
+
         return Task.FromResult<MediaContentDescriptor?>(new(
             SafeFileName(asset.OriginalFileName, file.Name),
             asset.ContentType,
@@ -118,6 +126,38 @@ public sealed class FileSystemMediaContentProvider : IMediaContentProvider
 
     private static string SafeFileName(string? preferred, string fallback)
         => string.IsNullOrWhiteSpace(preferred) ? fallback : preferred;
+
+    /// <summary>
+    /// True when the file, or any folder between the source root and the file, is a
+    /// symbolic link or junction. Only links are rejected: other reparse points, such as
+    /// Windows Data Deduplication files, are not redirections and are left to the scanner.
+    /// </summary>
+    internal static bool IsLinkedPath(string root, FileInfo file)
+    {
+        if (file.LinkTarget is not null)
+        {
+            return true;
+        }
+
+        var normalizedRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        for (var directory = file.Directory; directory is not null; directory = directory.Parent)
+        {
+            var current = Path.TrimEndingDirectorySeparator(directory.FullName);
+            if (string.Equals(current, normalizedRoot, OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (directory.LinkTarget is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
 
 public sealed class ProjectPhotoMediaContentProvider : IMediaContentProvider

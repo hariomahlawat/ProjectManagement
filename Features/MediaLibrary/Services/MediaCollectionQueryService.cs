@@ -64,7 +64,7 @@ public sealed class MediaCollectionQueryService : IMediaCollectionQueryService
                     || EF.Functions.ILike(asset.SourceLabel, pattern, "\\")
                     || EF.Functions.ILike(asset.Source.Name, pattern, "\\")
                     || (asset.RelativePath != null && EF.Functions.ILike(asset.RelativePath, pattern, "\\"))
-                    || asset.Faces.Any(face => face.PersonAssignments.Any(assignment =>
+                    || asset.Faces.Any(face => !face.IsSuppressed && face.PersonAssignments.Any(assignment =>
                         assignment.RemovedAtUtc == null
                         && assignment.MediaPerson.Status == MediaPersonStatus.Confirmed
                         && !assignment.MediaPerson.IsHidden

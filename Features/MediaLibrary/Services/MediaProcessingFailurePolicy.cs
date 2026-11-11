@@ -34,6 +34,9 @@ public static class MediaProcessingFailurePolicy
         nameof(IOException),
         nameof(ObjectDisposedException),
         nameof(TimeoutException),
+        // Database connectivity failures. A long outage exhausts a job's attempts; once
+        // the database is back, "Retry recoverable jobs" must be able to pick them up.
+        "NpgsqlException",
         nameof(UnauthorizedAccessException),
         nameof(MediaProcessingSupersededException),
         nameof(MediaSourceStorageUnreachableException),
