@@ -531,16 +531,7 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
             {
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                // Computed outside the update: DateTimeOffset.UtcNow.Add(...) inside
-                // SetProperty cannot be translated to SQL and failed every renewal.
-                var expiresAtUtc = DateTimeOffset.UtcNow.Add(LeaseDuration);
-                var renewed = await db.PrismMediaOutboxMessages
-                    .Where(message => messageIds.Contains(message.Id)
-                                      && message.Status == PrismMediaOutboxStatus.Processing
-                                      && message.LockedBy == _workerId)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(message => message.LockExpiresAtUtc, expiresAtUtc),
-                        cancellationToken);
+                var renewed = await RenewLeasesAsync(db, messageIds, _workerId, cancellationToken);
                 if (renewed == 0)
                 {
                     return;
@@ -558,6 +549,28 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
                 _logger.LogWarning(ex, "Renewing PRISM media outbox leases failed; retrying on the next tick.");
             }
         }
+    }
+
+    /// <summary>
+    /// Extends the lease on the messages in <paramref name="messageIds"/> that are still
+    /// Processing under <paramref name="workerId"/>, and returns how many were extended.
+    /// </summary>
+    internal static Task<int> RenewLeasesAsync(
+        ApplicationDbContext db,
+        IReadOnlyCollection<long> messageIds,
+        string workerId,
+        CancellationToken cancellationToken)
+    {
+        // Computed outside the update: DateTimeOffset.UtcNow.Add(...) inside
+        // SetProperty cannot be translated to SQL and failed every renewal.
+        var expiresAtUtc = DateTimeOffset.UtcNow.Add(LeaseDuration);
+        return db.PrismMediaOutboxMessages
+            .Where(message => messageIds.Contains(message.Id)
+                              && message.Status == PrismMediaOutboxStatus.Processing
+                              && message.LockedBy == workerId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(message => message.LockExpiresAtUtc, expiresAtUtc),
+                cancellationToken);
     }
 
     private async Task RecordFailureAsync(
