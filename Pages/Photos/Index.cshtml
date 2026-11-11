@@ -251,6 +251,11 @@
                 }
                 @if (Model.Sort != "newest") { <input type="hidden" name="Sort" value="@Model.Sort" /> }
                 @if (Model.IsAlbumsWorkspace && Model.IncludeArchivedAlbums) { <input type="hidden" name="IncludeArchivedAlbums" value="true" /> }
+                @if (!Model.IsAlbumsWorkspace && !Model.IsAddMediaMode)
+                {
+                    <div class="photos-suggest" id="photosSuggest" data-photos-suggest role="listbox" aria-label="Suggestions" hidden></div>
+                    <script type="application/json" data-photos-suggest-data>@Html.Raw(Model.SerializeSearchSuggestions())</script>
+                }
             </form>
             <div class="photos-toolbar__controls">
                 @if (Model.IsAlbumsWorkspace)
@@ -1136,6 +1141,7 @@
 @section Scripts {
     <script src="~/js/widgets/media-viewer.js" asp-append-version="true"></script>
     <script src="~/js/pages/photos-library.js" asp-append-version="true"></script>
+    <script src="~/js/pages/photos-search-suggest.js" asp-append-version="true"></script>
     <script src="~/js/pages/photos-curation.js" asp-append-version="true"></script>
     <script src="~/js/pages/photos-person-profile.js" asp-append-version="true"></script>
 }

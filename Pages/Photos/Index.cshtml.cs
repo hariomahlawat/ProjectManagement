@@ -1848,6 +1848,39 @@ public sealed partial class IndexModel : PageModel
             ? Projects.FirstOrDefault(project => project.Id == ProjectId.Value)?.Name
             : null;
 
+    // People, projects and years for the search box's suggestions. They are the lists the
+    // filter drawer already offers this user, so the suggestions expose nothing new.
+    public string SerializeSearchSuggestions()
+    {
+        var payload = new
+        {
+            people = PeopleFeatureEnabled
+                ? People.Select(person => new
+                {
+                    name = person.Name,
+                    count = person.PhotoCount,
+                    url = BuildSinglePersonUrl(person.Id),
+                    portrait = person.RepresentativeFaceId.HasValue
+                        ? Url.Page("/Photos/People/Portrait", new { id = person.Id })
+                        : null
+                })
+                : null,
+            projects = Projects.Select(project => new
+            {
+                name = project.Name,
+                url = Url.Page("/Photos/Index", new { View = "photos", ProjectId = project.Id }) ?? string.Empty
+            }),
+            years = Years.Select(year => new
+            {
+                year,
+                url = Url.Page("/Photos/Index", new { View = "photos", Year = year }) ?? string.Empty
+            })
+        };
+
+        // The default encoder escapes <, > and &, so the JSON is safe inside a script block.
+        return JsonSerializer.Serialize(payload);
+    }
+
     public string SerializeViewerPeople(MediaItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
