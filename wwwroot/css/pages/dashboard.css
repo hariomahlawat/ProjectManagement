@@ -232,9 +232,10 @@
 .db-figure { display: grid; align-content: start; gap: 3px; min-width: 0; color: inherit; text-decoration: none; }
 .db-figure strong { color: var(--db-strong); font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
 .db-figure span { color: var(--db-muted); font-size: .75rem; font-weight: 600; line-height: 1.25; }
-a.db-figure:hover, a.db-figure:focus-visible { color: inherit; outline: none; }
-a.db-figure:hover strong, a.db-figure:focus-visible strong { color: var(--db-hue); }
 .db-empty--slim { padding: 8px 20px 14px; text-align: left; }
+/* The whole slim card is one link, with the lift the output tiles have. */
+a.db-slim { display: block; color: var(--db-text); text-decoration: none; transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease; }
+a.db-slim:hover, a.db-slim:focus-visible { color: var(--db-text); transform: translateY(-2px); box-shadow: var(--db-shadow-hover); border-color: var(--db-border-strong); outline: none; }
 .db-slim .db-section-head { flex-direction: row; align-items: center; min-height: 0; padding: 10px 20px 0; border-bottom: 0; }
 .db-slim .db-section-icon { width: 28px; height: 28px; flex-basis: 28px; font-size: 1.2rem; }
 .db-slim .db-figures { gap: 4px 28px; padding: 6px 20px 12px; }
@@ -318,7 +319,7 @@ a.db-figure:hover strong, a.db-figure:focus-visible strong { color: var(--db-hue
 }
 @media (prefers-reduced-motion: reduce) {
     .db-reveal, .js .db-reveal, .js .db-reveal.is-visible { opacity: 1 !important; transform: none !important; transition: none !important; }
-    .db-output-card, .db-stage, .db-text-link i, .db-country-row, .db-ffc-module-actions__more, .db-lifecycle__bar i { transition: none !important; }
+    .db-output-card, a.db-slim, .db-stage, .db-text-link i, .db-country-row, .db-ffc-module-actions__more, .db-lifecycle__bar i { transition: none !important; }
 }
 
 /* ---------- Breakpoints ---------- */
