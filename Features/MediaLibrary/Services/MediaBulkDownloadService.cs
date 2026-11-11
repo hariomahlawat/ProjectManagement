@@ -27,6 +27,7 @@ public sealed class MediaBulkDownloadService : IMediaBulkDownloadService
     private readonly IMediaCachePathResolver _cachePaths;
     private readonly MediaBulkDownloadOptions _options;
     private readonly ILogger<MediaBulkDownloadService> _logger;
+    private readonly MediaBulkDownloadThrottle _throttle;
 
     public MediaBulkDownloadService(
         MediaLibraryDbContext db,
@@ -34,8 +35,10 @@ public sealed class MediaBulkDownloadService : IMediaBulkDownloadService
         IMediaContentProviderResolver contentResolver,
         IMediaCachePathResolver cachePaths,
         IOptions<MediaLibraryOptions> options,
-        ILogger<MediaBulkDownloadService> logger)
+        ILogger<MediaBulkDownloadService> logger,
+        MediaBulkDownloadThrottle? throttle = null)
     {
+        _throttle = throttle ?? MediaBulkDownloadThrottle.Shared;
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _contentResolver = contentResolver ?? throw new ArgumentNullException(nameof(contentResolver));
@@ -160,9 +163,35 @@ public sealed class MediaBulkDownloadService : IMediaBulkDownloadService
                 skippedCount: assets.Count);
         }
 
+        if (!_throttle.TryEnter(requestedByUserId, out var buildLease))
+        {
+            return Failure(
+                MediaBulkDownloadFailureReason.Busy,
+                "Another ZIP is being prepared. Wait for it to finish, then try again.",
+                requestedByUserId,
+                stopwatch,
+                requestedIds.Length,
+                assets.Count,
+                sourceBytes: knownSourceBytes);
+        }
+
+        using var buildLeaseScope = buildLease;
+
         var temporaryDirectory = Path.Combine(_cachePaths.CacheRoot, "bulk-downloads");
         Directory.CreateDirectory(temporaryDirectory);
         CleanupAbandonedArchives(temporaryDirectory);
+
+        if (!HasRoomForArchive(temporaryDirectory, knownSourceBytes))
+        {
+            return Failure(
+                MediaBulkDownloadFailureReason.InsufficientStorage,
+                "The server does not have enough free space to prepare this ZIP right now. Select fewer items or try again later.",
+                requestedByUserId,
+                stopwatch,
+                requestedIds.Length,
+                assets.Count,
+                sourceBytes: knownSourceBytes);
+        }
         var temporaryPath = Path.Combine(
             temporaryDirectory,
             $"bulk-{Guid.NewGuid():N}.zip.partial");
@@ -544,6 +573,33 @@ public sealed class MediaBulkDownloadService : IMediaBulkDownloadService
         var stem = Path.GetFileNameWithoutExtension(candidate);
         var stemLength = Math.Max(1, maximumLength - extension.Length);
         return stem[..Math.Min(stem.Length, stemLength)] + extension;
+    }
+
+    /// <summary>
+    /// True when writing an archive of about <paramref name="expectedBytes"/> would still
+    /// leave the configured free space on the cache volume. If free space cannot be read
+    /// (for example an unusual mount), the request is allowed, as before.
+    /// </summary>
+    private bool HasRoomForArchive(string temporaryDirectory, long expectedBytes)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(temporaryDirectory));
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                return true;
+            }
+
+            var available = new DriveInfo(root).AvailableFreeSpace;
+            return available - Math.Max(0L, expectedBytes) >= Math.Max(0L, _options.MinimumFreeSpaceBytes);
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or ArgumentException)
+        {
+            _logger.LogDebug(exception, "Free space on the media cache volume could not be read.");
+            return true;
+        }
     }
 
     private void CleanupAbandonedArchives(string temporaryDirectory)

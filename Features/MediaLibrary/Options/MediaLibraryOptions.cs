@@ -130,6 +130,19 @@ public sealed class MediaBulkDownloadOptions
     /// payloads are already compressed, so source bytes are the meaningful resource guard.
     /// </summary>
     public long MaxSourceBytes { get; set; } = 2L * 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// Archives built at the same time per application instance. Each user may build one
+    /// archive at a time.
+    /// </summary>
+    public int MaxConcurrentArchives { get; set; } = 2;
+
+    /// <summary>
+    /// Free space that must remain on the media cache volume after an archive is written.
+    /// A request that would leave less is refused, so ZIP builds cannot starve derivatives
+    /// and face crops of disk space.
+    /// </summary>
+    public long MinimumFreeSpaceBytes { get; set; } = 1L * 1024 * 1024 * 1024;
 }
 
 public sealed class MediaClassificationOptions

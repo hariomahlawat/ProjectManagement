@@ -79,6 +79,8 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaLibraryQueryService, MediaLibraryQueryService>();
         services.AddScoped<IMediaCollectionQueryService, MediaCollectionQueryService>();
         services.AddScoped<IMediaAlbumService, MediaAlbumService>();
+        services.AddSingleton(provider => new MediaBulkDownloadThrottle(
+            provider.GetRequiredService<IOptions<MediaLibraryOptions>>().Value.BulkDownload.MaxConcurrentArchives));
         services.AddScoped<IMediaBulkDownloadService, MediaBulkDownloadService>();
         services.AddScoped<IMediaPeopleQueryService, MediaPeopleQueryService>();
         services.AddScoped<IPersonPhotoDiscoveryQueryService, PersonPhotoDiscoveryQueryService>();

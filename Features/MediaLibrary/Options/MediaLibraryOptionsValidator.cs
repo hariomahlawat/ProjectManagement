@@ -176,6 +176,16 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         {
             failures.Add("MediaLibrary:BulkDownload:MaxSourceBytes must be between 10 MB and 50 GB.");
         }
+
+        if (options.MaxConcurrentArchives is < 1 or > 16)
+        {
+            failures.Add("MediaLibrary:BulkDownload:MaxConcurrentArchives must be between 1 and 16.");
+        }
+
+        if (options.MinimumFreeSpaceBytes < 0 || options.MinimumFreeSpaceBytes > maximumBytes)
+        {
+            failures.Add("MediaLibrary:BulkDownload:MinimumFreeSpaceBytes must be between 0 and 50 GB.");
+        }
     }
 
     private static void ValidateProcessingOptions(
