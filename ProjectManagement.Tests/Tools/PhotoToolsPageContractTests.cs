@@ -16,7 +16,9 @@ public sealed class PhotoToolsPageContractTests
     {
         Path.Combine("wwwroot", "js", "tools-shared", "zip-writer.js"),
         Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-core.js"),
-        Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-app.js")
+        Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-canvas.js"),
+        Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-app.js"),
+        Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-passport.js")
     };
 
     [Fact]

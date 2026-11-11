@@ -112,3 +112,118 @@ test('encodeToTarget says so when the target cannot be reached', async () => {
   assert.equal(result.reached, false);
   assert.equal(result.bytes.length, 5000);
 });
+
+test('isSupportedPhoto accepts JPG, PNG and WEBP by type or by name', () => {
+  assert.equal(tools.isSupportedPhoto('image/jpeg', 'a'), true);
+  assert.equal(tools.isSupportedPhoto('', 'scan.PNG'), true);
+  assert.equal(tools.isSupportedPhoto('image/webp', ''), true);
+  assert.equal(tools.isSupportedPhoto('image/heic', 'IMG_1.HEIC'), false);
+  assert.equal(tools.isSupportedPhoto('application/pdf', 'a.pdf'), false);
+});
+
+test('encodeToTarget with fixedSize never changes the dimensions', async () => {
+  const { encode, calls } = fakeEncoder(1);
+  const fits = await tools.encodeToTarget({
+    encode, width: 413, height: 531, lossy: true, targetBytes: 50 * 1024, fixedSize: true, lowestQuality: 0.2
+  });
+  assert.equal(fits.reached, true);
+  assert.equal(fits.width, 413);
+  assert.ok(fits.bytes.length <= 50 * 1024);
+  assert.ok(fits.quality < tools.LOWEST_QUALITY, 'may go below the usual floor to keep the exact size');
+
+  const tooSmall = await tools.encodeToTarget({
+    encode, width: 413, height: 531, lossy: true, targetBytes: 1024, fixedSize: true, lowestQuality: 0.2
+  });
+  assert.equal(tooSmall.reached, false);
+  assert.equal(tooSmall.width, 413);
+  assert.equal(tooSmall.height, 531);
+  assert.ok(calls.every(call => call.width === 413 && call.height === 531));
+});
+
+test('passport sizes are the print sizes at 300 dpi', () => {
+  const byKey = Object.fromEntries(tools.PASSPORT_SIZES.map(size => [size.key, size]));
+  assert.deepEqual([byKey['35x45'].width, byKey['35x45'].height], [413, 531]);
+  assert.deepEqual([byKey['2x2'].width, byKey['2x2'].height], [600, 600]);
+  assert.deepEqual([byKey['20x25'].width, byKey['20x25'].height], [236, 295]);
+  assert.equal(tools.lengthToPixels('35', 'mm'), 413);
+  assert.equal(tools.lengthToPixels('45', 'mm'), 531);
+  assert.equal(tools.lengthToPixels('2', 'inch'), 600);
+  assert.equal(tools.lengthToPixels('3,5', 'mm'), 41);
+  assert.equal(tools.lengthToPixels('', 'mm'), null);
+  assert.equal(tools.lengthToPixels('-4', 'mm'), null);
+});
+
+test('coverScale is the zoom at which the photo just fills the frame', () => {
+  assert.equal(tools.coverScale(4000, 3000, 400, 500, 0), 500 / 3000);
+  assert.equal(tools.coverScale(3000, 4000, 400, 500, 0), 400 / 3000);
+  // A tilted photo must be larger to leave no empty corner.
+  const tilted = tools.coverScale(4000, 3000, 400, 500, 10 * Math.PI / 180);
+  assert.ok(tilted > 500 / 3000);
+  // A quarter turn swaps the photo's sides: it is now 3000 wide and 4000 tall.
+  assert.ok(Math.abs(tools.coverScale(4000, 3000, 400, 500, Math.PI / 2) - 400 / 3000) < 1e-9);
+});
+
+test('clampOffset keeps the frame inside the photo', () => {
+  const place = { imageWidth: 1000, imageHeight: 1000, frameWidth: 400, frameHeight: 500, angle: 0, scale: 1 };
+  assert.deepEqual(tools.clampOffset({ ...place, x: 100, y: -50 }), { x: 100, y: -50 });
+  assert.deepEqual(tools.clampOffset({ ...place, x: 900, y: -900 }), { x: 300, y: -250 });
+  // At the smallest zoom there is no room to move along the tight side.
+  const tight = tools.clampOffset({ ...place, scale: 0.5, x: 80, y: 80 });
+  assert.deepEqual(tight, { x: 50, y: 0 });
+
+  // Tilted: every corner of the frame must still land on the photo.
+  const angle = 12 * Math.PI / 180;
+  const scale = tools.coverScale(1000, 800, 400, 500, angle) * 1.2;
+  const moved = tools.clampOffset({ imageWidth: 1000, imageHeight: 800, frameWidth: 400, frameHeight: 500, angle, scale, x: 500, y: 400 });
+  for (const [cx, cy] of [[-200, -250], [200, -250], [200, 250], [-200, 250]]) {
+    const dx = cx - moved.x;
+    const dy = cy - moved.y;
+    const alongX = (dx * Math.cos(angle) + dy * Math.sin(angle)) / scale;
+    const alongY = (-dx * Math.sin(angle) + dy * Math.cos(angle)) / scale;
+    assert.ok(Math.abs(alongX) <= 500 + 1e-6 && Math.abs(alongY) <= 400 + 1e-6, `corner ${cx},${cy} is off the photo`);
+  }
+});
+
+test('measureLighting finds the real range and the colour cast', () => {
+  // A dull, yellowish photo: values 60-180, with blue lower than red and green.
+  const pixels = new Uint8ClampedArray(4 * 1000);
+  for (let i = 0; i < 1000; i += 1) {
+    const value = 60 + Math.round((i / 999) * 120);
+    pixels.set([value, value, Math.round(value * 0.8), 255], i * 4);
+  }
+  const lighting = tools.measureLighting(pixels);
+  assert.ok(lighting.low > 40 && lighting.low < 70, `low ${lighting.low}`);
+  assert.ok(lighting.high > 150 && lighting.high < 185, `high ${lighting.high}`);
+  assert.ok(lighting.gains[2] > 1 && lighting.gains[0] < 1, 'blue is lifted and red eased');
+
+  const flat = new Uint8ClampedArray(4 * 100).fill(120);
+  assert.deepEqual(tools.measureLighting(flat), { low: 0, high: 255, gains: [1, 1, 1] });
+  assert.deepEqual(tools.measureLighting(new Uint8ClampedArray(0)), { low: 0, high: 255, gains: [1, 1, 1] });
+});
+
+test('applyLighting stretches the range, and brightness alone only lifts', () => {
+  const pixels = new Uint8ClampedArray([50, 50, 50, 200, 200, 200, 200, 255]);
+  tools.applyLighting(pixels, { low: 50, high: 200, gains: [1, 1, 1] }, 0);
+  assert.deepEqual(Array.from(pixels), [0, 0, 0, 200, 255, 255, 255, 255]);
+
+  const plain = new Uint8ClampedArray([100, 110, 120, 255]);
+  tools.applyLighting(plain, null, 10);
+  assert.deepEqual(Array.from(plain), [113, 123, 133, 255]);
+
+  const same = new Uint8ClampedArray([1, 2, 3, 4]);
+  tools.applyLighting(same, null, 0);
+  assert.deepEqual(Array.from(same), [1, 2, 3, 4]);
+});
+
+test('setJpegDpi writes the print resolution into a JFIF header only', () => {
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xdb]);
+  const stamped = tools.setJpegDpi(jpeg, 300);
+  assert.equal(stamped[13], 1);
+  assert.equal((stamped[14] << 8) | stamped[15], 300);
+  assert.equal((stamped[16] << 8) | stamped[17], 300);
+  assert.equal(stamped.length, jpeg.length);
+  assert.equal(jpeg[13], 0, 'the original bytes are not changed');
+
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  assert.equal(tools.setJpegDpi(png, 300), png);
+});

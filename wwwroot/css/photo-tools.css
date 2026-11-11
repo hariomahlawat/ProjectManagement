@@ -13,14 +13,8 @@
 }
 
 .phot-grid {
-    max-width: 420px;
+    max-width: 860px;
     margin: 0 auto;
-}
-
-.phot-home-drop {
-    max-width: 760px;
-    min-height: 180px;
-    margin: 1.5rem auto 0;
 }
 
 /* ---------- Tool header ---------- */
@@ -459,5 +453,257 @@
     .phot-row__thumb {
         width: 40px;
         height: 30px;
+    }
+}
+
+/* ---------- Passport photo ---------- */
+
+.phot-head__file {
+    color: var(--pdft-muted);
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
+.phot-crop {
+    position: relative;
+    height: clamp(340px, 62vh, 640px);
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.phot-crop:active {
+    cursor: grabbing;
+}
+
+.phot-crop:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: -3px;
+}
+
+.phot-crop__canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* The frame is the saved photo; everything outside it is dimmed. */
+.phot-crop__frame {
+    position: absolute;
+    border: 2px solid var(--bs-white);
+    box-shadow: 0 0 0 9999px color-mix(in srgb, var(--bs-black) 62%, transparent);
+    pointer-events: none;
+}
+
+.phot-crop__oval {
+    position: absolute;
+    left: 21%;
+    top: 10%;
+    width: 58%;
+    height: 68%;
+    border: 2px dashed var(--bs-warning);
+    border-radius: 50%;
+}
+
+.phot-crop__rule {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px dashed var(--bs-warning);
+}
+
+.phot-crop__rule--top { top: 10%; }
+.phot-crop__rule--chin { top: 78%; }
+
+.phot-crop__label {
+    position: absolute;
+    right: 6px;
+    padding: 0 0.4rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--bs-black) 75%, transparent);
+    color: var(--bs-warning);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.phot-crop__label--top { top: calc(10% - 1.4rem); }
+.phot-crop__label--chin { top: calc(78% + 0.3rem); }
+
+.phot-stage__bar--tools {
+    justify-content: flex-start;
+    gap: 0.75rem 1.5rem;
+}
+
+.phot-stage__control {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.phot-stage__control .form-range {
+    width: 9rem;
+}
+
+.phot-stage__value {
+    min-width: 2.75rem;
+    font-weight: 600;
+}
+
+.phot-stage__check {
+    margin: 0;
+}
+
+.phot-stage__hint {
+    margin: 0;
+    padding: 0 1.25rem 0.9rem;
+    font-size: 0.875rem;
+}
+
+.phot-step {
+    display: inline-grid;
+    place-items: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    margin-right: 0.6rem;
+    border-radius: 50%;
+    background: var(--bs-emphasis-color);
+    color: var(--bs-body-bg);
+    font-size: 0.85rem;
+}
+
+.phot-sizes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.phot-size {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-height: 56px;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 10px;
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    text-align: left;
+}
+
+.phot-size[aria-pressed="true"] {
+    border-color: var(--bs-primary);
+    box-shadow: inset 0 0 0 1px var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+}
+
+.phot-size__label {
+    font-weight: 800;
+}
+
+.phot-size__note {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+}
+
+.phot-custom {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.phot-custom__field label {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--bs-secondary-color);
+}
+
+.phot-custom__field .form-control,
+.phot-custom__field .form-select {
+    min-height: 42px;
+}
+
+.phot-fix {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+.phot-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0 0.9rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 10px;
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.phot-toggle[aria-pressed="true"] {
+    border-color: var(--bs-primary);
+    box-shadow: inset 0 0 0 1px var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    font-weight: 800;
+}
+
+.phot-fix .phot-hint {
+    flex: 1 1 10rem;
+}
+
+.phot-slider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.phot-slider__value {
+    min-width: 2rem;
+    text-align: right;
+}
+
+.phot-result {
+    margin: 0;
+    min-height: 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--pdft-muted);
+}
+
+.phot-result.is-ready { color: var(--bs-success-text-emphasis); }
+.phot-result.is-over { color: var(--bs-warning-text-emphasis); }
+.phot-result.is-problem { color: var(--bs-danger-text-emphasis); }
+
+@media (max-width: 575.98px) {
+    .phot-stage__control {
+        flex: 1 1 100%;
+    }
+
+    .phot-stage__control .form-range {
+        flex: 1;
+        width: auto;
+    }
+}
+
+/* On a phone the stage does not scroll the page (a finger on it moves the photo), so it is
+   kept short enough that the page can always be scrolled from above or below it. */
+@media (max-width: 575.98px) {
+    .phot-crop {
+        height: clamp(300px, 52vh, 460px);
     }
 }
