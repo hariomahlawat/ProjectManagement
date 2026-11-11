@@ -41,10 +41,9 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | On the Passport photo screen. The finished photo repeated on one sheet of 4 × 6 inch photo paper or A4, each copy inside a thin cut line. One JPG at 300 dpi. |
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
-| Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
+| Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
 
-Clean up, filters, mark up and blur are planned for the editor (see the build plan) and are not
-on the page yet.
+Mark up and blur are planned for the editor (see the build plan) and are not on the page yet.
 
 ### How a passport photo is made
 
@@ -85,7 +84,8 @@ on the page yet.
 ### How editing works
 
 - The opened photo is never altered. The edited photo is the original with a list of steps
-  applied in order (`crop`, `rotate`, `flip`, `straighten`, `resize`). Undo drops the last step
+  applied in order (`crop`, `rotate`, `flip`, `straighten`, `resize`, `cleanup`, `adjust`,
+  `filter`). Undo drops the last step
   and replays the rest; Redo puts it back. Only the original and the current result are held in
   memory, however many steps there are.
 - The same function applies a step to the screen copy (no larger than 1600 px) and to the
@@ -99,6 +99,29 @@ on the page yet.
   and the page says what it costs.
 - A crop or straighten that was not applied is dropped when the tool is changed.
 - Ctrl+Z and Ctrl+Y work while the screen is open, except while typing in a box.
+
+### How clean-ups, adjustments and filters work
+
+All are pure pixel functions in the core, tested in Node on small pixel arrays. Each press is one
+step, so Undo takes it back.
+
+| Clean-up | What it does |
+| --- | --- |
+| Auto enhance | Stretches the range between the darkest and brightest half percent and corrects most of a colour cast (`measureLighting`, `applyLighting`; the same fix as on the passport screen). |
+| Fix colour cast | The colour correction alone; the light is left as it is. |
+| Even out lighting | Divides the photo into a coarse grid, pulls each area towards the overall brightness and blends the correction smoothly between areas (`evenLighting`). Lifts a shadow on one side or a dark corner. |
+| Clean document | Evens the light fully, then takes the paper to white and the ink to dark. Each colour has its own white point, so yellowish paper under a lamp comes out white while a red stamp stays red (`cleanDocument`). |
+| Reduce noise | Moves each pixel halfway towards the average of its neighbours (`softenPixels`). Softens fine detail a little, and the page says so. |
+| Sharpen | Pushes each pixel away from the average of its neighbours (`sharpenPixels`). |
+
+- **Adjust** has four sliders from -50 to 50 (brightness, contrast, colour, warmth) with a live
+  preview; zero changes nothing (`adjustPixels`). Nothing is applied until Apply is pressed.
+- **Filters** are six fixed recipes (black and white, sepia, warm, cool, vivid, faded), each
+  shown on a small copy of the photo as it is now (`FILTERS`, `filterPixels`).
+- Measurements (the lighting range, the paper level) are taken from the picture the step is
+  applied to, so the screen copy and the full-size photo are each measured on their own. Sharpen
+  and Reduce noise work on a pixel's nearest neighbours, so on a large photo their effect is
+  finer than on the smaller screen copy.
 
 ### How the target size is reached
 
@@ -119,7 +142,7 @@ see-through areas with white.
 | File | Role |
 | --- | --- |
 | `Pages/Tools/Photo/Index.cshtml` | Standalone page with its own minimal shell (`Layout = null`). |
-| `wwwroot/js/photo-tools/photo-tools-core.js` | Pure rules: target-size search, resize maths, output type and names, greyscale, lighting, passport and signature sizes, crop limits, print sheet layout, signature clean-up, JPG print resolution, editor steps and crop box. Runs in Node for tests. |
+| `wwwroot/js/photo-tools/photo-tools-core.js` | Pure rules: target-size search, resize maths, output type and names, greyscale, lighting, passport and signature sizes, crop limits, print sheet layout, signature clean-up, JPG print resolution, editor steps and crop box, clean-ups, adjustments and filters. Runs in Node for tests. |
 | `wwwroot/js/photo-tools/photo-tools-core.test.js` | Node tests, part of `npm test`. |
 | `wwwroot/js/photo-tools/photo-tools-canvas.js` | Browser helpers shared by the tools: open a photo, draw it at a new size, canvas to file bytes, save, show an error. |
 | `wwwroot/js/photo-tools/photo-tools-app.js` | Shell, routing (`#tool`) and Reduce size. |
