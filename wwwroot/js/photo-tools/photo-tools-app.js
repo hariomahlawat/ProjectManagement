@@ -198,6 +198,7 @@
   let selectedId = null;
   let unit = 'KB';
   let run = 0;
+  let working = false;
   let settleTimer = null;
 
   function loadSettings() {
@@ -291,30 +292,45 @@
     }
   }
 
-  /** Reduces every photo that is waiting, one at a time. A newer run replaces an older one. */
+  /**
+   * Reduces every photo that is waiting, one at a time. There is only ever one worker:
+   * photos added or settings changed while it runs are picked up by the same loop, so a
+   * photo can never be left on "Working…" by a second run starting.
+   */
   async function work() {
-    const mine = ++run;
-    const settings = readSettings();
-    for (const photo of photos) {
-      if (photo.status !== 'waiting') continue;
-      photo.status = 'working';
-      render();
-      try {
-        const result = await reducePhoto(photo, settings);
-        if (mine !== run) return;
-        result.url = URL.createObjectURL(new Blob([result.bytes], { type: result.type.mime }));
-        photo.result = result;
-        photo.status = 'done';
-      } catch (error) {
-        if (mine !== run) return;
-        if (!(error instanceof core.PhotoToolError)) console.error(error);
-        photo.error = error instanceof core.PhotoToolError
-          ? error.message
-          : 'This photo could not be reduced. It may be damaged or too large for this browser.';
-        photo.status = 'error';
+    if (working) return;
+    working = true;
+    try {
+      for (;;) {
+        const photo = photos.find(item => item.status === 'waiting');
+        if (!photo) break;
+        const mine = run;
+        photo.status = 'working';
+        render();
+        let result = null;
+        let failure = null;
+        try {
+          result = await reducePhoto(photo, readSettings());
+        } catch (error) {
+          failure = error;
+        }
+        // Settings changed meanwhile (the photo is waiting again) or the photo was removed.
+        if (mine !== run || !photos.includes(photo)) continue;
+        if (failure) {
+          if (!(failure instanceof core.PhotoToolError)) console.error(failure);
+          photo.error = failure instanceof core.PhotoToolError
+            ? failure.message
+            : 'This photo could not be reduced. It may be damaged or too large for this browser.';
+          photo.status = 'error';
+        } else {
+          result.url = URL.createObjectURL(new Blob([result.bytes], { type: result.type.mime }));
+          photo.result = result;
+          photo.status = 'done';
+        }
+        render();
       }
-      if (!photos.includes(photo)) continue;
-      render();
+    } finally {
+      working = false;
     }
   }
 
