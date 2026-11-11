@@ -525,7 +525,7 @@
     } else {
       keyPoint = from;
       if (!placeAt(keyPoint)) {
-        drawing = { hide: tool === 'hide', from: keyPoint, to: keyPoint, points: [keyPoint] };
+        drawing = { hide: tool === 'hide', keys: true, from: keyPoint, to: keyPoint, points: [keyPoint] };
         layout();
       }
     }
@@ -539,18 +539,21 @@
     layout();
   });
 
+  // A mark started with the keyboard follows the cross only: a mouse passing over the photo
+  // must not change it.
   photoBox.addEventListener('pointermove', (event) => {
-    if (!drawing) return;
+    if (!drawing || drawing.keys) return;
     drawing.to = roundPoint(photoPoint(event));
     drawing.points.push(drawing.to);
     layout();
   });
 
   photoBox.addEventListener('pointerup', () => {
-    if (drawing) finishDrawing();
+    if (drawing && !drawing.keys) finishDrawing();
   });
 
   photoBox.addEventListener('pointercancel', () => {
+    if (!drawing || drawing.keys) return;
     drawing = null;
     layout();
   });
