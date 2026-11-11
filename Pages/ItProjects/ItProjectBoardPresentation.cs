@@ -86,7 +86,7 @@ public static class ItProjectBoardPresentation
                     state,
                     tone,
                     text,
-                    CellTitle(cell),
+                    CellTitle(cell, row.Status.Module),
                     LineIn: index > 0 && reached[index],
                     LineOut: index + 1 < cells.Count && reached[index + 1]);
             })
@@ -97,8 +97,8 @@ public static class ItProjectBoardPresentation
     /// "end to end" when the elapsed figure starts at the first stage; else the stage it starts
     /// from ("from SO"), because undated early stages make the figure shorter than the case took.
     /// </summary>
-    public static string ElapsedSpan(ItProjectTiming timing)
-        => timing.ElapsedIsEndToEnd ? "end to end" : $"from {ItProjectStages.LabelOf(timing.StartedStageCode!)}";
+    public static string ElapsedSpan(ItProjectTiming timing, string module = ItProjectModules.It)
+        => timing.ElapsedIsEndToEnd ? "end to end" : $"from {ItProjectStages.LabelOf(timing.StartedStageCode!, module)}";
 
     /// <summary>The Now column of a register row.</summary>
     public sealed record NowCell(string Label, string? Badge, string BadgeTone, string? BadgeTitle, string? Note);
@@ -113,7 +113,7 @@ public static class ItProjectBoardPresentation
             case ItProjectStatusKind.Completed:
             {
                 var on = row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.Delivery)?.CompletedOn;
-                var span = row.Timing.ElapsedDays is { } days ? $"{days} days {ElapsedSpan(row.Timing)}" : null;
+                var span = row.Timing.ElapsedDays is { } days ? $"{days} days {ElapsedSpan(row.Timing, row.Status.Module)}" : null;
                 var note = string.Join(" · ", new[] { span, soText }.Where(part => part is not null));
                 return new NowCell(on is { } date ? $"Delivered {ShortDate(date)}" : "Delivered", null, "ok", null, note.Length == 0 ? null : note);
             }
@@ -158,7 +158,7 @@ public static class ItProjectBoardPresentation
     /// cases without a stage date, then by title. The facts (current stage, timing) come from the
     /// read service; this only groups and words them.
     /// </summary>
-    public static IReadOnlyList<PipelineColumn> Pipeline(IEnumerable<ItProjectBoardRow> rows)
+    public static IReadOnlyList<PipelineColumn> Pipeline(IEnumerable<ItProjectBoardRow> rows, string module = ItProjectModules.It)
     {
         var live = rows
             .Where(row => row.Status.Kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress && row.Status.CurrentStageCode is not null)
@@ -175,7 +175,7 @@ public static class ItProjectBoardPresentation
                     .ToList();
                 return new PipelineColumn(
                     stage.Code,
-                    stage.Label,
+                    ItProjectStages.LabelOf(stage.Code, module),
                     ShortStageLabel(stage.Code),
                     stage.IsOptional,
                     here.Count,
@@ -326,9 +326,9 @@ public static class ItProjectBoardPresentation
     };
 
     /// <summary>The tooltip of a stage cell.</summary>
-    public static string CellTitle(ItProjectBoardStageCell cell)
+    public static string CellTitle(ItProjectBoardStageCell cell, string module = ItProjectModules.It)
     {
-        var label = ItProjectStages.LabelOf(cell.StageCode);
+        var label = ItProjectStages.LabelOf(cell.StageCode, module);
         if (cell.IsSkipped)
         {
             return $"{label}: skipped";
@@ -392,25 +392,25 @@ public static class ItProjectBoardPresentation
     /// One sentence for the stage editor's note and confirm dialog: what a save will also do
     /// beyond the stages the user touched. Null when nothing else changes.
     /// </summary>
-    public static string? CascadeSummary(IReadOnlyList<string> completedCodes, IReadOnlyList<string> reopenedCodes)
+    public static string? CascadeSummary(IReadOnlyList<string> completedCodes, IReadOnlyList<string> reopenedCodes, string module = ItProjectModules.It)
     {
         var parts = new List<string>();
         if (completedCodes.Count > 0)
         {
-            parts.Add("also complete " + JoinLabels(completedCodes));
+            parts.Add("also complete " + JoinLabels(completedCodes, module));
         }
 
         if (reopenedCodes.Count > 0)
         {
-            parts.Add("also reopen " + JoinLabels(reopenedCodes));
+            parts.Add("also reopen " + JoinLabels(reopenedCodes, module));
         }
 
         return parts.Count == 0 ? null : $"Saving will {string.Join(" and ", parts)}.";
     }
 
-    private static string JoinLabels(IReadOnlyList<string> codes)
+    private static string JoinLabels(IReadOnlyList<string> codes, string module)
     {
-        var labels = codes.Select(ItProjectStages.LabelOf).ToList();
+        var labels = codes.Select(code => ItProjectStages.LabelOf(code, module)).ToList();
         return labels.Count <= 1
             ? string.Concat(labels)
             : $"{string.Join(", ", labels.Take(labels.Count - 1))} and {labels[^1]}";

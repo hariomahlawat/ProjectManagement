@@ -14,18 +14,25 @@ using ProjectManagement.Utilities;
 namespace ProjectManagement.Pages.ItProjects;
 
 /// <summary>
-/// The IT projects board: where every IT ARPPP case stands, stage by stage
-/// (docs/ux/it-projects.md, "The board").
+/// The board of one module on the IT projects engine: where every case stands, stage by stage
+/// (docs/ux/it-projects.md, "The board"). IT, MOLTI and SRE projects each have their own page
+/// class and route (docs/ux/molti-sre-projects.md); this is everything they share, and
+/// <see cref="ModuleCode"/> is the only thing that differs.
 /// </summary>
-[Authorize(Policy = Policies.ItProjects.View)]
-public class IndexModel : PageModel
+public abstract class ItProjectBoardPageModel : PageModel
 {
     private readonly IItProjectReadService _reads;
 
-    public IndexModel(IItProjectReadService reads)
+    protected ItProjectBoardPageModel(IItProjectReadService reads)
     {
         _reads = reads ?? throw new ArgumentNullException(nameof(reads));
     }
+
+    /// <summary>The module this page belongs to (<see cref="ItProjectModules"/>). Fixed by the page class, never by the request.</summary>
+    public abstract string ModuleCode { get; }
+
+    /// <summary>The module's names and wording.</summary>
+    public ItProjectModules.Definition Module => ItProjectModules.Get(ModuleCode);
 
     /// <summary>active (default), completed, dropped or all.</summary>
     [BindProperty(SupportsGet = true)]
@@ -97,11 +104,11 @@ public class IndexModel : PageModel
             Fy = null;
         }
 
-        CanManage = ItProjectAccess.CanManage(User);
+        CanManage = ItProjectAccess.CanManage(User, ModuleCode);
 
         // One query for every scope: the tiles need all rows, and the scope only picks which
         // rows the board draws.
-        Board = await _reads.GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.All, Fy, Q, BoardSort), cancellationToken);
+        Board = await _reads.GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.All, Fy, Q, BoardSort, ModuleCode), cancellationToken);
         ScopedRows = OnlyMissingDates
             ? Board.Rows.Where(row => InScope(row.Status.Kind, ItProjectBoardScope.Active) && row.Timing.HasMissingDates).ToList()
             : Board.Rows.Where(row => InScope(row.Status.Kind, BoardScope)).ToList();
@@ -137,4 +144,16 @@ public class IndexModel : PageModel
         ItProjectBoardScope.Dropped => kind == ItProjectStatusKind.Dropped,
         _ => true
     };
+}
+
+/// <summary>The IT projects board (<c>/ItProjects</c>).</summary>
+[Authorize(Policy = Policies.ItProjects.View)]
+public class IndexModel : ItProjectBoardPageModel
+{
+    public IndexModel(IItProjectReadService reads)
+        : base(reads)
+    {
+    }
+
+    public override string ModuleCode => ItProjectModules.It;
 }

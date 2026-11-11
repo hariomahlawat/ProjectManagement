@@ -1,0 +1,15 @@
+@page
+@model ProjectManagement.Pages.MoltiProjects.IndexModel
+@{
+    ViewData["Title"] = Model.Module.Name;
+    ViewData["PageShell"] = "wide";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/it-projects.css" asp-append-version="true" />
+}
+
+<partial name="~/Pages/ItProjects/_ModuleBoard.cshtml" model="Model" />
+
+@section Scripts {
+    <script src="~/js/pages/it-projects.js" asp-append-version="true" defer></script>
+}

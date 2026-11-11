@@ -63,7 +63,7 @@ public static class ItProjectPagePresentation
                 var on = stages.FirstOrDefault(stage => stage.StageCode == ItProjectStages.Delivery)?.CompletedOn;
                 return new HeroStatus(
                     on is { } date ? $"Delivered on {LongDate(date)}" : "Delivered",
-                    timing.ElapsedDays is { } days ? $"{Days(days)} {ItProjectBoardPresentation.ElapsedSpan(timing)}" : null,
+                    timing.ElapsedDays is { } days ? $"{Days(days)} {ItProjectBoardPresentation.ElapsedSpan(timing, project.Module)}" : null,
                     "ok");
             }
 
@@ -82,7 +82,7 @@ public static class ItProjectPagePresentation
         }
 
         var stage = status.CurrentStageLabel ?? "the current stage";
-        var previous = PreviousStageLabel(stages, status.CurrentStageCode) ?? "the previous stage";
+        var previous = PreviousStageLabel(stages, status.CurrentStageCode, status.Module) ?? "the previous stage";
         return timing.Basis switch
         {
             ItProjectTimeBasis.StageDate => new HeroStatus(
@@ -140,7 +140,7 @@ public static class ItProjectPagePresentation
 
         return stages.Select((stage, index) =>
         {
-            var label = ItProjectStages.LabelOf(stage.StageCode);
+            var label = ItProjectStages.LabelOf(stage.StageCode, project.Module);
             var cost = stage.CostLakhs is { } lakhs && !stage.IsSkipped ? ItProjectBoardPresentation.Cost(lakhs) : null;
             if (stage.IsSkipped)
             {
@@ -223,7 +223,7 @@ public static class ItProjectPagePresentation
 
         foreach (var stage in project.Stages.Where(stage => !stage.IsSkipped && stage.IsCompleted && stage.CompletedOn.HasValue))
         {
-            var label = ItProjectStages.LabelOf(stage.StageCode);
+            var label = ItProjectStages.LabelOf(stage.StageCode, project.Module);
             // The IPA cost on the first stage and the SO value on SO ride along with their stage.
             var text = stage.CostLakhs is { } cost
                 ? $"{label} completed · {ItProjectBoardPresentation.Cost(cost)}"
@@ -289,7 +289,7 @@ public static class ItProjectPagePresentation
     }
 
     /// <summary>The label of the last non-skipped stage before the current one.</summary>
-    private static string? PreviousStageLabel(IReadOnlyList<ItProjectStage> stages, string? currentCode)
+    private static string? PreviousStageLabel(IReadOnlyList<ItProjectStage> stages, string? currentCode, string module)
     {
         if (currentCode is null)
         {
@@ -298,7 +298,7 @@ public static class ItProjectPagePresentation
 
         var currentOrder = ItProjectStages.OrderOf(currentCode);
         var previous = stages.LastOrDefault(stage => !stage.IsSkipped && stage.SortOrder < currentOrder);
-        return previous is null ? null : ItProjectStages.LabelOf(previous.StageCode);
+        return previous is null ? null : ItProjectStages.LabelOf(previous.StageCode, module);
     }
 
     private static string Days(int days) => days == 1 ? "1 day" : $"{days.ToString("#,##0", CultureInfo.InvariantCulture)} days";

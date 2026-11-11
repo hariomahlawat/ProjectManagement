@@ -25,7 +25,33 @@ public static class ItProjectModules
     /// Whether each project is run by a Project Officer assigned to it. False for IT projects,
     /// which the ITO runs as a whole.
     /// </param>
-    public sealed record Definition(string Code, string Name, string RoutePrefix, bool HasAssignedOfficer);
+    public sealed record Definition(string Code, string Name, string RoutePrefix, bool HasAssignedOfficer)
+    {
+        /// <summary>One project of the module: "IT project", "MOLTI project".</summary>
+        public string Singular => $"{Code} project";
+
+        /// <summary>The yearly list the module's cases belong to: "IT ARPPP", "MOLTI ARPPP" (owner, 11 Nov 2026).</summary>
+        public string ListName => $"{Code} ARPPP";
+
+        /// <summary>The Razor page folder, e.g. "/MoltiProjects/Index" is the module's board.</summary>
+        public string PageFolder => RoutePrefix;
+
+        /// <summary>Who adds projects, for the empty board of a user who cannot.</summary>
+        public string AddedByText => HasAssignedOfficer
+            ? "The HoD or an administrator adds them."
+            : "The ITO, HoD or an administrator adds them.";
+
+        /// <summary>Who writes remarks, for the empty remarks card of a user who cannot.</summary>
+        public string RemarkWritersText => HasAssignedOfficer
+            ? "The assigned officer, MCO, HoD and Comdt can write them."
+            : "The ITO, MCO, HoD and Comdt can write them.";
+
+        /// <summary>The example in the reference number box. Only IT projects have a known form; the others show none.</summary>
+        public string? ReferenceExample => Code == It ? "e.g. IT PPP 09/2026" : null;
+
+        /// <summary>The example in the title box. An IT example would mislead in another module, so the others show none.</summary>
+        public string? TitleExample => Code == It ? "e.g. Core switches, Admin block" : null;
+    }
 
     public static readonly IReadOnlyList<Definition> All = new[]
     {
@@ -33,6 +59,8 @@ public static class ItProjectModules
         new Definition(Molti, "MOLTI projects", "/MoltiProjects", HasAssignedOfficer: true),
         new Definition(Sre, "SRE projects", "/SreProjects", HasAssignedOfficer: true)
     };
+
+    private static readonly Definition ItDefinition = All[0];
 
     private static readonly IReadOnlyDictionary<string, Definition> ByCode =
         All.ToDictionary(definition => definition.Code, StringComparer.Ordinal);
@@ -45,4 +73,25 @@ public static class ItProjectModules
             : throw new ArgumentOutOfRangeException(nameof(code), code, "Unknown project module.");
 
     public static bool HasAssignedOfficer(string code) => Get(code).HasAssignedOfficer;
+
+    /// <summary>
+    /// Text written for IT projects, worded for another module: its list name, its plural and its
+    /// singular take the place of the IT ones ("IT ARPPP / IPA" reads "MOLTI ARPPP / IPA"). The
+    /// engine's rules and messages are written once, for IT projects; this is the one place that
+    /// turns them into another module's words, so a MOLTI or SRE page never says "IT". Text for
+    /// IT projects, or for an unknown module, comes back unchanged.
+    /// </summary>
+    public static string Reword(string text, string module)
+    {
+        if (string.IsNullOrEmpty(text) || module == It || !IsKnown(module))
+        {
+            return text;
+        }
+
+        var definition = Get(module);
+        return text
+            .Replace(ItDefinition.ListName, definition.ListName, StringComparison.Ordinal)
+            .Replace(ItDefinition.Name, definition.Name, StringComparison.Ordinal)
+            .Replace(ItDefinition.Singular, definition.Singular, StringComparison.Ordinal);
+    }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ProjectManagement.Models.ItProjects;
@@ -42,6 +43,15 @@ public sealed record ItProjectCommandResult(
     public static ItProjectCommandResult Ok() => new(true, Array.Empty<string>());
     public static ItProjectCommandResult Fail(params string[] errors) => new(false, errors);
     public static ItProjectCommandResult Fail(IReadOnlyList<string> errors) => new(false, errors);
+    /// <summary>
+    /// The same result with its messages in a module's words (<see cref="ItProjectModules.Reword"/>).
+    /// The services write their messages once, for IT projects, and word every result on the
+    /// way out, so a MOLTI or SRE page never shows "IT project".
+    /// </summary>
+    public ItProjectCommandResult In(string module) => Succeeded || module == ItProjectModules.It
+        ? this
+        : this with { Errors = Errors.Select(error => ItProjectModules.Reword(error, module)).ToList() };
+
     public static ItProjectCommandResult Conflict() => new(false, new[] { ItProjectCommandService.ConcurrencyConflictMessage }, ConcurrencyConflict: true);
 }
 

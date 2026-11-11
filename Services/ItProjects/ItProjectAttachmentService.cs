@@ -94,6 +94,15 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
 
     public async Task<(ItProjectCommandResult Result, Guid AttachmentId)> UploadAsync(int itProjectId, IFormFile file, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
+        var (result, attachmentId) = await UploadCoreAsync(itProjectId, file, actor, cancellationToken);
+        return (result.In(actor.Module), attachmentId);
+    }
+
+    public async Task<ItProjectCommandResult> DeleteAsync(int itProjectId, Guid attachmentId, ItProjectActor actor, CancellationToken cancellationToken = default)
+        => (await DeleteCoreAsync(itProjectId, attachmentId, actor, cancellationToken)).In(actor.Module);
+
+    private async Task<(ItProjectCommandResult Result, Guid AttachmentId)> UploadCoreAsync(int itProjectId, IFormFile file, ItProjectActor actor, CancellationToken cancellationToken = default)
+    {
         EnsureActor(actor);
         if (file is null)
         {
@@ -215,7 +224,7 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
         }
     }
 
-    public async Task<ItProjectCommandResult> DeleteAsync(int itProjectId, Guid attachmentId, ItProjectActor actor, CancellationToken cancellationToken = default)
+    private async Task<ItProjectCommandResult> DeleteCoreAsync(int itProjectId, Guid attachmentId, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
 

@@ -133,12 +133,14 @@ public class ItProjectModuleTests
 
         foreach (var actor in new[] { it, sre })
         {
-            Assert.Equal(ItProjectCommandService.NotFoundMessage, (await db.Commands().UpdateDetailsAsync(molti, ItProjectTestDb.Details("Renamed"), version, actor)).Errors.Single());
-            Assert.Equal(ItProjectCommandService.NotFoundMessage, (await db.Commands().SaveStagesAsync(molti, stages, version, actor)).Result.Errors.Single());
-            Assert.Equal(ItProjectCommandService.NotFoundMessage, (await db.Commands().DropAsync(molti, new DateOnly(2026, 11, 1), "Not needed", version, actor)).Errors.Single());
-            Assert.Equal(ItProjectCommandService.NotFoundMessage, (await db.Commands().ReinstateAsync(molti, version, actor)).Errors.Single());
-            Assert.Equal(ItProjectCommandService.NotFoundMessage, (await db.Commands().SaveYearAsync(molti, 2025, new ItProjectYearInput(null, "X/1"), version, actor)).Errors.Single());
-            Assert.Equal(ItProjectCommandService.NotFoundMessage, (await db.Commands().DeleteAsync(molti, version, actor)).Errors.Single());
+            // "Not found", in the words of the module the caller is in.
+            var notFound = ItProjectModules.Reword(ItProjectCommandService.NotFoundMessage, actor.Module);
+            Assert.Equal(notFound, (await db.Commands().UpdateDetailsAsync(molti, ItProjectTestDb.Details("Renamed"), version, actor)).Errors.Single());
+            Assert.Equal(notFound, (await db.Commands().SaveStagesAsync(molti, stages, version, actor)).Result.Errors.Single());
+            Assert.Equal(notFound, (await db.Commands().DropAsync(molti, new DateOnly(2026, 11, 1), "Not needed", version, actor)).Errors.Single());
+            Assert.Equal(notFound, (await db.Commands().ReinstateAsync(molti, version, actor)).Errors.Single());
+            Assert.Equal(notFound, (await db.Commands().SaveYearAsync(molti, 2025, new ItProjectYearInput(null, "X/1"), version, actor)).Errors.Single());
+            Assert.Equal(notFound, (await db.Commands().DeleteAsync(molti, version, actor)).Errors.Single());
         }
 
         await using var context = db.NewContext();
