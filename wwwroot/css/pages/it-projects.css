@@ -2841,8 +2841,10 @@
 
 .itp-officer {
     display: inline-flex;
-    align-items: center;
+    align-items: baseline;
     gap: .3rem;
+    /* A long name wraps inside its chip instead of pushing the row wider. */
+    min-width: 0;
     color: var(--pm-text-secondary);
 }
 

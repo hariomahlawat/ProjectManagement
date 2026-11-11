@@ -60,11 +60,12 @@
                     <p class="itp-hero__officer">
                         @if (Model.Project.ProjectOfficerUserId is null)
                         {
-                            <span class="itp-officer itp-officer--none"><i class="bi bi-person-dash" aria-hidden="true"></i>No officer assigned</span>
+                            <span class="itp-officer itp-officer--none"><i class="bi bi-person-dash" aria-hidden="true"></i><span>No officer assigned</span></span>
                         }
                         else
                         {
-                            <span class="itp-officer"><i class="bi bi-person" aria-hidden="true"></i>Project Officer: <b>@(Model.OfficerName ?? "Unknown user")</b></span>
+                            @* The words are one flex item beside the icon, so a long name wraps as text, not as a second column. *@
+                            <span class="itp-officer"><i class="bi bi-person" aria-hidden="true"></i><span>Project Officer: <b>@(Model.OfficerName ?? "Unknown user")</b></span></span>
                             @if (Model.OfficerAssignedOn is { } assignedOn)
                             {
                                 <span class="itp-hero__since">since @ItProjectPagePresentation.LongDate(assignedOn)</span>
