@@ -19,7 +19,7 @@ their own tables, services, pages and policies, and never reference `Projects`, 
 
 | Topic | Decision |
 | --- | --- |
-| Scope | IT projects only (no kind list, no SRE/infra for now) |
+| Scope | IT projects only (no kind list, no SRE/infra for now). Since 11 Nov 2026 MOLTI projects and SRE projects are planned as two more modules on this engine: [molti-sre-projects.md](molti-sre-projects.md) |
 | Required fields | Title, description, **IT ARPPP reference number** (free text, not unique, not a case file number), **Financial year** |
 | Financial year | The FY the IT ARPPP belongs to (April to March, shown as "2026-27"). Stored as the start year with `FinancialYearHelper`, as ARPP does. Picked from a list, defaulting to the current FY; the board filters and groups by it |
 | Other fields | None for users. Only bookkeeping: created/updated by and at, row version, soft delete, Dropped |
