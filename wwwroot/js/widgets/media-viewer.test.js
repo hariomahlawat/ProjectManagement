@@ -435,3 +435,15 @@ test('a strip thumbnail that cannot be loaded tries the fallback once; the strip
   assert.equal(strip.children[0].querySelector('img').getAttribute('src'), '/md/1');
   window.close();
 });
+
+test('on narrow screens the details sheet is stacked above the arrows and the thumbnail strip', () => {
+  const css = fs.readFileSync(path.join(root, 'wwwroot', 'css', 'widgets', 'media-viewer.css'), 'utf8');
+  const zIndex = (rule) => Number(/z-index:\s*(\d+)/.exec(rule)[1]);
+  const narrow = css.slice(css.indexOf('@media (max-width: 900px)'));
+  const sheet = /\.photos-viewer__info \{[^}]*\}/.exec(narrow)[0];
+  const strip = /^\.photos-viewer__strip \{[^}]*\}/m.exec(css)[0];
+  const arrows = /^\.photos-viewer__nav \{[^}]*\}/m.exec(css)[0];
+  assert.match(sheet, /position: absolute/);
+  assert.ok(zIndex(sheet) > zIndex(strip));
+  assert.ok(zIndex(sheet) > zIndex(arrows));
+});
