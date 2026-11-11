@@ -18,8 +18,11 @@ using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Pages.ItProjects;
 
-[Authorize(Policy = Policies.ItProjects.Manage)]
-public class CreateModel : PageModel
+/// <summary>
+/// The "new project" form of one module on the IT projects engine. Each module has its own page
+/// class, route and Manage policy (docs/ux/molti-sre-projects.md); this is what they share.
+/// </summary>
+public abstract class ItProjectCreatePageModel : PageModel
 {
     /// <summary>How many past financial years the picker offers, besides the current and the next one.</summary>
     public const int PastFinancialYearsOffered = 10;
@@ -27,11 +30,17 @@ public class CreateModel : PageModel
     private readonly IItProjectCommandService _commands;
     private readonly IClock _clock;
 
-    public CreateModel(IItProjectCommandService commands, IClock clock)
+    protected ItProjectCreatePageModel(IItProjectCommandService commands, IClock clock)
     {
         _commands = commands ?? throw new ArgumentNullException(nameof(commands));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
+
+    /// <summary>The module this page belongs to. Fixed by the page class, never by the request.</summary>
+    public abstract string ModuleCode { get; }
+
+    /// <summary>The module's names and wording.</summary>
+    public ItProjectModules.Definition Module => ItProjectModules.Get(ModuleCode);
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -55,9 +64,10 @@ public class CreateModel : PageModel
         [Display(Name = "Title")]
         public string Title { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Give the IT ARPPP reference number.")]
-        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The IT ARPPP reference number must be {1} characters or fewer.")]
-        [Display(Name = "IT ARPPP reference number")]
+        // The messages name no module: the form is shared, and its label says which list it is.
+        [Required(ErrorMessage = "Give the reference number.")]
+        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The reference number must be {1} characters or fewer.")]
+        [Display(Name = "Reference number")]
         public string PppReferenceNumber { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Choose the financial year.")]
@@ -81,8 +91,8 @@ public class CreateModel : PageModel
         public int? FirstFinancialYearStart { get; set; }
 
         /// <summary>CL / CF only: the first year's IT ARPPP number, if it is known.</summary>
-        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The IT ARPPP reference number must be {1} characters or fewer.")]
-        [Display(Name = "First IT ARPPP reference number")]
+        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The reference number must be {1} characters or fewer.")]
+        [Display(Name = "First reference number")]
         public string? FirstPppReferenceNumber { get; set; }
     }
 
@@ -142,7 +152,7 @@ public class CreateModel : PageModel
             return Forbid();
         }
 
-        var actor = new ItProjectActor(userId, User.Identity?.Name);
+        var actor = new ItProjectActor(userId, User.Identity?.Name, ModuleCode);
         var (result, id) = carriedOver is { } type
             ? await _commands.CreateCarriedOverAsync(
                 new ItProjectCarriedOverInput(Input.Title, Input.Description, type, Input.PppReferenceNumber, Input.FirstFinancialYearStart!.Value, Input.FirstPppReferenceNumber),
@@ -164,8 +174,8 @@ public class CreateModel : PageModel
         }
 
         TempData.ToastSuccess(carriedOver is { } created
-            ? $"IT project \"{Input.Title.Trim()}\" created as {ItProjectYearTypes.Code(created)} in FY {FinancialYearHelper.Format(current)}. Tick the stages it has already reached."
-            : $"IT project \"{Input.Title.Trim()}\" created. Tick the stages it has already reached.");
+            ? $"{Module.Singular} \"{Input.Title.Trim()}\" created as {ItProjectYearTypes.Code(created)} in FY {FinancialYearHelper.Format(current)}. Tick the stages it has already reached."
+            : $"{Module.Singular} \"{Input.Title.Trim()}\" created. Tick the stages it has already reached.");
         return RedirectToPage("./Details", new { id, open = DetailsModel.OpenStages });
     }
 
@@ -229,4 +239,16 @@ public class CreateModel : PageModel
             .Select(year => new SelectListItem(FinancialYearHelper.Format(year), year.ToString(), year == selected))
             .ToList();
     }
+}
+
+/// <summary>New IT project (<c>/ItProjects/Create</c>).</summary>
+[Authorize(Policy = Policies.ItProjects.Manage)]
+public class CreateModel : ItProjectCreatePageModel
+{
+    public CreateModel(IItProjectCommandService commands, IClock clock)
+        : base(commands, clock)
+    {
+    }
+
+    public override string ModuleCode => ItProjectModules.It;
 }

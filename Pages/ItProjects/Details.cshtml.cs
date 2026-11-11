@@ -22,12 +22,13 @@ using ProjectManagement.Utilities;
 namespace ProjectManagement.Pages.ItProjects;
 
 /// <summary>
-/// One IT project: header, stepper, description, and for Manage users the stage editor, the
-/// details editor, Dropped / Reinstate and Delete (docs/ux/it-projects.md, "The project page").
-/// Remarks and attachments have their own cards (PR 4 and PR 5).
+/// One project of a module on the IT projects engine: header, stepper, description, and for the
+/// people who may work on it the stage editor, the details editor, Dropped / Reinstate and
+/// Delete (docs/ux/it-projects.md, "The project page"). Remarks and attachments have their own
+/// cards. Each module has its own page class and route (docs/ux/molti-sre-projects.md); this is
+/// what they share. A project of another module is "not found" here.
 /// </summary>
-[Authorize(Policy = Policies.ItProjects.View)]
-public class DetailsModel : PageModel
+public abstract class ItProjectDetailsPageModel : PageModel
 {
     public const string OpenStages = "stages";
     public const string OpenEdit = "edit";
@@ -44,7 +45,7 @@ public class DetailsModel : PageModel
     private readonly IItProjectAttachmentService _attachments;
     private readonly IClock _clock;
 
-    public DetailsModel(IItProjectReadService reads, IItProjectCommandService commands, IItProjectRemarkService remarks, IItProjectAttachmentService attachments, IClock clock)
+    protected ItProjectDetailsPageModel(IItProjectReadService reads, IItProjectCommandService commands, IItProjectRemarkService remarks, IItProjectAttachmentService attachments, IClock clock)
     {
         _attachments = attachments ?? throw new ArgumentNullException(nameof(attachments));
         _reads = reads ?? throw new ArgumentNullException(nameof(reads));
@@ -52,6 +53,12 @@ public class DetailsModel : PageModel
         _remarks = remarks ?? throw new ArgumentNullException(nameof(remarks));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
+
+    /// <summary>The module this page belongs to. Fixed by the page class, never by the request.</summary>
+    public abstract string ModuleCode { get; }
+
+    /// <summary>The module's names and wording.</summary>
+    public ItProjectModules.Definition Module => ItProjectModules.Get(ModuleCode);
 
     public IReadOnlyList<ItProjectRemarkView> Remarks { get; private set; } = Array.Empty<ItProjectRemarkView>();
 
@@ -166,7 +173,14 @@ public class DetailsModel : PageModel
 
     public IReadOnlyList<StageRow> StageRows { get; private set; } = Array.Empty<StageRow>();
 
+    /// <summary>Whether the user holds a manage role of the module: the only people who delete a project.</summary>
     public bool CanManage { get; private set; }
+
+    /// <summary>
+    /// Whether the user may change this project (details, stages, years, files, drop, reinstate):
+    /// the manage roles and, in a module that assigns one, the project's own officer.
+    /// </summary>
+    public bool CanWorkOn { get; private set; }
 
     public string? UpdatedByName { get; private set; }
 
@@ -209,9 +223,10 @@ public class DetailsModel : PageModel
         [Display(Name = "Title")]
         public string Title { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Give the IT ARPPP reference number.")]
-        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The IT ARPPP reference number must be {1} characters or fewer.")]
-        [Display(Name = "IT ARPPP reference number")]
+        // The messages name no module: the form is shared, and its label says which list it is.
+        [Required(ErrorMessage = "Give the reference number.")]
+        [StringLength(ItProjectCommandService.ReferenceMaxLength, ErrorMessage = "The reference number must be {1} characters or fewer.")]
+        [Display(Name = "Reference number")]
         public string PppReferenceNumber { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Choose the financial year.")]
@@ -270,7 +285,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        if (!CanManage && Open is not null)
+        if (!CanWorkOn && Open is not null)
         {
             Open = null;
         }
@@ -286,7 +301,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        if (!CanManage)
+        if (!CanWorkOn)
         {
             return Forbid();
         }
@@ -336,7 +351,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        if (!CanManage)
+        if (!CanWorkOn)
         {
             return Forbid();
         }
@@ -383,7 +398,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        if (!CanManage)
+        if (!CanWorkOn)
         {
             return Forbid();
         }
@@ -399,7 +414,7 @@ public class DetailsModel : PageModel
             return new JsonResult(new { valid = false, errors = DrawerErrors(OpenStages, nameof(Stages)) });
         }
 
-        var rules = ItProjectStageRules.Apply(ApplyReopen(ToStageInputs(Stages.Items), reopen));
+        var rules = ItProjectStageRules.Apply(ApplyReopen(ToStageInputs(Stages.Items), reopen), ModuleCode);
         if (!rules.IsValid)
         {
             return new JsonResult(new { valid = false, errors = rules.Errors });
@@ -425,7 +440,7 @@ public class DetailsModel : PageModel
             }),
             completed = completedElsewhere,
             reopened = reopenedElsewhere,
-            summary = ItProjectBoardPresentation.CascadeSummary(completedElsewhere, reopenedElsewhere)
+            summary = ItProjectBoardPresentation.CascadeSummary(completedElsewhere, reopenedElsewhere, ModuleCode)
         });
     }
 
@@ -546,7 +561,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        if (!CanManage)
+        if (!CanWorkOn)
         {
             return Forbid();
         }
@@ -570,7 +585,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        var download = await _attachments.OpenAsync(id, attachmentId, cancellationToken);
+        var download = await _attachments.OpenAsync(id, attachmentId, ModuleCode, cancellationToken);
         if (download is null)
         {
             return NotFound();
@@ -586,7 +601,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        if (!CanManage)
+        if (!CanWorkOn)
         {
             return Forbid();
         }
@@ -619,7 +634,7 @@ public class DetailsModel : PageModel
     private ItProjectRemarkActor RemarkActor()
     {
         var actor = Actor();
-        return new ItProjectRemarkActor(actor.UserId, actor.UserName, RemarkRole, IsAdmin, IsHoD);
+        return new ItProjectRemarkActor(actor.UserId, actor.UserName, RemarkRole, IsAdmin, IsHoD, ModuleCode);
     }
 
     public async Task<IActionResult> OnPostDropAsync(int id, CancellationToken cancellationToken)
@@ -629,7 +644,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        if (!CanManage)
+        if (!CanWorkOn)
         {
             return Forbid();
         }
@@ -658,7 +673,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        if (!CanManage)
+        if (!CanWorkOn)
         {
             return Forbid();
         }
@@ -699,7 +714,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        if (!CanManage)
+        if (!CanWorkOn)
         {
             return Forbid();
         }
@@ -721,6 +736,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
+        // Deleting stays with the manage roles: an assigned officer works on a project but does not remove it.
         if (!CanManage)
         {
             return Forbid();
@@ -733,7 +749,7 @@ public class DetailsModel : PageModel
             return Failed(result, null);
         }
 
-        TempData.ToastSuccess($"IT project \"{title}\" deleted.");
+        TempData.ToastSuccess($"{Module.Singular} \"{title}\" deleted.");
         return RedirectToPage("./Index");
     }
 
@@ -760,7 +776,7 @@ public class DetailsModel : PageModel
 
     private async Task<bool> LoadAsync(int id, CancellationToken cancellationToken)
     {
-        var project = await _reads.GetAsync(id, cancellationToken);
+        var project = await _reads.GetAsync(id, ModuleCode, cancellationToken);
         if (project is null)
         {
             return false;
@@ -769,6 +785,7 @@ public class DetailsModel : PageModel
         Project = project;
         Status = ItProjectStatus.Resolve(project);
         CanManage = ItProjectAccess.CanManage(User, project);
+        CanWorkOn = ItProjectAccess.CanWorkOn(User, project);
         var active = Status.Kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress;
         var byCode = project.Stages.ToDictionary(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase);
         StageRows = ItProjectStages.All
@@ -777,7 +794,7 @@ public class DetailsModel : PageModel
                 byCode.TryGetValue(definition.Code, out var row);
                 return new StageRow(
                     definition.Code,
-                    definition.Label,
+                    ItProjectStages.LabelOf(definition.Code, ModuleCode),
                     definition.IsOptional,
                     definition.CarriesCost,
                     row?.IsCompleted ?? false,
@@ -794,11 +811,11 @@ public class DetailsModel : PageModel
         Timing = _reads.GetTiming(project);
         HeroStatus = ItProjectPagePresentation.Status(project, Status, Timing);
         Journey = ItProjectPagePresentation.Journey(project, Status, Timing);
-        Remarks = await _remarks.ListAsync(id, cancellationToken);
-        Attachments = await _attachments.ListAsync(id, cancellationToken);
+        Remarks = await _remarks.ListAsync(id, ModuleCode, cancellationToken);
+        Attachments = await _attachments.ListAsync(id, ModuleCode, cancellationToken);
         Feed = ItProjectPagePresentation.Feed(project, Remarks);
         CanRemark = ItProjectAccess.CanRemark(User, project);
-        RemarkRole = ItProjectAccess.RemarkRoleOf(User);
+        RemarkRole = ItProjectAccess.RemarkRoleOf(User, project);
         IsAdmin = User.IsInRole(RoleNames.Admin);
         IsHoD = User.IsInRole(RoleNames.HoD);
         return true;
@@ -930,7 +947,7 @@ public class DetailsModel : PageModel
         }
 
         return index >= 0 && index < Stages.Items.Count && ItProjectStages.IsKnown(Stages.Items[index].StageCode)
-            ? ItProjectStages.LabelOf(Stages.Items[index].StageCode)
+            ? ItProjectStages.LabelOf(Stages.Items[index].StageCode, ModuleCode)
             : null;
     }
 
@@ -964,16 +981,16 @@ public class DetailsModel : PageModel
         return Page();
     }
 
-    private static string StagesSavedText(ItProjectStageSaveResult save)
+    private string StagesSavedText(ItProjectStageSaveResult save)
     {
         if (save.AutoCompletedStageCodes.Count > 0)
         {
-            return $"Stages saved. Completed: {string.Join(", ", save.AutoCompletedStageCodes.Select(ItProjectStages.LabelOf))}.";
+            return $"Stages saved. Completed: {string.Join(", ", save.AutoCompletedStageCodes.Select(code => ItProjectStages.LabelOf(code, ModuleCode)))}.";
         }
 
         if (save.ReopenedStageCodes.Count > 0)
         {
-            return $"Stages saved. Reopened: {string.Join(", ", save.ReopenedStageCodes.Select(ItProjectStages.LabelOf))}.";
+            return $"Stages saved. Reopened: {string.Join(", ", save.ReopenedStageCodes.Select(code => ItProjectStages.LabelOf(code, ModuleCode)))}.";
         }
 
         return "Stages saved.";
@@ -987,7 +1004,7 @@ public class DetailsModel : PageModel
             throw new InvalidOperationException("The signed-in user has no id.");
         }
 
-        return new ItProjectActor(userId, User.Identity?.Name);
+        return new ItProjectActor(userId, User.Identity?.Name, ModuleCode);
     }
 
     private int CurrentFinancialYearStart()
@@ -1012,4 +1029,16 @@ public class DetailsModel : PageModel
             return Array.Empty<byte>();
         }
     }
+}
+
+/// <summary>One IT project (<c>/ItProjects/{id}</c>).</summary>
+[Authorize(Policy = Policies.ItProjects.View)]
+public class DetailsModel : ItProjectDetailsPageModel
+{
+    public DetailsModel(IItProjectReadService reads, IItProjectCommandService commands, IItProjectRemarkService remarks, IItProjectAttachmentService attachments, IClock clock)
+        : base(reads, commands, remarks, attachments, clock)
+    {
+    }
+
+    public override string ModuleCode => ItProjectModules.It;
 }

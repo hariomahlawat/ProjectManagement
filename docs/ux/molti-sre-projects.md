@@ -15,6 +15,7 @@ built yet.
 | Topic | Decision |
 | --- | --- |
 | Names | "MOLTI projects" and "SRE projects", written exactly so. The abbreviations are not expanded anywhere |
+| Wording | Where IT pages say "IT ARPPP", MOLTI pages say "MOLTI ARPPP" and SRE pages say "SRE ARPPP": the reference number label, the first stage ("MOLTI ARPPP / IPA") and "In each year's MOLTI ARPPP" (owner, 11 Nov 2026) |
 | Separation | Three modules for the user: own menu entry, own board, own pages, own access rows. A project belongs to exactly one module and never moves |
 | Stages | The same nine as IT projects, same rules, same optional Benchmarking and PNC, same IPA and SO cost |
 | Reference and years | The same: a reference number, a financial year, and New / CL / CF when a case is carried into a later year |
@@ -88,10 +89,21 @@ A small code catalogue, like `ItProjectStages`, holds everything that differs pe
 | Menu and page title | IT projects | MOLTI projects | SRE projects |
 | Run by | ITO role | assigned officer | assigned officer |
 | Policies | `ItProjects.*` | `MoltiProjects.*` | `SreProjects.*` |
-| Reference wording | IT ARPPP | see open question | see open question |
+| List name | IT ARPPP | MOLTI ARPPP | SRE ARPPP |
+| One project | IT project | MOLTI project | SRE project |
 
 Pages, presentation classes and scripts read wording from the catalogue. No page text names a
 module directly.
+
+**Wording (PR 3).** The engine's rules, labels and messages are written once, for IT projects.
+`ItProjectModules.Reword(text, module)` is the one place that turns them into another module's
+words: its list name, its plural and its singular take the place of the IT ones. It is applied
+where text leaves the engine: stage labels (`ItProjectStages.LabelOf(code, module)`, and the
+status carries its module), stage-rule errors (`ItProjectStageRules.Apply(input, module)`) and
+every service result (`ItProjectCommandResult.In(module)`). Role sentences ("The ITO, ... adds
+them") are separate texts per kind of module, because "ITO" is a role, not the module's name. A
+test reads the shared views and the service messages and fails if "IT" appears in another
+module.
 
 ## Authorization
 
@@ -114,9 +126,24 @@ services to prove an IT call never returns a MOLTI or SRE row.
 
 ## Pages
 
-One set of pages serves the three routes; the module comes from the route, never from a form
-field. Board, create and project page look and behave as the IT ones do today. Additions for
-MOLTI and SRE only:
+Each module has its own Razor pages in its own folder (`Pages/ItProjects`, `Pages/MoltiProjects`,
+`Pages/SreProjects`): board, create and project page. That gives each module its own route,
+its own policy attribute, its own menu highlight and its own usage count, and relative links
+(`./Index`, `./Details`) stay inside the module being shown. What the pages share (PR 3):
+
+- **Page models.** `ItProjectBoardPageModel`, `ItProjectCreatePageModel` and
+  `ItProjectDetailsPageModel` hold all the behaviour and carry no policy. Each module's page
+  class derives from them and supplies only its module code and its `[Authorize]` policy. The
+  module is fixed by the page class, never read from the request.
+- **Markup.** The partials `_ModuleBoard`, `_ModuleCreate` and `_ModuleProject` under
+  `Pages/ItProjects`. A module's `.cshtml` only sets the title, loads the stylesheet and script,
+  and renders the partial.
+- **Rights on the project page.** `CanWorkOn` (manage roles and the assigned officer) gates the
+  editors, stages, years, files, drop and reinstate; `CanManage` (manage roles only) gates
+  Delete. For IT projects the two are the same people.
+
+Board, create and project page look and behave as the IT ones do. Additions for MOLTI and SRE
+only (PR 4):
 
 1. **Project page header**: the assigned officer's name, or "No officer assigned". Admin and HoD
    get **Assign officer** / **Change officer** / **Unassign** (a PrismConfirm form modal with a
@@ -146,7 +173,7 @@ Admin and HoD find them.
 | Navigation | two more left-drawer entries, each behind its own View policy |
 | Access governance | `AdminRoleAccessCatalog` groups for MOLTI projects and SRE projects, with a line saying the assigned officer also has access |
 | Usage | two more `ErpUsageModuleCatalog` modules |
-| Audit | the existing `ItProjects.*` actions carry the module; the audit log names the right module at display time. New action: officer assigned / changed / unassigned |
+| Audit | the existing `ItProjects.*` actions carry the module in their data (PR 2). Naming the module in the audit log's readable line, and the officer assigned / changed / unassigned action, come with PR 4 |
 | Docs | this file, `it-projects.md` (decision row "IT projects only" is superseded), `docs/data-domain.md`, `docs/razor-pages.md` |
 
 Out of scope until asked: Dashboard cards for MOLTI and SRE, notifications on assignment, Search
@@ -164,9 +191,3 @@ indexing, export, moving a project between modules.
 | 6 | Phones, dark theme, live check with realistic data in a throwaway database | none new |
 
 Each PR is reviewed by Codex and merged when CI and Codex are clean.
-
-## Open question
-
-**Reference wording.** IT pages say "IT ARPPP reference number", "IT ARPPP / IPA" (first stage)
-and "this year's IT ARPPP". What should MOLTI and SRE pages say in those places? Until the owner
-decides, the plan uses the neutral "Reference number", "ARPPP / IPA" and "this year's list".

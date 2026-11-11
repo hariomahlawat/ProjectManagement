@@ -1,0 +1,324 @@
+@* Shared by the IT, MOLTI and SRE project pages (docs/ux/molti-sre-projects.md). Each module has its
+   own page in its own folder, which sets the title and loads the styles and script; links here are
+   relative ("./Index"), so they stay inside the module that is being shown. *@
+@using ProjectManagement.Models.ItProjects
+@using ProjectManagement.Pages.ItProjects
+@using ProjectManagement.Services.ItProjects
+@using ProjectManagement.Utilities
+@model ProjectManagement.Pages.ItProjects.ItProjectBoardPageModel
+@{
+    // The module whose page this is: its names stand where the IT pages said "IT".
+    var m = Model.Module;
+    var scopeKey = Model.ScopeKey;
+}
+
+<div class="itp-page" data-itp-board data-itp-server-search="@(string.IsNullOrWhiteSpace(Model.Q) ? "false" : "true")">
+    <header class="itp-board-head">
+        <div class="itp-board-head__identity">
+            <nav aria-label="Breadcrumb" class="itp-crumb">
+                <ol class="breadcrumb small mb-0">
+                    <li class="breadcrumb-item"><a asp-page="/Dashboard/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">@(m.Name)</li>
+                </ol>
+            </nav>
+            <h1 class="itp-board-head__title">@(m.Name)</h1>
+            <div class="itp-rule" aria-hidden="true"></div>
+        </div>
+        <div class="itp-board-head__actions">
+            <nav class="itp-fy" aria-label="Financial year">
+                <a class="itp-fy__item @(Model.Fy is null ? "itp-fy__item--on" : null)" aria-current="@(Model.Fy is null ? "page" : null)"
+                   asp-page="./Index" asp-route-scope="@scopeKey" asp-route-q="@Model.Q" asp-route-group="@Model.Group">All years</a>
+                @foreach (var year in Model.RecentYears)
+                {
+                    <a class="itp-fy__item @(Model.Fy == year ? "itp-fy__item--on" : null)" aria-current="@(Model.Fy == year ? "page" : null)"
+                       asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@year" asp-route-q="@Model.Q" asp-route-group="@Model.Group">@FinancialYearHelper.Format(year)</a>
+                }
+                @if (Model.EarlierYears.Count > 0)
+                {
+                    <form method="get" class="itp-fy__earlier">
+                        <input type="hidden" name="scope" value="@scopeKey" />
+                        <input type="hidden" name="q" value="@Model.Q" />
+                        <input type="hidden" name="group" value="@Model.Group" />
+                        <label class="visually-hidden" for="itpEarlierYear">Earlier financial year</label>
+                        <select id="itpEarlierYear" name="fy" class="form-select form-select-sm @(Model.EarlierYears.Contains(Model.Fy ?? 0) ? "itp-fy__select--on" : null)" data-auto-submit>
+                            <option value="" selected="@(!Model.EarlierYears.Contains(Model.Fy ?? 0))">Earlier</option>
+                            @foreach (var year in Model.EarlierYears)
+                            {
+                                <option value="@year" selected="@(Model.Fy == year)">@FinancialYearHelper.Format(year)</option>
+                            }
+                        </select>
+                        <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Go</button></noscript>
+                    </form>
+                }
+            </nav>
+            @if (Model.CanManage)
+            {
+                <a class="btn btn-primary itp-btn-primary" asp-page="./Create"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>New @(m.Singular)</span></a>
+            }
+        </div>
+    </header>
+
+    @{
+        var figures = Model.Board.Figures;
+        var summaryTypes = ItProjectBoardPresentation.SummaryTypes(figures);
+        var onOrder = ItProjectBoardPresentation.OnOrderText(figures);
+    }
+    @if (summaryTypes.Count > 0 || onOrder is not null)
+    {
+        <p class="itp-summary">
+            @if (summaryTypes.Count > 0)
+            {
+                <span class="itp-summary__k">In progress, FY @FinancialYearHelper.Format(figures.FinancialYearStart)</span>
+                @foreach (var type in summaryTypes)
+                {
+                    <span class="itp-type itp-type--@type.Code.ToLowerInvariant()" title="@type.Title">@type.Count @type.Code</span>
+                }
+            }
+            @if (onOrder is not null)
+            {
+                @if (summaryTypes.Count > 0)
+                {
+                    <span class="itp-summary__sep" aria-hidden="true">·</span>
+                }
+                <span>@onOrder</span>
+            }
+        </p>
+    }
+
+    @{
+        var pipeline = ItProjectBoardPresentation.Pipeline(Model.Board.Rows, Model.ModuleCode);
+    }
+    @if (Model.Board.ActiveCount > 0)
+    {
+        <section class="itp-pipe" aria-labelledby="itpPipeTitle">
+            <div class="itp-pipe__top">
+                <h2 class="itp-pipe__title" id="itpPipeTitle">Where the cases are now</h2>
+                <p class="itp-pipe__lead">Each card is a live case at that stage. Days are counted from the previous stage's date.</p>
+            </div>
+            <div class="itp-pipe__scroll">
+                <ol class="itp-pipe__cols">
+                    @foreach (var column in pipeline)
+                    {
+                        <li class="itp-pcol @(column.Count > 0 ? "itp-pcol--has" : null)">
+                            <h3 class="itp-pcol__h" title="@column.Label">
+                                <span class="itp-pcol__name">@column.ShortLabel</span>
+                                <b class="itp-pcol__n" aria-label="@ItProjectBoardPresentation.Cases(column.Count) here">@column.Count</b>
+                            </h3>
+                            @if (column.Count > 0)
+                            {
+                                <ul class="itp-pcol__list">
+                                    @foreach (var item in column.Shown)
+                                    {
+                                        <li>
+                                            <a class="itp-tok itp-tok--@item.Tone" asp-page="./Details" asp-route-id="@item.Id">
+                                                <span class="itp-tok__t" title="@item.Title">@item.Title</span>
+                                                <small class="itp-tok__s" title="@item.TimeTitle">@(item.SoCost is null ? item.TimeText : $"{item.TimeText} · {item.SoCost}")</small>
+                                            </a>
+                                        </li>
+                                    }
+                                </ul>
+                                @if (column.Hidden > 0)
+                                {
+                                    <a class="itp-pcol__more" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-fragment="itpRegister">+ @column.Hidden more</a>
+                                }
+                            }
+                        </li>
+                    }
+                </ol>
+            </div>
+        </section>
+    }
+
+    <form method="get" class="itp-toolbar" id="itpRegister" role="search" aria-label="Filter the register">
+        <h2 class="itp-toolbar__title">Register</h2>
+        <input type="hidden" name="scope" value="@scopeKey" />
+        <input type="hidden" name="group" value="@Model.Group" />
+        <input type="hidden" name="fy" value="@Model.Fy" />
+        <input type="hidden" name="sort" value="@Model.SortKey" />
+        <input type="hidden" name="dates" value="@(Model.OnlyMissingDates ? "missing" : null)" />
+        <nav class="itp-pills" aria-label="Status">
+            <a class="itp-pill @(scopeKey == "active" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Active <b>@Model.Board.ActiveCount</b></a>
+            <a class="itp-pill @(scopeKey == "completed" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="completed" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Delivered <b>@Model.Board.CompletedCount</b></a>
+            <a class="itp-pill @(scopeKey == "dropped" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="dropped" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">Dropped <b>@Model.Board.DroppedCount</b></a>
+            <a class="itp-pill @(scopeKey == "all" && !Model.OnlyMissingDates ? "itp-pill--on" : null)" asp-page="./Index" asp-route-scope="all" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister">All <b>@Model.AllCount</b></a>
+        </nav>
+        <div class="itp-sort" role="group" aria-label="Sort">
+            <a class="itp-sort__item @(Model.BoardSort == ItProjectBoardSort.StageOrder ? "itp-sort__item--on" : null)" aria-current="@(Model.BoardSort == ItProjectBoardSort.StageOrder ? "true" : null)"
+               asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-dates="@Model.Dates" asp-fragment="itpRegister">Stage order</a>
+            <a class="itp-sort__item @(Model.BoardSort == ItProjectBoardSort.LongestWait ? "itp-sort__item--on" : null)" aria-current="@(Model.BoardSort == ItProjectBoardSort.LongestWait ? "true" : null)"
+               asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-dates="@Model.Dates" asp-route-sort="wait" asp-fragment="itpRegister">Longest wait</a>
+        </div>
+        <a class="itp-toggle @(Model.GroupByFinancialYear ? "itp-toggle--on" : null)" asp-page="./Index" asp-route-scope="@scopeKey" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-sort="@Model.SortKey" asp-route-dates="@(Model.OnlyMissingDates ? "missing" : null)" asp-route-group="@(Model.GroupByFinancialYear ? null : "fy")" asp-fragment="itpRegister" role="switch" aria-checked="@(Model.GroupByFinancialYear ? "true" : "false")">
+            <i aria-hidden="true"></i><span>Group by FY</span>
+        </a>
+        @if (Model.CanManage && Model.Board.Figures.DatesMissingCount > 0)
+        {
+            @if (Model.OnlyMissingDates)
+            {
+                <a class="itp-datenote itp-datenote--on" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister"
+                   title="Show every case again">Dates missing on @ItProjectBoardPresentation.Cases(Model.Board.Figures.DatesMissingCount) <i class="bi bi-x-lg" aria-hidden="true"></i></a>
+            }
+            else
+            {
+                <a class="itp-datenote" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-route-dates="missing" asp-fragment="itpRegister"
+                   title="Live cases with a completed stage that has no date: add the dates so the board can count the wait">Dates missing on @ItProjectBoardPresentation.Cases(Model.Board.Figures.DatesMissingCount)</a>
+            }
+        }
+        <label class="itp-search">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <span class="visually-hidden">Search title or @(m.ListName) reference</span>
+            <input type="search" name="q" value="@Model.Q" placeholder="Search title or @(m.ListName) reference" autocomplete="off" data-itp-search />
+        </label>
+        <noscript><button type="submit" class="btn btn-outline-secondary btn-sm">Apply</button></noscript>
+    </form>
+
+    @if (Model.ScopedRows.Count == 0)
+    {
+        <div class="itp-empty">
+            @if (!string.IsNullOrWhiteSpace(Model.Q) || Model.Fy.HasValue)
+            {
+                <p class="itp-empty__title">No @(m.Singular) matches.</p>
+                <p class="itp-empty__text">Try another word, or <a asp-page="./Index" asp-route-scope="@scopeKey">clear the filters</a>.</p>
+            }
+            else if (Model.AllCount == 0)
+            {
+                <p class="itp-empty__title">No @(m.Singular) yet.</p>
+                <p class="itp-empty__text">
+                    @if (Model.CanManage)
+                    {
+                        <text>Add the first one with <strong>New @(m.Singular)</strong>. It starts at @(m.ListName) / IPA.</text>
+                    }
+                    else
+                    {
+                        <text>@m.AddedByText</text>
+                    }
+                </p>
+            }
+            else
+            {
+                <p class="itp-empty__title">Nothing @(scopeKey == "all" ? "here" : scopeKey == "completed" ? "delivered" : scopeKey).</p>
+                <p class="itp-empty__text"><a asp-page="./Index" asp-route-scope="all" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group">Show all @Model.AllCount</a>.</p>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="itp-reg" role="region" aria-label="Register">
+            <table class="itp-reg__table">
+                <thead>
+                    <tr>
+                        <th scope="col" class="itp-reg__case">Case</th>
+                        <th scope="col" class="itp-reg__trackcol">
+                            <span class="visually-hidden">Stages</span>
+                            <span class="itp-trackhead" aria-hidden="true">
+                                @foreach (var stage in ItProjectStages.All)
+                                {
+                                    <span class="itp-trackhead__s @(stage.IsOptional ? "itp-trackhead__s--opt" : null)" title="@ItProjectStages.LabelOf(stage.Code, Model.ModuleCode)">@ItProjectBoardPresentation.ShortStageLabel(stage.Code)</span>
+                                }
+                            </span>
+                        </th>
+                        <th scope="col" class="itp-reg__now">Now</th>
+                    </tr>
+                </thead>
+                @foreach (var band in Model.Bands)
+                {
+                    <tbody class="itp-reg__band" data-itp-band="@band.Key">
+                        @if (Model.Bands.Count > 1 || Model.GroupByFinancialYear)
+                        {
+                            <tr class="itp-reg__bandhead">
+                                <th colspan="3" scope="rowgroup">@band.Title <span data-itp-band-count>@ItProjectBoardPresentation.Cases(band.Count)</span></th>
+                            </tr>
+                        }
+                        @foreach (var row in band.Rows)
+                        {
+                            var isDropped = row.Status.Kind == ItProjectStatusKind.Dropped;
+                            var now = ItProjectBoardPresentation.Now(row);
+                            var stops = ItProjectBoardPresentation.Track(row);
+                            <tr class="itp-reg__row @(isDropped ? "itp-reg__row--dropped" : null)" data-itp-row data-itp-search-text="@row.SearchText">
+                                <td class="itp-reg__case">
+                                    <a asp-page="./Details" asp-route-id="@row.Id" class="itp-reg__title">@row.Title</a>
+                                    <div class="itp-reg__meta">
+                                        @if (row.YearType is { } yearType)
+                                        {
+                                            <span class="itp-type itp-type--@yearType.Code.ToLowerInvariant()" title="@yearType.Label in FY @FinancialYearHelper.Format(yearType.FinancialYearStart)@(yearType.IsManual ? ", set by hand" : null)">@yearType.Code</span>
+                                        }
+                                        <span class="itp-ref">@row.DisplayReference</span>
+                                        @* A carried-over case shows this year's number; the year beside it is the year it was first listed. *@
+                                        <span>@(row.YearType is { IsOwnYear: false } ? "since " : null)@ItProjectBoardPresentation.FinancialYear(row.FinancialYearStart)</span>
+                                    </div>
+                                </td>
+                                <td class="itp-reg__trackcol">
+                                    <ol class="itp-track" aria-label="Stages">
+                                        @foreach (var stop in stops)
+                                        {
+                                            <li class="itp-track__s itp-track__s--@stop.State itp-track__s--@stop.Tone @(stop.LineIn ? "itp-track__s--in" : null) @(stop.LineOut ? "itp-track__s--out" : null)" title="@stop.Title">
+                                                <i aria-hidden="true"></i>
+                                                <span class="visually-hidden">@stop.Title</span>
+                                                @if (stop.Label is not null)
+                                                {
+                                                    <em aria-hidden="true">@stop.Label</em>
+                                                }
+                                            </li>
+                                        }
+                                    </ol>
+                                    <span class="itp-bar" aria-hidden="true">
+                                        @foreach (var stop in stops)
+                                        {
+                                            <span class="itp-bar__s itp-bar__s--@stop.State itp-bar__s--@stop.Tone"></span>
+                                        }
+                                    </span>
+                                </td>
+                                <td class="itp-reg__now">
+                                    <span class="itp-now__label @(now.BadgeTone is "ok" ? "itp-now__label--ok" : now.BadgeTone is "drop" ? "itp-now__label--drop" : null)">@now.Label</span>
+                                    @if (now.Badge is not null)
+                                    {
+                                        <span class="itp-age itp-age--@now.BadgeTone" title="@now.BadgeTitle">@now.Badge</span>
+                                    }
+                                    @if (now.Note is not null)
+                                    {
+                                        <span class="itp-now__note" title="@(isDropped ? row.DroppedReason : null)">@now.Note</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                }
+            </table>
+            <p class="itp-no-match" data-itp-no-match hidden>No case on this board matches what you typed.</p>
+        </div>
+        var key = ItProjectBoardPresentation.Key(Model.ScopedRows);
+        @if (key.Any)
+        {
+            <div class="itp-key" aria-label="Key">
+                @if (key.Done)
+                {
+                    <span class="itp-key__i itp-key__i--track"><span class="itp-track__s itp-track__s--done"><i aria-hidden="true"></i></span> done (dates on hover)</span>
+                }
+                @if (key.DoneNoDate)
+                {
+                    <span class="itp-key__i itp-key__i--track"><span class="itp-track__s itp-track__s--nodate"><i aria-hidden="true"></i></span> done, date not recorded</span>
+                }
+                @if (key.Current)
+                {
+                    <span class="itp-key__i itp-key__i--track"><span class="itp-track__s itp-track__s--cur"><i aria-hidden="true"></i></span> current stage</span>
+                }
+                @if (key.NotYet)
+                {
+                    <span class="itp-key__i itp-key__i--track"><span class="itp-track__s itp-track__s--pend"><i aria-hidden="true"></i></span> not yet</span>
+                }
+                @if (key.Skipped)
+                {
+                    <span class="itp-key__i itp-key__i--track"><span class="itp-track__s itp-track__s--skip"><i aria-hidden="true"></i></span> skipped</span>
+                }
+                @if (key.StageDays)
+                {
+                    <span class="itp-key__i"><span class="itp-age itp-age--calm">≤ @(ItProjectTiming.NormalUpToDays) d</span><span class="itp-age itp-age--warn">@(ItProjectTiming.NormalUpToDays + 1)–@(ItProjectTiming.AmberUpToDays) d</span><span class="itp-age itp-age--late">&gt; @(ItProjectTiming.AmberUpToDays) d</span> @ItProjectBoardPresentation.AgeingKeyNote</span>
+                }
+                @if (key.Recorded)
+                {
+                    <span class="itp-key__i"><span class="itp-age itp-age--nodate">recorded <i>date</i></span> no stage date: when the move was recorded</span>
+                }
+            </div>
+        }
+    }
+</div>

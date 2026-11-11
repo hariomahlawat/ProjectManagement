@@ -105,7 +105,7 @@ public class RoleBasedNavigationProviderTests
         // of their own added before the Pending approvals queue.
         Assert.Equal(
             subNavDestinations.Take(subNavDestinations.Count - 1)
-                .Concat(new[] { "Proliferation compendium", "Project ideas", "IT projects" })
+                .Concat(new[] { "Proliferation compendium", "Project ideas", "IT projects", "MOLTI projects", "SRE projects" })
                 .Append("Pending approvals"),
             texts);
         Assert.DoesNotContain("Create project", texts);

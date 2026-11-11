@@ -6,7 +6,10 @@ const path = require('node:path');
 const { JSDOM, VirtualConsole } = require('jsdom');
 
 const source = fs.readFileSync(path.resolve(__dirname, 'it-projects-create.js'), 'utf8');
-const view = fs.readFileSync(path.resolve(__dirname, '../../../Pages/ItProjects/Create.cshtml'), 'utf8');
+// The form is a view shared by the IT, MOLTI and SRE pages; each page loads the script.
+const view = fs.readFileSync(path.resolve(__dirname, '../../../Pages/ItProjects/_ModuleCreate.cshtml'), 'utf8');
+const pages = ['ItProjects', 'MoltiProjects', 'SreProjects'].map((folder) =>
+    fs.readFileSync(path.resolve(__dirname, `../../../Pages/${folder}/Create.cshtml`), 'utf8'));
 
 function createForm(checked = 'New') {
     const radio = (value) => `<input type="radio" name="Input.Kind" value="${value}" data-itp-kind-option ${value === checked ? 'checked' : ''} />`;
@@ -47,5 +50,8 @@ test('the view offers New, CL and CF and loads the script', () => {
     for (const value of ['KindNew', 'KindCommittedLiability', 'KindCarriedForward']) {
         assert.match(view, new RegExp(`value="@CreateModel\\.${value}"`));
     }
-    assert.match(view, /js\/pages\/it-projects-create\.js/);
+    for (const page of pages) {
+        assert.match(page, /_ModuleCreate\.cshtml/);
+        assert.match(page, /js\/pages\/it-projects-create\.js/);
+    }
 });

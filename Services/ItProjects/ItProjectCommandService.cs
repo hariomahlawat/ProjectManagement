@@ -46,7 +46,44 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
+    // ---- public surface: every result goes out in the actor's module's words -----------------
+
     public async Task<(ItProjectCommandResult Result, int Id)> CreateAsync(ItProjectDetailsInput input, ItProjectActor actor, CancellationToken cancellationToken = default)
+    {
+        var (result, id) = await CreateCoreAsync(input, actor, cancellationToken);
+        return (result.In(actor.Module), id);
+    }
+
+    public async Task<(ItProjectCommandResult Result, int Id)> CreateCarriedOverAsync(ItProjectCarriedOverInput input, ItProjectActor actor, CancellationToken cancellationToken = default)
+    {
+        var (result, id) = await CreateCarriedOverCoreAsync(input, actor, cancellationToken);
+        return (result.In(actor.Module), id);
+    }
+
+    public async Task<ItProjectCommandResult> UpdateDetailsAsync(int id, ItProjectDetailsInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+        => (await UpdateDetailsCoreAsync(id, input, rowVersion, actor, cancellationToken)).In(actor.Module);
+
+    public async Task<ItProjectStageSaveResult> SaveStagesAsync(int id, IReadOnlyCollection<ItProjectStageInput> stages, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+    {
+        var save = await SaveStagesCoreAsync(id, stages, rowVersion, actor, cancellationToken);
+        return save with { Result = save.Result.In(actor.Module) };
+    }
+
+    public async Task<ItProjectCommandResult> DropAsync(int id, DateOnly droppedOn, string reason, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+        => (await DropCoreAsync(id, droppedOn, reason, rowVersion, actor, cancellationToken)).In(actor.Module);
+
+    public async Task<ItProjectCommandResult> ReinstateAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+        => (await ReinstateCoreAsync(id, rowVersion, actor, cancellationToken)).In(actor.Module);
+
+    public async Task<ItProjectCommandResult> SaveYearAsync(int id, int financialYearStart, ItProjectYearInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+        => (await SaveYearCoreAsync(id, financialYearStart, input, rowVersion, actor, cancellationToken)).In(actor.Module);
+
+    public async Task<ItProjectCommandResult> DeleteAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+        => (await DeleteCoreAsync(id, rowVersion, actor, cancellationToken)).In(actor.Module);
+
+    // ---- the commands, worded for IT projects ------------------------------------------------
+
+    private async Task<(ItProjectCommandResult Result, int Id)> CreateCoreAsync(ItProjectDetailsInput input, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         EnsureActor(actor);
@@ -87,7 +124,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         return (ItProjectCommandResult.Ok(), project.Id);
     }
 
-    public async Task<(ItProjectCommandResult Result, int Id)> CreateCarriedOverAsync(ItProjectCarriedOverInput input, ItProjectActor actor, CancellationToken cancellationToken = default)
+    private async Task<(ItProjectCommandResult Result, int Id)> CreateCarriedOverCoreAsync(ItProjectCarriedOverInput input, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         EnsureActor(actor);
@@ -172,7 +209,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         return (ItProjectCommandResult.Ok(), project.Id);
     }
 
-    public async Task<ItProjectCommandResult> UpdateDetailsAsync(int id, ItProjectDetailsInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+    private async Task<ItProjectCommandResult> UpdateDetailsCoreAsync(int id, ItProjectDetailsInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         EnsureActor(actor);
@@ -237,12 +274,12 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         return await CommitAsync(project, rowVersion, actor, "ItProjects.Updated", data, cancellationToken);
     }
 
-    public async Task<ItProjectStageSaveResult> SaveStagesAsync(int id, IReadOnlyCollection<ItProjectStageInput> stages, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+    private async Task<ItProjectStageSaveResult> SaveStagesCoreAsync(int id, IReadOnlyCollection<ItProjectStageInput> stages, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(stages);
         EnsureActor(actor);
 
-        var rules = ItProjectStageRules.Apply(stages);
+        var rules = ItProjectStageRules.Apply(stages, actor.Module);
         if (!rules.IsValid)
         {
             return new ItProjectStageSaveResult(ItProjectCommandResult.Fail(rules.Errors), Array.Empty<string>(), Array.Empty<string>());
@@ -304,7 +341,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         return new ItProjectStageSaveResult(result, autoCompleted, reopened);
     }
 
-    public async Task<ItProjectCommandResult> DropAsync(int id, DateOnly droppedOn, string reason, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+    private async Task<ItProjectCommandResult> DropCoreAsync(int id, DateOnly droppedOn, string reason, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
         var trimmed = (reason ?? string.Empty).Trim();
@@ -350,7 +387,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         }, cancellationToken);
     }
 
-    public async Task<ItProjectCommandResult> ReinstateAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+    private async Task<ItProjectCommandResult> ReinstateCoreAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
         var project = await LoadForWriteAsync(id, actor.Module, cancellationToken);
@@ -376,7 +413,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         return await CommitAsync(project, rowVersion, actor, "ItProjects.Reinstated", data, cancellationToken);
     }
 
-    public async Task<ItProjectCommandResult> SaveYearAsync(int id, int financialYearStart, ItProjectYearInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+    private async Task<ItProjectCommandResult> SaveYearCoreAsync(int id, int financialYearStart, ItProjectYearInput input, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         EnsureActor(actor);
@@ -459,7 +496,7 @@ public sealed class ItProjectCommandService : IItProjectCommandService
         }, cancellationToken);
     }
 
-    public async Task<ItProjectCommandResult> DeleteAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
+    private async Task<ItProjectCommandResult> DeleteCoreAsync(int id, byte[] rowVersion, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
         var project = await LoadForWriteAsync(id, actor.Module, cancellationToken);

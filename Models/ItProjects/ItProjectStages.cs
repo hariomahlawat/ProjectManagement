@@ -51,6 +51,9 @@ public static class ItProjectStages
 
     public static string LabelOf(string code) => Get(code).Label;
 
+    /// <summary>The stage's label in a module's words: the first stage is "MOLTI ARPPP / IPA" for MOLTI projects.</summary>
+    public static string LabelOf(string code, string module) => ItProjectModules.Reword(Get(code).Label, module);
+
     public static int OrderOf(string code) => Get(code).SortOrder;
 
     public static bool IsOptional(string code) => Get(code).IsOptional;

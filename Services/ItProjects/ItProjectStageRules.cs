@@ -46,6 +46,15 @@ public static class ItProjectStageRules
 {
     public const decimal MaxCostLakhs = 99_999_999.99m;
 
+    /// <summary>The same, with the messages in a module's words (the first stage is "MOLTI ARPPP / IPA" for MOLTI projects).</summary>
+    public static ItProjectStageRulesResult Apply(IReadOnlyCollection<ItProjectStageInput> input, string module)
+    {
+        var result = Apply(input);
+        return result.Errors.Count == 0 || module == ItProjectModules.It
+            ? result
+            : result with { Errors = result.Errors.Select(error => ItProjectModules.Reword(error, module)).ToList() };
+    }
+
     public static ItProjectStageRulesResult Apply(IReadOnlyCollection<ItProjectStageInput> input)
     {
         ArgumentNullException.ThrowIfNull(input);
