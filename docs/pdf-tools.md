@@ -76,7 +76,8 @@ CropBox clipped to the MediaBox, as pdf.js renders it), not the raw CropBox.
 | File | Role |
 | --- | --- |
 | `Pages/Tools/Pdf/Index.cshtml` (+ `_PdfTool*.cshtml` partials) | Standalone page with its own minimal shell (`Layout = null`). |
-| `wwwroot/js/pdf-tools/pdf-tools-core.js` | Pure operations and geometry (page ranges, rotation mapping, ZIP writer, EXIF, pdf-lib operations). Runs in Node for tests. |
+| `wwwroot/js/pdf-tools/pdf-tools-core.js` | Pure operations and geometry (page ranges, rotation mapping, EXIF, pdf-lib operations). Runs in Node for tests. |
+| `wwwroot/js/tools-shared/zip-writer.js` | ZIP writer, shared with Photo Tools ([photo-tools.md](photo-tools.md)). Loaded before the core script. |
 | `wwwroot/js/pdf-tools/pdf-tools-core.test.js` | Node tests, part of `npm test`. |
 | `wwwroot/js/pdf-tools/pdf-tools-app.js` | Shell, routing (`#tool`), and the six form-based tools. |
 | `wwwroot/js/pdf-tools/pdf-tools-annotate.js` | Sign & annotate editor. |

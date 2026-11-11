@@ -37,7 +37,8 @@ public sealed class ErpUsageModuleCatalog : IErpUsageModuleCatalog
         Module("reports", "Reports and FFC", "bi-bar-chart", "/ProjectOfficeReports", "/FFC", "/Reports"),
         Module("administration", "Administration", "bi-shield-lock", "/Admin", "/Usage"),
         Module("search", "Search", "bi-search", "/Common/Search"),
-        Module("pdf-tools", "PDF Tools", "bi-file-earmark-pdf", "/Tools/Pdf")
+        Module("pdf-tools", "PDF Tools", "bi-file-earmark-pdf", "/Tools/Pdf"),
+        Module("photo-tools", "Photo Tools", "bi-image", "/Tools/Photo")
     ];
 
     public IReadOnlyList<ErpUsageModuleDescriptor> Modules => Items;

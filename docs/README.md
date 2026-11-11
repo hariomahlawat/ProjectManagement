@@ -59,6 +59,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Phase D release runbook](phase-d-release-runbook.md) | Coordinated D-2 + D-3 release: topology and writer inventory (K-12), migration-execution decision record (K-13), runbook, staging acceptance and recovery, rollback, blocker register and go/no-go. |
 | [Phase D release readiness](phase-d-release-readiness.md) | D-3e acceptance evidence, release-blocker register (#2683, K-12, K-13), UX observations and remaining steps before the coordinated D-2 + D-3 release. |
 | [PDF Tools](pdf-tools.md) | Standalone in-browser PDF editor at `/Tools/Pdf`: privacy contract (nothing uploaded), offline assets, tools and limits. |
+| [Photo Tools](photo-tools.md) | Standalone in-browser photo tool at `/Tools/Photo`: privacy contract (nothing uploaded), how the target size is reached, limits. Build plan in [ux/photo-tools.md](ux/photo-tools.md). |
 | [Document Repository](document-repository.md) | Who can read repository documents (active, deactivated, copied in from other modules), what is audited, upload and change rules. |
 | [Search and OCR architecture](search-and-ocr-architecture.md) | Search/OCR implementation notes. |
 | [Search V2 ranking](search-v2-ranking.md) | Normalisation, retrieval tiers, clustering, keyset paging, autocomplete/did-you-mean and how to measure relevance. |

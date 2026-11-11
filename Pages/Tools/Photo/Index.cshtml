@@ -1,0 +1,203 @@
+@page
+@model ProjectManagement.Pages.Tools.Photo.IndexModel
+@{
+    // Standalone tool: it opens in its own tab with its own minimal shell instead of the
+    // PRISM layout, and never posts photos back to the server. The shell (top bar, cards,
+    // drop zone) is shared with PDF Tools through pdf-tools.css.
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10213f" />
+    <title>Photo Tools | PRISM ERP</title>
+    <script src="~/js/core/theme-preference.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pdf-tools.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/photo-tools.css" asp-append-version="true" />
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
+</head>
+<body class="pdft phot" data-photo-tools>
+
+    <header class="pdft-topbar">
+        <a class="pdft-brand" href="#" data-nav-home>
+            <span class="pdft-brand__mark" aria-hidden="true"><i class="bi bi-image"></i></span>
+            <span class="pdft-brand__text">Photo Tools <span>by PRISM</span></span>
+        </a>
+        <span class="pdft-privacy" title="Your photos are processed by this browser and are never uploaded to PRISM.">
+            <i class="bi bi-shield-lock" aria-hidden="true"></i>
+            <span>Photos stay on this computer</span>
+        </span>
+        <a class="pdft-topbar__back" asp-page="/Dashboard/Index">
+            <i class="bi bi-box-arrow-up-left" aria-hidden="true"></i>
+            <span>PRISM</span>
+        </a>
+    </header>
+
+    <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple data-file-input tabindex="-1" aria-hidden="true" />
+
+    <main class="pdft-main phot-main" id="photMain">
+        @* ---------- Home ---------- *@
+        <section class="pdft-view" data-view="home" aria-labelledby="photHomeTitle">
+            <div class="pdft-hero">
+                <h1 id="photHomeTitle">What do you want to do with your photo?</h1>
+                <p>Everything happens in this browser. Nothing is uploaded or saved in PRISM; you download the result.</p>
+            </div>
+            <div class="pdft-grid phot-grid" role="list">
+                <a class="pdft-card" role="listitem" href="#reduce">
+                    <span class="pdft-card__icon pdft-accent--orange" aria-hidden="true"><i class="bi bi-arrows-angle-contract"></i></span>
+                    <span class="pdft-card__title">Reduce size</span>
+                    <span class="pdft-card__text">Type the size you need, such as under 100 KB, and get the best quality that fits. Works on many photos at once.</span>
+                </a>
+            </div>
+            <div class="pdft-drop phot-home-drop" data-drop>
+                <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-files">
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose photos
+                </button>
+                <p class="pdft-drop__hint">or drop photos here. JPG, PNG or WEBP.</p>
+            </div>
+        </section>
+
+        @* ---------- Reduce size ---------- *@
+        <section class="pdft-view" data-view="reduce" hidden aria-labelledby="photReduceTitle">
+            <div class="phot-head">
+                <a class="phot-head__back" href="#" data-nav-home>
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
+                </a>
+                <h1 id="photReduceTitle">Reduce size</h1>
+                <button type="button" class="btn btn-outline-secondary phot-head__action" data-action="add-files" hidden>
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i> Add photos
+                </button>
+            </div>
+
+            <div class="pdft-drop" data-drop data-empty>
+                <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-files">
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose photos
+                </button>
+                <p class="pdft-drop__hint">or drop photos here. JPG, PNG or WEBP.</p>
+            </div>
+
+            <div class="phot-layout" data-workspace data-drop hidden>
+                <div class="phot-layout__main">
+                    <div class="phot-panel phot-list">
+                        <table class="phot-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Photo</th>
+                                    <th scope="col" class="phot-num">Now</th>
+                                    <th scope="col" class="phot-num">After</th>
+                                    <th scope="col" class="phot-num">Dimensions after</th>
+                                    <th scope="col"><span class="visually-hidden">Remove</span></th>
+                                </tr>
+                            </thead>
+                            <tbody data-rows></tbody>
+                        </table>
+                    </div>
+
+                    <div class="phot-stage" data-compare hidden>
+                        <div class="phot-stage__bar">
+                            <span>Check the quality: <span data-compare-name></span></span>
+                        </div>
+                        <div class="phot-compare">
+                            <img class="phot-compare__image" data-compare-before alt="Original photo" />
+                            <img class="phot-compare__image phot-compare__image--after" data-compare-after alt="Reduced photo" />
+                            <span class="phot-compare__line" data-compare-line aria-hidden="true"></span>
+                            <span class="phot-compare__tag phot-compare__tag--before" data-compare-before-label></span>
+                            <span class="phot-compare__tag phot-compare__tag--after" data-compare-after-label></span>
+                        </div>
+                        <div class="phot-stage__bar">
+                            <label class="phot-stage__slider" for="photCompareSlider">Move the line
+                                <input type="range" class="form-range" id="photCompareSlider" min="0" max="100" value="50" data-compare-slider />
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="phot-layout__side" aria-label="Size settings">
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><label for="photTargetValue">Make each photo under</label></h2>
+                        <div class="phot-target">
+                            <input type="text" inputmode="decimal" class="form-control phot-target__value" id="photTargetValue" value="100" maxlength="7" data-target-value aria-describedby="photTargetHint" />
+                            <div class="phot-segment" role="group" aria-label="Unit">
+                                <button type="button" aria-pressed="true" data-target-unit="KB">KB</button>
+                                <button type="button" aria-pressed="false" data-target-unit="MB">MB</button>
+                            </div>
+                        </div>
+                        <div class="phot-chips" role="group" aria-label="Common sizes">
+                            <button type="button" data-target-preset="20:KB">20 KB</button>
+                            <button type="button" data-target-preset="50:KB">50 KB</button>
+                            <button type="button" data-target-preset="100:KB">100 KB</button>
+                            <button type="button" data-target-preset="200:KB">200 KB</button>
+                            <button type="button" data-target-preset="500:KB">500 KB</button>
+                            <button type="button" data-target-preset="1:MB">1 MB</button>
+                        </div>
+                        <p class="phot-hint" id="photTargetHint">Leave empty for no size limit.</p>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title">Options</h2>
+                        <div class="phot-field">
+                            <label for="photDimensions">Dimensions</label>
+                            <select class="form-select" id="photDimensions" data-dimensions>
+                                <option value="keep">Keep as they are</option>
+                                <option value="longest:1600" selected>Longest side 1600 px</option>
+                                <option value="longest:1280">Longest side 1280 px</option>
+                                <option value="longest:800">Longest side 800 px</option>
+                                <option value="percent:50">Half size</option>
+                                <option value="custom">Custom longest side</option>
+                            </select>
+                        </div>
+                        <div class="phot-field" data-custom-side hidden>
+                            <label for="photCustomSide">Longest side (px)</label>
+                            <input type="number" class="form-control" id="photCustomSide" min="16" max="20000" step="1" value="1024" data-custom-side-value />
+                        </div>
+                        <div class="phot-field">
+                            <label for="photFormat">Save as</label>
+                            <select class="form-select" id="photFormat" data-format>
+                                <option value="jpeg" selected>JPG (smallest)</option>
+                                <option value="same">Same as original</option>
+                                <option value="png">PNG</option>
+                                <option value="webp">WEBP</option>
+                            </select>
+                        </div>
+                        <p class="phot-hint phot-hint--warning" data-png-hint hidden>
+                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                            PNG cannot trade quality for size, so a PNG is made smaller only by cutting its dimensions. JPG keeps far more detail at the same size.
+                        </p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="photGreyscale" data-greyscale />
+                            <label class="form-check-label" for="photGreyscale">Convert to black and white</label>
+                        </div>
+                        <p class="phot-hint">
+                            <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                            Location and camera details hidden in a photo are always left out of the saved file.
+                        </p>
+                    </div>
+
+                    <div class="phot-summary" aria-live="polite">
+                        <span class="phot-summary__count" data-summary-count></span>
+                        <div class="phot-summary__sizes">
+                            <span class="phot-summary__before" data-summary-before></span>
+                            <span class="phot-summary__after" data-summary-after></span>
+                        </div>
+                        <p class="phot-summary__note" data-summary-note hidden></p>
+                        <button type="button" class="btn btn-light btn-lg" data-action="download" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> <span data-download-label>Download</span>
+                        </button>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <div class="alert alert-danger pdft-error" role="alert" data-error hidden></div>
+    </main>
+
+    <script src="~/js/tools-shared/zip-writer.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-core.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-app.js" asp-append-version="true"></script>
+</body>
+</html>

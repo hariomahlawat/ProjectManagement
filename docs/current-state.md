@@ -54,6 +54,7 @@ The current EF model and service registrations show these broad domains:
 - Publications, brochures, compendiums and briefing decks
 - Search
 - PDF Tools: a standalone, browser-only PDF editor for users' own files; it stores nothing in PRISM (see [pdf-tools.md](pdf-tools.md))
+- Photo Tools: a standalone, browser-only tool for users' own photos (reduce size so far); it stores nothing in PRISM (see [photo-tools.md](photo-tools.md))
 - Usage/analytics
 - Audit and administration
 
