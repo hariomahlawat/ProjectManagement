@@ -467,6 +467,10 @@ public static class ItProjectBoardPresentation
         _ => "bi-file-earmark"
     };
 
-    /// <summary>"3 projects" / "1 project".</summary>
-    public static string Projects(int count) => count == 1 ? "1 project" : $"{count} projects";
+    /// <summary>
+    /// "3 cases" / "1 case". The board's sentences call the work a case ("Every IT ARPPP case",
+    /// "Each card is a live case"), so its counts do too; "IT project" stays the name of the
+    /// module, the page and the New button (UI review, 11 Nov 2026).
+    /// </summary>
+    public static string Cases(int count) => count == 1 ? "1 case" : $"{count} cases";
 }

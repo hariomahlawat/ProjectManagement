@@ -163,8 +163,8 @@ public class ItProjectBoardPageTests
         Assert.Equal("FY 2026-27", ItProjectBoardPresentation.FinancialYear(2026));
         Assert.Equal("₹ 1,23,456.70 L", ItProjectBoardPresentation.Cost(123456.7m));
         Assert.Equal("At TEC", ItProjectBoardPresentation.StatusChip(new ItProjectStatus(ItProjectStatusKind.InProgress, "TEC")));
-        Assert.Equal("1 project", ItProjectBoardPresentation.Projects(1));
-        Assert.Equal("3 projects", ItProjectBoardPresentation.Projects(3));
+        Assert.Equal("1 case", ItProjectBoardPresentation.Cases(1));
+        Assert.Equal("3 cases", ItProjectBoardPresentation.Cases(3));
     }
 
     [Fact]

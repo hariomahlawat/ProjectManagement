@@ -103,7 +103,7 @@
                         <li class="itp-pcol @(column.Count > 0 ? "itp-pcol--has" : null)">
                             <h3 class="itp-pcol__h" title="@column.Label">
                                 <span class="itp-pcol__name">@column.ShortLabel</span>
-                                <b class="itp-pcol__n" aria-label="@ItProjectBoardPresentation.Projects(column.Count) here">@column.Count</b>
+                                <b class="itp-pcol__n" aria-label="@ItProjectBoardPresentation.Cases(column.Count) here">@column.Count</b>
                             </h3>
                             @if (column.Count > 0)
                             {
@@ -157,12 +157,12 @@
             @if (Model.OnlyMissingDates)
             {
                 <a class="itp-datenote itp-datenote--on" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-fragment="itpRegister"
-                   title="Show every case again">Dates missing on @ItProjectBoardPresentation.Projects(Model.Board.Figures.DatesMissingCount) <i class="bi bi-x-lg" aria-hidden="true"></i></a>
+                   title="Show every case again">Dates missing on @ItProjectBoardPresentation.Cases(Model.Board.Figures.DatesMissingCount) <i class="bi bi-x-lg" aria-hidden="true"></i></a>
             }
             else
             {
                 <a class="itp-datenote" asp-page="./Index" asp-route-scope="active" asp-route-fy="@Model.Fy" asp-route-q="@Model.Q" asp-route-group="@Model.Group" asp-route-sort="@Model.SortKey" asp-route-dates="missing" asp-fragment="itpRegister"
-                   title="Live cases with a completed stage that has no date: add the dates so the board can count the wait">Dates missing on @ItProjectBoardPresentation.Projects(Model.Board.Figures.DatesMissingCount)</a>
+                   title="Live cases with a completed stage that has no date: add the dates so the board can count the wait">Dates missing on @ItProjectBoardPresentation.Cases(Model.Board.Figures.DatesMissingCount)</a>
             }
         }
         <label class="itp-search">
@@ -227,7 +227,7 @@
                         @if (Model.Bands.Count > 1 || Model.GroupByFinancialYear)
                         {
                             <tr class="itp-reg__bandhead">
-                                <th colspan="3" scope="rowgroup">@band.Title <span data-itp-band-count>@ItProjectBoardPresentation.Projects(band.Count)</span></th>
+                                <th colspan="3" scope="rowgroup">@band.Title <span data-itp-band-count>@ItProjectBoardPresentation.Cases(band.Count)</span></th>
                             </tr>
                         }
                         @foreach (var row in band.Rows)
@@ -285,7 +285,7 @@
                     </tbody>
                 }
             </table>
-            <p class="itp-no-match" data-itp-no-match hidden>No IT project on this board matches what you typed.</p>
+            <p class="itp-no-match" data-itp-no-match hidden>No case on this board matches what you typed.</p>
         </div>
         var key = ItProjectBoardPresentation.Key(Model.ScopedRows);
         @if (key.Any)

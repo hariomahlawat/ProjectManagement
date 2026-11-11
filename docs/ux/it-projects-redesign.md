@@ -102,6 +102,11 @@ header both use `ItProjectBoardPresentation.ShortStageLabel`: ARPPP, AoN, Bid, T
 SO, Delivery. The full label ("IT ARPPP / IPA", "Benchmarking", "Delivery and ATP") is the tooltip
 and is what every sentence uses ("At Delivery and ATP").
 
+**Case and project** (UI review, 11 Nov 2026): "IT project" is the name of the module, the page
+and the New button; the board's sentences and counts call the work a case ("Every IT ARPPP case",
+"Dates missing on 1 case", "9 cases"). On phones a wrapped line never ends or starts with a lone
+separator dot: the summary line drops its dot and the project page's status note takes its own line.
+
 `StageMovedAtUtc` is one new nullable column on `ItProjects` (hand-written, additive migration;
 existing rows stay null, which simply means fallback 3). The stage save sets it only when the
 current stage changes, so editing the title or a date does not count as movement. Bulk entry of an
