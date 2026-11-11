@@ -12,6 +12,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Notebook;
 using ProjectManagement.Services.Dashboard;
+using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Helpers;
 using System;
 using System.Globalization;
@@ -44,6 +45,7 @@ namespace ProjectManagement.Pages.Dashboard
         private readonly ILogger<IndexModel> _logger;
         private readonly IDashboardAnalyticsService? _dashboardAnalytics;
         private readonly IAuthorizationService? _authorization;
+        private readonly IItProjectReadService? _itProjects;
         private static readonly TimeZoneInfo IST = IstClock.TimeZone;
 
         public IndexModel(
@@ -55,8 +57,10 @@ namespace ProjectManagement.Pages.Dashboard
             ISearchHealthService searchHealthService,
             ILogger<IndexModel> logger,
             IDashboardAnalyticsService? dashboardAnalytics = null,
-            IAuthorizationService? authorization = null)
+            IAuthorizationService? authorization = null,
+            IItProjectReadService? itProjects = null)
         {
+            _itProjects = itProjects;
             _dashboardAnalytics = dashboardAnalytics;
             _authorization = authorization;
             _notebook = notebook;
@@ -82,6 +86,9 @@ namespace ProjectManagement.Pages.Dashboard
         public SearchHealthVm SearchHealth { get; private set; } = new();
         public DashboardActivitySummaryVm ActivitySummary { get; private set; } = new();
         public DashboardIdeaSummaryVm IdeaSummary { get; private set; } = new();
+
+        /// <summary>Null when the caller may not view IT projects or the figures could not be read.</summary>
+        public DashboardItProjectsVm? ItProjects { get; private set; }
         public DateTimeOffset DashboardLoadedAtIst { get; private set; }
 
         /// <summary>"Good morning, Lt Col A Kumar": the header greeting for the signed-in user.</summary>
@@ -103,14 +110,10 @@ namespace ProjectManagement.Pages.Dashboard
         }
         // END SECTION
 
+        /// <summary>Institutional activities card: the leading activity types over the last twelve months.</summary>
         public sealed class DashboardActivitySummaryVm
         {
-            public int TotalActivities { get; init; }
-            public int Last30DaysCount { get; init; }
             public IReadOnlyList<DashboardActivityTypeVm> TopTypes { get; init; } = Array.Empty<DashboardActivityTypeVm>();
-            public IReadOnlyList<int> MonthlyTrend { get; init; } = Array.Empty<int>();
-            public IReadOnlyList<string> MonthlyLabels { get; init; } = Array.Empty<string>();
-            public IReadOnlyList<DashboardActivityItemVm> RecentActivities { get; init; } = Array.Empty<DashboardActivityItemVm>();
         }
 
         public sealed class DashboardActivityTypeVm
@@ -120,36 +123,18 @@ namespace ProjectManagement.Pages.Dashboard
             public int Count { get; init; }
         }
 
-        public sealed class DashboardActivityItemVm
-        {
-            public int Id { get; init; }
-            public string Title { get; init; } = string.Empty;
-            public string Type { get; init; } = string.Empty;
-            public string? Location { get; init; }
-            public DateTimeOffset OccurredAtUtc { get; init; }
-        }
-
+        /// <summary>Innovation pipeline card: ideas still in the pipeline.</summary>
         public sealed class DashboardIdeaSummaryVm
         {
             public int ActiveCount { get; init; }
             public int OnHoldCount { get; init; }
-            public int ArchivedCount { get; init; }
-            public int UpdatedLast30Days { get; init; }
-            public int IdeasWithDiscussion { get; init; }
-            public int DocumentCount { get; init; }
-            public IReadOnlyList<DashboardIdeaItemVm> LatestIdeas { get; init; } = Array.Empty<DashboardIdeaItemVm>();
         }
 
-        public sealed class DashboardIdeaItemVm
-        {
-            public int Id { get; init; }
-            public string Title { get; init; } = string.Empty;
-            public string Status { get; init; } = string.Empty;
-            public int CommentCount { get; init; }
-            public int DocumentCount { get; init; }
-            public string OwnerName { get; init; } = string.Empty;
-            public DateTime UpdatedAt { get; init; }
-        }
+        /// <summary>
+        /// IT projects card: the cases that count in the current financial year. Listed is completed
+        /// plus ongoing; a dropped case is in none of the three.
+        /// </summary>
+        public sealed record DashboardItProjectsVm(int FinancialYearStart, string FinancialYearDisplay, int Listed, int Completed, int Ongoing);
 
         // SECTION: My Projects widget state
         public bool ShowMyProjectsWidget { get; private set; }
@@ -438,20 +423,13 @@ namespace ProjectManagement.Pages.Dashboard
             try
             {
                 var now = DateTimeOffset.UtcNow;
-                var firstMonth = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero).AddMonths(-11);
-                var last30Days = now.AddDays(-30);
+                var since = now.AddMonths(-12);
 
-                // Activities represent completed/occurred institutional engagements. Future scheduled records are excluded.
-                var activityBase = _db.Activities
+                // Activities that have occurred in the last twelve months; future scheduled records are excluded.
+                var topTypes = await _db.Activities
                     .AsNoTracking()
-                    .Where(ActivityOccurrence.Between(null, now));
-
-                // EF Core DbContext does not support concurrent operations; keep these compact aggregates sequential.
-                var totalActivities = await activityBase.CountAsync(cancellationToken);
-                var last30DaysCount = await activityBase.CountAsync(
-                    a => (a.ScheduledStartUtc ?? a.CreatedAtUtc) >= last30Days,
-                    cancellationToken);
-                var topTypes = await activityBase
+                    .Where(ActivityOccurrence.Between(null, now))
+                    .Where(a => (a.ScheduledStartUtc ?? a.CreatedAtUtc) >= since)
                     .GroupBy(a => new { a.ActivityTypeId, a.ActivityType.Name })
                     .Select(g => new DashboardActivityTypeVm
                     {
@@ -463,42 +441,8 @@ namespace ProjectManagement.Pages.Dashboard
                     .ThenBy(x => x.Name)
                     .Take(3)
                     .ToListAsync(cancellationToken);
-                var monthlyRows = await activityBase
-                    .Where(a => (a.ScheduledStartUtc ?? a.CreatedAtUtc) >= firstMonth)
-                    .GroupBy(a => new
-                    {
-                        Year = (a.ScheduledStartUtc ?? a.CreatedAtUtc).Year,
-                        Month = (a.ScheduledStartUtc ?? a.CreatedAtUtc).Month
-                    })
-                    .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
-                    .ToListAsync(cancellationToken);
-                var recentActivities = await activityBase
-                    .OrderByDescending(a => a.ScheduledStartUtc ?? a.CreatedAtUtc)
-                    .Take(3)
-                    .Select(a => new DashboardActivityItemVm
-                    {
-                        Id = a.Id,
-                        Title = a.Title,
-                        Type = a.ActivityType.Name,
-                        Location = a.Location,
-                        OccurredAtUtc = a.ScheduledStartUtc ?? a.CreatedAtUtc
-                    })
-                    .ToListAsync(cancellationToken);
 
-                var months = Enumerable.Range(0, 12).Select(i => firstMonth.AddMonths(i)).ToArray();
-                ActivitySummary = new DashboardActivitySummaryVm
-                {
-                    TotalActivities = totalActivities,
-                    Last30DaysCount = last30DaysCount,
-                    TopTypes = topTypes,
-                    // With the year: the chart's ends read "Nov 2025" and "Oct 2026", not "Nov" and "Oct".
-                    MonthlyLabels = months.Select(m => m.ToString("MMM yyyy", CultureInfo.CurrentCulture)).ToArray(),
-                    MonthlyTrend = months.Select(m => monthlyRows
-                        .Where(x => x.Year == m.Year && x.Month == m.Month)
-                        .Select(x => x.Count)
-                        .FirstOrDefault()).ToArray(),
-                    RecentActivities = recentActivities
-                };
+                ActivitySummary = new DashboardActivitySummaryVm { TopTypes = topTypes };
             }
             catch (Exception ex)
             {
@@ -508,54 +452,46 @@ namespace ProjectManagement.Pages.Dashboard
 
             try
             {
-                var ideas = await _db.ProjectIdeas.AsNoTracking()
-                    .Where(i => !i.IsDeleted)
-                    .Select(i => new
-                    {
-                        i.Id,
-                        i.Title,
-                        i.Status,
-                        i.UpdatedAt,
-                        CommentCount = i.Comments.Count(c => !c.IsDeleted),
-                        DocumentCount = i.Documents.Count(d => !d.IsDeleted),
-                        OwnerName = i.AssignedProjectOfficerUser != null
-                            ? i.AssignedProjectOfficerUser.FullName
-                            : string.Empty
-                    })
+                var ideaCounts = await _db.ProjectIdeas.AsNoTracking()
+                    .Where(i => !i.IsDeleted
+                        && (i.Status == ProjectIdeaStatuses.Active || i.Status == ProjectIdeaStatuses.OnHold))
+                    .GroupBy(i => i.Status)
+                    .Select(g => new { Status = g.Key, Count = g.Count() })
                     .ToListAsync(cancellationToken);
 
-                var last30Days = DateTime.UtcNow.AddDays(-30);
-                var pipelineIdeas = ideas
-                    .Where(i => i.Status == ProjectIdeaStatuses.Active || i.Status == ProjectIdeaStatuses.OnHold)
-                    .ToList();
                 IdeaSummary = new DashboardIdeaSummaryVm
                 {
-                    ActiveCount = pipelineIdeas.Count(i => i.Status == ProjectIdeaStatuses.Active),
-                    OnHoldCount = pipelineIdeas.Count(i => i.Status == ProjectIdeaStatuses.OnHold),
-                    ArchivedCount = ideas.Count(i => i.Status == ProjectIdeaStatuses.Archived),
-                    UpdatedLast30Days = pipelineIdeas.Count(i => i.UpdatedAt >= last30Days),
-                    IdeasWithDiscussion = pipelineIdeas.Count(i => i.CommentCount > 0),
-                    DocumentCount = pipelineIdeas.Sum(i => i.DocumentCount),
-                    LatestIdeas = pipelineIdeas
-                        .OrderByDescending(i => i.UpdatedAt)
-                        .Take(3)
-                        .Select(i => new DashboardIdeaItemVm
-                        {
-                            Id = i.Id,
-                            Title = i.Title,
-                            Status = ProjectIdeaStatuses.ToDisplay(i.Status),
-                            CommentCount = i.CommentCount,
-                            DocumentCount = i.DocumentCount,
-                            OwnerName = string.IsNullOrWhiteSpace(i.OwnerName) ? "Unassigned" : i.OwnerName,
-                            UpdatedAt = i.UpdatedAt
-                        })
-                        .ToList()
+                    ActiveCount = ideaCounts.Where(x => x.Status == ProjectIdeaStatuses.Active).Sum(x => x.Count),
+                    OnHoldCount = ideaCounts.Where(x => x.Status == ProjectIdeaStatuses.OnHold).Sum(x => x.Count)
                 };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Dashboard widget failed: Project ideas summary");
                 IdeaSummary = new DashboardIdeaSummaryVm();
+            }
+
+            // IT projects: the same board counts the IT projects page shows for the current financial year.
+            if (_itProjects is not null && ItProjectAccess.CanView(User))
+            {
+                try
+                {
+                    var financialYear = ItProjectYearTypes.CurrentFinancialYear(DateTimeOffset.UtcNow);
+                    var board = await _itProjects.GetBoardAsync(
+                        new ItProjectBoardQuery(ItProjectBoardScope.All, financialYear),
+                        cancellationToken);
+                    ItProjects = new DashboardItProjectsVm(
+                        financialYear,
+                        ProjectManagement.Utilities.FinancialYearHelper.Format(financialYear),
+                        board.ActiveCount + board.CompletedCount,
+                        board.CompletedCount,
+                        board.ActiveCount);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Dashboard widget failed: IT projects");
+                    ItProjects = null;
+                }
             }
 
             try
