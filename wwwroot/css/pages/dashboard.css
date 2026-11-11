@@ -175,14 +175,16 @@
 
 /* ---------- Completed projects ----------
    Under Portfolio pulse: the figures on the left, the last ten years as bars on the right. */
-.db-completed { display: grid; grid-template-columns: minmax(0, auto) minmax(240px, 1fr); grid-template-rows: auto 1fr; column-gap: 32px; padding: 12px 20px; }
+.db-completed { display: grid; grid-template-columns: minmax(0, auto) minmax(240px, 1fr); grid-template-rows: auto 1fr; column-gap: 32px; padding: 10px 20px 12px; }
 .db-completed__figures { grid-column: 1; grid-row: 1; color: inherit; text-decoration: none; }
 .db-completed__figures:hover, .db-completed__figures:focus-visible, .db-completed__chart:hover, .db-completed__chart:focus-visible { color: inherit; outline: none; }
 .db-completed__figures:focus-visible, .db-completed__chart:focus-visible { box-shadow: var(--db-focus); border-radius: 6px; }
 .db-completed__figures h2 { margin: 0; color: var(--db-strong); font-size: 1.0625rem; font-weight: 700; letter-spacing: -.015em; line-height: 1.2; }
-.db-completed__figures p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 20px; margin: 6px 0 0; color: var(--db-muted); font-size: .8125rem; }
+.db-completed__figures p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 20px; margin: 4px 0 0; color: var(--db-muted); font-size: .8125rem; }
 .db-completed__figures p strong { margin-right: 3px; color: var(--db-strong); font-size: 1.35rem; font-weight: 700; letter-spacing: -.02em; }
-.db-completed__more { grid-column: 1; grid-row: 2; align-self: end; justify-self: start; margin-top: 8px; }
+.db-completed__figures p.db-completed__split { margin-top: 2px; }
+.db-completed__figures p.db-completed__split strong { font-size: 1rem; letter-spacing: 0; }
+.db-completed__more { grid-column: 1; grid-row: 2; align-self: end; justify-self: start; margin-top: 4px; }
 .db-completed__chart { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; color: inherit; text-decoration: none; }
 /* The bars take whatever height the card has left (it stretches to match the Analytics card). */
 .db-completed__bars { display: flex; flex: 1 1 62px; align-items: flex-end; gap: 8px; min-height: 62px; }
@@ -360,7 +362,9 @@ a.db-figure:hover strong, a.db-figure:focus-visible strong { color: var(--db-hue
     .db-analytics__block + .db-analytics__block { border-left: 0; }
     .db-analytics__block { padding-inline: 16px; }
     .db-completed { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; row-gap: 12px; padding-inline: 16px; }
-    .db-completed__more, .db-completed__chart { grid-column: 1; grid-row: auto; }
+    .db-completed__more { grid-column: 1; grid-row: auto; }
+    /* Phones: figures and the link only; the per-year bars are on the Completed analytics. */
+    .db-completed__chart { display: none; }
     .db-processing-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .db-processing-metrics > div:nth-child(2) { border-right: 0; }
     .db-processing-metrics > div:nth-child(-n+2) { border-bottom: 1px solid var(--db-border); }
