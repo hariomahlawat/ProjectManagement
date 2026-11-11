@@ -319,6 +319,9 @@ test('resizeCrop moves one side, keeps a fixed shape, and stops at the edges', (
   assert.deepEqual(tools.resizeCrop(box, 'nw', { x: 500, y: 900 }, 1, bounds), { x: 500, y: 500, width: 1500, height: 1500 });
   // The photo's edge limits a fixed shape in both directions.
   assert.deepEqual(tools.resizeCrop(box, 'se', { x: 4000, y: 3000 }, 1, bounds), { x: 1000, y: 1000, width: 2000, height: 2000 });
+  // A corner point that moves in along both sides shrinks a fixed shape (the keyboard does this).
+  const whole = { x: 0, y: 0, width: 3000, height: 3000 };
+  assert.deepEqual(tools.resizeCrop(whole, 'se', { x: 2970, y: 2970 }, 1, bounds), { x: 0, y: 0, width: 2970, height: 2970 });
   // A side handle grows the box evenly about its middle.
   assert.deepEqual(tools.resizeCrop(box, 's', { x: 0, y: 2400 }, 2, bounds), { x: 100, y: 1000, width: 2800, height: 1400 });
 });

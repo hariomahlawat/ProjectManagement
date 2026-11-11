@@ -76,6 +76,7 @@
   let saved = null;
   let saveRun = 0;
   let saveTimer = null;
+  let openRun = 0;
 
   // ---------------------------------------------------------------------------
   // Steps
@@ -300,9 +301,13 @@
     const size = currentSize();
     const step = Math.max(1, Math.round(Math.max(size.width, size.height) / 100));
     if (event.shiftKey) {
-      const corner = { x: crop.x + crop.width + move[0] * step, y: crop.y + crop.height + move[1] * step };
-      const handle = cropRatio() ? 'se' : move[0] ? 'e' : 's';
-      crop = core.resizeCrop(crop, handle, corner, cropRatio(), size);
+      const ratio = cropRatio();
+      // With a fixed shape both sides change together: left and up shrink, right and down grow.
+      const width = crop.width + (move[0] || move[1]) * step;
+      const corner = ratio
+        ? { x: crop.x + width, y: crop.y + width / ratio }
+        : { x: crop.x + crop.width + move[0] * step, y: crop.y + crop.height + move[1] * step };
+      crop = core.resizeCrop(crop, ratio ? 'se' : move[0] ? 'e' : 's', corner, ratio, size);
     } else {
       crop = core.moveCrop(crop, move[0] * step, move[1] * step, size);
     }
@@ -433,11 +438,19 @@
       shared.showError('Only JPG, PNG and WEBP photos can be used here. iPhone HEIC photos are not supported.');
       return;
     }
+    // Only the photo chosen last is used: an earlier one that opens late is thrown away.
+    const mine = ++openRun;
     let source;
     try {
       source = await shared.openPhoto(file);
     } catch (error) {
-      shared.showError(error instanceof core.PhotoToolError ? error.message : 'This photo could not be opened.');
+      if (mine === openRun) {
+        shared.showError(error instanceof core.PhotoToolError ? error.message : 'This photo could not be opened.');
+      }
+      return;
+    }
+    if (mine !== openRun) {
+      if (typeof source.close === 'function') source.close();
       return;
     }
     if (original && typeof original.close === 'function') original.close();

@@ -114,6 +114,7 @@
   let saved = null;
   let saveRun = 0;
   let saveTimer = null;
+  let openRun = 0;
 
   // ---------------------------------------------------------------------------
   // Placement
@@ -248,11 +249,19 @@
       shared.showError('Only JPG, PNG and WEBP photos can be used here. iPhone HEIC photos are not supported.');
       return;
     }
+    // Only the photo chosen last is used: an earlier one that opens late is thrown away.
+    const mine = ++openRun;
     let source;
     try {
       source = await shared.openPhoto(file);
     } catch (error) {
-      shared.showError(error instanceof core.PhotoToolError ? error.message : 'This photo could not be opened.');
+      if (mine === openRun) {
+        shared.showError(error instanceof core.PhotoToolError ? error.message : 'This photo could not be opened.');
+      }
+      return;
+    }
+    if (mine !== openRun) {
+      if (typeof source.close === 'function') source.close();
       return;
     }
     fileName = file.name;
