@@ -151,7 +151,7 @@ only (PR 4, done):
    current officer who has lost the role or the account stays in the list, marked so, and has no
    rights. `?open=officer` opens the drawer.
 2. **Board**: the officer's name (or "No officer") on each row. Two switches beside the search
-   box, each counting live cases: **No officer on n cases** for Admin and HoD, and **My projects
+   box, each counting live cases: **No officer (n)** for Admin and HoD, and **My projects
    (n)** for a user with projects assigned. The address carries `officer=unassigned|mine`; like
    the year and the search, the status counts and the pipeline follow it.
 3. **Create** (Admin, HoD): the IT form plus an optional officer.
@@ -218,6 +218,8 @@ indexing, export, moving a project between modules.
 | 3 | The two modules on screen: routes, wording from the catalogue, menu entries, access governance, usage. Projects can be created and run by Admin and HoD | page policy per route, wrong-module id is not found, wording never says "IT" on a MOLTI or SRE page |
 | 4 | Officer assignment: assign, change, unassign, audit; officer on the page and board; Unassigned and My projects filters; assigned officer can work on and remark on their project | only Project Officers can be chosen, rights follow assignment and end on unassign, concurrency |
 | 5 | Workspace: workload cards, conference review and conference remarks by assigned officer; officer's own workspace links | each project under its officer only, unassigned under nobody, IT feeds unchanged |
-| 6 | Phones, dark theme, live check with realistic data in a throwaway database | none new |
+| 6 | Phones, dark theme, live check with realistic data in a throwaway database. Found and fixed: the officer line on the project page split into two columns on a phone; the "No officer" switch was long enough to push the search box off the toolbar row. Demo data scripts: `tools/dev-data/molti-sre-demo-seed.sql` and `-remove.sql` | none new |
 
 Each PR is reviewed by Codex and merged when CI and Codex are clean.
+
+All six PRs are merged or open as of 11 Nov 2026; the module is complete with PR 6.
