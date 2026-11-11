@@ -102,7 +102,10 @@
         date: value(tile, 'date'),
         originalUrl: value(tile, 'originalUrl'),
         downloadUrl: value(tile, 'downloadUrl') || value(tile, 'originalUrl'),
-        thumbUrl: tile.querySelector('[data-media-image]')?.getAttribute('src') || '',
+        // Read when the strip is drawn, so a tile that fell back to its larger thumbnail
+        // gives the strip the picture that actually loaded.
+        get thumbUrl() { return tile.querySelector('[data-media-image]')?.getAttribute('src') || ''; },
+        get thumbFallbackUrl() { return tile.querySelector('[data-media-image]')?.dataset.fallbackSrc || ''; },
         tile
     }));
     let items = buildItems();
