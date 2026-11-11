@@ -2572,6 +2572,12 @@
     color: var(--pm-text-strong);
 }
 
+/* The note after the status. Its separator is drawn here, so that on a phone, where the note
+   takes its own line, the line does not start with a stray dot. */
+.itp-hero__note::before {
+    content: "\00B7\00A0";
+}
+
 .itp-hero__status--late {
     background: var(--pm-danger-soft-bg);
 }
@@ -2823,6 +2829,19 @@
 }
 
 @media (max-width: 767.98px) {
+    /* A wrapped line must not end or start with a lone separator dot. */
+    .itp-summary__sep {
+        display: none;
+    }
+
+    .itp-hero__note {
+        flex-basis: 100%;
+    }
+
+    .itp-hero__note::before {
+        content: none;
+    }
+
     /* Phones show the nine-segment bar, not the dots: the dot part of the key does not apply. */
     .itp-key__i--track {
         display: none;
