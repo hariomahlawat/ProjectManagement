@@ -45,6 +45,61 @@ public sealed class MediaBulkDownloadServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_RefusesASecondConcurrentArchiveForTheSameUser()
+    {
+        var throttle = new MediaBulkDownloadThrottle(2);
+        Assert.True(throttle.TryEnter("tester", out var heldLease));
+        await using var fixture = await BulkDownloadFixture.CreateAsync(120, 10 * 1024 * 1024, throttle);
+        fixture.AddAsset(1, "photo.jpg", Encoding.UTF8.GetBytes("first"));
+        await fixture.SaveAsync();
+
+        var busy = await fixture.Service.CreateAsync(new long[] { 1 }, "tester", CancellationToken.None);
+        Assert.Equal(MediaBulkDownloadFailureReason.Busy, busy.FailureReason);
+
+        // Another user is not blocked, and the first user may build again once done.
+        var other = await fixture.Service.CreateAsync(new long[] { 1 }, "someone-else", CancellationToken.None);
+        Assert.True(other.Succeeded);
+        await other.Archive!.Stream.DisposeAsync();
+
+        heldLease!.Dispose();
+        var again = await fixture.Service.CreateAsync(new long[] { 1 }, "tester", CancellationToken.None);
+        Assert.True(again.Succeeded);
+        await again.Archive!.Stream.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task CreateAsync_RefusesAnArchiveThatWouldExhaustCacheDiskSpace()
+    {
+        await using var fixture = await BulkDownloadFixture.CreateAsync(
+            120,
+            10 * 1024 * 1024,
+            minimumFreeSpaceBytes: long.MaxValue / 2);
+        fixture.AddAsset(1, "photo.jpg", Encoding.UTF8.GetBytes("first"));
+        await fixture.SaveAsync();
+
+        var result = await fixture.Service.CreateAsync(new long[] { 1 }, "tester", CancellationToken.None);
+
+        Assert.Equal(MediaBulkDownloadFailureReason.InsufficientStorage, result.FailureReason);
+        Assert.Null(result.Archive);
+    }
+
+    [Fact]
+    public void FindVolume_ResolvesTheMountContainingThePath_NotTheLexicalRoot()
+    {
+        // On Linux, Path.GetPathRoot is always "/", which is the wrong filesystem when the
+        // cache lives on its own mount. /dev/shm is a separate mount on Linux hosts.
+        if (!OperatingSystem.IsLinux() || !Directory.Exists("/dev/shm"))
+        {
+            return;
+        }
+
+        var volume = MediaBulkDownloadService.FindVolume("/dev/shm/prism-cache/bulk-downloads");
+
+        Assert.NotNull(volume);
+        Assert.Equal("/dev/shm", volume!.RootDirectory.FullName.TrimEnd('/'));
+    }
+
+    [Fact]
     public async Task CreateAsync_SanitizesArchiveEntryName_IndependentlyOfHostOperatingSystem()
     {
         await using var fixture = await BulkDownloadFixture.CreateAsync(
@@ -185,7 +240,11 @@ public sealed class MediaBulkDownloadServiceTests
         public MediaLibraryDbContext Db { get; }
         public MediaBulkDownloadService Service { get; }
 
-        public static async Task<BulkDownloadFixture> CreateAsync(int maxItems, long maxSourceBytes)
+        public static async Task<BulkDownloadFixture> CreateAsync(
+            int maxItems,
+            long maxSourceBytes,
+            MediaBulkDownloadThrottle? throttle = null,
+            long minimumFreeSpaceBytes = 0)
         {
             var dbOptions = new DbContextOptionsBuilder<MediaLibraryDbContext>()
                 .UseInMemoryDatabase($"media-bulk-download-{Guid.NewGuid():N}")
@@ -213,7 +272,8 @@ public sealed class MediaBulkDownloadServiceTests
                 BulkDownload = new MediaBulkDownloadOptions
                 {
                     MaxItems = maxItems,
-                    MaxSourceBytes = maxSourceBytes
+                    MaxSourceBytes = maxSourceBytes,
+                    MinimumFreeSpaceBytes = minimumFreeSpaceBytes
                 }
             };
             var cacheRoot = Path.Combine(Path.GetTempPath(), $"prism-bulk-test-{Guid.NewGuid():N}");
@@ -226,7 +286,8 @@ public sealed class MediaBulkDownloadServiceTests
                 resolver,
                 new StubCachePathResolver(cacheRoot),
                 Options.Create(options),
-                NullLogger<MediaBulkDownloadService>.Instance);
+                NullLogger<MediaBulkDownloadService>.Instance,
+                throttle ?? new MediaBulkDownloadThrottle(2));
             var fixture = new BulkDownloadFixture(cacheRoot, db, source, service)
             {
                 ResolverDefinitions = definitions

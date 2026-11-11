@@ -226,7 +226,11 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
         await RepairCollectionCoversAsync(affectedCollections, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Ask for the short batch delay only when this pass changed something. Rows that
+        // keep failing to probe would otherwise be retried every few seconds forever.
+        var madeProgress = restored + markedUnavailable > 0;
         var hasMore = !storageUnreachable
+                      && madeProgress
                       && await HistoricalCandidatesQuery().AnyAsync(cancellationToken);
         return new(candidates.Count, restored, markedUnavailable, temporarilyUnavailable, errors, hasMore);
     }
@@ -354,6 +358,31 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
             .Where(job => job.JobType == MediaProcessingJobType.AnalyseAsset)
             .OrderByDescending(job => job.UpdatedAtUtc)
             .FirstOrDefault();
+
+        // The asset was just found again, so earlier "source missing" dead letters of any
+        // job type no longer apply. Leaving them made the asset a reconciliation candidate
+        // for ever: it was restored and requeued on every pass, every few seconds.
+        // Re-analysis queues the dependent work (derivatives, classification, faces).
+        foreach (var stale in asset.ProcessingJobs.Where(item =>
+                     !ReferenceEquals(item, job)
+                     && item.Status == MediaProcessingJobStatus.DeadLetter
+                     && item.FailureCode != null
+                     && SourceUnavailableFailureCodes.Contains(item.FailureCode)))
+        {
+            stale.Status = MediaProcessingJobStatus.Completed;
+            stale.CompletedAtUtc = now;
+            stale.FailureCode = null;
+            stale.FailureMessage = "Superseded: the source was found again and the asset was requeued for analysis.";
+            stale.UpdatedAtUtc = now;
+        }
+
+        // A worker is processing this asset right now; taking its lease would make two
+        // workers run the same job. It already works on the current content.
+        if (job is { Status: MediaProcessingJobStatus.Running, LockExpiresAtUtc: { } lockExpiry }
+            && lockExpiry > now)
+        {
+            return;
+        }
 
         if (job is null)
         {

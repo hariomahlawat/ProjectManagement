@@ -1520,6 +1520,50 @@ public sealed class FaceReviewService : IFaceReviewService
                 decision.ConcurrencyToken = Guid.NewGuid();
             }
 
+            // A face a reviewer rejected as the duplicate record is, after the merge, a face
+            // rejected as the merged person. Candidate search excludes people by rejected
+            // CandidatePersonId, so leaving these on the merged-away person let the same
+            // faces be suggested again as the target. Carry them over, and close any target
+            // suggestion for those faces that the rejection now contradicts.
+            var sourceRejections = await _db.FaceReviewDecisions
+                .Where(decision => decision.CandidatePersonId == sourcePersonId
+                                   && decision.Decision == FaceReviewDecisionType.Rejected)
+                .ToListAsync(cancellationToken);
+            foreach (var rejection in sourceRejections)
+            {
+                rejection.CandidatePersonId = targetPersonId;
+                rejection.Notes = TrimTo(
+                    string.IsNullOrWhiteSpace(rejection.Notes)
+                        ? $"Rejection carried over when '{source.DisplayName}' was merged."
+                        : $"{rejection.Notes} Carried over when '{source.DisplayName}' was merged.",
+                    1024);
+                rejection.ConcurrencyToken = Guid.NewGuid();
+            }
+
+            var rejectedFaceIds = sourceRejections.Select(rejection => rejection.MediaFaceId).ToHashSet();
+            if (rejectedFaceIds.Count > 0)
+            {
+                var rejectedFaceIdList = rejectedFaceIds.ToList();
+                var contradicted = await _db.FaceReviewDecisions
+                    .Where(decision => rejectedFaceIdList.Contains(decision.MediaFaceId)
+                                       && decision.CandidatePersonId == targetPersonId
+                                       && decision.Decision == FaceReviewDecisionType.Pending)
+                    .ToListAsync(cancellationToken);
+                // Suggestions redirected from the source above are tracked but not yet saved.
+                contradicted.AddRange(sourceDecisions.Where(decision =>
+                    decision.Decision == FaceReviewDecisionType.Pending
+                    && decision.CandidatePersonId == targetPersonId
+                    && rejectedFaceIds.Contains(decision.MediaFaceId)));
+                foreach (var decision in contradicted.Distinct())
+                {
+                    decision.Decision = FaceReviewDecisionType.Ignored;
+                    decision.DecidedAtUtc = now;
+                    decision.DecidedByUserId = userId;
+                    decision.Notes = "Superseded by a rejection carried over during person merge.";
+                    decision.ConcurrencyToken = Guid.NewGuid();
+                }
+            }
+
             _db.IdentityAudits.Add(new MediaIdentityAudit
             {
                 PersonId = target.Id,

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using ProjectManagement.Features.MediaLibrary.Data;
@@ -19,14 +20,21 @@ public sealed class MediaModel : PageModel
     private readonly IMediaContentProviderResolver _contentResolver;
     private readonly MediaLibraryOptions _options;
     private readonly IMediaAssetVisibilityPolicy _visibility;
+    private readonly IMemoryCache _failures;
     private readonly ILogger<MediaModel> _logger;
+
+    // A derivative that cannot be produced (corrupt or oversized image, or content that is
+    // gone) would otherwise be re-read and re-decoded on every request for its tile. The
+    // failure is remembered per cache version, so replaced content is tried again at once.
+    private static readonly TimeSpan PermanentFailureBackOff = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan UnavailableBackOff = TimeSpan.FromMinutes(2);
 
     public MediaModel(MediaLibraryDbContext db, IMediaDerivativeService derivatives,
         IMediaContentProviderResolver contentResolver, IOptions<MediaLibraryOptions> options,
-        IMediaAssetVisibilityPolicy visibility, ILogger<MediaModel> logger)
+        IMediaAssetVisibilityPolicy visibility, IMemoryCache failures, ILogger<MediaModel> logger)
     {
         _db = db; _derivatives = derivatives; _contentResolver = contentResolver;
-        _options = options.Value; _visibility = visibility; _logger = logger;
+        _options = options.Value; _visibility = visibility; _failures = failures; _logger = logger;
     }
 
     public async Task<IActionResult> OnGetAsync(long id, string? variant, bool download = false,
@@ -62,6 +70,7 @@ public sealed class MediaModel : PageModel
             if (variant is "thumb" or "preview")
             {
                 if (asset.Kind != MediaAssetKind.Photo) return NotFound();
+                if (_failures.TryGetValue(FailureKey(asset, variant), out _)) return NotFound();
                 var path = await _derivatives.EnsureAsync(asset.Id, variant, cancellationToken);
                 var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
                     FileShare.ReadWrite | FileShare.Delete, 128 * 1024,
@@ -82,10 +91,27 @@ public sealed class MediaModel : PageModel
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (MediaContentUnavailableException ex)
+        {
+            // The content is gone or no provider can open it. A 404 lets the grid show its
+            // placeholder; an unhandled exception made every such tile a logged 500.
+            _logger.LogWarning(ex, "Media asset {AssetId} has no readable content", id);
+            _failures.Set(FailureKey(asset, variant), true, UnavailableBackOff);
+            return NotFound();
+        }
+        catch (MediaProcessingPermanentException ex)
+        {
+            _logger.LogInformation(ex, "Media asset {AssetId} cannot be rendered as {Variant}: {Reason}", id, variant, ex.Message);
+            _failures.Set(FailureKey(asset, variant), true, PermanentFailureBackOff);
+            return NotFound();
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             _logger.LogWarning(ex, "Unable to serve media asset {AssetId}", id);
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
     }
+
+    private static string FailureKey(MediaAsset asset, string variant)
+        => $"photos-media-failure:{asset.Id}:{asset.CacheVersion}:{variant}";
 }

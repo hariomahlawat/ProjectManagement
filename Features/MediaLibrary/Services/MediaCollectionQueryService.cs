@@ -145,51 +145,22 @@ public sealed class MediaCollectionQueryService : IMediaCollectionQueryService
                 pageNumber < pageCount);
         }
 
+        // One representative row and one cover row per listed collection, chosen in the
+        // database. Reading every asset of every listed collection to pick two rows meant a
+        // 20,000-file folder pulled 20,000 rows on each Collections page view.
         var keys = aggregateRows.Select(row => row.CollectionKey).ToArray();
-        var metadataRows = await query
-            .Where(asset => keys.Contains(asset.CollectionKey))
-            .Select(asset => new CollectionMediaRow
-            {
-                CollectionKey = asset.CollectionKey,
-                Id = asset.Id,
-                Origin = asset.Origin,
-                Kind = asset.Kind,
-                ContextKey = asset.ContextKey,
-                ContextTitle = asset.ContextTitle,
-                ContextSubtitle = asset.ContextSubtitle,
-                SourceLabel = asset.SourceLabel,
-                MediaDateUtc = asset.MediaDateUtc,
-                Width = asset.Width,
-                Height = asset.Height,
-                IsCover = asset.IsCover,
-                SortOrder = asset.SortOrder
-            })
-            .ToListAsync(cancellationToken);
-
-        var rowsByCollection = metadataRows
-            .GroupBy(row => row.CollectionKey, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+        var metadataByCollection = await LoadRepresentativeRowsAsync(query, keys, coverOnly: false, cancellationToken);
+        var coverByCollection = await LoadRepresentativeRowsAsync(query, keys, coverOnly: true, cancellationToken);
 
         var collections = new List<MediaCollectionSummary>(aggregateRows.Count);
         foreach (var aggregate in aggregateRows)
         {
-            if (!rowsByCollection.TryGetValue(aggregate.CollectionKey, out var rows) || rows.Count == 0)
+            if (!metadataByCollection.TryGetValue(aggregate.CollectionKey, out var metadata))
             {
                 continue;
             }
 
-            var metadata = rows
-                .OrderByDescending(row => row.MediaDateUtc)
-                .ThenBy(row => row.SortOrder)
-                .ThenBy(row => row.Id)
-                .First();
-            var cover = rows
-                .Where(row => row.Kind == MediaAssetKind.Photo)
-                .OrderByDescending(row => row.IsCover)
-                .ThenByDescending(row => row.MediaDateUtc)
-                .ThenBy(row => row.SortOrder)
-                .ThenBy(row => row.Id)
-                .FirstOrDefault();
+            coverByCollection.TryGetValue(aggregate.CollectionKey, out var cover);
 
             collections.Add(new MediaCollectionSummary(
                 aggregate.CollectionKey,
@@ -276,6 +247,75 @@ public sealed class MediaCollectionQueryService : IMediaCollectionQueryService
         public DateTimeOffset FirstMediaDateUtc { get; set; }
         public DateTimeOffset LatestMediaDateUtc { get; set; }
         public bool HasNonProjectMedia { get; set; }
+    }
+
+    /// <summary>
+    /// Ids of the newest item of each collection (for its title and context), or with
+    /// <paramref name="coverOnly"/> of the photo chosen as its cover: an explicit cover
+    /// first, then the newest. One id per collection, same ordering as before.
+    /// </summary>
+    internal static IQueryable<long> BuildRepresentativeIdsQuery(
+        IQueryable<MediaAsset> query,
+        IReadOnlyCollection<string> collectionKeys,
+        bool coverOnly)
+    {
+        var scoped = query.Where(asset => collectionKeys.Contains(asset.CollectionKey));
+        if (coverOnly)
+        {
+            return scoped
+                .Where(asset => asset.Kind == MediaAssetKind.Photo)
+                .GroupBy(asset => asset.CollectionKey)
+                .Select(group => group
+                    .OrderByDescending(asset => asset.IsCover)
+                    .ThenByDescending(asset => asset.MediaDateUtc)
+                    .ThenBy(asset => asset.SortOrder)
+                    .ThenBy(asset => asset.Id)
+                    .Select(asset => asset.Id)
+                    .First());
+        }
+
+        return scoped
+            .GroupBy(asset => asset.CollectionKey)
+            .Select(group => group
+                .OrderByDescending(asset => asset.MediaDateUtc)
+                .ThenBy(asset => asset.SortOrder)
+                .ThenBy(asset => asset.Id)
+                .Select(asset => asset.Id)
+                .First());
+    }
+
+    private static async Task<Dictionary<string, CollectionMediaRow>> LoadRepresentativeRowsAsync(
+        IQueryable<MediaAsset> query,
+        IReadOnlyCollection<string> collectionKeys,
+        bool coverOnly,
+        CancellationToken cancellationToken)
+    {
+        var ids = await BuildRepresentativeIdsQuery(query, collectionKeys, coverOnly)
+            .ToListAsync(cancellationToken);
+        if (ids.Count == 0)
+        {
+            return new Dictionary<string, CollectionMediaRow>(StringComparer.Ordinal);
+        }
+
+        return await query
+            .Where(asset => ids.Contains(asset.Id))
+            .Select(asset => new CollectionMediaRow
+            {
+                CollectionKey = asset.CollectionKey,
+                Id = asset.Id,
+                Origin = asset.Origin,
+                Kind = asset.Kind,
+                ContextKey = asset.ContextKey,
+                ContextTitle = asset.ContextTitle,
+                ContextSubtitle = asset.ContextSubtitle,
+                SourceLabel = asset.SourceLabel,
+                MediaDateUtc = asset.MediaDateUtc,
+                Width = asset.Width,
+                Height = asset.Height,
+                IsCover = asset.IsCover,
+                SortOrder = asset.SortOrder
+            })
+            .ToDictionaryAsync(row => row.CollectionKey, StringComparer.Ordinal, cancellationToken);
     }
 
     private sealed class CollectionMediaRow

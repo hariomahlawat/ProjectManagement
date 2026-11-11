@@ -21,7 +21,9 @@ public enum MediaBulkDownloadFailureReason
     SourceBytesExceeded = 3,
     NoEligibleAssets = 4,
     NoReadableAssets = 5,
-    SourceReadFailed = 6
+    SourceReadFailed = 6,
+    Busy = 7,
+    InsufficientStorage = 8
 }
 
 public sealed record MediaBulkDownloadArchive(
