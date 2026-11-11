@@ -347,7 +347,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
         var project = await _db.ItProjects
             .AsNoTracking()
             .Include(candidate => candidate.Stages)
-            .SingleOrDefaultAsync(candidate => candidate.Id == request.ItemId && !candidate.IsDeleted && candidate.DroppedOn == null, cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Id == request.ItemId && candidate.Module == ItProjectModules.It && !candidate.IsDeleted && candidate.DroppedOn == null, cancellationToken);
         if (project is null || ItProjectStatus.Resolve(project).Kind is not (ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress))
         {
             throw new InvalidOperationException("This IT project is not part of the selected officer's current workload.");

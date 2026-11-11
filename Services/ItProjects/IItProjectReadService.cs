@@ -29,7 +29,9 @@ public sealed record ItProjectBoardQuery(
     /// <summary>Show the cases that count in this year (New ones and those carried into it); null for all years.</summary>
     int? FinancialYearStart = null,
     string? Search = null,
-    ItProjectBoardSort Sort = ItProjectBoardSort.StageOrder);
+    ItProjectBoardSort Sort = ItProjectBoardSort.StageOrder,
+    /// <summary>The module whose board this is; a board never shows the projects of another module.</summary>
+    string Module = ItProjectModules.It);
 
 public sealed record ItProjectBoardStageCell(
     string StageCode,
@@ -109,8 +111,11 @@ public interface IItProjectReadService
     /// </summary>
     Task<ItProjectBoard> GetBoardAsync(ItProjectBoardQuery query, CancellationToken cancellationToken = default);
 
-    /// <summary>The project with its nine stage rows in order, or null when it does not exist or is deleted.</summary>
+    /// <summary>The IT project with its nine stage rows in order, or null when it does not exist or is deleted.</summary>
     Task<ItProject?> GetAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>The same for a project of the given module; a project of another module is null.</summary>
+    Task<ItProject?> GetAsync(int id, string module, CancellationToken cancellationToken = default);
 
     /// <summary>The time facts of a project loaded by <see cref="GetAsync"/>, against today in IST.</summary>
     ItProjectTiming GetTiming(ItProject project);

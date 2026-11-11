@@ -297,6 +297,9 @@ namespace ProjectManagement.Tests
         {
             public ItProjectBoardQuery? LastQuery { get; private set; }
 
+            public Task<ProjectManagement.Models.ItProjects.ItProject?> GetAsync(int id, string module, CancellationToken cancellationToken = default)
+                => throw new NotSupportedException();
+
             public Task<ItProjectBoard> GetBoardAsync(ItProjectBoardQuery query, CancellationToken cancellationToken = default)
             {
                 LastQuery = query;

@@ -31,7 +31,7 @@ public static class LiveItProjects
 
         var projects = await db.ItProjects
             .AsNoTracking()
-            .Where(project => !project.IsDeleted && project.DroppedOn == null)
+            .Where(project => project.Module == ItProjectModules.It && !project.IsDeleted && project.DroppedOn == null)
             .Include(project => project.Stages)
             .Include(project => project.FinancialYears)
             .ToListAsync(cancellationToken);

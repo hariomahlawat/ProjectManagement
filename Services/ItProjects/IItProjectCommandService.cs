@@ -6,8 +6,12 @@ using ProjectManagement.Models.ItProjects;
 
 namespace ProjectManagement.Services.ItProjects;
 
-/// <summary>Who is acting. The user id is required; the name is for the audit row.</summary>
-public sealed record ItProjectActor(string UserId, string? UserName = null);
+/// <summary>
+/// Who is acting, and in which module (<see cref="ItProjectModules"/>). The user id is required;
+/// the name is for the audit row. A command only reaches projects of the actor's module, so a
+/// project id of another module is "not found".
+/// </summary>
+public sealed record ItProjectActor(string UserId, string? UserName = null, string Module = ItProjectModules.It);
 
 public sealed record ItProjectDetailsInput(
     string Title,

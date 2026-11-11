@@ -28,7 +28,7 @@ public sealed class ItProjectReadService : IItProjectReadService
         // The module holds tens of cases, not thousands: load them all once, because the year
         // filter ("live in that year") and the year list both need every case's stages.
         var all = await _db.ItProjects.AsNoTracking()
-            .Where(project => !project.IsDeleted)
+            .Where(project => !project.IsDeleted && project.Module == query.Module)
             .Include(project => project.Stages)
             .Include(project => project.FinancialYears)
             .ToListAsync(cancellationToken);
@@ -96,10 +96,13 @@ public sealed class ItProjectReadService : IItProjectReadService
     }
 
     public Task<ItProject?> GetAsync(int id, CancellationToken cancellationToken = default)
+        => GetAsync(id, ItProjectModules.It, cancellationToken);
+
+    public Task<ItProject?> GetAsync(int id, string module, CancellationToken cancellationToken = default)
         => _db.ItProjects
             .Include(project => project.Stages.OrderBy(stage => stage.SortOrder))
             .Include(project => project.FinancialYears)
-            .FirstOrDefaultAsync(project => project.Id == id && !project.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(project => project.Id == id && project.Module == module && !project.IsDeleted, cancellationToken);
 
     public ItProjectTiming GetTiming(ItProject project) => ItProjectTiming.Resolve(project, Today(), ItProjectYearTypes.ToIstDate);
 

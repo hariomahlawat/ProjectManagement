@@ -27,7 +27,7 @@ public sealed record ItProjectRemarkInput(string Body, DateOnly EventDate, ItPro
 /// Who is acting on a remark. <paramref name="IsHoD"/> is whether the user holds the HoD role at
 /// all (a Comdt who is also HoD writes as Comdt but may still delete any remark as HoD).
 /// </summary>
-public sealed record ItProjectRemarkActor(string UserId, string? UserName, string? RemarkRole, bool IsAdmin, bool IsHoD = false)
+public sealed record ItProjectRemarkActor(string UserId, string? UserName, string? RemarkRole, bool IsAdmin, bool IsHoD = false, string Module = ItProjectModules.It)
 {
     /// <summary>Owner decision 11 Nov 2026: an Admin or the HoD may delete any remark.</summary>
     public bool CanDeleteAnyRemark => IsAdmin || IsHoD;
@@ -35,8 +35,11 @@ public sealed record ItProjectRemarkActor(string UserId, string? UserName, strin
 
 public interface IItProjectRemarkService
 {
-    /// <summary>Live remarks of a project, newest event first (then newest written first).</summary>
+    /// <summary>Live remarks of an IT project, newest event first (then newest written first).</summary>
     Task<IReadOnlyList<ItProjectRemarkView>> ListAsync(int itProjectId, CancellationToken cancellationToken = default);
+
+    /// <summary>The same for a project of the given module; a project of another module has none.</summary>
+    Task<IReadOnlyList<ItProjectRemarkView>> ListAsync(int itProjectId, string module, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Adds a remark as the actor's remark role. Fails when the actor holds no remark role, or asks
