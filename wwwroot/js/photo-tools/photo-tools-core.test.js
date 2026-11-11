@@ -406,6 +406,18 @@ test('evenLighting lifts the dark side and leaves an evenly lit photo alone', ()
   tools.evenLighting(shaded, 96, 48);
   const after = at(shaded, 96, 4, 24)[0] - at(shaded, 96, 91, 24)[0];
   assert.ok(after < before * 0.6, `the difference across the photo shrinks (${before} to ${after})`);
+
+  // An evenly lit shape beside a see-through area is left alone: nothing invisible is measured.
+  const half = picture(96, 48, () => 200);
+  for (let y = 0; y < 48; y += 1) {
+    for (let x = 48; x < 96; x += 1) half.set([0, 0, 0, 0], (y * 96 + x) * 4);
+  }
+  const lit = tools.evenLighting(half.slice(), 96, 48);
+  assert.deepEqual(at(lit, 96, 10, 24), [200, 200, 200]);
+  assert.deepEqual(at(lit, 96, 47, 24), [200, 200, 200], 'right up to the edge of the shape');
+  const empty = new Uint8ClampedArray(8 * 8 * 4);
+  assert.deepEqual(Array.from(tools.evenLighting(empty.slice(), 8, 8)), Array.from(empty));
+  assert.equal(tools.measurePaper(empty), null, 'a fully see-through picture has no paper');
 });
 
 test('cleanDocument gives white paper and dark ink under uneven light, and keeps colour', () => {

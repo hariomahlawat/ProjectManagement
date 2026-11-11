@@ -250,11 +250,13 @@
    */
   function measurePaper(pixels) {
     const histogram = new Uint32Array(256);
-    const count = pixels.length / 4;
-    if (!count) return null;
+    let count = 0;
     for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i + 3] === 0) continue; // see-through pixels are neither paper nor ink
       histogram[Math.round(0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2])] += 1;
+      count += 1;
     }
+    if (!count) return null;
     const level = (share) => {
       let seen = 0;
       for (let value = 0; value < 256; value += 1) {
@@ -598,23 +600,32 @@
     const cell = Math.max(1, Math.ceil(Math.max(width, height) / 24));
     const columns = Math.ceil(width / cell);
     const rows = Math.ceil(height / cell);
+    // Every pixel counts by how solid it is, so the see-through part of a PNG or WEBP is not
+    // measured as darkness. An area with nothing visible in it takes no part at all.
     const sums = new Float64Array(columns * rows);
-    const counts = new Uint32Array(columns * rows);
+    const weights = new Float64Array(columns * rows);
+    let total = 0;
+    let weight = 0;
     for (let y = 0; y < height; y += 1) {
       const row = Math.floor(y / cell) * columns;
       for (let x = 0; x < width; x += 1) {
+        const i = (y * width + x) * 4;
+        const alpha = pixels[i + 3];
+        if (!alpha) continue;
         const at = row + Math.floor(x / cell);
-        sums[at] += luminance(pixels, (y * width + x) * 4);
-        counts[at] += 1;
+        const light = luminance(pixels, i) * alpha;
+        sums[at] += light;
+        weights[at] += alpha;
+        total += light;
+        weight += alpha;
       }
     }
-    let total = 0;
+    if (!weight) return pixels;
+    const target = total / weight;
     const raw = new Float64Array(columns * rows);
     for (let at = 0; at < raw.length; at += 1) {
-      raw[at] = sums[at] / counts[at];
-      total += raw[at];
+      raw[at] = weights[at] ? sums[at] / weights[at] : NaN;
     }
-    const target = total / raw.length;
     // Each area is averaged with its neighbours, so one dark object does not drag its area up.
     const grid = new Float64Array(raw.length);
     for (let r = 0; r < rows; r += 1) {
@@ -625,13 +636,14 @@
           for (let dc = -1; dc <= 1; dc += 1) {
             const rr = r + dr;
             const cc = c + dc;
-            if (rr >= 0 && rr < rows && cc >= 0 && cc < columns) {
+            if (rr >= 0 && rr < rows && cc >= 0 && cc < columns && !Number.isNaN(raw[rr * columns + cc])) {
               sum += raw[rr * columns + cc];
               seen += 1;
             }
           }
         }
-        grid[r * columns + c] = sum / seen;
+        // With nothing visible nearby there is nothing to correct: the area is left as it is.
+        grid[r * columns + c] = seen ? sum / seen : target;
       }
     }
     for (let y = 0; y < height; y += 1) {
@@ -667,14 +679,18 @@
     evenLighting(pixels, width, height, 1);
     const levels = measurePaper(pixels);
     if (!levels) return pixels;
-    const count = pixels.length / 4;
     const tables = [0, 1, 2].map(channel => {
       const histogram = new Uint32Array(256);
-      for (let i = channel; i < pixels.length; i += 4) histogram[pixels[i]] += 1;
+      let visible = 0;
+      for (let i = channel; i < pixels.length; i += 4) {
+        if (pixels[i - channel + 3] === 0) continue;
+        histogram[pixels[i]] += 1;
+        visible += 1;
+      }
       let paper = 0;
       for (let seen = 0; paper < 255; paper += 1) {
         seen += histogram[paper];
-        if (seen > count / 2) break;
+        if (seen > visible / 2) break;
       }
       const range = Math.max(40, paper - levels.ink);
       const black = levels.ink + range * 0.1;
