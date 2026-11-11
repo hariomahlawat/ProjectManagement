@@ -136,9 +136,6 @@
 .db-stage--pill { min-height: 32px; padding: 4px 12px; border-radius: 999px; }
 
 /* Bars: a neutral track and a solid lead in the card's hue. */
-.db-type-row > div { height: 6px; overflow: hidden; border-radius: 999px; background: var(--db-track); }
-.db-type-row i { display: block; height: 100%; border-radius: inherit; background: var(--db-hue); }
-.db-type-row i { width: var(--type-width); }
 
 /* ---------- Analytics card ----------
    ARPP, then CoE, then Completed beside the slowest stages. Each block is one link to its
@@ -225,46 +222,25 @@
 .db-output-card__foot .is-neutral { color: var(--db-muted); }
 
 /* ---------- Activities and innovation ---------- */
-.db-dual-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.db-engagement-card { min-height: 360px; }
-.db-activity-overview { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 14px; padding: 16px 20px 12px; }
-.db-activity-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.db-activity-kpis > div, .db-idea-summary > div { position: relative; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px 12px 12px 14px; border: 1px solid var(--db-border); border-radius: var(--db-radius-md); background: var(--db-surface); }
-.db-activity-kpis > div { min-height: 112px; justify-content: center; }
-.db-activity-kpis > div span { min-height: 2.4em; }
-.db-activity-kpis span, .db-idea-summary span { display: block; order: -1; color: var(--db-muted); font-size: .75rem; font-weight: 600; line-height: 1.2; }
-.db-activity-kpis strong, .db-idea-summary strong { display: block; margin-top: 8px; color: var(--db-strong); font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
-.db-activity-trend { min-height: 112px; padding: 12px 14px 10px; border: 1px solid var(--db-border); border-radius: var(--db-radius-md); background: var(--db-surface); }
-.db-activity-trend__head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 7px; color: var(--db-strong); font-size: .8125rem; font-weight: 700; }
-.db-activity-trend__head small { color: var(--db-muted); font-size: .75rem; font-weight: 600; }
-.db-activity-trend canvas { width: 100% !important; height: 68px !important; }
-.db-activity-trend__axis { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 4px; color: var(--db-muted); font-size: .75rem; line-height: 1; pointer-events: none; }
-.db-activity-trend__axis span:last-child { text-align: right; }
-.db-activity-detail { display: grid; grid-template-columns: .92fr 1.08fr; gap: 20px; padding: 6px 20px 18px; }
-.db-top-types, .db-recent-activities { min-width: 0; }
-.db-top-types h3, .db-recent-activities h3, .db-ffc-countries h3 { margin: 0 0 10px; color: var(--db-strong); font-size: .875rem; font-weight: 700; }
-.db-type-row { display: grid; grid-template-columns: minmax(90px, 130px) minmax(70px, 1fr) 54px; align-items: center; gap: 10px; min-height: 30px; color: inherit; text-decoration: none; }
-.db-type-row:hover, .db-type-row:focus-visible { color: inherit; outline: none; }
-.db-type-row:hover strong, .db-type-row:focus-visible strong { color: var(--db-hue); }
-.db-type-row span { overflow: hidden; color: var(--db-secondary); font-size: .8125rem; text-overflow: ellipsis; white-space: nowrap; }
-.db-type-row strong { color: var(--db-strong); text-align: right; font-size: .8125rem; font-weight: 700; white-space: nowrap; }
-.db-type-row strong small { color: var(--db-muted); font-size: .75rem; font-weight: 600; }
-.db-recent-row, .db-idea-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 50px; padding: 8px 0; color: inherit; text-decoration: none; border-bottom: 1px solid var(--db-border); }
-.db-recent-row:hover, .db-recent-row:focus-visible, .db-idea-row:hover, .db-idea-row:focus-visible { color: inherit; outline: none; }
-.db-recent-row:hover strong, .db-recent-row:focus-visible strong, .db-idea-row:hover strong, .db-idea-row:focus-visible strong { color: var(--db-hue); }
-.db-recent-row:last-child, .db-idea-row:last-child { border-bottom: 0; }
-.db-recent-row > div:first-child, .db-idea-row > div:first-child { min-width: 0; flex: 1 1 auto; }
+/* Three slim cards (activities, ideas, IT projects), each under two of the six output tiles: a title
+   line with no rule under it, then one line of figures with each label beside its number.
+   auto-fit keeps two cards full width when the third is not shown, and stacks them on phones. */
+.db-trio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.db-figures { display: flex; flex-wrap: wrap; gap: 12px 32px; padding: 14px 20px 16px; }
+.db-figure { display: grid; align-content: start; gap: 3px; min-width: 0; color: inherit; text-decoration: none; }
+.db-figure strong { color: var(--db-strong); font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
+.db-figure span { color: var(--db-muted); font-size: .75rem; font-weight: 600; line-height: 1.25; }
+a.db-figure:hover, a.db-figure:focus-visible { color: inherit; outline: none; }
+a.db-figure:hover strong, a.db-figure:focus-visible strong { color: var(--db-hue); }
+.db-empty--slim { padding: 8px 20px 14px; text-align: left; }
+.db-slim .db-section-head { flex-direction: row; align-items: center; min-height: 0; padding: 10px 20px 0; border-bottom: 0; }
+.db-slim .db-section-icon { width: 28px; height: 28px; flex-basis: 28px; font-size: 1.2rem; }
+.db-slim .db-figures { gap: 4px 28px; padding: 6px 20px 12px; }
+.db-slim .db-figure { display: flex; align-items: baseline; gap: 7px; }
+.db-slim .db-figure strong { font-size: 1.35rem; }
+.db-slim .db-figure span { font-size: .8125rem; }
+.db-ffc-countries h3 { margin: 0 0 10px; color: var(--db-strong); font-size: .875rem; font-weight: 700; }
 /* Long titles wrap to two lines and then clip; the full title is in the tooltip and the chevron keeps its place. */
-.db-recent-row strong, .db-idea-row strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--db-strong); font-size: .8125rem; font-weight: 700; line-height: 1.3; }
-.db-recent-row span, .db-idea-row > div:first-child span { display: block; margin-top: 3px; color: var(--db-muted); font-size: .75rem; }
-.db-recent-row > i { flex: 0 0 auto; color: var(--db-muted); }
-.db-idea-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 16px 20px; }
-.db-idea-summary > div { min-height: 88px; }
-.db-idea-summary > div span { min-height: 2.4em; }
-.db-idea-summary > div::before { content: ""; position: absolute; top: 12px; bottom: 12px; left: -1px; width: 3px; border-radius: 999px; background: var(--db-hue); opacity: 0; }
-.db-idea-summary__primary::before { opacity: 1; }
-.db-idea-list { padding: 0 20px 12px; }
-.db-idea-row > div:last-child { display: flex; flex: 0 0 auto; gap: 10px; color: var(--db-muted); font-size: .75rem; white-space: nowrap; }
 
 /* ---------- FFC footprint ---------- */
 .db-ffc-layout { display: grid; grid-template-columns: minmax(0, 2.05fr) minmax(310px, .58fr); align-items: stretch; min-height: 380px; }
@@ -337,12 +313,10 @@
 .js .db-reveal { opacity: 0; transform: translateY(8px); }
 .js .db-reveal.is-visible { opacity: 1; transform: translateY(0); transition: opacity 360ms var(--db-ease), transform 360ms var(--db-ease); }
 @media (prefers-reduced-motion: no-preference) {
-    .js .db-type-row i { width: 0; }
-    .js .db-reveal.is-visible .db-type-row i { width: var(--type-width); transition: width 620ms cubic-bezier(.2,.7,.2,1) 120ms; }
 }
 @media (prefers-reduced-motion: reduce) {
     .db-reveal, .js .db-reveal, .js .db-reveal.is-visible { opacity: 1 !important; transform: none !important; transition: none !important; }
-    .db-output-card, .db-stage, .db-text-link i, .db-country-row, .db-recent-row, .db-ffc-module-actions__more, .db-lifecycle__bar i { transition: none !important; }
+    .db-output-card, .db-stage, .db-text-link i, .db-country-row, .db-ffc-module-actions__more, .db-lifecycle__bar i { transition: none !important; }
 }
 
 /* ---------- Breakpoints ---------- */
@@ -361,7 +335,7 @@
     .db-output-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 1099.98px) {
-    .db-dual-grid, .db-ffc-layout { grid-template-columns: 1fr; }
+    .db-ffc-layout { grid-template-columns: 1fr; }
     .db-ffc-map-wrap { min-height: 310px; border-right: 0; border-bottom: 1px solid var(--db-border); }
     .db-ffc-map, .db-ffc-map .ffc-simulator-map__canvas { min-height: 286px !important; }
     .db-ffc-insights { display: grid; grid-template-columns: minmax(270px, .8fr) minmax(320px, 1.2fr); grid-template-rows: auto 1fr; align-items: start; }
@@ -372,9 +346,6 @@
 @media (max-width: 991.98px) {
     .analytics-main { padding: 14px !important; }
     .db-output-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .db-idea-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .db-activity-overview, .db-activity-detail { grid-template-columns: 1fr; }
-    .db-activity-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767.98px) {
     .analytics-main { padding: 12px !important; }
@@ -400,14 +371,11 @@
 @media (max-width: 520px) {
     .db-output-grid { grid-template-columns: 1fr; }
     .db-lifecycle__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .db-idea-summary, .db-activity-kpis { grid-template-columns: 1fr 1fr; }
     .db-slow-stages { grid-template-columns: minmax(0, 1fr); gap: 6px; }
     .db-slow-stages li { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 10px; }
     .db-slow-stages strong { font-size: 1rem; }
     .db-ffc-primary-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .db-ffc-primary-stats strong { font-size: 1.15rem; }
-    .db-type-row { grid-template-columns: minmax(0, 1fr) 54px; }
-    .db-type-row > div { grid-column: 1 / -1; grid-row: 2; }
-    .db-activity-overview, .db-activity-detail, .db-idea-summary, .db-idea-list, .db-output-grid { padding-inline: 14px; }
+    .db-output-grid { padding-inline: 14px; }
     .db-footer { flex-direction: column; }
 }

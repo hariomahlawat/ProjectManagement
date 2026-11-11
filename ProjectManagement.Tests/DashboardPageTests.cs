@@ -24,6 +24,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Pages.Dashboard;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Dashboard;
+using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Services.Notebook;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Models.Scheduling;
@@ -237,6 +238,87 @@ namespace ProjectManagement.Tests
             Assert.NotNull(page.Analytics);
             Assert.Null(page.Analytics!.Arpp);
             Assert.NotNull(page.Analytics.Coe);
+        }
+
+        [Fact]
+        public async Task OnGetAsync_ItProjectsCardCountsListedAsCompletedPlusOngoing()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+
+            await using var context = new ApplicationDbContext(options);
+            using var serviceProvider = new ServiceCollection().BuildServiceProvider();
+
+            var userManager = new UserManager<ApplicationUser>(
+                new UserStore<ApplicationUser>(context),
+                Options.Create(new IdentityOptions()),
+                new PasswordHasher<ApplicationUser>(),
+                Array.Empty<IUserValidator<ApplicationUser>>(),
+                Array.Empty<IPasswordValidator<ApplicationUser>>(),
+                new UpperInvariantLookupNormalizer(),
+                new IdentityErrorDescriber(),
+                serviceProvider,
+                NullLogger<UserManager<ApplicationUser>>.Instance);
+
+            var itProjects = new StubItProjectReadService();
+            IndexModel Build(ClaimsPrincipal user) => new(
+                new StubNotebookService(),
+                userManager,
+                context,
+                new StubProjectPulseService(),
+                new StubOpsSignalsService(),
+                new StubSearchHealthService(),
+                NullLogger<IndexModel>.Instance,
+                itProjects: itProjects)
+            {
+                PageContext = new PageContext(new ActionContext(
+                    new DefaultHttpContext { User = user },
+                    new RouteData(),
+                    new ActionDescriptor()))
+            };
+
+            var signedIn = Build(new ClaimsPrincipal(new ClaimsIdentity(Array.Empty<Claim>(), "test")));
+            await signedIn.OnGetAsync(CancellationToken.None);
+
+            // Ten ongoing and two completed are listed; the dropped case is in none of the three.
+            var card = Assert.IsType<IndexModel.DashboardItProjectsVm>(signedIn.ItProjects);
+            Assert.Equal((12, 2, 10), (card.Listed, card.Completed, card.Ongoing));
+            Assert.Equal(ItProjectBoardScope.All, itProjects.LastQuery!.Scope);
+            Assert.Equal(card.FinancialYearStart, itProjects.LastQuery.FinancialYearStart);
+
+            // Not signed in: the card is not built at all.
+            var anonymous = Build(new ClaimsPrincipal(new ClaimsIdentity()));
+            await anonymous.OnGetAsync(CancellationToken.None);
+            Assert.Null(anonymous.ItProjects);
+        }
+
+        private sealed class StubItProjectReadService : IItProjectReadService
+        {
+            public ItProjectBoardQuery? LastQuery { get; private set; }
+
+            public Task<ItProjectBoard> GetBoardAsync(ItProjectBoardQuery query, CancellationToken cancellationToken = default)
+            {
+                LastQuery = query;
+                return Task.FromResult(new ItProjectBoard(
+                    Array.Empty<ItProjectBoardRow>(),
+                    Array.Empty<ItProjectBoardStageCount>(),
+                    ActiveCount: 10,
+                    CompletedCount: 2,
+                    DroppedCount: 1,
+                    Array.Empty<int>(),
+                    new ItProjectBoardFigures(null, 0, 0, 0m, 0, 0, null, 2026, 2026, 0, 0, 0, 0)));
+            }
+
+            public Task<ProjectManagement.Models.ItProjects.ItProject?> GetAsync(int id, CancellationToken cancellationToken = default) =>
+                throw new NotSupportedException();
+
+            public ItProjectTiming GetTiming(ProjectManagement.Models.ItProjects.ItProject project) => throw new NotSupportedException();
+
+            public IReadOnlyList<ItProjectYearTypeInfo> GetYearTypes(ProjectManagement.Models.ItProjects.ItProject project) => throw new NotSupportedException();
+
+            public Task<string?> GetUserDisplayNameAsync(string userId, CancellationToken cancellationToken = default) =>
+                throw new NotSupportedException();
         }
 
         private sealed class StubDashboardAnalyticsService : IDashboardAnalyticsService
