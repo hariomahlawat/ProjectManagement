@@ -499,11 +499,10 @@
 .photos-tile__meta span { font-size:.63rem; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .photos-tile__duration { backdrop-filter:blur(8px); background:rgba(18,27,43,.68) !important; border:0 !important; border-radius:999px !important; color:#fff; font-size:.62rem; font-weight:700; padding:.26rem .45rem; position:absolute; }
 .photos-tile__duration { bottom:.42rem; right:.42rem; }
-.photos-tile__select { align-items:center; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.12); border-radius:50%; color:#4169d8; display:none; height:1.55rem; justify-content:center; left:.45rem; position:absolute; top:.45rem; width:1.55rem; z-index:6; }
-.photos-library.is-selecting { padding-bottom:6rem; }
+.photos-tile__select { align-items:center; background:color-mix(in srgb, var(--pm-card) 92%, transparent); border:1px solid var(--pm-border); border-radius:50%; color:var(--pm-primary); display:none; height:1.55rem; justify-content:center; left:.45rem; position:absolute; top:.45rem; width:1.55rem; z-index:6; }
 .photos-library.is-selecting .photos-tile__select { display:flex; }
-.photos-tile.is-selected .photos-tile__select { background:#3569e8; color:#fff; }
-.photos-tile.is-selected::after { border:3px solid #3569e8; border-radius:.3rem; content:""; inset:0; pointer-events:none; position:absolute; }
+.photos-tile.is-selected .photos-tile__select { background:var(--pm-primary); border-color:var(--pm-primary); color:var(--pm-text-inverted); }
+.photos-tile.is-selected::after { border:3px solid var(--pm-primary); border-radius:.3rem; content:""; inset:0; pointer-events:none; position:absolute; }
 .collections-grid { display:grid; gap:1.05rem; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); }
 .collection-card { min-width:0; }
 .collection-card__cover { aspect-ratio:16/10; background:#e8ecf2; border-radius:.7rem; display:block; overflow:hidden; position:relative; }
@@ -695,28 +694,13 @@
 .photos-collection-singletons { border-top: 1px solid #e8ecf2; padding-top: .9rem; }
 .photos-collection-singletons small { color: #7b8797; display: block; margin-top: .3rem; }
 
-.photos-selection-bar {
-    align-items: center;
-    background: rgba(255, 255, 255, .98);
-    border: 1px solid #d5deeb;
-    border-radius: .86rem;
-    bottom: 1rem;
-    box-shadow: 0 12px 34px rgba(30, 48, 78, .18);
-    display: flex;
-    gap: 1rem;
-    justify-content: space-between;
-    left: 50%;
-    max-width: min(920px, calc(100vw - 2rem));
-    padding: .62rem .72rem .62rem .82rem;
-    position: fixed;
-    transform: translateX(-50%);
-    width: max-content;
-    z-index: 1045;
-}
+.photos-selection-bar { align-items:center; display:flex; flex:1 1 100%; gap:.75rem; justify-content:space-between; min-height:2.3rem; }
 .photos-selection-bar[hidden] { display: none !important; }
-.photos-selection-bar__count { display: grid; gap: .04rem; min-width: 7.5rem; }
-.photos-selection-bar__count strong { color: #27354a; font-size: .78rem; }
-.photos-selection-bar__count span { color: #7b8798; font-size: .65rem; max-width: 18rem; }
+.photos-selection-bar__close { align-items:center; background:transparent; border:0; border-radius:50%; color:var(--pm-text); display:inline-flex; height:2.1rem; justify-content:center; width:2.1rem; }
+.photos-selection-bar__close:hover { background:var(--pm-surface-muted); }
+.photos-selection-bar__count { align-items:baseline; display:flex; flex:1 1 auto; flex-wrap:wrap; gap:.1rem .6rem; min-width:7.5rem; }
+.photos-selection-bar__count strong { color:var(--pm-text); font-size:.95rem; }
+.photos-selection-bar__count span { color:var(--pm-text-muted); font-size:.75rem; max-width:18rem; }
 .photos-selection-bar__actions { align-items: center; display: flex; gap: .42rem; }
 .photos-selection-bar__actions form { margin: 0; }
 .photos-selection-bar .disabled { pointer-events: none; }
@@ -732,7 +716,8 @@
 
 @media (max-width: 767.98px) {
     .photos-library.is-selecting { padding-bottom:10rem; }
-    .photos-selection-bar { align-items: stretch; bottom: .5rem; flex-direction: column; gap: .45rem; width: calc(100vw - 1rem); }
+    .photos-selection-bar { align-items:stretch; background:var(--pm-card); border:1px solid var(--pm-border); border-radius:.86rem; bottom:.5rem; box-shadow:var(--pm-shadow-card-hover); flex-direction:column; gap:.45rem; left:.5rem; padding:.62rem .72rem; position:fixed; right:.5rem; z-index:1045; }
+    .photos-selection-bar__close { position:absolute; right:.4rem; top:.3rem; }
     .photos-selection-bar__actions { flex-wrap: wrap; }
     .photos-selection-bar__actions .btn { flex: 1 1 auto; }
     .photos-update-banner { align-items: flex-start; }
@@ -943,21 +928,6 @@
     color: #fff;
 }
 
-:where([data-bs-theme="dark"]) .photos-tile__select {
-    background: rgba(22, 24, 27, 0.94);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    color: #6ea8fe;
-}
-
-:where([data-bs-theme="dark"]) .photos-tile.is-selected .photos-tile__select {
-    background: #3569e8;
-    color: #fff;
-}
-
-:where([data-bs-theme="dark"]) .photos-tile.is-selected::after {
-    border: 3px solid #6ea8fe;
-}
-
 :where([data-bs-theme="dark"]) .collection-card__cover {
     background: #25282d;
 }
@@ -1097,20 +1067,6 @@
     color: #9aa0a6;
 }
 
-:where([data-bs-theme="dark"]) .photos-selection-bar {
-    background: rgba(22, 24, 27, 0.98);
-    border: 1px solid #2c3035;
-    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
-}
-
-:where([data-bs-theme="dark"]) .photos-selection-bar__count strong {
-    color: #e6e8eb;
-}
-
-:where([data-bs-theme="dark"]) .photos-selection-bar__count span {
-    color: #9aa0a6;
-}
-
 :where([data-bs-theme="dark"]) .photos-selection-lasso {
     background: rgba(110, 168, 254, 0.14);
     border: 1px solid rgba(110, 168, 254, 0.45);
@@ -1188,4 +1144,28 @@
 @media (min-width: 1200px) {
     .photos-scrubber { display:flex; }
     .photos-library:has([data-photos-scrubber]) .photos-timeline { padding-right:3.25rem; }
+}
+
+/* On wider screens the top bar itself becomes the action bar while pictures are selected. */
+@media (min-width: 768px) {
+    .photos-library.is-selecting .photos-bar { background:var(--pm-primary-soft); border-radius:.8rem; padding-left:.6rem; padding-right:.6rem; }
+    .photos-library.is-selecting .photos-bar > :not(.photos-selection-bar) { display:none; }
+}
+
+/* A tick appears on a picture under the pointer, and beside a day heading, so selecting
+   needs no separate first step. */
+@media (hover: hover) {
+    .photos-tile:hover .photos-tile__select, .photos-tile:focus-visible .photos-tile__select { display:flex; }
+    .photos-grid--organize .photos-tile:hover .photos-tile__select, .photos-tile--already-in-album:hover .photos-tile__select { display:none; }
+}
+.photos-day__select { align-items:center; background:transparent; border:2px solid var(--pm-text-muted); border-radius:50%; color:transparent; display:inline-flex; flex:none; font-size:.7rem; height:1.25rem; justify-content:center; opacity:0; padding:0; transition:opacity .15s ease; width:1.25rem; }
+.photos-day:hover .photos-day__select, .photos-day__select:focus-visible, .photos-library.is-selecting .photos-day__select { opacity:1; }
+.photos-day__select.is-selected { background:var(--pm-primary); border-color:var(--pm-primary); color:var(--pm-text-inverted); opacity:1; }
+.photos-tile.is-selected img { transform:scale(.9); }
+
+/* A blurred element becomes the frame its fixed children are placed against. On phones the
+   selection actions are a card fixed to the bottom of the screen, so the bar that holds them
+   must not blur there, or the card would sit on the bar and scroll away with it. */
+@media (max-width: 767.98px) {
+    .photos-bar { backdrop-filter:none; -webkit-backdrop-filter:none; background:var(--bs-body-bg); }
 }

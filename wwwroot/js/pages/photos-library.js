@@ -549,8 +549,12 @@
     const coverForm = actionBar?.querySelector('[data-selection-cover-form]');
     const coverButton = actionBar?.querySelector('[data-selection-set-cover]');
     const label = toggle.querySelector('span');
+    const cancelButton = actionBar?.querySelector('[data-selection-cancel]');
 
     let selecting = autoStart;
+    // Pressing Select keeps the mode on with nothing chosen. A mode started by ticking a
+    // picture ends by itself when the last tick is removed.
+    let startedByButton = autoStart;
     let lastSelectedIndex = -1;
     let suppressNextClick = false;
     const selected = new Set();
@@ -562,6 +566,8 @@
     };
 
     const selectedTiles = () => tiles.filter((tile, index) => selected.has(keyFor(tile, index)));
+    const isSelectable = tile => !tile.disabled && !tile.classList.contains('photos-tile--unavailable');
+    const selectableIn = scope => (scope ? Array.from(scope.querySelectorAll('[data-media-item]')).filter(isSelectable) : []);
 
     const setTileSelected = (tile, index, value) => {
         const key = keyFor(tile, index);
@@ -642,7 +648,14 @@
             }
         }
 
-        if (countLabel) countLabel.textContent = `${chosen.length} selected`;
+        library.querySelectorAll('[data-day-select]').forEach(button => {
+            const dayTiles = selectableIn(button.closest('.photos-day'));
+            const allChosen = dayTiles.length > 0 && dayTiles.every(tile => tile.classList.contains('is-selected'));
+            button.classList.toggle('is-selected', allChosen);
+            button.setAttribute('aria-pressed', String(allChosen));
+        });
+
+        if (countLabel) countLabel.textContent = chosen.length === 0 ? 'Choose pictures' : `${chosen.length} selected`;
         if (noteLabel) {
             const unsupported = chosen.length - assetIds.length;
             noteLabel.textContent = unsupported > 0
@@ -678,7 +691,14 @@
             return;
         }
         selecting = false;
+        startedByButton = false;
         clearSelection();
+        render();
+    };
+
+    const enterSelectionMode = () => {
+        if (selecting) return;
+        selecting = true;
         render();
     };
 
@@ -688,9 +708,12 @@
             return;
         }
         selecting = !selecting;
+        startedByButton = selecting;
         if (!selecting) clearSelection();
         render();
     });
+
+    cancelButton?.addEventListener('click', leaveSelectionMode);
 
     clearButton?.addEventListener('click', clearSelection);
     selectAllButton?.addEventListener('click', () => {
@@ -708,9 +731,24 @@
     });
 
     library.addEventListener('click', event => {
-        if (!selecting) return;
-        const tile = event.target.closest('[data-media-item]');
+        // The tick beside a day heading takes, or releases, the whole day.
+        const dayButton = event.target?.closest?.('[data-day-select]') ?? null;
+        if (dayButton) {
+            const dayTiles = selectableIn(dayButton.closest('.photos-day'));
+            const release = dayTiles.length > 0 && dayTiles.every(tile => tile.classList.contains('is-selected'));
+            enterSelectionMode();
+            dayTiles.forEach(tile => setTileSelected(tile, tiles.indexOf(tile), !release));
+            rebuildActionTargets();
+            if (selected.size === 0 && !startedByButton && !targetedCuration) leaveSelectionMode();
+            return;
+        }
+
+        const tile = event.target?.closest?.('[data-media-item]') ?? null;
         if (!tile) return;
+        // Outside the mode, only the tick on a picture selects; the picture itself opens.
+        const onTick = Boolean(event.target.closest('.photos-tile__select'));
+        if (!selecting && (!onTick || !isSelectable(tile))) return;
+        enterSelectionMode();
 
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -734,6 +772,7 @@
 
         lastSelectedIndex = index;
         rebuildActionTargets();
+        if (selected.size === 0 && !startedByButton && !targetedCuration) leaveSelectionMode();
     }, true);
 
     // Desktop lasso selection. It is deliberately available only in explicit Select mode

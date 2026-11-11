@@ -67,3 +67,13 @@ test('the month list scrolls to a loaded month and otherwise follows its link', 
     const scrubber = libraryScript.slice(libraryScript.indexOf("querySelector('[data-photos-scrubber]')"));
     assert.match(scrubber, /if \(!heading\) return;\s+event\.preventDefault\(\);/);
 });
+
+test('a tick on a picture or beside a day starts selecting; the top bar holds the actions', () => {
+    assert.match(photosPage, /data-day-select/);
+    assert.match(photosPage, /data-selection-cancel /);
+    // The action bar is rendered inside the slim bar, not after the timeline.
+    const bar = photosPage.slice(photosPage.indexOf('class="photos-bar" data-photos-bar'), photosPage.indexOf('class="photos-subbar"'));
+    assert.match(bar, /data-photos-selection-bar/);
+    assert.match(libraryScript, /if \(!selecting && \(!onTick \|\| !isSelectable\(tile\)\)\) return;/);
+    assert.match(libraryScript, /selected\.size === 0 && !startedByButton && !targetedCuration/);
+});
