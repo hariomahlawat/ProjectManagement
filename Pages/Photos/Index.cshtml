@@ -57,9 +57,89 @@
      data-selection-auto-start="@(Model.IsAddMediaMode ? "true" : "false")"
      data-selection-cancel-url="@(Model.IsAddMediaMode && Model.AddMediaTargetAlbum is not null ? Model.BuildAlbumUrl(Model.AddMediaTargetAlbum.Id) : null)"
      data-sparse-last-row="@(Model.IsPeopleGallery || Model.IsCollectionDetail || Model.IsAlbumDetail ? "true" : "false")">
-    <header class="photos-hero @(Model.IsPeopleGallery ? "photos-hero--person" : null)">
-        @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 0)
+    @{
+        async Task RenderPageActions()
         {
+            <div class="photos-hero__actions">
+                @if (Model.IsSinglePersonProfile)
+                {
+                    @if (Model.CanReviewPersonCandidates)
+                    {
+                        @if (personProfile?.HasTrustedReference == false)
+                        {
+                            @if (Model.CanManagePeople)
+                            {
+                                <a class="photos-action photos-action--primary photos-person-profile__discover"
+                                   href="@Model.BuildPersonMatchingSetupUrl(personProfile.PersonId)"
+                                   title="Choose or prepare a trusted matching reference before searching for additional photographs.">
+                                    <i class="bi bi-shield-check"></i>
+                                    <span>Set up matching</span>
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="photos-action photos-action--quiet photos-person-profile__discover is-disabled"
+                                      title="An identity manager must set up a trusted matching reference before PRISM can search for more photos of you."
+                                      aria-disabled="true">
+                                    <i class="bi bi-shield-exclamation"></i>
+                                    <span>Matching setup required</span>
+                                </span>
+                            }
+                        }
+                        else
+                        {
+                            <a class="photos-action photos-action--primary photos-person-profile__discover"
+                               href="@Model.BuildPersonDiscoveryUrl(!Model.FindMore)"
+                               aria-expanded="@(Model.ShowPersonDiscovery ? "true" : "false")"
+                               aria-controls="personPhotoDiscovery">
+                                <i class="bi bi-person-bounding-box"></i>
+                                <span>@(Model.ShowPersonDiscovery ? "Hide matches" : Model.PersonDiscoveryPrimaryLabel)</span>
+                                @if (personProfile is not null)
+                                {
+                                    <b class="@(personProfile.PossibleMatchCount == 0 ? "d-none" : null)" data-person-discovery-action-count>@personProfile.PossibleMatchCount</b>
+                                }
+                            </a>
+                        }
+                    }
+                    <a class="photos-action photos-action--quiet" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-person-plus"></i><span>Add people</span></a>
+                    @if (Model.CanManagePeople)
+                    {
+                        <a class="photos-action photos-action--quiet" asp-page="/Photos/People/Details" asp-route-id="@Model.SelectedPeople[0].Id"><i class="bi bi-sliders"></i><span>Manage identity</span></a>
+                    }
+                }
+                else if (Model.IsMultiPersonGallery)
+                {
+                    <a class="photos-action photos-action--quiet" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-person-plus"></i><span>Add people</span></a>
+                }
+                @if (!Model.IsPeopleGallery && (Model.View == "photos" || Model.IsAlbumDetail) && Model.Groups.Count > 0 && !Model.OrganizeAlbum)
+                {
+                    <button type="button" class="photos-action photos-action--quiet" data-photos-select-toggle aria-pressed="@(Model.IsAddMediaMode ? "true" : "false")"><i class="bi bi-check2-circle"></i><span>@(Model.IsAddMediaMode ? "Cancel" : "Select")</span></button>
+                }
+                @if (Model.IsAlbumsWorkspace)
+                {
+                    <button type="button" class="photos-action photos-action--primary" data-bs-toggle="modal" data-bs-target="#createAlbumModal"><i class="bi bi-plus-lg"></i><span>New album</span></button>
+                }
+                <div class="dropdown">
+                    <button class="photos-action photos-action--quiet" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More options"><i class="bi bi-three-dots"></i></button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                        @if (Model.IsPeopleGallery)
+                        {
+                            <li><a class="dropdown-item" href="@Model.BuildClearPeopleUrl()"><i class="bi bi-images me-2"></i>All photos</a></li>
+                        }
+                        @if (Model.CanManagePeople)
+                        {
+                            <li><a class="dropdown-item" asp-page="/Admin/MediaIntelligence/Index"><i class="bi bi-cpu me-2"></i>Media intelligence</a></li>
+                            <li><a class="dropdown-item" asp-page="/Admin/MediaSources/Index"><i class="bi bi-hdd-network me-2"></i>Media sources</a></li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        }
+    }
+
+    @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 0)
+    {
+        <header class="photos-hero photos-hero--person">
             <div class="photos-person-hero">
                 @if (Model.IsPersonalPhotoProfile)
                 {
@@ -121,107 +201,83 @@
                     </div>
                 </div>
             </div>
-        }
-        else
-        {
-            <div>
-                <span class="photos-eyebrow">Unified organisational media</span>
-                <h1>Photos</h1>
-                <p>Browse project photographs, visits, activities, events and videos in one place.</p>
-            </div>
-        }
-        <div class="photos-hero__actions">
-            @if (Model.IsSinglePersonProfile)
-            {
-                @if (Model.CanReviewPersonCandidates)
-                {
-                    @if (personProfile?.HasTrustedReference == false)
-                    {
-                        @if (Model.CanManagePeople)
-                        {
-                            <a class="photos-action photos-action--primary photos-person-profile__discover"
-                               href="@Model.BuildPersonMatchingSetupUrl(personProfile.PersonId)"
-                               title="Choose or prepare a trusted matching reference before searching for additional photographs.">
-                                <i class="bi bi-shield-check"></i>
-                                <span>Set up matching</span>
-                            </a>
-                        }
-                        else
-                        {
-                            <span class="photos-action photos-action--quiet photos-person-profile__discover is-disabled"
-                                  title="An identity manager must set up a trusted matching reference before PRISM can search for more photos of you."
-                                  aria-disabled="true">
-                                <i class="bi bi-shield-exclamation"></i>
-                                <span>Matching setup required</span>
-                            </span>
-                        }
-                    }
-                    else
-                    {
-                        <a class="photos-action photos-action--primary photos-person-profile__discover"
-                           href="@Model.BuildPersonDiscoveryUrl(!Model.FindMore)"
-                           aria-expanded="@(Model.ShowPersonDiscovery ? "true" : "false")"
-                           aria-controls="personPhotoDiscovery">
-                            <i class="bi bi-person-bounding-box"></i>
-                            <span>@(Model.ShowPersonDiscovery ? "Hide matches" : Model.PersonDiscoveryPrimaryLabel)</span>
-                            @if (personProfile is not null)
-                            {
-                                <b class="@(personProfile.PossibleMatchCount == 0 ? "d-none" : null)" data-person-discovery-action-count>@personProfile.PossibleMatchCount</b>
-                            }
-                        </a>
-                    }
-                }
-                <a class="photos-action photos-action--quiet" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-person-plus"></i><span>Add people</span></a>
-                @if (Model.CanManagePeople)
-                {
-                    <a class="photos-action photos-action--quiet" asp-page="/Photos/People/Details" asp-route-id="@Model.SelectedPeople[0].Id"><i class="bi bi-sliders"></i><span>Manage identity</span></a>
-                }
-            }
-            else if (Model.IsMultiPersonGallery)
-            {
-                <a class="photos-action photos-action--quiet" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-person-plus"></i><span>Add people</span></a>
-            }
-            @if (!Model.IsPeopleGallery && (Model.View == "photos" || Model.IsAlbumDetail) && Model.Groups.Count > 0 && !Model.OrganizeAlbum)
-            {
-                <button type="button" class="photos-action photos-action--quiet" data-photos-select-toggle aria-pressed="@(Model.IsAddMediaMode ? "true" : "false")"><i class="bi bi-check2-circle"></i><span>@(Model.IsAddMediaMode ? "Cancel" : "Select")</span></button>
-            }
-            @if (Model.IsAlbumsWorkspace)
-            {
-                <button type="button" class="photos-action photos-action--primary" data-bs-toggle="modal" data-bs-target="#createAlbumModal"><i class="bi bi-plus-lg"></i><span>New album</span></button>
-            }
-            <div class="dropdown">
-                <button class="photos-action photos-action--quiet" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More options"><i class="bi bi-three-dots"></i></button>
-                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                    @if (Model.IsPeopleGallery)
-                    {
-                        <li><a class="dropdown-item" href="@Model.BuildClearPeopleUrl()"><i class="bi bi-images me-2"></i>All photos</a></li>
-                    }
-                    @if (Model.CanManagePeople)
-                    {
-                        <li><a class="dropdown-item" asp-page="/Admin/MediaIntelligence/Index"><i class="bi bi-cpu me-2"></i>Media intelligence</a></li>
-                        <li><a class="dropdown-item" asp-page="/Admin/MediaSources/Index"><i class="bi bi-hdd-network me-2"></i>Media sources</a></li>
-                    }
-                </ul>
-            </div>
-        </div>
-    </header>
-
-    <nav class="photos-primary-tabs" aria-label="Photos sections">
-        <a asp-page="./Index" asp-route-View="photos" class="@((Model.IsPersonalPhotoProfile || (!Model.IsPeopleGallery && Model.View == "photos" && !Model.IsCollectionDetail)) ? "is-active" : null)">Photos</a>
-        <a asp-page="./Index" asp-route-View="collections" class="@(!Model.IsPeopleGallery && (Model.View == "collections" || Model.IsCollectionDetail || Model.IsAlbumDetail) ? "is-active" : null)">Collections</a>
-        @if (Model.PeopleFeatureEnabled)
-        {
-            <a class="@(Model.IsPeopleGallery && !Model.IsPersonalPhotoProfile ? "is-active" : null)" asp-page="/Photos/People/Index">People</a>
-        }
-    </nav>
-
-    @if (!Model.IsPeopleGallery && (Model.View == "collections" || Model.IsAlbumDetail))
-    {
-        <nav class="photos-collection-tabs" aria-label="Collection type">
-            <a class="@(!Model.IsAlbumsWorkspace && !Model.IsAlbumDetail ? "is-active" : null)" href="@Model.BuildCollectionsUrl()">Source collections</a>
-            <a class="@(Model.IsAlbumsWorkspace || Model.IsAlbumDetail ? "is-active" : null)" href="@Model.BuildAlbumsUrl()">Albums</a>
-        </nav>
+            @{ await RenderPageActions(); }
+        </header>
     }
+
+    <div class="photos-bar" data-photos-bar>
+        @if (!Model.IsPeopleGallery)
+        {
+            <h1 class="visually-hidden">Photos</h1>
+        }
+        <nav class="photos-sections" aria-label="Photos sections">
+            <a asp-page="./Index" asp-route-View="photos" class="@((Model.IsPersonalPhotoProfile || (!Model.IsPeopleGallery && Model.View == "photos" && !Model.IsCollectionDetail && !Model.IsAlbumDetail)) ? "is-active" : null)">Photos</a>
+            <a href="@Model.BuildAlbumsUrl()" class="@(!Model.IsPeopleGallery && (Model.IsAlbumsWorkspace || Model.IsAlbumDetail) ? "is-active" : null)">Albums</a>
+            @if (Model.PeopleFeatureEnabled)
+            {
+                <a class="@(Model.IsPeopleGallery && !Model.IsPersonalPhotoProfile ? "is-active" : null)" asp-page="/Photos/People/Index">People</a>
+            }
+            <a href="@Model.BuildCollectionsUrl()" class="@(!Model.IsPeopleGallery && !Model.IsAlbumsWorkspace && !Model.IsAlbumDetail && (Model.View == "collections" || Model.IsCollectionDetail) ? "is-active" : null)">Collections</a>
+        </nav>
+        @if (!Model.IsAlbumDetail)
+        {
+            <form method="get" class="photos-search" role="search">
+                <input type="hidden" name="View" value="@Model.View" />
+                @if (Model.IsAddMediaMode && Model.AddMediaTargetAlbum is not null) { <input type="hidden" name="AddToAlbumId" value="@Model.AddMediaTargetAlbum.Id" /> }
+                @if (Model.IsAlbumsWorkspace) { <input type="hidden" name="CollectionTab" value="albums" /> }
+                <i class="bi bi-search"></i>
+                <input type="search" name="Q" value="@Model.Q" placeholder="@(Model.IsAlbumsWorkspace ? "Search albums" : Model.IsPersonalPhotoProfile ? "Search my photos" : Model.IsPeopleGallery ? $"Search photos of {selectedNames}" : Model.PeopleFeatureEnabled ? "Search photos, projects, visits, activities, events, albums or people" : "Search photos, projects, visits, activities, events or albums")" autocomplete="off" data-photos-search />
+                @if (!Model.IsAlbumsWorkspace)
+                {
+                    <input type="hidden" name="Source" value="@Model.Source" /><input type="hidden" name="Kind" value="@Model.Kind" /><input type="hidden" name="Classification" value="@Model.Classification" />
+                    @if (Model.ProjectId.HasValue) { <input type="hidden" name="ProjectId" value="@Model.ProjectId" /> }
+                    @foreach (var personId in Model.PersonIds) { <input type="hidden" name="PersonIds" value="@personId" /> }
+                    @if (Model.PersonIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+                    @if (Model.IsSinglePersonProfile && Model.FindMore) { <input type="hidden" name="FindMore" value="true" /> }
+                    @if (Model.Year.HasValue) { <input type="hidden" name="Year" value="@Model.Year" /> }
+                    @if (Model.IsCollectionDetail) { <input type="hidden" name="Collection" value="@Model.Collection" /> }
+                    @if (Model.IncludeSingletonCollections) { <input type="hidden" name="IncludeSingletonCollections" value="true" /> }
+                }
+                @if (Model.Sort != "newest") { <input type="hidden" name="Sort" value="@Model.Sort" /> }
+                @if (Model.IsAlbumsWorkspace && Model.IncludeArchivedAlbums) { <input type="hidden" name="IncludeArchivedAlbums" value="true" /> }
+            </form>
+            <div class="photos-toolbar__controls">
+                @if (Model.IsAlbumsWorkspace)
+                {
+                    <a class="photos-control @(Model.IncludeArchivedAlbums ? "is-active" : null)" href="@Model.BuildAlbumsUrl(!Model.IncludeArchivedAlbums)"><i class="bi bi-archive"></i><span>@(Model.IncludeArchivedAlbums ? "Hide archived" : "Show archived")</span></a>
+                }
+                else
+                {
+                    <button class="photos-control" type="button" data-bs-toggle="offcanvas" data-bs-target="#photosFilters"><i class="bi bi-sliders2"></i><span>Filters</span>@if(activeFilterCount>0){<b>@activeFilterCount</b>}</button>
+                }
+                <div class="dropdown photos-sort">
+                    <button class="photos-control" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Sort @(Model.IsAlbumsWorkspace ? "albums" : "media")">
+                        <i class="bi bi-arrow-down-up"></i><span>@(Model.Sort == "oldest" ? "Oldest" : "Newest")</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                        <li><a class="dropdown-item @(Model.Sort == "newest" ? "active" : null)" href="@Model.BuildSortUrl("newest")">Newest first</a></li>
+                        <li><a class="dropdown-item @(Model.Sort == "oldest" ? "active" : null)" href="@Model.BuildSortUrl("oldest")">Oldest first</a></li>
+                    </ul>
+                </div>
+                @if (!Model.IsAlbumsWorkspace)
+                {
+                    <nav class="photos-segments" aria-label="Media type">
+                        <a class="@(Model.Kind == "all" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("all")">All</a>
+                        <a class="@(Model.Kind == "photo" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("photo")">Photos</a>
+                        <a class="@(Model.Kind == "video" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("video")">Videos</a>
+                    </nav>
+                    @if (Model.IsPeopleGallery && Model.Groups.Count > 0)
+                    {
+                        <button type="button" class="photos-control photos-control--select" data-photos-select-toggle aria-pressed="false"><i class="bi bi-check2-circle"></i><span>Select</span></button>
+                    }
+                }
+            </div>
+        }
+        @if (!Model.IsPeopleGallery)
+        {
+            await RenderPageActions();
+        }
+    </div>
 
     @if (Model.IsAlbumDetail && Model.CurrentAlbum is not null)
     {
@@ -321,63 +377,6 @@
     @if (!string.IsNullOrWhiteSpace(Model.AddMediaTargetWarning))
     {
         <div class="alert alert-warning photos-flash" role="status">@Model.AddMediaTargetWarning</div>
-    }
-
-    @if (!Model.IsAlbumDetail)
-    {
-        <section class="photos-toolbar" aria-label="Media controls">
-            <form method="get" class="photos-search" role="search">
-                <input type="hidden" name="View" value="@Model.View" />
-                @if (Model.IsAddMediaMode && Model.AddMediaTargetAlbum is not null) { <input type="hidden" name="AddToAlbumId" value="@Model.AddMediaTargetAlbum.Id" /> }
-                @if (Model.IsAlbumsWorkspace) { <input type="hidden" name="CollectionTab" value="albums" /> }
-                <i class="bi bi-search"></i>
-                <input type="search" name="Q" value="@Model.Q" placeholder="@(Model.IsAlbumsWorkspace ? "Search albums" : Model.IsPersonalPhotoProfile ? "Search my photos" : Model.IsPeopleGallery ? $"Search photos of {selectedNames}" : Model.PeopleFeatureEnabled ? "Search photos, projects, visits, activities, events, albums or people" : "Search photos, projects, visits, activities, events or albums")" autocomplete="off" data-photos-search />
-                @if (!Model.IsAlbumsWorkspace)
-                {
-                    <input type="hidden" name="Source" value="@Model.Source" /><input type="hidden" name="Kind" value="@Model.Kind" /><input type="hidden" name="Classification" value="@Model.Classification" />
-                    @if (Model.ProjectId.HasValue) { <input type="hidden" name="ProjectId" value="@Model.ProjectId" /> }
-                    @foreach (var personId in Model.PersonIds) { <input type="hidden" name="PersonIds" value="@personId" /> }
-                    @if (Model.PersonIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
-                    @if (Model.IsSinglePersonProfile && Model.FindMore) { <input type="hidden" name="FindMore" value="true" /> }
-                    @if (Model.Year.HasValue) { <input type="hidden" name="Year" value="@Model.Year" /> }
-                    @if (Model.IsCollectionDetail) { <input type="hidden" name="Collection" value="@Model.Collection" /> }
-                    @if (Model.IncludeSingletonCollections) { <input type="hidden" name="IncludeSingletonCollections" value="true" /> }
-                }
-                @if (Model.Sort != "newest") { <input type="hidden" name="Sort" value="@Model.Sort" /> }
-                @if (Model.IsAlbumsWorkspace && Model.IncludeArchivedAlbums) { <input type="hidden" name="IncludeArchivedAlbums" value="true" /> }
-            </form>
-            <div class="photos-toolbar__controls">
-                @if (Model.IsAlbumsWorkspace)
-                {
-                    <a class="photos-control @(Model.IncludeArchivedAlbums ? "is-active" : null)" href="@Model.BuildAlbumsUrl(!Model.IncludeArchivedAlbums)"><i class="bi bi-archive"></i><span>@(Model.IncludeArchivedAlbums ? "Hide archived" : "Show archived")</span></a>
-                }
-                else
-                {
-                    <button class="photos-control" type="button" data-bs-toggle="offcanvas" data-bs-target="#photosFilters"><i class="bi bi-sliders2"></i><span>Filters</span>@if(activeFilterCount>0){<b>@activeFilterCount</b>}</button>
-                }
-                <div class="dropdown photos-sort">
-                    <button class="photos-control" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Sort @(Model.IsAlbumsWorkspace ? "albums" : "media")">
-                        <i class="bi bi-arrow-down-up"></i><span>@(Model.Sort == "oldest" ? "Oldest" : "Newest")</span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                        <li><a class="dropdown-item @(Model.Sort == "newest" ? "active" : null)" href="@Model.BuildSortUrl("newest")">Newest first</a></li>
-                        <li><a class="dropdown-item @(Model.Sort == "oldest" ? "active" : null)" href="@Model.BuildSortUrl("oldest")">Oldest first</a></li>
-                    </ul>
-                </div>
-                @if (!Model.IsAlbumsWorkspace)
-                {
-                    <nav class="photos-segments" aria-label="Media type">
-                        <a class="@(Model.Kind == "all" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("all")">All</a>
-                        <a class="@(Model.Kind == "photo" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("photo")">Photos</a>
-                        <a class="@(Model.Kind == "video" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("video")">Videos</a>
-                    </nav>
-                    @if (Model.IsPeopleGallery && Model.Groups.Count > 0)
-                    {
-                        <button type="button" class="photos-control photos-control--select" data-photos-select-toggle aria-pressed="false"><i class="bi bi-check2-circle"></i><span>Select</span></button>
-                    }
-                }
-            </div>
-        </section>
     }
 
     <div class="photos-summary">
