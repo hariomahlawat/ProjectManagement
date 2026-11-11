@@ -136,7 +136,10 @@
     input.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             if (!panel.hidden) {
+                // This Escape only closes the suggestions; it must not also end a selection
+                // or close anything else that listens for the key further up.
                 event.preventDefault();
+                event.stopPropagation();
                 close();
             }
             return;
