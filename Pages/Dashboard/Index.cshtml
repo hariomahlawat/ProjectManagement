@@ -419,19 +419,18 @@
             </div>
         </section>
 
-        @* Three slim cards: a few figures each, and a link to the module. *@
+        @* Three slim cards: a few figures each. Like the output tiles above, the whole card is the link to its module. *@
         <section class="db-trio-grid db-reveal" aria-label="Activities, ideas and IT projects">
-            <article class="db-panel db-hue-4 db-slim">
+            <a asp-page="/Activities/Index" class="db-panel db-hue-4 db-slim" title="View activities">
                 <div class="db-section-head">
                     <div><span class="db-section-icon"><i class="bi bi-people"></i></span><div><h2>Institutional activities</h2><p>Last 12 months</p></div></div>
-                    <a asp-page="/Activities/Index" class="db-text-link" aria-label="View activities">View <i class="bi bi-arrow-right"></i></a>
                 </div>
                 @if (Model.ActivitySummary.TopTypes.Count > 0)
                 {
                     <div class="db-figures">
                         @foreach (var type in Model.ActivitySummary.TopTypes)
                         {
-                            <a asp-page="/Activities/Index" asp-route-ActivityTypeId="@type.ActivityTypeId" class="db-figure" title="View @type.Name activities"><strong>@type.Count</strong><span>@type.Name</span></a>
+                            <div class="db-figure"><strong>@type.Count</strong><span>@type.Name</span></div>
                         }
                     </div>
                 }
@@ -439,32 +438,30 @@
                 {
                     <div class="db-empty db-empty--slim">No activities in the last 12 months.</div>
                 }
-            </article>
+            </a>
 
-            <article class="db-panel db-hue-6 db-slim">
+            <a asp-page="/ProjectIdeas/Index" class="db-panel db-hue-6 db-slim" title="Open the ideation board">
                 <div class="db-section-head">
                     <div><span class="db-section-icon"><i class="bi bi-lightbulb"></i></span><div><h2>Innovation pipeline</h2></div></div>
-                    <a asp-page="/ProjectIdeas/Index" class="db-text-link" aria-label="Open ideation board">Open <i class="bi bi-arrow-right"></i></a>
                 </div>
                 <div class="db-figures">
                     <div class="db-figure"><strong>@Model.IdeaSummary.ActiveCount</strong><span>Active ideas</span></div>
                     <div class="db-figure"><strong>@Model.IdeaSummary.OnHoldCount</strong><span>On hold</span></div>
                 </div>
-            </article>
+            </a>
 
             @if (Model.ItProjects is { } it)
             {
-                <article class="db-panel db-hue-5 db-slim">
+                <a asp-page="/ItProjects/Index" class="db-panel db-hue-5 db-slim" title="Open IT projects">
                     <div class="db-section-head">
                         <div><span class="db-section-icon"><i class="bi bi-pc-display"></i></span><div><h2>IT projects</h2><p>FY @it.FinancialYearDisplay</p></div></div>
-                        <a asp-page="/ItProjects/Index" class="db-text-link" aria-label="Open IT projects">Open <i class="bi bi-arrow-right"></i></a>
                     </div>
                     <div class="db-figures">
                         <div class="db-figure"><strong>@it.Listed</strong><span>Listed</span></div>
                         <div class="db-figure"><strong>@it.Completed</strong><span>Completed</span></div>
                         <div class="db-figure"><strong>@it.Ongoing</strong><span>Ongoing</span></div>
                     </div>
-                </article>
+                </a>
             }
         </section>
 
