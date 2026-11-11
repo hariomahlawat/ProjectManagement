@@ -318,6 +318,14 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Page = "/Tools/Pdf/Index",
             Icon = "bi-file-earmark-pdf",
             OpensInNewTab = true
+        },
+        // Standalone tool: users change their own photos in the browser; nothing is stored in PRISM.
+        new()
+        {
+            Text = "Photo Tools",
+            Page = "/Tools/Photo/Index",
+            Icon = "bi-image",
+            OpensInNewTab = true
         }
     };
 

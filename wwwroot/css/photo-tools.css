@@ -1,0 +1,463 @@
+/* PRISM Photo Tools — standalone page (Pages/Tools/Photo). The shell (top bar, home cards,
+   drop zone) comes from pdf-tools.css; this file adds only what Photo Tools needs. Colours
+   come from Bootstrap's theme variables only, so Light and Dark both work. */
+
+.phot {
+    --pdft-brand: var(--bs-primary);
+    --phot-stage: var(--bs-dark);
+    --phot-stage-text: var(--bs-light);
+}
+
+.phot-main {
+    max-width: 1320px;
+}
+
+.phot-grid {
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+.phot-home-drop {
+    max-width: 760px;
+    min-height: 180px;
+    margin: 1.5rem auto 0;
+}
+
+/* ---------- Tool header ---------- */
+
+.phot-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.phot-head__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 44px;
+    color: var(--pdft-muted);
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.phot-head__back:hover,
+.phot-head__back:focus-visible {
+    color: var(--bs-emphasis-color);
+}
+
+.phot-head h1 {
+    margin: 0;
+    font-size: clamp(1.4rem, 3vw, 1.75rem);
+    font-weight: 800;
+    color: var(--bs-emphasis-color);
+}
+
+.phot-head__action {
+    margin-left: auto;
+    font-weight: 700;
+}
+
+/* ---------- Layout ---------- */
+
+.phot-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.phot-layout.is-dragging .phot-list {
+    border-color: var(--pdft-brand);
+}
+
+.phot-layout__main,
+.phot-layout__side {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+}
+
+.phot-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 1.25rem;
+    border-radius: var(--pdft-radius);
+    background: var(--pdft-surface);
+    border: 1px solid var(--pdft-border);
+}
+
+.phot-panel__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--bs-emphasis-color);
+}
+
+.phot-hint {
+    margin: 0;
+    color: var(--pdft-muted);
+    font-size: 0.875rem;
+}
+
+.phot-hint--warning {
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+}
+
+/* ---------- Photo list ---------- */
+
+.phot-list {
+    padding: 0;
+    overflow-x: auto;
+}
+
+.phot-table {
+    width: 100%;
+    min-width: 520px;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.phot-table th {
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--pdft-muted);
+    border-bottom: 1px solid var(--pdft-border);
+    white-space: nowrap;
+}
+
+.phot-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    vertical-align: middle;
+}
+
+.phot-table th:first-child,
+.phot-table td:first-child {
+    padding-left: 1.25rem;
+}
+
+.phot-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.phot-table tbody tr.is-selected {
+    background: var(--bs-primary-bg-subtle);
+}
+
+.phot-num {
+    text-align: right;
+    white-space: nowrap;
+    color: var(--pdft-muted);
+}
+
+.phot-row__pick {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+}
+
+.phot-row__thumb {
+    flex: 0 0 auto;
+    width: 48px;
+    height: 36px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: var(--bs-secondary-bg);
+}
+
+.phot-row__name {
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+.phot-after {
+    font-weight: 800;
+    color: var(--bs-success-text-emphasis);
+}
+
+.phot-after.is-over {
+    color: var(--bs-warning-text-emphasis);
+}
+
+.phot-after.is-error {
+    color: var(--bs-danger-text-emphasis);
+    font-weight: 600;
+    white-space: normal;
+}
+
+.phot-row__remove {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--pdft-muted);
+}
+
+.phot-row__remove:hover,
+.phot-row__remove:focus-visible {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-emphasis-color);
+}
+
+/* ---------- Quality check ---------- */
+
+.phot-stage {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--pdft-radius);
+    overflow: hidden;
+    background: var(--phot-stage);
+    color: var(--phot-stage-text);
+}
+
+.phot-stage__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: 0.7rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.phot-stage__slider {
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    margin: 0;
+}
+
+.phot-compare {
+    position: relative;
+    height: clamp(240px, 46vh, 460px);
+}
+
+.phot-compare__image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.phot-compare__line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--bs-white);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--bs-black) 35%, transparent);
+}
+
+.phot-compare__tag {
+    position: absolute;
+    bottom: 0.75rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--bs-black) 78%, transparent);
+    color: var(--bs-white);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.phot-compare__tag--before { left: 0.75rem; }
+.phot-compare__tag--after { right: 0.75rem; }
+
+/* ---------- Target size ---------- */
+
+.phot-target {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.phot-target__value {
+    width: 7rem;
+    min-height: 52px;
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.phot-segment {
+    display: inline-flex;
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--bs-secondary-bg);
+}
+
+.phot-segment button {
+    min-height: 40px;
+    padding: 0 0.9rem;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--bs-secondary-color);
+    font: inherit;
+    font-weight: 700;
+}
+
+.phot-segment button[aria-pressed="true"] {
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font-weight: 800;
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--bs-emphasis-color) 18%, transparent);
+}
+
+.phot-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.phot-chips button {
+    min-height: 38px;
+    padding: 0 0.8rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 999px;
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.phot-chips button[aria-pressed="true"] {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    font-weight: 800;
+}
+
+.phot-field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem 0.75rem;
+}
+
+.phot-field label {
+    font-weight: 700;
+}
+
+.phot-field .form-select,
+.phot-field .form-control {
+    width: auto;
+    min-width: 11rem;
+    max-width: 100%;
+    min-height: 42px;
+}
+
+/* ---------- Summary ---------- */
+
+.phot-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1.25rem;
+    border-radius: var(--pdft-radius);
+    background: var(--phot-stage);
+    color: var(--phot-stage-text);
+}
+
+.phot-summary__count {
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.phot-summary__sizes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+.phot-summary__before {
+    font-size: 1.1rem;
+    text-decoration: line-through;
+}
+
+.phot-summary__after {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--bs-white);
+}
+
+.phot-summary__note {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.phot-summary .btn {
+    font-weight: 800;
+}
+
+/* ---------- Phones ---------- */
+
+@media (max-width: 900px) {
+    .phot-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 575.98px) {
+    .phot-head__action {
+        margin-left: 0;
+    }
+
+    .phot-table th:nth-child(4),
+    .phot-table td:nth-child(4) {
+        display: none;
+    }
+
+    .phot-table {
+        min-width: 0;
+    }
+
+    .phot-table th,
+    .phot-table td {
+        padding-left: 0.4rem;
+        padding-right: 0.4rem;
+    }
+
+    .phot-table th:first-child,
+    .phot-table td:first-child {
+        padding-left: 0.75rem;
+    }
+
+    .phot-row__pick {
+        gap: 0.5rem;
+    }
+
+    .phot-row__thumb {
+        width: 40px;
+        height: 30px;
+    }
+}

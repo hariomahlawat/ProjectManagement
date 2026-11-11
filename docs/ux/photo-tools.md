@@ -92,9 +92,10 @@ stage is a small custom canvas component. No CDN, no remote font, no AI model.
 | `ProjectManagement.Tests/Tools/PhotoToolsPageContractTests.cs` | Sign-in required, `OnGet` only, no network calls in the scripts, all assets local |
 | `docs/photo-tools.md` | Durable document, created in PR 2 and updated by each later PR |
 
-The ZIP writer and EXIF orientation reader already exist inside
-`wwwroot/js/pdf-tools/pdf-tools-core.js`. PR 2 moves those two functions into a small shared file
-used by both tools, with the existing PDF tests kept green, so the logic is not copied.
+The ZIP writer already exists inside `wwwroot/js/pdf-tools/pdf-tools-core.js`. PR 2 moves it
+into a small shared file (`wwwroot/js/tools-shared/zip-writer.js`) used by both tools, with the
+existing PDF tests kept green, so the logic is not copied. The EXIF orientation reader stays in
+PDF Tools: browsers apply a photo's rotation themselves when it is drawn on a canvas.
 
 ## Build plan
 
@@ -103,7 +104,7 @@ Each PR is usable on its own and leaves the tool in a finished state.
 | PR | Scope | What the user gets |
 | --- | --- | --- |
 | 1 | This plan | Nothing visible |
-| 2 | Shell and Reduce size: page, top bar, home, drawer entry, usage row, contract tests, shared ZIP/EXIF file, target-size search, dimensions, format, batch and ZIP, quality compare | Reduce one or many photos to a size limit |
+| 2 | Shell and Reduce size: page, top bar, home, drawer entry, usage row, contract tests, shared ZIP file, target-size search, dimensions, format, batch and ZIP, quality compare | Reduce one or many photos to a size limit |
 | 3 | Passport photo: crop stage with face guide, size presets and custom, zoom, straighten, rotate, lighting fix, photo file at exact pixels and KB | A passport photo file for online forms |
 | 4 | Print sheet (4 x 6 inch, A4, cut lines, 300 dpi) and Signature mode | Printable sheets, and a signature file for forms |
 | 5 | Editor shell: crop, rotate and straighten, resize, undo/redo, hold to see the original, download with format and quality | A basic editor |
@@ -117,7 +118,7 @@ affecting them.
 ## Deployment impact and rollback
 
 - No database change, no migration, no new endpoint, no configuration key, no new runtime
-  dependency. Existing pages are untouched except one drawer entry and the two functions moved
+  dependency. Existing pages are untouched except one drawer entry and the ZIP writer moved
   out of the PDF Tools core file.
 - Rollback is reverting the PR; no data exists to clean up.
 - The site's Content-Security-Policy (`script-src 'self'`) must allow what the page uses
