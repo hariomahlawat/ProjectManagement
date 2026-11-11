@@ -66,11 +66,15 @@ Deployment and rollback:
 - **Rollback.** The previous build does not start against the migrated database: startup
   (`DatabaseStartupMigrator`) refuses a migration history that holds a migration the deployed
   build does not know. Going back therefore follows the offline update and rollback SOP
-  ([deployment/offline-ws2022.md](../deployment/offline-ws2022.md), section D2): restore the
-  database backup taken before the update, or run the reviewed reverse migration (the
-  migration's `Down` drops the two indexes and three columns), then start the previous build.
-  Either way MOLTI and SRE projects entered since the update are lost (a restore also loses
-  every other change since the backup), so the release note must say so.
+  ([deployment/offline-ws2022.md](../deployment/offline-ws2022.md), section D2), then starts
+  the previous build:
+  - **Restore the database backup taken before the update.** This is the rollback once any
+    MOLTI or SRE project exists. Those projects, and every other change since the backup, are
+    lost, so the release note must say so.
+  - **Reverse migration**, only while no MOLTI or SRE project exists. Without the module column
+    such a project would read as an IT project in the previous build, so the migration's `Down`
+    refuses to run while any row has a module other than IT (soft-deleted ones included); it
+    then drops the two indexes and three columns.
 
 ## One catalogue for what differs (`ItProjectModules`)
 
