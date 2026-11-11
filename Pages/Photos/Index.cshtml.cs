@@ -23,6 +23,13 @@ public sealed partial class IndexModel : PageModel
     private const int PageSize = 120;
     private const int CollectionPageSize = 48;
     private const int AlbumPageSize = 48;
+
+    /// <summary>
+    /// The catalogue pass reads sources before it records completion, so an upload made
+    /// during a pass may be newer than the source snapshot yet older than the recorded
+    /// completion time. Look back a little further so it is not missed.
+    /// </summary>
+    private static readonly TimeSpan UncataloguedUploadOverlap = TimeSpan.FromMinutes(15);
     private readonly ApplicationDbContext _db;
     private readonly MediaLibraryDbContext _mediaDb;
     private readonly IMediaLibraryQueryService _library;
@@ -194,11 +201,19 @@ public sealed partial class IndexModel : PageModel
             cancellationToken);
 
         var identityFilterRequiresCatalogue = PeopleFeatureEnabled && PersonIds.Length > 0;
+        // A catalogue that has completed at least one pass is complete apart from media
+        // added since then. Use it while it catches up, rather than re-reading every PRISM
+        // media row per page view (which also dropped external folders from "All sources").
+        var catalogueCatchingUp = !catalogueFreshness.IsFresh
+                                  && catalogueFreshness.LastSuccessfulScanAtUtc.HasValue;
         if (result.IsAvailable
             && result.HasPrismCatalogue
-            && (catalogueFreshness.IsFresh || Source == "external" || identityFilterRequiresCatalogue))
+            && (catalogueFreshness.IsFresh
+                || Source == "external"
+                || identityFilterRequiresCatalogue
+                || catalogueCatchingUp))
         {
-            if (!catalogueFreshness.IsFresh && identityFilterRequiresCatalogue)
+            if (!catalogueFreshness.IsFresh && (identityFilterRequiresCatalogue || catalogueCatchingUp))
             {
                 CatalogueCatchUpPending = true;
                 await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
@@ -212,16 +227,19 @@ public sealed partial class IndexModel : PageModel
             else
             {
                 ApplyCatalogueResult(result, includeTimeline: true);
+                if (catalogueCatchingUp)
+                {
+                    await AddUncataloguedRecentUploadsAsync(catalogueFreshness, cancellationToken);
+                }
+
                 await LoadManageableAlbumsSafeAsync(cancellationToken);
             }
             return;
         }
 
-        // A catalogue row existing is not proof that it represents the latest PRISM
-        // uploads. When the source revision is newer than the last successful catalogue
-        // pass, read PRISM-owned media directly so uploads remain visible immediately.
-        // The catalogue continues catching up in the background and later restores
-        // classification and people enrichment.
+        // Degraded path: the catalogue is unavailable or has never completed a pass, so
+        // read PRISM-owned media directly. The catalogue catches up in the background and
+        // later restores classification and people enrichment.
         CatalogueCatchUpPending = result.HasPrismCatalogue && !catalogueFreshness.IsFresh;
         if (CatalogueCatchUpPending)
         {
@@ -933,23 +951,97 @@ public sealed partial class IndexModel : PageModel
             _ => "External"
         };
 
-    private async Task LoadPrismFallbackAsync(Guid? prismSourceId, CancellationToken cancellationToken)
+    /// <summary>
+    /// Reads PRISM-owned media for the current Source and Kind filters. With no window it
+    /// reads every row (the degraded fallback used only when no usable catalogue exists);
+    /// with a window it reads at most <see cref="PrismUploadWindow.Take"/> recent uploads
+    /// per source.
+    /// </summary>
+    private async Task<List<MediaItem>> LoadPrismSourceItemsAsync(
+        PrismUploadWindow? window,
+        CancellationToken cancellationToken)
     {
-        IsUsingCatalogue = false;
-        var items = new List<MediaItem>(512);
-
+        var items = new List<MediaItem>();
         if (Source is "all" or "projects")
         {
-            if (Kind is "all" or "photo") items.AddRange(await LoadProjectPhotosAsync(cancellationToken));
-            if (Kind is "all" or "video") items.AddRange(await LoadProjectVideosAsync(cancellationToken));
+            if (Kind is "all" or "photo") items.AddRange(await LoadProjectPhotosAsync(window, cancellationToken));
+            if (Kind is "all" or "video") items.AddRange(await LoadProjectVideosAsync(window, cancellationToken));
         }
 
         if (Kind is "all" or "photo")
         {
-            if (Source is "all" or "visits") items.AddRange(await LoadVisitPhotosAsync(cancellationToken));
-            if (Source is "all" or "events") items.AddRange(await LoadSocialMediaPhotosAsync(cancellationToken));
-            if (Source is "all" or "activities") items.AddRange(await LoadActivityPhotosAsync(cancellationToken));
+            if (Source is "all" or "visits") items.AddRange(await LoadVisitPhotosAsync(window, cancellationToken));
+            if (Source is "all" or "events") items.AddRange(await LoadSocialMediaPhotosAsync(window, cancellationToken));
+            if (Source is "all" or "activities") items.AddRange(await LoadActivityPhotosAsync(window, cancellationToken));
         }
+
+        return items;
+    }
+
+    /// <summary>
+    /// While the catalogue catches up after an upload, the catalogue timeline is still
+    /// complete apart from media added since its last successful pass. Rather than
+    /// re-reading every PRISM media row on each page view, show the catalogue and add the
+    /// recent uploads it has not indexed yet, so new uploads stay visible immediately.
+    /// The read is bounded by upload time and by page size for each source.
+    /// </summary>
+    private async Task AddUncataloguedRecentUploadsAsync(
+        PrismCatalogueFreshness freshness,
+        CancellationToken cancellationToken)
+    {
+        if (!freshness.SourceId.HasValue
+            || !freshness.LastSuccessfulScanAtUtc.HasValue
+            || !PhotosUploadOverlay.Applies(PageNumber, Sort, Classification, PersonIds.Length, Source))
+        {
+            return;
+        }
+
+        try
+        {
+            var window = new PrismUploadWindow(
+                freshness.LastSuccessfulScanAtUtc.Value - UncataloguedUploadOverlap,
+                PageSize);
+            var recent = (await LoadPrismSourceItemsAsync(window, cancellationToken))
+                .Where(MatchesSearch)
+                .Where(item => !Year.HasValue || item.MediaDate.Year == Year.Value)
+                .Where(item => Collection is null || string.Equals(item.CollectionKey, Collection, StringComparison.Ordinal))
+                .ToList();
+            if (recent.Count == 0)
+            {
+                return;
+            }
+
+            var sourceId = freshness.SourceId.Value;
+            var recentIds = recent.Select(item => item.Id).ToArray();
+            var alreadyCatalogued = await _mediaDb.Assets
+                .AsNoTracking()
+                .Where(asset => asset.SourceId == sourceId && recentIds.Contains(asset.SourceEntityId))
+                .Select(asset => asset.SourceEntityId)
+                .ToListAsync(cancellationToken);
+            var pending = PhotosUploadOverlay.SelectPending(
+                recent,
+                alreadyCatalogued.ToHashSet(StringComparer.Ordinal),
+                PageSize);
+            if (pending.Count == 0)
+            {
+                return;
+            }
+
+            Items = pending.Concat(Items).ToList();
+            BuildGroups();
+        }
+        catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
+        {
+            // The catalogue timeline is already shown; recent uploads appear once it catches up.
+            _logger.LogWarning(ex, "Unable to add recent PRISM uploads to the catalogue timeline.");
+        }
+    }
+
+    private async Task LoadPrismFallbackAsync(Guid? prismSourceId, CancellationToken cancellationToken)
+    {
+        IsUsingCatalogue = false;
+        var items = new List<MediaItem>(512);
+        items.AddRange(await LoadPrismSourceItemsAsync(window: null, cancellationToken));
 
         // Do not resurrect historical rows whose physical source was already proven
         // unavailable. A changed version is allowed through because it represents a new
@@ -1057,10 +1149,17 @@ public sealed partial class IndexModel : PageModel
             .ToList();
     }
 
-    private async Task<List<MediaItem>> LoadProjectPhotosAsync(CancellationToken cancellationToken)
+    private async Task<List<MediaItem>> LoadProjectPhotosAsync(PrismUploadWindow? window, CancellationToken cancellationToken)
     {
         var query = _db.ProjectPhotos.AsNoTracking().Where(photo => !photo.Project.IsDeleted);
         if (ProjectId.HasValue) query = query.Where(photo => photo.ProjectId == ProjectId.Value);
+        if (window is not null)
+        {
+            var since = window.AddedAfterUtc.UtcDateTime;
+            query = query.Where(photo => photo.CreatedUtc > since)
+                .OrderByDescending(photo => photo.CreatedUtc)
+                .Take(window.Take);
+        }
         var rows = await query.Select(photo => new
         {
             photo.Id, photo.ProjectId, ProjectName = photo.Project.Name, photo.Caption,
@@ -1089,10 +1188,17 @@ public sealed partial class IndexModel : PageModel
         }).ToList();
     }
 
-    private async Task<List<MediaItem>> LoadProjectVideosAsync(CancellationToken cancellationToken)
+    private async Task<List<MediaItem>> LoadProjectVideosAsync(PrismUploadWindow? window, CancellationToken cancellationToken)
     {
         var query = _db.ProjectVideos.AsNoTracking().Where(video => !video.Project.IsDeleted);
         if (ProjectId.HasValue) query = query.Where(video => video.ProjectId == ProjectId.Value);
+        if (window is not null)
+        {
+            var since = window.AddedAfterUtc.UtcDateTime;
+            query = query.Where(video => video.CreatedUtc > since)
+                .OrderByDescending(video => video.CreatedUtc)
+                .Take(window.Take);
+        }
         var rows = await query.Select(video => new
         {
             video.Id, video.ProjectId, ProjectName = video.Project.Name, video.Title, video.Description,
@@ -1114,10 +1220,18 @@ public sealed partial class IndexModel : PageModel
         }).ToList();
     }
 
-    private async Task<List<MediaItem>> LoadVisitPhotosAsync(CancellationToken cancellationToken)
+    private async Task<List<MediaItem>> LoadVisitPhotosAsync(PrismUploadWindow? window, CancellationToken cancellationToken)
     {
         if (ProjectId.HasValue) return new();
-        var rows = await _db.VisitPhotos.AsNoTracking().Select(photo => new
+        var query = _db.VisitPhotos.AsNoTracking();
+        if (window is not null)
+        {
+            var since = window.AddedAfterUtc;
+            query = query.Where(photo => photo.CreatedAtUtc > since)
+                .OrderByDescending(photo => photo.CreatedAtUtc)
+                .Take(window.Take);
+        }
+        var rows = await query.Select(photo => new
         {
             photo.Id, photo.VisitId, VisitorName = photo.Visit!.VisitorName,
             VisitType = photo.Visit.VisitType != null ? photo.Visit.VisitType.Name : null,
@@ -1142,10 +1256,18 @@ public sealed partial class IndexModel : PageModel
         }).ToList();
     }
 
-    private async Task<List<MediaItem>> LoadSocialMediaPhotosAsync(CancellationToken cancellationToken)
+    private async Task<List<MediaItem>> LoadSocialMediaPhotosAsync(PrismUploadWindow? window, CancellationToken cancellationToken)
     {
         if (ProjectId.HasValue) return new();
-        var rows = await _db.SocialMediaEventPhotos.AsNoTracking().Select(photo => new
+        var query = _db.SocialMediaEventPhotos.AsNoTracking();
+        if (window is not null)
+        {
+            var since = window.AddedAfterUtc;
+            query = query.Where(photo => photo.CreatedAtUtc > since)
+                .OrderByDescending(photo => photo.CreatedAtUtc)
+                .Take(window.Take);
+        }
+        var rows = await query.Select(photo => new
         {
             photo.Id, EventId = photo.SocialMediaEventId, EventTitle = photo.SocialMediaEvent!.Title,
             EventType = photo.SocialMediaEvent.SocialMediaEventType != null ? photo.SocialMediaEvent.SocialMediaEventType.Name : null,
@@ -1170,13 +1292,21 @@ public sealed partial class IndexModel : PageModel
         }).ToList();
     }
 
-    private async Task<List<MediaItem>> LoadActivityPhotosAsync(CancellationToken cancellationToken)
+    private async Task<List<MediaItem>> LoadActivityPhotosAsync(PrismUploadWindow? window, CancellationToken cancellationToken)
     {
         if (ProjectId.HasValue) return new();
-        var rows = await _db.ActivityAttachments
+        var query = _db.ActivityAttachments
             .AsNoTracking()
             .Where(attachment => !attachment.Activity.IsDeleted)
-            .Where(ActivityAttachmentClassifier.IsPhotoExpression)
+            .Where(ActivityAttachmentClassifier.IsPhotoExpression);
+        if (window is not null)
+        {
+            var since = window.AddedAfterUtc;
+            query = query.Where(attachment => attachment.UploadedAtUtc > since)
+                .OrderByDescending(attachment => attachment.UploadedAtUtc)
+                .Take(window.Take);
+        }
+        var rows = await query
             .Select(attachment => new
             {
                 attachment.Id,
@@ -1583,6 +1713,9 @@ public sealed partial class IndexModel : PageModel
         string SourceEntityId,
         string? VersionToken,
         bool IsAvailable);
+
+    /// <summary>Recent-upload read used while the catalogue catches up.</summary>
+    private sealed record PrismUploadWindow(DateTimeOffset AddedAfterUtc, int Take);
 
     private sealed record PrismCatalogueFreshness(
         Guid? SourceId,
