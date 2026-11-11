@@ -964,3 +964,45 @@
         flex-basis: auto;
     }
 }
+
+/* ---------- Edit photo: mark up and blur ---------- */
+
+.phot-edit__photo.is-drawing {
+    cursor: crosshair;
+    touch-action: none;
+    user-select: none;
+}
+
+.phot-chips button .bi {
+    margin-right: 0.15rem;
+}
+
+.phot-field__label {
+    font-weight: 700;
+}
+
+.phot-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+/* The colour comes from the script (it is a colour drawn into the photo, not a theme colour). */
+.phot-swatch {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 2px solid var(--pdft-border);
+    border-radius: 50%;
+    background: var(--phot-swatch);
+    box-shadow: inset 0 0 0 2px var(--pdft-surface);
+}
+
+.phot-swatch[aria-pressed="true"] {
+    border-color: var(--bs-primary);
+    box-shadow: inset 0 0 0 2px var(--pdft-surface), 0 0 0 2px var(--bs-primary);
+}
+
+.phot-segment--start {
+    align-self: flex-start;
+}

@@ -739,6 +739,153 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Mark up and hide (Edit photo)
+  // ---------------------------------------------------------------------------
+
+  const MARK_KINDS = Object.freeze([
+    Object.freeze({ key: 'box', label: 'Box', icon: 'bi-square', drag: true }),
+    Object.freeze({ key: 'circle', label: 'Circle', icon: 'bi-circle', drag: true }),
+    Object.freeze({ key: 'arrow', label: 'Arrow', icon: 'bi-arrow-up-right', drag: true }),
+    Object.freeze({ key: 'pen', label: 'Pen', icon: 'bi-pencil', drag: true }),
+    Object.freeze({ key: 'text', label: 'Text', icon: 'bi-fonts', drag: false }),
+    Object.freeze({ key: 'number', label: 'Number', icon: 'bi-1-circle', drag: false })
+  ]);
+
+  // Colours drawn into the photo. `edge` is the outline that keeps text readable on any photo.
+  const MARK_COLOURS = Object.freeze([
+    Object.freeze({ key: 'red', label: 'Red', value: '#e02424', edge: '#ffffff' }),
+    Object.freeze({ key: 'yellow', label: 'Yellow', value: '#facc15', edge: '#1f2937' }),
+    Object.freeze({ key: 'green', label: 'Green', value: '#16a34a', edge: '#ffffff' }),
+    Object.freeze({ key: 'blue', label: 'Blue', value: '#2563eb', edge: '#ffffff' }),
+    Object.freeze({ key: 'black', label: 'Black', value: '#111827', edge: '#ffffff' }),
+    Object.freeze({ key: 'white', label: 'White', value: '#ffffff', edge: '#1f2937' })
+  ]);
+
+  // Line and text sizes as a share of the photo's longer side, so a mark looks the same on a
+  // small photo and a large one.
+  const MARK_SIZES = Object.freeze([
+    Object.freeze({ key: 'thin', label: 'Thin', line: 0.004, text: 0.03 }),
+    Object.freeze({ key: 'medium', label: 'Medium', line: 0.008, text: 0.05 }),
+    Object.freeze({ key: 'thick', label: 'Thick', line: 0.014, text: 0.08 })
+  ]);
+
+  /** The line width and text height, in pixels, of a mark of the given size on a photo. */
+  function markMeasures(bounds, sizeKey) {
+    const size = MARK_SIZES.find(item => item.key === sizeKey) || MARK_SIZES[1];
+    const longest = Math.max(bounds.width, bounds.height);
+    return { line: Math.max(2, Math.round(longest * size.line)), text: Math.max(10, Math.round(longest * size.text)) };
+  }
+
+  /** The upright rectangle between two dragged points, kept on the photo. */
+  function dragRect(from, to, bounds) {
+    const clampX = (value) => Math.min(bounds.width, Math.max(0, value));
+    const clampY = (value) => Math.min(bounds.height, Math.max(0, value));
+    const left = Math.round(Math.min(clampX(from.x), clampX(to.x)));
+    const top = Math.round(Math.min(clampY(from.y), clampY(to.y)));
+    const right = Math.round(Math.max(clampX(from.x), clampX(to.x)));
+    const bottom = Math.round(Math.max(clampY(from.y), clampY(to.y)));
+    return { x: left, y: top, width: right - left, height: bottom - top };
+  }
+
+  /**
+   * The three corners of an arrow's head: the tip at the end point, and two corners behind it
+   * on either side of the line. Null when the arrow has no length.
+   */
+  function arrowHead(from, to, line) {
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    if (!length) return null;
+    const ux = (to.x - from.x) / length;
+    const uy = (to.y - from.y) / length;
+    const head = Math.min(length, line * 4.5);
+    const half = head * 0.55;
+    const backX = to.x - ux * head;
+    const backY = to.y - uy * head;
+    return {
+      tip: { x: to.x, y: to.y },
+      left: { x: backX - uy * half, y: backY + ux * half },
+      right: { x: backX + uy * half, y: backY - ux * half },
+      // The line stops inside the head, so its square end does not poke out past the tip.
+      neck: { x: to.x - ux * head * 0.8, y: to.y - uy * head * 0.8 }
+    };
+  }
+
+  /** Drops pen points closer than `gap` to the one before, keeping the first and the last. */
+  function thinPoints(points, gap) {
+    if (points.length < 3) return points.slice();
+    const kept = [points[0]];
+    for (let i = 1; i < points.length - 1; i += 1) {
+      const last = kept[kept.length - 1];
+      if (Math.hypot(points[i].x - last.x, points[i].y - last.y) >= gap) kept.push(points[i]);
+    }
+    kept.push(points[points.length - 1]);
+    return kept;
+  }
+
+  /** The side of the squares an area is broken into when it is hidden: about a tenth of it. */
+  function hideBlock(width, height) {
+    return Math.max(6, Math.round(Math.max(width, height) / 10));
+  }
+
+  /**
+   * Hides what is in a patch of RGBA pixels, in place. The patch is cut into squares and each
+   * square is replaced by its average colour ("pixelate"); "blur" then blends smoothly between
+   * the squares. Either way the detail is gone from the pixels: it cannot be brought back from
+   * the saved photo. How see-through each pixel is gets averaged the same way, so the outline of
+   * writing on a see-through PNG or WEBP is removed as well, not only its colour.
+   */
+  function hidePixels(pixels, width, height, mode) {
+    const block = hideBlock(width, height);
+    const columns = Math.ceil(width / block);
+    const rows = Math.ceil(height / block);
+    const sums = new Float64Array(columns * rows * 4);
+    const counts = new Float64Array(columns * rows);
+    for (let y = 0; y < height; y += 1) {
+      const row = Math.floor(y / block) * columns;
+      for (let x = 0; x < width; x += 1) {
+        const i = (y * width + x) * 4;
+        const at = (row + Math.floor(x / block)) * 4;
+        const alpha = pixels[i + 3];
+        sums[at] += pixels[i] * alpha;
+        sums[at + 1] += pixels[i + 1] * alpha;
+        sums[at + 2] += pixels[i + 2] * alpha;
+        sums[at + 3] += alpha;
+        counts[at / 4] += 1;
+      }
+    }
+    // For each square: its average colour times how solid it is, then how solid it is. Blending
+    // colour in this form keeps a see-through square from darkening the solid one beside it.
+    const grid = new Float64Array(columns * rows * 4);
+    for (let at = 0; at < columns * rows * 4; at += 1) {
+      grid[at] = sums[at] / counts[Math.floor(at / 4)];
+    }
+    const blend = [0, 0, 0, 0];
+    for (let y = 0; y < height; y += 1) {
+      const gy = Math.min(rows - 1, Math.max(0, (y + 0.5) / block - 0.5));
+      const r0 = mode === 'blur' ? Math.floor(gy) : Math.floor(y / block);
+      const r1 = mode === 'blur' ? Math.min(rows - 1, r0 + 1) : r0;
+      const fy = mode === 'blur' ? gy - r0 : 0;
+      for (let x = 0; x < width; x += 1) {
+        const gx = Math.min(columns - 1, Math.max(0, (x + 0.5) / block - 0.5));
+        const c0 = mode === 'blur' ? Math.floor(gx) : Math.floor(x / block);
+        const c1 = mode === 'blur' ? Math.min(columns - 1, c0 + 1) : c0;
+        const fx = mode === 'blur' ? gx - c0 : 0;
+        const i = (y * width + x) * 4;
+        for (let channel = 0; channel < 4; channel += 1) {
+          const top = grid[(r0 * columns + c0) * 4 + channel] * (1 - fx) + grid[(r0 * columns + c1) * 4 + channel] * fx;
+          const bottom = grid[(r1 * columns + c0) * 4 + channel] * (1 - fx) + grid[(r1 * columns + c1) * 4 + channel] * fx;
+          blend[channel] = top * (1 - fy) + bottom * fy;
+        }
+        const solid = blend[3];
+        pixels[i] = solid ? blend[0] / solid : 0;
+        pixels[i + 1] = solid ? blend[1] / solid : 0;
+        pixels[i + 2] = solid ? blend[2] / solid : 0;
+        pixels[i + 3] = solid;
+      }
+    }
+    return pixels;
+  }
+
+  // ---------------------------------------------------------------------------
   // Target file size
   // ---------------------------------------------------------------------------
 
@@ -853,6 +1000,15 @@
     cleanDocument,
     isPixelStep,
     applyPixelStep,
+    MARK_KINDS,
+    MARK_COLOURS,
+    MARK_SIZES,
+    markMeasures,
+    dragRect,
+    arrowHead,
+    thinPoints,
+    hideBlock,
+    hidePixels,
     encodeToTarget
   });
 });

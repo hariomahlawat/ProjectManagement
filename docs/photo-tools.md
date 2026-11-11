@@ -41,9 +41,10 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | On the Passport photo screen. The finished photo repeated on one sheet of 4 × 6 inch photo paper or A4, each copy inside a thin cut line. One JPG at 300 dpi. |
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
-| Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
+| Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
 
-Mark up and blur are planned for the editor (see the build plan) and are not on the page yet.
+Every tool in the build plan is on the page. The last planned step is a review of phones, the
+Dark theme and the keyboard across all screens.
 
 ### How a passport photo is made
 
@@ -85,7 +86,7 @@ Mark up and blur are planned for the editor (see the build plan) and are not on 
 
 - The opened photo is never altered. The edited photo is the original with a list of steps
   applied in order (`crop`, `rotate`, `flip`, `straighten`, `resize`, `cleanup`, `adjust`,
-  `filter`). Undo drops the last step
+  `filter`, `shape`, `hide`). Undo drops the last step
   and replays the rest; Redo puts it back. Only the original and the current result are held in
   memory, however many steps there are.
 - The same function applies a step to the screen copy (no larger than 1600 px) and to the
@@ -123,6 +124,26 @@ step, so Undo takes it back.
   and Reduce noise work on a pixel's nearest neighbours, so on a large photo their effect is
   finer than on the smaller screen copy.
 
+### How mark up and blur work
+
+- A mark is one step: a box, circle, arrow, pen line, text or numbered marker, in one of six
+  colours and three sizes. Line and text sizes are a share of the photo's longer side
+  (`markMeasures`), so a mark looks the same on a small photo and a large one. The measured
+  size is stored in the step, so replaying it after an Undo draws exactly the same mark.
+- Box, circle, arrow and pen are dragged; a drag too short to mean anything is ignored. Text and
+  numbers are placed with one press. Numbers count up by themselves from the markers already on
+  the photo. Text has an outline in a contrasting colour so it reads on any photo.
+- The geometry is in the core and tested (`dragRect`, `arrowHead`, `thinPoints`); the drawing is
+  the browser's canvas.
+- **Blur** and **Pixelate** cut the dragged area into squares about a tenth of its longer side
+  and replace each square with its average colour (`hidePixels`); Blur then blends between the
+  squares. The detail is gone from the pixels: unlike a box drawn over something, nothing under
+  it is in the saved file. The page says this. How see-through each pixel is gets averaged the
+  same way, so writing on a see-through PNG or WEBP loses its outline as well as its colour.
+- Marks and hidden areas are part of the photo from then on: a later crop, resize or filter
+  treats them like any other pixels. They cannot be moved after they are placed; Undo removes
+  the last one.
+
 ### How the target size is reached
 
 For JPG and WEBP the tool first tries top quality (0.92). If that is over the target it searches
@@ -142,7 +163,7 @@ see-through areas with white.
 | File | Role |
 | --- | --- |
 | `Pages/Tools/Photo/Index.cshtml` | Standalone page with its own minimal shell (`Layout = null`). |
-| `wwwroot/js/photo-tools/photo-tools-core.js` | Pure rules: target-size search, resize maths, output type and names, greyscale, lighting, passport and signature sizes, crop limits, print sheet layout, signature clean-up, JPG print resolution, editor steps and crop box, clean-ups, adjustments and filters. Runs in Node for tests. |
+| `wwwroot/js/photo-tools/photo-tools-core.js` | Pure rules: target-size search, resize maths, output type and names, greyscale, lighting, passport and signature sizes, crop limits, print sheet layout, signature clean-up, JPG print resolution, editor steps and crop box, clean-ups, adjustments and filters, mark-up geometry and hiding an area. Runs in Node for tests. |
 | `wwwroot/js/photo-tools/photo-tools-core.test.js` | Node tests, part of `npm test`. |
 | `wwwroot/js/photo-tools/photo-tools-canvas.js` | Browser helpers shared by the tools: open a photo, draw it at a new size, canvas to file bytes, save, show an error. |
 | `wwwroot/js/photo-tools/photo-tools-app.js` | Shell, routing (`#tool`) and Reduce size. |
