@@ -77,7 +77,7 @@ All colours are existing `--pm-*` tokens (theme coverage check), no new assets, 
 | Longest wait (sort) | Days-at-stage from stage dates only; cases without one sort after those with one. (The Waiting longest tile was removed on 10 Nov 2026.) |
 | Dates missing | Active cases with a completed stage that has no date. Shown to Manage roles only, as a link that filters the register to them. |
 | On order | Active cases whose SO is complete and Delivery is not, with the sum of the SO values entered; "value not entered" when none has one, never "₹0.00". |
-| Ageing band | From the stage-date figure only, the same for every stage (owner decision 8 Nov 2026): up to 30 days normal, 31–60 amber, over 60 red. |
+| Ageing band | From the stage-date figure only (owner decision 8 Nov 2026): up to 30 days normal, 31–60 amber, over 60 red. Delivery and ATP waits on the supplier, so there it is up to 60 normal, 61–90 amber, over 90 red (owner, 11 Nov 2026). |
 
 The key under the register lists only the marks the register actually draws, so a board with no
 stage dates does not explain ageing colours it cannot show.
@@ -139,7 +139,7 @@ type for that year changes.
 | --- | --- |
 | Design | Mockup approved |
 | Time figure | Stage dates first; recorded move as a light fallback; never borrow an earlier stage's date (rule above) |
-| Ageing bands | Up to 30 days normal, 31–60 amber, over 60 red; one rule for every stage |
+| Ageing bands | Up to 30 days normal, 31–60 amber, over 60 red; at Delivery and ATP 60 / 90 |
 | Register order | Stage order by default, Longest wait as an option (the phone list uses Longest wait) |
 | Remarks feed | Stage completions shown in line with the remarks |
 | Wording | "Delivered" instead of "Completed"; "Update stages" instead of "Stages" |

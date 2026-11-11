@@ -442,7 +442,14 @@
     text-decoration: underline;
 }
 
+/* Quiet until pointed at: Delete sits under every remark the user may delete (owner, 11 Nov 2026). */
 .itp-remark__action--danger {
+    font-weight: 500;
+    color: var(--pm-text-muted);
+}
+
+.itp-remark__action--danger:hover,
+.itp-remark__action--danger:focus-visible {
     color: var(--pm-danger);
 }
 

@@ -439,7 +439,11 @@ public class ItProjectDetailsPageTests
         var hod = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
         await hod.OnGetAsync(id, CancellationToken.None);
         Assert.False(hod.CanEditRemark(remark));
-        Assert.False(hod.CanDeleteRemark(remark));
+        Assert.True(hod.CanDeleteRemark(remark)); // the HoD may delete any remark (owner, 11 Nov 2026)
+
+        var comdt = Page(db, ItProjectTestDb.User("comdt-1", RoleNames.Comdt));
+        await comdt.OnGetAsync(id, CancellationToken.None);
+        Assert.False(comdt.CanDeleteRemark(remark)); // ...the Comdt only their own
         hod.RemarkEdit = new DetailsModel.RemarkEditInput { Id = remark.Id, Body = "Hijacked.", EventDate = remark.EventDate, RowVersion = DetailsModel.EncodeRowVersion(remark.RowVersion) };
         Assert.IsType<RedirectToPageResult>(await hod.OnPostRemarkEditAsync(id, CancellationToken.None));
         Assert.Equal(ItProjectRemarkService.NotAuthorMessage, hod.TempData["ToastError"]);

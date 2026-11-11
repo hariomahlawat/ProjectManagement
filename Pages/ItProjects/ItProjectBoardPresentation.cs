@@ -45,7 +45,7 @@ public static class ItProjectBoardPresentation
             reached[index] = cell.IsSkipped ? laterReached : cell.IsCompleted || cell.IsCurrent;
         }
 
-        var (nowText, _, nowTone) = TimeText(row.Timing);
+        var (_, _, nowTone) = TimeText(row.Timing);
         return cells
             .Select((cell, index) =>
             {
@@ -65,7 +65,9 @@ public static class ItProjectBoardPresentation
                 else if (cell.IsCurrent && live)
                 {
                     state = "cur";
-                    text = row.Status.Kind == ItProjectStatusKind.NotStarted ? "now" : row.Timing.Basis == ItProjectTimeBasis.StageDate ? nowText : "now";
+                    // The days at the stage are in the Now column; under the circle "now", in
+                    // the ageing colour, so the figure is not shown twice (owner, 11 Nov 2026).
+                    text = "now";
                     tone = row.Timing.Basis == ItProjectTimeBasis.StageDate ? nowTone : "calm";
                 }
                 else if (row.Status.Kind == ItProjectStatusKind.Dropped && row.Status.CurrentStageCode == cell.StageCode)

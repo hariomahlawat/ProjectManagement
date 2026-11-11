@@ -58,17 +58,35 @@ public sealed record ItProjectTiming(
     /// </summary>
     public bool ElapsedIsEndToEnd => StartedStageCode is null || string.Equals(StartedStageCode, ItProjectStages.Ppp, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Owner decision 8 Nov 2026: up to 30 days normal, 31 to 60 amber, over 60 red, for every stage.</summary>
+    /// <summary>Owner decision 8 Nov 2026: up to 30 days normal, 31 to 60 amber, over 60 red, for every stage but Delivery.</summary>
     public const int NormalUpToDays = 30;
 
     public const int AmberUpToDays = 60;
 
-    public static ItProjectAgeBand BandOf(int days) => days switch
+    /// <summary>
+    /// Owner decision 11 Nov 2026: Delivery and ATP waits on the supplier after the SO, which
+    /// normally takes longer, so it is normal up to 60 days, amber 61 to 90, red over 90.
+    /// </summary>
+    public const int DeliveryNormalUpToDays = 60;
+
+    public const int DeliveryAmberUpToDays = 90;
+
+    public static ItProjectAgeBand BandOf(int days) => BandOf(days, stageCode: null);
+
+    /// <summary>The ageing band of <paramref name="days"/> at the stage the case waits at.</summary>
+    public static ItProjectAgeBand BandOf(int days, string? stageCode)
     {
-        <= NormalUpToDays => ItProjectAgeBand.Normal,
-        <= AmberUpToDays => ItProjectAgeBand.Amber,
-        _ => ItProjectAgeBand.Red
-    };
+        var (normal, amber) = LimitsFor(stageCode);
+        return days <= normal ? ItProjectAgeBand.Normal
+            : days <= amber ? ItProjectAgeBand.Amber
+            : ItProjectAgeBand.Red;
+    }
+
+    /// <summary>The last normal day and the last amber day at a stage, for the bands and the legend.</summary>
+    public static (int NormalUpTo, int AmberUpTo) LimitsFor(string? stageCode)
+        => string.Equals(stageCode, ItProjectStages.Delivery, StringComparison.OrdinalIgnoreCase)
+            ? (DeliveryNormalUpToDays, DeliveryAmberUpToDays)
+            : (NormalUpToDays, AmberUpToDays);
 
     /// <param name="project">The project with its stage rows loaded.</param>
     /// <param name="today">Today in India Standard Time.</param>
@@ -127,7 +145,7 @@ public sealed record ItProjectTiming(
         if (previousStage?.CompletedOn is { } closedOn)
         {
             var days = DaysFrom(closedOn, today);
-            return new ItProjectTiming(ItProjectTimeBasis.StageDate, closedOn, days, BandOf(days), gaps, startedOn, elapsed, hasMissingDates, startedCode);
+            return new ItProjectTiming(ItProjectTimeBasis.StageDate, closedOn, days, BandOf(days, status.CurrentStageCode), gaps, startedOn, elapsed, hasMissingDates, startedCode);
         }
 
         if (project.StageMovedAtUtc is { } movedAtUtc)

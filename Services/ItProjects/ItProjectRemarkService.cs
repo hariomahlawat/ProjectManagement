@@ -20,7 +20,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
     public const string NotFoundMessage = "The remark could not be found.";
     public const string NoRoleMessage = "Only the ITO, MCO, HoD or Comdt can write remarks on IT projects.";
     public const string NotAuthorMessage = "Only the author can change this remark.";
-    public const string NotAuthorOrAdminMessage = "Only the author or an administrator can delete this remark.";
+    public const string NotAuthorOrAdminMessage = "Only the author, the HoD or an administrator can delete this remark.";
     public const string ConferenceRoleMessage = "Only the Comdt or HoD can write or change a conference remark.";
 
     /// <summary>Whether a remark role may write conference remarks (Comdt, HoD), as in the other modules.</summary>
@@ -187,15 +187,20 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             return ItProjectCommandResult.Fail(NotFoundMessage);
         }
 
+        // Owner decision 11 Nov 2026: an Admin or the HoD may delete any remark; everyone else,
+        // the Comdt included, only their own.
         var isAuthor = string.Equals(remark.AuthorUserId, actor.UserId, StringComparison.Ordinal);
-        if (!isAuthor && !actor.IsAdmin)
+        if (!actor.CanDeleteAnyRemark)
         {
-            return ItProjectCommandResult.Fail(NotAuthorOrAdminMessage);
-        }
+            if (!isAuthor)
+            {
+                return ItProjectCommandResult.Fail(NotAuthorOrAdminMessage);
+            }
 
-        if (!actor.IsAdmin && remark.Type == ItProjectRemarkType.Conference && !CanWriteConference(actor.RemarkRole))
-        {
-            return ItProjectCommandResult.Fail(ConferenceRoleMessage);
+            if (remark.Type == ItProjectRemarkType.Conference && !CanWriteConference(actor.RemarkRole))
+            {
+                return ItProjectCommandResult.Fail(ConferenceRoleMessage);
+            }
         }
 
         var now = UtcNow();

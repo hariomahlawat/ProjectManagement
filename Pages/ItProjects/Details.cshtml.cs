@@ -139,7 +139,14 @@ public class DetailsModel : PageModel
         => CanRemark && remark.AuthorUserId == UserId && (remark.Type != ItProjectRemarkType.Conference || CanWriteConference);
 
     /// <summary>Who may delete a remark: its author (as for editing), or an Admin as moderation.</summary>
-    public bool CanDeleteRemark(ItProjectRemarkView remark) => IsAdmin || CanEditRemark(remark);
+    /// <summary>Whether the user holds the HoD role (whatever role they write remarks as).</summary>
+    public bool IsHoD { get; private set; }
+
+    /// <summary>
+    /// Admin and HoD delete any remark; everyone else, the Comdt included, their own. The service
+    /// applies the same rule (<see cref="ItProjectRemarkService"/>); this only decides the link.
+    /// </summary>
+    public bool CanDeleteRemark(ItProjectRemarkView remark) => IsAdmin || IsHoD || CanEditRemark(remark);
 
     private string? UserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -499,7 +506,7 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
-        if (!CanRemark && !IsAdmin)
+        if (!CanRemark && !IsAdmin && !IsHoD)
         {
             return Forbid();
         }
@@ -606,7 +613,7 @@ public class DetailsModel : PageModel
     private ItProjectRemarkActor RemarkActor()
     {
         var actor = Actor();
-        return new ItProjectRemarkActor(actor.UserId, actor.UserName, RemarkRole, IsAdmin);
+        return new ItProjectRemarkActor(actor.UserId, actor.UserName, RemarkRole, IsAdmin, IsHoD);
     }
 
     public async Task<IActionResult> OnPostDropAsync(int id, CancellationToken cancellationToken)
@@ -739,6 +746,10 @@ public class DetailsModel : PageModel
     /// <summary>The day of the last change, in India.</summary>
     public DateOnly LastChangedOn => ItProjectYearTypes.ToIstDate(Project.UpdatedAtUtc);
 
+    /// <summary>The latest save, remark or file, for the Record card.</summary>
+    public ItProjectPagePresentation.Activity LastActivity
+        => ItProjectPagePresentation.LastActivity(Project, UpdatedByName, Remarks, Attachments);
+
     public bool IsCompleted => Status.Kind == ItProjectStatusKind.Completed;
 
     private async Task<bool> LoadAsync(int id, CancellationToken cancellationToken)
@@ -783,6 +794,7 @@ public class DetailsModel : PageModel
         CanRemark = ItProjectAccess.CanRemark(User, project);
         RemarkRole = ItProjectAccess.RemarkRoleOf(User);
         IsAdmin = User.IsInRole(RoleNames.Admin);
+        IsHoD = User.IsInRole(RoleNames.HoD);
         return true;
     }
 

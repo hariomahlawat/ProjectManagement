@@ -119,7 +119,7 @@ public class ItProjectRemarkServiceTests
     }
 
     [Fact]
-    public async Task Delete_IsForTheAuthorOrAnAdminAndIsSoft()
+    public async Task Delete_IsForTheAuthorTheHoDOrAnAdminAndIsSoft()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var (id, _) = await db.SeedAsync();
@@ -128,7 +128,7 @@ public class ItProjectRemarkServiceTests
         Assert.True(first.Succeeded && second.Succeeded);
         var versions = (await db.Remarks().ListAsync(id)).ToDictionary(remark => remark.Id, remark => remark.RowVersion);
 
-        var byOther = await db.Remarks().DeleteAsync(id, firstId, versions[firstId], ItProjectTestDb.RemarkActor("hod-1", RoleNames.HoD));
+        var byOther = await db.Remarks().DeleteAsync(id, firstId, versions[firstId], ItProjectTestDb.RemarkActor("mco-1", RoleNames.Mco));
         Assert.False(byOther.Succeeded);
         Assert.Contains(ItProjectRemarkService.NotAuthorOrAdminMessage, byOther.Errors);
 
@@ -259,5 +259,37 @@ public class ItProjectRemarkServiceTests
 
         await using var check = db.NewContext();
         Assert.Equal("PNC", (await check.ItProjectRemarks.SingleAsync(remark => remark.Id == remarkId)).StageCode);
+    }
+
+    [Fact]
+    public async Task Delete_TheHoDMayDeleteAnyRemark_TheComdtOnlyTheirOwn()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+        var ito = ItProjectTestDb.RemarkActor("ito-1", RoleNames.Ito);
+        var comdt = ItProjectTestDb.RemarkActor("comdt-1", RoleNames.Comdt);
+        var (_, itoRemark) = await db.Remarks().AddAsync(id, new ItProjectRemarkInput("Bid opens Monday.", new DateOnly(2026, 11, 8)), ito);
+        var (_, comdtRemark) = await db.Remarks().AddAsync(id, new ItProjectRemarkInput("Keep it moving.", new DateOnly(2026, 11, 8), ItProjectRemarkType.Conference), comdt);
+        var (_, secondIto) = await db.Remarks().AddAsync(id, new ItProjectRemarkInput("Vendor called.", new DateOnly(2026, 11, 8)), ito);
+        var versions = (await db.Remarks().ListAsync(id)).ToDictionary(remark => remark.Id, remark => remark.RowVersion);
+
+        // The Comdt may not delete someone else's remark...
+        var comdtOnOther = await db.Remarks().DeleteAsync(id, itoRemark, versions[itoRemark], comdt);
+        Assert.False(comdtOnOther.Succeeded);
+        Assert.Contains(ItProjectRemarkService.NotAuthorOrAdminMessage, comdtOnOther.Errors);
+
+        // ...but may delete their own, conference directions included.
+        var comdtOwn = await db.Remarks().DeleteAsync(id, comdtRemark, versions[comdtRemark], comdt);
+        Assert.True(comdtOwn.Succeeded, string.Join("; ", comdtOwn.Errors));
+
+        // The HoD may delete anyone's remark.
+        var hod = await db.Remarks().DeleteAsync(id, itoRemark, versions[itoRemark], ItProjectTestDb.RemarkActor("hod-1", RoleNames.HoD));
+        Assert.True(hod.Succeeded, string.Join("; ", hod.Errors));
+        Assert.Equal("false", db.Audit.Entries.Last().Data["DeletedByAuthor"]);
+
+        // A Comdt who also holds HoD deletes as HoD.
+        var both = await db.Remarks().DeleteAsync(id, secondIto, versions[secondIto], new ItProjectRemarkActor("comdt-2", "comdt-2", RoleNames.Comdt, IsAdmin: false, IsHoD: true));
+        Assert.True(both.Succeeded, string.Join("; ", both.Errors));
+        Assert.Empty(await db.Remarks().ListAsync(id));
     }
 }

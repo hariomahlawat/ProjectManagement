@@ -32,7 +32,7 @@ their own tables, services, pages and policies, and never reference `Projects`, 
 | Tasks | None. No link to the Action tracker |
 | Photos, videos, time plan | None |
 | Remarks | Yes, like the R&D remarks panel but simpler: no Internal/External type, no @mentions, no notifications. Since 9 Nov 2026: not tied to a stage, and the Comdt / HoD can write **conference** remarks as on projects, ideas and tasks, on the project page or from Workspace › Conference, where the live IT projects sit under each officer who holds the ITO role; a conference remark records the stage when it was issued. Since 10 Nov 2026 the Officer workload view lists them on each ITO's card too (docs/ux/command-desk.md), and the ITO's own workspace opens on their conference review with an IT projects link in its menu (docs/ux/project-officer-briefing-desk.md) |
-| Remark writers | ITO, MCO, HoD, Comdt. Admin may delete any remark (moderation) but does not write |
+| Remark writers | ITO, MCO, HoD, Comdt. Admin and HoD may delete any remark (owner, 11 Nov 2026); everyone else, the Comdt included, only their own. Admin does not write |
 | Attachments | Yes: PDF and Office documents, Industry partners storage pattern |
 | Visibility | Every signed-in user can read the board, the project page, remarks and attachments |
 | Manage | Admin, HoD, ITO |
@@ -115,7 +115,7 @@ a global query filter (same as `Projects`).
 | `ItProjects.Manage` | Admin, HoD, ITO | create, edit, stage editor, SO cost, attachments upload/delete, Dropped, delete |
 | `ItProjects.Remark` | ITO, MCO, HoD, Comdt | add a remark; edit/delete own remark |
 
-Admin may delete any remark (audited with the author kept). Resource checks are per project in
+Admin and HoD may delete any remark (audited with the author kept); the Comdt deletes only their own. Resource checks are per project in
 `ItProjectAccess` even though today every project is readable by every signed-in user, so a later
 narrowing is one change.
 

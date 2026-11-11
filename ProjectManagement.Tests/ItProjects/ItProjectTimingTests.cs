@@ -314,4 +314,25 @@ public class ItProjectTimingTests
         Assert.False(timing.ElapsedIsEndToEnd);
         Assert.Equal("from SO", ProjectManagement.Pages.ItProjects.ItProjectBoardPresentation.ElapsedSpan(timing));
     }
+
+    [Theory]
+    [InlineData(60, ItProjectAgeBand.Normal)]
+    [InlineData(61, ItProjectAgeBand.Amber)]
+    [InlineData(90, ItProjectAgeBand.Amber)]
+    [InlineData(91, ItProjectAgeBand.Red)]
+    public void BandOf_AtDelivery_Uses60And90Days(int days, ItProjectAgeBand expected)
+    {
+        Assert.Equal(expected, ItProjectTiming.BandOf(days, ItProjectStages.Delivery));
+        Assert.Equal(days <= 30 ? ItProjectAgeBand.Normal : days <= 60 ? ItProjectAgeBand.Amber : ItProjectAgeBand.Red, ItProjectTiming.BandOf(days, ItProjectStages.Bid));
+    }
+
+    [Fact]
+    public void Resolve_AtDelivery_BandsByTheDeliveryLimits()
+    {
+        // SO closed 75 days before the test day: amber at Delivery, where at any other stage it would be red.
+        var timing = Resolve(Project(("PPP", D(2026, 1, 5)), ("AON", D(2026, 2, 1)), ("BID", D(2026, 3, 1)), ("TEC", D(2026, 4, 1)), ("COB", D(2026, 5, 1)), ("SO", Today.AddDays(-75))));
+
+        Assert.Equal(75, timing.DaysAtStage);
+        Assert.Equal(ItProjectAgeBand.Amber, timing.Band);
+    }
 }

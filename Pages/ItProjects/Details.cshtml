@@ -23,9 +23,10 @@
                 <div class="itp-hero__chips">
                     <span class="itp-ref" title="IT ARPPP reference number in its first year">@Model.Project.PppReferenceNumber</span>
                     <span class="itp-chip itp-chip--fy">@ItProjectBoardPresentation.FinancialYear(Model.Project.FinancialYearStart)</span>
-                    @if (Model.LatestYear is { } latest && !latest.IsOwnYear)
+                    @* The type in the latest year the case counts in, New in its own year too, so it shows without scrolling. *@
+                    @if (Model.LatestYear is { } latest)
                     {
-                        <span class="itp-type itp-type--@latest.Code.ToLowerInvariant()" title="@latest.Label in FY @FinancialYearHelper.Format(latest.FinancialYearStart)@(latest.PppReferenceNumber is { } number ? $", {number}" : ", number not entered")">@latest.Code · FY @FinancialYearHelper.Format(latest.FinancialYearStart)</span>
+                        <span class="itp-type itp-type--@latest.Code.ToLowerInvariant()" title="@latest.Label in FY @FinancialYearHelper.Format(latest.FinancialYearStart)@(latest.PppReferenceNumber is { } number ? $", {number}" : ", number not entered")">@latest.Code@(latest.IsOwnYear ? null : $" · FY {FinancialYearHelper.Format(latest.FinancialYearStart)}")</span>
                     }
                 </div>
                 <h1 class="itp-hero__title">@Model.Project.Title</h1>
@@ -83,7 +84,7 @@
     <div class="itp-grid">
         <div class="itp-grid__main">
             <section class="itp-card itp-remarks" id="remarks" aria-labelledby="itpRemarksTitle">
-                <h2 class="itp-card__title" id="itpRemarksTitle">Remarks and history <span class="itp-card__count">@Model.Remarks.Count</span></h2>
+                <h2 class="itp-card__title" id="itpRemarksTitle">Remarks and history <span class="itp-card__count">@Model.Remarks.Count @(Model.Remarks.Count == 1 ? "remark" : "remarks")</span></h2>
                 @if (Model.CanRemark)
                 {
                     var remarkErrors = Model.DrawerErrors(DetailsModel.OpenRemark, nameof(Model.Remark));
@@ -231,7 +232,8 @@
                 <h2 class="itp-card__title" id="itpRecordTitle">Record</h2>
                 <dl class="itp-facts">
                     <dt>Added</dt><dd>@ItProjectPagePresentation.LongDate(Model.AddedOn)</dd>
-                    <dt>Last change</dt><dd>@ItProjectPagePresentation.LongDate(Model.LastChangedOn)@(Model.UpdatedByName is { } who ? $" · {who}" : "")</dd>
+                    @* The latest of a details or stage save, a remark and a file (owner, 11 Nov 2026). *@
+                    <dt>Last activity</dt><dd title="@Model.LastActivity.What">@ItProjectPagePresentation.LongDate(Model.LastActivity.On)@(Model.LastActivity.Who is { } who ? $" · {who}" : "")</dd>
                 </dl>
                 @if (Model.YearTypes.Count > 0)
                 {
@@ -326,7 +328,7 @@
                                 {
                                     <form method="post" asp-page-handler="AttachmentDelete" asp-route-id="@Model.Project.Id" asp-route-attachmentId="@file.Id" class="itp-file__delete"
                                           data-confirm="Remove this file from the project? An administrator can restore it later." data-confirm-tone="danger" data-confirm-action="Remove file">
-                                        <button type="submit" class="itp-file__remove" aria-label="Remove @file.FileName"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                                        <button type="submit" class="itp-file__remove" aria-label="Remove @file.FileName" title="Remove this file"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                                     </form>
                                 }
                             </li>
