@@ -359,11 +359,32 @@ namespace ProjectManagement.Services.Projects
 
             await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
+            var photosById = photos.ToDictionary(p => p.Id);
+            var moved = orderedPhotoIds
+                .Select((id, index) => (Photo: photosById[id], Ordinal: index + 1))
+                .Where(entry => entry.Photo.Ordinal != entry.Ordinal)
+                .ToList();
+
+            if (moved.Count > 0)
+            {
+                // (ProjectId, Ordinal) is unique and not deferrable. Swapping positions in a
+                // single save forms a cycle that EF Core refuses to order, so first park every
+                // moved photo on a temporary negative ordinal that no live row can hold, then
+                // assign the final positions. Both saves share the transaction above.
+                foreach (var entry in moved)
+                {
+                    entry.Photo.Ordinal = -entry.Ordinal;
+                }
+
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            var updatedUtc = _clock.UtcNow.UtcDateTime;
             for (var i = 0; i < orderedPhotoIds.Count; i++)
             {
-                var photo = photos.Single(p => p.Id == orderedPhotoIds[i]);
+                var photo = photosById[orderedPhotoIds[i]];
                 photo.Ordinal = i + 1;
-                photo.UpdatedUtc = _clock.UtcNow.UtcDateTime;
+                photo.UpdatedUtc = updatedUtc;
             }
 
             await _db.SaveChangesAsync(cancellationToken);

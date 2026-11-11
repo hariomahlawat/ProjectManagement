@@ -598,6 +598,50 @@ public sealed class ProjectPhotoServiceTests : IDisposable
         }
     }
 
+    // Regression: renumbering contiguous ordinals in one save formed a cycle on the unique
+    // (ProjectId, Ordinal) index, so every real reorder failed.
+    [Theory]
+    [InlineData(new[] { 3, 1, 2 })]
+    [InlineData(new[] { 2, 1, 3 })]
+    [InlineData(new[] { 3, 2, 1 })]
+    [InlineData(new[] { 1, 2, 3 })]
+    public async Task ReorderAsync_PersistsNewOrderAgainstUniqueOrdinalIndex(int[] newOrderByOrdinal)
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 51);
+
+        var seeded = Enumerable.Range(1, 3)
+            .Select(ordinal => new ProjectPhoto
+            {
+                ProjectId = 51,
+                StorageKey = $"key-{ordinal}",
+                OriginalFileName = $"photo-{ordinal}.jpg",
+                ContentType = "image/jpeg",
+                Width = 1600,
+                Height = 1200,
+                Ordinal = ordinal,
+                Version = 1,
+                CreatedUtc = DateTime.UtcNow,
+                UpdatedUtc = DateTime.UtcNow
+            })
+            .ToList();
+        db.ProjectPhotos.AddRange(seeded);
+        await db.SaveChangesAsync();
+
+        var orderedIds = newOrderByOrdinal.Select(ordinal => seeded[ordinal - 1].Id).ToList();
+        var service = CreateService(db, CreateOptions());
+
+        await service.ReorderAsync(51, orderedIds, "owner", CancellationToken.None);
+
+        var stored = await db.ProjectPhotos.AsNoTracking()
+            .Where(p => p.ProjectId == 51)
+            .OrderBy(p => p.Ordinal)
+            .Select(p => new { p.Id, p.Ordinal })
+            .ToListAsync();
+        Assert.Equal(orderedIds, stored.Select(p => p.Id).ToList());
+        Assert.Equal(new[] { 1, 2, 3 }, stored.Select(p => p.Ordinal).ToArray());
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var connection = new SqliteConnection("Data Source=:memory:");
