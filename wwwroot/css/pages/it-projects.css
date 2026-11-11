@@ -412,35 +412,31 @@
     color: var(--pm-text-muted);
 }
 
-.itp-remark__delete {
-    display: inline;
-    margin: 0;
-}
-
-.itp-remark__action {
-    padding: 0;
+/* Edit and Delete of a remark: one quiet menu at the end of its header line. */
+.itp-remark__menu {
+    padding: 0 .3rem;
     border: 0;
+    border-radius: 6px;
     background: none;
-    font: inherit;
-    font-weight: 600;
-    color: var(--pm-primary);
-    text-decoration: none;
+    color: var(--pm-text-muted);
+    line-height: 1.2;
     cursor: pointer;
 }
 
-.itp-remark__action:hover {
-    text-decoration: underline;
+.itp-remark__menu:hover,
+.itp-remark__menu:focus-visible,
+.itp-remark__menu[aria-expanded="true"] {
+    background: var(--pm-surface);
+    color: var(--pm-text-strong);
 }
 
-/* Quiet until pointed at: Delete sits under every remark the user may delete (owner, 11 Nov 2026). */
-.itp-remark__action--danger {
-    font-weight: 500;
-    color: var(--pm-text-muted);
+.itp-hero__more .dropdown-item,
+.itp-remark__more .dropdown-item {
+    font-size: var(--pm-font-size-sm);
 }
 
-.itp-remark__action--danger:hover,
-.itp-remark__action--danger:focus-visible {
-    color: var(--pm-danger);
+.itp-hero__more .dropdown-item .bi {
+    margin-right: .35rem;
 }
 
 .itp-remark__editor {
@@ -504,6 +500,19 @@
 
 .itp-composer__text {
     resize: vertical;
+}
+
+/* The new-remark composer is one line until it is used; focus opens it (owner, 11 Nov 2026). */
+.itp-composer--closed:not(:focus-within) .itp-composer__text {
+    height: 2.4rem;
+    min-height: 0;
+    overflow: hidden;
+    resize: none;
+}
+
+.itp-composer--closed:not(:focus-within) .itp-kind,
+.itp-composer--closed:not(:focus-within) .itp-composer__row {
+    display: none;
 }
 
 .itp-composer__row {
@@ -777,11 +786,25 @@
     color: var(--pm-text-muted);
     line-height: 1;
     cursor: pointer;
+    opacity: 0;
 }
 
-.itp-file__remove:hover {
+/* The bin shows on the row being pointed at or tabbed into; always on touch screens. */
+.itp-file:hover .itp-file__remove,
+.itp-file:focus-within .itp-file__remove {
+    opacity: 1;
+}
+
+.itp-file__remove:hover,
+.itp-file__remove:focus-visible {
     background: var(--pm-danger-soft-bg);
     color: var(--pm-danger);
+}
+
+@media (hover: none) {
+    .itp-file .itp-file__remove {
+        opacity: 1;
+    }
 }
 
 .itp-files__upload {
@@ -2145,35 +2168,6 @@
     display: flex;
     gap: .5rem;
     flex: none;
-}
-
-.itp-record__actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: .4rem;
-    margin-top: 1rem;
-    padding-top: .8rem;
-    border-top: 1px solid var(--pm-border);
-}
-
-.itp-record__actions form {
-    margin: 0;
-}
-
-.itp-record__delete {
-    margin-left: auto;
-    color: var(--pm-danger);
-    text-decoration: none;
-}
-
-.itp-record__actions form:last-child {
-    margin-left: auto;
-}
-
-.itp-record__delete:hover {
-    color: var(--pm-danger);
-    text-decoration: underline;
 }
 
 @media (max-width: 767.98px) {

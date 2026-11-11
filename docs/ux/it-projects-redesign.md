@@ -64,8 +64,14 @@ how long?**
    and a "where the time went" bar were built and then removed on 9 Nov 2026: they repeated what the
    page already shows. Keep the page lean; no extra metrics.)
    Below, two columns: **Remarks and history** (composer, then remarks with stage completions in
-   line, older stages folded) and **Documents** (file rows, drop zone) plus a small **Record**
-   card that holds Mark dropped and Delete.
+   line, older stages folded; the composer is one line until it is used and opens on focus, and
+   its date is labelled "Date", owner 11 Nov 2026) and **Documents** (file rows, drop zone) plus a small **Record**
+   card of facts. Mark dropped (or Reinstate) and Delete sit under a **More** menu beside Update
+   stages, as on the main project page; a remark's Edit and Delete sit in one small menu at the end
+   of its header line; an attachment's remove control is a bin that shows on the row being pointed
+   at or tabbed into, and always on touch screens (owner, 11 Nov 2026: the red Delete link on the
+   Record card, a Delete link under every remark and an X on every file were too prominent for how
+   rarely they are used). Each still asks in the shared confirm dialog.
 5. **Stage editor**: a vertical stepper; ticking a stage shows the stages it will complete
    (dashed) before Save, each row shows its gap from the previous date, and a live summary says
    what Save will do. Native date pickers stay (offline, accessible).

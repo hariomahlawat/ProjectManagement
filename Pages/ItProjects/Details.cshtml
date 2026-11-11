@@ -65,6 +65,38 @@
                     {
                         <button type="button" class="btn btn-primary itp-btn-primary" data-bs-toggle="offcanvas" data-bs-target="#itpStagesDrawer" aria-controls="itpStagesDrawer"><i class="bi bi-signpost-split" aria-hidden="true"></i><span>Update stages</span></button>
                     }
+                    @* The rare actions sit under More, as on the main project page: Mark dropped or
+                       Reinstate, and Delete (owner, 11 Nov 2026). Each still asks first. *@
+                    <div class="dropdown itp-hero__more">
+                        @* Fixed positioning: the header card clips its content (rounded top strip), and the menu must not be cut off. *@
+                        <button class="btn btn-outline-secondary" type="button" id="itpMoreMenu" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">
+                            <i class="bi bi-three-dots" aria-hidden="true"></i>
+                            <span class="visually-hidden">More actions</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="itpMoreMenu">
+                            @if (Model.IsDropped)
+                            {
+                                <li>
+                                    <form method="post" asp-page-handler="Reinstate" asp-route-id="@Model.Project.Id"
+                                          data-confirm="Reinstate this IT project? It returns to the active board at the stage it had reached." data-confirm-tone="primary" data-confirm-action="Reinstate">
+                                        <input type="hidden" asp-for="RowVersion" />
+                                        <button type="submit" class="dropdown-item"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reinstate</button>
+                                    </form>
+                                </li>
+                            }
+                            else if (!Model.IsCompleted)
+                            {
+                                <li><button type="button" class="dropdown-item" data-bs-toggle="offcanvas" data-bs-target="#itpDropDrawer" aria-controls="itpDropDrawer"><i class="bi bi-slash-circle" aria-hidden="true"></i> Mark dropped</button></li>
+                            }
+                            <li>
+                                <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Project.Id"
+                                      data-confirm="Delete this IT project? It leaves the board; an administrator can restore it later." data-confirm-tone="danger" data-confirm-action="Delete project">
+                                    <input type="hidden" asp-for="RowVersion" />
+                                    <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash3" aria-hidden="true"></i> Delete project</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             }
         </div>
@@ -112,7 +144,10 @@
                 @if (Model.CanRemark)
                 {
                     var remarkErrors = Model.DrawerErrors(DetailsModel.OpenRemark, nameof(Model.Remark));
-                    <form method="post" asp-page-handler="RemarkAdd" asp-route-id="@Model.Project.Id" class="itp-composer" id="remark-composer" novalidate>
+                    @* Closed to one line until it is used, so the history is not pushed down the page
+                       (owner, 11 Nov 2026). It opens on focus; with text in it, or after a failed
+                       save, it stays open. *@
+                    <form method="post" asp-page-handler="RemarkAdd" asp-route-id="@Model.Project.Id" class="itp-composer @(remarkErrors.Count == 0 && string.IsNullOrWhiteSpace(Model.Remark.Body) ? "itp-composer--closed" : null)" id="remark-composer" data-itp-composer novalidate>
                         @if (remarkErrors.Count > 0)
                         {
                             <div class="alert alert-danger itp-drawer__errors" role="alert">
@@ -139,7 +174,7 @@
                         }
                         <textarea asp-for="Remark.Body" class="form-control itp-composer__text" rows="3" maxlength="@ItProjectRemark.BodyMaxLength" placeholder="Write a remark as @Model.RemarkRole…"></textarea>
                         <div class="itp-composer__row">
-                            <label class="itp-composer__field"><span>Event date</span><input type="date" asp-for="Remark.EventDate" asp-format="{0:yyyy-MM-dd}" class="form-control form-control-sm" /></label>
+                            <label class="itp-composer__field"><span>Date</span><input type="date" asp-for="Remark.EventDate" asp-format="{0:yyyy-MM-dd}" class="form-control form-control-sm" /></label>
                             <span class="itp-composer__spacer"></span>
                             <span class="itp-composer__as">as <span class="itp-role @ItProjectBoardPresentation.RoleClass(Model.RemarkRole ?? "")">@Model.RemarkRole</span></span>
                             <button type="submit" class="btn btn-primary itp-btn-primary btn-sm">Add remark</button>
@@ -181,27 +216,39 @@
                                             <span class="itp-remark__conf"><i class="bi bi-people" aria-hidden="true"></i> Conference</span>
                                         }
                                         <time class="itp-remark__when" datetime="@remark.EventDate.ToString("yyyy-MM-dd")">@ItProjectBoardPresentation.ShortDate(remark.EventDate)</time>
+                                        @* Edit and Delete sit in one quiet menu, not as links under every remark. *@
+                                        @if (canEdit || canDelete)
+                                        {
+                                            <div class="dropdown itp-remark__more">
+                                                <button class="itp-remark__menu" type="button" id="itpRemarkMenu@(remark.Id)" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <i class="bi bi-three-dots" aria-hidden="true"></i>
+                                                    <span class="visually-hidden">Actions for the remark by @remark.AuthorName</span>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="itpRemarkMenu@(remark.Id)">
+                                                    @if (canEdit)
+                                                    {
+                                                        <li><a class="dropdown-item" href="#remark-edit-@remark.Id" data-itp-remark-edit>Edit</a></li>
+                                                    }
+                                                    @if (canDelete)
+                                                    {
+                                                        <li>
+                                                            <form method="post" asp-page-handler="RemarkDelete" asp-route-id="@Model.Project.Id"
+                                                                  data-confirm="Delete this remark? It is removed from the project; the audit trail keeps it." data-confirm-tone="danger" data-confirm-action="Delete remark">
+                                                                <input type="hidden" name="remarkId" value="@remark.Id" />
+                                                                <input type="hidden" name="remarkRowVersion" value="@rowVersion" />
+                                                                <button type="submit" class="dropdown-item text-danger">Delete</button>
+                                                            </form>
+                                                        </li>
+                                                    }
+                                                </ul>
+                                            </div>
+                                        }
                                     </div>
                                     <div class="itp-remark__body">@remark.Body</div>
-                                    <div class="itp-remark__meta">
-                                        @if (remark.LastEditedAtUtc.HasValue)
-                                        {
-                                            <span>edited</span>
-                                        }
-                                        @if (canEdit)
-                                        {
-                                            <a class="itp-remark__action" href="#remark-edit-@remark.Id" data-itp-remark-edit>Edit</a>
-                                        }
-                                        @if (canDelete)
-                                        {
-                                            <form method="post" asp-page-handler="RemarkDelete" asp-route-id="@Model.Project.Id" class="itp-remark__delete"
-                                                  data-confirm="Delete this remark? It is removed from the project; the audit trail keeps it." data-confirm-tone="danger" data-confirm-action="Delete remark">
-                                                <input type="hidden" name="remarkId" value="@remark.Id" />
-                                                <input type="hidden" name="remarkRowVersion" value="@rowVersion" />
-                                                <button type="submit" class="itp-remark__action itp-remark__action--danger">Delete</button>
-                                            </form>
-                                        }
-                                    </div>
+                                    @if (remark.LastEditedAtUtc.HasValue)
+                                    {
+                                        <div class="itp-remark__meta"><span>edited</span></div>
+                                    }
                                     @if (canEdit)
                                     {
                                         <details class="itp-remark__editor" id="remark-edit-@remark.Id">
@@ -211,7 +258,7 @@
                                                 <input type="hidden" name="RemarkEdit.RowVersion" value="@rowVersion" />
                                                 <textarea name="RemarkEdit.Body" class="form-control itp-composer__text" rows="3" maxlength="@ItProjectRemark.BodyMaxLength" aria-label="Remark" required>@remark.Body</textarea>
                                                 <div class="itp-composer__row">
-                                                    <label class="itp-composer__field"><span>Event date</span><input type="date" name="RemarkEdit.EventDate" value="@remark.EventDate.ToString("yyyy-MM-dd")" class="form-control form-control-sm" required /></label>
+                                                    <label class="itp-composer__field"><span>Date</span><input type="date" name="RemarkEdit.EventDate" value="@remark.EventDate.ToString("yyyy-MM-dd")" class="form-control form-control-sm" required /></label>
                                                     <span class="itp-composer__spacer"></span>
                                                     <a class="btn btn-outline-secondary btn-sm" href="#remark-@remark.Id" data-itp-remark-cancel>Cancel</a>
                                                     <button type="submit" class="btn btn-primary btn-sm">Save remark</button>
@@ -312,28 +359,6 @@
                         }
                     </ul>
                 }
-                @if (Model.CanManage)
-                {
-                    <div class="itp-record__actions">
-                        @if (Model.IsDropped)
-                        {
-                            <form method="post" asp-page-handler="Reinstate" asp-route-id="@Model.Project.Id"
-                                  data-confirm="Reinstate this IT project? It returns to the active board at the stage it had reached." data-confirm-tone="primary" data-confirm-action="Reinstate">
-                                <input type="hidden" asp-for="RowVersion" />
-                                <button type="submit" class="btn btn-sm btn-outline-secondary">Reinstate</button>
-                            </form>
-                        }
-                        else if (!Model.IsCompleted)
-                        {
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="offcanvas" data-bs-target="#itpDropDrawer" aria-controls="itpDropDrawer">Mark dropped</button>
-                        }
-                        <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Project.Id"
-                              data-confirm="Delete this IT project? It leaves the board; an administrator can restore it later." data-confirm-tone="danger" data-confirm-action="Delete project">
-                            <input type="hidden" asp-for="RowVersion" />
-                            <button type="submit" class="btn btn-sm btn-link itp-record__delete">Delete</button>
-                        </form>
-                    </div>
-                }
             </section>
 
             <section class="itp-card itp-files" id="attachments" aria-labelledby="itpFilesTitle">
@@ -366,7 +391,7 @@
                                 {
                                     <form method="post" asp-page-handler="AttachmentDelete" asp-route-id="@Model.Project.Id" asp-route-attachmentId="@file.Id" class="itp-file__delete"
                                           data-confirm="Remove this file from the project? An administrator can restore it later." data-confirm-tone="danger" data-confirm-action="Remove file">
-                                        <button type="submit" class="itp-file__remove" aria-label="Remove @file.FileName" title="Remove this file"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                                        <button type="submit" class="itp-file__remove" aria-label="Remove @file.FileName" title="Remove this file"><i class="bi bi-trash3" aria-hidden="true"></i></button>
                                     </form>
                                 }
                             </li>
