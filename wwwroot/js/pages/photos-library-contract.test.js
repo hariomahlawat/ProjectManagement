@@ -84,3 +84,11 @@ test('albums start with a New album tile and collections are grouped by where th
     assert.match(photosPage, /IndexModel\.CollectionGroupTitle\(collectionGroup\.Key\)/);
     assert.doesNotMatch(photosPage, /Organisation-wide media albums/);
 });
+
+test('icon-only actions on phones keep their words for screen readers', () => {
+    const styles = fs.readFileSync(path.resolve(__dirname, '../../css/pages/photos-library.css'), 'utf8');
+    const rule = styles.match(/\.photos-action span \{([^}]*)\}/);
+    assert.ok(rule, 'the phone rule for action labels exists');
+    assert.doesNotMatch(rule[1], /display\s*:\s*none/, 'display:none would remove the button name');
+    assert.match(rule[1], /clip\s*:\s*rect\(0, 0, 0, 0\)/);
+});
