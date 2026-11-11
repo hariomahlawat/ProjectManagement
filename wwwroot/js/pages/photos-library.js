@@ -439,9 +439,15 @@
                 cache: 'no-store',
                 credentials: 'same-origin'
             });
-            if (!response.ok) throw new Error(`Timeline part failed: ${response.status}`);
+            // A real part always carries the next-part header, even when empty. A redirect (an
+            // expired sign-in lands on the login page) or any other page does not, and must not
+            // be taken for "no more pictures".
+            const nextHeader = response.headers.get('X-Photos-Next-Part');
+            if (!response.ok || response.redirected || nextHeader === null) {
+                throw new Error(`Timeline part failed: ${response.status}`);
+            }
             const html = await response.text();
-            nextPartUrl = response.headers.get('X-Photos-Next-Part') || '';
+            nextPartUrl = nextHeader;
             appendTimelinePart(html);
             if (!nextPartUrl && more) {
                 more.hidden = true;
