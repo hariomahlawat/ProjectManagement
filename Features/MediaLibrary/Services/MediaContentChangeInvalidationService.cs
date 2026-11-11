@@ -171,7 +171,7 @@ public sealed class MediaContentChangeInvalidationService : IMediaContentChangeI
             // Embeddings, assignments and review decisions are cascade-deleted. Identity audit
             // rows are deliberately independent so the historical decision remains traceable.
             _db.Faces.RemoveRange(faces);
-            DeleteFaceThumbnails(faces.Select(face => face.ReviewThumbnailPath));
+            DeleteFaceThumbnailsAfterSave(faces.Select(face => face.ReviewThumbnailPath));
         }
 
         foreach (var change in byAssetId.Values)
@@ -258,7 +258,7 @@ public sealed class MediaContentChangeInvalidationService : IMediaContentChangeI
         }
 
         _db.Faces.RemoveRange(faces);
-        DeleteFaceThumbnails(faces.Select(face => face.ReviewThumbnailPath));
+        DeleteFaceThumbnailsAfterSave(faces.Select(face => face.ReviewThumbnailPath));
     }
 
     private static MediaIdentityAudit CreateIdentityAudit(
@@ -309,6 +309,38 @@ public sealed class MediaContentChangeInvalidationService : IMediaContentChangeI
             }),
             PerformedAtUtc = changedAtUtc
         };
+
+    /// <summary>
+    /// The face rows are removed by the caller's next SaveChanges. Deleting their thumbnail
+    /// files straight away left faces without thumbnails whenever that save failed (a
+    /// conflict or a lost worker lease). Delete the files only after the save succeeds, and
+    /// drop the request if it fails.
+    /// </summary>
+    private void DeleteFaceThumbnailsAfterSave(IEnumerable<string?> relativePaths)
+    {
+        var paths = relativePaths.Where(path => !string.IsNullOrWhiteSpace(path)).ToList();
+        if (paths.Count == 0)
+        {
+            return;
+        }
+
+        EventHandler<SavedChangesEventArgs>? onSaved = null;
+        EventHandler<SaveChangesFailedEventArgs>? onFailed = null;
+        void Detach()
+        {
+            _db.SavedChanges -= onSaved;
+            _db.SaveChangesFailed -= onFailed;
+        }
+
+        onSaved = (_, _) =>
+        {
+            Detach();
+            DeleteFaceThumbnails(paths);
+        };
+        onFailed = (_, _) => Detach();
+        _db.SavedChanges += onSaved;
+        _db.SaveChangesFailed += onFailed;
+    }
 
     private void DeleteFaceThumbnails(IEnumerable<string?> relativePaths)
     {

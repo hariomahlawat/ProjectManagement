@@ -33,6 +33,21 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
         Assert.Contains("NOT EXISTS", sql.ToUpperInvariant());
     }
 
+    [Fact]
+    public void Recently_seen_sort_places_people_without_photos_last()
+    {
+        using var db = CreateContext();
+        var filteredPeople = MediaPeopleQueryService.BuildFilteredPeopleQuery(db, null, includeHidden: false);
+
+        var sql = MediaPeopleQueryService.BuildPeopleIndexRowsQuery(db, filteredPeople, "recent", skip: 0, take: 36)
+            .ToQueryString()
+            .ToUpperInvariant();
+
+        // PostgreSQL sorts NULL first in DESC order; the query orders by "has a date" first.
+        var orderBy = sql[sql.LastIndexOf("ORDER BY", StringComparison.Ordinal)..];
+        Assert.Contains("IS NOT NULL", orderBy);
+    }
+
     [Theory]
     [InlineData("name")]
     [InlineData("photos")]

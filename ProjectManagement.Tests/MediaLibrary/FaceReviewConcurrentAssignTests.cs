@@ -73,6 +73,58 @@ public sealed class FaceReviewConcurrentAssignTests
         Assert.Single(await db.PersonFaces.AsNoTracking().ToListAsync());
     }
 
+    [Fact]
+    public async Task Excluding_an_appearance_that_is_not_a_reference_needs_no_other_reference()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db);
+        await service.AssignAsync(FaceId, Alice, "reviewer-a", null, CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        // Alice has no trusted references. Excluding a non-reference appearance must not
+        // demand one (the readiness service would throw if it were consulted).
+        await service.SetReferenceStatusAsync(
+            Alice, FaceId, FaceReferenceStatus.Excluded, "reviewer-a", "Blurred side view.", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var assignment = await db.PersonFaces.AsNoTracking().SingleAsync(a => a.RemovedAtUtc == null);
+        Assert.Equal(FaceReferenceStatus.Excluded, assignment.ReferenceStatus);
+    }
+
+    [Fact]
+    public async Task Rejecting_a_suggestion_records_the_decision_and_audit()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        db.FaceReviewDecisions.Add(new MediaFaceReviewDecision
+        {
+            MediaFaceId = FaceId,
+            CandidatePersonId = Bob,
+            Decision = FaceReviewDecisionType.Pending,
+            ModelKey = "sface",
+            ModelVersion = "1",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var service = CreateService(db);
+
+        await service.RejectAsync(FaceId, Bob, "reviewer-a", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var decision = await db.FaceReviewDecisions.AsNoTracking().SingleAsync();
+        Assert.Equal(FaceReviewDecisionType.Rejected, decision.Decision);
+        Assert.Equal("reviewer-a", decision.DecidedByUserId);
+        Assert.Contains(await db.IdentityAudits.AsNoTracking().ToListAsync(), audit => audit.Action == "CandidateRejected");
+
+        // Rejecting a face someone has since assigned is refused inside the transaction.
+        await service.AssignAsync(FaceId, Alice, "reviewer-b", null, CancellationToken.None);
+        db.ChangeTracker.Clear();
+        await Assert.ThrowsAsync<FaceIdentityConflictException>(() =>
+            service.RejectAsync(FaceId, Bob, "reviewer-a", CancellationToken.None));
+    }
+
     private static FaceReviewService CreateService(MediaLibraryDbContext db)
     {
         var options = new MediaLibraryOptions

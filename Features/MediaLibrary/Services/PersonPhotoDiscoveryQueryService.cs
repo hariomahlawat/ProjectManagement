@@ -81,17 +81,25 @@ public sealed class PersonPhotoDiscoveryQueryService : IPersonPhotoDiscoveryQuer
                 _options.CandidateMinimumTrustedReferenceQuality)
             .CountAsync(cancellationToken);
 
+        // Count exactly the rows GetCandidatesAsync reads (strongest first, capped at
+        // MaximumCandidateRowsRead). Counting every candidate read an unbounded id list and,
+        // past the cap, made the status poll announce matches the profile never showed.
         var directAssetIds = trustedReferenceCount == 0
             ? Array.Empty<long>()
-            : await BuildCandidateRowsQuery(
+            : (await BuildCandidateRowsQuery(
                     _db,
                     personId,
                     _options.Embedder.Key,
                     _options.Embedder.Version,
                     visibleAssetIds)
+                .OrderByDescending(row => row.Similarity)
+                .ThenByDescending(row => row.QualityScore)
+                .ThenByDescending(row => row.MediaDateUtc)
+                .Take(MaximumCandidateRowsRead)
                 .Select(row => row.AssetId)
+                .ToListAsync(cancellationToken))
                 .Distinct()
-                .ToArrayAsync(cancellationToken);
+                .ToArray();
 
         var groupEvidence = trustedReferenceCount == 0
             ? GroupEvidence.Empty

@@ -1439,6 +1439,21 @@ contentTypeProvider.Mappings[".mjs"] = "text/javascript";
 contentTypeProvider.Mappings[".bcmap"] = "application/octet-stream";
 contentTypeProvider.Mappings[".pfb"] = "application/octet-stream";
 
+// SECTION: Never serve stored uploads as static files.
+// Upload storage falls back to wwwroot/uploads when no storage root is configured. Static
+// files run before authentication and authorisation, so files there would be reachable by
+// anyone on the LAN. Uploads are only ever served through their authorised endpoints.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/uploads", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next();
+});
+
 app.UseStaticFiles(new StaticFileOptions
 {
     ContentTypeProvider = contentTypeProvider,

@@ -45,6 +45,24 @@ public sealed class ProjectMediaAccessGuardTests
         Assert.False(ProjectAccessGuard.CanManageProjectMedia(project, CreatePrincipal("viewer"), "viewer"));
     }
 
+    [Fact]
+    public void CanManageProjectMedia_IsReadOnlyForTrashedProjects_DocumentsUnchanged()
+    {
+        var project = new Project
+        {
+            Id = 1,
+            Name = "Project",
+            CreatedByUserId = "creator",
+            LeadPoUserId = "po-owner",
+            IsDeleted = true
+        };
+
+        Assert.False(ProjectAccessGuard.CanManageProjectMedia(project, CreatePrincipal("admin", "Admin"), "admin"));
+        Assert.False(ProjectAccessGuard.CanManageProjectMedia(project, CreatePrincipal("po-owner", "Project Officer"), "po-owner"));
+        Assert.True(ProjectAccessGuard.CanViewProjectMedia(project, CreatePrincipal("viewer")));
+        Assert.True(ProjectAccessGuard.CanManageProjectDocuments(project, CreatePrincipal("admin", "Admin"), "admin"));
+    }
+
     private static ClaimsPrincipal CreatePrincipal(string userId, params string[] roles)
     {
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };

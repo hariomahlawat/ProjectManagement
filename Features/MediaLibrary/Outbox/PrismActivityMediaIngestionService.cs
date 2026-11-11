@@ -89,6 +89,18 @@ public sealed class PrismActivityMediaIngestionService : IPrismActivityMediaInge
         await using var transaction = await _mediaDb.Database.BeginTransactionAsync(cancellationToken);
         await AcquireCatalogueLockAsync(cancellationToken);
 
+        // Re-read under the catalogue lock. Another instance may have processed this
+        // photo's removal while this one waited for the lock; writing the snapshot read
+        // before the lock would bring the deleted photo back into the library.
+        snapshot = await LoadAttachmentAsync(attachmentId, storageKey, cancellationToken);
+        if (snapshot is null || snapshot.ActivityIsDeleted
+            || !ActivityAttachmentClassifier.IsPhoto(snapshot.OriginalFileName, snapshot.ContentType))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await RemovePhotoAsync(attachmentId, storageKey, cancellationToken);
+            return;
+        }
+
         var source = await GetPrismSourceAsync(cancellationToken);
         var sourceEntityId = ActivitySourceEntityId(snapshot.Id);
         var asset = await _mediaDb.Assets
