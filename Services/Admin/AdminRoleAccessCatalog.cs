@@ -365,7 +365,7 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
             Access(
                 "it-projects-manage",
                 "Keep IT projects",
-                "Create IT projects, edit their details, record stage completion and SO cost, upload and remove attachments, and mark a project dropped.",
+                "Create IT projects, edit their details, record stage completion, IPA cost and SO cost, upload and remove attachments, and mark a project dropped.",
                 Policies.ItProjects.ManageRoles,
                 Group.ItProjects,
                 20),

@@ -16,7 +16,13 @@
 }
 
 <div class="itp-page itp-page--details" data-itp-details data-itp-open="@Model.Open">
-    <div class="itp-crumb" aria-label="Breadcrumb">ERP / <a asp-page="./Index">IT projects</a> / @Model.DisplayReference</div>
+    <nav aria-label="Breadcrumb" class="itp-crumb">
+        <ol class="breadcrumb small mb-0">
+            <li class="breadcrumb-item"><a asp-page="/Dashboard/Index">Dashboard</a></li>
+            <li class="breadcrumb-item"><a asp-page="./Index">IT projects</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@Model.DisplayReference</li>
+        </ol>
+    </nav>
     <header class="itp-hero">
         <div class="itp-hero__top">
             <div class="itp-hero__id">
@@ -431,14 +437,14 @@
                                         }
                                         @if (row.CarriesCost)
                                         {
-                                            <span class="itp-stage-row__sub">Date and value, both optional</span>
+                                            <span class="itp-stage-row__sub">@(row.Code == ItProjectStages.Ppp ? "Date and IPA cost, both optional" : "Date and value, both optional")</span>
                                         }
                                     </div>
                                     <div class="itp-stage-row__inputs">
                                         <input type="date" asp-for="Stages.Items[i].CompletedOn" asp-format="{0:yyyy-MM-dd}" class="form-control form-control-sm" data-itp-date aria-label="@row.Label completion date" disabled="@(row.IsOptional && !item.IsIncluded)" />
                                         @if (row.CarriesCost)
                                         {
-                                            <input type="number" asp-for="Stages.Items[i].CostLakhs" class="form-control form-control-sm" step="0.01" min="0" placeholder="Value, ₹ lakh" data-itp-cost aria-label="SO value in lakhs" />
+                                            <input type="number" asp-for="Stages.Items[i].CostLakhs" class="form-control form-control-sm" step="0.01" min="0" placeholder="@(row.Code == ItProjectStages.Ppp ? "IPA cost, ₹ lakh" : "Value, ₹ lakh")" data-itp-cost aria-label="@(row.Code == ItProjectStages.Ppp ? "IPA cost in lakhs" : "SO value in lakhs")" />
                                         }
                                     </div>
                                 </li>

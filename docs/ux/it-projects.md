@@ -70,7 +70,10 @@ the R&D workflow metadata.
    into the chain as not complete, unless a later stage is already complete, in which case rule 1
    makes it complete (date empty). Skipping leaves the other stages alone.
 5. **SO cost** is optional, in lakhs, two decimals, stored on the SO stage row. It may be entered
-   whether or not the SO stage is complete.
+   whether or not the SO stage is complete. The **IPA cost** (the cost approved in principle) is
+   kept the same way on the IT ARPPP / IPA stage row (owner, 11 Nov 2026): entered in Update stages
+   beside that stage's date, shown under the stage on the Journey and in the history line. No other
+   stage carries a cost, and the board's supply-order figure still counts SO values only.
 6. The stage editor saves all nine stages in one post so a historic project can be entered in one
    go; rules 1 to 4 run on the final state.
 

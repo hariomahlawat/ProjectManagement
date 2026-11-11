@@ -13,7 +13,13 @@
 <div class="itp-page itp-page--form">
     <header class="itp-head">
         <div class="itp-head__identity">
-            <div class="itp-crumb" aria-label="Breadcrumb">ERP / <a asp-page="./Index">IT projects</a> / New</div>
+            <nav aria-label="Breadcrumb" class="itp-crumb">
+                <ol class="breadcrumb small mb-0">
+                    <li class="breadcrumb-item"><a asp-page="/Dashboard/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a asp-page="./Index">IT projects</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">New</li>
+                </ol>
+            </nav>
             <h1 class="itp-title">New IT project</h1>
             <p class="itp-subtitle">A few things to start with. The stages come next, on the project's page.</p>
             <div class="itp-rule" aria-hidden="true"></div>
