@@ -502,6 +502,19 @@
     resize: vertical;
 }
 
+/* The new-remark composer is one line until it is used; focus opens it (owner, 11 Nov 2026). */
+.itp-composer--closed:not(:focus-within) .itp-composer__text {
+    height: 2.4rem;
+    min-height: 0;
+    overflow: hidden;
+    resize: none;
+}
+
+.itp-composer--closed:not(:focus-within) .itp-kind,
+.itp-composer--closed:not(:focus-within) .itp-composer__row {
+    display: none;
+}
+
 .itp-composer__row {
     display: flex;
     flex-wrap: wrap;

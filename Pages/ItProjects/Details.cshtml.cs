@@ -111,7 +111,7 @@ public class DetailsModel : PageModel
 
         [Required(ErrorMessage = "Give the date the remark is about.")]
         [DataType(DataType.Date)]
-        [Display(Name = "Event date")]
+        [Display(Name = "Date")]
         public DateOnly? EventDate { get; set; }
 
         /// <summary>"Conference" for a conference remark (Comdt / HoD); anything else is a general remark.</summary>
