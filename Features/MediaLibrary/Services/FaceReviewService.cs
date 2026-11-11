@@ -1563,18 +1563,15 @@ public sealed class FaceReviewService : IFaceReviewService
             return;
         }
 
-        var previousPersonId = activeAssignments.Select(assignment => (Guid?)assignment.MediaPersonId).FirstOrDefault();
-        foreach (var assignment in activeAssignments)
-        {
-            assignment.RemovedAtUtc = now;
-            assignment.RemovedByUserId = userId;
-            assignment.RemovalReason = $"Reassigned to {person.DisplayName}.";
-            assignment.ConcurrencyToken = Guid.NewGuid();
-        }
-
+        // Every caller assigns a face from a review queue of unassigned faces; moving a
+        // confirmed face between people goes through MoveAssignmentsAsync, which repairs
+        // the previous person. Finding an active assignment here means another reviewer
+        // assigned the face after this page was loaded. Silently replacing it would leave
+        // that person without the face while their portrait still showed it.
         if (activeAssignments.Count > 0)
         {
-            await _db.SaveChangesAsync(cancellationToken);
+            throw new FaceIdentityConflictException(
+                "This appearance was assigned to someone else by another reviewer. Refresh the page and review it again.");
         }
 
         _db.PersonFaces.Add(new MediaPersonFace
@@ -1637,9 +1634,8 @@ public sealed class FaceReviewService : IFaceReviewService
         {
             FaceId = faceId,
             PersonId = person.Id,
-            PreviousPersonId = previousPersonId,
             NewPersonId = person.Id,
-            Action = previousPersonId.HasValue ? "FaceReassigned" : "FaceAssigned",
+            Action = "FaceAssigned",
             PerformedByUserId = userId,
             Notes = TrimTo(auditNotes, 1024),
             MetadataJson = JsonSerializer.Serialize(new
