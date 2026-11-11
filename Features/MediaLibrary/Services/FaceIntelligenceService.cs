@@ -374,7 +374,9 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         var refreshed = 0;
         var trustedEvidenceChanged = false;
 
-        foreach (var face in asset.Faces.OrderBy(item => item.SequenceNumber))
+        // A face a reviewer marked "not a face" keeps its suppressed state: no fresh
+        // quality status and no new embedding that could make it matchable again.
+        foreach (var face in asset.Faces.Where(item => !item.IsSuppressed).OrderBy(item => item.SequenceNumber))
         {
             var best = usableDetections
                 .Where(item => !usedDetectionIndexes.Contains(item.Index))

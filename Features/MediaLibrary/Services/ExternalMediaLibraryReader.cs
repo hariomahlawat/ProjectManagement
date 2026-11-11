@@ -15,15 +15,18 @@ public sealed class ExternalMediaLibraryReader : IExternalMediaLibraryReader
 {
     private readonly MediaLibraryDbContext _db;
     private readonly MediaLibraryOptions _options;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly ILogger<ExternalMediaLibraryReader> _logger;
 
     public ExternalMediaLibraryReader(
         MediaLibraryDbContext db,
         IOptions<MediaLibraryOptions> options,
+        IMediaAssetVisibilityPolicy visibility,
         ILogger<ExternalMediaLibraryReader> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -40,16 +43,12 @@ public sealed class ExternalMediaLibraryReader : IExternalMediaLibraryReader
 
         try
         {
-            var query = _db.Assets
-                .AsNoTracking()
+            // Use the shared visibility rules (which also require an enabled source) rather
+            // than a second copy that could drift from what the fetch endpoints enforce.
+            var query = _visibility
+                .Apply(_db.Assets.AsNoTracking())
                 .Where(asset => asset.Origin == MediaAssetOrigin.ExternalFile
-                                && asset.IsAvailable
-                                && asset.AvailabilityStatus == MediaAvailabilityStatus.Available
-                                && !asset.IsDeleted
-                                && !asset.IsArchived
-                                && asset.Source.SourceType == MediaLibrarySourceType.FileSystem
-                                && asset.Source.IsVisibleInLibrary
-                                && !asset.Source.IsDeleted);
+                                && asset.Source.SourceType == MediaLibrarySourceType.FileSystem);
 
             query = request.Kind switch
             {

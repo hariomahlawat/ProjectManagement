@@ -591,7 +591,10 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             "photos" => rows.OrderByDescending(person => person.PhotoCount)
                 .ThenBy(person => person.DisplayName)
                 .ThenBy(person => person.Id),
-            "recent" => rows.OrderByDescending(person => person.LatestMediaDateUtc)
+            // PostgreSQL sorts NULL first in descending order; people with no visible
+            // photographs belong at the end of "Recently seen", not the top.
+            "recent" => rows.OrderByDescending(person => person.LatestMediaDateUtc != null)
+                .ThenByDescending(person => person.LatestMediaDateUtc)
                 .ThenBy(person => person.DisplayName)
                 .ThenBy(person => person.Id),
             _ => rows.OrderBy(person => person.DisplayName)

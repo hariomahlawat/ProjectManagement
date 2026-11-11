@@ -84,7 +84,10 @@ public sealed partial class IndexModel
             var creatorNames = await ResolveAlbumCreatorNamesAsync(
                 result.Albums.Select(album => album.CreatedByUserId),
                 cancellationToken);
-            Albums = result.Albums.Select(album => MapAlbum(album, creatorNames)).ToList();
+            var coverVersions = await LoadCoverCacheVersionsAsync(
+                result.Albums.Select(album => album.CoverMediaAssetId),
+                cancellationToken);
+            Albums = result.Albums.Select(album => MapAlbum(album, creatorNames, coverVersions)).ToList();
             Collections = Array.Empty<CollectionCard>();
             Items = Array.Empty<MediaItem>();
             Groups = Array.Empty<MediaGroup>();
@@ -252,11 +255,10 @@ public sealed partial class IndexModel
 
     private AlbumCard MapAlbum(
         MediaAlbumSummary row,
-        IReadOnlyDictionary<string, string> creatorNames)
+        IReadOnlyDictionary<string, string> creatorNames,
+        IReadOnlyDictionary<long, int> coverVersions)
     {
-        var coverUrl = row.CoverMediaAssetId.HasValue
-            ? Url.Page("/Photos/Media", new { id = row.CoverMediaAssetId.Value, variant = "thumb" })
-            : null;
+        var coverUrl = BuildCoverUrl(row.CoverMediaAssetId, coverVersions);
         var actor = CurrentAlbumActor();
         return new AlbumCard(
             row.Id,

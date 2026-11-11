@@ -28,8 +28,21 @@ public static class ProjectAccessGuard
     public static bool CanViewProjectMedia(Project project, ClaimsPrincipal principal)
         => CanViewProjectInformation(project, principal);
 
-    // Project changes are available to Admin, every HoD, and the assigned Project Officer.
+    // Project media changes are available to Admin, every HoD, and the assigned Project
+    // Officer, while the project is not in the trash. A trashed project's photos and videos
+    // stay viewable but are read-only until the project is restored; the media library
+    // already excludes trashed projects, so anything added there would never appear.
     public static bool CanManageProjectMedia(Project project, ClaimsPrincipal principal, string? userId)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        return !project.IsDeleted && CanManageProjectContent(project, principal, userId);
+    }
+
+    public static bool CanManageProjectDocuments(Project project, ClaimsPrincipal principal, string? userId)
+        => CanManageProjectContent(project, principal, userId);
+
+    // Project changes are available to Admin, every HoD, and the assigned Project Officer.
+    private static bool CanManageProjectContent(Project project, ClaimsPrincipal principal, string? userId)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(principal);
@@ -47,7 +60,4 @@ public static class ProjectAccessGuard
         return principal.IsInRole("Project Officer") &&
                string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
     }
-
-    public static bool CanManageProjectDocuments(Project project, ClaimsPrincipal principal, string? userId)
-        => CanManageProjectMedia(project, principal, userId);
 }

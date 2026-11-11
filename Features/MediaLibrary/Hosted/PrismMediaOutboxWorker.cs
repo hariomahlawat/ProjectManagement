@@ -339,13 +339,42 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
     private async Task<int> DrainOnceAsync(CancellationToken cancellationToken)
     {
         var messages = await ClaimBatchAsync(cancellationToken);
-        if (messages.Count > 0)
+        if (messages.Count == 0)
         {
-            _runtimeState.MarkClaimed();
+            return 0;
         }
-        foreach (var message in messages)
+
+        _runtimeState.MarkClaimed();
+
+        // Every message in the batch is leased at claim time, but they are processed one at
+        // a time. Renewing only the message in progress let the others' leases lapse while
+        // an earlier one waited (for example behind the full synchroniser's lock), so
+        // another instance could claim and process them too. Renew the whole batch until
+        // each message is completed or released.
+        using var leaseCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var leaseTask = RenewLeaseLoopAsync(messages.Select(message => message.Id).ToArray(), leaseCancellation.Token);
+        try
         {
-            await ProcessOneAsync(message, cancellationToken);
+            foreach (var message in messages)
+            {
+                await ProcessOneAsync(message, cancellationToken);
+            }
+        }
+        finally
+        {
+            leaseCancellation.Cancel();
+            try
+            {
+                await leaseTask;
+            }
+            catch (OperationCanceledException) when (leaseCancellation.IsCancellationRequested)
+            {
+                // Normal lease-renewal shutdown.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lease renewal for a PRISM media outbox batch ended unexpectedly");
+            }
         }
 
         return messages.Count;
@@ -423,39 +452,67 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
         PrismMediaOutboxMessage claimed,
         CancellationToken cancellationToken)
     {
-        using var leaseCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var leaseTask = RenewLeaseLoopAsync(claimed.Id, leaseCancellation.Token);
         try
+        {
+            using (var processingScope = _scopeFactory.CreateScope())
+            {
+                var ingestion = processingScope.ServiceProvider
+                    .GetRequiredService<IPrismActivityMediaIngestionService>();
+                await ingestion.ProcessAsync(claimed, cancellationToken);
+            }
+
+            using var completionScope = _scopeFactory.CreateScope();
+            var db = completionScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var entity = await db.PrismMediaOutboxMessages.SingleOrDefaultAsync(
+                message => message.Id == claimed.Id
+                           && message.Status == PrismMediaOutboxStatus.Processing
+                           && message.LockedBy == _workerId,
+                cancellationToken);
+            if (entity is null)
+            {
+                return;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            entity.Status = PrismMediaOutboxStatus.Completed;
+            entity.ProcessedAtUtc = now;
+            entity.LockedBy = null;
+            entity.LockExpiresAtUtc = null;
+            entity.LastError = null;
+            await db.SaveChangesAsync(cancellationToken);
+            _runtimeState.MarkCompleted();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await RecordFailureAsync(claimed, ex, cancellationToken);
+        }
+    }
+
+    private async Task RenewLeaseLoopAsync(IReadOnlyCollection<long> messageIds, CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
+        while (await timer.WaitForNextTickAsync(cancellationToken))
         {
             try
             {
-                using (var processingScope = _scopeFactory.CreateScope())
-                {
-                    var ingestion = processingScope.ServiceProvider
-                        .GetRequiredService<IPrismActivityMediaIngestionService>();
-                    await ingestion.ProcessAsync(claimed, cancellationToken);
-                }
-
-                using var completionScope = _scopeFactory.CreateScope();
-                var db = completionScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var entity = await db.PrismMediaOutboxMessages.SingleOrDefaultAsync(
-                    message => message.Id == claimed.Id
-                               && message.Status == PrismMediaOutboxStatus.Processing
-                               && message.LockedBy == _workerId,
-                    cancellationToken);
-                if (entity is null)
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var renewed = await db.PrismMediaOutboxMessages
+                    .Where(message => messageIds.Contains(message.Id)
+                                      && message.Status == PrismMediaOutboxStatus.Processing
+                                      && message.LockedBy == _workerId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(message => message.LockExpiresAtUtc,
+                            DateTimeOffset.UtcNow.Add(LeaseDuration)),
+                        cancellationToken);
+                if (renewed == 0)
                 {
                     return;
                 }
-
-                var now = DateTimeOffset.UtcNow;
-                entity.Status = PrismMediaOutboxStatus.Completed;
-                entity.ProcessedAtUtc = now;
-                entity.LockedBy = null;
-                entity.LockExpiresAtUtc = null;
-                entity.LastError = null;
-                await db.SaveChangesAsync(cancellationToken);
-                _runtimeState.MarkCompleted();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -463,47 +520,10 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                await RecordFailureAsync(claimed, ex, cancellationToken);
-            }
-        }
-        finally
-        {
-            leaseCancellation.Cancel();
-            try
-            {
-                await leaseTask;
-            }
-            catch (OperationCanceledException) when (leaseCancellation.IsCancellationRequested)
-            {
-                // Normal lease-renewal shutdown.
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex,
-                    "Lease renewal for PRISM media outbox event {EventId} ended unexpectedly",
-                    claimed.EventId);
-            }
-        }
-    }
-
-    private async Task RenewLeaseLoopAsync(long messageId, CancellationToken cancellationToken)
-    {
-        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
-        while (await timer.WaitForNextTickAsync(cancellationToken))
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var renewed = await db.PrismMediaOutboxMessages
-                .Where(message => message.Id == messageId
-                                  && message.Status == PrismMediaOutboxStatus.Processing
-                                  && message.LockedBy == _workerId)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(message => message.LockExpiresAtUtc,
-                        DateTimeOffset.UtcNow.Add(LeaseDuration)),
-                    cancellationToken);
-            if (renewed == 0)
-            {
-                return;
+                // One failed renewal (for example a brief database outage) must not end
+                // renewal for the rest of the batch; the next tick tries again well within
+                // the lease.
+                _logger.LogWarning(ex, "Renewing PRISM media outbox leases failed; retrying on the next tick.");
             }
         }
     }
