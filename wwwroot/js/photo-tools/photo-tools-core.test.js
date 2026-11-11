@@ -271,3 +271,54 @@ test('measurePaper finds paper and ink, and cleanPaper makes black on white', ()
   const same = new Uint8ClampedArray([10, 20, 30, 255]);
   assert.deepEqual(Array.from(tools.cleanPaper(same, null)), [10, 20, 30, 255]);
 });
+
+test('straightenedSize trims a turned photo to the same shape, and editedSize follows the steps', () => {
+  assert.deepEqual(tools.straightenedSize(4000, 3000, 0), { width: 4000, height: 3000 });
+  const turned = tools.straightenedSize(4000, 3000, 5);
+  assert.ok(turned.width < 4000 && turned.height < 3000);
+  assert.ok(Math.abs(turned.width / turned.height - 4 / 3) < 0.002, 'the shape is kept');
+  assert.deepEqual(tools.straightenedSize(4000, 3000, -5), turned, 'left and right trim the same');
+
+  const steps = [
+    { type: 'rotate', turns: 1 },
+    { type: 'flip', axis: 'h' },
+    { type: 'crop', x: 10, y: 10, width: 2000, height: 1000 },
+    { type: 'rotate', turns: -1 },
+    { type: 'resize', width: 500, height: 1000 },
+    { type: 'rotate', turns: 2 }
+  ];
+  assert.deepEqual(tools.editedSize(4000, 3000, []), { width: 4000, height: 3000 });
+  assert.deepEqual(tools.editedSize(4000, 3000, steps.slice(0, 1)), { width: 3000, height: 4000 });
+  assert.deepEqual(tools.editedSize(4000, 3000, steps.slice(0, 4)), { width: 1000, height: 2000 });
+  assert.deepEqual(tools.editedSize(4000, 3000, steps), { width: 500, height: 1000 });
+});
+
+test('defaultCrop and moveCrop keep the box on the photo', () => {
+  const bounds = { width: 4000, height: 3000 };
+  assert.deepEqual(tools.defaultCrop(bounds, null), { x: 0, y: 0, width: 4000, height: 3000 });
+  assert.deepEqual(tools.defaultCrop(bounds, 1), { x: 500, y: 0, width: 3000, height: 3000 });
+  assert.deepEqual(tools.defaultCrop(bounds, 16 / 9), { x: 0, y: 375, width: 4000, height: 2250 });
+
+  const box = { x: 100, y: 100, width: 1000, height: 500 };
+  assert.deepEqual(tools.moveCrop(box, 50, -20, bounds), { x: 150, y: 80, width: 1000, height: 500 });
+  assert.deepEqual(tools.moveCrop(box, -900, 9000, bounds), { x: 0, y: 2500, width: 1000, height: 500 });
+});
+
+test('resizeCrop moves one side, keeps a fixed shape, and stops at the edges', () => {
+  const bounds = { width: 4000, height: 3000 };
+  const box = { x: 1000, y: 1000, width: 1000, height: 1000 };
+
+  assert.deepEqual(tools.resizeCrop(box, 'e', { x: 2500, y: 0 }, null, bounds), { x: 1000, y: 1000, width: 1500, height: 1000 });
+  assert.deepEqual(tools.resizeCrop(box, 'nw', { x: 800, y: 900 }, null, bounds), { x: 800, y: 900, width: 1200, height: 1100 });
+  assert.deepEqual(tools.resizeCrop(box, 'se', { x: 9000, y: 9000 }, null, bounds), { x: 1000, y: 1000, width: 3000, height: 2000 });
+  // Dragged past the opposite side: the box stops at its smallest size instead of flipping.
+  assert.deepEqual(tools.resizeCrop(box, 'w', { x: 3000, y: 0 }, null, bounds), { x: 1984, y: 1000, width: 16, height: 1000 });
+
+  // Square: the corner follows the pointer, the opposite corner stays.
+  assert.deepEqual(tools.resizeCrop(box, 'se', { x: 2600, y: 2200 }, 1, bounds), { x: 1000, y: 1000, width: 1600, height: 1600 });
+  assert.deepEqual(tools.resizeCrop(box, 'nw', { x: 500, y: 900 }, 1, bounds), { x: 500, y: 500, width: 1500, height: 1500 });
+  // The photo's edge limits a fixed shape in both directions.
+  assert.deepEqual(tools.resizeCrop(box, 'se', { x: 4000, y: 3000 }, 1, bounds), { x: 1000, y: 1000, width: 2000, height: 2000 });
+  // A side handle grows the box evenly about its middle.
+  assert.deepEqual(tools.resizeCrop(box, 's', { x: 0, y: 2400 }, 2, bounds), { x: 100, y: 1000, width: 2800, height: 1400 });
+});

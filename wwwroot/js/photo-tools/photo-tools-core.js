@@ -344,6 +344,118 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Edit photo
+  // ---------------------------------------------------------------------------
+
+  // Shapes the crop box can be held to. A ratio is width divided by height.
+  const CROP_SHAPES = Object.freeze([
+    Object.freeze({ key: 'free', label: 'Any shape', ratio: null }),
+    Object.freeze({ key: 'original', label: 'Same shape as the photo', ratio: 'original' }),
+    Object.freeze({ key: '1:1', label: 'Square', ratio: 1 }),
+    Object.freeze({ key: '4:3', label: '4 : 3 (wide)', ratio: 4 / 3 }),
+    Object.freeze({ key: '3:4', label: '3 : 4 (tall)', ratio: 3 / 4 }),
+    Object.freeze({ key: '3:2', label: '3 : 2 (wide)', ratio: 3 / 2 }),
+    Object.freeze({ key: '2:3', label: '2 : 3 (tall)', ratio: 2 / 3 }),
+    Object.freeze({ key: '16:9', label: '16 : 9 (wide)', ratio: 16 / 9 }),
+    Object.freeze({ key: '9:16', label: '9 : 16 (tall)', ratio: 9 / 16 })
+  ]);
+
+  const EDIT_MIN_SIDE = 16;
+  const EDIT_MAX_SIDE = 10000;
+
+  /**
+   * The size left after a photo is turned by a few degrees and trimmed to the largest upright
+   * piece of the same shape, so no empty corner shows.
+   */
+  function straightenedSize(width, height, degrees) {
+    const cover = coverScale(width, height, width, height, (Number(degrees) || 0) * Math.PI / 180);
+    return { width: Math.max(1, Math.floor(width / cover)), height: Math.max(1, Math.floor(height / cover)) };
+  }
+
+  /** The size of a photo after a list of edit steps. */
+  function editedSize(width, height, steps) {
+    let size = { width, height };
+    for (const step of steps) {
+      if (step.type === 'rotate' && Math.abs(step.turns) % 2 === 1) {
+        size = { width: size.height, height: size.width };
+      } else if (step.type === 'straighten') {
+        size = straightenedSize(size.width, size.height, step.degrees);
+      } else if (step.type === 'crop' || step.type === 'resize') {
+        size = { width: step.width, height: step.height };
+      }
+    }
+    return size;
+  }
+
+  function tidyCrop(x, y, width, height, bounds) {
+    const left = Math.min(Math.max(0, Math.round(x)), bounds.width - 1);
+    const top = Math.min(Math.max(0, Math.round(y)), bounds.height - 1);
+    return {
+      x: left,
+      y: top,
+      width: Math.max(1, Math.min(Math.round(width), bounds.width - left)),
+      height: Math.max(1, Math.min(Math.round(height), bounds.height - top))
+    };
+  }
+
+  /** The starting crop box: the whole photo, or the largest centred box of a fixed shape. */
+  function defaultCrop(bounds, ratio) {
+    if (!ratio) return { x: 0, y: 0, width: bounds.width, height: bounds.height };
+    const width = Math.min(bounds.width, bounds.height * ratio);
+    const height = width / ratio;
+    return tidyCrop((bounds.width - width) / 2, (bounds.height - height) / 2, width, height, bounds);
+  }
+
+  /** Slides the crop box without letting it leave the photo. */
+  function moveCrop(rect, dx, dy, bounds) {
+    return {
+      ...rect,
+      x: Math.round(Math.min(Math.max(0, rect.x + dx), bounds.width - rect.width)),
+      y: Math.round(Math.min(Math.max(0, rect.y + dy), bounds.height - rect.height))
+    };
+  }
+
+  /**
+   * Drags one handle of the crop box (n, s, e, w or a corner such as "se") to a point on the
+   * photo. The opposite side stays where it is. With a ratio the box keeps its shape.
+   */
+  function resizeCrop(rect, handle, point, ratio, bounds, minimum) {
+    const min = minimum || EDIT_MIN_SIDE;
+    const west = handle.includes('w');
+    const east = handle.includes('e');
+    const north = handle.includes('n');
+    const south = handle.includes('s');
+    let left = rect.x;
+    let right = rect.x + rect.width;
+    let top = rect.y;
+    let bottom = rect.y + rect.height;
+    const px = Math.min(bounds.width, Math.max(0, point.x));
+    const py = Math.min(bounds.height, Math.max(0, point.y));
+
+    if (!ratio) {
+      if (west) left = Math.min(px, right - min);
+      if (east) right = Math.max(px, left + min);
+      if (north) top = Math.min(py, bottom - min);
+      if (south) bottom = Math.max(py, top + min);
+      return tidyCrop(left, top, right - left, bottom - top, bounds);
+    }
+
+    const anchorX = west ? right : east ? left : (left + right) / 2;
+    const anchorY = north ? bottom : south ? top : (top + bottom) / 2;
+    const roomX = west ? anchorX : east ? bounds.width - anchorX : 2 * Math.min(anchorX, bounds.width - anchorX);
+    const roomY = north ? anchorY : south ? bounds.height - anchorY : 2 * Math.min(anchorY, bounds.height - anchorY);
+    const wantX = west ? anchorX - px : east ? px - anchorX : 0;
+    const wantY = (north ? anchorY - py : south ? py - anchorY : 0) * ratio;
+    const most = Math.min(roomX, roomY * ratio);
+    const least = Math.min(most, min * Math.max(1, ratio));
+    const width = Math.min(most, Math.max(least, wantX, wantY));
+    const height = width / ratio;
+    const x = west ? anchorX - width : east ? anchorX : anchorX - width / 2;
+    const y = north ? anchorY - height : south ? anchorY : anchorY - height / 2;
+    return tidyCrop(x, y, width, height, bounds);
+  }
+
+  // ---------------------------------------------------------------------------
   // Target file size
   // ---------------------------------------------------------------------------
 
@@ -440,6 +552,14 @@
     coverScale,
     clampOffset,
     setJpegDpi,
+    CROP_SHAPES,
+    EDIT_MIN_SIDE,
+    EDIT_MAX_SIDE,
+    straightenedSize,
+    editedSize,
+    defaultCrop,
+    moveCrop,
+    resizeCrop,
     encodeToTarget
   });
 });
