@@ -409,6 +409,25 @@
         root.dispatchEvent(new CustomEvent('photos:tiles-changed'));
     }
 
+    // The page links come back when a part cannot be loaded. By then earlier parts may have
+    // been added, so Next must open the part that failed, not the page after the first one.
+    function showPaginationFallback() {
+        if (!pagination) return;
+        const nextLink = pagination.querySelector('[data-photos-next-page]');
+        if (nextLink && nextPartUrl) {
+            try {
+                const url = new URL(nextPartUrl, window.location.href);
+                url.searchParams.delete('handler');
+                nextLink.setAttribute('href', `${url.pathname}${url.search}`);
+                // The timeline now spans several pages, so "Page 1" would mislead.
+                pagination.querySelector('[data-photos-page-label]')?.setAttribute('hidden', '');
+            } catch {
+                // Keep the link the page was rendered with.
+            }
+        }
+        pagination.hidden = false;
+    }
+
     async function loadNextPart() {
         if (!timeline || !nextPartUrl || loadingPart) return;
         loadingPart = true;
@@ -435,7 +454,7 @@
         } catch {
             more?.querySelector('[data-photos-more-loading]')?.setAttribute('hidden', '');
             more?.querySelector('[data-photos-more-error]')?.removeAttribute('hidden');
-            if (pagination) pagination.hidden = false;
+            showPaginationFallback();
         } finally {
             loadingPart = false;
         }
