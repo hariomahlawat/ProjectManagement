@@ -1859,7 +1859,9 @@ public sealed partial class IndexModel : PageModel
                 {
                     name = person.Name,
                     count = person.PhotoCount,
-                    url = BuildSinglePersonUrl(person.Id),
+                    // A fresh link, like the project and year suggestions: it must not carry the
+                    // text search or filters of the page it was offered on.
+                    url = Url.Page("/Photos/Index", new { View = "photos", PersonIds = person.Id }) ?? string.Empty,
                     portrait = person.RepresentativeFaceId.HasValue
                         ? Url.Page("/Photos/People/Portrait", new { id = person.Id })
                         : null

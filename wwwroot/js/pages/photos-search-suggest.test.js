@@ -122,6 +122,10 @@ test('the page gives the suggestions from the lists the filter drawer already sh
     assert.match(photosPage, /data-photos-suggest-data>@Html\.Raw\(Model\.SerializeSearchSuggestions\(\)\)<\/script>/);
     assert.match(photosPage, /photos-search-suggest\.js/);
     assert.match(pageModel, /public string SerializeSearchSuggestions\(\)/);
+    // Every suggestion is a fresh link; none carries the page's current text search or filters.
+    const serializer = pageModel.slice(pageModel.indexOf('public string SerializeSearchSuggestions()'), pageModel.indexOf('public string SerializeViewerPeople'));
+    assert.match(serializer, /url = Url\.Page\("\/Photos\/Index", new \{ View = "photos", PersonIds = person\.Id \}\)/);
+    assert.doesNotMatch(serializer, /BuildSinglePersonUrl|BuildPhotosUrl/);
     // No new handler: the suggestions add no server endpoint.
     assert.doesNotMatch(pageModel, /OnGetSuggest/);
 });
