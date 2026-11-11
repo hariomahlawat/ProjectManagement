@@ -56,8 +56,10 @@ function createPage(responses) {
         return Promise.resolve({
             ok: true,
             status: 200,
+            redirected: Boolean(next.redirected),
             text: () => Promise.resolve(next.html),
-            headers: { get: (name) => (name === 'X-Photos-Next-Part' ? next.nextUrl : null) }
+            // A part answers with the header (empty when it is the last); other pages do not.
+            headers: { get: (name) => (name === 'X-Photos-Next-Part' && next.nextUrl !== undefined ? next.nextUrl : null) }
         });
     };
 
@@ -102,5 +104,19 @@ test('when a later part cannot be loaded, Next opens the part that failed', asyn
     assert.equal(q('[data-photos-page-label]').hidden, true);
     assert.equal(q('[data-photos-more-error]').hidden, false);
     assert.equal(q('[data-photos-more-loading]').hidden, true);
+    window.close();
+});
+
+test('an expired sign-in (the login page comes back) is not taken for the end of the timeline', async () => {
+    const { window, settle, q, all } = createPage([
+        { html: '<form>Sign in to PRISM</form>', redirected: true }
+    ]);
+    await settle();
+
+    assert.equal(all('[data-media-item]').length, 2, 'nothing from the login page is added');
+    assert.equal(q('[data-photos-more]').hidden, false, 'the loader does not report the end');
+    assert.equal(q('[data-photos-more-error]').hidden, false);
+    assert.equal(q('[data-photos-pagination]').hidden, false);
+    assert.equal(q('[data-photos-next-page]').getAttribute('href'), '/Photos?View=photos&PageNumber=2', 'Next still opens the part that was wanted');
     window.close();
 });
