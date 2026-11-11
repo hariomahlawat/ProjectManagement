@@ -131,24 +131,24 @@
                 <div class="db-section-head">
                     <div>
                         <span class="db-section-icon"><i class="bi bi-activity"></i></span>
-                        <div><h2 id="portfolio-pulse-title">Portfolio pulse (all ongoing IR&amp;D projects)</h2><p>@(pulse?.OngoingCount ?? 0) projects across the development lifecycle</p></div>
+                        <div><h2 id="portfolio-pulse-title">Portfolio pulse (all ongoing IR&amp;D projects)</h2></div>
                     </div>
-                    <a href="@(pulse?.OngoingUrl ?? "#")" class="db-text-link">View ongoing projects <i class="bi bi-arrow-right"></i></a>
+                    @* Classification pills: every ongoing project, then one pill per parent category. Each opens its ongoing list. *@
+                    @if (pulse is not null)
+                    {
+                        <div class="db-head-pills" role="list" aria-label="Ongoing projects by classification">
+                            <a class="db-stage db-stage--pill" href="@pulse.OngoingUrl" role="listitem" title="View all ongoing projects"><span>All</span><strong>@pulse.OngoingCount</strong></a>
+                            @foreach (var item in projectTypes)
+                            {
+                                <a class="db-stage db-stage--pill" href="@OngoingCategoryUrl(item.Key)" role="listitem" title="View ongoing @item.Label"><span>@item.Label</span><strong>@item.Count</strong></a>
+                            }
+                        </div>
+                    }
                 </div>
 
                 @if (pulse is not null)
                 {
                     <div class="db-pulse-layout">
-                        @if (projectTypes.Count > 0)
-                        {
-                            <div class="db-pulse-block db-pulse-block--classes" role="list" aria-label="Ongoing projects by classification">
-                                @foreach (var item in projectTypes)
-                                {
-                                    <a class="db-stage db-stage--pill" href="@OngoingCategoryUrl(item.Key)" role="listitem" title="View ongoing @item.Label"><span>@item.Label</span><strong>@item.Count</strong></a>
-                                }
-                            </div>
-                        }
-
                         <article class="db-pulse-block db-pulse-block--lifecycle">
                             <div class="db-block-heading"><h3>Lifecycle distribution</h3><span>@pulse.OngoingCount total</span></div>
                             @{
@@ -250,7 +250,7 @@
                 <div class="db-section-head db-section-head--compact">
                     <div>
                         <span class="db-section-icon"><i class="bi bi-graph-up-arrow"></i></span>
-                        <div><h2 id="analytics-title">Analytics</h2><p>ARPP and CoE today, with the slowest stages</p></div>
+                        <div><h2 id="analytics-title">Analytics</h2></div>
                     </div>
                     <a href="@AnalyticsTabUrl(null)" class="db-text-link">Open analytics <i class="bi bi-arrow-right"></i></a>
                 </div>
