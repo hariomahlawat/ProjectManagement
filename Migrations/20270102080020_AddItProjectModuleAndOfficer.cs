@@ -58,6 +58,19 @@ namespace ProjectManagement.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Without the Module column a MOLTI or SRE project would read as an IT project in the
+            // previous build. The reverse migration therefore refuses to run while any exists:
+            // restore the pre-update backup instead, or deal with those projects first.
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM "ItProjects" WHERE "Module" <> 'IT') THEN
+                        RAISE EXCEPTION 'ItProjects holds MOLTI or SRE projects. Dropping the Module column would turn them into IT projects. Restore the pre-update database backup instead.';
+                    END IF;
+                END
+                $$;
+                """);
+
             migrationBuilder.DropIndex(
                 name: "IX_ItProjects_ProjectOfficerUserId",
                 table: "ItProjects");
