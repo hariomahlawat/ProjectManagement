@@ -395,3 +395,43 @@ test('a pinch that ends with one finger down carries on as a drag; a video keeps
   assert.equal(media.classList.contains('has-video'), true);
   window.close();
 });
+
+test('a strip thumbnail that cannot be loaded tries the fallback once; the strip follows a tile that fell back', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <div class="photos-viewer" data-photos-viewer hidden aria-hidden="true">
+      <div role="dialog"><strong data-viewer-title></strong><span data-viewer-position></span>
+        <button type="button" data-viewer-close></button>
+        <button type="button" data-viewer-prev></button><div data-viewer-media></div><button type="button" data-viewer-next></button>
+        <div data-viewer-strip hidden></div>
+      </div>
+    </div></body></html>`, { url: 'http://localhost/Photos', runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const { window } = dom;
+  window.eval(viewerScript);
+  const viewer = window.document.querySelector('[data-photos-viewer]');
+  // The first item reads its thumbnail when asked, as the gallery's items do.
+  let firstThumb = '/sm/1';
+  const items = [
+    { key: 'a', kind: 'photo', displayUrl: '/m/1', title: 'One', get thumbUrl() { return firstThumb; }, thumbFallbackUrl: '/md/1' },
+    { key: 'b', kind: 'photo', displayUrl: '/m/2', title: 'Two', thumbUrl: '/sm/2', thumbFallbackUrl: '/md/2' },
+    { key: 'c', kind: 'photo', displayUrl: '/m/3', title: 'Three', thumbUrl: '/sm/3' }
+  ];
+  const controller = window.PMMediaViewer.attach(viewer, { items });
+  const strip = viewer.querySelector('[data-viewer-strip]');
+  const fail = (image) => image.dispatchEvent(new window.Event('error'));
+
+  controller.open(0);
+  const second = strip.children[1].querySelector('img');
+  fail(second);
+  assert.equal(second.getAttribute('src'), '/md/2', 'the fallback is tried');
+  fail(second);
+  assert.equal(strip.children[1].querySelector('img'), null, 'then the frame is left empty');
+
+  fail(strip.children[2].querySelector('img'));
+  assert.equal(strip.children[2].querySelector('img'), null, 'no fallback: the frame is left empty at once');
+
+  // The tile behind the first item fell back to its larger thumbnail; the next draw uses it.
+  firstThumb = '/md/1';
+  controller.step(1);
+  assert.equal(strip.children[0].querySelector('img').getAttribute('src'), '/md/1');
+  window.close();
+});

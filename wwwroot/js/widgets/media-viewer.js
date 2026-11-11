@@ -13,7 +13,7 @@
 //                         loads in parts can fetch the next part and call setItems()
 //
 // An item: { key, kind: 'photo' | 'video', displayUrl, title, alt, context, date,
-//            originalUrl, downloadUrl, poster, thumbUrl }. When the viewer has a
+//            originalUrl, downloadUrl, poster, thumbUrl, thumbFallbackUrl }. When the viewer has a
 // [data-viewer-strip] element and items carry thumbUrl, a strip of nearby thumbnails is shown.
 //
 // Pages that only need the viewer render Pages/Shared/_MediaViewer.cshtml (data-media-viewer-auto;
@@ -226,6 +226,17 @@
                     image.alt = '';
                     image.decoding = 'async';
                     image.draggable = false;
+                    // A thumbnail that cannot be loaded tries the item's fallback once, then
+                    // leaves an empty frame rather than a broken picture.
+                    const fallback = item.thumbFallbackUrl;
+                    image.addEventListener('error', () => {
+                        if (fallback && image.dataset.fallbackTried !== 'true' && image.getAttribute('src') !== fallback) {
+                            image.dataset.fallbackTried = 'true';
+                            image.src = fallback;
+                        } else {
+                            image.remove();
+                        }
+                    });
                     button.append(image);
                 }
                 button.addEventListener('click', () => {
@@ -238,6 +249,15 @@
                 buttons.push(button);
             }
             strip.replaceChildren(...buttons);
+            centreStrip();
+        }
+
+        // The strip scrolls sideways when it is wider than the screen; keep the current
+        // thumbnail in the middle of what is visible. Called again once the viewer is shown,
+        // because nothing can be measured while it is hidden.
+        function centreStrip() {
+            const current = strip?.querySelector('.is-current');
+            if (current) strip.scrollLeft = current.offsetLeft - (strip.clientWidth - current.offsetWidth) / 2;
         }
 
         // Fetch the photos on either side now, so moving to them shows a picture at once.
@@ -308,6 +328,7 @@
             viewer.setAttribute('aria-hidden', 'false');
             doc.body.classList.add(OPEN_CLASS);
             if (!wasOpen) setOpenOrigin(trigger);
+            centreStrip();
             wake();
             if (!openOptions.fromHash) writeHash();
             q('[data-viewer-close]:not(.photos-viewer__backdrop)')?.focus({ preventScroll: true });
