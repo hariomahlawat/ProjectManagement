@@ -77,10 +77,15 @@
 .db-hue-5 { --db-hue: var(--db-spec-5); }
 .db-hue-6 { --db-hue: var(--db-spec-6); }
 
-.db-section-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 68px; padding: 16px 20px; border-bottom: 1px solid var(--db-border); }
+/* One line: icon, title, then the tagline on the title's baseline (it wraps under the title when there is no room). */
+.db-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 18px; min-height: 56px; padding: 10px 20px; border-bottom: 1px solid var(--db-border); }
 .db-section-head > div:first-child { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .db-section-head h2 { margin: 0; color: var(--db-strong); font-size: 1.0625rem; font-weight: 700; letter-spacing: -.015em; line-height: 1.2; }
-.db-section-head p { margin: 2px 0 0; max-width: 680px; color: var(--db-muted); font-size: .8125rem; line-height: 1.35; }
+.db-section-head > div:first-child > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; min-width: 0; }
+.db-section-head p { margin: 0; max-width: 680px; color: var(--db-muted); font-size: .8125rem; line-height: 1.35; }
+/* Pills in a card header (Portfolio pulse: all ongoing, then one per parent category); they drop under the title when the card is narrow. */
+.db-section-head:has(.db-head-pills) { flex-wrap: wrap; }
+.db-head-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 /* The card's jewel: its icon in its hue, no tinted plate behind it. */
 .db-section-icon { display: inline-flex; width: 34px; height: 34px; flex: 0 0 34px; align-items: center; justify-content: center; color: var(--db-hue); font-size: 1.35rem; line-height: 1; }
 .db-text-link { color: var(--db-link); text-decoration: none; font-size: .8125rem; font-weight: 700; white-space: nowrap; }
@@ -102,8 +107,6 @@
 /* ---------- Portfolio pulse ---------- */
 .db-pulse-layout { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
 .db-pulse-block { min-width: 0; padding: 16px 20px; }
-/* Classification: one pill per parent category, above the lifecycle bar. */
-.db-pulse-block--classes { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 9px; border-bottom: 1px solid var(--db-border); }
 .db-pulse-block--lifecycle { border-bottom: 1px solid var(--db-border); }
 .db-block-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .db-block-heading h3 { margin: 0; color: var(--db-strong); font-size: .875rem; font-weight: 700; }
@@ -130,8 +133,7 @@
 .db-stage:hover, .db-stage:focus-visible { color: var(--db-strong); border-color: var(--db-hue); transform: translateY(-1px); outline: none; }
 .db-stage span { color: var(--db-secondary); font-size: .75rem; font-weight: 600; white-space: nowrap; }
 .db-stage strong { color: var(--db-strong); font-size: .875rem; font-weight: 700; }
-.db-stage--pill { padding-inline: 14px; border-radius: 999px; }
-.db-stage--pill span { font-size: .8125rem; }
+.db-stage--pill { min-height: 32px; padding: 4px 12px; border-radius: 999px; }
 
 /* Bars: a neutral track and a solid lead in the card's hue. */
 .db-type-row > div { height: 6px; overflow: hidden; border-radius: 999px; background: var(--db-track); }
@@ -185,10 +187,11 @@
 .db-completed__figures p strong { margin-right: 3px; color: var(--db-strong); font-size: 1.35rem; font-weight: 700; letter-spacing: -.02em; }
 .db-completed__more { grid-column: 1; grid-row: 2; align-self: end; justify-self: start; margin-top: 8px; }
 .db-completed__chart { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; color: inherit; text-decoration: none; }
-.db-completed__bars { display: flex; align-items: flex-end; gap: 8px; height: 62px; }
+/* The bars take whatever height the card has left (it stretches to match the Analytics card). */
+.db-completed__bars { display: flex; flex: 1 1 62px; align-items: flex-end; gap: 8px; min-height: 62px; }
 .db-completed__year { display: flex; flex: 1 1 0; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 0; height: 100%; }
 .db-completed__year em { color: var(--db-muted); font-size: .6875rem; font-style: normal; font-weight: 600; line-height: 1.3; }
-.db-completed__year i { display: block; width: 100%; max-width: 40px; height: calc(46px * var(--bar-h, 0) / 100); min-height: 2px; border-radius: 3px 3px 0 0; background: var(--db-hue); opacity: .38; }
+.db-completed__year i { display: block; width: 100%; max-width: 40px; height: calc((100% - 16px) * var(--bar-h, 0) / 100); min-height: 2px; border-radius: 3px 3px 0 0; background: var(--db-hue); opacity: .38; }
 .db-completed__year.is-current em { color: var(--db-strong); }
 .db-completed__year.is-current i { opacity: 1; }
 .db-completed__axis { display: flex; justify-content: space-between; gap: 12px; padding-top: 4px; border-top: 1px solid var(--db-border); color: var(--db-muted); font-size: .6875rem; font-weight: 600; }
@@ -379,8 +382,8 @@
     .db-header { align-items: flex-start; flex-direction: column; gap: 12px; padding-bottom: 14px; }
     .db-header__title { flex-wrap: wrap; gap: 4px 12px; }
     /* Card headers stack the action link under the title instead of squeezing the title beside it. */
-    .db-section-head { flex-direction: column; align-items: flex-start; gap: 10px; min-height: 0; padding: 14px 16px; }
-    .db-section-head > a, .db-ffc-module-actions { align-self: flex-start; margin-left: 0; }
+    .db-section-head { flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: 10px; min-height: 0; padding: 14px 16px; }
+    .db-section-head > a, .db-ffc-module-actions, .db-head-pills { align-self: flex-start; margin-left: 0; }
     .db-pulse-block { padding: 14px 16px; }
     .db-analytics { display: flex; }
     .db-analytics__block + .db-analytics__block { border-left: 0; }
