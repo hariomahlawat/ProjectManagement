@@ -102,6 +102,10 @@
         date: value(tile, 'date'),
         originalUrl: value(tile, 'originalUrl'),
         downloadUrl: value(tile, 'downloadUrl') || value(tile, 'originalUrl'),
+        // Read when the strip is drawn, so a tile that fell back to its larger thumbnail
+        // gives the strip the picture that actually loaded.
+        get thumbUrl() { return tile.querySelector('[data-media-image]')?.getAttribute('src') || ''; },
+        get thumbFallbackUrl() { return tile.querySelector('[data-media-image]')?.dataset.fallbackSrc || ''; },
         tile
     }));
     let items = buildItems();
@@ -157,13 +161,16 @@
         fillLinks(viewer.querySelector('[data-info-albums]'), viewer.querySelector('[data-info-albums-row]'), parseLinks(value(tile, 'albums')));
         fillLinks(viewer.querySelector('[data-info-people]'), viewer.querySelector('[data-info-people-row]'), parseLinks(value(tile, 'people')));
 
-        const filename = value(tile, 'filename');
-        setRow('[data-info-filename-row]', Boolean(filename));
-        setText('[data-info-filename]', filename);
-
-        const fileSize = value(tile, 'fileSize');
-        setRow('[data-info-file-size-row]', Boolean(fileSize));
-        setText('[data-info-file-size]', fileSize);
+        // One line for the file: name, size and pixel size, whichever are known.
+        const width = value(tile, 'width');
+        const height = value(tile, 'height');
+        const fileFacts = [
+            value(tile, 'filename'),
+            value(tile, 'fileSize'),
+            width && height ? `${width} × ${height} px` : ''
+        ].filter(Boolean);
+        setRow('[data-info-file-row]', fileFacts.length > 0);
+        setText('[data-info-file]', fileFacts.join(' · '));
 
         const editCaptionButton = viewer.querySelector('[data-info-edit-caption]');
         if (editCaptionButton) {
@@ -178,11 +185,6 @@
         setRow('[data-info-unidentified-row]', unidentified > 0);
         setText('[data-info-unidentified]', unidentified === 1 ? '1 face awaiting review' : `${unidentified} faces awaiting review`);
 
-        const width = value(tile, 'width');
-        const height = value(tile, 'height');
-        setRow('[data-info-dimensions-row]', Boolean(width && height));
-        setText('[data-info-dimensions]', width && height ? `${width} × ${height} px` : '');
-
         const duration = value(tile, 'duration');
         setRow('[data-info-duration-row]', Boolean(duration));
         setText('[data-info-duration]', duration);
@@ -191,7 +193,9 @@
     const mediaViewer = window.PMMediaViewer.attach(viewer, {
         items,
         hashPrefix: '#media=',
-        onRender: renderInfo
+        onRender: renderInfo,
+        // Near the end of what is loaded, fetch the next part so the viewer can carry on.
+        onNearEnd: () => { void loadNextPart(); }
     });
 
     // One listener for every tile, including tiles added later as the user scrolls.

@@ -9,9 +9,12 @@
 //     options.items       the items to show (see below); or pass items to open()
 //     options.hashPrefix  e.g. '#media=': keep the open item in the address (Photos gallery)
 //     options.onRender    (item, index, viewer) after an item is shown (the gallery's info panel)
+//     options.onNearEnd   (index, count) when one of the last items is shown, so a gallery that
+//                         loads in parts can fetch the next part and call setItems()
 //
 // An item: { key, kind: 'photo' | 'video', displayUrl, title, alt, context, date,
-//            originalUrl, downloadUrl, poster }.
+//            originalUrl, downloadUrl, poster, thumbUrl, thumbFallbackUrl }. When the viewer has a
+// [data-viewer-strip] element and items carry thumbUrl, a strip of nearby thumbnails is shown.
 //
 // Pages that only need the viewer render Pages/Shared/_MediaViewer.cshtml (data-media-viewer-auto;
 // a JSON list with data-media-viewer-links="#media=" turns on links to one item, as on Visits)
@@ -28,6 +31,8 @@
     const SWIPE_MIN_PX = 50;
     const WHEEL_ZOOM_FACTOR = 1.15;
     const IDLE_AFTER_MS = 2800;
+    const STRIP_SPAN = 10; // thumbnails shown on each side of the current item
+    const NEAR_END = 3;
     const OPEN_CLASS = 'photos-viewer-open';
     const focusableSelector = [
         'a[href]:not([hidden])',
@@ -48,6 +53,7 @@
         let items = Array.isArray(options.items) ? options.items : [];
         const hashPrefix = options.hashPrefix || '';
         const onRender = typeof options.onRender === 'function' ? options.onRender : null;
+        const onNearEnd = typeof options.onNearEnd === 'function' ? options.onNearEnd : null;
 
         const q = (selector) => viewer.querySelector(selector);
         const mediaHost = q('[data-viewer-media]');
@@ -65,6 +71,7 @@
         const zoomOutButton = q('[data-viewer-zoom-out]');
         const zoomResetButton = q('[data-viewer-zoom-reset]');
         const zoomLabel = q('[data-viewer-zoom-label]');
+        const strip = q('[data-viewer-strip]');
 
         let currentIndex = 0;
         let previousFocus = null;
@@ -176,14 +183,81 @@
 
             if (title) title.textContent = item.title || '';
             if (context) context.textContent = [item.context, item.date].filter(Boolean).join(' · ');
-            if (position) position.textContent = items.length > 1 ? `${currentIndex + 1} of ${items.length}` : '';
+            showPosition();
             setOptionalLink(originalLink, item.originalUrl);
             setOptionalLink(downloadLink, item.downloadUrl);
             if (previousButton) previousButton.hidden = items.length < 2;
             if (nextButton) nextButton.hidden = items.length < 2;
 
             if (onRender) onRender(item, currentIndex, viewer);
+            renderStrip();
             preloadNeighbours();
+            if (onNearEnd && currentIndex >= items.length - NEAR_END) onNearEnd(currentIndex, items.length);
+        }
+
+        function showPosition() {
+            if (position) position.textContent = items.length > 1 ? `${currentIndex + 1} of ${items.length}` : '';
+        }
+
+        // A strip of the thumbnails around the current item. Only a window of them is built,
+        // so a long timeline costs no more than a short one.
+        function renderStrip() {
+            if (!strip) return;
+            const usable = items.length > 1 && items.some((item) => item.thumbUrl);
+            strip.hidden = !usable;
+            if (!usable) {
+                strip.replaceChildren();
+                return;
+            }
+
+            const from = Math.max(0, currentIndex - STRIP_SPAN);
+            const to = Math.min(items.length - 1, currentIndex + STRIP_SPAN);
+            const buttons = [];
+            for (let index = from; index <= to; index += 1) {
+                const item = items[index];
+                const button = doc.createElement('button');
+                button.type = 'button';
+                button.className = index === currentIndex ? 'photos-viewer__thumb is-current' : 'photos-viewer__thumb';
+                button.setAttribute('aria-label', `${item.title || 'Item'}, ${index + 1} of ${items.length}`);
+                if (index === currentIndex) button.setAttribute('aria-current', 'true');
+                if (item.thumbUrl) {
+                    const image = doc.createElement('img');
+                    image.src = item.thumbUrl;
+                    image.alt = '';
+                    image.decoding = 'async';
+                    image.draggable = false;
+                    // A thumbnail that cannot be loaded tries the item's fallback once, then
+                    // leaves an empty frame rather than a broken picture.
+                    const fallback = item.thumbFallbackUrl;
+                    image.addEventListener('error', () => {
+                        if (fallback && image.dataset.fallbackTried !== 'true' && image.getAttribute('src') !== fallback) {
+                            image.dataset.fallbackTried = 'true';
+                            image.src = fallback;
+                        } else {
+                            image.remove();
+                        }
+                    });
+                    button.append(image);
+                }
+                button.addEventListener('click', () => {
+                    if (index === currentIndex) return;
+                    mediaHost.dataset.enter = index > currentIndex ? 'next' : 'previous';
+                    render(index);
+                    writeHash();
+                    strip.querySelector('.is-current')?.focus({ preventScroll: true });
+                });
+                buttons.push(button);
+            }
+            strip.replaceChildren(...buttons);
+            centreStrip();
+        }
+
+        // The strip scrolls sideways when it is wider than the screen; keep the current
+        // thumbnail in the middle of what is visible. Called again once the viewer is shown,
+        // because nothing can be measured while it is hidden.
+        function centreStrip() {
+            const current = strip?.querySelector('.is-current');
+            if (current) strip.scrollLeft = current.offsetLeft - (strip.clientWidth - current.offsetWidth) / 2;
         }
 
         // Fetch the photos on either side now, so moving to them shows a picture at once.
@@ -254,6 +328,7 @@
             viewer.setAttribute('aria-hidden', 'false');
             doc.body.classList.add(OPEN_CLASS);
             if (!wasOpen) setOpenOrigin(trigger);
+            centreStrip();
             wake();
             if (!openOptions.fromHash) writeHash();
             q('[data-viewer-close]:not(.photos-viewer__backdrop)')?.focus({ preventScroll: true });
@@ -436,7 +511,15 @@
             close,
             step,
             syncWithHash,
-            setItems(next) { items = Array.isArray(next) ? next : []; },
+            // Items added at the end (a gallery loading its next part) keep the open item.
+            setItems(next) {
+                items = Array.isArray(next) ? next : [];
+                if (isOpen() && items.length > 0) {
+                    currentIndex = Math.min(currentIndex, items.length - 1);
+                    showPosition();
+                    renderStrip();
+                }
+            },
             get index() { return currentIndex; },
             get isOpen() { return isOpen(); },
         };

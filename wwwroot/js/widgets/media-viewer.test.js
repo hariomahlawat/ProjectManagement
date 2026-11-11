@@ -324,6 +324,49 @@ test('the controls fade after a still moment and return on a key press', (t) => 
   window.close();
 });
 
+test('a gallery that gives thumbnails gets a strip of the nearby ones, and can add items while open', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <div class="photos-viewer" data-photos-viewer hidden aria-hidden="true">
+      <div data-viewer-close></div>
+      <div role="dialog">
+        <strong data-viewer-title></strong><span data-viewer-position></span>
+        <button type="button" data-viewer-close></button>
+        <button type="button" data-viewer-prev></button><div data-viewer-media></div><button type="button" data-viewer-next></button>
+        <div data-viewer-strip hidden></div>
+      </div>
+    </div></body></html>`, { url: 'http://localhost/Photos', runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const { window } = dom;
+  window.eval(viewerScript);
+  const viewer = window.document.querySelector('[data-photos-viewer]');
+  const make = (count) => Array.from({ length: count }, (_, i) => ({
+    key: `asset-${i + 1}`, kind: 'photo', displayUrl: `/m/${i + 1}`, thumbUrl: `/t/${i + 1}`, title: `Picture ${i + 1}` }));
+  const nearEnd = [];
+  const controller = window.PMMediaViewer.attach(viewer, { items: make(30), onNearEnd: (index, count) => nearEnd.push([index, count]) });
+  const strip = viewer.querySelector('[data-viewer-strip]');
+
+  controller.open(0);
+  assert.equal(strip.hidden, false);
+  assert.equal(strip.children.length, 11, 'the current item and ten after it');
+  assert.equal(strip.querySelector('.is-current img').getAttribute('src'), '/t/1');
+  assert.deepEqual(nearEnd, []);
+
+  strip.children[5].click();
+  assert.equal(viewer.querySelector('[data-viewer-title]').textContent, 'Picture 6');
+  assert.equal(viewer.querySelector('[data-viewer-media]').dataset.enter, 'next');
+  assert.equal(strip.children.length, 16, 'five before, the current item, ten after');
+
+  controller.open(28);
+  assert.deepEqual(nearEnd, [[28, 30]], 'the gallery is told when the end is near');
+  controller.setItems(make(60));
+  assert.equal(viewer.querySelector('[data-viewer-position]').textContent, '29 of 60');
+  assert.equal(strip.children.length, 21);
+  assert.equal(viewer.querySelector('[data-viewer-title]').textContent, 'Picture 29', 'the open item stays');
+
+  controller.setItems([{ key: 'only', kind: 'photo', displayUrl: '/m/only' }]);
+  assert.equal(strip.hidden, true, 'no strip for one item or without thumbnails');
+  window.close();
+});
+
 test('a pinch that ends with one finger down carries on as a drag; a video keeps a scrolling stage', () => {
   const { window } = overview();
   click(window, window.document.getElementById('t1'));
@@ -351,4 +394,56 @@ test('a pinch that ends with one finger down carries on as a drag; a video keeps
   click(window, window.document.getElementById('v1'));
   assert.equal(media.classList.contains('has-video'), true);
   window.close();
+});
+
+test('a strip thumbnail that cannot be loaded tries the fallback once; the strip follows a tile that fell back', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <div class="photos-viewer" data-photos-viewer hidden aria-hidden="true">
+      <div role="dialog"><strong data-viewer-title></strong><span data-viewer-position></span>
+        <button type="button" data-viewer-close></button>
+        <button type="button" data-viewer-prev></button><div data-viewer-media></div><button type="button" data-viewer-next></button>
+        <div data-viewer-strip hidden></div>
+      </div>
+    </div></body></html>`, { url: 'http://localhost/Photos', runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const { window } = dom;
+  window.eval(viewerScript);
+  const viewer = window.document.querySelector('[data-photos-viewer]');
+  // The first item reads its thumbnail when asked, as the gallery's items do.
+  let firstThumb = '/sm/1';
+  const items = [
+    { key: 'a', kind: 'photo', displayUrl: '/m/1', title: 'One', get thumbUrl() { return firstThumb; }, thumbFallbackUrl: '/md/1' },
+    { key: 'b', kind: 'photo', displayUrl: '/m/2', title: 'Two', thumbUrl: '/sm/2', thumbFallbackUrl: '/md/2' },
+    { key: 'c', kind: 'photo', displayUrl: '/m/3', title: 'Three', thumbUrl: '/sm/3' }
+  ];
+  const controller = window.PMMediaViewer.attach(viewer, { items });
+  const strip = viewer.querySelector('[data-viewer-strip]');
+  const fail = (image) => image.dispatchEvent(new window.Event('error'));
+
+  controller.open(0);
+  const second = strip.children[1].querySelector('img');
+  fail(second);
+  assert.equal(second.getAttribute('src'), '/md/2', 'the fallback is tried');
+  fail(second);
+  assert.equal(strip.children[1].querySelector('img'), null, 'then the frame is left empty');
+
+  fail(strip.children[2].querySelector('img'));
+  assert.equal(strip.children[2].querySelector('img'), null, 'no fallback: the frame is left empty at once');
+
+  // The tile behind the first item fell back to its larger thumbnail; the next draw uses it.
+  firstThumb = '/md/1';
+  controller.step(1);
+  assert.equal(strip.children[0].querySelector('img').getAttribute('src'), '/md/1');
+  window.close();
+});
+
+test('on narrow screens the details sheet is stacked above the arrows and the thumbnail strip', () => {
+  const css = fs.readFileSync(path.join(root, 'wwwroot', 'css', 'widgets', 'media-viewer.css'), 'utf8');
+  const zIndex = (rule) => Number(/z-index:\s*(\d+)/.exec(rule)[1]);
+  const narrow = css.slice(css.indexOf('@media (max-width: 900px)'));
+  const sheet = /\.photos-viewer__info \{[^}]*\}/.exec(narrow)[0];
+  const strip = /^\.photos-viewer__strip \{[^}]*\}/m.exec(css)[0];
+  const arrows = /^\.photos-viewer__nav \{[^}]*\}/m.exec(css)[0];
+  assert.match(sheet, /position: absolute/);
+  assert.ok(zIndex(sheet) > zIndex(strip));
+  assert.ok(zIndex(sheet) > zIndex(arrows));
 });

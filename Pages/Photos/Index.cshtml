@@ -1106,23 +1106,22 @@
             <button type="button" class="photos-viewer__nav photos-viewer__nav--prev" data-viewer-prev aria-label="Previous item"><i class="bi bi-chevron-left"></i></button>
             <div class="photos-viewer__media" data-viewer-media></div>
             <button type="button" class="photos-viewer__nav photos-viewer__nav--next" data-viewer-next aria-label="Next item"><i class="bi bi-chevron-right"></i></button>
+            <div class="photos-viewer__strip" data-viewer-strip hidden aria-label="Nearby pictures"></div>
         </main>
         <aside class="photos-viewer__info" data-viewer-info-panel aria-hidden="true">
             <h2>Details</h2>
+            <div class="photos-viewer__caption-block" data-info-caption-row><p data-info-caption></p></div>
             <dl>
-                <div><dt>Collection</dt><dd data-info-context></dd></div>
+                <div><dt>From</dt><dd data-info-context></dd></div>
                 <div><dt>Date</dt><dd data-info-date></dd></div>
-                <div><dt>Source</dt><dd data-info-source></dd></div>
-                <div><dt>Classification</dt><dd data-info-classification></dd></div>
-                <div data-info-albums-row><dt>Albums</dt><dd data-info-albums class="photos-viewer__albums"></dd></div>
+                <div><dt>Added in</dt><dd data-info-source></dd></div>
                 <div data-info-people-row><dt>People</dt><dd data-info-people class="photos-viewer__people"></dd></div>
-                <div data-info-unidentified-row><dt>Unidentified</dt><dd data-info-unidentified></dd></div>
-                <div data-info-filename-row><dt>File</dt><dd data-info-filename></dd></div>
-                <div data-info-file-size-row><dt>File size</dt><dd data-info-file-size></dd></div>
-                <div data-info-dimensions-row><dt>Dimensions</dt><dd data-info-dimensions></dd></div>
-                <div data-info-duration-row><dt>Duration</dt><dd data-info-duration></dd></div>
+                <div data-info-unidentified-row><dt>Not yet named</dt><dd data-info-unidentified></dd></div>
+                <div data-info-albums-row><dt>Albums</dt><dd data-info-albums class="photos-viewer__albums"></dd></div>
+                <div><dt>Kind of picture</dt><dd data-info-classification></dd></div>
+                <div data-info-file-row><dt>File</dt><dd data-info-file></dd></div>
+                <div data-info-duration-row><dt>Length</dt><dd data-info-duration></dd></div>
             </dl>
-            <div class="photos-viewer__caption-block" data-info-caption-row><span>Caption</span><p data-info-caption></p></div>
             <div class="photos-viewer__info-actions">
                 <a href="#" data-info-source-link class="btn btn-outline-light">Open source record <i class="bi bi-arrow-up-right"></i></a>
                 @if (Model.CanEditEditorialMetadata)
