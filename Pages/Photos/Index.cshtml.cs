@@ -117,6 +117,8 @@ public sealed partial class IndexModel : PageModel
     public bool HasPreviousPage { get; private set; }
     public bool HasNextPage { get; private set; }
     public int CurrentPage => Math.Max(1, PageNumber);
+    public bool IsTimelinePart { get; private set; }
+    public IReadOnlyList<TimelineMonth> TimelineMonths { get; private set; } = Array.Empty<TimelineMonth>();
     public bool ExternalSourcesEnabled => _mediaOptions.IsExternalSourceFeatureEnabled;
     public bool PeopleFeatureEnabled => _mediaOptions.People.Enabled;
     public bool CanManagePeople => User.IsInRole("Admin") || User.IsInRole("HoD");
@@ -145,6 +147,22 @@ public sealed partial class IndexModel : PageModel
     public long CatalogueBackedCount { get; private set; }
     public long AwaitingCatalogueCount => Math.Max(0L, SourceVisibleCount - CatalogueBackedCount);
     public string LibraryRevision { get; private set; } = "initial";
+
+    // The next part of the timeline, as the page loads it while the user scrolls. It runs the
+    // same loading as the page itself, so filters, paging and visibility are identical.
+    public async Task<IActionResult> OnGetTimelinePartAsync(CancellationToken cancellationToken)
+    {
+        IsTimelinePart = true;
+        await OnGetAsync(cancellationToken);
+        if (IsAlbumsWorkspace || IsAlbumDetail || (View == "collections" && !IsCollectionDetail && !IsPeopleGallery))
+        {
+            return NotFound();
+        }
+
+        Response.Headers["X-Photos-Next-Part"] = HasNextPage ? BuildTimelinePartUrl(CurrentPage + 1) : string.Empty;
+        Response.Headers.CacheControl = "no-store";
+        return Partial("_PhotosTimeline", this);
+    }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -236,7 +254,8 @@ public sealed partial class IndexModel : PageModel
                 PeopleMatch,
                 CanManagePeople,
                 Sort,
-                Collection),
+                Collection,
+                IncludeMonths: View == "photos" && !IsTimelinePart),
             cancellationToken);
 
         var identityFilterRequiresCatalogue = PeopleFeatureEnabled && PersonIds.Length > 0;
@@ -663,6 +682,7 @@ public sealed partial class IndexModel : PageModel
             PageNumber = result.PageNumber;
             HasPreviousPage = result.HasPreviousPage;
             HasNextPage = result.HasNextPage;
+            TimelineMonths = BuildTimelineMonths(result.Months, result.PageSize);
         }
         ExternalLibraryAvailable = true;
         ExternalLibraryWarning = result.Warning;
@@ -1580,6 +1600,43 @@ public sealed partial class IndexModel : PageModel
         return BuildPhotosUrl(PersonIds, pageNumber: pageNumber);
     }
 
+    public string BuildTimelinePartUrl(int pageNumber)
+    {
+        var url = BuildPageUrl(pageNumber);
+        return url + (url.Contains('?', StringComparison.Ordinal) ? "&" : "?") + "handler=TimelinePart";
+    }
+
+    // The month list beside the timeline. Each month links to the page its first picture is on,
+    // so a month that is not loaded yet can still be reached.
+    private IReadOnlyList<TimelineMonth> BuildTimelineMonths(IReadOnlyList<MediaLibraryMonthCount> months, int pageSize)
+    {
+        if (months.Count == 0 || pageSize <= 0)
+        {
+            return Array.Empty<TimelineMonth>();
+        }
+
+        var ordered = Sort == "oldest"
+            ? months.OrderBy(month => month.Year).ThenBy(month => month.Month)
+            : months.OrderByDescending(month => month.Year).ThenByDescending(month => month.Month);
+        var result = new List<TimelineMonth>(months.Count);
+        var before = 0;
+        foreach (var month in ordered)
+        {
+            var first = new DateTime(month.Year, month.Month, 1);
+            var key = first.ToString("yyyyMM", CultureInfo.InvariantCulture);
+            result.Add(new TimelineMonth(
+                key,
+                month.Year,
+                first.ToString("MMMM yyyy", CultureInfo.CurrentCulture),
+                first.ToString("MMM", CultureInfo.CurrentCulture),
+                month.Count,
+                $"{BuildPageUrl(before / pageSize + 1)}#month-{key}"));
+            before += month.Count;
+        }
+
+        return result;
+    }
+
     public string BuildPeopleMatchUrl(string matchMode)
         => BuildPhotosUrl(PersonIds, peopleMatch: matchMode);
 
@@ -1840,6 +1897,8 @@ public sealed partial class IndexModel : PageModel
     {
         public static PrismCatalogueFreshness Unavailable { get; } = new(null, false, null, null, null, 0);
     }
+
+    public sealed record TimelineMonth(string Key, int Year, string Label, string ShortLabel, int Count, string Url);
 
     public sealed class MediaItem
     {

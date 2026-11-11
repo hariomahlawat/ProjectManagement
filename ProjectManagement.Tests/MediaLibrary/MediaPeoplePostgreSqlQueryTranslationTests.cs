@@ -54,6 +54,20 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
     }
 
     [Fact]
+    public void Timeline_month_counts_are_grouped_in_the_database()
+    {
+        using var db = CreateContext();
+
+        var sql = MediaLibraryQueryService.BuildMonthCountsQuery(db.Assets)
+            .ToQueryString()
+            .ToUpperInvariant();
+
+        // The Photos month list needs one row per month, not every asset's date.
+        Assert.Contains("GROUP BY", sql);
+        Assert.Contains("COUNT(", sql);
+    }
+
+    [Fact]
     public void Recently_seen_sort_places_people_without_photos_last()
     {
         using var db = CreateContext();

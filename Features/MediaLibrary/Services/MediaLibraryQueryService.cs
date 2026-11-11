@@ -352,6 +352,15 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             warnings,
             cancellationToken);
 
+        IReadOnlyList<MediaLibraryMonthCount> months = request.IncludeMonths
+            ? await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryMonthCount>>(
+                MediaLibraryQueryOperation.Months,
+                async () => await BuildMonthCountsQuery(filteredQuery).ToListAsync(cancellationToken),
+                Array.Empty<MediaLibraryMonthCount>(),
+                warnings,
+                cancellationToken)
+            : Array.Empty<MediaLibraryMonthCount>();
+
         var projects = await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryProjectOption>>(
             MediaLibraryQueryOperation.Projects,
             async () =>
@@ -432,8 +441,17 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             true,
             hasPrismCatalogue,
             warnings,
-            summaryWarning);
+            summaryWarning)
+        {
+            Months = months
+        };
     }
+
+    // Counted and grouped in the database: one row per calendar month of the filtered result.
+    public static IQueryable<MediaLibraryMonthCount> BuildMonthCountsQuery(IQueryable<MediaAsset> filteredQuery)
+        => filteredQuery
+            .GroupBy(asset => new { asset.MediaDateUtc.Year, asset.MediaDateUtc.Month })
+            .Select(group => new MediaLibraryMonthCount(group.Key.Year, group.Key.Month, group.Count()));
 
     private IQueryable<MediaAsset> BuildBaseQuery()
         => _visibility.Apply(_db.Assets.AsNoTracking());
