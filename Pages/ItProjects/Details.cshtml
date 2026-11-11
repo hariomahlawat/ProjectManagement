@@ -144,7 +144,10 @@
                 @if (Model.CanRemark)
                 {
                     var remarkErrors = Model.DrawerErrors(DetailsModel.OpenRemark, nameof(Model.Remark));
-                    <form method="post" asp-page-handler="RemarkAdd" asp-route-id="@Model.Project.Id" class="itp-composer" id="remark-composer" novalidate>
+                    @* Closed to one line until it is used, so the history is not pushed down the page
+                       (owner, 11 Nov 2026). It opens on focus; with text in it, or after a failed
+                       save, it stays open. *@
+                    <form method="post" asp-page-handler="RemarkAdd" asp-route-id="@Model.Project.Id" class="itp-composer @(remarkErrors.Count == 0 && string.IsNullOrWhiteSpace(Model.Remark.Body) ? "itp-composer--closed" : null)" id="remark-composer" data-itp-composer novalidate>
                         @if (remarkErrors.Count > 0)
                         {
                             <div class="alert alert-danger itp-drawer__errors" role="alert">
@@ -171,7 +174,7 @@
                         }
                         <textarea asp-for="Remark.Body" class="form-control itp-composer__text" rows="3" maxlength="@ItProjectRemark.BodyMaxLength" placeholder="Write a remark as @Model.RemarkRole…"></textarea>
                         <div class="itp-composer__row">
-                            <label class="itp-composer__field"><span>Event date</span><input type="date" asp-for="Remark.EventDate" asp-format="{0:yyyy-MM-dd}" class="form-control form-control-sm" /></label>
+                            <label class="itp-composer__field"><span>Date</span><input type="date" asp-for="Remark.EventDate" asp-format="{0:yyyy-MM-dd}" class="form-control form-control-sm" /></label>
                             <span class="itp-composer__spacer"></span>
                             <span class="itp-composer__as">as <span class="itp-role @ItProjectBoardPresentation.RoleClass(Model.RemarkRole ?? "")">@Model.RemarkRole</span></span>
                             <button type="submit" class="btn btn-primary itp-btn-primary btn-sm">Add remark</button>
@@ -255,7 +258,7 @@
                                                 <input type="hidden" name="RemarkEdit.RowVersion" value="@rowVersion" />
                                                 <textarea name="RemarkEdit.Body" class="form-control itp-composer__text" rows="3" maxlength="@ItProjectRemark.BodyMaxLength" aria-label="Remark" required>@remark.Body</textarea>
                                                 <div class="itp-composer__row">
-                                                    <label class="itp-composer__field"><span>Event date</span><input type="date" name="RemarkEdit.EventDate" value="@remark.EventDate.ToString("yyyy-MM-dd")" class="form-control form-control-sm" required /></label>
+                                                    <label class="itp-composer__field"><span>Date</span><input type="date" name="RemarkEdit.EventDate" value="@remark.EventDate.ToString("yyyy-MM-dd")" class="form-control form-control-sm" required /></label>
                                                     <span class="itp-composer__spacer"></span>
                                                     <a class="btn btn-outline-secondary btn-sm" href="#remark-@remark.Id" data-itp-remark-cancel>Cancel</a>
                                                     <button type="submit" class="btn btn-primary btn-sm">Save remark</button>

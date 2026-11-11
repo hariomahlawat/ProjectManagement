@@ -97,6 +97,20 @@
         }
     });
 
+    // ---- remarks: the new-remark composer stays open once something is typed ---------------------
+    // CSS opens the closed composer while it has focus. With text in it, it must not shut when
+    // focus moves away, so the closed class comes off; emptied again, it goes back on.
+
+    var composer = page.querySelector('[data-itp-composer]');
+    if (composer) {
+        var composerText = composer.querySelector('textarea');
+        if (composerText) {
+            composerText.addEventListener('input', function () {
+                composer.classList.toggle('itp-composer--closed', composerText.value.trim() === '');
+            });
+        }
+    }
+
     // ---- stage editor -------------------------------------------------------------------------
 
     var form = page.querySelector('[data-itp-stage-editor]');

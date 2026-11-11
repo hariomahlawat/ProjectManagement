@@ -123,3 +123,63 @@ test('a changed SO value is previewed, so a bad value is reported before Save', 
     assert.equal(note.hidden, false);
     assert.equal(note.textContent, 'The SO cost cannot be negative.');
 });
+
+// ---- the Record card's year editors and the new-remark composer --------------------------------
+
+const cardMarkup = `
+<div data-itp-details data-itp-open="">
+  <form class="itp-composer itp-composer--closed" data-itp-composer><textarea></textarea></form>
+  <ul>
+    <li id="itp-year-2026">
+      <a href="#itp-year-edit-2026" data-itp-year-edit>Edit</a>
+      <details class="itp-years__editor" id="itp-year-edit-2026"><summary>Edit</summary>
+        <form><input name="yearReference" value="IT PPP 04/2026" /><a href="#itp-year-2026" data-itp-year-cancel>Cancel</a></form>
+      </details>
+    </li>
+    <li id="itp-year-2025">
+      <a href="#itp-year-edit-2025" data-itp-year-edit>Edit</a>
+      <details class="itp-years__editor" id="itp-year-edit-2025"><summary>Edit</summary>
+        <form><input name="yearReference" value="IT PPP 02/2025" /><a href="#itp-year-2025" data-itp-year-cancel>Cancel</a></form>
+      </details>
+    </li>
+  </ul>
+</div>`;
+
+function createCard() {
+    const dom = new JSDOM(cardMarkup, { runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+    dom.window.eval(source);
+    return dom.window;
+}
+
+test('Edit on a year opens that row only, and Cancel puts the number back', () => {
+    const window = createCard();
+    const doc = window.document;
+    const click = (el) => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    click(doc.querySelector('[href="#itp-year-edit-2026"]'));
+    assert.equal(doc.getElementById('itp-year-edit-2026').open, true);
+
+    click(doc.querySelector('[href="#itp-year-edit-2025"]'));
+    assert.equal(doc.getElementById('itp-year-edit-2026').open, false);
+    assert.equal(doc.getElementById('itp-year-edit-2025').open, true);
+
+    const input = doc.querySelector('#itp-year-edit-2025 input');
+    input.value = 'typed and abandoned';
+    click(doc.querySelector('#itp-year-edit-2025 [data-itp-year-cancel]'));
+    assert.equal(doc.getElementById('itp-year-edit-2025').open, false);
+    assert.equal(input.value, 'IT PPP 02/2025');
+});
+
+test('the remark composer stays open while it holds text and closes again when emptied', () => {
+    const window = createCard();
+    const composer = window.document.querySelector('[data-itp-composer]');
+    const text = composer.querySelector('textarea');
+
+    text.value = 'ATP planned next week';
+    text.dispatchEvent(new window.Event('input'));
+    assert.equal(composer.classList.contains('itp-composer--closed'), false);
+
+    text.value = '   ';
+    text.dispatchEvent(new window.Event('input'));
+    assert.equal(composer.classList.contains('itp-composer--closed'), true);
+});

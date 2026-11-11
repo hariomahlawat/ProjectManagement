@@ -58,7 +58,8 @@ how long?**
    and a "where the time went" bar were built and then removed on 9 Nov 2026: they repeated what the
    page already shows. Keep the page lean; no extra metrics.)
    Below, two columns: **Remarks and history** (composer, then remarks with stage completions in
-   line, older stages folded) and **Documents** (file rows, drop zone) plus a small **Record**
+   line, older stages folded; the composer is one line until it is used and opens on focus, and
+   its date is labelled "Date", owner 11 Nov 2026) and **Documents** (file rows, drop zone) plus a small **Record**
    card of facts. Mark dropped (or Reinstate) and Delete sit under a **More** menu beside Update
    stages, as on the main project page; a remark's Edit and Delete sit in one small menu at the end
    of its header line; an attachment's remove control is a bin that shows on the row being pointed
