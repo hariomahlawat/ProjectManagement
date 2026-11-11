@@ -323,3 +323,32 @@ test('the controls fade after a still moment and return on a key press', (t) => 
   assert.equal(viewer.classList.contains('is-idle'), false);
   window.close();
 });
+
+test('a pinch that ends with one finger down carries on as a drag; a video keeps a scrolling stage', () => {
+  const { window } = overview();
+  click(window, window.document.getElementById('t1'));
+  const viewer = viewerOf(window);
+  const media = viewer.querySelector('[data-viewer-media]');
+  const pointer = (type, pointerId, clientX) => {
+    const event = new window.Event(type, { bubbles: true, cancelable: true });
+    Object.assign(event, { pointerId, clientX, clientY: 100 });
+    media.dispatchEvent(event);
+  };
+
+  assert.equal(media.classList.contains('has-video'), false);
+  pointer('pointerdown', 1, 100);
+  pointer('pointerdown', 2, 200);
+  pointer('pointermove', 2, 300);
+  assert.equal(media.style.getPropertyValue('--viewer-zoom'), '2', 'fingers twice as far apart: twice the size');
+  assert.equal(media.classList.contains('is-panning'), false);
+
+  pointer('pointerup', 2, 300);
+  assert.equal(media.classList.contains('is-panning'), true, 'the finger still down now drags the photo');
+  pointer('pointerup', 1, 100);
+  assert.equal(media.classList.contains('is-panning'), false);
+
+  key(window, 'Escape');
+  click(window, window.document.getElementById('v1'));
+  assert.equal(media.classList.contains('has-video'), true);
+  window.close();
+});
