@@ -41,11 +41,17 @@ how long?**
 2. **Where the cases are now**: a chevron pipeline of the nine stages; under each, the live cases
    at that stage as small cards, edged amber or red when stage dates show them ageing. A card
    shows days only from a stage date ("added 5 d ago" for a case not started); a recorded move
-   is left to the register's Now column, because cases entered together all show the same day.
-   Optional stages are narrower and hatched when unused. Each card opens the case.
+   is left to the register's Now column, because cases entered together all show the same day;
+   such a card says "no stage date" in muted text, never coloured, so every card has a time line.
+   A stage with no live case is muted the same plain way, optional or not (the hatching on unused
+   optional stages was removed on 11 Nov 2026: nothing explained it); optional stages are narrower.
+   Each card opens the case.
 3. **Register**: one row per case with a **track** (a line with the stage dots on it, filled to
    the current stage, which pulses) and a **Now** column ("At COB", the time figure from the
-   rule below, SO value). A completed stage without a date shows a hollow tick. Dates appear on row hover. Delivered cases show "Delivered 30 Jun 25 ·
+   rule below, SO value). A completed stage without a date shows a hollow tick. Dates appear on row hover and when the
+   row has keyboard focus. The stage names above the track stay in view under the top navigation
+   while the register scrolls, and on wide screens the title column stops growing so the track
+   takes the spare width. Delivered cases show "Delivered 30 Jun 25 ·
    356 days end to end". When the early stages have no date the figure runs from the first dated
    stage and says so ("132 days from SO"), because it is then shorter than the case took. Status, sort (Stage order / Longest wait), FY and search sit in one bar;
    FY becomes a segmented control in the header.
@@ -83,12 +89,18 @@ All colours are existing `--pm-*` tokens (theme coverage check), no new assets, 
 | Days between stages | Completion date minus the completion date of the stage just before it (skipped stages ignored); blank when either date is missing, never measured from an earlier stage. |
 | Elapsed | Today (or the Delivery date) minus the first dated completion. |
 | Longest wait (sort) | Days-at-stage from stage dates only; cases without one sort after those with one. (The Waiting longest tile was removed on 10 Nov 2026.) |
-| Dates missing | Active cases with a completed stage that has no date. Shown to Manage roles only, as a link that filters the register to them. |
+| Dates missing | Active cases with a completed stage that has no date. Shown to Manage roles only, as a quiet link in the filter bar that filters the register to them; while the filter is on it is a filled chip with an X that clears it. |
 | On order | Active cases whose SO is complete and Delivery is not, with the sum of the SO values entered; "value not entered" when none has one, never "₹0.00". |
 | Ageing band | From the stage-date figure only (owner decision 8 Nov 2026): up to 30 days normal, 31–60 amber, over 60 red. Delivery and ATP waits on the supplier, so there it is up to 60 normal, 61–90 amber, over 90 red (owner, 11 Nov 2026). |
 
 The key under the register lists only the marks the register actually draws, so a board with no
-stage dates does not explain ageing colours it cannot show.
+stage dates does not explain ageing colours it cannot show. The ageing entry is the three badges
+and a short note, "days at the stage (Delivery and ATP: 60 / 90)".
+
+**One set of short stage names** (UI review, 11 Nov 2026): the pipeline columns and the register
+header both use `ItProjectBoardPresentation.ShortStageLabel`: ARPPP, AoN, Bid, TEC, COB, BM, PNC,
+SO, Delivery. The full label ("IT ARPPP / IPA", "Benchmarking", "Delivery and ATP") is the tooltip
+and is what every sentence uses ("At Delivery and ATP").
 
 `StageMovedAtUtc` is one new nullable column on `ItProjects` (hand-written, additive migration;
 existing rows stay null, which simply means fallback 3). The stage save sets it only when the

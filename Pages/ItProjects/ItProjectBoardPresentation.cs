@@ -93,15 +93,6 @@ public static class ItProjectBoardPresentation
             .ToList();
     }
 
-    /// <summary>The short column heading above a row's track.</summary>
-    public static string TrackHeading(string code) => code switch
-    {
-        ItProjectStages.Ppp => "ARPPP",
-        ItProjectStages.Benchmarking => "BM",
-        ItProjectStages.Delivery => "DLV",
-        _ => ItProjectStages.LabelOf(code)
-    };
-
     /// <summary>
     /// "end to end" when the elapsed figure starts at the first stage; else the stage it starts
     /// from ("from SO"), because undated early stages make the figure shorter than the case took.
@@ -146,7 +137,7 @@ public static class ItProjectBoardPresentation
     }
 
     /// <summary>A case card in the "Where the cases are now" pipeline.</summary>
-    public sealed record PipelineCase(int Id, string Title, string? TimeText, string? TimeTitle, string Tone, string? SoCost);
+    public sealed record PipelineCase(int Id, string Title, string TimeText, string? TimeTitle, string Tone, string? SoCost);
 
     /// <summary>One stage column of the pipeline: the live cases at that stage, longest wait first.</summary>
     public sealed record PipelineColumn(
@@ -194,18 +185,29 @@ public static class ItProjectBoardPresentation
             .ToList();
     }
 
-    /// <summary>The column heading when space is short: "Delivery and ATP" becomes "Delivery &amp; ATP", Benchmarking "BM".</summary>
+    /// <summary>
+    /// The one short stage name the board uses, above a pipeline column and above the register's
+    /// track: "ARPPP", "BM", "Delivery". The full label ("Delivery and ATP") is the tooltip.
+    /// </summary>
     public static string ShortStageLabel(string code) => code switch
     {
-        ItProjectStages.Ppp => "ARPPP / IPA",
+        ItProjectStages.Ppp => "ARPPP",
         ItProjectStages.Benchmarking => "BM",
-        ItProjectStages.Delivery => "Delivery & ATP",
+        ItProjectStages.Delivery => "Delivery",
         _ => ItProjectStages.LabelOf(code)
     };
 
+    /// <summary>What a case card says when the previous stage has no date to count from.</summary>
+    public const string NoStageDateText = "no stage date";
+
+    /// <summary>The note beside the three ageing badges in the key: Delivery and ATP has its own bands.</summary>
+    public static string AgeingKeyNote
+        => $"days at the stage ({ItProjectStages.LabelOf(ItProjectStages.Delivery)}: {ItProjectTiming.DeliveryNormalUpToDays} / {ItProjectTiming.DeliveryAmberUpToDays})";
+
     /// <summary>
-    /// The time line of a case card, following the redesign's rule: days from the previous stage's
-    /// date (coloured by age); else when the move was recorded (never coloured); else not recorded.
+    /// The time figure of the register's Now column, following the redesign's rule: days from the
+    /// previous stage's date (coloured by age); else when the move was recorded (never coloured);
+    /// else not recorded.
     /// </summary>
     public static (string Text, string? Title, string Tone) TimeText(ItProjectTiming timing) => timing.Basis switch
     {
@@ -233,14 +235,16 @@ public static class ItProjectBoardPresentation
 
     /// <summary>
     /// A card carries a time only when it means something: days from a stage date, or "added"
-    /// for a case not started. A recorded move is left to the register's Now column, because
-    /// cases entered together all show the same day (production, 10 Nov 2026).
+    /// for a case not started. The day a move was recorded is left to the register's Now column,
+    /// because cases entered together all show the same day (production, 10 Nov 2026); such a
+    /// card says "no stage date" in muted text, never coloured, so every card has a time line.
     /// </summary>
     private static PipelineCase ToPipelineCase(ItProjectBoardRow row)
     {
-        var (text, title, tone) = row.Timing.Basis is ItProjectTimeBasis.StageDate or ItProjectTimeBasis.SinceAdded
+        (string Text, string? Title, string Tone) time = row.Timing.Basis is ItProjectTimeBasis.StageDate or ItProjectTimeBasis.SinceAdded
             ? TimeText(row.Timing)
-            : (null, null, "calm");
+            : (NoStageDateText, "The previous stage has no date, so the days here cannot be counted.", "nodate");
+        var (text, title, tone) = time;
         var so = row.Status.CurrentStageCode == ItProjectStages.Delivery
             ? row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.So && cell.IsCompleted)?.CostLakhs
             : null;
