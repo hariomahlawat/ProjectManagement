@@ -166,6 +166,60 @@ jobs:
           --no-build
           --filter FullyQualifiedName~MediaReclassificationPostgresIntegrationTests
 
+      - name: Run media external-folder scan PostgreSQL test
+        # A scan of an external folder renews its lease and hides only files this scan did not see. Creates, migrates and
+        # drops its own prism_test_scan_* database.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~ExternalScanPostgresTests
+
+      - name: Run face candidate requeue PostgreSQL test
+        # A requeue during a candidate search makes the stale save fail. Creates, migrates and
+        # drops its own prism_test_requeue_* database.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~FaceCandidateRequeueConcurrencyTests
+
+      - name: Run face reanalysis triage PostgreSQL test
+        # Face triage decisions carry over when a photo is analysed again. Creates, migrates and
+        # drops its own prism_test_triage_* database.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~FaceReanalysisTriageCarryOverTests
+
+      - name: Run media worker lease-loss PostgreSQL test
+        # A media job whose every attempt ends with an expired lease stops being reclaimed. Creates, migrates and
+        # drops its own prism_test_leaseloss_* database.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~MediaProcessingWorkerLeaseLossTests
+
+      - name: Run PRISM media outbox worker PostgreSQL tests
+        # Outbox events are held while the media schema is not operational, and lease renewal translates to SQL. Creates, migrates and
+        # drops its own prism_test_mediaoutbox_* database.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~PrismMediaOutboxWorkerPostgresTests
+
+      - name: Run project photo concurrent upload PostgreSQL test
+        # Concurrent uploads to one project get distinct ordinals and a single cover. Creates, migrates and
+        # drops its own prism_test_photolock_* database.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~ProjectPhotoConcurrentUploadPostgresTests
+
       - name: Run Search V2 PostgreSQL integration tests
         env:
           # The tests create, migrate and drop their own prism_test_searchv2_* database
