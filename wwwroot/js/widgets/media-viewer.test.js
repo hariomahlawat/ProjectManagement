@@ -268,3 +268,87 @@ test('a list marked data-media-viewer-links keeps the open photo in the address 
   assert.equal(text(shared, '[data-viewer-title]'), 'Trials');
   shared.close();
 });
+
+test('the mouse wheel zooms a photo, never below its fitted size, and arrows mark the slide direction', () => {
+  const { window } = overview();
+  click(window, window.document.getElementById('t1'));
+  const viewer = viewerOf(window);
+  const media = viewer.querySelector('[data-viewer-media]');
+  const wheel = (deltaY) => {
+    const event = new window.WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true });
+    media.dispatchEvent(event);
+    return event;
+  };
+
+  // jsdom has no layout, so the photo fades in instead of growing out of the thumbnail.
+  assert.equal(media.dataset.enter, 'fade');
+
+  assert.equal(wheel(-100).defaultPrevented, true, 'the page behind does not scroll');
+  assert.equal(media.classList.contains('is-zoomed'), true);
+  assert.ok(Number(media.style.getPropertyValue('--viewer-zoom')) > 1);
+
+  for (let i = 0; i < 10; i += 1) wheel(100);
+  assert.equal(media.style.getPropertyValue('--viewer-zoom'), '1');
+  assert.equal(media.classList.contains('is-zoomed'), false);
+  assert.equal(media.style.getPropertyValue('--viewer-pan-x'), '0px');
+
+  key(window, 'ArrowRight');
+  assert.equal(media.dataset.enter, 'next');
+  assert.equal(media.querySelector('img').draggable, false);
+  key(window, 'ArrowLeft');
+  assert.equal(media.dataset.enter, 'previous');
+
+  key(window, 'Escape');
+  assert.equal(viewer.hidden, true);
+  assert.equal(media.dataset.enter, undefined);
+  assert.equal(viewer.classList.contains('is-idle'), false);
+  window.close();
+});
+
+test('the controls fade after a still moment and return on a key press', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { window } = overview();
+  // The viewer schedules with the page's own timer; route it through the mocked one.
+  window.setTimeout = setTimeout;
+  window.clearTimeout = clearTimeout;
+  click(window, window.document.getElementById('t1'));
+  const viewer = viewerOf(window);
+
+  t.mock.timers.tick(2700);
+  assert.equal(viewer.classList.contains('is-idle'), false);
+  t.mock.timers.tick(200);
+  assert.equal(viewer.classList.contains('is-idle'), true);
+
+  key(window, 'ArrowRight');
+  assert.equal(viewer.classList.contains('is-idle'), false);
+  window.close();
+});
+
+test('a pinch that ends with one finger down carries on as a drag; a video keeps a scrolling stage', () => {
+  const { window } = overview();
+  click(window, window.document.getElementById('t1'));
+  const viewer = viewerOf(window);
+  const media = viewer.querySelector('[data-viewer-media]');
+  const pointer = (type, pointerId, clientX) => {
+    const event = new window.Event(type, { bubbles: true, cancelable: true });
+    Object.assign(event, { pointerId, clientX, clientY: 100 });
+    media.dispatchEvent(event);
+  };
+
+  assert.equal(media.classList.contains('has-video'), false);
+  pointer('pointerdown', 1, 100);
+  pointer('pointerdown', 2, 200);
+  pointer('pointermove', 2, 300);
+  assert.equal(media.style.getPropertyValue('--viewer-zoom'), '2', 'fingers twice as far apart: twice the size');
+  assert.equal(media.classList.contains('is-panning'), false);
+
+  pointer('pointerup', 2, 300);
+  assert.equal(media.classList.contains('is-panning'), true, 'the finger still down now drags the photo');
+  pointer('pointerup', 1, 100);
+  assert.equal(media.classList.contains('is-panning'), false);
+
+  key(window, 'Escape');
+  click(window, window.document.getElementById('v1'));
+  assert.equal(media.classList.contains('has-video'), true);
+  window.close();
+});

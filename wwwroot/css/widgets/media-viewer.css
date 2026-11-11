@@ -30,6 +30,7 @@
     grid-column: 1 / -1;
     justify-content: space-between;
     padding: .62rem .8rem .62rem 1.1rem;
+    transition: opacity .25s ease;
     z-index: 3;
 }
 
@@ -91,8 +92,9 @@
     display: flex;
     height: 100%;
     justify-content: center;
-    overflow: auto;
+    overflow: hidden;
     padding: 1.25rem 4.5rem;
+    touch-action: none;
     width: 100%;
 }
 
@@ -101,9 +103,41 @@
     max-height: 100%;
     max-width: 100%;
     object-fit: contain;
-    transform: scale(var(--viewer-zoom, 1));
+    transform: translate(var(--viewer-pan-x, 0px), var(--viewer-pan-y, 0px)) scale(var(--viewer-zoom, 1));
     transform-origin: center center;
     transition: transform .12s ease;
+}
+
+/* Photos are moved by dragging. A video cannot be, so its stage scrolls as before and a
+   zoomed video's playback controls can always be brought back into view. */
+.photos-viewer__media.has-video { overflow: auto; touch-action: auto; }
+
+.photos-viewer__media img { cursor: zoom-in; user-select: none; -webkit-user-drag: none; }
+.photos-viewer__media.is-zoomed img { cursor: grab; }
+.photos-viewer__media.is-panning img { cursor: grabbing; transition: none; }
+
+/* A photo grows out of its thumbnail when opened and slides in from the side it came from. */
+.photos-viewer__media[data-enter="open"] img { animation: photos-viewer-open .28s cubic-bezier(.2, .7, .2, 1); }
+.photos-viewer__media[data-enter="fade"] img,
+.photos-viewer__media[data-enter] video { animation: photos-viewer-fade .2s ease; }
+.photos-viewer__media[data-enter="next"] img { animation: photos-viewer-next .22s ease; }
+.photos-viewer__media[data-enter="previous"] img { animation: photos-viewer-previous .22s ease; }
+
+@keyframes photos-viewer-open {
+    from { opacity: .35; transform: translate(var(--viewer-from-x, 0px), var(--viewer-from-y, 0px)) scale(var(--viewer-from-scale, .4)); }
+}
+@keyframes photos-viewer-fade { from { opacity: 0; } }
+@keyframes photos-viewer-next { from { opacity: 0; transform: translateX(3.5rem); } }
+@keyframes photos-viewer-previous { from { opacity: 0; transform: translateX(-3.5rem); } }
+
+/* The header and arrows fade while the pointer is still, leaving only the picture. */
+.photos-viewer.is-idle .photos-viewer__header,
+.photos-viewer.is-idle .photos-viewer__nav { opacity: 0; pointer-events: none; }
+.photos-viewer.is-idle { cursor: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .photos-viewer__media[data-enter] img,
+    .photos-viewer__media[data-enter] video { animation: none; }
 }
 
 .photos-viewer__media video { background: #000; width: min(1100px, 100%); }
@@ -121,6 +155,7 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
+    transition: opacity .25s ease;
     width: 3rem;
     z-index: 2;
 }
