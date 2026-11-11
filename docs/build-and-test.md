@@ -105,6 +105,14 @@ psql -v ON_ERROR_STOP=1 -d <dev-database> -f tools/dev-data/command-desk-demo-re
 
 To bring the dates up to date, run the remove script and then the seed script. The demo projects get new ids each time.
 
+- `molti-sre-demo-seed.sql` adds twelve MOLTI projects and SRE projects named `Demo · …` (docs/ux/molti-sre-projects.md): cases at different stages with dated stages and costs, most assigned to Project Officers by user name (`ankur`, `arpan`, `chinmay`, `nishant`, `claude_review_po`; a name the database does not have leaves the project unassigned), two with no officer, one dropped, two delivered. They are created as the first active HoD (else Admin). Safe to run twice: a title that already exists in its module is skipped.
+- `molti-sre-demo-remove.sql` deletes every MOLTI or SRE project whose title starts with `Demo · `, with its stages, years, remarks and attachment records.
+
+```bash
+psql -v ON_ERROR_STOP=1 -d <dev-database> -f tools/dev-data/molti-sre-demo-seed.sql
+psql -v ON_ERROR_STOP=1 -d <dev-database> -f tools/dev-data/molti-sre-demo-remove.sql
+```
+
 - `returned-plans-demo-seed.sql` adds eight projects named `Demo · Return N · …`, each with a timeline plan the HoD returned, shaped as `PlanApprovalService` leaves the rows: returned with nothing to fix, correction draft discarded, resubmitted then withdrawn, project handed to another PO, project completed, the older return shape, and two that were resubmitted (pending, and approved). It needs a Project Officer, a HoD and a second Project Officer (`-v other_po_user=…`). `returned-plans-demo-remove.sql` deletes only those projects. Because their names also start with `Demo · `, the Command desk remove script deletes them too, and the Command desk seed script does nothing while they exist.
 
 ## CI note
