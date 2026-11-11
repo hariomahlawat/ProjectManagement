@@ -72,5 +72,7 @@ limit. Images above it are recorded as a permanent processing failure and are no
 
 A job whose every attempt ends with the worker's lease expiring, for example because an
 image brought the process down, is moved to dead-letter with the failure code
-`RepeatedWorkerLoss` instead of being retried indefinitely. It is not included in
-**Retry recoverable jobs**; check the source file before retrying it individually.
+`RepeatedWorkerLoss` instead of being retried indefinitely. It is treated as a permanent
+failure: neither **Retry recoverable jobs** nor catalogue synchronisation runs it again
+(unless the file itself changes). Check the source file, then use **Force retry** on the
+job.

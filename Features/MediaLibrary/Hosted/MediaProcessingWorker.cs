@@ -11,7 +11,6 @@ namespace ProjectManagement.Features.MediaLibrary.Hosted;
 public sealed class MediaProcessingWorker : BackgroundService
 {
     private const string ExpiredWorkerLockCode = "ExpiredWorkerLock";
-    internal const string RepeatedWorkerLossCode = "RepeatedWorkerLoss";
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly MediaLibraryOptions _options;
@@ -211,8 +210,8 @@ public sealed class MediaProcessingWorker : BackgroundService
         // the worker survives to record it. A job whose earlier attempts all ended with an
         // expired lease (a hang, or an image that brought the process down) would otherwise
         // be claimed again after every restart, indefinitely. Once it has used every attempt
-        // that way, stop and dead-letter it. The failure code is deliberately not in the
-        // bulk "retry recoverable" set, so an administrator retries it individually.
+        // that way, stop and dead-letter it. The failure code is treated as permanent, so
+        // neither bulk retry nor automatic catalogue requeues run it again.
         var previousAttemptLostLease = job.Status == MediaProcessingJobStatus.Running
             || string.Equals(job.FailureCode, ExpiredWorkerLockCode, StringComparison.Ordinal);
         if (previousAttemptLostLease && job.AttemptCount >= Math.Max(1, job.MaxAttempts))
@@ -222,7 +221,7 @@ public sealed class MediaProcessingWorker : BackgroundService
             job.LockExpiresAtUtc = null;
             job.CompletedAtUtc = null;
             job.AvailableAfterUtc = now;
-            job.FailureCode = RepeatedWorkerLossCode;
+            job.FailureCode = MediaProcessingFailurePolicy.RepeatedWorkerLossCode;
             job.FailureMessage =
                 $"Processing stopped responding or ended the worker on all {job.AttemptCount} attempt(s), so the job was stopped to protect the server. Check the source file before retrying it.";
             job.UpdatedAtUtc = now;

@@ -75,7 +75,7 @@ public sealed class MediaProcessingWorkerLeaseLossTests
             await using var check = provider.CreateScope().ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
             var crashingJob = await check.ProcessingJobs.AsNoTracking().SingleAsync(job => job.Id == crashingJobId);
             Assert.Equal(MediaProcessingJobStatus.DeadLetter, crashingJob.Status);
-            Assert.Equal(MediaProcessingWorker.RepeatedWorkerLossCode, crashingJob.FailureCode);
+            Assert.Equal(MediaProcessingFailurePolicy.RepeatedWorkerLossCode, crashingJob.FailureCode);
             Assert.Null(crashingJob.LockedBy);
             Assert.DoesNotContain(crashingJob.FailureCode, MediaProcessingFailurePolicy.RecoverableFailureCodeNames);
         }
