@@ -584,13 +584,13 @@ public sealed class MediaBulkDownloadService : IMediaBulkDownloadService
     {
         try
         {
-            var root = Path.GetPathRoot(Path.GetFullPath(temporaryDirectory));
-            if (string.IsNullOrWhiteSpace(root))
+            var volume = FindVolume(Path.GetFullPath(temporaryDirectory));
+            if (volume is null)
             {
                 return true;
             }
 
-            var available = new DriveInfo(root).AvailableFreeSpace;
+            var available = volume.AvailableFreeSpace;
             return available - Math.Max(0L, expectedBytes) >= Math.Max(0L, _options.MinimumFreeSpaceBytes);
         }
         catch (Exception exception) when (exception is IOException
@@ -600,6 +600,55 @@ public sealed class MediaBulkDownloadService : IMediaBulkDownloadService
             _logger.LogDebug(exception, "Free space on the media cache volume could not be read.");
             return true;
         }
+    }
+
+    /// <summary>
+    /// The mounted volume that contains <paramref name="fullPath"/>: the ready drive with
+    /// the longest root that prefixes it. Path.GetPathRoot alone gives "/" on Linux, which
+    /// is the wrong filesystem when the cache sits on its own mount or container volume.
+    /// </summary>
+    internal static DriveInfo? FindVolume(string fullPath)
+    {
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        DriveInfo? best = null;
+        var bestLength = -1;
+        foreach (var drive in DriveInfo.GetDrives())
+        {
+            string root;
+            try
+            {
+                if (!drive.IsReady)
+                {
+                    continue;
+                }
+
+                root = drive.RootDirectory.FullName;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
+            var matches = fullPath.StartsWith(prefix, comparison)
+                          || string.Equals(fullPath.TrimEnd(Path.DirectorySeparatorChar), root.TrimEnd(Path.DirectorySeparatorChar), comparison);
+            if (matches && root.Length > bestLength)
+            {
+                best = drive;
+                bestLength = root.Length;
+            }
+        }
+
+        if (best is not null)
+        {
+            return best;
+        }
+
+        // Paths not under any listed mount (for example a UNC share) keep the old behaviour.
+        var pathRoot = Path.GetPathRoot(fullPath);
+        return string.IsNullOrWhiteSpace(pathRoot) ? null : new DriveInfo(pathRoot);
     }
 
     private void CleanupAbandonedArchives(string temporaryDirectory)

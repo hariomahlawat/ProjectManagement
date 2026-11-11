@@ -151,13 +151,15 @@ public interface IFaceCandidateSearchService
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Batch search where the caller applies rejections itself. Identity grouping searches
-    /// with a group centroid on behalf of every member, so a rejection recorded on the
-    /// representative face alone must not remove a person for the whole group.
+    /// Batch search where the caller decides which people to exclude for each input face,
+    /// instead of the rejections recorded on that face. Identity grouping searches with a
+    /// group centroid on behalf of every member: a rejection on the representative alone
+    /// must not remove a person for the whole group, while a person rejected for every
+    /// member must be excluded before results are ranked and limited.
     /// </summary>
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
         IReadOnlyCollection<FaceCandidateSearchInput> inputs,
-        bool excludeRejectedForInputFace,
+        IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> excludedPeopleByInputFace,
         CancellationToken cancellationToken)
         => SearchBatchAsync(inputs, cancellationToken);
 }

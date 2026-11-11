@@ -100,24 +100,11 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
             group.RecalculateRepresentative();
         }
 
-        // One search for every group. Searching group by group reloaded the whole trusted
-        // reference corpus (up to MaximumCandidateReferenceEmbeddings) once per group on
-        // every refresh. Rejections are applied below at group level, so the search must not
-        // drop a person merely because the representative face alone was rejected for them.
-        var searchInputs = acceptedGroups
-            .Select(group => new FaceCandidateSearchInput(
-                group.Representative.FaceId,
-                group.Representative.AssetId,
-                group.Centroid,
-                group.Representative.ModelKey,
-                group.Representative.ModelVersion,
-                group.Representative.Dimension))
-            .ToList();
-        var searchResults = await _candidateSearch.SearchBatchAsync(
-            searchInputs,
-            excludeRejectedForInputFace: false,
-            cancellationToken);
-
+        // Rejections are face/person-specific. Rejecting one reviewed appearance must not
+        // suppress a plausible group-to-person suggestion for every unreviewed member, so a
+        // person is excluded for a group only when every current member was explicitly
+        // rejected for them. The exclusion is applied inside the search, before candidates
+        // are ranked and limited, so an excluded person cannot take a result slot.
         var allMemberFaceIds = acceptedGroups
             .SelectMany(group => group.Members.Select(member => member.FaceId))
             .Distinct()
@@ -136,34 +123,45 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
             })
             .ToListAsync(cancellationToken);
 
+        var excludedPeopleByRepresentative = new Dictionary<Guid, IReadOnlySet<Guid>>();
+        foreach (var group in acceptedGroups)
+        {
+            var representative = group.Representative;
+            var memberFaceIds = group.Members.Select(member => member.FaceId).ToHashSet();
+            excludedPeopleByRepresentative[representative.FaceId] = allRejectedPairs
+                .Where(decision => memberFaceIds.Contains(decision.MediaFaceId)
+                                   && decision.ModelKey == representative.ModelKey
+                                   && decision.ModelVersion == representative.ModelVersion)
+                .GroupBy(decision => decision.PersonId)
+                .Where(byPerson => byPerson.Select(decision => decision.MediaFaceId).Distinct().Count() >= memberFaceIds.Count)
+                .Select(byPerson => byPerson.Key)
+                .ToHashSet();
+        }
+
+        // One search for every group. Searching group by group reloaded the whole trusted
+        // reference corpus (up to MaximumCandidateReferenceEmbeddings) once per group on
+        // every refresh.
+        var searchInputs = acceptedGroups
+            .Select(group => new FaceCandidateSearchInput(
+                group.Representative.FaceId,
+                group.Representative.AssetId,
+                group.Centroid,
+                group.Representative.ModelKey,
+                group.Representative.ModelVersion,
+                group.Representative.Dimension))
+            .ToList();
+        var searchResults = await _candidateSearch.SearchBatchAsync(
+            searchInputs,
+            excludedPeopleByRepresentative,
+            cancellationToken);
+
         var result = new List<FaceIdentityGroup>(acceptedGroups.Count);
         foreach (var group in acceptedGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var representative = group.Representative;
-            var searchedCandidates = searchResults.GetValueOrDefault(representative.FaceId)
-                                     ?? Array.Empty<FaceCandidate>();
-
-            var memberFaceIds = group.Members.Select(member => member.FaceId).ToArray();
-            var memberFaceIdSet = memberFaceIds.ToHashSet();
-            // Rejections are face/person-specific. Rejecting one reviewed appearance must
-            // not suppress a plausible group-to-person suggestion for every unreviewed
-            // member. Hide the person only when every current group member has been
-            // explicitly rejected for that person.
-            var rejectedPairs = allRejectedPairs
-                .Where(decision => memberFaceIdSet.Contains(decision.MediaFaceId)
-                                   && decision.ModelKey == representative.ModelKey
-                                   && decision.ModelVersion == representative.ModelVersion)
-                .ToList();
-
-            var rejectedByPerson = rejectedPairs
-                .GroupBy(item => item.PersonId)
-                .ToDictionary(
-                    groupByPerson => groupByPerson.Key,
-                    groupByPerson => groupByPerson.Select(item => item.MediaFaceId).Distinct().ToHashSet());
-            var candidates = searchedCandidates
-                .Where(candidate => !rejectedByPerson.TryGetValue(candidate.PersonId, out var rejectedFaces)
-                                    || rejectedFaces.Count < memberFaceIds.Length)
+            var candidates = (searchResults.GetValueOrDefault(representative.FaceId)
+                              ?? Array.Empty<FaceCandidate>())
                 .ToList();
             var members = group.Members
                 .Select(member => new FaceIdentityGroupMember(

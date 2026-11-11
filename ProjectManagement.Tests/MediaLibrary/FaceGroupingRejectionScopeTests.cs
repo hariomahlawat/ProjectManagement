@@ -16,25 +16,59 @@ namespace ProjectManagement.Tests.MediaLibrary;
 public sealed class FaceGroupingRejectionScopeTests
 {
     private static readonly Guid Alice = Guid.NewGuid();
+    private static readonly Guid Bob = Guid.NewGuid();
+    private static readonly Guid BobReferenceFace = Guid.NewGuid();
     private static readonly Guid ReferenceFace = Guid.NewGuid();
     private static readonly Guid QueryFace = Guid.NewGuid();
 
     [Fact]
-    public async Task Per_face_rejection_is_applied_only_when_requested()
+    public async Task Caller_exclusions_replace_the_input_faces_own_rejections()
     {
         await using var db = CreateContext();
         await SeedAsync(db);
-        var service = new FaceCandidateSearchService(
-            db,
-            new MediaAssetVisibilityPolicy(Options.Create(Options_())),
-            Options.Create(Options_()));
-        var input = new FaceCandidateSearchInput(QueryFace, 2, new[] { 1f, 0f, 0f, 0f }, "sface", "v1", 4);
+        var service = CreateService(db, candidateLimit: 5);
+        var input = Input();
 
         var faceSearch = await service.SearchBatchAsync(new[] { input }, CancellationToken.None);
-        var groupSearch = await service.SearchBatchAsync(new[] { input }, excludeRejectedForInputFace: false, CancellationToken.None);
+        var groupSearch = await service.SearchBatchAsync(
+            new[] { input },
+            new Dictionary<Guid, IReadOnlySet<Guid>>(),
+            CancellationToken.None);
 
+        // The representative's own rejection hides Alice for a single-face search only.
         Assert.DoesNotContain(faceSearch[QueryFace], candidate => candidate.PersonId == Alice);
         Assert.Contains(groupSearch[QueryFace], candidate => candidate.PersonId == Alice);
+    }
+
+    [Fact]
+    public async Task A_group_wide_exclusion_does_not_take_a_limited_result_slot()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db, candidateLimit: 1);
+
+        // Alice ranks first, but every group member rejected her. With one result slot,
+        // Bob must still be suggested: the exclusion applies before the limit.
+        var result = await service.SearchBatchAsync(
+            new[] { Input() },
+            new Dictionary<Guid, IReadOnlySet<Guid>> { [QueryFace] = new HashSet<Guid> { Alice } },
+            CancellationToken.None);
+
+        var only = Assert.Single(result[QueryFace]);
+        Assert.Equal(Bob, only.PersonId);
+    }
+
+    private static FaceCandidateSearchInput Input()
+        => new(QueryFace, 2, new[] { 1f, 0f, 0f, 0f }, "sface", "v1", 4);
+
+    private static FaceCandidateSearchService CreateService(MediaLibraryDbContext db, int candidateLimit)
+    {
+        var options = Options_();
+        options.People.CandidateLimit = candidateLimit;
+        return new FaceCandidateSearchService(
+            db,
+            new MediaAssetVisibilityPolicy(Options.Create(options)),
+            Options.Create(options));
     }
 
     private static MediaLibraryOptions Options_()
@@ -66,6 +100,26 @@ public sealed class FaceGroupingRejectionScopeTests
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         });
+        db.Assets.Add(ReclassifySeed.Asset(source, 3, null));
+        db.Persons.Add(new MediaPerson
+        {
+            Id = Bob,
+            DisplayName = "Bob",
+            NormalizedName = "BOB",
+            Status = MediaPersonStatus.Confirmed,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        });
+        db.Faces.Add(Face(BobReferenceFace, 3, new[] { 0.98f, 0.199f, 0f, 0f }));
+        db.PersonFaces.Add(new MediaPersonFace
+        {
+            MediaFaceId = BobReferenceFace,
+            MediaPersonId = Bob,
+            AssignmentType = FaceAssignmentType.HumanConfirmed,
+            ReferenceStatus = FaceReferenceStatus.TrustedReference,
+            AssignedByUserId = "reviewer",
+            AssignedAtUtc = DateTimeOffset.UtcNow
+        });
         db.Faces.Add(Face(ReferenceFace, 1));
         db.Faces.Add(Face(QueryFace, 2));
         db.PersonFaces.Add(new MediaPersonFace
@@ -89,7 +143,7 @@ public sealed class FaceGroupingRejectionScopeTests
         await db.SaveChangesAsync();
     }
 
-    private static MediaFace Face(Guid id, long assetId)
+    private static MediaFace Face(Guid id, long assetId, float[]? embedding = null)
         => new()
         {
             Id = id,
@@ -105,7 +159,7 @@ public sealed class FaceGroupingRejectionScopeTests
             {
                 new MediaFaceEmbedding
                 {
-                    Embedding = new[] { 1f, 0f, 0f, 0f },
+                    Embedding = embedding ?? new[] { 1f, 0f, 0f, 0f },
                     Dimension = 4,
                     ModelKey = "sface",
                     ModelVersion = "v1",

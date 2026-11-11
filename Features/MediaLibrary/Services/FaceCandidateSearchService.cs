@@ -69,11 +69,24 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
     public Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
         IReadOnlyCollection<FaceCandidateSearchInput> inputs,
         CancellationToken cancellationToken)
-        => SearchBatchAsync(inputs, excludeRejectedForInputFace: true, cancellationToken);
+        => SearchBatchCoreAsync(inputs, excludedPeopleByInputFace: null, cancellationToken);
 
-    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
+    public Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
         IReadOnlyCollection<FaceCandidateSearchInput> inputs,
-        bool excludeRejectedForInputFace,
+        IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> excludedPeopleByInputFace,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(excludedPeopleByInputFace);
+        return SearchBatchCoreAsync(inputs, excludedPeopleByInputFace, cancellationToken);
+    }
+
+    /// <param name="excludedPeopleByInputFace">
+    /// Null: exclude the people rejected for each input face. Otherwise the caller's
+    /// exclusions replace them. Either way they apply before ranking and the candidate limit.
+    /// </param>
+    private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchCoreAsync(
+        IReadOnlyCollection<FaceCandidateSearchInput> inputs,
+        IReadOnlyDictionary<Guid, IReadOnlySet<Guid>>? excludedPeopleByInputFace,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(inputs);
@@ -158,7 +171,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                 continue;
             }
 
-            var rejectedRows = !excludeRejectedForInputFace
+            var rejectedRows = excludedPeopleByInputFace is not null
                 ? new()
                 : await _db.FaceReviewDecisions
                 .AsNoTracking()
@@ -203,8 +216,9 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
             foreach (var input in groupInputs)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var rejected = rejectedByFace.GetValueOrDefault(input.FaceId)
-                               ?? new HashSet<Guid>();
+                IReadOnlySet<Guid> rejected = excludedPeopleByInputFace is not null
+                    ? excludedPeopleByInputFace.GetValueOrDefault(input.FaceId) ?? new HashSet<Guid>()
+                    : rejectedByFace.GetValueOrDefault(input.FaceId) ?? new HashSet<Guid>();
                 var alreadyPresent = assignedByAsset.GetValueOrDefault(input.AssetId)
                                      ?? new HashSet<Guid>();
 

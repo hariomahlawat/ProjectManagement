@@ -84,6 +84,22 @@ public sealed class MediaBulkDownloadServiceTests
     }
 
     [Fact]
+    public void FindVolume_ResolvesTheMountContainingThePath_NotTheLexicalRoot()
+    {
+        // On Linux, Path.GetPathRoot is always "/", which is the wrong filesystem when the
+        // cache lives on its own mount. /dev/shm is a separate mount on Linux hosts.
+        if (!OperatingSystem.IsLinux() || !Directory.Exists("/dev/shm"))
+        {
+            return;
+        }
+
+        var volume = MediaBulkDownloadService.FindVolume("/dev/shm/prism-cache/bulk-downloads");
+
+        Assert.NotNull(volume);
+        Assert.Equal("/dev/shm", volume!.RootDirectory.FullName.TrimEnd('/'));
+    }
+
+    [Fact]
     public async Task CreateAsync_SanitizesArchiveEntryName_IndependentlyOfHostOperatingSystem()
     {
         await using var fixture = await BulkDownloadFixture.CreateAsync(
