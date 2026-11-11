@@ -61,6 +61,18 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
                             : DateTimeOffset.UtcNow.AddMinutes(1);
                     }
 
+                    // Processing an event writes to the media schema. While that schema is
+                    // missing or behind (for example a failed media migration, which leaves
+                    // the core ERP running), every event would fail ten times and be
+                    // dead-lettered, and the backfill treats dead letters as handled. Hold
+                    // the queue instead; the events stay Pending and drain once it is fixed.
+                    if (!await IsMediaSchemaOperationalAsync(stoppingToken))
+                    {
+                        _runtimeState.MarkFailed("Waiting for an operational media schema; outbox events are held, not failed.");
+                        await Task.Delay(SchemaWaitDelay, stoppingToken);
+                        continue;
+                    }
+
                     var processed = await DrainOnceAsync(stoppingToken);
                     if (processed == 0)
                     {
@@ -89,6 +101,24 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
         {
             _runtimeState.MarkStopped();
         }
+    }
+
+    private static readonly TimeSpan SchemaWaitDelay = TimeSpan.FromSeconds(30);
+
+    private async Task<bool> IsMediaSchemaOperationalAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
+        var status = await schema.GetStatusAsync(cancellationToken);
+        if (status.IsAvailable && status.IsCurrent)
+        {
+            return true;
+        }
+
+        _logger.LogWarning(
+            "PRISM media outbox is holding events because the media schema is not operational. Reference={Reference}",
+            status.DiagnosticReference);
+        return false;
     }
 
     private async Task<bool> RunStartupBackfillAsync(CancellationToken cancellationToken)
