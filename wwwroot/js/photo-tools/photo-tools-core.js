@@ -456,6 +456,259 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Clean up, adjust and filters (Edit photo)
+  // ---------------------------------------------------------------------------
+
+  const luminance = (pixels, i) => 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+
+  /**
+   * Brightness, contrast, saturation and warmth, each from -50 to 50, applied to RGBA pixels
+   * in place. Zero leaves a photo exactly as it is.
+   */
+  function adjustPixels(pixels, settings) {
+    const brightness = Number(settings.brightness) || 0;
+    const contrast = Number(settings.contrast) || 0;
+    const saturation = Number(settings.saturation) || 0;
+    const warmth = Number(settings.warmth) || 0;
+    const gain = 1 + contrast / 50 * 0.6;
+    const lift = brightness * 1.28;
+    const colour = 1 + saturation / 50;
+    const warm = warmth * 0.6;
+    const table = new Float32Array(256);
+    for (let value = 0; value < 256; value += 1) {
+      table[value] = (value - 128) * gain + 128 + lift;
+    }
+    for (let i = 0; i < pixels.length; i += 4) {
+      let red = table[pixels[i]] + warm;
+      let green = table[pixels[i + 1]];
+      let blue = table[pixels[i + 2]] - warm;
+      if (saturation) {
+        const grey = 0.299 * red + 0.587 * green + 0.114 * blue;
+        red = grey + (red - grey) * colour;
+        green = grey + (green - grey) * colour;
+        blue = grey + (blue - grey) * colour;
+      }
+      pixels[i] = red;
+      pixels[i + 1] = green;
+      pixels[i + 2] = blue;
+    }
+    return pixels;
+  }
+
+  // The six filters. Each is a fixed recipe, so a filter always looks the same.
+  const FILTERS = Object.freeze([
+    Object.freeze({ key: 'bw', label: 'Black and white' }),
+    Object.freeze({ key: 'sepia', label: 'Sepia' }),
+    Object.freeze({ key: 'warm', label: 'Warm', adjust: Object.freeze({ warmth: 25, saturation: 8 }) }),
+    Object.freeze({ key: 'cool', label: 'Cool', adjust: Object.freeze({ warmth: -25 }) }),
+    Object.freeze({ key: 'vivid', label: 'Vivid', adjust: Object.freeze({ contrast: 15, saturation: 30 }) }),
+    Object.freeze({ key: 'faded', label: 'Faded', adjust: Object.freeze({ contrast: -20, brightness: 8, saturation: -25 }) })
+  ]);
+
+  function filterPixels(pixels, key) {
+    const filter = FILTERS.find(item => item.key === key);
+    if (!filter) return pixels;
+    if (filter.adjust) return adjustPixels(pixels, filter.adjust);
+    toGreyscale(pixels);
+    if (key === 'sepia') {
+      for (let i = 0; i < pixels.length; i += 4) {
+        const grey = pixels[i];
+        pixels[i] = grey * 1.07 + 12;
+        pixels[i + 1] = grey * 0.95 + 4;
+        pixels[i + 2] = grey * 0.74;
+      }
+    }
+    return pixels;
+  }
+
+  /** A copy of RGBA pixels with each pixel averaged with its eight neighbours (alpha untouched). */
+  function blurredCopy(pixels, width, height) {
+    const across = new Uint8ClampedArray(pixels.length);
+    const output = new Uint8ClampedArray(pixels.length);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const i = (y * width + x) * 4;
+        const left = (y * width + Math.max(0, x - 1)) * 4;
+        const right = (y * width + Math.min(width - 1, x + 1)) * 4;
+        across[i] = (pixels[left] + pixels[i] + pixels[right]) / 3;
+        across[i + 1] = (pixels[left + 1] + pixels[i + 1] + pixels[right + 1]) / 3;
+        across[i + 2] = (pixels[left + 2] + pixels[i + 2] + pixels[right + 2]) / 3;
+      }
+    }
+    for (let y = 0; y < height; y += 1) {
+      const up = Math.max(0, y - 1) * width;
+      const down = Math.min(height - 1, y + 1) * width;
+      for (let x = 0; x < width; x += 1) {
+        const i = (y * width + x) * 4;
+        const above = (up + x) * 4;
+        const below = (down + x) * 4;
+        output[i] = (across[above] + across[i] + across[below]) / 3;
+        output[i + 1] = (across[above + 1] + across[i + 1] + across[below + 1]) / 3;
+        output[i + 2] = (across[above + 2] + across[i + 2] + across[below + 2]) / 3;
+        output[i + 3] = pixels[i + 3];
+      }
+    }
+    return output;
+  }
+
+  /** Makes edges crisper: each pixel is pushed away from the average of its neighbours. */
+  function sharpenPixels(pixels, width, height, amount) {
+    const strength = amount === undefined ? 0.7 : amount;
+    const soft = blurredCopy(pixels, width, height);
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i] += (pixels[i] - soft[i]) * strength;
+      pixels[i + 1] += (pixels[i + 1] - soft[i + 1]) * strength;
+      pixels[i + 2] += (pixels[i + 2] - soft[i + 2]) * strength;
+    }
+    return pixels;
+  }
+
+  /** Calms grain: each pixel is moved halfway towards the average of its neighbours. */
+  function softenPixels(pixels, width, height) {
+    const soft = blurredCopy(pixels, width, height);
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i] = (pixels[i] + soft[i]) / 2;
+      pixels[i + 1] = (pixels[i + 1] + soft[i + 1]) / 2;
+      pixels[i + 2] = (pixels[i + 2] + soft[i + 2]) / 2;
+    }
+    return pixels;
+  }
+
+  /**
+   * Evens out light that falls off across a photo (a shadow on one side, a dark corner). The
+   * photo is divided into a coarse grid; each area is pulled towards the overall brightness, and
+   * the correction is blended smoothly between areas so no blocks show. Strength 0 to 1.
+   */
+  function evenLighting(pixels, width, height, strength) {
+    const blend = strength === undefined ? 0.7 : strength;
+    const cell = Math.max(1, Math.ceil(Math.max(width, height) / 24));
+    const columns = Math.ceil(width / cell);
+    const rows = Math.ceil(height / cell);
+    const sums = new Float64Array(columns * rows);
+    const counts = new Uint32Array(columns * rows);
+    for (let y = 0; y < height; y += 1) {
+      const row = Math.floor(y / cell) * columns;
+      for (let x = 0; x < width; x += 1) {
+        const at = row + Math.floor(x / cell);
+        sums[at] += luminance(pixels, (y * width + x) * 4);
+        counts[at] += 1;
+      }
+    }
+    let total = 0;
+    const raw = new Float64Array(columns * rows);
+    for (let at = 0; at < raw.length; at += 1) {
+      raw[at] = sums[at] / counts[at];
+      total += raw[at];
+    }
+    const target = total / raw.length;
+    // Each area is averaged with its neighbours, so one dark object does not drag its area up.
+    const grid = new Float64Array(raw.length);
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < columns; c += 1) {
+        let sum = 0;
+        let seen = 0;
+        for (let dr = -1; dr <= 1; dr += 1) {
+          for (let dc = -1; dc <= 1; dc += 1) {
+            const rr = r + dr;
+            const cc = c + dc;
+            if (rr >= 0 && rr < rows && cc >= 0 && cc < columns) {
+              sum += raw[rr * columns + cc];
+              seen += 1;
+            }
+          }
+        }
+        grid[r * columns + c] = sum / seen;
+      }
+    }
+    for (let y = 0; y < height; y += 1) {
+      const gy = Math.min(rows - 1, Math.max(0, (y + 0.5) / cell - 0.5));
+      const r0 = Math.floor(gy);
+      const r1 = Math.min(rows - 1, r0 + 1);
+      const fy = gy - r0;
+      for (let x = 0; x < width; x += 1) {
+        const gx = Math.min(columns - 1, Math.max(0, (x + 0.5) / cell - 0.5));
+        const c0 = Math.floor(gx);
+        const c1 = Math.min(columns - 1, c0 + 1);
+        const fx = gx - c0;
+        const local = (grid[r0 * columns + c0] * (1 - fx) + grid[r0 * columns + c1] * fx) * (1 - fy)
+          + (grid[r1 * columns + c0] * (1 - fx) + grid[r1 * columns + c1] * fx) * fy;
+        const full = Math.min(1.8, Math.max(0.6, target / Math.max(1, local)));
+        const gain = 1 + (full - 1) * blend;
+        const i = (y * width + x) * 4;
+        pixels[i] *= gain;
+        pixels[i + 1] *= gain;
+        pixels[i + 2] *= gain;
+      }
+    }
+    return pixels;
+  }
+
+  /**
+   * A photographed page made to look scanned: the light is evened out, then the paper is taken
+   * to white and the ink to dark. Each colour has its own white point (the usual level of that
+   * colour, which is the paper), so yellowish paper under a lamp still comes out white, while
+   * coloured ink is kept (a red stamp stays red).
+   */
+  function cleanDocument(pixels, width, height) {
+    evenLighting(pixels, width, height, 1);
+    const levels = measurePaper(pixels);
+    if (!levels) return pixels;
+    const count = pixels.length / 4;
+    const tables = [0, 1, 2].map(channel => {
+      const histogram = new Uint32Array(256);
+      for (let i = channel; i < pixels.length; i += 4) histogram[pixels[i]] += 1;
+      let paper = 0;
+      for (let seen = 0; paper < 255; paper += 1) {
+        seen += histogram[paper];
+        if (seen > count / 2) break;
+      }
+      const range = Math.max(40, paper - levels.ink);
+      const black = levels.ink + range * 0.1;
+      const white = Math.max(black + 1, paper - range * 0.12);
+      const table = new Uint8ClampedArray(256);
+      for (let value = 0; value < 256; value += 1) {
+        table[value] = (value - black) / (white - black) * 255;
+      }
+      return table;
+    });
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i] = tables[0][pixels[i]];
+      pixels[i + 1] = tables[1][pixels[i + 1]];
+      pixels[i + 2] = tables[2][pixels[i + 2]];
+    }
+    return pixels;
+  }
+
+  // The one-click clean-ups, in the order the page shows them.
+  const CLEAN_UPS = Object.freeze([
+    Object.freeze({ key: 'enhance', label: 'Auto enhance', note: 'Fixes dull light and a colour cast in one step.' }),
+    Object.freeze({ key: 'cast', label: 'Fix colour cast', note: 'Removes a yellow or blue tint and leaves the light alone.' }),
+    Object.freeze({ key: 'even', label: 'Even out lighting', note: 'Lifts a shadow on one side or a dark corner.' }),
+    Object.freeze({ key: 'document', label: 'Clean document', note: 'White paper and dark text, for a photographed page.' }),
+    Object.freeze({ key: 'denoise', label: 'Reduce noise', note: 'Calms grain from a dark room. Softens fine detail a little.' }),
+    Object.freeze({ key: 'sharpen', label: 'Sharpen', note: 'Makes edges crisper.' })
+  ]);
+
+  /** True for a step that changes the pixels and keeps the size (a clean-up, adjust or filter). */
+  function isPixelStep(step) {
+    return step.type === 'cleanup' || step.type === 'adjust' || step.type === 'filter';
+  }
+
+  /** Applies a clean-up, adjust or filter step to RGBA pixels in place. */
+  function applyPixelStep(pixels, width, height, step) {
+    if (step.type === 'adjust') return adjustPixels(pixels, step);
+    if (step.type === 'filter') return filterPixels(pixels, step.key);
+    if (step.type !== 'cleanup') return pixels;
+    if (step.key === 'enhance') return applyLighting(pixels, measureLighting(pixels), 0);
+    if (step.key === 'cast') return applyLighting(pixels, { low: 0, high: 255, gains: measureLighting(pixels).gains }, 0);
+    if (step.key === 'even') return evenLighting(pixels, width, height);
+    if (step.key === 'document') return cleanDocument(pixels, width, height);
+    if (step.key === 'denoise') return softenPixels(pixels, width, height);
+    if (step.key === 'sharpen') return sharpenPixels(pixels, width, height);
+    return pixels;
+  }
+
+  // ---------------------------------------------------------------------------
   // Target file size
   // ---------------------------------------------------------------------------
 
@@ -560,6 +813,16 @@
     defaultCrop,
     moveCrop,
     resizeCrop,
+    FILTERS,
+    CLEAN_UPS,
+    adjustPixels,
+    filterPixels,
+    sharpenPixels,
+    softenPixels,
+    evenLighting,
+    cleanDocument,
+    isPixelStep,
+    applyPixelStep,
     encodeToTarget
   });
 });

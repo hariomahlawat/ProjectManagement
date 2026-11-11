@@ -325,3 +325,129 @@ test('resizeCrop moves one side, keeps a fixed shape, and stops at the edges', (
   // A side handle grows the box evenly about its middle.
   assert.deepEqual(tools.resizeCrop(box, 's', { x: 0, y: 2400 }, 2, bounds), { x: 100, y: 1000, width: 2800, height: 1400 });
 });
+
+// A small grey picture: `fill(x, y)` gives the brightness of each pixel.
+function picture(width, height, fill) {
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const value = fill(x, y);
+      const colour = Array.isArray(value) ? value : [value, value, value];
+      pixels.set([...colour, 255], (y * width + x) * 4);
+    }
+  }
+  return pixels;
+}
+
+const at = (pixels, width, x, y) => Array.from(pixels.slice((y * width + x) * 4, (y * width + x) * 4 + 3));
+
+test('adjustPixels: zero changes nothing, and each control moves the right way', () => {
+  const same = new Uint8ClampedArray([10, 120, 240, 200]);
+  assert.deepEqual(Array.from(tools.adjustPixels(same, {})), [10, 120, 240, 200]);
+
+  assert.deepEqual(Array.from(tools.adjustPixels(new Uint8ClampedArray([100, 100, 100, 255]), { brightness: 25 })), [132, 132, 132, 255]);
+  const contrast = tools.adjustPixels(new Uint8ClampedArray([78, 78, 78, 255, 178, 178, 178, 255]), { contrast: 50 });
+  assert.deepEqual(Array.from(contrast), [48, 48, 48, 255, 208, 208, 208, 255]);
+  const warm = tools.adjustPixels(new Uint8ClampedArray([100, 100, 100, 255]), { warmth: 50 });
+  assert.deepEqual(Array.from(warm), [130, 100, 70, 255]);
+  const grey = tools.adjustPixels(new Uint8ClampedArray([200, 100, 50, 255]), { saturation: -50 });
+  assert.ok(grey[0] === grey[1] && grey[1] === grey[2], 'no saturation is grey');
+  const vivid = tools.adjustPixels(new Uint8ClampedArray([150, 100, 100, 255]), { saturation: 50 });
+  assert.ok(vivid[0] > 150 && vivid[1] < 100, 'more saturation pushes colours apart');
+});
+
+test('filterPixels: six fixed recipes', () => {
+  assert.deepEqual(tools.FILTERS.map(item => item.key), ['bw', 'sepia', 'warm', 'cool', 'vivid', 'faded']);
+  const start = () => new Uint8ClampedArray([180, 120, 60, 255]);
+  const bw = tools.filterPixels(start(), 'bw');
+  assert.ok(bw[0] === bw[1] && bw[1] === bw[2]);
+  const sepia = tools.filterPixels(start(), 'sepia');
+  assert.ok(sepia[0] > sepia[1] && sepia[1] > sepia[2], 'sepia is brown: red over green over blue');
+  assert.ok(tools.filterPixels(start(), 'warm')[2] < 60);
+  assert.ok(tools.filterPixels(start(), 'cool')[2] > 60);
+  assert.deepEqual(Array.from(tools.filterPixels(start(), 'nothing')), [180, 120, 60, 255]);
+});
+
+test('sharpenPixels and softenPixels leave flat areas alone and work on edges', () => {
+  const flat = picture(6, 6, () => 120);
+  assert.deepEqual(Array.from(tools.sharpenPixels(flat.slice(), 6, 6)), Array.from(flat));
+  assert.deepEqual(Array.from(tools.softenPixels(flat.slice(), 6, 6)), Array.from(flat));
+
+  // A soft step from dark to light: sharpening makes the dark side darker and the light side lighter.
+  const edge = picture(6, 6, x => (x < 3 ? 100 : 160));
+  const sharp = tools.sharpenPixels(edge.slice(), 6, 6);
+  assert.ok(at(sharp, 6, 2, 3)[0] < 100 && at(sharp, 6, 3, 3)[0] > 160);
+  assert.equal(at(sharp, 6, 0, 3)[0], 100, 'away from the edge nothing changes');
+
+  // One bright speck is pulled towards its surroundings.
+  const speck = picture(5, 5, (x, y) => (x === 2 && y === 2 ? 250 : 50));
+  const calm = tools.softenPixels(speck.slice(), 5, 5);
+  assert.ok(at(calm, 5, 2, 2)[0] < 200 && at(calm, 5, 2, 2)[0] > 50);
+  assert.equal(calm[3], 255, 'alpha is untouched');
+});
+
+test('evenLighting lifts the dark side and leaves an evenly lit photo alone', () => {
+  const even = picture(48, 48, () => 130);
+  assert.deepEqual(Array.from(tools.evenLighting(even.slice(), 48, 48)), Array.from(even));
+
+  // Light falls off from left to right.
+  const shaded = picture(96, 48, x => 200 - x);
+  const before = at(shaded, 96, 4, 24)[0] - at(shaded, 96, 91, 24)[0];
+  tools.evenLighting(shaded, 96, 48);
+  const after = at(shaded, 96, 4, 24)[0] - at(shaded, 96, 91, 24)[0];
+  assert.ok(after < before * 0.6, `the difference across the photo shrinks (${before} to ${after})`);
+});
+
+test('cleanDocument gives white paper and dark ink under uneven light, and keeps colour', () => {
+  // Paper lit unevenly (210 on the left down to 150 on the right) with a dark line and a red mark.
+  const page = picture(96, 48, (x, y) => {
+    const paper = 210 - Math.round(x * 60 / 95);
+    if (y === 10 && x % 3 === 0) return 30;
+    if (y === 30 && x === 48) return [Math.round(paper * 0.9), 40, 40];
+    return paper;
+  });
+  tools.cleanDocument(page, 96, 48);
+  assert.ok(at(page, 96, 5, 40)[0] >= 250, 'paper on the bright side is white');
+  assert.ok(at(page, 96, 90, 40)[0] >= 250, 'paper on the dark side is white too');
+  assert.ok(at(page, 96, 48, 10)[0] < 60, 'ink stays dark');
+  const mark = at(page, 96, 48, 30);
+  assert.ok(mark[0] > mark[1] + 80, 'a red mark stays red');
+
+  // The same page under a yellow lamp: the paper still comes out white, not yellow.
+  const yellowed = picture(96, 48, (x, y) => {
+    const paper = 210 - Math.round(x * 60 / 95);
+    if (y === 10 && x % 3 === 0) return [30, 28, 20];
+    return [paper, Math.round(paper * 0.94), Math.round(paper * 0.7)];
+  });
+  tools.cleanDocument(yellowed, 96, 48);
+  for (const x of [5, 90]) {
+    const paper = at(yellowed, 96, x, 40);
+    assert.ok(Math.min(...paper) >= 245, `yellowish paper is white at x=${x} (${paper})`);
+  }
+  assert.ok(at(yellowed, 96, 48, 10)[0] < 60, 'ink stays dark under the lamp');
+});
+
+test('applyPixelStep runs each clean-up and reports which steps are pixel steps', () => {
+  assert.deepEqual(tools.CLEAN_UPS.map(item => item.key), ['enhance', 'cast', 'even', 'document', 'denoise', 'sharpen']);
+  assert.equal(tools.isPixelStep({ type: 'cleanup', key: 'enhance' }), true);
+  assert.equal(tools.isPixelStep({ type: 'adjust' }), true);
+  assert.equal(tools.isPixelStep({ type: 'filter', key: 'bw' }), true);
+  assert.equal(tools.isPixelStep({ type: 'crop' }), false);
+
+  // A dull, yellowish picture: enhance stretches it and removes most of the tint.
+  const dull = () => picture(20, 20, x => [90 + x * 4, 85 + x * 4, 60 + x * 4]);
+  const enhanced = tools.applyPixelStep(dull(), 20, 20, { type: 'cleanup', key: 'enhance' });
+  assert.ok(at(enhanced, 20, 0, 0)[0] < 60 && at(enhanced, 20, 19, 0)[0] > 220, 'the range is stretched');
+  const cast = tools.applyPixelStep(dull(), 20, 20, { type: 'cleanup', key: 'cast' });
+  const tint = (pixels) => at(pixels, 20, 10, 10)[0] - at(pixels, 20, 10, 10)[2];
+  assert.ok(tint(cast) < tint(dull()), 'the yellow tint is smaller');
+  assert.ok(Math.abs(at(cast, 20, 10, 10)[1] - at(dull(), 20, 10, 10)[1]) < 12, 'the light is left about the same');
+
+  for (const { key } of tools.CLEAN_UPS) {
+    const result = tools.applyPixelStep(dull(), 20, 20, { type: 'cleanup', key });
+    assert.equal(result.length, 1600);
+  }
+  const untouched = dull();
+  assert.deepEqual(Array.from(tools.applyPixelStep(untouched.slice(), 20, 20, { type: 'crop' })), Array.from(untouched));
+  assert.deepEqual(tools.editedSize(400, 300, [{ type: 'cleanup', key: 'sharpen' }, { type: 'adjust', brightness: 5 }]), { width: 400, height: 300 });
+});

@@ -889,3 +889,85 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* ---------- Edit photo: clean up, adjust, filters ---------- */
+
+.phot-segment--full {
+    flex-wrap: wrap;
+}
+
+.phot-segment--full button {
+    flex: 1 1 30%;
+}
+
+.phot-cleanups {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.phot-cleanups .phot-toggle {
+    flex: 0 0 10.5rem;
+    justify-content: center;
+}
+
+.phot-slider--named {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr) 2.5rem;
+}
+
+.phot-tool__actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.phot-tool__actions .btn {
+    font-weight: 700;
+}
+
+.phot-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.phot-filter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 10px;
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.phot-filter:hover,
+.phot-filter:focus-visible {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+}
+
+.phot-filter canvas {
+    display: block;
+    max-width: 100%;
+    height: 64px;
+    object-fit: contain;
+    border-radius: 6px;
+}
+
+@media (max-width: 575.98px) {
+    .phot-cleanups .phot-fix {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .phot-cleanups .phot-toggle {
+        flex-basis: auto;
+    }
+}
