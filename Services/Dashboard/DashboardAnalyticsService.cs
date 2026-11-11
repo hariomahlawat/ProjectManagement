@@ -61,7 +61,7 @@ public sealed record DashboardCoeVm(
     int Completed,
     int Cancelled,
     IReadOnlyList<DashboardCoeSubcategoryVm> Subcategories,
-    int MoreSubcategoryCount);
+    bool HasMoreSubcategories);
 
 public sealed record DashboardCoeSubcategoryVm(string Name, int Ongoing, int Completed, int Cancelled, int Total);
 
@@ -189,7 +189,7 @@ public sealed class DashboardAnalyticsService : IDashboardAnalyticsService
             rows.Take(MaxCoeSubcategories)
                 .Select(row => new DashboardCoeSubcategoryVm(row.Name, row.Ongoing, row.Completed, row.Cancelled, row.Total))
                 .ToList(),
-            Math.Max(0, rows.Count - MaxCoeSubcategories));
+            rows.Count > MaxCoeSubcategories);
     }
 
     private static DashboardCompletedVm? MapCompleted(CompletedAnalyticsVm completed, int year) =>

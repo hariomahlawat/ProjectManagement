@@ -324,7 +324,7 @@
                                         <span class="is-ongoing">Ongoing</span>
                                         <span class="is-completed">Completed</span>
                                         @if (coe.Cancelled > 0) { <span class="is-cancelled">Cancelled</span> }
-                                        @if (coe.MoreSubcategoryCount > 0) { <em>+ @coe.MoreSubcategoryCount more @(coe.MoreSubcategoryCount == 1 ? "sub-category" : "sub-categories")</em> }
+                                        @if (coe.HasMoreSubcategories) { <em>+ more in Analytics</em> }
                                     </p>
                                 }
                             </a>

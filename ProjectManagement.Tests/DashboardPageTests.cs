@@ -244,7 +244,7 @@ namespace ProjectManagement.Tests
             public Task<DashboardAnalyticsVm> GetAsync(CancellationToken cancellationToken = default) =>
                 Task.FromResult(new DashboardAnalyticsVm(
                     new DashboardArppVm(2026, "2026-27", null, 38, "₹196.65 Cr", 4, 13, 13, 7, 11, 22, 5, 1, 1, 0),
-                    new DashboardCoeVm(18, 15, 2, 1, Array.Empty<DashboardCoeSubcategoryVm>(), 0),
+                    new DashboardCoeVm(18, 15, 2, 1, Array.Empty<DashboardCoeSubcategoryVm>(), false),
                     null,
                     Array.Empty<DashboardSlowStageVm>()));
         }

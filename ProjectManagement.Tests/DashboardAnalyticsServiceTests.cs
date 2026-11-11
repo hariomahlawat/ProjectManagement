@@ -30,9 +30,10 @@ public class DashboardAnalyticsServiceTests
 
         var coe = Assert.IsType<DashboardCoeVm>(result.Coe);
         Assert.Equal((18, 15, 2, 1), (coe.Total, coe.Ongoing, coe.Completed, coe.Cancelled));
-        // Three sub-category rows fit the card; the rest are counted, not dropped silently.
+        // Three sub-category rows fit the card; the card says there are more. It gives no number: the
+        // chart rows it reads are capped, with the tail merged into one "Other" row.
         Assert.Equal(new[] { "CoE Mid Term", "CoE Short Term", "CoE Long Term" }, coe.Subcategories.Select(row => row.Name));
-        Assert.Equal(1, coe.MoreSubcategoryCount);
+        Assert.True(coe.HasMoreSubcategories);
 
         var completed = Assert.IsType<DashboardCompletedVm>(result.Completed);
         Assert.Equal((158, 7), (completed.Total, completed.ThisYear));
