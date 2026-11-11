@@ -89,13 +89,13 @@
         <section class="itp-pipe" aria-labelledby="itpPipeTitle">
             <div class="itp-pipe__top">
                 <h2 class="itp-pipe__title" id="itpPipeTitle">Where the cases are now</h2>
-                <p class="itp-pipe__lead">Each card is a live case at that stage. Days show once the previous stage has a date.</p>
+                <p class="itp-pipe__lead">Each card is a live case at that stage. Days are counted from the previous stage's date.</p>
             </div>
             <div class="itp-pipe__scroll">
                 <ol class="itp-pipe__cols">
                     @foreach (var column in pipeline)
                     {
-                        <li class="itp-pcol @(column.IsOptional ? "itp-pcol--opt" : null) @(column.Count > 0 ? "itp-pcol--has" : null)">
+                        <li class="itp-pcol @(column.Count > 0 ? "itp-pcol--has" : null)">
                             <h3 class="itp-pcol__h" title="@column.Label">
                                 <span class="itp-pcol__name">@column.ShortLabel</span>
                                 <b class="itp-pcol__n" aria-label="@ItProjectBoardPresentation.Projects(column.Count) here">@column.Count</b>
@@ -108,13 +108,7 @@
                                         <li>
                                             <a class="itp-tok itp-tok--@item.Tone" asp-page="./Details" asp-route-id="@item.Id">
                                                 <span class="itp-tok__t" title="@item.Title">@item.Title</span>
-                                                @{
-                                                    var tokLine = string.Join(" · ", new[] { item.TimeText, item.SoCost }.Where(part => part is not null));
-                                                }
-                                                @if (tokLine.Length > 0)
-                                                {
-                                                    <small class="itp-tok__s @(item.TimeText is null ? "itp-tok__s--plain" : null)" title="@item.TimeTitle">@tokLine</small>
-                                                }
+                                                <small class="itp-tok__s" title="@item.TimeTitle">@(item.SoCost is null ? item.TimeText : $"{item.TimeText} · {item.SoCost}")</small>
                                             </a>
                                         </li>
                                     }
@@ -215,7 +209,7 @@
                             <span class="itp-trackhead" aria-hidden="true">
                                 @foreach (var stage in ItProjectStages.All)
                                 {
-                                    <span class="itp-trackhead__s @(stage.IsOptional ? "itp-trackhead__s--opt" : null)" title="@stage.Label">@ItProjectBoardPresentation.TrackHeading(stage.Code)</span>
+                                    <span class="itp-trackhead__s @(stage.IsOptional ? "itp-trackhead__s--opt" : null)" title="@stage.Label">@ItProjectBoardPresentation.ShortStageLabel(stage.Code)</span>
                                 }
                             </span>
                         </th>
@@ -314,11 +308,11 @@
                 }
                 @if (key.StageDays)
                 {
-                    <span class="itp-key__i"><span class="itp-age itp-age--calm">≤ @(ItProjectTiming.NormalUpToDays) d</span><span class="itp-age itp-age--warn">@(ItProjectTiming.NormalUpToDays + 1)–@(ItProjectTiming.AmberUpToDays) d</span><span class="itp-age itp-age--late">&gt; @(ItProjectTiming.AmberUpToDays) d</span> days at the stage, from stage dates; at Delivery and ATP ≤ @(ItProjectTiming.DeliveryNormalUpToDays), @(ItProjectTiming.DeliveryNormalUpToDays + 1)–@(ItProjectTiming.DeliveryAmberUpToDays), &gt; @(ItProjectTiming.DeliveryAmberUpToDays) d</span>
+                    <span class="itp-key__i"><span class="itp-age itp-age--calm">≤ @(ItProjectTiming.NormalUpToDays) d</span><span class="itp-age itp-age--warn">@(ItProjectTiming.NormalUpToDays + 1)–@(ItProjectTiming.AmberUpToDays) d</span><span class="itp-age itp-age--late">&gt; @(ItProjectTiming.AmberUpToDays) d</span> @ItProjectBoardPresentation.AgeingKeyNote</span>
                 }
                 @if (key.Recorded)
                 {
-                    <span class="itp-key__i"><span class="itp-age itp-age--nodate">recorded <i>date</i></span> no date on the previous stage: counted from when the move was recorded</span>
+                    <span class="itp-key__i"><span class="itp-age itp-age--nodate">recorded <i>date</i></span> no stage date: when the move was recorded</span>
                 }
             </div>
         }
