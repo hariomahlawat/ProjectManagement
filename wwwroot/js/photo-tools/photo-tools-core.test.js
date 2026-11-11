@@ -527,11 +527,24 @@ test('hidePixels removes the detail: pixelate gives flat squares, blur blends th
   assert.equal(at(hard, 60, 30, 30)[0], 220);
   const soft = tools.hidePixels(halves(), 60, 60, 'blur');
   assert.ok(at(soft, 60, 29, 30)[0] > 60 && at(soft, 60, 30, 30)[0] < 180, 'the step is spread out');
-  assert.equal(soft[3], 255, 'alpha is untouched');
+  assert.equal(soft[3], 255, 'a solid photo stays solid');
 
   // See-through pixels do not darken what is hidden.
   const cutOut = picture(12, 12, () => 200);
   for (let i = 0; i < 6 * 12 * 4; i += 4) cutOut.set([0, 0, 0, 0], i);
   const hidden = tools.hidePixels(cutOut, 12, 12, 'pixelate');
   assert.deepEqual(at(hidden, 12, 3, 9), [200, 200, 200]);
+
+  // Black writing on a see-through page is all in the alpha: its outline must go too.
+  for (const mode of ['pixelate', 'blur']) {
+    const writing = new Uint8ClampedArray(60 * 60 * 4);
+    for (let y = 0; y < 60; y += 1) {
+      for (let x = 0; x < 60; x += 2) writing[(y * 60 + x) * 4 + 3] = 255;
+    }
+    tools.hidePixels(writing, 60, 60, mode);
+    for (let x = 0; x < 60; x += 1) {
+      const alpha = writing[(30 * 60 + x) * 4 + 3];
+      assert.ok(alpha > 110 && alpha < 145, `${mode}: the outline at x=${x} is gone (${alpha})`);
+    }
+  }
 });

@@ -138,7 +138,8 @@ step, so Undo takes it back.
 - **Blur** and **Pixelate** cut the dragged area into squares about a tenth of its longer side
   and replace each square with its average colour (`hidePixels`); Blur then blends between the
   squares. The detail is gone from the pixels: unlike a box drawn over something, nothing under
-  it is in the saved file. The page says this.
+  it is in the saved file. The page says this. How see-through each pixel is gets averaged the
+  same way, so writing on a see-through PNG or WEBP loses its outline as well as its colour.
 - Marks and hidden areas are part of the photo from then on: a later crop, resize or filter
   treats them like any other pixels. They cannot be moved after they are placed; Undo removes
   the last one.

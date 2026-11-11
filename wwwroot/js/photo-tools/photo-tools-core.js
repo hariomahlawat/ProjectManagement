@@ -830,13 +830,15 @@
    * Hides what is in a patch of RGBA pixels, in place. The patch is cut into squares and each
    * square is replaced by its average colour ("pixelate"); "blur" then blends smoothly between
    * the squares. Either way the detail is gone from the pixels: it cannot be brought back from
-   * the saved photo.
+   * the saved photo. How see-through each pixel is gets averaged the same way, so the outline of
+   * writing on a see-through PNG or WEBP is removed as well, not only its colour.
    */
   function hidePixels(pixels, width, height, mode) {
     const block = hideBlock(width, height);
     const columns = Math.ceil(width / block);
     const rows = Math.ceil(height / block);
     const sums = new Float64Array(columns * rows * 4);
+    const counts = new Float64Array(columns * rows);
     for (let y = 0; y < height; y += 1) {
       const row = Math.floor(y / block) * columns;
       for (let x = 0; x < width; x += 1) {
@@ -847,17 +849,16 @@
         sums[at + 1] += pixels[i + 1] * alpha;
         sums[at + 2] += pixels[i + 2] * alpha;
         sums[at + 3] += alpha;
+        counts[at / 4] += 1;
       }
     }
-    // The average colour of each square (zero where nothing in it is visible).
-    const grid = new Float64Array(columns * rows * 3);
-    for (let at = 0; at < columns * rows; at += 1) {
-      const weight = sums[at * 4 + 3];
-      if (!weight) continue;
-      grid[at * 3] = sums[at * 4] / weight;
-      grid[at * 3 + 1] = sums[at * 4 + 1] / weight;
-      grid[at * 3 + 2] = sums[at * 4 + 2] / weight;
+    // For each square: its average colour times how solid it is, then how solid it is. Blending
+    // colour in this form keeps a see-through square from darkening the solid one beside it.
+    const grid = new Float64Array(columns * rows * 4);
+    for (let at = 0; at < columns * rows * 4; at += 1) {
+      grid[at] = sums[at] / counts[Math.floor(at / 4)];
     }
+    const blend = [0, 0, 0, 0];
     for (let y = 0; y < height; y += 1) {
       const gy = Math.min(rows - 1, Math.max(0, (y + 0.5) / block - 0.5));
       const r0 = mode === 'blur' ? Math.floor(gy) : Math.floor(y / block);
@@ -869,11 +870,16 @@
         const c1 = mode === 'blur' ? Math.min(columns - 1, c0 + 1) : c0;
         const fx = mode === 'blur' ? gx - c0 : 0;
         const i = (y * width + x) * 4;
-        for (let channel = 0; channel < 3; channel += 1) {
-          const top = grid[(r0 * columns + c0) * 3 + channel] * (1 - fx) + grid[(r0 * columns + c1) * 3 + channel] * fx;
-          const bottom = grid[(r1 * columns + c0) * 3 + channel] * (1 - fx) + grid[(r1 * columns + c1) * 3 + channel] * fx;
-          pixels[i + channel] = top * (1 - fy) + bottom * fy;
+        for (let channel = 0; channel < 4; channel += 1) {
+          const top = grid[(r0 * columns + c0) * 4 + channel] * (1 - fx) + grid[(r0 * columns + c1) * 4 + channel] * fx;
+          const bottom = grid[(r1 * columns + c0) * 4 + channel] * (1 - fx) + grid[(r1 * columns + c1) * 4 + channel] * fx;
+          blend[channel] = top * (1 - fy) + bottom * fy;
         }
+        const solid = blend[3];
+        pixels[i] = solid ? blend[0] / solid : 0;
+        pixels[i + 1] = solid ? blend[1] / solid : 0;
+        pixels[i + 2] = solid ? blend[2] / solid : 0;
+        pixels[i + 3] = solid;
       }
     }
     return pixels;
