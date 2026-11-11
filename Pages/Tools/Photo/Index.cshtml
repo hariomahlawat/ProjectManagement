@@ -68,7 +68,11 @@
                 <a class="phot-head__back" href="#" data-nav-home>
                     <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
                 </a>
-                <h1 id="photPassportTitle">Passport photo</h1>
+                <h1 id="photPassportTitle" data-passport-title>Passport photo</h1>
+                <div class="phot-segment phot-head__mode" role="group" aria-label="What to make">
+                    <button type="button" aria-pressed="true" data-mode="photo">Photo</button>
+                    <button type="button" aria-pressed="false" data-mode="signature">Signature</button>
+                </div>
                 <span class="phot-head__file" data-passport-file></span>
                 <button type="button" class="btn btn-outline-secondary phot-head__action" data-action="change-photo" hidden>
                     <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Change photo
@@ -79,7 +83,7 @@
                 <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-photo">
                     <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose a photo
                 </button>
-                <p class="pdft-drop__hint">or drop a photo here. JPG, PNG or WEBP. A plain, light background works best.</p>
+                <p class="pdft-drop__hint" data-passport-drop-hint>or drop a photo here. JPG, PNG or WEBP. A plain, light background works best.</p>
             </div>
 
             <div class="phot-layout" data-workspace data-drop hidden>
@@ -108,18 +112,18 @@
                             <button type="button" class="btn btn-outline-light btn-sm" data-action="rotate">
                                 <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Rotate
                             </button>
-                            <div class="form-check phot-stage__check">
+                            <div class="form-check phot-stage__check" data-photo-only>
                                 <input class="form-check-input" type="checkbox" id="photGuide" checked data-guide />
                                 <label class="form-check-label" for="photGuide">Face guide</label>
                             </div>
                         </div>
-                        <p class="phot-stage__hint">Drag the photo so the face fills the oval, with the top of the head and the chin near the two lines.</p>
+                        <p class="phot-stage__hint" data-stage-hint>Drag the photo so the face fills the oval, with the top of the head and the chin near the two lines.</p>
                     </div>
                 </div>
 
                 <aside class="phot-layout__side" aria-label="Passport photo settings">
                     <div class="phot-panel">
-                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">1</span>Photo size</h2>
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">1</span><span data-size-title>Photo size</span></h2>
                         <div class="phot-sizes" role="group" aria-label="Photo size" data-sizes></div>
                         <div class="phot-custom" data-custom-size hidden>
                             <div class="phot-custom__field">
@@ -142,13 +146,19 @@
 
                     <div class="phot-panel">
                         <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">2</span>Clean up</h2>
-                        <div class="phot-fix">
+                        <div class="phot-fix" data-photo-only>
                             <button type="button" class="phot-toggle" aria-pressed="false" data-action="fix-lighting">
                                 <i class="bi bi-magic" aria-hidden="true"></i> Fix lighting
                             </button>
                             <span class="phot-hint">Corrects a dull photo and a yellow or blue colour cast.</span>
                         </div>
-                        <label class="phot-slider" for="photBrightness">Brightness
+                        <div class="phot-fix" data-signature-only hidden>
+                            <button type="button" class="phot-toggle" aria-pressed="true" data-action="clean-paper">
+                                <i class="bi bi-magic" aria-hidden="true"></i> Clean paper
+                            </button>
+                            <span class="phot-hint" data-paper-hint>Makes the paper white and the ink black.</span>
+                        </div>
+                        <label class="phot-slider" for="photBrightness" data-photo-only>Brightness
                             <input type="range" class="form-range" id="photBrightness" min="-50" max="50" step="1" value="0" data-brightness />
                             <span class="phot-slider__value" data-brightness-value>0</span>
                         </label>
@@ -170,11 +180,21 @@
                                 <input type="text" inputmode="decimal" class="form-control" id="photOutLimit" maxlength="6" placeholder="No limit" data-out-limit />
                             </div>
                         </div>
-                        <p class="phot-hint">Change the pixels or the file size if a form asks for something else. The photo is saved as a JPG at 300 dpi.</p>
+                        <p class="phot-hint">Change the pixels or the file size if a form asks for something else. It is saved as a JPG at 300 dpi.</p>
                         <p class="phot-result" data-passport-result aria-live="polite"></p>
                         <button type="button" class="btn btn-primary btn-lg" data-action="download-passport" disabled>
-                            <i class="bi bi-download" aria-hidden="true"></i> Download photo
+                            <i class="bi bi-download" aria-hidden="true"></i> <span data-download-passport-label>Download photo</span>
                         </button>
+                        <div class="phot-sheet" data-photo-only>
+                            <label class="phot-sheet__title" for="photSheetPaper">Print sheet</label>
+                            <div class="phot-sheet__row">
+                                <select class="form-select" id="photSheetPaper" data-sheet-paper autocomplete="off" aria-describedby="photSheetNote"></select>
+                                <button type="button" class="btn btn-outline-primary" data-action="download-sheet" disabled>
+                                    <i class="bi bi-printer" aria-hidden="true"></i> Download sheet
+                                </button>
+                            </div>
+                            <p class="phot-hint" id="photSheetNote" data-sheet-note aria-live="polite"></p>
+                        </div>
                     </div>
                 </aside>
             </div>
