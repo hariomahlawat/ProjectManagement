@@ -43,7 +43,7 @@
 .photos-album-context__back { color:#52657f; flex:0 0 auto; font-size:.72rem; font-weight:750; margin-top:.14rem; text-decoration:none; }
 .photos-album-context__back:hover { color:#285ccf; }
 .photos-album-context__title-row { align-items:center; display:flex; gap:.5rem; }
-.photos-album-context h2 { color:#1c2940; font-size:1rem; font-weight:800; margin:0; }
+.photos-album-context h2 { color:var(--pm-text); font-size:1.5rem; font-weight:700; letter-spacing:-.02em; margin:0; }
 .photos-album-context p { color:#58677c; font-size:.75rem; margin:.18rem 0 .12rem; max-width:70rem; }
 .photos-album-context__main > div > span { color:#8290a2; font-size:.66rem; }
 .photos-album-context__actions { display:flex; flex:0 0 auto; gap:.4rem; }
@@ -89,6 +89,12 @@
 }
 .album-card__ownership { color:#446da9!important; font-size:.62rem!important; font-weight:700; }
 .albums-grid .collection-card__cover { background:var(--pm-surface-porcelain, #eef2f7); }
+/* The first tile on the Albums page starts a new album. */
+.album-card--new { background:transparent; border:0; padding:0; text-align:left; }
+.album-card--new .collection-card__cover { align-items:center; background:transparent; border:2px dashed var(--pm-border); color:var(--pm-text-muted); display:flex; font-size:2rem; justify-content:center; }
+.album-card--new:hover .collection-card__cover { border-color:var(--pm-primary); color:var(--pm-primary); }
+.album-card--new .collection-card__body { display:grid; }
+.album-card--new .collection-card__body .album-card__title { color:var(--pm-text); font-size:.86rem; font-weight:700; }
 
 .photos-album-form { display:grid; gap:1rem; }
 .photos-album-form .form-label { color:#35445a; font-size:.74rem; font-weight:750; margin-bottom:.28rem; }
@@ -239,10 +245,6 @@
 
 :where([data-bs-theme="dark"]) .photos-album-context__back:hover {
     color: #6ea8fe;
-}
-
-:where([data-bs-theme="dark"]) .photos-album-context h2 {
-    color: #e6e8eb;
 }
 
 :where([data-bs-theme="dark"]) .photos-album-context p {

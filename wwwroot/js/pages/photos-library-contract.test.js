@@ -77,3 +77,18 @@ test('a tick on a picture or beside a day starts selecting; the top bar holds th
     assert.match(libraryScript, /if \(!selecting && \(!onTick \|\| !isSelectable\(tile\)\)\) return;/);
     assert.match(libraryScript, /selected\.size === 0 && !startedByButton && !targetedCuration/);
 });
+
+test('albums start with a New album tile and collections are grouped by where they were added', () => {
+    assert.match(photosPage, /class="collection-card album-card album-card--new" data-bs-toggle="modal" data-bs-target="#createAlbumModal"/);
+    assert.match(photosPage, /Model\.Collections\.GroupBy\(collection => collection\.TypeLabel\)/);
+    assert.match(photosPage, /IndexModel\.CollectionGroupTitle\(collectionGroup\.Key\)/);
+    assert.doesNotMatch(photosPage, /Organisation-wide media albums/);
+});
+
+test('icon-only actions on phones keep their words for screen readers', () => {
+    const styles = fs.readFileSync(path.resolve(__dirname, '../../css/pages/photos-library.css'), 'utf8');
+    const rule = styles.match(/\.photos-action span \{([^}]*)\}/);
+    assert.ok(rule, 'the phone rule for action labels exists');
+    assert.doesNotMatch(rule[1], /display\s*:\s*none/, 'display:none would remove the button name');
+    assert.match(rule[1], /clip\s*:\s*rect\(0, 0, 0, 0\)/);
+});
