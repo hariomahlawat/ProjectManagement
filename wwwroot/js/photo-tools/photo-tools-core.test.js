@@ -285,7 +285,6 @@ test('sheetLayout places only the copies asked for, from the top left', () => {
   }
 });
 
-<<<<<<< HEAD
 test('sheetPdfPlan gives the paper and each photo their true size in points', () => {
   const near = (actual, expected, what) => assert.ok(Math.abs(actual - expected) < 0.01, `${what}: ${actual} is not ${expected}`);
   const a4 = tools.SHEET_SIZES.find(sheet => sheet.key === 'a4');
@@ -324,8 +323,6 @@ test('sheetPdfPlan gives the paper and each photo their true size in points', ()
   near(turned.pageHeight, 4 * 72, '4 inches high');
 });
 
-=======
->>>>>>> origin/master
 test('coverCrop takes the middle of a photo of another shape', () => {
   assert.deepEqual(tools.coverCrop(413, 531, 413, 531), { x: 0, y: 0, width: 413, height: 531, whole: true });
   assert.deepEqual(tools.coverCrop(826, 1062, 413, 531), { x: 0, y: 0, width: 826, height: 1062, whole: true });

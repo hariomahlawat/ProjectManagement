@@ -39,24 +39,15 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | --- | --- |
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none), smaller dimensions, save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
-<<<<<<< HEAD
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
-=======
-| Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. One JPG at 300 dpi. |
->>>>>>> origin/master
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
 | Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Cover, Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
 
 Every step of the first build plan ([ux/photo-tools.md](ux/photo-tools.md)) is done, including
 the review of phones, the Dark theme and the keyboard across all screens. A follow-up plan
 ([ux/photo-tools-print-background.md](ux/photo-tools-print-background.md)) is being built: the
-<<<<<<< HEAD
 Print sheet tool and its PDF download are done; a background colour change for passport photos
 is to come.
-=======
-Print sheet tool is done; a PDF download for the sheet and a background colour change for
-passport photos are to come.
->>>>>>> origin/master
 
 ### How a passport photo is made
 
@@ -92,7 +83,6 @@ passport photos are to come.
 - **From a file.** The photo is printed at the size chosen on the screen. A photo of another
   shape gives its middle (`coverCrop`), and the screen says so and points to Passport photo for
   placing the face. Print sheet has no crop stage of its own.
-<<<<<<< HEAD
 - The preview and the saved JPG are drawn by the same function from the same layout, and the PDF
   is placed from that layout too, so the preview cannot disagree with the file.
 - **PDF.** `sheetPdfPlan` turns the layout into a page and boxes in points (72 to the inch, from
@@ -104,10 +94,6 @@ passport photos are to come.
   0.05 mm of the nominal size.
 - A PDF page of the right size still depends on the print dialog: "fit to page" on other paper
   scales it. The screen says to print at actual size.
-=======
-- The preview and the saved sheet are drawn by the same function from the same layout, so the
-  preview cannot disagree with the file.
->>>>>>> origin/master
 
 ### How a signature is cleaned
 
@@ -230,12 +216,8 @@ see-through areas with white.
 | `wwwroot/js/photo-tools/photo-tools-canvas.js` | Browser helpers shared by the tools: open a photo, draw it at a new size, canvas to file bytes, save, show an error. |
 | `wwwroot/js/photo-tools/photo-tools-app.js` | Shell, routing (`#tool`) and Reduce size. |
 | `wwwroot/js/photo-tools/photo-tools-passport.js` | Passport photo and signature. Hands the finished photo to Print sheet. |
-<<<<<<< HEAD
 | `wwwroot/js/photo-tools/photo-tools-print.js` | Print sheet: preview, paper, copies, the saved PDF or JPG. |
 | `wwwroot/lib/pdf-lib/1.17.1/` | PDF library shared with PDF Tools; used here to write the print sheet PDF. |
-=======
-| `wwwroot/js/photo-tools/photo-tools-print.js` | Print sheet: preview, paper, copies, the saved sheet. |
->>>>>>> origin/master
 | `wwwroot/js/photo-tools/photo-tools-editor.js` | Edit photo. |
 | `wwwroot/js/tools-shared/zip-writer.js` | ZIP writer shared with PDF Tools. |
 | `wwwroot/css/photo-tools.css` | Photo Tools styles. The shell (top bar, home cards, drop zone) is shared with PDF Tools through `pdf-tools.css`. Bootstrap theme variables only, so Light and Dark both work. |

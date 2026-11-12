@@ -256,7 +256,6 @@
   }
 
   /**
-<<<<<<< HEAD
    * A sheet layout as one PDF page. PDF measures in points (72 to the inch) from the bottom left
    * corner, so the page is the paper's true size and each photo its true size. `cuts` are the
    * rectangles to stroke for the cut lines: the line lies outside the photo, not over its edge.
@@ -281,8 +280,6 @@
   }
 
   /**
-=======
->>>>>>> origin/master
    * The part of a photo that fills a frame of another shape: the largest piece of that shape,
    * taken from the middle. `whole` says the photo already had the shape and nothing is lost.
    */
@@ -1069,10 +1066,7 @@
     cleanPaper,
     lengthToPixels,
     pixelsToMillimetres,
-<<<<<<< HEAD
     sheetPdfPlan,
-=======
->>>>>>> origin/master
     coverCrop,
     coverScale,
     clampOffset,
