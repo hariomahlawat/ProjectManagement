@@ -680,32 +680,10 @@
             .map(assetIdFor)
             .filter(id => id !== null);
 
-        const syncAssetInputs = (form, name = 'assetIds') => {
-            if (!form) return;
-            form.querySelectorAll(`input[name="${name}"]`).forEach(input => input.remove());
-            assetIds.forEach(assetId => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = name;
-                input.value = String(assetId);
-                form.appendChild(input);
-            });
-        };
-
-        if (downloadForm) {
-            downloadForm.querySelectorAll('input[name="assetIds"]').forEach(input => input.remove());
-            assetIds.forEach(assetId => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'assetIds';
-                input.value = String(assetId);
-                downloadForm.appendChild(input);
-            });
-        }
-
+        // The forms and the review link are filled when they are used (see below): writing
+        // a hidden field per picture into three forms on every tick made a large selection,
+        // and every movement of a drag-select, slow.
         if (downloadButton) downloadButton.disabled = assetIds.length === 0;
-        syncAssetInputs(albumForm);
-        syncAssetInputs(removeAlbumForm);
         if (addAlbumButton) addAlbumButton.disabled = assetIds.length === 0;
         if (removeAlbumButton) removeAlbumButton.disabled = assetIds.length === 0;
 
@@ -728,18 +706,9 @@
         }
 
         if (reviewPeopleLink) {
-            const base = reviewPeopleLink.dataset.baseUrl || reviewPeopleLink.getAttribute('href') || '';
-            if (assetIds.length > 0 && base) {
-                const url = new URL(base, window.location.origin);
-                url.searchParams.delete('AssetIds');
-                assetIds.forEach(assetId => url.searchParams.append('AssetIds', String(assetId)));
-                reviewPeopleLink.href = `${url.pathname}${url.search}${url.hash}`;
-                reviewPeopleLink.classList.remove('disabled');
-                reviewPeopleLink.setAttribute('aria-disabled', 'false');
-            } else {
-                reviewPeopleLink.classList.add('disabled');
-                reviewPeopleLink.setAttribute('aria-disabled', 'true');
-            }
+            const usable = assetIds.length > 0 && Boolean(reviewPeopleBase());
+            reviewPeopleLink.classList.toggle('disabled', !usable);
+            reviewPeopleLink.setAttribute('aria-disabled', String(!usable));
         }
 
         library.querySelectorAll('[data-day-select]').forEach(button => {
@@ -757,6 +726,39 @@
                 : '';
         }
     };
+
+    // SECTION: Hand the selection to an action when it is used
+    const selectedAssetIds = () => selectedTiles().map(assetIdFor).filter(id => id !== null);
+    const writeAssetInputs = (form) => {
+        if (!form) return;
+        form.querySelectorAll('input[name="assetIds"]').forEach(input => input.remove());
+        const fields = document.createDocumentFragment();
+        selectedAssetIds().forEach(assetId => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'assetIds';
+            input.value = String(assetId);
+            fields.appendChild(input);
+        });
+        form.appendChild(fields);
+    };
+    // Heard first on the form itself, so the fields are in place before anything else reads it.
+    [downloadForm, albumForm, removeAlbumForm].forEach(form => form?.addEventListener('submit', () => writeAssetInputs(form), true));
+
+    const reviewPeopleBase = () => (reviewPeopleLink
+        ? reviewPeopleLink.dataset.baseUrl || (reviewPeopleLink.dataset.baseUrl = reviewPeopleLink.getAttribute('href') || '')
+        : '');
+    const writeReviewPeopleLink = () => {
+        const base = reviewPeopleBase();
+        const assetIds = selectedAssetIds();
+        if (!base || assetIds.length === 0) return;
+        const url = new URL(base, window.location.origin);
+        url.searchParams.delete('AssetIds');
+        assetIds.forEach(assetId => url.searchParams.append('AssetIds', String(assetId)));
+        reviewPeopleLink.href = `${url.pathname}${url.search}${url.hash}`;
+    };
+    // Before a click, a middle click, the context menu or Enter can follow the link.
+    ['pointerdown', 'focus', 'click'].forEach(name => reviewPeopleLink?.addEventListener(name, writeReviewPeopleLink, true));
 
     const render = () => {
         library.classList.toggle('is-selecting', selecting);

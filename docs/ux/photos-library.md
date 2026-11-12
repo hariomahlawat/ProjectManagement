@@ -111,6 +111,9 @@ All twelve steps were built as separate PRs. Differences from the plan above:
 | 11 People | The person's own page keeps its header | It already matched the new bar once the sections changed |
 | 12 Clean-up | Unused rules were removed from the four photo stylesheets (about 480 lines). The remaining hard-coded colours were not all moved to tokens | New rules use tokens only and the literal-colour check stops the count growing; a full conversion is a separate, purely visual job |
 
+A review after these twelve steps, its fixes and a check against a library of 6,000 items are in
+`photos-library-review-fixes.md`. That check closes the first open item below.
+
 Not done, and still open:
 
 - A check against a library copy with several thousand items (scroll and memory behaviour). The
