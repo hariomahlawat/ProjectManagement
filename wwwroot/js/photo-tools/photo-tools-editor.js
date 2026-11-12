@@ -1,7 +1,7 @@
 // PRISM Photo Tools — Edit photo.
 //
 // One photo, changed by a list of steps (crop, turn, flip, straighten, resize, clean-ups,
-// adjustments and filters). The original is never altered: the edited photo is the original with the steps applied in order, so
+// adjustments, filters, marks drawn on it and areas hidden). The original is never altered: the edited photo is the original with the steps applied in order, so
 // Undo simply drops the last step. Everything happens on canvases in this browser.
 (() => {
   'use strict';
@@ -63,8 +63,24 @@
     resize: 'Type the new size in pixels, or pick a quick size. Then press Resize.',
     cleanup: 'One press fixes a common problem. Hold "see the original" to compare.',
     adjust: 'Move the sliders and watch the photo. Then press Apply.',
-    filters: 'Each filter is shown on your photo. Press one to use it.'
+    filters: 'Each filter is shown on your photo. Press one to use it.',
+    markup: 'Pick what to draw, then drag or press on the photo.',
+    hide: 'Drag over the part of the photo to hide.'
   };
+  const MARK_NOTES = {
+    box: 'Drag on the photo to draw a box.',
+    circle: 'Drag on the photo to draw a circle.',
+    arrow: 'Drag from the tail to the point of the arrow.',
+    pen: 'Draw on the photo.',
+    text: 'Type the words, then press the photo where they should start.'
+  };
+  const markKinds = $('[data-mark-kinds]');
+  const markColours = $('[data-mark-colours]');
+  const markSizes = $('[data-mark-sizes]');
+  const markTextRow = $('[data-mark-text-row]');
+  const markText = $('[data-mark-text]');
+  const markNote = $('[data-mark-note]');
+  const hideModes = $$('[data-hide-mode]');
   const FILTER_THUMB_SIDE = 132;
 
   // `original` is the opened photo; `current` is the original with every step applied;
@@ -83,6 +99,11 @@
   let showingOriginal = false;
   let display = { width: 0, height: 0 };
 
+  // What the next mark will be, and the mark or hidden area being dragged out right now.
+  let mark = { kind: 'box', colour: 'red', size: 'medium' };
+  let hideMode = 'blur';
+  let drawing = null;
+
   let saved = null;
   let saveRun = 0;
   let saveTimer = null;
@@ -93,8 +114,82 @@
   // ---------------------------------------------------------------------------
 
   /** One step applied to a photo, giving a new canvas. The same code serves screen and file. */
+  /** Draws one mark. The context works in the photo's own pixels. */
+  function drawShape(context, shape) {
+    const colour = core.MARK_COLOURS.find(item => item.key === shape.colour) || core.MARK_COLOURS[0];
+    context.save();
+    context.strokeStyle = colour.value;
+    context.fillStyle = colour.value;
+    context.lineWidth = shape.line;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    if (shape.kind === 'box') {
+      context.lineJoin = 'miter';
+      context.strokeRect(shape.x, shape.y, shape.width, shape.height);
+    } else if (shape.kind === 'circle') {
+      context.beginPath();
+      context.ellipse(shape.x + shape.width / 2, shape.y + shape.height / 2, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
+      context.stroke();
+    } else if (shape.kind === 'arrow') {
+      const head = core.arrowHead(shape.from, shape.to, shape.line);
+      if (head) {
+        context.lineCap = 'butt';
+        context.beginPath();
+        context.moveTo(shape.from.x, shape.from.y);
+        context.lineTo(head.neck.x, head.neck.y);
+        context.stroke();
+        context.beginPath();
+        context.moveTo(head.tip.x, head.tip.y);
+        context.lineTo(head.left.x, head.left.y);
+        context.lineTo(head.right.x, head.right.y);
+        context.closePath();
+        context.fill();
+      }
+    } else if (shape.kind === 'pen') {
+      context.beginPath();
+      context.moveTo(shape.points[0].x, shape.points[0].y);
+      for (const point of shape.points) context.lineTo(point.x, point.y);
+      context.stroke();
+    } else if (shape.kind === 'text') {
+      // An outline in a contrasting colour keeps the words readable on any photo.
+      context.font = `700 ${shape.text}px Mulish, "Segoe UI", sans-serif`;
+      context.textBaseline = 'middle';
+      context.strokeStyle = colour.edge;
+      context.lineWidth = Math.max(2, shape.text / 6);
+      context.strokeText(shape.words, shape.x, shape.y);
+      context.fillText(shape.words, shape.x, shape.y);
+    } else if (shape.kind === 'number') {
+      const radius = shape.text * 0.7;
+      context.beginPath();
+      context.arc(shape.x, shape.y, radius, 0, Math.PI * 2);
+      context.fill();
+      context.strokeStyle = colour.edge;
+      context.lineWidth = Math.max(2, shape.text / 12);
+      context.stroke();
+      context.fillStyle = colour.edge;
+      context.font = `700 ${shape.text * 0.8}px Mulish, "Segoe UI", sans-serif`;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(String(shape.number), shape.x, shape.y + shape.text * 0.04);
+    }
+    context.restore();
+  }
+
   function applyStep(source, step) {
     const size = shared.sizeOf(source);
+    if (step.type === 'shape' || step.type === 'hide') {
+      const output = shared.newCanvas(size.width, size.height);
+      const context = output.getContext('2d', { willReadFrequently: step.type === 'hide' });
+      context.drawImage(source, 0, 0);
+      if (step.type === 'shape') {
+        drawShape(context, step);
+      } else {
+        const patch = context.getImageData(step.x, step.y, step.width, step.height);
+        core.hidePixels(patch.data, step.width, step.height, step.mode);
+        context.putImageData(patch, step.x, step.y);
+      }
+      return output;
+    }
     if (core.isPixelStep(step)) {
       const output = shared.newCanvas(size.width, size.height);
       const context = output.getContext('2d', { willReadFrequently: true });
@@ -148,6 +243,8 @@
     fillResize();
     resetAdjust();
     if (tool === 'filters') drawFilters();
+    drawing = null;
+    showMark();
     undoButton.disabled = steps.length === 0;
     redoButton.disabled = undone.length === 0;
     originalButton.disabled = steps.length === 0;
@@ -220,6 +317,7 @@
     const context = canvas.getContext('2d');
     context.imageSmoothingQuality = 'high';
     context.drawImage(picture, 0, 0, canvas.width, canvas.height);
+    if (drawing && !showingOriginal) drawPending(context);
     placeCrop();
   }
 
@@ -246,8 +344,128 @@
     fillResize();
     resetAdjust();
     if (tool === 'filters') drawFilters();
+    drawing = null;
+    showMark();
     layout();
   }
+
+  // Mark up and hide --------------------------------------------------------------
+
+  function numbersPlaced() {
+    return steps.filter(step => step.type === 'shape' && step.kind === 'number').length;
+  }
+
+  function showMark() {
+    photoBox.classList.toggle('is-drawing', tool === 'markup' || tool === 'hide');
+    for (const button of Array.from(markKinds.children)) {
+      button.setAttribute('aria-pressed', String(button.dataset.kind === mark.kind));
+    }
+    for (const button of Array.from(markColours.children)) {
+      button.setAttribute('aria-pressed', String(button.dataset.colour === mark.colour));
+    }
+    for (const button of Array.from(markSizes.children)) {
+      button.setAttribute('aria-pressed', String(button.dataset.size === mark.size));
+    }
+    for (const button of hideModes) {
+      button.setAttribute('aria-pressed', String(button.dataset.hideMode === hideMode));
+    }
+    markTextRow.hidden = mark.kind !== 'text';
+    markNote.className = 'phot-hint';
+    markNote.textContent = mark.kind === 'number'
+      ? `Press the photo to place number ${numbersPlaced() + 1}.`
+      : MARK_NOTES[mark.kind];
+  }
+
+  /** The mark being dragged out, as the step it would become. Null when it is too small to mean anything. */
+  function pendingStep() {
+    if (!drawing) return null;
+    const size = currentSize();
+    if (drawing.hide) {
+      const rect = core.dragRect(drawing.from, drawing.to, size);
+      return rect.width >= 4 && rect.height >= 4 ? { type: 'hide', mode: hideMode, ...rect } : null;
+    }
+    const measures = core.markMeasures(size, mark.size);
+    const shape = { type: 'shape', kind: mark.kind, colour: mark.colour, line: measures.line };
+    if (mark.kind === 'box' || mark.kind === 'circle') {
+      const rect = core.dragRect(drawing.from, drawing.to, size);
+      return rect.width >= measures.line && rect.height >= measures.line ? { ...shape, ...rect } : null;
+    }
+    if (mark.kind === 'arrow') {
+      const length = Math.hypot(drawing.to.x - drawing.from.x, drawing.to.y - drawing.from.y);
+      return length >= measures.line * 3 ? { ...shape, from: drawing.from, to: drawing.to } : null;
+    }
+    return { ...shape, points: core.thinPoints(drawing.points, measures.line / 2) };
+  }
+
+  /** Shows the mark being dragged out. The context is the stage canvas, already holding the photo. */
+  function drawPending(context) {
+    const step = pendingStep();
+    if (!step) return;
+    const scale = canvas.width / currentSize().width;
+    context.save();
+    context.scale(scale, scale);
+    if (step.type === 'shape') {
+      drawShape(context, step);
+    } else {
+      // A dashed outline in two colours shows on light and dark photos alike.
+      context.lineWidth = 2 / scale;
+      context.strokeStyle = '#111827';
+      context.strokeRect(step.x, step.y, step.width, step.height);
+      context.setLineDash([8 / scale, 6 / scale]);
+      context.strokeStyle = '#ffffff';
+      context.strokeRect(step.x, step.y, step.width, step.height);
+    }
+    context.restore();
+  }
+
+  function roundPoint(point) {
+    return { x: Math.round(point.x), y: Math.round(point.y) };
+  }
+
+  photoBox.addEventListener('pointerdown', (event) => {
+    if (!current || showingOriginal || (tool !== 'markup' && tool !== 'hide')) return;
+    event.preventDefault();
+    const point = roundPoint(photoPoint(event));
+    if (tool === 'markup' && (mark.kind === 'text' || mark.kind === 'number')) {
+      const measures = core.markMeasures(currentSize(), mark.size);
+      const shape = { type: 'shape', kind: mark.kind, colour: mark.colour, text: measures.text, x: point.x, y: point.y };
+      if (mark.kind === 'number') {
+        addStep({ ...shape, number: numbersPlaced() + 1 });
+      } else if (markText.value.trim()) {
+        addStep({ ...shape, words: markText.value.trim() });
+      } else {
+        markNote.className = 'phot-hint phot-hint--warning';
+        markNote.textContent = 'Type the words first, then press the photo.';
+        markText.focus();
+      }
+      return;
+    }
+    photoBox.setPointerCapture(event.pointerId);
+    drawing = { hide: tool === 'hide', from: point, to: point, points: [point] };
+  });
+
+  photoBox.addEventListener('pointermove', (event) => {
+    if (!drawing) return;
+    drawing.to = roundPoint(photoPoint(event));
+    drawing.points.push(drawing.to);
+    layout();
+  });
+
+  photoBox.addEventListener('pointerup', () => {
+    if (!drawing) return;
+    const step = pendingStep();
+    drawing = null;
+    if (step) {
+      addStep(step);
+    } else {
+      layout();
+    }
+  });
+
+  photoBox.addEventListener('pointercancel', () => {
+    drawing = null;
+    layout();
+  });
 
   // Clean up, adjust, filters ---------------------------------------------------
 
@@ -638,6 +856,53 @@
     });
     filters.append(button);
   }
+
+  for (const kind of core.MARK_KINDS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.kind = kind.key;
+    const icon = document.createElement('i');
+    icon.className = `bi ${kind.icon}`;
+    icon.setAttribute('aria-hidden', 'true');
+    button.append(icon, ` ${kind.label}`);
+    button.addEventListener('click', () => {
+      mark.kind = kind.key;
+      showMark();
+    });
+    markKinds.append(button);
+  }
+  for (const colour of core.MARK_COLOURS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'phot-swatch';
+    button.dataset.colour = colour.key;
+    button.title = colour.label;
+    button.setAttribute('aria-label', colour.label);
+    button.style.setProperty('--phot-swatch', colour.value);
+    button.addEventListener('click', () => {
+      mark.colour = colour.key;
+      showMark();
+    });
+    markColours.append(button);
+  }
+  for (const size of core.MARK_SIZES) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.size = size.key;
+    button.textContent = size.label;
+    button.addEventListener('click', () => {
+      mark.size = size.key;
+      showMark();
+    });
+    markSizes.append(button);
+  }
+  for (const button of hideModes) {
+    button.addEventListener('click', () => {
+      hideMode = button.dataset.hideMode;
+      showMark();
+    });
+  }
+  markText.addEventListener('input', showMark);
 
   for (const shape of core.CROP_SHAPES) {
     cropShape.append(new Option(shape.label, shape.key));

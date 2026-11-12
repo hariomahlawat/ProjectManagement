@@ -473,3 +473,78 @@ test('applyPixelStep runs each clean-up and reports which steps are pixel steps'
   assert.deepEqual(Array.from(tools.applyPixelStep(untouched.slice(), 20, 20, { type: 'crop' })), Array.from(untouched));
   assert.deepEqual(tools.editedSize(400, 300, [{ type: 'cleanup', key: 'sharpen' }, { type: 'adjust', brightness: 5 }]), { width: 400, height: 300 });
 });
+
+test('mark measures scale with the photo, and dragRect stays on it', () => {
+  assert.deepEqual(tools.markMeasures({ width: 4000, height: 3000 }, 'medium'), { line: 32, text: 200 });
+  assert.deepEqual(tools.markMeasures({ width: 400, height: 300 }, 'thick'), { line: 6, text: 32 });
+  assert.deepEqual(tools.markMeasures({ width: 100, height: 80 }, 'thin'), { line: 2, text: 10 }, 'never too small to see');
+  assert.deepEqual(tools.markMeasures({ width: 4000, height: 3000 }, 'nothing'), { line: 32, text: 200 });
+
+  const bounds = { width: 400, height: 300 };
+  assert.deepEqual(tools.dragRect({ x: 300, y: 200 }, { x: 100, y: 50 }, bounds), { x: 100, y: 50, width: 200, height: 150 });
+  assert.deepEqual(tools.dragRect({ x: 350, y: 250 }, { x: 900, y: -40 }, bounds), { x: 350, y: 0, width: 50, height: 250 });
+  assert.deepEqual(tools.MARK_KINDS.map(item => item.key), ['box', 'circle', 'arrow', 'pen', 'text', 'number']);
+});
+
+test('arrowHead points along the line, and thinPoints keeps the ends', () => {
+  const head = tools.arrowHead({ x: 0, y: 0 }, { x: 100, y: 0 }, 4);
+  assert.deepEqual(head.tip, { x: 100, y: 0 });
+  assert.equal(head.left.x, 82);
+  assert.equal(head.right.x, 82);
+  assert.ok(Math.abs(head.left.y + head.right.y) < 1e-9 && Math.abs(head.left.y) > 5, 'the corners sit either side of the line');
+  assert.ok(head.neck.x > 82 && head.neck.x < 100);
+  assert.equal(tools.arrowHead({ x: 5, y: 5 }, { x: 5, y: 5 }, 4), null);
+  const short = tools.arrowHead({ x: 0, y: 0 }, { x: 0, y: 6 }, 4);
+  assert.ok(Math.abs(short.left.y) < 1e-9, 'a very short arrow is all head');
+
+  const line = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 10, y: 0 }, { x: 11, y: 0 }, { x: 12, y: 0 }];
+  assert.deepEqual(tools.thinPoints(line, 5), [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 12, y: 0 }]);
+  assert.deepEqual(tools.thinPoints(line.slice(0, 2), 5), line.slice(0, 2));
+});
+
+test('hidePixels removes the detail: pixelate gives flat squares, blur blends them', () => {
+  assert.equal(tools.hideBlock(200, 100), 20);
+  assert.equal(tools.hideBlock(30, 20), 6);
+
+  // Fine black and white stripes one pixel wide: nothing of them may remain.
+  const stripes = () => picture(60, 60, x => (x % 2 ? 255 : 0));
+  const squares = tools.hidePixels(stripes(), 60, 60, 'pixelate');
+  for (let x = 0; x < 60; x += 1) {
+    const value = at(squares, 60, x, 30)[0];
+    assert.ok(value > 110 && value < 145, `stripe at x=${x} is gone (${value})`);
+  }
+  assert.deepEqual(at(squares, 60, 0, 0), at(squares, 60, 5, 5), 'one square is one colour');
+  const blurred = tools.hidePixels(stripes(), 60, 60, 'blur');
+  for (let x = 0; x < 60; x += 1) {
+    const value = at(blurred, 60, x, 30)[0];
+    assert.ok(value > 110 && value < 145, `stripe at x=${x} is gone under blur (${value})`);
+  }
+
+  // A dark half and a light half: pixelate keeps a hard step, blur a gradual one.
+  const halves = () => picture(60, 60, x => (x < 30 ? 20 : 220));
+  const hard = tools.hidePixels(halves(), 60, 60, 'pixelate');
+  assert.equal(at(hard, 60, 29, 30)[0], 20);
+  assert.equal(at(hard, 60, 30, 30)[0], 220);
+  const soft = tools.hidePixels(halves(), 60, 60, 'blur');
+  assert.ok(at(soft, 60, 29, 30)[0] > 60 && at(soft, 60, 30, 30)[0] < 180, 'the step is spread out');
+  assert.equal(soft[3], 255, 'a solid photo stays solid');
+
+  // See-through pixels do not darken what is hidden.
+  const cutOut = picture(12, 12, () => 200);
+  for (let i = 0; i < 6 * 12 * 4; i += 4) cutOut.set([0, 0, 0, 0], i);
+  const hidden = tools.hidePixels(cutOut, 12, 12, 'pixelate');
+  assert.deepEqual(at(hidden, 12, 3, 9), [200, 200, 200]);
+
+  // Black writing on a see-through page is all in the alpha: its outline must go too.
+  for (const mode of ['pixelate', 'blur']) {
+    const writing = new Uint8ClampedArray(60 * 60 * 4);
+    for (let y = 0; y < 60; y += 1) {
+      for (let x = 0; x < 60; x += 2) writing[(y * 60 + x) * 4 + 3] = 255;
+    }
+    tools.hidePixels(writing, 60, 60, mode);
+    for (let x = 0; x < 60; x += 1) {
+      const alpha = writing[(30 * 60 + x) * 4 + 3];
+      assert.ok(alpha > 110 && alpha < 145, `${mode}: the outline at x=${x} is gone (${alpha})`);
+    }
+  }
+});
