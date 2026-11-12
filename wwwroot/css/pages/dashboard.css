@@ -230,12 +230,8 @@
 .db-trio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
 /* With all five cards on a wide window they share one row: activities widest (three long labels), ideas narrowest. */
 @media (min-width: 1400px) {
-    .db-trio-grid:has(> :nth-child(5)) { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.05fr) repeat(3, minmax(0, 1fr)); }
+    .db-trio-grid:has(> :nth-child(5)) { grid-template-columns: minmax(0, 1.45fr) repeat(4, minmax(0, 1.1fr)); }
 }
-@media (min-width: 1600px) {
-    .db-trio-grid:has(> :nth-child(5)) { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr) repeat(3, minmax(0, 1.1fr)); }
-}
-.db-slim--module .db-figures { column-gap: 14px; }
 .db-figures { display: flex; flex-wrap: wrap; gap: 12px 32px; padding: 14px 20px 16px; }
 .db-figure { display: grid; align-content: start; gap: 3px; min-width: 0; color: inherit; text-decoration: none; }
 .db-figure strong { color: var(--db-strong); font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
@@ -244,12 +240,18 @@
 /* The whole slim card is one link, with the lift the output tiles have. */
 a.db-slim { display: block; color: var(--db-text); text-decoration: none; transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease; }
 a.db-slim:hover, a.db-slim:focus-visible { color: var(--db-text); transform: translateY(-2px); box-shadow: var(--db-shadow-hover); border-color: var(--db-border-strong); outline: none; }
-.db-slim .db-section-head { flex-direction: row; align-items: center; min-height: 0; padding: 10px 20px 0; border-bottom: 0; }
+.db-slim .db-section-head { flex-direction: row; align-items: center; min-height: 0; padding: 10px 16px 0; border-bottom: 0; }
+/* The tagline always sits under the title, so every card's header is the same height. */
+.db-slim .db-section-head > div:first-child > div { display: block; }
+.db-slim .db-section-head h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-slim .db-section-head p { font-size: .75rem; white-space: nowrap; }
 .db-slim .db-section-icon { width: 28px; height: 28px; flex-basis: 28px; font-size: 1.2rem; }
-.db-slim .db-figures { gap: 4px 28px; padding: 6px 20px 12px; }
-.db-slim .db-figure { display: flex; align-items: baseline; gap: 7px; }
+/* Figures in equal columns, the number over its label: nothing wraps to a line of its own. */
+.db-slim .db-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 8px 10px; padding: 8px 16px 12px; }
+.db-slim .db-figures--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.db-slim .db-figure { display: grid; gap: 2px; }
 .db-slim .db-figure strong { font-size: 1.35rem; }
-.db-slim .db-figure span { font-size: .8125rem; }
+.db-slim .db-figure span { font-size: .6875rem; line-height: 1.2; }
 .db-ffc-countries h3 { margin: 0 0 10px; color: var(--db-strong); font-size: .875rem; font-weight: 700; }
 /* Long titles wrap to two lines and then clip; the full title is in the tooltip and the chevron keeps its place. */
 
