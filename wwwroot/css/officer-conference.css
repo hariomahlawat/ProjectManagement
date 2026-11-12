@@ -17,7 +17,8 @@
 
 .officer-conference {
     width: 100%;
-    margin: 8px auto 30px;
+    /* No bottom margin: the page shell already leaves space above the footer. */
+    margin: 8px auto 0;
     color: var(--oc-ink);
 }
 
@@ -1597,7 +1598,8 @@
     padding: 14px 24px 24px;
 }
 
-/* One column on a phone, then two to five as the panel widens. */
+/* One column on a phone, then two to four as the panel widens. Four is the most: on a large
+   screen the tiles and the pictures get bigger instead. */
 @container (min-width: 34rem) {
     .oc-landing__officers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -1605,10 +1607,10 @@
     .oc-landing__officers { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @container (min-width: 70rem) {
-    .oc-landing__officers { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .oc-landing__officers { grid-template-columns: repeat(4, minmax(0, 1fr)); --oc-officer-picture: 64px; }
 }
 @container (min-width: 88rem) {
-    .oc-landing__officers { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .oc-landing__officers { --oc-officer-picture: 72px; }
 }
 
 .oc-officer-card {
@@ -1648,14 +1650,15 @@
 .oc-officer-card__avatar {
     position: relative;
     overflow: hidden;
-    width: 46px;
-    height: 46px;
+    /* 56px, then 64px and 72px as the panel widens (set with the column counts below). */
+    width: var(--oc-officer-picture, 56px);
+    height: var(--oc-officer-picture, 56px);
     display: grid;
     place-items: center;
     border-radius: 50%;
     background: #5475b3;
     color: #fff;
-    font-size: .875rem;
+    font-size: calc(var(--oc-officer-picture, 56px) * .32);
     font-weight: 800;
     letter-spacing: .02em;
 }

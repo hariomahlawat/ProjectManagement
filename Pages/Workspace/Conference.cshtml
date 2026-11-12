@@ -79,17 +79,15 @@
                                     }
                                     @officerName
                                 </strong>
-                                @* The same counts in the same words as before. Each stays whole; the line
-                                   breaks between them, and the dot stays with the count before it. *@
+                                @* Active projects, ideas, other tasks and the other modules, in the words used
+                                   before. Recently completed projects are not shown here (owner's decision);
+                                   they remain in the officer's review. Each count stays whole; the line breaks
+                                   between them, and the dot stays with the count before it. *@
                                 @{
                                     var counts = new List<string>
                                     {
                                         $"{option.ActiveProjectCount} active {(option.ActiveProjectCount == 1 ? "project" : "projects")}"
                                     };
-                                    if (option.RecentlyCompletedProjectCount > 0)
-                                    {
-                                        counts.Add($"{option.RecentlyCompletedProjectCount} recently completed");
-                                    }
                                     counts.Add($"{option.IdeaCount} {(option.IdeaCount == 1 ? "idea" : "ideas")}");
                                     counts.Add($"{option.OtherTaskCount} {(option.OtherTaskCount == 1 ? "other task" : "other tasks")}");
                                     counts.AddRange(option.ModuleProjectCounts.Select(moduleCount => $"{moduleCount.Count} {moduleCount.Label}"));

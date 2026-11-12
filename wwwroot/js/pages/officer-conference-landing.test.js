@@ -87,10 +87,10 @@ test('the page: initials from the name, the same count wording, columns from the
     assert.doesNotMatch(landing, /DisplayName\.Trim\(\)\[0\]/, 'not the first letter of the rank');
     assert.match(landing, /Url\.Page\("\/Photos\/People\/Portrait", new \{ area = "", id = portraitPersonId \}\)/);
     // The wording the owner asked to keep, zeros included.
-    ['active {(option.ActiveProjectCount == 1 ? "project" : "projects")}', 'recently completed',
+    ['active {(option.ActiveProjectCount == 1 ? "project" : "projects")}',
         '{(option.IdeaCount == 1 ? "idea" : "ideas")}', '{(option.OtherTaskCount == 1 ? "other task" : "other tasks")}',
         '{moduleCount.Count} {moduleCount.Label}'].forEach(text => assert.ok(landing.includes(text), text));
-    assert.match(landing, /if \(option\.RecentlyCompletedProjectCount > 0\)/, 'recently completed only when there are some, as before');
+    assert.doesNotMatch(landing, /RecentlyCompletedProjectCount/, 'recently completed projects are not counted on a tile');
     assert.match(page, /<script src="~\/js\/pages\/officer-conference-landing\.js" asp-append-version="true"><\/script>/);
 
     const model = read('ViewModels/Workspace/OfficerConferenceViewModels.cs');
@@ -98,6 +98,18 @@ test('the page: initials from the name, the same count wording, columns from the
 
     const css = read('wwwroot/css/officer-conference.css');
     assert.match(css, /\.oc-landing \{[^}]*container-type: inline-size;/);
-    const columns = [...css.matchAll(/@container \(min-width: [\d.]+rem\) \{\s+\.oc-landing__officers \{ grid-template-columns: repeat\((\d), minmax\(0, 1fr\)\); \}/g)].map(match => match[1]);
-    assert.deepEqual(columns, ['2', '3', '4', '5'], 'one column to start, then two to five as the panel widens');
+    const columns = [...css.matchAll(/@container \(min-width: [\d.]+rem\) \{\s+\.oc-landing__officers \{ grid-template-columns: repeat\((\d), minmax\(0, 1fr\)\);/g)].map(match => match[1]);
+    assert.deepEqual(columns, ['2', '3', '4'], 'one column to start, then two to four as the panel widens; never five');
+    assert.match(css, /@container \(min-width: 88rem\) \{\s+\.oc-landing__officers \{ --oc-officer-picture: 72px; \}/, 'a large screen gets larger pictures, not a fifth column');
+    assert.match(css, /width: var\(--oc-officer-picture, 56px\);/);
+});
+
+test('a workspace page whose content fits the window does not scroll because of the rail', () => {
+    const workspace = read('wwwroot/css/command-workspace.css');
+    // The rail stops short of what sits under the workspace (shell padding and footer).
+    assert.match(workspace, /--cw-below:76px;/);
+    assert.match(workspace, /max-height:calc\(100vh - 72px - var\(--cw-below\)\);/);
+    // The spacing above the footer comes from the page shell alone.
+    assert.match(workspace, /\.command-workspace \{ width:100%; margin:8px auto 0;/);
+    assert.match(read('wwwroot/css/officer-conference.css'), /\.officer-conference \{\s+[^}]*margin: 8px auto 0;/);
 });

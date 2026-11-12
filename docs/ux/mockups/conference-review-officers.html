@@ -3,7 +3,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700&display=swap">
 <style>
 /* Layout: one screen. A header with a find box, then a grid of officer tiles whose column
-   count (1 to 5) follows the width of the page area, not the window. */
+   count (1 to 4) follows the width of the page area, not the window. */
 :root {
     --bg: #eef1f6; --shell: #ffffff; --card: #ffffff; --card-hover: #f5f8ff;
     --line: #d9dfe8; --text: #162033; --muted: #5b677a; --faint: #8a94a5;
@@ -64,7 +64,6 @@ h1, h2, p { margin: 0; }
 @container (min-width: 520px)  { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @container (min-width: 820px)  { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @container (min-width: 1100px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@container (min-width: 1360px) { .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 
 .tile { align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 12px; color: inherit; display: grid; gap: 12px; grid-template-columns: 48px minmax(0, 1fr); min-height: 84px; padding: 12px 14px; text-decoration: none; }
 .tile:hover { background: var(--card-hover); border-color: var(--primary); }
@@ -129,7 +128,7 @@ h1, h2, p { margin: 0; }
     </div>
 
     <div class="legend">
-        <p><b>Columns follow the width of the page area:</b> five on a wide desktop, then four, three and two; one on a phone.</p>
+        <p><b>Columns follow the width of the page area:</b> four at most, then three and two; one on a phone.</p>
         <p><b>Each tile:</b> the officer's photo or the initials of their name, the name with the rank in lighter text, and their work in the wording the page uses today, which wraps to a second line when the tile is narrow.</p>
         <p><b>A coloured mark appears only when something needs attention.</b> Most tiles have none.</p>
         <p><b>Order is alphabetical by name,</b> so an officer is always in the same place. Typing in the find box narrows the list; Enter opens the first match.</p>
