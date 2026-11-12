@@ -243,10 +243,6 @@
 .photos-control { align-items:center; background:transparent; border:0; border-radius:.65rem; color:#536076; display:inline-flex; gap:.38rem; min-height:2.35rem; padding:.45rem .65rem; }
 .photos-control:hover { background:#f2f5fa; }
 .photos-control b { align-items:center; background:var(--photos-accent); border-radius:999px; color:#fff; display:inline-flex; font-size:.62rem; height:1.15rem; justify-content:center; min-width:1.15rem; }
-.photos-summary { color:#7a8595; font-size:.75rem; margin:.2rem 0 1.15rem; }
-.photos-summary strong { color:#273247; }
-.photos-summary__metric { margin:0; }
-.photos-summary__separator { margin:0 .32rem; }
 .photos-active-filters { align-items:center; display:flex; flex-wrap:wrap; gap:.45rem; margin:-.55rem 0 1rem; }
 .photos-filter-chip { align-items:center; background:#edf3ff; border-radius:999px; color:#315ba8; display:inline-flex; font-size:.72rem; font-weight:700; gap:.34rem; padding:.34rem .58rem; }
 .photos-active-filters > a { color:#667286; font-size:.73rem; font-weight:700; }
@@ -456,8 +452,6 @@
     width: fit-content;
 }
 .collection-card__source:hover { color: #285ccf; }
-.photos-collection-singletons { border-top: 1px solid #e8ecf2; padding-top: .9rem; }
-.photos-collection-singletons small { color: #7b8797; display: block; margin-top: .3rem; }
 
 .photos-selection-bar { align-items:center; display:flex; flex:1 1 100%; gap:.75rem; justify-content:space-between; min-height:2.3rem; }
 .photos-selection-bar[hidden] { display: none !important; }
@@ -602,14 +596,6 @@
 :where([data-bs-theme="dark"]) .photos-control b {
     background: color-mix(in srgb, var(--photos-accent) 55%, #000);
     color: #fff;
-}
-
-:where([data-bs-theme="dark"]) .photos-summary {
-    color: #9aa0a6;
-}
-
-:where([data-bs-theme="dark"]) .photos-summary strong {
-    color: #e6e8eb;
 }
 
 :where([data-bs-theme="dark"]) .photos-filter-chip {
@@ -765,14 +751,6 @@
     color: #6ea8fe;
 }
 
-:where([data-bs-theme="dark"]) .photos-collection-singletons {
-    border-top: 1px solid #2c3035;
-}
-
-:where([data-bs-theme="dark"]) .photos-collection-singletons small {
-    color: #9aa0a6;
-}
-
 :where([data-bs-theme="dark"]) .photos-selection-lasso {
     background: rgba(110, 168, 254, 0.14);
     border: 1px solid rgba(110, 168, 254, 0.45);
@@ -806,7 +784,6 @@
 .photos-bar .photos-search input { min-height:2.3rem; padding-left:0; padding-right:0; }
 .photos-bar .photos-toolbar__controls { margin-left:auto; }
 .photos-bar .photos-action { min-height:2.3rem; }
-.photos-library > .photos-summary { margin-top:0; }
 
 /* Phones: the sections, then one row holding search and icon-only controls, so the pictures
    start high on the screen. The words of a control stay for screen readers. */
@@ -825,7 +802,6 @@
 
 /* Quick-filter chips, month and day headings. Theme tokens only. */
 .photos-subbar { align-items:center; display:flex; flex-wrap:wrap; gap:.4rem 1rem; margin:0 0 .7rem; }
-.photos-subbar .photos-summary { margin:0 0 0 auto; }
 .photos-chips { align-items:center; display:flex; flex-wrap:wrap; gap:.35rem; }
 .photos-chip { background:var(--pm-card); border:1px solid var(--pm-border); border-radius:999px; color:var(--pm-text-muted); font-size:.78rem; font-weight:600; padding:.3rem .75rem; text-decoration:none; }
 .photos-chip:hover { background:var(--pm-surface-muted); color:var(--pm-text); }
@@ -839,10 +815,9 @@
 .photos-day__header h3 { color:var(--pm-text); font-size:.9rem; font-weight:700; margin:0; white-space:nowrap; }
 .photos-day__header > span { color:var(--pm-text-muted); font-size:.8rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-/* Phones: the chips are one row that scrolls sideways, and the counts make way for pictures. */
+/* Phones: the chips are one row that scrolls sideways. */
 @media (max-width: 640px) {
     .photos-subbar { flex-wrap:nowrap; gap:.4rem; margin-bottom:.4rem; }
-    .photos-subbar .photos-summary { display:none; }
     .photos-chips { flex:1 1 auto; flex-wrap:nowrap; min-width:0; overflow-x:auto; padding:.15rem 0; scrollbar-width:none; }
     .photos-chips::-webkit-scrollbar { display:none; }
     .photos-chip { align-items:center; display:inline-flex; flex:none; min-height:2.5rem; padding-left:.9rem; padding-right:.9rem; }
@@ -856,6 +831,7 @@
 /* Continuous scroll and the month list on the right edge. Theme tokens only. */
 .photos-earlier { align-items:center; color:var(--pm-primary); display:inline-flex; font-size:.82rem; font-weight:700; gap:.35rem; margin:0 0 .6rem; text-decoration:none; }
 .photos-earlier:hover { text-decoration:underline; }
+.photos-end { color:var(--pm-text-muted); font-size:.78rem; margin:0; padding:1.75rem 0 .5rem; text-align:center; }
 .photos-more { color:var(--pm-text-muted); display:flex; font-size:.82rem; justify-content:center; padding:1.5rem 0 .5rem; }
 .photos-more__loading, .photos-more__error { align-items:center; display:inline-flex; gap:.5rem; }
 .photos-scrubber { align-items:flex-end; display:none; flex-direction:column; gap:.1rem; max-height:calc(100vh - 11rem); overflow-y:auto; position:fixed; right:.5rem; scrollbar-width:none; top:9rem; z-index:15; }

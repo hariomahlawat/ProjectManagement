@@ -81,37 +81,49 @@
     }
     else
     {
-        <section class="people-insight" aria-label="People summary and review queues">
-            <div><strong>@Model.Result.TotalPeople</strong><span>confirmed people</span></div>
-            @if (Model.CanManageIdentities && Model.WorkloadAvailable)
+        @* Only what needs doing is shown, and only to those who can do it. *@
+        @if (Model.CanManageIdentities && Model.WorkloadAvailable)
+        {
+            var showGroups = Model.GroupingEnabled && Model.Workload.SuggestedGroupCount > 0;
+            @if (Model.Workload.KnownMatchCount > 0 || showGroups || Model.Workload.IndividualReviewCount > 0 || Model.Workload.MatchingFailureCount > 0)
             {
-                <a class="people-insight__work" asp-page="./Review" asp-route-Mode="matches" title="Open direct person suggestions">
-                    <strong>@Model.Workload.KnownMatchCount</strong><span>direct person suggestions</span>
-                </a>
-                @if (Model.GroupingEnabled)
-                {
-                    <a class="people-insight__work" asp-page="./Review" asp-route-Mode="groups" title="Open suggested identity groups">
-                        <strong>@Model.Workload.SuggestedGroupCount</strong><span>suggested groups</span>
-                    </a>
-                }
-                <a class="people-insight__work" asp-page="./Review" asp-route-Mode="unidentified" title="Open faces ready for individual review">
-                    <strong>@Model.Workload.IndividualReviewCount</strong><span>individual review</span>
-                </a>
-                @if (Model.Workload.MatchingFailureCount > 0)
-                {
-                    <a class="people-insight__work is-warning" asp-page="./Review" asp-route-Mode="unidentified" asp-route-MatchStatus="failed" title="Open matching failures">
-                        <strong>@Model.Workload.MatchingFailureCount</strong><span>matching failures</span>
-                    </a>
-                }
+                <section class="people-insight" aria-label="Waiting for review">
+                    @if (Model.Workload.KnownMatchCount > 0)
+                    {
+                        <a class="people-insight__work" asp-page="./Review" asp-route-Mode="matches" title="Open suggested matches">
+                            <strong>@Model.Workload.KnownMatchCount</strong><span>suggested match@(Model.Workload.KnownMatchCount == 1 ? "" : "es")</span>
+                        </a>
+                    }
+                    @if (showGroups)
+                    {
+                        <a class="people-insight__work" asp-page="./Review" asp-route-Mode="groups" title="Open suggested groups">
+                            <strong>@Model.Workload.SuggestedGroupCount</strong><span>suggested group@(Model.Workload.SuggestedGroupCount == 1 ? "" : "s")</span>
+                        </a>
+                    }
+                    @if (Model.Workload.IndividualReviewCount > 0)
+                    {
+                        <a class="people-insight__work" asp-page="./Review" asp-route-Mode="unidentified" title="Open faces to review one by one">
+                            <strong>@Model.Workload.IndividualReviewCount</strong><span>face@(Model.Workload.IndividualReviewCount == 1 ? "" : "s") to review</span>
+                        </a>
+                    }
+                    @if (Model.Workload.MatchingFailureCount > 0)
+                    {
+                        <a class="people-insight__work is-warning" asp-page="./Review" asp-route-Mode="unidentified" asp-route-MatchStatus="failed" title="Open matching failures">
+                            <strong>@Model.Workload.MatchingFailureCount</strong><span>matching failure@(Model.Workload.MatchingFailureCount == 1 ? "" : "s")</span>
+                        </a>
+                    }
+                </section>
             }
-            else if (Model.CanManageIdentities)
-            {
+        }
+        else if (Model.CanManageIdentities)
+        {
+            <section class="people-insight" aria-label="Waiting for review">
                 <div class="people-insight__workload-unavailable" role="status">
                     <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
                     <span>Review workload temporarily unavailable</span>
                 </div>
-            }
-        </section>
+            </section>
+        }
         @if (Model.CanManageIdentities && Model.WorkloadAvailable && (Model.TotalReviewableAppearances > 0 || Model.Workload.ClosedUnidentifiedCount > 0))
         {
             <p class="people-workload-note">
