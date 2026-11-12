@@ -131,6 +131,51 @@ Still true, and accepted for now:
 | D2 | Remove the count lines on Photos, Albums and People? (U5) | Yes; the plan assumes this. The People review counts stay on the Review page, where they are acted on. |
 | D3 | Video poster frames (U13) | Leave for now. It needs a frame taken on the server when the video is catalogued, which is a change to media processing, outside this plan. |
 
+## What was built (12 Nov 2026)
+
+| PR | What | Merged as |
+| --- | --- | --- |
+| 1 | This document | #3117 |
+| 2 | Selecting and viewer fixes | #3118 |
+| 3 | Lean timeline part | #3120 |
+| 4 | Scroll cost, no picture added twice, joined-day source line | #3121 |
+| 5 | Large-library check and the two scale fixes; this record (step 10) | this PR |
+| 6 | Year filter in local time | #3119 |
+| 7 | Phones | #3122 |
+| 8 | Counts and wording; single-picture projects in Collections (D1, D2) | #3123 |
+| 9 | Person page and People bar | #3124 |
+
+Where the result differs from the plan:
+
+- **PR 2:** the viewer's count reads "3 of 120+" while more can load, rather than a total it does
+  not know.
+- **PR 3:** the source snapshot and the catalogue freshness check still run for every part. They
+  decide which rows are shown, and a part must take the same path as the page it continues.
+- **PR 7:** chips are 40 px high on phones, not 44; tabs, search and controls are 44. The month
+  jump on narrow screens is a native picker beside the chips.
+- **PR 8:** People keeps links to the review queues for identity managers, but only the queues
+  that have something waiting. Other users see none. The switch for single-picture projects is
+  removed; its query parameter is still accepted.
+- **PR 9:** the person's block was moved below the bar rather than folded into it. On phones the
+  name has the full width with the actions beneath. Two keyboard fixes came from review: arrow
+  keys on a select inside the Sort and filter menu stay with the select, and the shared
+  auto-submit script hears those keys in the capture phase so that keyboard browsing still waits
+  for Enter.
+- **Step 10** is part of PR 5 rather than a PR of its own.
+
+Not done:
+
+- **D3, video poster frames.** Left as decided.
+- **C13:** a tile's label still says "Open" while it acts as a toggle in selecting mode.
+- **C14:** the page model and the stylesheets are as large as they were.
+- A check on a real phone, and of the animations as a person sees them.
+
+Test data now on the development machine (never part of the application): 28 public-domain
+NASA photographs of the Apollo 11 crew as project photos of two demo projects, and the two
+approved face models installed with `Features/MediaLibrary/models/install-approved-models.ps1`.
+With them the People pages were checked against real faces for the first time; that is how the
+phone layout fault in PR 9 was found.
+
 ## How each step is checked
 
 - `npm test`, `dotnet build`, `dotnet test`; a focused test for each behaviour changed.
