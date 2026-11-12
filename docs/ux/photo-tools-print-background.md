@@ -193,3 +193,15 @@ PRs 2 and 3 do not depend on PR 4 and the other way round.
    stamp size) needed?
 2. Is Letter paper needed besides 4 × 6, 5 × 7, A5 and A4?
 3. Should Background also be offered in Edit photo, or only in Passport photo?
+
+## Additions after the plan (12 Nov 2026)
+
+After the four PRs, and with the owner's approval of a second mockup:
+
+- The background method was reworked after trying it on real photographs.
+- **Fix by hand**: a brush in Passport photo to bring back what the tool took and remove what it
+  left.
+- **Position in Print sheet**: a photo of another shape is dragged and zoomed to choose the part
+  printed, in place of the "its middle is used" warning.
+
+All three are described in [../photo-tools.md](../photo-tools.md).

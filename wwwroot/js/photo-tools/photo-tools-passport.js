@@ -68,6 +68,23 @@
   const bgAmountValue = $('[data-bg-amount-value]');
   const bgCompare = $('[data-action="bg-original"]');
   const bgProblem = $('[data-bg-problem]');
+  const handFixButton = $('[data-action="bg-fix"]');
+  const fixLabel = $('[data-bg-fix-label]');
+  const fixBox = $('[data-bg-fix]');
+  const brushButtons = $$('[data-bg-brush]');
+  const brushHint = $('[data-bg-brush-hint]');
+  const brushSizes = $$('[data-bg-size]');
+  const fixUndo = $('[data-action="bg-fix-undo"]');
+  const fixClear = $('[data-action="bg-fix-clear"]');
+  const fixDone = $('[data-action="bg-fix-done"]');
+
+  // Brush widths as a share of the crop frame's width, so a brush is the same on any screen.
+  const BRUSH_SHARES = { small: 0.02, medium: 0.04, large: 0.08 };
+  const BRUSH_HINTS = {
+    keep: 'Paint where part of the person was taken. The photo comes back there.',
+    remove: 'Paint where old background is left. It gets the new colour.'
+  };
+  const FIX_HINT = 'Drag on the photo to paint. With the keyboard, the arrow keys move the ring and Space paints. Press Done to move the photo again.';
   const bgNote = $('[data-bg-note]');
 
   const BG_PROBLEMS = {
@@ -122,6 +139,19 @@
   let bgStatus = null;
   let shown = null;
   let showOriginal = false;
+
+  // Fixes painted by hand over the changed background. Each is a brush stroke in the photo's own
+  // pixels, so it stays on the same part of the photo when the photo is moved or zoomed.
+  // `plain` and `changedPixels` are the finished photo before and after the background change,
+  // kept so a stroke can be shown at once without finding the background again.
+  let fixes = [];
+  let fixing = false;
+  let brush = 'keep';
+  let brushSize = 'medium';
+  let stroke = null;
+  let ring = null;
+  let plain = null;
+  let changedPixels = null;
 
   // Where the photo sits: the photo centre's distance from the frame centre (screen px), its
   // tilt, and how far it is zoomed past "just fills the frame".
@@ -201,6 +231,17 @@
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.drawImage(shown, frame.left, frame.top, frame.width, frame.height);
     }
+    if (fixing && ring) {
+      // The brush: dark under light, so it shows on any photo.
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      for (const [colour, width] of [['#111827', 3], ['#ffffff', 1.5]]) {
+        context.strokeStyle = colour;
+        context.lineWidth = width;
+        context.beginPath();
+        context.arc(ring.x, ring.y, Math.max(2, frame.width * BRUSH_SHARES[brushSize]), 0, Math.PI * 2);
+        context.stroke();
+      }
+    }
   }
 
   function moved() {
@@ -251,6 +292,12 @@
   function usePhoto(source) {
     full = source;
     mips = [];
+    // A new photo, or the same one turned a quarter, is a different picture: the fixes painted
+    // on the last one do not belong to it.
+    fixes = [];
+    fixing = false;
+    stroke = null;
+    ring = null;
     const fullSize = shared.sizeOf(full);
     const small = core.resizeDimensions(fullSize.width, fullSize.height, { type: 'longest', value: PREVIEW_SIDE });
     base = shared.drawPhoto(full, small.width, small.height, {});
@@ -474,6 +521,28 @@
     bgNote.hidden = !changed;
     bgProblem.hidden = !problem;
     bgProblem.textContent = problem || '';
+
+    // Fixing by hand needs a changed background to fix.
+    if (!changed && fixing) {
+      fixing = false;
+      stroke = null;
+      ring = null;
+    }
+    handFixButton.hidden = !changed || fixing;
+    handFixButton.setAttribute('aria-expanded', String(fixing));
+    fixLabel.textContent = fixes.length ? `Fix by hand (${fixes.length} done)` : 'Fix by hand';
+    fixBox.hidden = !fixing;
+    crop.classList.toggle('is-painting', fixing);
+    for (const button of brushButtons) {
+      button.setAttribute('aria-pressed', String(button.dataset.bgBrush === brush));
+    }
+    for (const button of brushSizes) {
+      button.setAttribute('aria-pressed', String(button.dataset.bgSize === brushSize));
+    }
+    brushHint.textContent = BRUSH_HINTS[brush];
+    fixUndo.disabled = fixes.length === 0;
+    fixClear.disabled = fixes.length === 0;
+    stageHint.textContent = fixing ? FIX_HINT : MODES[mode].stageHint;
   }
 
   function setBackground(colour) {
@@ -483,15 +552,134 @@
     if (full) queueSave();
   }
 
+  function backgroundColour() {
+    return [1, 3, 5].map(at => parseInt(background.slice(at, at + 2), 16));
+  }
+
   /** Gives the finished photo its new background. Returns the status, or null when it is kept. */
   function applyBackground(context, width, height) {
+    plain = null;
+    changedPixels = null;
     if (mode !== 'photo' || !background) return null;
-    const colour = [1, 3, 5].map(at => parseInt(background.slice(at, at + 2), 16));
-    const pixels = context.getImageData(0, 0, width, height);
-    const { status } = core.changeBackground(pixels.data, width, height, colour, Number(bgAmount.value));
-    if (status === core.BACKGROUND_STATUS.changed) context.putImageData(pixels, 0, 0);
+    const before = context.getImageData(0, 0, width, height);
+    const after = new ImageData(new Uint8ClampedArray(before.data), width, height);
+    const { status } = core.changeBackground(after.data, width, height, backgroundColour(), Number(bgAmount.value));
+    if (status === core.BACKGROUND_STATUS.changed) {
+      plain = before;
+      changedPixels = after;
+      composeFixes(context);
+    }
     return status;
   }
+
+  // ---------------------------------------------------------------------------
+  // Fixing the background by hand
+  // ---------------------------------------------------------------------------
+
+  /** How much the full photo is scaled to make the saved photo. */
+  function outputScale() {
+    return scale() * (base.width / shared.sizeOf(full).width) * (size.width / frame.width);
+  }
+
+  /**
+   * A picture of the brush strokes at the saved size: red where the photo is brought back, blue
+   * where the background colour is put. The strokes are drawn through the same move, turn and
+   * zoom as the photo, so they lie on the part of the photo they were painted on.
+   */
+  function fixMask() {
+    const mask = shared.newCanvas(size.width, size.height);
+    const context = mask.getContext('2d', { willReadFrequently: true });
+    const toOutput = size.width / frame.width;
+    const fullSize = shared.sizeOf(full);
+    const zoomed = outputScale();
+    context.translate(size.width / 2 + offset.x * toOutput, size.height / 2 + offset.y * toOutput);
+    context.rotate(angle);
+    context.scale(zoomed, zoomed);
+    context.translate(-fullSize.width / 2, -fullSize.height / 2);
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    for (const fix of fixes) {
+      const colour = fix.kind === 'keep' ? '#ff0000' : '#0000ff';
+      context.strokeStyle = colour;
+      context.fillStyle = colour;
+      context.lineWidth = fix.radius * 2;
+      context.beginPath();
+      if (fix.points.length === 1) {
+        context.arc(fix.points[0].x, fix.points[0].y, fix.radius, 0, Math.PI * 2);
+        context.fill();
+      } else {
+        context.moveTo(fix.points[0].x, fix.points[0].y);
+        for (const point of fix.points.slice(1)) context.lineTo(point.x, point.y);
+        context.stroke();
+      }
+    }
+    return context.getImageData(0, 0, size.width, size.height);
+  }
+
+  /** Writes the changed photo with the fixes laid over it. */
+  function composeFixes(context) {
+    const pixels = new ImageData(new Uint8ClampedArray(changedPixels.data), changedPixels.width, changedPixels.height);
+    if (fixes.length) {
+      core.applyBackgroundFixes(pixels.data, plain.data, fixMask().data, backgroundColour());
+    }
+    context.putImageData(pixels, 0, 0);
+  }
+
+  /** Shows the fixes on the stage at once; the saved file follows shortly after. */
+  function showFixes() {
+    if (shown && changedPixels && changedPixels.width === shown.width && changedPixels.height === shown.height) {
+      composeFixes(shown.getContext('2d'));
+    }
+    draw();
+  }
+
+  /** A point on the stage (pixels from the stage's corner) as a point in the full photo. */
+  function photoPointAt(x, y) {
+    const dx = x - (frame.left + frame.width / 2 + offset.x);
+    const dy = y - (frame.top + frame.height / 2 + offset.y);
+    const cos = Math.cos(-angle);
+    const sin = Math.sin(-angle);
+    const zoomed = scale();
+    const toFull = shared.sizeOf(full).width / base.width;
+    return {
+      x: ((dx * cos - dy * sin) / zoomed + base.width / 2) * toFull,
+      y: ((dx * sin + dy * cos) / zoomed + base.height / 2) * toFull
+    };
+  }
+
+  function stagePoint(event) {
+    const box = crop.getBoundingClientRect();
+    return { x: event.clientX - box.left, y: event.clientY - box.top };
+  }
+
+  function startStroke(at) {
+    const toFull = shared.sizeOf(full).width / base.width;
+    stroke = {
+      kind: brush,
+      radius: Math.max(1, frame.width * BRUSH_SHARES[brushSize] / scale() * toFull),
+      points: [photoPointAt(at.x, at.y)]
+    };
+    fixes.push(stroke);
+    showFixes();
+  }
+
+  function endStroke() {
+    if (!stroke) return;
+    stroke = null;
+    renderBackground();
+    queueSave(true);
+  }
+
+  function setFixing(on) {
+    // A stroke still being painted is finished first, so the saved file gets it too.
+    endStroke();
+    fixing = on;
+    ring = on ? { x: frame.left + frame.width / 2, y: frame.top + frame.height / 2 } : null;
+    renderBackground();
+    draw();
+    if (on) crop.focus();
+  }
+
 
   function seeOriginal(on) {
     if (showOriginal === on) return;
@@ -574,7 +762,12 @@
     }
     try {
       const output = renderOutput();
-      shown = bgStatus === core.BACKGROUND_STATUS.changed ? output : null;
+      // A copy for the stage: the brush repaints it while this one is being turned into a file.
+      shown = null;
+      if (bgStatus === core.BACKGROUND_STATUS.changed) {
+        shown = shared.newCanvas(output.width, output.height);
+        shown.getContext('2d', { willReadFrequently: true }).drawImage(output, 0, 0);
+      }
       renderBackground();
       draw();
       const result = await core.encodeToTarget({
@@ -605,9 +798,10 @@
   }
 
   /** The saved file is prepared again shortly after the last change. */
-  function queueSave() {
+  /** `keepShown` is for a change the stage already shows (a brush stroke). */
+  function queueSave(keepShown) {
     renderSheet();
-    if (shown) {
+    if (shown && keepShown !== true) {
       // The photo laid over the frame is out of date until it is made again.
       shown = null;
       draw();
@@ -658,6 +852,22 @@
 
   crop.addEventListener('pointerdown', (event) => {
     if (!base) return;
+    if (fixing) {
+      // One pointer paints; a second finger does nothing.
+      if (stroke || !event.isPrimary) return;
+      event.preventDefault();
+      ring = stagePoint(event);
+      startStroke(ring);
+      // Only this pointer continues and ends the stroke; another finger on the stage does not.
+      stroke.pointer = event.pointerId;
+      try {
+        // Keeps the stroke going when the pointer leaves the stage. Painting works without it.
+        crop.setPointerCapture(event.pointerId);
+      } catch {
+        // The pointer is already gone.
+      }
+      return;
+    }
     crop.setPointerCapture(event.pointerId);
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.size === 2) {
@@ -667,6 +877,17 @@
   });
 
   crop.addEventListener('pointermove', (event) => {
+    if (fixing) {
+      if (!event.isPrimary) return;
+      ring = stagePoint(event);
+      if (stroke && stroke.pointer === event.pointerId) {
+        stroke.points.push(photoPointAt(ring.x, ring.y));
+        showFixes();
+      } else {
+        draw();
+      }
+      return;
+    }
     const last = pointers.get(event.pointerId);
     if (!last) return;
     const now = { x: event.clientX, y: event.clientY };
@@ -682,6 +903,7 @@
 
   for (const type of ['pointerup', 'pointercancel']) {
     crop.addEventListener(type, (event) => {
+      if (fixing && stroke && stroke.pointer === event.pointerId) endStroke();
       pointers.delete(event.pointerId);
       pinch = null;
     });
@@ -697,6 +919,25 @@
     if (!base) return;
     const step = event.shiftKey ? 1 : 10;
     const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    if (fixing) {
+      // The ring stands in for the pointer; Space or Enter paints one dab where it is.
+      if (moves[event.key]) {
+        event.preventDefault();
+        ring = {
+          x: Math.min(frame.left + frame.width, Math.max(frame.left, ring.x + moves[event.key][0])),
+          y: Math.min(frame.top + frame.height, Math.max(frame.top, ring.y + moves[event.key][1]))
+        };
+        draw();
+      } else if ((event.key === ' ' || event.key === 'Enter') && !stroke) {
+        event.preventDefault();
+        startStroke(ring);
+        endStroke();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        setFixing(false);
+      }
+      return;
+    }
     if (moves[event.key]) {
       event.preventDefault();
       offset = { x: offset.x + moves[event.key][0], y: offset.y + moves[event.key][1] };
@@ -754,6 +995,36 @@
     renderBackground();
     if (full && background) queueSave();
   });
+  handFixButton.addEventListener('click', () => setFixing(true));
+  fixDone.addEventListener('click', () => {
+    setFixing(false);
+    handFixButton.focus();
+  });
+  fixUndo.addEventListener('click', () => {
+    fixes.pop();
+    renderBackground();
+    showFixes();
+    queueSave(true);
+  });
+  fixClear.addEventListener('click', () => {
+    fixes = [];
+    renderBackground();
+    showFixes();
+    queueSave(true);
+  });
+  for (const button of brushButtons) {
+    button.addEventListener('click', () => {
+      brush = button.dataset.bgBrush;
+      renderBackground();
+    });
+  }
+  for (const button of brushSizes) {
+    button.addEventListener('click', () => {
+      brushSize = button.dataset.bgSize;
+      renderBackground();
+      draw();
+    });
+  }
   bgCompare.addEventListener('pointerdown', () => seeOriginal(true));
   bgCompare.addEventListener('keydown', (event) => {
     if (event.key === ' ' || event.key === 'Enter') seeOriginal(true);

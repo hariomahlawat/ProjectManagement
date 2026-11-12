@@ -38,7 +38,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Tool | What it does |
 | --- | --- |
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none), smaller dimensions, save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
-| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
+| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. What the tool gets wrong can be fixed by hand with a brush. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
 | Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Cover, Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
@@ -128,6 +128,29 @@ Limits, stated on the screen where they matter:
   the largest size the screen allows.
 - Fine loose hair is softened, not cut out strand by strand.
 - Some authorities do not accept a photo with a changed background. The screen says to check.
+
+### Fixing the background by hand
+
+When the background has been changed, **Fix by hand** opens a brush for what the tool got wrong.
+**Bring back** returns the photo where part of the person was taken; **Remove** puts the new
+colour where old background was left. There are three brush sizes, Undo, Clear all fixes and
+Done.
+
+- It is a separate mode. While it is open, dragging on the photo paints; Done goes back to
+  dragging the photo into position. With the keyboard, the arrow keys move a ring over the photo
+  and Space or Enter paints one dab where it is; Escape leaves the mode.
+- Each fix is a brush stroke stored in the photo's own pixels, with its width. The strokes are
+  drawn through the same move, turn and zoom as the photo, so a fix stays on the part of the
+  photo it was painted on when the photo is moved, zoomed or straightened afterwards. A brush is
+  a share of the crop frame's width (2%, 4% or 8%), so it is the same size on any screen.
+- The saved photo is made in three steps: the cropped photo with its clean-up, the background
+  change, then the fixes (`applyBackgroundFixes`): the photo before the change is brought back
+  under Bring back strokes, and the background colour is put under Remove strokes, with a soft
+  rim. The first two steps are kept, so a stroke shows on the stage at once without finding the
+  background again; the file follows a moment later.
+- Fixes are cleared by a new photo and by turning the photo a quarter. They are kept, but not
+  applied, while the background is set to Keep or cannot be changed. Print sheet receives the
+  photo with its fixes.
 
 ### How a print sheet is made
 

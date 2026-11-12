@@ -196,6 +196,29 @@
                             <button type="button" class="btn btn-outline-secondary phot-bg__compare" data-action="bg-original" hidden>
                                 <i class="bi bi-eye" aria-hidden="true"></i> Hold to see the original
                             </button>
+                            <button type="button" class="btn btn-outline-secondary phot-bg__compare" data-action="bg-fix" aria-expanded="false" hidden>
+                                <i class="bi bi-brush" aria-hidden="true"></i> <span data-bg-fix-label>Fix by hand</span>
+                            </button>
+                            <div class="phot-bgfix" data-bg-fix hidden>
+                                <div class="phot-segment phot-segment--start" role="group" aria-label="What the brush does">
+                                    <button type="button" aria-pressed="true" data-bg-brush="keep">Bring back</button>
+                                    <button type="button" aria-pressed="false" data-bg-brush="remove">Remove</button>
+                                </div>
+                                <p class="phot-hint" data-bg-brush-hint aria-live="polite"></p>
+                                <div class="phot-bgfix__row">
+                                    <span class="phot-bg__title" id="photBrushSize">Brush</span>
+                                    <div class="phot-segment" role="group" aria-labelledby="photBrushSize">
+                                        <button type="button" aria-pressed="false" data-bg-size="small">Small</button>
+                                        <button type="button" aria-pressed="true" data-bg-size="medium">Medium</button>
+                                        <button type="button" aria-pressed="false" data-bg-size="large">Large</button>
+                                    </div>
+                                </div>
+                                <div class="phot-bgfix__row">
+                                    <button type="button" class="btn btn-outline-secondary" data-action="bg-fix-undo" disabled>Undo</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-action="bg-fix-clear" disabled>Clear all fixes</button>
+                                    <button type="button" class="btn btn-primary" data-action="bg-fix-done">Done</button>
+                                </div>
+                            </div>
                             <p class="phot-hint phot-hint--warning" data-bg-problem aria-live="polite" hidden></p>
                             <p class="phot-hint" data-bg-note hidden>Works on a plain wall or curtain. Check the hair and shoulders before you use the photo. Some offices do not accept a photo with a changed background, so check the rules of your form.</p>
                         </div>
