@@ -275,6 +275,10 @@
       return;
     }
     working = true;
+    // The prepared file is of the photo before this step: it must not be downloaded meanwhile
+    // (a Cover not yet made would still show what it hides). If the step fails, the file
+    // queued here is the unchanged photo again.
+    queueSave();
     const size = currentSize();
     const showBusy = size.width * size.height * stepsToApply > BUSY_PIXELS;
     undoButton.disabled = true;
@@ -1110,7 +1114,7 @@
   });
 
   downloadButton.addEventListener('click', () => {
-    if (!saved) return;
+    if (!saved || working) return;
     shared.saveBlob(new Blob([saved.bytes], { type: saved.type.mime }), `${core.baseName(fileName)}-edited.${saved.type.extension}`);
   });
 
