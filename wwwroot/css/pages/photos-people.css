@@ -2033,3 +2033,10 @@ a.identity-workload-pill:hover {
 .people-queue-note { color:var(--pm-text-muted); font-size:.85rem; margin:0 0 .8rem; }
 .people-queue-note strong { color:var(--pm-text); }
 .face-candidate__identity > strong { color:var(--pm-text); font-size:.95rem; }
+
+/* Unnamed faces: the way back to the grid, and the name field in the bar of ticked faces. Theme tokens only. */
+.face-review-back { align-items:center; color:var(--pm-primary); display:inline-flex; font-size:.82rem; font-weight:700; gap:.35rem; text-decoration:none; }
+.face-review-back:hover { text-decoration:underline; }
+.face-review-batch__name { flex:1 1 22rem; min-width:0; }
+.face-review-batch__name .people-name-field { grid-template-columns:minmax(0, 20rem) auto; }
+.face-review-batch__name .people-name-field__list { background:var(--pm-card); }

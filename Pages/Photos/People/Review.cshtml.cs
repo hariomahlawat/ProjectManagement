@@ -406,6 +406,17 @@ public sealed class ReviewModel : PageModel
             "The selected faces were named.",
             Mode);
 
+    // Several single faces named as a new person: the same operation as naming a group, kept
+    // on the queue the reviewer is in.
+    public Task<IActionResult> OnPostCreateSelectedAsync(
+        List<Guid> faceIds,
+        string displayName,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            () => _review.CreatePersonAndAssignManyAsync(faceIds, displayName, UserId, cancellationToken),
+            "New person added and the selected faces named.",
+            Mode);
+
     public Task<IActionResult> OnPostIgnoreSelectedAsync(
         List<Guid> faceIds,
         CancellationToken cancellationToken)

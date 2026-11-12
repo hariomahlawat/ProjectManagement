@@ -70,3 +70,16 @@ test('a face card asks "Is this …?", keeps the figures behind a disclosure and
         .forEach(piece => assert.ok(form.includes(piece), piece));
     ['None of these', 'Leave unnamed', 'Not a face', 'Bring back to review'].forEach(label => assert.ok(cards.includes(label), label));
 });
+
+test('unnamed faces are one grid; ticked faces are named through the one field', () => {
+    assert.doesNotMatch(page, /face-review-layout-toggle/, 'no Triage / Detailed switch');
+    assert.match(page, /class="face-review-back" href="@\(Model\.BuildReviewUrl\(layout: "triage", pageNumber: 1\)\)"/, 'a face opened on its own offers the way back');
+    const bar = page.slice(page.indexOf('id="batchAssignKnownPersonForm"'), page.indexOf('@if (Model.IsTriageLayout)'));
+    assert.match(bar, /data-assign-action="@Url\.Page\("\.\/Review", "AssignSelected"\)"\s+data-create-action="@Url\.Page\("\.\/Review", "CreateSelected"\)"/);
+    ['name="personId"', 'name="displayName"', 'asp-page-handler="AssignSelected"', 'asp-page-handler="CreateSelected"', 'asp-page-handler="IgnoreSelected"', 'asp-page-handler="SuppressSelected"', 'asp-page-handler="ReopenSelected"']
+        .forEach(piece => assert.ok(bar.includes(piece), piece));
+    // Naming several single faces as a new person is the group operation, kept on the reviewer's queue.
+    assert.match(model, /OnPostCreateSelectedAsync\(\s+List<Guid> faceIds,\s+string displayName,\s+CancellationToken cancellationToken\)\s+=> ExecuteAsync\(\s+\(\) => _review\.CreatePersonAndAssignManyAsync\(faceIds, displayName, UserId, cancellationToken\),\s+"[^"]+",\s+Mode\);/);
+    const tiles = page.slice(page.indexOf('class="face-review-triage-grid"'), page.indexOf('class="face-review-list"'));
+    assert.doesNotMatch(tiles, /QualityScore/);
+});
