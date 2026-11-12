@@ -119,7 +119,7 @@ public static class ItProjectStageRules
             }
             else if (item.CostLakhs.HasValue)
             {
-                errors.Add($"Only the IT ARPPP / IPA and SO stages carry a cost ({definition.Label}).");
+                errors.Add($"Only the IT ARPPP / IPA and EAS & SO stages carry a cost ({definition.Label}).");
             }
 
             // Rule 2: a date means done.

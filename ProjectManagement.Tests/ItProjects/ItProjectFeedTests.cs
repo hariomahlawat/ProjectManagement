@@ -49,7 +49,7 @@ public class ItProjectFeedTests
 
         // newest remark; SO alone; the TEC-day remark before TEC's own completion; then a folded run
         Assert.Equal(2, feed[0].Remark!.Id);
-        Assert.Equal("SO completed · ₹ 86.40 L", Assert.Single(feed[1].Stages).Text);
+        Assert.Equal("EAS & SO completed · ₹ 86.40 L", Assert.Single(feed[1].Stages).Text);
         Assert.Equal(1, feed[2].Remark!.Id);
         Assert.True(feed[3].Folded);
         Assert.Equal(new[] { "TEC", "BID", "AON", "PPP" }, feed[3].Stages.Select(item => item.StageCode));

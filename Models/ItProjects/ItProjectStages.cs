@@ -25,7 +25,7 @@ public static class ItProjectStages
     /// <summary>Stages in order. Optional stages are skipped by default.</summary>
     public static readonly IReadOnlyList<Definition> All = new[]
     {
-        // The IPA cost (the cost approved in principle) sits on the first stage; the SO value on SO.
+        // The IPA cost (the cost approved in principle) sits on the first stage; the SO value on EAS & SO.
         new Definition(Ppp, 1, "IT ARPPP / IPA", IsOptional: false, CarriesCost: true),
         new Definition(Aon, 2, "AoN", IsOptional: false, CarriesCost: false),
         new Definition(Bid, 3, "Bid", IsOptional: false, CarriesCost: false),
@@ -33,7 +33,7 @@ public static class ItProjectStages
         new Definition(Cob, 5, "COB", IsOptional: false, CarriesCost: false),
         new Definition(Benchmarking, 6, "Benchmarking", IsOptional: true, CarriesCost: false),
         new Definition(Pnc, 7, "PNC", IsOptional: true, CarriesCost: false),
-        new Definition(So, 8, "SO", IsOptional: false, CarriesCost: true),
+        new Definition(So, 8, "EAS & SO", IsOptional: false, CarriesCost: true),
         new Definition(Delivery, 9, "Delivery and ATP", IsOptional: false, CarriesCost: false)
     };
 

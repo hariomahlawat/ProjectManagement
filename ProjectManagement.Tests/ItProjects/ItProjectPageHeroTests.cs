@@ -35,7 +35,7 @@ public class ItProjectPageHeroTests
 
         var (status, journey) = await ReadAsync(db, id);
 
-        Assert.Equal(new ItProjectPagePresentation.HeroStatus("At Delivery and ATP for 331 days", "since SO closed on 12 Dec 2025", "late"), status);
+        Assert.Equal(new ItProjectPagePresentation.HeroStatus("At Delivery and ATP for 331 days", "since EAS & SO closed on 12 Dec 2025", "late"), status);
 
         var steps = journey.ToDictionary(step => step.StageCode);
         Assert.Equal(9, journey.Count);
