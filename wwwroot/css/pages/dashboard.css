@@ -158,12 +158,13 @@
 .db-coe-row__bar i { display: block; flex: var(--seg-share, 0) 1 0; min-width: 0; height: 100%; border-radius: 999px; }
 .db-coe-row__bar .is-ongoing { background: var(--db-hue); }
 .db-coe-row__bar .is-completed { background: var(--db-good); }
-.db-coe-row__bar .is-cancelled { background: var(--db-border-strong); }
+/* Cancelled: the muted text tone at half strength, so it still shows on the dark card. */
+.db-coe-row__bar .is-cancelled { background: var(--db-muted); opacity: .5; }
 .db-coe-key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
 .db-coe-key span { display: inline-flex; align-items: center; gap: 6px; }
 .db-coe-key span::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--db-hue); }
 .db-coe-key .is-completed::before { background: var(--db-good); }
-.db-coe-key .is-cancelled::before { background: var(--db-border-strong); }
+.db-coe-key .is-cancelled::before { background: var(--db-muted); opacity: .5; }
 .db-coe-key em { font-style: normal; }
 
 /* Slowest stages: three across, each a name over its median days and its ratio to the portfolio median. */
@@ -190,7 +191,7 @@
 .db-completed__bars { display: flex; flex: 1 1 62px; align-items: flex-end; gap: 8px; min-height: 62px; }
 .db-completed__year { display: flex; flex: 1 1 0; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 0; height: 100%; }
 .db-completed__year em { color: var(--db-muted); font-size: .6875rem; font-style: normal; font-weight: 600; line-height: 1.3; }
-.db-completed__year i { display: block; width: 100%; max-width: 40px; height: calc((100% - 16px) * var(--bar-h, 0) / 100); min-height: 2px; border-radius: 3px 3px 0 0; background: var(--db-hue); opacity: .38; }
+.db-completed__year i { display: block; width: 100%; max-width: 40px; height: calc((100% - 16px) * var(--bar-h, 0) / 100); min-height: 2px; border-radius: 3px 3px 0 0; background: var(--db-hue); opacity: .5; }
 .db-completed__year.is-current em { color: var(--db-strong); }
 .db-completed__year.is-current i { opacity: 1; }
 .db-completed__axis { display: flex; justify-content: space-between; gap: 12px; padding-top: 4px; border-top: 1px solid var(--db-border); color: var(--db-muted); font-size: .6875rem; font-weight: 600; }
