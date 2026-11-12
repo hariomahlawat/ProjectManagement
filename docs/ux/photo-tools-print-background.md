@@ -4,7 +4,8 @@ Two additions to Photo Tools (`/Tools/Photo`), asked for by the owner on 12 Nov 
 first build plan ([photo-tools.md](photo-tools.md)) was finished. The durable description of what
 is built stays in [../photo-tools.md](../photo-tools.md); this document is the plan.
 
-Nothing here is built yet.
+Built so far: PR 2, the Print sheet tool. "What exists today" below describes the tool before
+this plan.
 
 ## What exists today
 

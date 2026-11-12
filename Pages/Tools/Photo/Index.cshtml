@@ -53,6 +53,11 @@
                     <span class="pdft-card__title">Passport photo</span>
                     <span class="pdft-card__text">Crop to an exact size with a face guide, then save a file at the pixels and file size a form asks for.</span>
                 </a>
+                <a class="pdft-card" role="listitem" href="#sheet">
+                    <span class="pdft-card__icon pdft-accent--purple" aria-hidden="true"><i class="bi bi-printer"></i></span>
+                    <span class="pdft-card__title">Print sheet</span>
+                    <span class="pdft-card__text">Put copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper with cut lines, ready to print at true size.</span>
+                </a>
                 <a class="pdft-card" role="listitem" href="#reduce">
                     <span class="pdft-card__icon pdft-accent--orange" aria-hidden="true"><i class="bi bi-arrows-angle-contract"></i></span>
                     <span class="pdft-card__title">Reduce size</span>
@@ -190,16 +195,90 @@
                         <button type="button" class="btn btn-primary btn-lg" data-action="download-passport" disabled>
                             <i class="bi bi-download" aria-hidden="true"></i> <span data-download-passport-label>Download photo</span>
                         </button>
-                        <div class="phot-sheet" data-photo-only>
-                            <label class="phot-sheet__title" for="photSheetPaper">Print sheet</label>
-                            <div class="phot-sheet__row">
-                                <select class="form-select" id="photSheetPaper" data-sheet-paper autocomplete="off" aria-describedby="photSheetNote"></select>
-                                <button type="button" class="btn btn-outline-primary" data-action="download-sheet" disabled>
-                                    <i class="bi bi-printer" aria-hidden="true"></i> Download sheet
-                                </button>
-                            </div>
-                            <p class="phot-hint" id="photSheetNote" data-sheet-note aria-live="polite"></p>
+                        <div class="phot-next" data-photo-only>
+                            <button type="button" class="btn btn-outline-primary" data-action="print-sheet" aria-describedby="photSheetNote" disabled>
+                                <i class="bi bi-printer" aria-hidden="true"></i> Print sheet
+                            </button>
+                            <p class="phot-hint" id="photSheetNote">Puts copies of this photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper.</p>
                         </div>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        @* ---------- Print sheet ---------- *@
+        <section class="pdft-view" data-view="sheet" hidden aria-labelledby="photSheetTitle">
+            <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-sheet-input tabindex="-1" aria-hidden="true" />
+            <div class="phot-head">
+                <a class="phot-head__back" href="#" data-nav-home>
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
+                </a>
+                <h1 id="photSheetTitle">Print sheet</h1>
+                <span class="phot-head__file" data-sheet-file></span>
+                <button type="button" class="btn btn-outline-secondary phot-head__action" data-action="change-photo" hidden>
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Change photo
+                </button>
+            </div>
+
+            <div class="pdft-drop" data-drop data-empty>
+                <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-photo">
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose a photo
+                </button>
+                <p class="pdft-drop__hint">or drop a photo here. JPG, PNG or WEBP. For a passport photo, make it in <a href="#passport">Passport photo</a> first and press Print sheet there.</p>
+            </div>
+
+            <div class="phot-layout" data-workspace data-drop hidden>
+                <div class="phot-layout__main">
+                    <div class="phot-stage">
+                        <div class="phot-paper" data-sheet-stage>
+                            <canvas class="phot-paper__canvas" data-sheet-canvas role="img" aria-label="Preview of the print sheet" aria-describedby="photSheetCaption"></canvas>
+                        </div>
+                        <p class="phot-stage__hint phot-paper__caption">
+                            <strong id="photSheetCaption" data-sheet-caption aria-live="polite"></strong>
+                            <span>Print at actual size (100%), not “fit to page”.</span>
+                        </p>
+                    </div>
+                </div>
+
+                <aside class="phot-layout__side" aria-label="Print sheet settings">
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">1</span>Photo</h2>
+                        <div class="phot-mini">
+                            <canvas class="phot-mini__thumb" data-sheet-thumb aria-hidden="true"></canvas>
+                            <div>
+                                <div class="phot-mini__title" data-sheet-origin></div>
+                                <p class="phot-hint">Each copy is printed at the size chosen here.</p>
+                            </div>
+                        </div>
+                        <div class="phot-sizes" role="group" aria-label="Print size of one copy" data-sheet-sizes></div>
+                        <p class="phot-hint phot-hint--warning" data-sheet-shape hidden>This photo is a different shape, so its middle is used. To place the face yourself, use <a href="#passport">Passport photo</a> first.</p>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">2</span>Paper and copies</h2>
+                        <div class="phot-sizes" role="group" aria-label="Paper" data-sheet-papers></div>
+                        <div class="phot-copies">
+                            <span class="phot-copies__label" id="photCopiesLabel">Copies</span>
+                            <span class="phot-stepper" role="group" aria-labelledby="photCopiesLabel">
+                                <button type="button" data-action="fewer-copies" aria-label="One copy fewer"><i class="bi bi-dash-lg" aria-hidden="true"></i></button>
+                                <output data-sheet-copies aria-live="polite">0</output>
+                                <button type="button" data-action="more-copies" aria-label="One copy more"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+                            </span>
+                            <button type="button" class="btn btn-link" data-action="fill-sheet">Fill the sheet</button>
+                        </div>
+                        <p class="phot-hint" data-sheet-fit></p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="photSheetCut" checked data-sheet-cut autocomplete="off" />
+                            <label class="form-check-label" for="photSheetCut">Cut lines around each photo</label>
+                        </div>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">3</span>Save</h2>
+                        <p class="phot-hint">One JPG of the whole sheet at 300 dpi. Photo shops and home printers both take it.</p>
+                        <button type="button" class="btn btn-primary btn-lg" data-action="download-sheet" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> Download sheet
+                        </button>
                     </div>
                 </aside>
             </div>
@@ -564,6 +643,7 @@
     <script src="~/js/photo-tools/photo-tools-canvas.js" asp-append-version="true"></script>
     <script src="~/js/photo-tools/photo-tools-app.js" asp-append-version="true"></script>
     <script src="~/js/photo-tools/photo-tools-passport.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-print.js" asp-append-version="true"></script>
     <script src="~/js/photo-tools/photo-tools-editor.js" asp-append-version="true"></script>
 </body>
 </html>
