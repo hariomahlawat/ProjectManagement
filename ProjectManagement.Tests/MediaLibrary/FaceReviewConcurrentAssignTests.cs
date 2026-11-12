@@ -207,6 +207,25 @@ public sealed class FaceReviewConcurrentAssignTests
         Assert.Empty(await service.GetFacesLeftUnnamedByAsync(new[] { FaceId }, "reviewer-a", DateTimeOffset.UtcNow.AddMinutes(1), CancellationToken.None));
     }
 
+    // Undo checks this again when it is pressed: a decision replaced by someone else is not the reviewer's.
+    [Fact]
+    public async Task A_closure_replaced_by_another_reviewer_is_no_longer_the_first_reviewers()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db);
+        var before = DateTimeOffset.UtcNow.AddSeconds(-1);
+        await service.IgnoreManyAsync(new[] { FaceId }, "reviewer-a", CancellationToken.None);
+        db.ChangeTracker.Clear();
+        await service.ReopenUnidentifiedManyAsync(new[] { FaceId }, "reviewer-b", CancellationToken.None);
+        db.ChangeTracker.Clear();
+        await service.IgnoreManyAsync(new[] { FaceId }, "reviewer-b", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        Assert.Empty(await service.GetFacesLeftUnnamedByAsync(new[] { FaceId }, "reviewer-a", before, CancellationToken.None));
+        Assert.Equal(new[] { FaceId }, await service.GetFacesLeftUnnamedByAsync(new[] { FaceId }, "reviewer-b", before, CancellationToken.None));
+    }
+
     [Fact]
     public async Task Excluding_an_appearance_that_is_not_a_reference_needs_no_other_reference()
     {
