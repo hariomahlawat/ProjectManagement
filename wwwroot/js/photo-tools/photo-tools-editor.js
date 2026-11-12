@@ -67,6 +67,7 @@
     markup: 'Pick what to draw, then drag or press on the photo.',
     hide: 'Drag over the part of the photo to hide.'
   };
+  const KEY_HINT = 'Arrow keys move the cross (Shift for small steps). Enter starts a mark and Enter again ends it; Escape cancels.';
   const MARK_NOTES = {
     box: 'Drag on the photo to draw a box.',
     circle: 'Drag on the photo to draw a circle.',
@@ -103,6 +104,8 @@
   let mark = { kind: 'box', colour: 'red', size: 'medium' };
   let hideMode = 'blur';
   let drawing = null;
+  // Where the keyboard's cross is on the photo, in the photo's own pixels. Null while the pointer is used.
+  let keyPoint = null;
 
   let saved = null;
   let saveRun = 0;
@@ -318,6 +321,7 @@
     context.imageSmoothingQuality = 'high';
     context.drawImage(picture, 0, 0, canvas.width, canvas.height);
     if (drawing && !showingOriginal) drawPending(context);
+    if (keyPoint && !showingOriginal) drawCross(context);
     placeCrop();
   }
 
@@ -345,6 +349,7 @@
     resetAdjust();
     if (tool === 'filters') drawFilters();
     drawing = null;
+    keyPoint = null;
     showMark();
     layout();
   }
@@ -356,7 +361,18 @@
   }
 
   function showMark() {
-    photoBox.classList.toggle('is-drawing', tool === 'markup' || tool === 'hide');
+    const drawingTool = tool === 'markup' || tool === 'hide';
+    photoBox.classList.toggle('is-drawing', drawingTool);
+    // The photo can be reached with the keyboard only while there is something to do on it.
+    if (drawingTool) {
+      photoBox.tabIndex = 0;
+      photoBox.setAttribute('role', 'group');
+      photoBox.setAttribute('aria-label', `Photo. ${KEY_HINT}`);
+    } else {
+      photoBox.removeAttribute('tabindex');
+      photoBox.removeAttribute('role');
+      photoBox.removeAttribute('aria-label');
+    }
     for (const button of Array.from(markKinds.children)) {
       button.setAttribute('aria-pressed', String(button.dataset.kind === mark.kind));
     }
@@ -422,37 +438,24 @@
     return { x: Math.round(point.x), y: Math.round(point.y) };
   }
 
-  photoBox.addEventListener('pointerdown', (event) => {
-    if (!current || showingOriginal || (tool !== 'markup' && tool !== 'hide')) return;
-    event.preventDefault();
-    const point = roundPoint(photoPoint(event));
-    if (tool === 'markup' && (mark.kind === 'text' || mark.kind === 'number')) {
-      const measures = core.markMeasures(currentSize(), mark.size);
-      const shape = { type: 'shape', kind: mark.kind, colour: mark.colour, text: measures.text, x: point.x, y: point.y };
-      if (mark.kind === 'number') {
-        addStep({ ...shape, number: numbersPlaced() + 1 });
-      } else if (markText.value.trim()) {
-        addStep({ ...shape, words: markText.value.trim() });
-      } else {
-        markNote.className = 'phot-hint phot-hint--warning';
-        markNote.textContent = 'Type the words first, then press the photo.';
-        markText.focus();
-      }
-      return;
+  /** Places a text or a number at a point. False when the mark in hand is one that is dragged out. */
+  function placeAt(point) {
+    if (tool !== 'markup' || (mark.kind !== 'text' && mark.kind !== 'number')) return false;
+    const measures = core.markMeasures(currentSize(), mark.size);
+    const shape = { type: 'shape', kind: mark.kind, colour: mark.colour, text: measures.text, x: point.x, y: point.y };
+    if (mark.kind === 'number') {
+      addStep({ ...shape, number: numbersPlaced() + 1 });
+    } else if (markText.value.trim()) {
+      addStep({ ...shape, words: markText.value.trim() });
+    } else {
+      markNote.className = 'phot-hint phot-hint--warning';
+      markNote.textContent = 'Type the words first, then press the photo.';
+      markText.focus();
     }
-    photoBox.setPointerCapture(event.pointerId);
-    drawing = { hide: tool === 'hide', from: point, to: point, points: [point] };
-  });
+    return true;
+  }
 
-  photoBox.addEventListener('pointermove', (event) => {
-    if (!drawing) return;
-    drawing.to = roundPoint(photoPoint(event));
-    drawing.points.push(drawing.to);
-    layout();
-  });
-
-  photoBox.addEventListener('pointerup', () => {
-    if (!drawing) return;
+  function finishDrawing() {
     const step = pendingStep();
     drawing = null;
     if (step) {
@@ -460,9 +463,97 @@
     } else {
       layout();
     }
+  }
+
+  photoBox.addEventListener('pointerdown', (event) => {
+    if (!current || showingOriginal || (tool !== 'markup' && tool !== 'hide')) return;
+    event.preventDefault();
+    keyPoint = null;
+    const point = roundPoint(photoPoint(event));
+    if (placeAt(point)) return;
+    photoBox.setPointerCapture(event.pointerId);
+    drawing = { hide: tool === 'hide', from: point, to: point, points: [point] };
+  });
+
+  // Keyboard: a cross on the photo stands in for the pointer. Enter presses where the cross is.
+  function drawCross(context) {
+    const scale = canvas.width / currentSize().width;
+    const ratio = window.devicePixelRatio || 1;
+    const x = keyPoint.x * scale;
+    const y = keyPoint.y * scale;
+    const arm = 12 * ratio;
+    // Dark under light, so the cross shows on any photo.
+    for (const [colour, width] of [['#111827', 4 * ratio], ['#ffffff', 2 * ratio]]) {
+      context.strokeStyle = colour;
+      context.lineWidth = width;
+      context.beginPath();
+      context.moveTo(x - arm, y);
+      context.lineTo(x + arm, y);
+      context.moveTo(x, y - arm);
+      context.lineTo(x, y + arm);
+      context.stroke();
+    }
+  }
+
+  photoBox.addEventListener('keydown', (event) => {
+    if (!current || showingOriginal || (tool !== 'markup' && tool !== 'hide')) return;
+    const moves = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    const move = moves[event.key];
+    const press = event.key === 'Enter' || event.key === ' ';
+    const cancel = event.key === 'Escape' && drawing;
+    if (!move && !press && !cancel) return;
+    event.preventDefault();
+    hint.textContent = KEY_HINT;
+    const size = currentSize();
+    const from = keyPoint || { x: Math.round(size.width / 2), y: Math.round(size.height / 2) };
+    if (move) {
+      const step = Math.max(1, Math.round(Math.max(size.width, size.height) / (event.shiftKey ? 400 : 50)));
+      keyPoint = {
+        x: Math.min(size.width, Math.max(0, from.x + move[0] * step)),
+        y: Math.min(size.height, Math.max(0, from.y + move[1] * step))
+      };
+      if (drawing) {
+        drawing.to = keyPoint;
+        drawing.points.push(keyPoint);
+      }
+      layout();
+    } else if (cancel) {
+      drawing = null;
+      layout();
+    } else if (drawing) {
+      finishDrawing();
+    } else {
+      keyPoint = from;
+      if (!placeAt(keyPoint)) {
+        drawing = { hide: tool === 'hide', keys: true, from: keyPoint, to: keyPoint, points: [keyPoint] };
+        layout();
+      }
+    }
+  });
+
+  photoBox.addEventListener('blur', () => {
+    if (!keyPoint) return;
+    keyPoint = null;
+    drawing = null;
+    hint.textContent = HINTS[tool];
+    layout();
+  });
+
+  // A mark started with the keyboard follows the cross only: a mouse passing over the photo
+  // must not change it.
+  photoBox.addEventListener('pointermove', (event) => {
+    if (!drawing || drawing.keys) return;
+    drawing.to = roundPoint(photoPoint(event));
+    drawing.points.push(drawing.to);
+    layout();
+  });
+
+  photoBox.addEventListener('pointerup', () => {
+    if (drawing && !drawing.keys) finishDrawing();
   });
 
   photoBox.addEventListener('pointercancel', () => {
+    if (!drawing || drawing.keys) return;
     drawing = null;
     layout();
   });
