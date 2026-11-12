@@ -110,3 +110,20 @@ test('both pages load the script, and the phone rules use theme tokens and 44px 
     assert.match(rules, /\.people-queues \.photos-chip \{ min-height:2\.75rem; \}/);
     assert.match(rules, /\.face-triage-card:has\(:focus-visible\)/);
 });
+
+test('the review cards on a phone: Yes and No side by side, readable labels, a visible keyboard focus', () => {
+    const css = read('wwwroot/css/pages/photos-people.css');
+    const rules = css.slice(css.indexOf('/* Sort and filter for the faces'));
+    assert.doesNotMatch(rules, /#[0-9a-f]{3,8}\b|rgba?\(/i, 'theme tokens only');
+    // "Is this …?": the two answers share a row and fill it; the quieter choices wrap.
+    assert.match(rules, /\.face-candidate--with-portrait form:first-of-type \{ grid-column:1 \/ 3; \}/);
+    assert.match(rules, /\.face-candidate--with-portrait form:last-of-type \{ grid-column:3; \}/);
+    assert.match(css, /\.face-review-card__secondary-actions \{ align-items: stretch; flex-direction: row; flex-wrap: wrap; \}/);
+    assert.match(css, /\.face-review-card__face \{ height: 13rem; min-height: 0; \}/);
+    // "Same person?": Tick all is a full-height target and a face shows keyboard focus.
+    assert.match(rules, /\.identity-group-card \[data-toggle-group-selection\] \{[^}]*min-height:2\.75rem/);
+    assert.match(rules, /\.identity-group-face:has\(\.identity-group-face__checkbox:focus-visible\) \{ outline:2px solid var\(--pm-primary\)/);
+    // The "Less sure" and likeness labels were under 10px.
+    assert.match(css, /\.identity-similarity em \{\s+font-size: \.68rem;/);
+    assert.match(css, /\.candidate-strength \{ border-radius: 999px; font-size: \.68rem;/);
+});
