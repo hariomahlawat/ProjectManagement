@@ -65,6 +65,17 @@ test('toGreyscale makes every pixel grey and leaves transparency alone', () => {
   assert.deepEqual(Array.from(pixels), [76, 76, 76, 255, 150, 150, 150, 128, 10, 10, 10, 0]);
 });
 
+test('retryUnderOriginal asks for a smaller file only when quality can give one', () => {
+  const jpg = { lossy: true, sameType: true };
+  assert.equal(tools.retryUnderOriginal({ ...jpg, resultBytes: 90_000, originalBytes: 60_000 }), 59_999);
+  assert.equal(tools.retryUnderOriginal({ ...jpg, resultBytes: 60_000, originalBytes: 60_000 }), 59_999, 'the same size is no reduction');
+  assert.equal(tools.retryUnderOriginal({ ...jpg, resultBytes: 40_000, originalBytes: 60_000 }), null, 'already smaller');
+  // A PNG has no quality to lower, and a PNG saved as JPG is a different kind of file.
+  assert.equal(tools.retryUnderOriginal({ lossy: false, sameType: true, resultBytes: 90_000, originalBytes: 60_000 }), null);
+  assert.equal(tools.retryUnderOriginal({ lossy: true, sameType: false, resultBytes: 80_000, originalBytes: 25_000 }), null);
+  assert.equal(tools.retryUnderOriginal({ ...jpg, resultBytes: 5, originalBytes: 1 }), null);
+});
+
 test('encodeToTarget without a target encodes once', async () => {
   const { encode, calls } = fakeEncoder(0.5);
   const result = await tools.encodeToTarget({ encode, width: 100, height: 100, lossy: true });

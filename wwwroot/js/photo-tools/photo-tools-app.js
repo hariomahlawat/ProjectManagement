@@ -188,14 +188,33 @@
         }
         return canvasToBytes(drawn, type, quality);
       };
-      const result = await core.encodeToTarget({
+      let result = await core.encodeToTarget({
         encode,
         width: start.width,
         height: start.height,
         lossy: type.lossy,
         targetBytes: settings.targetBytes
       });
-      return { ...result, type };
+      // A photo that was already small can come out bigger at top quality. Saved in its own
+      // type, a lower quality at the same dimensions gets it under the original.
+      const under = core.retryUnderOriginal({
+        resultBytes: result.bytes.length,
+        originalBytes: photo.file.size,
+        lossy: type.lossy,
+        sameType: type.mime === photo.file.type
+      });
+      if (under) {
+        const again = await core.encodeToTarget({
+          encode,
+          width: result.width,
+          height: result.height,
+          lossy: true,
+          targetBytes: under,
+          fixedSize: true
+        });
+        if (again.reached) result = { ...again, reached: result.reached };
+      }
+      return { ...result, type, bigger: result.bytes.length >= photo.file.size };
     } finally {
       if (typeof source.close === 'function') source.close();
     }
@@ -332,8 +351,14 @@
     const size = cell('phot-num');
     if (photo.status === 'done') {
       after.textContent = core.formatBytes(photo.result.bytes.length);
-      after.classList.toggle('is-over', !photo.result.reached);
-      if (!photo.result.reached) after.title = 'This is the smallest this photo can be made.';
+      after.classList.toggle('is-over', !photo.result.reached || photo.result.bigger);
+      if (photo.result.bigger) {
+        // Never shown as a saving: the file grew.
+        after.textContent += ' (not smaller)';
+        after.title = 'This is no smaller than the original. The photo was already small for its type.';
+      } else if (!photo.result.reached) {
+        after.title = 'This is the smallest this photo can be made.';
+      }
       size.textContent = `${photo.result.width} × ${photo.result.height}`;
     } else if (photo.status === 'error') {
       after.textContent = photo.error;
@@ -409,6 +434,12 @@
     const notes = [];
     if (!pending && settings.targetBytes && done.length > reached) {
       notes.push('Photos shown in amber are as small as they can be made.');
+    }
+    const bigger = done.filter(photo => photo.result.bigger).length;
+    if (!pending && bigger) {
+      notes.push(bigger === 1
+        ? '1 photo came out no smaller than the original and is marked. It was already small; use the original, or choose smaller dimensions.'
+        : `${bigger} photos came out no smaller than the originals and are marked. They were already small; use the originals, or choose smaller dimensions.`);
     }
     if (!pending && failed) {
       notes.push(failed === 1 ? '1 photo could not be reduced and is left out.' : `${failed} photos could not be reduced and are left out.`);

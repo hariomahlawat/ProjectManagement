@@ -1381,6 +1381,17 @@
   // ---------------------------------------------------------------------------
 
   /**
+   * A reduced photo that came out no smaller than the file it was made from is no reduction.
+   * When it was saved in the type it already had, and that type has a quality setting, a lower
+   * quality will get under the original: this gives the size to try again under. Null when the
+   * photo is already smaller, or when quality cannot help (a PNG, or a change of type).
+   */
+  function retryUnderOriginal({ resultBytes, originalBytes, lossy, sameType }) {
+    if (!(originalBytes > 1) || resultBytes < originalBytes) return null;
+    return lossy && sameType ? originalBytes - 1 : null;
+  }
+
+  /**
    * Finds the best-looking encoding that fits a file size.
    *
    * encode(width, height, quality) → Promise<Uint8Array>. For JPG and WEBP the quality is
@@ -1507,6 +1518,7 @@
     HIDE_MODES,
     hideBlock,
     hidePixels,
+    retryUnderOriginal,
     encodeToTarget
   });
 });
