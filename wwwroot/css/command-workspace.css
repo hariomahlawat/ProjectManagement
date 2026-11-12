@@ -41,7 +41,8 @@
     --cw-lens-thumb:var(--cw-card);
 }
 
-.command-workspace { width:100%; margin:8px auto 28px; color:var(--cw-ink); }
+/* No bottom margin: the page shell already leaves space above the footer. */
+.command-workspace { width:100%; margin:8px auto 0; color:var(--cw-ink); }
 .cw-page-header { margin:0 0 .85rem; }
 .cw-page-header__eyebrow { display:block; margin-bottom:.16rem; color:var(--cw-blue); font-size:.6875rem; font-weight:750; letter-spacing:.105em; text-transform:uppercase; }
 .cw-page-header h1 { margin:0; color:var(--cw-ink); font-size:clamp(1.35rem,2vw,1.72rem); font-weight:700; letter-spacing:-.02em; }
@@ -192,6 +193,10 @@
 /* SECTION: Unified personal + command workspace navigation */
 .command-workspace {
     --cw-nav-width:252px;
+    /* What sits under the workspace: the shell's bottom padding (28px + 8px) and the footer
+       (about 40px). The rail stops short of it, so a page whose content fits the window does
+       not scroll just because the rail is as tall as the window. */
+    --cw-below:76px;
     display:grid;
     grid-template-columns:var(--cw-nav-width) minmax(0,1fr);
     align-items:start;
@@ -223,7 +228,7 @@
     top:72px;
     z-index:36;
     width:100%;
-    max-height:calc(100vh - 88px);
+    max-height:calc(100vh - 72px - var(--cw-below));
     padding:10px 10px 12px;
     overflow-x:hidden;
     overflow-y:auto;
