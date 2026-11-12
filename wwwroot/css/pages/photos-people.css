@@ -307,11 +307,11 @@
     .person-photo-section > header { align-items: flex-start; flex-direction: column; gap: .35rem; }
     .person-photo-section > header p { text-align: left; }
     .face-review-card { grid-template-columns: 1fr; }
-    .face-review-card__face { max-height: 18rem; min-height: 0; }
+    .face-review-card__face { height: 13rem; min-height: 0; }
     .face-candidate { grid-template-columns: 1fr 1fr; }
     .face-candidate__identity { grid-column: 1 / -1; }
     .face-create-person { grid-template-columns: 1fr; }
-    .face-review-card__secondary-actions { align-items: stretch; flex-direction: column; }
+    .face-review-card__secondary-actions { align-items: stretch; flex-direction: row; flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -408,7 +408,7 @@
 .identity-group-actions > div { align-items: end; display: grid; gap: .42rem; grid-template-columns: minmax(0, 1fr) auto; }
 .identity-group-actions label { font-size: .7rem; font-weight: 750; grid-column: 1 / -1; }
 
-.candidate-strength { border-radius: 999px; font-size: .58rem; font-style: normal; font-weight: 800; margin-left: .35rem; padding: .12rem .32rem; text-transform: uppercase; }
+.candidate-strength { border-radius: 999px; font-size: .68rem; font-style: normal; font-weight: 800; margin-left: .35rem; padding: .12rem .32rem; text-transform: uppercase; }
 .candidate-strength.is-strong { background: #dff4e8; color: #19683e; }
 .candidate-strength.is-ambiguous { background: #fff0cf; color: #835a00; }
 
@@ -880,7 +880,7 @@
     padding: .2rem .3rem !important;
 }
 .identity-similarity em {
-    font-size: .54rem;
+    font-size: .68rem;
     font-style: normal;
     font-weight: 800;
     letter-spacing: .025em;
@@ -1884,8 +1884,26 @@ a.identity-workload-pill:hover {
 .face-triage-card:has(:focus-visible),
 .person-photo-card:has(.person-photo-card__select :focus-visible) { outline:2px solid var(--pm-primary); outline-offset:2px; }
 
+/* A face in a group, reached by keyboard: its tick box is hidden, so the tile shows the focus. */
+.identity-group-face:has(.identity-group-face__checkbox:focus-visible) { outline:2px solid var(--pm-primary); outline-offset:2px; }
+
 /* Phones: faces start near the top, and everything pressed is at least 44px. */
 @media (max-width: 575.98px) {
+    .identity-group-card [data-toggle-group-selection] { align-items:center; display:inline-flex; min-height:2.75rem; }
+    /* The link that opens the picture: the same mark, with a larger area to press. */
+    .identity-group-face__open::after { content:""; inset:-.7rem; position:absolute; }
+    /* "Is this …?" on a phone: a shorter face so the question is in view, Yes and No side by
+       side, and the quieter choices in one wrapping row. */
+    .face-review-card__select { min-height:2.75rem; min-width:2.75rem; justify-content:center; }
+    .face-candidate--with-portrait { grid-template-columns:3rem minmax(0, 1fr) minmax(0, 1fr); }
+    .face-candidate--with-portrait .face-candidate__identity { grid-column:2 / -1; }
+    .face-candidate--with-portrait form:first-of-type { grid-column:1 / 3; }
+    .face-candidate--with-portrait form:last-of-type { grid-column:3; }
+    .face-candidate form .btn,
+    .face-review-card__secondary-actions form .btn { width:100%; }
+    .face-candidate .candidate-strength { display:inline-block; margin-left:0; }
+    .face-candidate__identity strong a { text-decoration:underline; }
+    .face-review-card__secondary-actions form { flex:1 1 auto; }
     .face-review-queue-controls { gap:.5rem; padding:.6rem; }
     .face-review-more > summary { align-items:center; color:var(--pm-primary); cursor:pointer; display:flex; font-size:.86rem; font-weight:700; gap:.4rem; list-style:none; min-height:2.75rem; }
     .face-review-more > summary::-webkit-details-marker { display:none; }
