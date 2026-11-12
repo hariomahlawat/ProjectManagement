@@ -931,3 +931,27 @@ test('changeBackground keeps cloth of the wall colour, because cloth is not smoo
     assert.deepEqual(rgbAt(pixels, w, x, y), rgbAt(before, w, x, y), `jacket at ${x},${y}`);
   }
 });
+
+test('applyBackgroundFixes brings the photo back under red and removes under blue', () => {
+  // Four pixels of a changed photo (all light blue), the photo before, and the strokes.
+  const changed = new Uint8ClampedArray([...BLUE, 255, ...BLUE, 255, ...BLUE, 255, 90, 80, 70, 200]);
+  const before = new Uint8ClampedArray([...COAT, 255, ...COAT, 255, ...WALL, 255, 90, 80, 70, 200]);
+  const mask = new Uint8ClampedArray([
+    255, 0, 0, 255, // bring back, full strength
+    255, 0, 0, 128, // bring back, the soft rim of a stroke
+    0, 0, 0, 0, // not painted
+    0, 0, 255, 255 // remove
+  ]);
+  tools.applyBackgroundFixes(changed, before, mask, BLUE);
+
+  assert.deepEqual(Array.from(changed.slice(0, 3)), COAT, 'the coat is back');
+  const rim = Array.from(changed.slice(4, 7));
+  rim.forEach((value, channel) => {
+    const low = Math.min(COAT[channel], BLUE[channel]);
+    const high = Math.max(COAT[channel], BLUE[channel]);
+    assert.ok(value > low && value < high, `rim channel ${channel} is between the two`);
+  });
+  assert.deepEqual(Array.from(changed.slice(8, 11)), BLUE, 'an unpainted pixel is left alone');
+  assert.deepEqual(Array.from(changed.slice(12, 15)), BLUE, 'a removed pixel gets the new colour');
+  assert.deepEqual([changed[3], changed[7], changed[11], changed[15]], [255, 255, 255, 200], 'alpha is not touched');
+});

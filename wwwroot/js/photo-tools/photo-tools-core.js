@@ -716,6 +716,27 @@
   }
 
   /**
+   * Lays fixes made by hand over a photo whose background was changed. `original` is the photo
+   * before the change and `mask` a picture of the brush strokes, all three RGBA of one size:
+   * where the mask is red the original is brought back, where it is blue the pixel gets the
+   * background colour, and its alpha says how strongly (the soft rim of a stroke). Alpha of the
+   * photo is not touched.
+   */
+  function applyBackgroundFixes(pixels, original, mask, colour) {
+    for (let i = 0; i < pixels.length; i += 4) {
+      const strength = mask[i + 3] / 255;
+      if (!strength) continue;
+      const back = mask[i] / 255 * strength;
+      const away = mask[i + 2] / 255 * strength;
+      const stay = Math.max(0, 1 - back - away);
+      pixels[i] = Math.round(pixels[i] * stay + original[i] * back + colour[0] * away);
+      pixels[i + 1] = Math.round(pixels[i + 1] * stay + original[i + 1] * back + colour[1] * away);
+      pixels[i + 2] = Math.round(pixels[i + 2] * stay + original[i + 2] * back + colour[2] * away);
+    }
+    return pixels;
+  }
+
+  /**
    * Finds the paper and the ink in a photographed signature: the paper is the usual brightness
    * (most of the picture), the ink the darkest half percent. Null when there is no clear ink.
    */
@@ -1485,6 +1506,7 @@
     BACKGROUND_STATUS,
     measureBackground,
     changeBackground,
+    applyBackgroundFixes,
     sheetPdfPlan,
     coverCrop,
     coverScale,
