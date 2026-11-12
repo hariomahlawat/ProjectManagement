@@ -4,25 +4,6 @@
 .photos-hero { margin-bottom:.28rem; padding-bottom:.25rem; }
 .photos-hero:not(.photos-hero--person) h1 { font-size:clamp(2rem,2.65vw,2.65rem); margin:.16rem 0 .28rem; }
 .photos-hero:not(.photos-hero--person) p { font-size:.84rem; line-height:1.35; }
-.photos-primary-tabs { gap:1.45rem; margin-bottom:.55rem; margin-top:.18rem; }
-.photos-primary-tabs a { padding:.58rem .1rem .55rem; }
-.photos-collection-tabs {
-    align-items:center;
-    display:flex;
-    gap:.3rem;
-    margin:.24rem 0 .55rem;
-}
-.photos-collection-tabs a {
-    border:1px solid transparent;
-    border-radius:999px;
-    color:#65748a;
-    font-size:.73rem;
-    font-weight:750;
-    padding:.36rem .72rem;
-    text-decoration:none;
-}
-.photos-collection-tabs a:hover { background:#f2f5f9; color:#284f95; }
-.photos-collection-tabs a.is-active { background:#eaf1ff; border-color:#d4e1ff; color:#2557c7; }
 .photos-action--primary { background:#285fd5; border-color:#285fd5; color:#fff; }
 .photos-action--primary:hover { background:#1f51bf; color:#fff; }
 .photos-control.is-active { background:#edf3ff; color:#2457c5; }
@@ -188,7 +169,6 @@
     .photos-album-context__actions { flex-wrap:wrap; }
     .photos-add-target { align-items:stretch; flex-direction:column; }
     .photos-add-target > a { align-self:flex-start; }
-    .photos-collection-tabs { overflow-x:auto; }
     .photos-organize-status { bottom:.5rem; max-width:calc(100vw - 1rem); text-align:center; width:max-content; }
 }
 
@@ -204,20 +184,6 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-:where([data-bs-theme="dark"]) .photos-collection-tabs a {
-    color: #9aa0a6;
-}
-
-:where([data-bs-theme="dark"]) .photos-collection-tabs a:hover {
-    background: #1e2125;
-    color: #6ea8fe;
-}
-
-:where([data-bs-theme="dark"]) .photos-collection-tabs a.is-active {
-    background: color-mix(in srgb, #6ea8fe 9%, #16181b);
-    border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
-    color: #6ea8fe;
-}
 
 :where([data-bs-theme="dark"]) .photos-action--primary {
     background: #285fd5;

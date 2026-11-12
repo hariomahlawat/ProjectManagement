@@ -372,13 +372,6 @@
     margin-left: auto;
 }
 
-.person-photo-discovery__more {
-    border-top: 1px solid #e8edf3;
-    color: #778498;
-    font-size: .69rem;
-    padding: .55rem 1rem .65rem;
-}
-
 .person-photo-discovery__notice {
     background: #edf8f1;
     border-top: 1px solid #d7eadd;
@@ -786,11 +779,6 @@
 
 :where([data-bs-theme="dark"]) .person-photo-discovery__empty small {
     color: #fbbf24;
-}
-
-:where([data-bs-theme="dark"]) .person-photo-discovery__more {
-    border-top: 1px solid #2c3035;
-    color: #9aa0a6;
 }
 
 :where([data-bs-theme="dark"]) .person-photo-discovery__notice {

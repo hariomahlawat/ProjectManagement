@@ -2,8 +2,8 @@
 
 The Photos library brings every picture and video in PRISM (projects, visits, events,
 activities and approved external folders) into one place, with albums and people. This document
-records the review of 11 Nov 2026, the direction the owner approved, and the build plan.
-Nothing here is built yet.
+records the review of 11 Nov 2026, the direction the owner approved, the build plan, and what
+was built (12 Nov 2026).
 
 It is separate from Photo Tools (`/Tools/Photo`, see [photo-tools.md](photo-tools.md)), which
 works only on a user's own files.
@@ -95,6 +95,29 @@ Small PRs, each shippable on its own. Order puts the cheapest visible gains firs
 | 10 | Albums and Collections pages | Three-picture covers, "New album" tile, collections grouped by type, album page header in the new style | Low |
 | 11 | People directory and person page | Round portraits, person page header in the new style; review and identity pages untouched | Low |
 | 12 | Clean-up and phones | Move photo stylesheets to tokens, remove the override layers, one button style, phone pass on every screen | Low, wide |
+
+## What was built, and where it differs from the plan
+
+All twelve steps were built as separate PRs. Differences from the plan above:
+
+| Step | Difference | Why |
+| --- | --- | --- |
+| 2 Tiles | Tiles ask for the `sm` size only, not `sm` / `xs` with `srcset` | `xs` (400 x 300) is too small for the tallest rows. A tile falls back once to the `md` thumbnail if `sm` cannot be loaded, so a library without that size keeps working |
+| 5 Scroll | The next part comes from a `TimelinePart` handler on the Photos page that runs the page's own loading | Same filters, paging and visibility as the page, with no second copy of the rules. A redirected answer (expired sign-in) or a failed part brings back the page links, pointing at the part that failed |
+| 5 Month list | Month counts are grouped in the server's local time (standard offset) | The timeline shows local dates. In a zone with daylight saving, a picture within an hour of a month boundary in summer can be counted in the neighbouring month |
+| 8 Viewer | The thumbnail strip shows ten pictures each side of the current one | A long timeline then costs no more than a short one. Project and visit pages show no strip because they give no thumbnails |
+| 9 Search | Suggestions cover people, projects and years, from the lists the page already holds. No new handler; visits and events are found by typing and pressing Enter | Nothing new to secure, and nothing offered that the filter drawer does not already offer |
+| 10 Albums | Covers stay single pictures | Three-picture covers need a change to the album service |
+| 11 People | The person's own page keeps its header | It already matched the new bar once the sections changed |
+| 12 Clean-up | Unused rules were removed from the four photo stylesheets (about 480 lines). The remaining hard-coded colours were not all moved to tokens | New rules use tokens only and the literal-colour check stops the count growing; a full conversion is a separate, purely visual job |
+
+Not done, and still open:
+
+- A check against a library copy with several thousand items (scroll and memory behaviour). The
+  local data has 18 items; continuous scroll was exercised with the page size lowered to 5.
+- The viewer's animations were not watched live (the test browser throttles animation); their
+  end states and the logic are covered by tests.
+- People review and identity pages (`/Photos/People/Review`, `/Photos/People/Details`).
 
 ## How each step is checked
 
