@@ -51,6 +51,8 @@ test('the timeline continues while scrolling and keeps the page links as a fallb
     assert.match(photosPage, /data-photos-pagination/);
     assert.match(pageModel, /OnGetTimelinePartAsync/);
     assert.match(pageModel, /await OnGetAsync\(cancellationToken\);/);
+    // A part asks for the rows alone: no figures, filter lists, person profile or album choices.
+    assert.match(pageModel, /IncludeFilterFacets: !IsTimelinePart/);
     assert.match(libraryScript, /X-Photos-Next-Part/);
     // After a failed part the Next link continues from the part that failed.
     assert.match(photosPage, /data-photos-next-page/);
