@@ -70,6 +70,22 @@ public sealed class PhotoToolsPageContractTests
     }
 
     [Fact]
+    public void Page_LoadsThePdfLibraryFromTheApplicationBeforePrintSheet()
+    {
+        var root = FindProjectRoot();
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Photo", "Index.cshtml"));
+
+        Assert.True(
+            File.Exists(Path.Combine(root, "wwwroot", "lib", "pdf-lib", "1.17.1", "dist", "pdf-lib.min.js")),
+            "pdf-lib must ship with the application.");
+
+        var library = page.IndexOf("~/lib/pdf-lib/1.17.1/dist/pdf-lib.min.js", StringComparison.Ordinal);
+        var print = page.IndexOf("~/js/photo-tools/photo-tools-print.js", StringComparison.Ordinal);
+
+        Assert.True(library >= 0 && library < print, "Print sheet needs pdf-lib loaded before photo-tools-print.js.");
+    }
+
+    [Fact]
     public void PdfTools_LoadsTheSharedZipWriterBeforeItsCore()
     {
         var page = File.ReadAllText(Path.Combine(FindProjectRoot(), "Pages", "Tools", "Pdf", "Index.cshtml"));
