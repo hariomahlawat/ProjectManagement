@@ -52,6 +52,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Top bar, Dashboard and workspace headers](ux/app-shell-and-dashboard.md) | What a signed-in user sees first: top-bar fit rules by width, the Dashboard greeting header, workspace page headers and minimum type sizes. |
 | [Photos library](ux/photos-library.md) | The `/Photos` library: review findings of 11 Nov 2026, the approved design (continuous timeline, viewer, selecting, albums, people) and the 12-step build plan. |
 | [Photos library: review fixes](ux/photos-library-review-fixes.md) | The review of 12 Nov 2026 after the redesign shipped (usability 7.5, code 7), its findings and the 10-step fix plan. |
+| [People review and identity pages](ux/people-review.md) | `/Photos/People/Review` and a person's identity page: findings of 12 Nov 2026 against real faces, the approved design (three plain queues, one name field, Undo) and the 10-step build plan. |
 | [Navigation drawer (Menu)](ux/navigation-drawer.md) | The Menu drawer: its fixed sections, what belongs in it (areas, not settings or actions), behaviour, compatibility and the reachability rule. |
 | [Project Office Reports](ProjectOfficeReports_Directions.md) | Visits, Social Media, Proliferation, ToT, IPR and related reports. |
 | [Timeline pipeline](timeline.md) | Canonical timeline rules, implemented plan revision behavior and remaining target semantics. |
