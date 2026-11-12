@@ -299,6 +299,12 @@
         if (previousGroupingRefreshing && !data.groupingRefreshPending && data.groupingSnapshotAvailable) {
             liveStatus.textContent = "The groups have changed. Reload to see them.";
             if (groupingRefreshAction instanceof HTMLElement) groupingRefreshAction.hidden = false;
+            // The Reload link lives in the notice, so the notice shows while reloading is offered.
+            if (groupingRefreshNotice instanceof HTMLElement) {
+                groupingRefreshNotice.hidden = false;
+                const copy = groupingRefreshNotice.querySelector("[data-grouping-refresh-copy]");
+                if (copy instanceof HTMLElement) copy.textContent = "New groups are ready.";
+            }
             return;
         }
 
@@ -351,8 +357,10 @@
             const groupingRefreshFailed = Boolean(data.groupingFailureReason);
             groupingRefreshNotice.classList.toggle("is-refreshing", data.groupingRefreshPending && !groupingRefreshFailed);
             groupingRefreshNotice.classList.toggle("has-failure", groupingRefreshFailed);
-            // Said only while the groups are being rebuilt or could not be.
-            groupingRefreshNotice.hidden = !groupingRefreshFailed && !data.groupingRefreshPending;
+            // Said only while the groups are being rebuilt or could not be, and while the page
+            // is offering to reload them once they are ready.
+            const reloadOffered = groupingRefreshAction instanceof HTMLElement && !groupingRefreshAction.hidden;
+            groupingRefreshNotice.hidden = !groupingRefreshFailed && !data.groupingRefreshPending && !reloadOffered;
             const copy = groupingRefreshNotice.querySelector("[data-grouping-refresh-copy]");
             if (copy instanceof HTMLElement) {
                 if (groupingRefreshFailed) {
@@ -364,7 +372,7 @@
                         ? "PRISM is grouping the faces again. These groups stay until the new ones are ready."
                         : "PRISM is grouping the faces. The groups appear here when they are ready.";
                 } else if (data.groupingSnapshotAvailable) {
-                    copy.textContent = "The groups are up to date.";
+                    copy.textContent = reloadOffered ? "New groups are ready." : "The groups are up to date.";
                 }
             }
             const stamp = groupingRefreshNotice.querySelector("[data-grouping-refreshed-at]");

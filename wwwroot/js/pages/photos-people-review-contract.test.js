@@ -34,5 +34,7 @@ test('the review page, its messages and its live status use no system terms', ()
 
 test('the grouping notice is shown only while groups are being rebuilt or could not be', () => {
     assert.match(page, /data-grouping-refresh-notice\s+hidden="@\(!Model\.GroupingRefreshing && !Model\.GroupingFailed \? "hidden" : null\)"/);
-    assert.match(script, /groupingRefreshNotice\.hidden = !groupingRefreshFailed && !data\.groupingRefreshPending;/);
+    // The Reload link sits inside the notice, so the notice stays while reloading is offered.
+    assert.match(script, /groupingRefreshNotice\.hidden = !groupingRefreshFailed && !data\.groupingRefreshPending && !reloadOffered;/);
+    assert.match(script, /groupingRefreshAction\.hidden = false;\s+\/\/.*\s+if \(groupingRefreshNotice instanceof HTMLElement\) \{\s+groupingRefreshNotice\.hidden = false;/);
 });
