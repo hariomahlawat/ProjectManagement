@@ -12,7 +12,7 @@ const libraryScript = fs.readFileSync(path.resolve(__dirname, 'photos-library.js
 const tile = (id) => `<div role="button" tabindex="0" class="photos-tile" data-media-item data-media-key="asset-${id}" data-kind="photo"
     data-display-url="/m/${id}" data-title="Picture ${id}" data-aspect-ratio="1.5"><img data-media-image src="/t/${id}" alt=""></div>`;
 const day = (key, label, ids) => `<section class="photos-day" aria-labelledby="day-${key}">
-    <header class="photos-day__header"><h3 id="day-${key}">${label}</h3><span><span data-day-count="${ids.length}">${ids.length} items</span></span></header>
+    <header class="photos-day__header"><h3 id="day-${key}">${label}</h3><span><span data-day-sources>Photos</span> · <span data-day-count="${ids.length}">${ids.length} items</span></span></header>
     <div class="photos-grid">${ids.map(tile).join('')}</div></section>`;
 
 function createPage(responses) {
@@ -118,5 +118,27 @@ test('an expired sign-in (the login page comes back) is not taken for the end of
     assert.equal(q('[data-photos-more-error]').hidden, false);
     assert.equal(q('[data-photos-pagination]').hidden, false);
     assert.equal(q('[data-photos-next-page]').getAttribute('href'), '/Photos?View=photos&PageNumber=2', 'Next still opens the part that was wanted');
+    window.close();
+});
+
+test('a picture already on the page is not added again; a joined day names all its sources', async () => {
+    const sourced = (id, context) => tile(id).replace('data-kind="photo"', `data-kind="photo" data-context="${context}"`);
+    const sourcedDay = (key, label, entries) => `<section class="photos-day" aria-labelledby="day-${key}">
+        <header class="photos-day__header"><h3 id="day-${key}">${label}</h3><span><span data-day-sources>stale</span> · <span data-day-count="${entries.length}">${entries.length} items</span></span></header>
+        <div class="photos-grid">${entries.map(([id, context]) => sourced(id, context)).join('')}</div></section>`;
+    const { window, settle, q, all } = createPage([
+        // Two pictures were catalogued meanwhile, so the next part repeats pictures 1 and 2.
+        { html: `<h2 class="photos-month" id="month-202611">November 2026</h2>${sourcedDay('20261106', 'Friday 6 November', [[1, 'Raising day'], [2, 'Raising day'], [3, 'Visit of delegation'], [4, 'raising day'], [5, 'Trials']])}`,
+          nextUrl: '/Photos?View=photos&PageNumber=3&handler=TimelinePart' },
+        // A part that holds nothing new adds neither a day nor a month heading.
+        { html: `<h2 class="photos-month" id="month-202610">October 2026</h2>${sourcedDay('20261021', 'Wednesday 21 October', [[3, 'Visit of delegation']])}`, nextUrl: '' }
+    ]);
+    await settle();
+
+    assert.deepEqual(all('[data-media-item]').map(node => node.dataset.mediaKey), ['asset-1', 'asset-2', 'asset-3', 'asset-4', 'asset-5']);
+    assert.equal(q('[data-day-count]').textContent, '5 items');
+    assert.equal(q('[data-day-sources]').textContent, 'Visit of delegation · raising day and 1 more', 'names are counted once, whatever their case');
+    assert.deepEqual(all('.photos-month').map(node => node.id), ['month-202611'], 'no heading for a month with nothing new');
+    assert.equal(all('.photos-day').length, 1);
     window.close();
 });

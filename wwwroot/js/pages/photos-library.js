@@ -329,9 +329,16 @@
         grid.classList.add('is-layout-ready');
     }
 
-    const layoutAll = () => root.querySelectorAll('.photos-grid').forEach(layoutGrid);
+    // The width the grids were last laid out for. Every grid is as wide as the library, so a
+    // change of height alone (a part added while scrolling) needs no new layout.
+    let laidOutWidth = -1;
+    const layoutAll = () => {
+        laidOutWidth = root.clientWidth;
+        root.querySelectorAll('.photos-grid').forEach(layoutGrid);
+    };
     let layoutFrame = 0;
     const queueLayout = () => {
+        if (root.clientWidth === laidOutWidth) return;
         cancelAnimationFrame(layoutFrame);
         layoutFrame = requestAnimationFrame(layoutAll);
     };
@@ -366,10 +373,39 @@
 
     const itemLabel = (count) => `${count} item${count === 1 ? '' : 's'}`;
 
+    // What the day's pictures came from: up to two names, then "and N more". The same rule as
+    // the page (IndexModel.DaySourceSummary), for a day that grew while scrolling.
+    const daySourceSummary = (grid) => {
+        const names = [];
+        const seen = new Set();
+        grid.querySelectorAll('[data-media-item]').forEach((tile) => {
+            const name = (tile.dataset.context || '').trim();
+            const key = name.toLowerCase();
+            if (!name || seen.has(key)) return;
+            seen.add(key);
+            names.push(name);
+        });
+        if (names.length === 0) return 'Photos';
+        if (names.length <= 2) return names.join(' · ');
+        return `${names[0]} · ${names[1]} and ${names.length - 2} more`;
+    };
+
     function appendTimelinePart(html) {
         const holder = document.createElement('template');
         holder.innerHTML = html;
         const added = [];
+        const changedGrids = new Set();
+
+        // Pages are counted from the newest picture, so pictures catalogued while the user
+        // scrolls push older ones onto the next part again. A picture already on the page is
+        // not added twice (it would also be selected and sent twice).
+        const onPage = new Set(tiles.map(tile => tile.dataset.mediaKey).filter(Boolean));
+        holder.content.querySelectorAll('[data-media-item]').forEach((tile) => {
+            const key = tile.dataset.mediaKey;
+            if (!key) return;
+            if (onPage.has(key)) tile.remove();
+            else onPage.add(key);
+        });
 
         Array.from(holder.content.children).forEach((node) => {
             if (node.classList.contains('photos-month')) {
@@ -383,22 +419,31 @@
             const existingHeading = headingId ? document.getElementById(headingId) : null;
             const existingDay = existingHeading?.closest('.photos-day');
             const existingGrid = existingDay?.querySelector('.photos-grid');
+            const incoming = Array.from(node.querySelectorAll('[data-media-item]'));
+            if (incoming.length === 0) return;
             if (existingGrid) {
-                const incoming = Array.from(node.querySelectorAll('[data-media-item]'));
                 incoming.forEach(tile => existingGrid.append(tile));
                 added.push(...incoming);
+                changedGrids.add(existingGrid);
                 const count = existingDay.querySelector('[data-day-count]');
                 if (count) {
                     const total = existingGrid.querySelectorAll('[data-media-item]').length;
                     count.dataset.dayCount = String(total);
                     count.textContent = itemLabel(total);
                 }
+                const sources = existingDay.querySelector('[data-day-sources]');
+                if (sources) sources.textContent = daySourceSummary(existingGrid);
                 return;
             }
 
             timeline.append(node);
-            added.push(...node.querySelectorAll('[data-media-item]'));
+            added.push(...incoming);
+            node.querySelectorAll('.photos-grid').forEach(grid => changedGrids.add(grid));
         });
+
+        // A month whose every picture was already on the page is left with no day under it.
+        const lastNode = timeline.lastElementChild;
+        if (lastNode?.classList.contains('photos-month')) lastNode.remove();
 
         if (added.length === 0) return;
         added.forEach((tile) => {
@@ -411,7 +456,9 @@
         tiles = Array.from(root.querySelectorAll('[data-media-item]'));
         items = buildItems();
         mediaViewer.setItems(items);
-        layoutAll();
+        // Only the grids that gained pictures are laid out; the rest have not changed.
+        if (root.clientWidth === laidOutWidth) changedGrids.forEach(layoutGrid);
+        else layoutAll();
         root.dispatchEvent(new CustomEvent('photos:tiles-changed'));
     }
 
