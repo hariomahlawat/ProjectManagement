@@ -685,6 +685,8 @@
       for (let x = left; x < right; x += 1) inFace += mask[y * width + x];
     }
     if (inFace > (right - left) * (bottom - top) * 0.2) return { status: BACKGROUND_STATUS.tooMuch, share };
+    // Asked only where the background is: nothing is painted.
+    if (!colour) return { status: BACKGROUND_STATUS.changed, share, mask };
 
     // The three rows of pixels on the person's side of the boundary: 1 touches the background,
     // 2 touches those, 3 touches those. They are a mix of person and wall (hair, a soft edge).
@@ -738,7 +740,159 @@
         pixels[at + 2] = Math.min(255, Math.max(0, Math.round(pixels[at + 2] + wall * (colour[2] - was[2]))));
       }
     }
-    return { status: BACKGROUND_STATUS.changed, share };
+    return { status: BACKGROUND_STATUS.changed, share, mask };
+  }
+
+  /**
+   * Finds the background without changing the photo. The result is that of changeBackground;
+   * when the status is "changed" (here: found), `mask` holds 1 for each background pixel.
+   */
+  function findBackground(pixels, width, height, amount) {
+    return changeBackground(pixels, width, height, null, amount);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Passport photo checks
+  // ---------------------------------------------------------------------------
+  //
+  // A few things that can be measured without knowing what a face looks like. They are a guide
+  // for the user, not a check against any authority's rules, and the screen says so.
+
+  // Where the face guide on the screen draws its lines, as shares of the photo's height.
+  const PASSPORT_GUIDE = Object.freeze({ top: 0.10, chin: 0.78 });
+
+  /**
+   * Where the person's outline starts and how wide the head is, from a background mask:
+   * `top` is the first row (as a share of the height) where the middle of the photo is person,
+   * and `width` the widest run of person (as a share of the width) across the rows where the
+   * face is. Null when the middle of the photo is never person.
+   */
+  function headOutline(mask, width, height) {
+    const from = Math.floor(width * 0.3);
+    const to = Math.ceil(width * 0.7);
+    // The head starts where the middle stays person for a run of rows (1% of the height): a
+    // line along the edge of a scan, or a mark on the wall, is not the head.
+    const run = Math.max(2, Math.round(height * 0.01));
+    let top = null;
+    let rows = 0;
+    for (let y = 0; y < height && top === null; y += 1) {
+      let person = 0;
+      for (let x = from; x < to; x += 1) person += mask[y * width + x] ? 0 : 1;
+      rows = person >= (to - from) * 0.25 ? rows + 1 : 0;
+      if (rows >= run) top = y - run + 1;
+    }
+    if (top === null) return null;
+
+    // The face is between the guide's two lines; shoulders are below it.
+    const firstRow = Math.floor(height * 0.3);
+    const lastRow = Math.ceil(height * 0.55);
+    const runs = [];
+    for (let y = firstRow; y < lastRow; y += 1) {
+      // The run of person that holds the middle column, so a second person or a plant at the
+      // side is not counted.
+      const middle = y * width + Math.floor(width / 2);
+      if (mask[middle]) continue;
+      let left = Math.floor(width / 2);
+      let right = left;
+      while (left > 0 && !mask[y * width + left - 1]) left -= 1;
+      while (right < width - 1 && !mask[y * width + right + 1]) right += 1;
+      runs.push(right - left + 1);
+    }
+    runs.sort((a, b) => a - b);
+    return {
+      top: top / height,
+      width: runs.length ? runs[Math.floor(runs.length / 2)] / width : null
+    };
+  }
+
+  /**
+   * Looks at a finished passport photo for things a form is likely to reject. Returns a list
+   * of { key, text }: an empty list means none of the checks found a problem.
+   *
+   *   pixels, width, height  the finished photo (RGBA)
+   *   found                  findBackground's result for the photo before any background change
+   *   plain, colour          measureBackground's verdict and colour for that photo
+   *   replaced               the background was given a new colour
+   *   enlarged               how many times the photo is enlarged to fill the frame (1 or less is none)
+   */
+  function passportChecks({ pixels, width, height, found, plain, colour, replaced, enlarged }) {
+    const problems = [];
+    const guide = PASSPORT_GUIDE;
+
+    if (enlarged > 1.2) {
+      problems.push({
+        key: 'enlarged',
+        text: `This part of the photo is small, so it is enlarged about ${(Math.round(enlarged * 10) / 10).toFixed(1)} times and may look soft. Zoom out, or use a photo with more pixels.`
+      });
+    }
+
+    const outline = found && found.status === BACKGROUND_STATUS.changed ? headOutline(found.mask, width, height) : null;
+    if (outline) {
+      if (outline.top <= 0.01) {
+        problems.push({ key: 'head-cut', text: 'The top of the head touches the edge or is cut off. Move the photo down or zoom out.' });
+      } else if (outline.top < guide.top - 0.05) {
+        problems.push({ key: 'head-high', text: 'The head is high in the frame. Move the photo down so the top of the head is near the line.' });
+      } else if (outline.top > guide.top + 0.08) {
+        problems.push({ key: 'head-low', text: 'The head is low or small in the frame. Move the photo up, or zoom in, so the top of the head is near the line.' });
+      }
+      if (outline.width !== null && outline.width > 0.85) {
+        problems.push({ key: 'head-large', text: 'The head fills the frame from side to side. Zoom out so the face sits inside the oval.' });
+      } else if (outline.width !== null && outline.width < 0.33) {
+        problems.push({ key: 'head-small', text: 'The head looks small in the frame. Zoom in so the face fills the oval.' });
+      }
+    }
+
+    if (!replaced) {
+      if (!plain) {
+        problems.push({ key: 'background-busy', text: 'The edges of the photo are not a plain background. Most forms ask for a plain white or light background with some space around the head.' });
+      } else if (0.299 * colour[0] + 0.587 * colour[1] + 0.114 * colour[2] < 150) {
+        problems.push({ key: 'background-dark', text: 'The background is not white or light, which most forms ask for. Background, above, can change it.' });
+      }
+    }
+
+    // The middle of the face, where the guide's oval is.
+    const cx = width / 2;
+    const cy = height * (guide.top + guide.chin) / 2;
+    const rx = width * 0.2;
+    const ry = height * (guide.chin - guide.top) * 0.36;
+    let sum = 0;
+    let count = 0;
+    for (let y = Math.max(0, Math.floor(cy - ry)); y < Math.min(height, Math.ceil(cy + ry)); y += 1) {
+      for (let x = Math.max(0, Math.floor(cx - rx)); x < Math.min(width, Math.ceil(cx + rx)); x += 1) {
+        if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 > 1) continue;
+        const at = (y * width + x) * 4;
+        sum += 0.299 * pixels[at] + 0.587 * pixels[at + 1] + 0.114 * pixels[at + 2];
+        count += 1;
+      }
+    }
+    const light = count ? sum / count : 128;
+    if (light < 80) {
+      problems.push({ key: 'face-dark', text: 'The face looks dark. Try Fix lighting, or raise Brightness.' });
+    } else if (light > 222) {
+      problems.push({ key: 'face-bright', text: 'The face looks washed out. Lower Brightness, or use a photo with less light on the face.' });
+    }
+    return problems;
+  }
+
+  /**
+   * Lays fixes made by hand over a photo whose background was changed. `original` is the photo
+   * before the change and `mask` a picture of the brush strokes, all three RGBA of one size:
+   * where the mask is red the original is brought back, where it is blue the pixel gets the
+   * background colour, and its alpha says how strongly (the soft rim of a stroke). Alpha of the
+   * photo is not touched.
+   */
+  function applyBackgroundFixes(pixels, original, mask, colour) {
+    for (let i = 0; i < pixels.length; i += 4) {
+      const strength = mask[i + 3] / 255;
+      if (!strength) continue;
+      const back = mask[i] / 255 * strength;
+      const away = mask[i + 2] / 255 * strength;
+      const stay = Math.max(0, 1 - back - away);
+      pixels[i] = Math.round(pixels[i] * stay + original[i] * back + colour[0] * away);
+      pixels[i + 1] = Math.round(pixels[i + 1] * stay + original[i + 1] * back + colour[1] * away);
+      pixels[i + 2] = Math.round(pixels[i + 2] * stay + original[i + 2] * back + colour[2] * away);
+    }
+    return pixels;
   }
 
   /**
@@ -1534,6 +1688,10 @@
     BACKGROUND_STATUS,
     measureBackground,
     changeBackground,
+    findBackground,
+    PASSPORT_GUIDE,
+    headOutline,
+    passportChecks,
     applyBackgroundFixes,
     sheetPdfPlan,
     coverCrop,

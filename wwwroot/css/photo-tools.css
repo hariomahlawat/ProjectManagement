@@ -819,8 +819,52 @@
     gap: 0.5rem 0.75rem;
 }
 
+/* On the tinted box the outline buttons need a surface of their own to read as buttons. */
+.phot-bgfix .btn-outline-secondary {
+    --bs-btn-bg: var(--pdft-surface);
+}
+
 .phot-crop.is-painting {
     cursor: crosshair;
+}
+
+/* ---------- Passport photo: checks before saving ---------- */
+
+.phot-check {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 10px;
+    background: var(--bs-tertiary-bg);
+}
+
+.phot-check.has-problems {
+    background: var(--bs-warning-bg-subtle);
+}
+
+.phot-check__title {
+    margin: 0;
+    font-weight: 800;
+    color: var(--bs-success-text-emphasis);
+}
+
+.phot-check.has-problems .phot-check__title {
+    color: var(--bs-warning-text-emphasis);
+}
+
+.phot-check__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.9rem;
+    color: var(--bs-emphasis-color);
+}
+
+.phot-check__list:empty {
+    display: none;
 }
 
 /* ---------- Print sheet ---------- */

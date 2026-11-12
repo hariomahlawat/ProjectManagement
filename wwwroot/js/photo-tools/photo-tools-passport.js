@@ -68,6 +68,11 @@
   const bgAmountValue = $('[data-bg-amount-value]');
   const bgCompare = $('[data-action="bg-original"]');
   const bgProblem = $('[data-bg-problem]');
+  const checkBox = $('[data-passport-check]');
+  const checkTitle = $('[data-check-title]');
+  const checkList = $('[data-check-list]');
+  // Finding the head's outline in a very large photo would hold the screen up.
+  const CHECK_OUTLINE_PIXELS = 2_000_000;
   const handFixButton = $('[data-action="bg-fix"]');
   const fixLabel = $('[data-bg-fix-label]');
   const fixBox = $('[data-bg-fix]');
@@ -152,6 +157,9 @@
   let ring = null;
   let plain = null;
   let changedPixels = null;
+  // What the checks look at: the finished photo before any background change, and where its
+  // background was found when the background change already looked.
+  let checked = null;
 
   // Where the photo sits: the photo centre's distance from the frame centre (screen px), its
   // tilt, and how far it is zoomed past "just fills the frame".
@@ -560,16 +568,59 @@
   function applyBackground(context, width, height) {
     plain = null;
     changedPixels = null;
-    if (mode !== 'photo' || !background) return null;
+    checked = null;
+    if (mode !== 'photo') return null;
     const before = context.getImageData(0, 0, width, height);
+    checked = { before, found: null };
+    if (!background) return null;
     const after = new ImageData(new Uint8ClampedArray(before.data), width, height);
-    const { status } = core.changeBackground(after.data, width, height, backgroundColour(), Number(bgAmount.value));
+    const result = core.changeBackground(after.data, width, height, backgroundColour(), Number(bgAmount.value));
+    checked.found = result;
+    const { status } = result;
     if (status === core.BACKGROUND_STATUS.changed) {
       plain = before;
       changedPixels = after;
       composeFixes(context);
     }
     return status;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Checks
+  // ---------------------------------------------------------------------------
+
+  /** Looks at the finished photo for things a form is likely to reject, and lists them. */
+  function renderChecks(output) {
+    if (mode !== 'photo' || !checked || !output) {
+      checkBox.hidden = true;
+      return;
+    }
+    const { before } = checked;
+    const { width, height } = before;
+    const measured = core.measureBackground(before.data, width, height);
+    let found = checked.found;
+    if (!found && width * height <= CHECK_OUTLINE_PIXELS) {
+      found = core.findBackground(before.data, width, height, Number(bgAmount.value));
+      checked.found = found;
+    }
+    const problems = core.passportChecks({
+      pixels: output.getContext('2d').getImageData(0, 0, width, height).data,
+      width,
+      height,
+      found: width * height <= CHECK_OUTLINE_PIXELS ? found : null,
+      plain: measured.plain,
+      colour: measured.colour,
+      replaced: bgStatus === core.BACKGROUND_STATUS.changed,
+      enlarged: outputScale()
+    });
+    checkBox.hidden = false;
+    checkBox.classList.toggle('has-problems', problems.length > 0);
+    checkTitle.textContent = problems.length ? 'Check before you use this photo' : 'No problems found';
+    checkList.replaceChildren(...problems.map((problem) => {
+      const item = document.createElement('li');
+      item.textContent = problem.text;
+      return item;
+    }));
   }
 
   // ---------------------------------------------------------------------------
@@ -769,6 +820,7 @@
         shown.getContext('2d', { willReadFrequently: true }).drawImage(output, 0, 0);
       }
       renderBackground();
+      renderChecks(output);
       draw();
       const result = await core.encodeToTarget({
         encode: (width, height, quality) => shared.canvasToBytes(output, JPEG, quality),
