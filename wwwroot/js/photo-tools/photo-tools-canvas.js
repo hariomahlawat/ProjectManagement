@@ -67,19 +67,31 @@
     return canvas;
   }
 
+  /** Draws all of an image, or only `area` of it ({ x, y, width, height }), into width x height. */
+  function drawInto(context, image, area, width, height) {
+    if (area) {
+      context.drawImage(image, area.x, area.y, area.width, area.height, 0, 0, width, height);
+    } else {
+      context.drawImage(image, 0, 0, width, height);
+    }
+  }
+
   /**
    * Draws a photo at a new size. Big reductions go down in halves first, which keeps fine
-   * detail much better than one large jump.
+   * detail much better than one large jump. `options.area` takes only that part of the photo,
+   * read straight from it, so no full-size copy of the part is made first.
    */
   function drawPhoto(source, width, height, options) {
     let current = source;
-    let size = sizeOf(source);
+    let area = options.area || null;
+    let size = area ? { width: area.width, height: area.height } : sizeOf(source);
     while (size.width / 2 > width && size.height / 2 > height) {
       const half = newCanvas(Math.ceil(size.width / 2), Math.ceil(size.height / 2));
       const context = half.getContext('2d');
       context.imageSmoothingQuality = 'high';
-      context.drawImage(current, 0, 0, half.width, half.height);
+      drawInto(context, current, area, half.width, half.height);
       current = half;
+      area = null;
       size = { width: half.width, height: half.height };
     }
 
@@ -91,7 +103,7 @@
       context.fillRect(0, 0, width, height);
     }
     context.imageSmoothingQuality = 'high';
-    context.drawImage(current, 0, 0, width, height);
+    drawInto(context, current, area, width, height);
     if (options.greyscale) {
       const pixels = context.getImageData(0, 0, width, height);
       core.toGreyscale(pixels.data);

@@ -20,6 +20,8 @@ describes what is built.
 - A saved photo is re-drawn, so the hidden data in the original (GPS location, camera details)
   is never in the saved file. The page says so.
 - The last Reduce size settings are remembered in that browser's `localStorage` only.
+- A photo dropped anywhere on the page outside a drop zone is ignored, so the browser does not
+  open it in place of the page and lose the work on every screen (as in PDF Tools).
 
 `ProjectManagement.Tests/Tools/PhotoToolsPageContractTests.cs` guards these points: sign-in
 required, no handler other than `OnGet`, no form, no network calls in the scripts, and all
@@ -58,7 +60,8 @@ done too.
 - The screen works on a copy no larger than 1600 px; the saved photo is drawn again from the
   full-size photo, so zooming in does not cost sharpness that the original has.
 - The dimensions are never changed to meet a KB limit, only the JPG quality (down to 0.2). If the
-  limit still cannot be met, the page says what the smallest possible size is.
+  limit still cannot be met, the page says what the smallest possible size is. A limit that is
+  not a number stops only the file: the photo, its background and the checks are still shown.
 - **Fix lighting** measures the whole photo once (`measureLighting`): it stretches the range
   between the darkest and brightest half percent, and corrects most of a colour cast. The same
   correction is applied to the preview and the saved photo. It does not change the background;
@@ -148,7 +151,10 @@ Done.
   change, then the fixes (`applyBackgroundFixes`): the photo before the change is brought back
   under Bring back strokes, and the background colour is put under Remove strokes, with a soft
   rim. The first two steps are kept, so a stroke shows on the stage at once without finding the
-  background again; the file follows a moment later.
+  background again; the file follows a moment later, made from the same kept steps. Only a
+  change to the photo itself (moving, zooming, size, lighting, background or slider) finds the
+  background again; a stroke, Undo or Clear all fixes does not, so painting stays quick on a
+  large photo.
 - Fixes are cleared by a new photo and by turning the photo a quarter. They are kept, but not
   applied, while the background is set to Keep or cannot be changed. Print sheet receives the
   photo with its fixes.
@@ -275,7 +281,8 @@ step, so Undo takes it back.
   colours and three sizes. Line and text sizes are a share of the photo's longer side
   (`markMeasures`), so a mark looks the same on a small photo and a large one. The measured
   size is stored in the step, so replaying it after an Undo draws exactly the same mark.
-- Box, circle, arrow and pen are dragged; a drag too short to mean anything is ignored. Text and
+- Box, circle, arrow and pen are dragged; a drag too short to mean anything is ignored (for the
+  pen, one that never moves as far as the line is wide, `penStroke`). Text and
   numbers are placed with one press. Numbers count up by themselves from the markers already on
   the photo. Text has an outline in a contrasting colour so it reads on any photo.
 - The geometry is in the core and tested (`dragRect`, `arrowHead`, `thinPoints`); the drawing is
@@ -326,6 +333,10 @@ dimensions for a file under the original (`retryUnderOriginal`). When that canno
 or a PNG saved as JPG), the result is shown in amber as "(not smaller)" and the summary says so; it
 is never shown as a saving. The original is not put in its place, because saving through the
 canvas is what removes a photo's hidden data.
+
+A change of settings starts every photo again once the settings have been left alone for a
+third of a second, also while photos are being reduced: the photo in hand is finished and
+dropped, and no further photo is started with a half-typed size.
 
 Photos are never enlarged. Phone photos are opened the right way up (their rotation is hidden
 data). Big reductions are drawn in halving steps, which keeps fine detail. Saving as JPG fills

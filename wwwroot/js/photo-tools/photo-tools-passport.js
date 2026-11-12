@@ -174,6 +174,10 @@
   let saveRun = 0;
   let saveTimer = null;
   let openRun = 0;
+  // False while the only changes since the photo was last made are brush strokes: the next save
+  // lays them over the background change already found instead of finding it again, which on a
+  // large photo takes seconds.
+  let remake = true;
 
   // ---------------------------------------------------------------------------
   // Placement
@@ -346,6 +350,8 @@
       if (typeof source.close === 'function') source.close();
       return;
     }
+    // The photo it replaces can be large; free it now rather than whenever the browser gets to it.
+    if (full && full !== source && typeof full.close === 'function') full.close();
     fileName = file.name;
     const dimensions = shared.sizeOf(source);
     fileLabel.textContent = `${file.name} · ${dimensions.width} × ${dimensions.height} px · ${core.formatBytes(file.size)}`;
@@ -804,15 +810,18 @@
     const mine = ++saveRun;
     const limitText = outLimit.value.trim();
     const targetBytes = core.parseTargetBytes(limitText, 'KB');
-    if (limitText && !targetBytes) {
-      saved = null;
-      downloadButton.disabled = true;
-      resultLine.className = 'phot-result is-problem';
-      resultLine.textContent = 'Enter the file size limit as a number of KB, or leave it empty.';
-      return;
-    }
     try {
-      const output = renderOutput();
+      const reuse = !remake
+        && bgStatus === core.BACKGROUND_STATUS.changed
+        && changedPixels && changedPixels.width === size.width && changedPixels.height === size.height;
+      remake = false;
+      let output;
+      if (reuse) {
+        output = shared.newCanvas(size.width, size.height);
+        composeFixes(output.getContext('2d', { willReadFrequently: true }));
+      } else {
+        output = renderOutput();
+      }
       // A copy for the stage: the brush repaints it while this one is being turned into a file.
       shown = null;
       if (bgStatus === core.BACKGROUND_STATUS.changed) {
@@ -822,6 +831,14 @@
       renderBackground();
       renderChecks(output);
       draw();
+      // The photo and its checks are shown either way; only the file waits for a usable limit.
+      if (limitText && !targetBytes) {
+        saved = null;
+        downloadButton.disabled = true;
+        resultLine.className = 'phot-result is-problem';
+        resultLine.textContent = 'Enter the file size limit as a number of KB, or leave it empty.';
+        return;
+      }
       const result = await core.encodeToTarget({
         encode: (width, height, quality) => shared.canvasToBytes(output, JPEG, quality),
         width: size.width,
@@ -842,6 +859,8 @@
     } catch (error) {
       if (mine !== saveRun) return;
       if (!(error instanceof core.PhotoToolError)) console.error(error);
+      // Whatever was half made is not trusted: the next save starts again from the photo.
+      remake = true;
       saved = null;
       downloadButton.disabled = true;
       resultLine.className = 'phot-result is-problem';
@@ -853,6 +872,8 @@
   /** `keepShown` is for a change the stage already shows (a brush stroke). */
   function queueSave(keepShown) {
     renderSheet();
+    // Anything but a brush stroke changes the photo itself, so it is made again in full.
+    if (keepShown !== true) remake = true;
     if (shown && keepShown !== true) {
       // The photo laid over the frame is out of date until it is made again.
       shown = null;

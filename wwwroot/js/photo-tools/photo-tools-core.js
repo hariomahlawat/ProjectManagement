@@ -896,27 +896,6 @@
   }
 
   /**
-   * Lays fixes made by hand over a photo whose background was changed. `original` is the photo
-   * before the change and `mask` a picture of the brush strokes, all three RGBA of one size:
-   * where the mask is red the original is brought back, where it is blue the pixel gets the
-   * background colour, and its alpha says how strongly (the soft rim of a stroke). Alpha of the
-   * photo is not touched.
-   */
-  function applyBackgroundFixes(pixels, original, mask, colour) {
-    for (let i = 0; i < pixels.length; i += 4) {
-      const strength = mask[i + 3] / 255;
-      if (!strength) continue;
-      const back = mask[i] / 255 * strength;
-      const away = mask[i + 2] / 255 * strength;
-      const stay = Math.max(0, 1 - back - away);
-      pixels[i] = Math.round(pixels[i] * stay + original[i] * back + colour[0] * away);
-      pixels[i + 1] = Math.round(pixels[i + 1] * stay + original[i + 1] * back + colour[1] * away);
-      pixels[i + 2] = Math.round(pixels[i + 2] * stay + original[i + 2] * back + colour[2] * away);
-    }
-    return pixels;
-  }
-
-  /**
    * Finds the paper and the ink in a photographed signature: the paper is the usual brightness
    * (most of the picture), the ink the darkest half percent. Null when there is no clear ink.
    */
@@ -1499,6 +1478,18 @@
     return kept;
   }
 
+  /**
+   * The points of a pen line, thinned, or null when the pen never moved as far as the line is
+   * wide from where it started: a tap is not a line (and would draw a dot or nothing,
+   * depending on the browser).
+   */
+  function penStroke(points, line) {
+    if (!points.length) return null;
+    const first = points[0];
+    const reach = points.reduce((most, point) => Math.max(most, Math.hypot(point.x - first.x, point.y - first.y)), 0);
+    return reach >= line ? thinPoints(points, line / 2) : null;
+  }
+
   /** The side of the squares an area is broken into when it is hidden: about a tenth of it. */
   function hideBlock(width, height) {
     return Math.max(6, Math.round(Math.max(width, height) / 10));
@@ -1723,6 +1714,7 @@
     dragRect,
     arrowHead,
     thinPoints,
+    penStroke,
     HIDE_MODES,
     hideBlock,
     hidePixels,

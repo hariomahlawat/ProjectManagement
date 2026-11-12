@@ -485,7 +485,8 @@
       const length = Math.hypot(drawing.to.x - drawing.from.x, drawing.to.y - drawing.from.y);
       return length >= measures.line * 3 ? { ...shape, from: drawing.from, to: drawing.to } : null;
     }
-    return { ...shape, points: core.thinPoints(drawing.points, measures.line / 2) };
+    const points = core.penStroke(drawing.points, measures.line);
+    return points ? { ...shape, points } : null;
   }
 
   /** Shows the mark being dragged out. The context is the stage canvas, already holding the photo. */

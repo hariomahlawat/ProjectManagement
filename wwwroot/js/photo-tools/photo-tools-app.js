@@ -94,6 +94,9 @@
   let run = 0;
   let working = false;
   let settleTimer = null;
+  // True from a change of settings until the user has stopped changing them: the worker does
+  // not start the next photo meanwhile, so a half-typed size ("1" of "100") is never used.
+  let settling = false;
 
   function loadSettings() {
     try {
@@ -230,6 +233,7 @@
     working = true;
     try {
       for (;;) {
+        if (settling) break;
         const photo = photos.find(item => item.status === 'waiting');
         if (!photo) break;
         const mine = run;
@@ -277,7 +281,11 @@
     for (const photo of photos) clearResult(photo);
     render();
     clearTimeout(settleTimer);
-    settleTimer = setTimeout(work, SETTLE_MS);
+    settling = true;
+    settleTimer = setTimeout(() => {
+      settling = false;
+      work();
+    }, SETTLE_MS);
   }
 
   function addPhotos(files) {
@@ -519,6 +527,11 @@
   }
   compareSlider.addEventListener('input', placeCompareLine);
   downloadButton.addEventListener('click', download);
+
+  // A photo dropped outside a drop zone would make the browser open it in place of this page,
+  // losing the work on every screen.
+  window.addEventListener('dragover', (event) => event.preventDefault());
+  window.addEventListener('drop', (event) => event.preventDefault());
 
   loadSettings();
   syncControls();
