@@ -205,11 +205,16 @@
         submitButtons.forEach(button => {
             button.disabled = selected === 0;
         });
+        // The name field's button says how many faces it will name.
+        const confirm = form.querySelector("[data-name-field-confirm]");
+        if (confirm instanceof HTMLButtonElement) {
+            confirm.textContent = selected === 0 ? "Confirm" : `Confirm ${selected} ${selected === 1 ? "face" : "faces"}`;
+        }
         if (selectPage instanceof HTMLButtonElement) {
             selectPage.disabled = checkboxes.length === 0 || allSelected;
             selectPage.innerHTML = allSelected
-                ? '<i class="bi bi-check2-all"></i> Page selected'
-                : '<i class="bi bi-check2-square"></i> Select page';
+                ? '<i class="bi bi-check2-all"></i> All ticked'
+                : '<i class="bi bi-check2-square"></i> Tick all on this page';
         }
     };
 
@@ -242,7 +247,7 @@
             && !person.value) {
             event.preventDefault();
             person.focus();
-            person.setCustomValidity("Select the confirmed person for the selected appearances.");
+            person.setCustomValidity("Choose the person for the ticked faces.");
             person.reportValidity();
             window.setTimeout(() => person.setCustomValidity(""), 0);
         }

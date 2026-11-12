@@ -117,7 +117,7 @@
                 <strong data-workload-closed>@Model.Workload.ClosedUnidentifiedCount</strong> left unnamed
             </a>
             <span class="identity-review-workload-strip__total">
-                <strong data-workload-total>@Model.Workload.TotalUnresolvedCount</strong> faces waiting in all
+                <strong data-workload-total>@Model.Workload.TotalUnresolvedCount</strong> still to review
             </span>
             <span class="identity-review-workload-strip__live" data-workload-live-status aria-live="polite"></span>
         </div>
@@ -429,15 +429,13 @@
             else
             {
                 <div class="face-review-queue-controls">
-                    <div class="face-review-layout-toggle" role="group" aria-label="Review layout">
-                        @if (Model.IsUnidentifiedMode || Model.IsClosedMode)
-                        {
-                            <a class="@(Model.IsTriageLayout ? "is-active" : null)" href="@(Model.BuildReviewUrl(layout: "triage", pageNumber: 1))">Triage</a>
-                            <a class="@(!Model.IsTriageLayout ? "is-active" : null)" href="@(Model.BuildReviewUrl(layout: "detail", pageNumber: 1))">Detailed</a>
-                        }
-                    </div>
+                    @* The faces are one grid. A face opened on its own (Layout=detail, from its tile) offers the way back. *@
+                    @if ((Model.IsUnidentifiedMode || Model.IsClosedMode) && !Model.IsTriageLayout)
+                    {
+                        <a class="face-review-back" href="@(Model.BuildReviewUrl(layout: "triage", pageNumber: 1))"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i> All faces</a>
+                    }
 
-                    <form method="get" class="face-review-filters" aria-label="Filter review queue">
+                    <form method="get" class="face-review-filters" aria-label="Filter the faces">
                         <input type="hidden" name="Mode" value="@Model.Mode" />
                         <input type="hidden" name="Layout" value="@Model.Layout" />
                         <input type="hidden" name="Sort" value="@Model.Sort" />
@@ -446,9 +444,9 @@
                             <input type="hidden" name="AssetIds" value="@assetId" />
                         }
                         <label>
-                            <span>Source</span>
+                            <span>From</span>
                             <select class="form-select form-select-sm" name="Source" data-auto-submit>
-                                <option value="all" selected="@(Model.Source == "all")">All sources</option>
+                                <option value="all" selected="@(Model.Source == "all")">Everything</option>
                                 <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
                                 <option value="visits" selected="@(Model.Source == "visits")">Visits</option>
                                 <option value="events" selected="@(Model.Source == "events")">Events</option>
@@ -472,26 +470,26 @@
                         @if (Model.IsUnidentifiedMode)
                         {
                             <label>
-                                <span>Matching</span>
+                                <span>Checked against known people</span>
                                 <select class="form-select form-select-sm" name="MatchStatus" data-auto-submit>
-                                    <option value="all" selected="@(Model.MatchStatus == "all")">All statuses</option>
-                                    <option value="no-match" selected="@(Model.MatchStatus == "no-match")">No reliable match</option>
-                                    <option value="failed" selected="@(Model.MatchStatus == "failed")">Matching failed</option>
-                                    <option value="not-requested" selected="@(Model.MatchStatus == "not-requested")">Not yet matched</option>
+                                    <option value="all" selected="@(Model.MatchStatus == "all")">All</option>
+                                    <option value="no-match" selected="@(Model.MatchStatus == "no-match")">Not recognised</option>
+                                    <option value="failed" selected="@(Model.MatchStatus == "failed")">Could not be checked</option>
+                                    <option value="not-requested" selected="@(Model.MatchStatus == "not-requested")">Not checked yet</option>
                                 </select>
                             </label>
                         }
                     </form>
 
                     <button type="button" class="btn btn-sm btn-outline-secondary face-review-select-page" data-batch-select-all>
-                        <i class="bi bi-check2-square"></i> Select page
+                        <i class="bi bi-check2-square"></i> Tick all on this page
                     </button>
 
                     <label class="face-review-sort">
                         <span>Sort</span>
-                        <select class="form-select form-select-sm" aria-label="Sort review queue" data-auto-navigate>
-                            <option value="@(Model.BuildReviewUrl(sort: "quality-desc", pageNumber: 1))" selected="@(Model.Sort == "quality-desc")">Highest quality first</option>
-                            <option value="@(Model.BuildReviewUrl(sort: "quality-asc", pageNumber: 1))" selected="@(Model.Sort == "quality-asc")">Lowest quality first</option>
+                        <select class="form-select form-select-sm" aria-label="Sort the faces" data-auto-navigate>
+                            <option value="@(Model.BuildReviewUrl(sort: "quality-desc", pageNumber: 1))" selected="@(Model.Sort == "quality-desc")">Clearest first</option>
+                            <option value="@(Model.BuildReviewUrl(sort: "quality-asc", pageNumber: 1))" selected="@(Model.Sort == "quality-asc")">Least clear first</option>
                             <option value="@(Model.BuildReviewUrl(sort: "newest", pageNumber: 1))" selected="@(Model.Sort == "newest")">Newest first</option>
                             <option value="@(Model.BuildReviewUrl(sort: "oldest", pageNumber: 1))" selected="@(Model.Sort == "oldest")">Oldest first</option>
                         </select>
@@ -503,34 +501,56 @@
                     @Html.AntiForgeryToken()
                     <div class="card-body py-2 d-flex flex-wrap align-items-end gap-2">
                         <partial name="_ReviewStateFields" model="Model" />
-                        <div class="face-review-batch__selection"><strong><span data-batch-identity-count>0</span> selected</strong></div>
-                        @if (!Model.IsClosedMode && Model.AvailablePeople.Count > 0)
+                        <div class="face-review-batch__selection"><strong><span data-batch-identity-count>0</span> ticked</strong></div>
+                        @if (!Model.IsClosedMode)
                         {
-                            <div class="face-review-batch__person">
-                                <label class="form-label mb-1" for="batchKnownPerson">Assign selected to</label>
-                                <select id="batchKnownPerson" class="form-select form-select-sm" name="personId">
-                                    <option value="">Select a confirmed person</option>
-                                    @foreach (var person in Model.AvailablePeople)
-                                    {
-                                        <option value="@person.Id">@person.DisplayName</option>
-                                    }
-                                </select>
+                            <div class="face-review-batch__name" data-name-field
+                                 data-assign-action="@Url.Page("./Review", "AssignSelected")"
+                                 data-create-action="@Url.Page("./Review", "CreateSelected")">
+                                <div class="people-name-field" data-name-field-ui hidden>
+                                    <label for="batchName">Who are they?</label>
+                                    <div class="people-name-field__box">
+                                        <input id="batchName" type="text" class="form-control form-control-sm" maxlength="200" autocomplete="off"
+                                               placeholder="Type a name" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                               aria-controls="batchNameList" data-name-field-text />
+                                        <ul id="batchNameList" class="people-name-field__list" role="listbox" aria-label="People" data-name-field-list hidden></ul>
+                                    </div>
+                                    <button type="submit" class="btn btn-sm btn-primary" data-name-field-confirm data-batch-identity-submit>Confirm</button>
+                                </div>
+                                @if (Model.AvailablePeople.Count > 0)
+                                {
+                                    <div class="face-review-batch__person" data-name-field-fallback>
+                                        <label class="form-label mb-1" for="batchKnownPerson">Someone already in People</label>
+                                        <select id="batchKnownPerson" class="form-select form-select-sm" name="personId">
+                                            <option value="">Select a person</option>
+                                            @foreach (var person in Model.AvailablePeople)
+                                            {
+                                                <option value="@person.Id" data-portrait="@Url.Page("/Photos/People/Portrait", new { id = person.Id })">@person.DisplayName</option>
+                                            }
+                                        </select>
+                                        <button type="submit" asp-page-handler="AssignSelected" class="btn btn-sm btn-outline-primary" data-batch-identity-submit data-requires-person>
+                                            Name as this person
+                                        </button>
+                                    </div>
+                                }
+                                <div class="face-review-batch__person" data-name-field-fallback>
+                                    <label class="form-label mb-1" for="batchNewPerson">A new person</label>
+                                    <input id="batchNewPerson" class="form-control form-control-sm" name="displayName" maxlength="200" placeholder="Type the name" />
+                                    <button type="submit" asp-page-handler="CreateSelected" class="btn btn-sm btn-primary" data-batch-identity-submit>Add and name</button>
+                                </div>
                             </div>
-                            <button type="submit" asp-page-handler="AssignSelected" class="btn btn-sm btn-primary" data-batch-identity-submit data-requires-person>
-                                Assign selected
-                            </button>
                         }
                         @if (Model.IsUnidentifiedMode)
                         {
-                            <button type="submit" asp-page-handler="IgnoreSelected" class="btn btn-sm btn-outline-secondary" data-batch-triage-submit>Close unidentified</button>
+                            <button type="submit" asp-page-handler="IgnoreSelected" class="btn btn-sm btn-outline-secondary" data-batch-triage-submit>Leave unnamed</button>
                             <button type="submit" asp-page-handler="SuppressSelected" class="btn btn-sm btn-outline-danger" data-batch-triage-submit
-                                    data-confirm-message="Mark the selected detections as not faces? This suppresses the detections and removes their active face embeddings.">Not a face</button>
+                                    data-confirm-message="Mark the ticked items as not faces? PRISM will stop treating them as faces.">Not a face</button>
                         }
                         @if (Model.IsClosedMode)
                         {
-                            <button type="submit" asp-page-handler="ReopenSelected" class="btn btn-sm btn-primary" data-batch-triage-submit>Reopen selected</button>
+                            <button type="submit" asp-page-handler="ReopenSelected" class="btn btn-sm btn-primary" data-batch-triage-submit>Bring back to review</button>
                             <button type="submit" asp-page-handler="SuppressSelected" class="btn btn-sm btn-outline-danger" data-batch-triage-submit
-                                    data-confirm-message="Mark the selected detections as not faces? This suppresses the detections and removes their active face embeddings.">Not a face</button>
+                                    data-confirm-message="Mark the ticked items as not faces? PRISM will stop treating them as faces.">Not a face</button>
                         }
                         <button type="button" class="btn btn-sm btn-link ms-auto" data-batch-clear>Clear</button>
                     </div>
@@ -542,18 +562,17 @@
                         @foreach (var item in Model.Result.Items)
                         {
                             <article class="face-triage-card" id="face-@item.FaceId">
-                                <label class="face-triage-card__select" title="Select this appearance for a batch action">
+                                <label class="face-triage-card__select" title="Tick to name several faces at once">
                                     <input class="form-check-input" type="checkbox" name="faceIds" value="@item.FaceId" form="batchAssignKnownPersonForm" data-batch-identity-face />
                                     <span class="visually-hidden">Select face from @item.ContextTitle</span>
                                 </label>
-                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = item.FaceId })" alt="Detected face from @item.ContextTitle" loading="lazy" />
+                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = item.FaceId })" alt="Face from @item.ContextTitle" loading="lazy" />
                                 <div class="face-triage-card__body">
-                                    <div><strong>Quality @item.QualityScore.ToString("0.00")</strong><span>@item.MediaDateUtc.ToLocalTime().ToString("dd MMM yyyy")</span></div>
                                     <h2 title="@item.ContextTitle">@item.ContextTitle</h2>
-                                    <p>@item.ContextSubtitle</p>
+                                    <p>@item.MediaDateUtc.ToLocalTime().ToString("d MMM yyyy")</p>
                                     <div class="face-triage-card__actions">
-                                        <a href="@Url.Page("/Photos/Media", new { id = item.AssetId, variant = "preview" })" target="_blank" rel="noopener">Photograph <i class="bi bi-arrow-up-right"></i></a>
-                                        <a href="@(Model.BuildReviewUrl(layout: "detail"))#face-@item.FaceId">Details</a>
+                                        <a href="@Url.Page("/Photos/Media", new { id = item.AssetId, variant = "preview" })" target="_blank" rel="noopener">Picture <i class="bi bi-arrow-up-right"></i></a>
+                                        <a href="@(Model.BuildReviewUrl(layout: "detail"))#face-@item.FaceId">@(Model.IsClosedMode ? "Open" : "Name it")</a>
                                     </div>
                                 </div>
                             </article>
