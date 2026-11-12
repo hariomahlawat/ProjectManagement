@@ -310,7 +310,16 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 ToWarning(diagnostic));
         }
 
-        var statistics = await ExecuteOptionalAsync(
+        // The figures the loaded page alone can give; used when the full count is not asked
+        // for, or fails.
+        var pageStatistics = new MediaLibraryStatistics(
+            total,
+            items.Count(item => item.Kind == MediaAssetKind.Photo),
+            items.Count(item => item.Kind == MediaAssetKind.Video),
+            items.Select(item => item.CollectionKey).Distinct(StringComparer.Ordinal).Count());
+        var includeFacets = request.IncludeFilterFacets;
+
+        var statistics = !includeFacets ? pageStatistics : await ExecuteOptionalAsync(
             MediaLibraryQueryOperation.Statistics,
             async () =>
             {
@@ -333,15 +342,11 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                     counts?.Videos ?? 0,
                     collections);
             },
-            new MediaLibraryStatistics(
-                total,
-                items.Count(item => item.Kind == MediaAssetKind.Photo),
-                items.Count(item => item.Kind == MediaAssetKind.Video),
-                items.Select(item => item.CollectionKey).Distinct(StringComparer.Ordinal).Count()),
+            pageStatistics,
             warnings,
             cancellationToken);
 
-        var years = await ExecuteOptionalAsync<IReadOnlyList<int>>(
+        var years = !includeFacets ? Array.Empty<int>() : await ExecuteOptionalAsync<IReadOnlyList<int>>(
             MediaLibraryQueryOperation.Years,
             async () => await queryWithoutYear
                 .Select(asset => asset.MediaDateUtc.Year)
@@ -362,7 +367,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 cancellationToken)
             : Array.Empty<MediaLibraryMonthCount>();
 
-        var projects = await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryProjectOption>>(
+        var projects = !includeFacets ? Array.Empty<MediaLibraryProjectOption>() : await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryProjectOption>>(
             MediaLibraryQueryOperation.Projects,
             async () =>
             {
@@ -385,7 +390,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             .Apply(_db.Assets.AsNoTracking())
             .Select(asset => asset.Id);
 
-        IReadOnlyList<MediaLibraryPersonOption> people = request.IncludePeople && _options.People.Enabled
+        IReadOnlyList<MediaLibraryPersonOption> people = includeFacets && request.IncludePeople && _options.People.Enabled
             ? await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryPersonOption>>(
                 MediaLibraryQueryOperation.People,
                 async () => await _db.Persons
