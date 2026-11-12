@@ -111,7 +111,11 @@
           reject(new core.PhotoToolError('format', `This browser cannot save ${type.label} files. Choose JPG or PNG.`));
           return;
         }
-        resolve(new Uint8Array(await blob.arrayBuffer()));
+        try {
+          resolve(new Uint8Array(await blob.arrayBuffer()));
+        } catch {
+          reject(new core.PhotoToolError('render', 'This photo is too large for this browser to save. Choose smaller dimensions.'));
+        }
       }, type.mime, type.lossy ? quality : undefined);
     });
   }

@@ -210,6 +210,8 @@
 
   function rebuildPreview() {
     const context = preview.getContext('2d', { willReadFrequently: true });
+    // Cleared first: where a PNG or WEBP is see-through, the last look must not show through.
+    context.clearRect(0, 0, preview.width, preview.height);
     context.drawImage(base, 0, 0);
     applyLook(context, preview.width, preview.height);
   }

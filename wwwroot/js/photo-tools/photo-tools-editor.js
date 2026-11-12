@@ -102,7 +102,7 @@
 
   // What the next mark will be, and the mark or hidden area being dragged out right now.
   let mark = { kind: 'box', colour: 'red', size: 'medium' };
-  let hideMode = 'blur';
+  let hideMode = 'cover';
   let drawing = null;
   // Where the keyboard's cross is on the photo, in the photo's own pixels. Null while the pointer is used.
   let keyPoint = null;
@@ -271,21 +271,40 @@
     changed();
   }
 
-  function replay() {
-    current = steps.reduce(applyStep, original);
-    changed();
+  /**
+   * Makes the photo again from the original and the given steps. Nothing changes when that
+   * fails (a very large photo can run out of memory), so the list of steps always matches the
+   * photo on the screen and the file that is saved.
+   */
+  function replay(nextSteps) {
+    shared.clearError();
+    let next;
+    try {
+      next = nextSteps.reduce(applyStep, original);
+    } catch (error) {
+      console.error(error);
+      shared.showError('This change could not be made. The photo may be too large for this browser.');
+      return false;
+    }
+    current = next;
+    steps = nextSteps;
+    return true;
   }
 
   function undo() {
     if (!steps.length) return;
-    undone.push(steps.pop());
-    replay();
+    const step = steps[steps.length - 1];
+    if (!replay(steps.slice(0, -1))) return;
+    undone.push(step);
+    changed();
   }
 
   function redo() {
     if (!undone.length) return;
-    steps.push(undone.pop());
-    replay();
+    const step = undone[undone.length - 1];
+    if (!replay([...steps, step])) return;
+    undone.pop();
+    changed();
   }
 
   // ---------------------------------------------------------------------------

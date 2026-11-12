@@ -25,6 +25,11 @@ test('parseTargetBytes reads KB and MB and rejects nonsense', () => {
   assert.equal(tools.parseTargetBytes('', 'KB'), null);
   assert.equal(tools.parseTargetBytes('0', 'KB'), null);
   assert.equal(tools.parseTargetBytes('abc', 'KB'), null);
+  // A number written with thousands is not read as a decimal: "1,000 KB" is not 1 KB.
+  assert.equal(tools.parseTargetBytes('1,000', 'KB'), 1024000);
+  assert.equal(tools.parseTargetBytes('1,500,000', 'KB'), 1536000000);
+  assert.equal(tools.parseTargetBytes('1,50', 'MB'), 1572864);
+  assert.equal(tools.parseTargetBytes('1,0,0', 'KB'), null);
 });
 
 test('resizeDimensions keeps the shape and never enlarges', () => {
@@ -547,4 +552,79 @@ test('hidePixels removes the detail: pixelate gives flat squares, blur blends th
       assert.ok(alpha > 110 && alpha < 145, `${mode}: the outline at x=${x} is gone (${alpha})`);
     }
   }
+});
+
+// The neighbour average as it was first written: a full-size copy of the picture. The new code
+// keeps only three rows of sums; it must give the same picture.
+function referenceSoftCopy(pixels, width, height) {
+  const across = new Float32Array(pixels.length);
+  const output = new Float64Array(pixels.length);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const i = (y * width + x) * 4;
+      for (const j of [(y * width + Math.max(0, x - 1)) * 4, i, (y * width + Math.min(width - 1, x + 1)) * 4]) {
+        const alpha = pixels[j + 3];
+        for (let c = 0; c < 3; c += 1) across[i + c] += pixels[j + c] * alpha;
+        across[i + 3] += alpha;
+      }
+    }
+  }
+  for (let y = 0; y < height; y += 1) {
+    const up = Math.max(0, y - 1) * width;
+    const down = Math.min(height - 1, y + 1) * width;
+    for (let x = 0; x < width; x += 1) {
+      const i = (y * width + x) * 4;
+      const above = (up + x) * 4;
+      const below = (down + x) * 4;
+      const weight = across[above + 3] + across[i + 3] + across[below + 3];
+      for (let c = 0; c < 3; c += 1) {
+        output[i + c] = weight > 0 ? (across[above + c] + across[i + c] + across[below + c]) / weight : pixels[i + c];
+      }
+    }
+  }
+  return output;
+}
+
+test('sharpenPixels and softenPixels give the same picture as a full-size copy would', () => {
+  let seed = 7;
+  const random = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed % 256;
+  };
+  for (const [width, height] of [[1, 1], [1, 6], [6, 1], [2, 2], [7, 5], [13, 9]]) {
+    const start = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < start.length; i += 1) start[i] = random();
+    // Some fully see-through pixels, as a cut-out PNG has.
+    for (let i = 3; i < start.length; i += 20) start[i] = 0;
+    const soft = referenceSoftCopy(start, width, height);
+    const expectedSoft = Uint8ClampedArray.from(start, (value, i) => (i % 4 === 3 ? value : (value + soft[i]) / 2));
+    const expectedSharp = Uint8ClampedArray.from(start, (value, i) => (i % 4 === 3 ? value : value + (value - soft[i]) * 0.7));
+    const gotSoft = tools.softenPixels(start.slice(), width, height);
+    const gotSharp = tools.sharpenPixels(start.slice(), width, height);
+    for (let i = 0; i < start.length; i += 1) {
+      assert.ok(Math.abs(gotSoft[i] - expectedSoft[i]) <= 1, `soften ${width}x${height} at ${i}: ${gotSoft[i]} vs ${expectedSoft[i]}`);
+      assert.ok(Math.abs(gotSharp[i] - expectedSharp[i]) <= 1, `sharpen ${width}x${height} at ${i}: ${gotSharp[i]} vs ${expectedSharp[i]}`);
+    }
+  }
+});
+
+test('hidePixels cover leaves one plain colour and nothing of what was there', () => {
+  assert.deepEqual(Array.from(tools.HIDE_MODES), ['cover', 'blur', 'pixelate']);
+
+  // Dark writing on light paper: every pixel becomes the same colour, so no stroke is left.
+  const writing = picture(80, 20, (x, y) => ((x % 7 < 2 && y > 4 && y < 16) ? 20 : 230));
+  tools.hidePixels(writing, 80, 20, 'cover');
+  const first = Array.from(writing.slice(0, 4));
+  for (let i = 0; i < writing.length; i += 4) {
+    assert.deepEqual(Array.from(writing.slice(i, i + 4)), first, `pixel ${i / 4} is the plain colour`);
+  }
+  assert.ok(first[0] > 20 && first[0] < 230, 'the colour is the average of the area');
+  assert.equal(first[3], 255, 'a solid photo stays solid');
+
+  // Two different texts of the same amount of ink give exactly the same cover.
+  const one = picture(40, 10, (x) => (x < 10 ? 0 : 255));
+  const two = picture(40, 10, (x) => (x >= 30 ? 0 : 255));
+  tools.hidePixels(one, 40, 10, 'cover');
+  tools.hidePixels(two, 40, 10, 'cover');
+  assert.deepEqual(Array.from(one), Array.from(two));
 });

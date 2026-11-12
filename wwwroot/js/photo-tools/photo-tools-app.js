@@ -16,6 +16,9 @@
 
   const SETTINGS_KEY = 'prism.photoTools.reduce';
   const SETTLE_MS = 350;
+  // Thumbnails are drawn once at a small size: showing every original in the list would decode
+  // each full photo again on every update.
+  const THUMB_SIDE = 144;
 
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
@@ -83,7 +86,7 @@
   const greyscale = $('[data-greyscale]', view);
   const pngHint = $('[data-png-hint]', view);
 
-  /** @type {{ id: number, file: File, url: string, status: string, result?: object, error?: string }[]} */
+  /** @type {{ id: number, file: File, url: string, thumb: HTMLImageElement, thumbUrl?: string, status: string, result?: object, error?: string }[]} */
   let photos = [];
   let nextId = 1;
   let selectedId = null;
@@ -157,10 +160,25 @@
 
   // ----- Work -----
 
+  /** Draws the list thumbnail from a photo that is already open. A thumbnail is only a convenience. */
+  async function makeThumbnail(photo, source, original) {
+    if (photo.thumbUrl) return;
+    try {
+      const fit = core.resizeDimensions(original.width, original.height, { type: 'longest', value: THUMB_SIDE });
+      const bytes = await canvasToBytes(drawPhoto(source, fit.width, fit.height, { opaque: true }), core.TYPES.jpeg, 0.8);
+      if (photo.thumbUrl || !photos.includes(photo)) return;
+      photo.thumbUrl = URL.createObjectURL(new Blob([bytes], { type: core.TYPES.jpeg.mime }));
+      photo.thumb.src = photo.thumbUrl;
+    } catch {
+      // The row simply shows no picture.
+    }
+  }
+
   async function reducePhoto(photo, settings) {
     const source = await openPhoto(photo.file);
     try {
       const original = sizeOf(source);
+      await makeThumbnail(photo, source, original);
       const start = core.resizeDimensions(original.width, original.height, settings.resize);
       const type = core.outputType(photo.file.type, settings.format);
       let drawn = null;
@@ -253,7 +271,10 @@
     }
     if (!accepted.length) return;
     for (const file of accepted) {
-      photos.push({ id: nextId++, file, url: URL.createObjectURL(file), status: 'waiting' });
+      const thumb = document.createElement('img');
+      thumb.className = 'phot-row__thumb';
+      thumb.alt = '';
+      photos.push({ id: nextId++, file, url: URL.createObjectURL(file), thumb, status: 'waiting' });
     }
     if (selectedId === null) selectedId = photos[0].id;
     syncControls();
@@ -270,6 +291,7 @@
     const photo = photos.find(item => item.id === id);
     if (!photo) return;
     URL.revokeObjectURL(photo.url);
+    if (photo.thumbUrl) URL.revokeObjectURL(photo.thumbUrl);
     if (photo.result) URL.revokeObjectURL(photo.result.url);
     photos = photos.filter(item => item.id !== id);
     if (selectedId === id) selectedId = photos.length ? photos[0].id : null;
@@ -294,10 +316,7 @@
     pick.className = 'phot-row__pick';
     pick.setAttribute('aria-pressed', String(photo.id === selectedId));
     pick.title = 'Check the quality of this photo';
-    const thumb = document.createElement('img');
-    thumb.className = 'phot-row__thumb';
-    thumb.src = photo.url;
-    thumb.alt = '';
+    const thumb = photo.thumb;
     const name = document.createElement('span');
     name.className = 'phot-row__name';
     name.textContent = photo.file.name;

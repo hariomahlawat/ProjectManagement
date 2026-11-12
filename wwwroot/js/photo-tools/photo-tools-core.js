@@ -43,9 +43,15 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  /** "100" + "KB" → 102400. Returns null when the value is not a positive number. */
+  /**
+   * "100" + "KB" → 102400. Returns null when the value is not a positive number. A comma is a
+   * decimal point ("1,5" MB), except in a number written with thousands ("1,000" KB), which
+   * must not be read as 1 KB.
+   */
   function parseTargetBytes(value, unit) {
-    const number = Number(String(value ?? '').trim().replace(',', '.'));
+    const text = String(value ?? '').trim();
+    const plain = /^\d{1,3}(,\d{3})+$/.test(text) ? text.replace(/,/g, '') : text.replace(',', '.');
+    const number = Number(plain);
     if (!Number.isFinite(number) || number <= 0) return null;
     const factor = String(unit).toUpperCase() === 'MB' ? 1024 * 1024 : 1024;
     return Math.round(number * factor);
@@ -524,70 +530,73 @@
   }
 
   /**
-   * A copy of RGBA pixels with each pixel averaged with its eight neighbours (alpha untouched).
-   * Each neighbour counts by how solid it is, so the see-through part of a PNG or WEBP does not
-   * darken the edge of what is next to it.
+   * Runs `change(i, red, green, blue)` for every pixel, in place, with the average of that pixel
+   * and its eight neighbours (alpha untouched). Each neighbour counts by how solid it is, so the
+   * see-through part of a PNG or WEBP does not darken the edge of what is next to it.
+   *
+   * Only three rows of sums are held at a time, so a large photo needs little extra memory. Each
+   * row's sums are taken before that row or the one above it is changed, so every average comes
+   * from the pixels as they were.
    */
-  function blurredCopy(pixels, width, height) {
+  function withNeighbourAverage(pixels, width, height, change) {
     // Colour times alpha in the first three places, alpha in the fourth.
-    const across = new Float32Array(pixels.length);
-    const output = new Uint8ClampedArray(pixels.length);
-    for (let y = 0; y < height; y += 1) {
+    const rowSums = [0, 1, 2].map(() => new Float32Array(width * 4));
+    const sumRow = (y, into) => {
+      into.fill(0);
+      const start = y * width;
       for (let x = 0; x < width; x += 1) {
-        const i = (y * width + x) * 4;
-        for (const j of [(y * width + Math.max(0, x - 1)) * 4, i, (y * width + Math.min(width - 1, x + 1)) * 4]) {
+        const i = x * 4;
+        for (const j of [(start + Math.max(0, x - 1)) * 4, (start + x) * 4, (start + Math.min(width - 1, x + 1)) * 4]) {
           const alpha = pixels[j + 3];
-          across[i] += pixels[j] * alpha;
-          across[i + 1] += pixels[j + 1] * alpha;
-          across[i + 2] += pixels[j + 2] * alpha;
-          across[i + 3] += alpha;
+          into[i] += pixels[j] * alpha;
+          into[i + 1] += pixels[j + 1] * alpha;
+          into[i + 2] += pixels[j + 2] * alpha;
+          into[i + 3] += alpha;
         }
       }
-    }
+      return into;
+    };
+    // Row r's sums live in buffer r % 3. Past the top or bottom edge, the edge row stands in.
+    const row = (r) => rowSums[Math.min(height - 1, Math.max(0, r)) % 3];
+    sumRow(0, rowSums[0]);
     for (let y = 0; y < height; y += 1) {
-      const up = Math.max(0, y - 1) * width;
-      const down = Math.min(height - 1, y + 1) * width;
+      // Row y+1 takes the buffer of row y-2, which is no longer needed. It is still unchanged.
+      if (y + 1 < height) sumRow(y + 1, rowSums[(y + 1) % 3]);
+      const above = row(y - 1);
+      const here = row(y);
+      const below = row(y + 1);
       for (let x = 0; x < width; x += 1) {
-        const i = (y * width + x) * 4;
-        const above = (up + x) * 4;
-        const below = (down + x) * 4;
-        const weight = across[above + 3] + across[i + 3] + across[below + 3];
-        output[i + 3] = pixels[i + 3];
-        if (weight > 0) {
-          output[i] = (across[above] + across[i] + across[below]) / weight;
-          output[i + 1] = (across[above + 1] + across[i + 1] + across[below + 1]) / weight;
-          output[i + 2] = (across[above + 2] + across[i + 2] + across[below + 2]) / weight;
-        } else {
-          output[i] = pixels[i];
-          output[i + 1] = pixels[i + 1];
-          output[i + 2] = pixels[i + 2];
-        }
+        const k = x * 4;
+        const weight = above[k + 3] + here[k + 3] + below[k + 3];
+        // With nothing visible around it, a pixel is left as it is.
+        if (weight <= 0) continue;
+        change(
+          (y * width + x) * 4,
+          (above[k] + here[k] + below[k]) / weight,
+          (above[k + 1] + here[k + 1] + below[k + 1]) / weight,
+          (above[k + 2] + here[k + 2] + below[k + 2]) / weight);
       }
     }
-    return output;
+    return pixels;
   }
 
   /** Makes edges crisper: each pixel is pushed away from the average of its neighbours. */
   function sharpenPixels(pixels, width, height, amount) {
     const strength = amount === undefined ? 0.7 : amount;
-    const soft = blurredCopy(pixels, width, height);
-    for (let i = 0; i < pixels.length; i += 4) {
-      pixels[i] += (pixels[i] - soft[i]) * strength;
-      pixels[i + 1] += (pixels[i + 1] - soft[i + 1]) * strength;
-      pixels[i + 2] += (pixels[i + 2] - soft[i + 2]) * strength;
-    }
-    return pixels;
+    return withNeighbourAverage(pixels, width, height, (i, red, green, blue) => {
+      pixels[i] += (pixels[i] - red) * strength;
+      pixels[i + 1] += (pixels[i + 1] - green) * strength;
+      pixels[i + 2] += (pixels[i + 2] - blue) * strength;
+    });
   }
 
   /** Calms grain: each pixel is moved halfway towards the average of its neighbours. */
   function softenPixels(pixels, width, height) {
-    const soft = blurredCopy(pixels, width, height);
-    for (let i = 0; i < pixels.length; i += 4) {
-      pixels[i] = (pixels[i] + soft[i]) / 2;
-      pixels[i + 1] = (pixels[i + 1] + soft[i + 1]) / 2;
-      pixels[i + 2] = (pixels[i + 2] + soft[i + 2]) / 2;
-    }
-    return pixels;
+    return withNeighbourAverage(pixels, width, height, (i, red, green, blue) => {
+      pixels[i] = (pixels[i] + red) / 2;
+      pixels[i + 1] = (pixels[i + 1] + green) / 2;
+      pixels[i + 2] = (pixels[i + 2] + blue) / 2;
+    });
   }
 
   /**
@@ -742,6 +751,9 @@
   // Mark up and hide (Edit photo)
   // ---------------------------------------------------------------------------
 
+  // The ways an area can be hidden. Cover is the one that is safe for writing and numbers.
+  const HIDE_MODES = Object.freeze(['cover', 'blur', 'pixelate']);
+
   const MARK_KINDS = Object.freeze([
     Object.freeze({ key: 'box', label: 'Box', icon: 'bi-square', drag: true }),
     Object.freeze({ key: 'circle', label: 'Circle', icon: 'bi-circle', drag: true }),
@@ -832,9 +844,13 @@
    * the squares. Either way the detail is gone from the pixels: it cannot be brought back from
    * the saved photo. How see-through each pixel is gets averaged the same way, so the outline of
    * writing on a see-through PNG or WEBP is removed as well, not only its colour.
+   *
+   * Blur and pixelate keep one average per square, and a short text or number can sometimes be
+   * guessed back from those averages by trying every possible text. "cover" keeps nothing but one
+   * colour for the whole patch, so nothing of what was there is left to guess from.
    */
   function hidePixels(pixels, width, height, mode) {
-    const block = hideBlock(width, height);
+    const block = mode === 'cover' ? Math.max(width, height) : hideBlock(width, height);
     const columns = Math.ceil(width / block);
     const rows = Math.ceil(height / block);
     const sums = new Float64Array(columns * rows * 4);
@@ -1007,6 +1023,7 @@
     dragRect,
     arrowHead,
     thinPoints,
+    HIDE_MODES,
     hideBlock,
     hidePixels,
     encodeToTarget

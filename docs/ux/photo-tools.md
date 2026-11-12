@@ -73,8 +73,10 @@ stage is a small custom canvas component. No CDN, no remote font, no AI model.
 - **Cleaning and filters.** Pure pixel functions (levels stretch, grey-world white balance,
   unsharp mask, light blur for noise, shadow lift, document clean) in one core file that also
   runs in Node, so each has a unit test on small pixel arrays.
-- **Blur.** Blur and pixelate are burned into the saved pixels. Unlike PDF white-out, the
-  original content under the blur is not in the saved file.
+- **Blur.** Cover, blur and pixelate are burned into the saved pixels. Unlike PDF white-out, the
+  original content under them is not in the saved file. Blur and pixelate keep one average per
+  square, from which short text can sometimes be guessed, so Cover is the default and is
+  recommended for writing and numbers (see [../photo-tools.md](../photo-tools.md)).
 
 ## Code map (proposed)
 
