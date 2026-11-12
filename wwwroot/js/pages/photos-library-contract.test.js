@@ -128,3 +128,18 @@ test('the page shows pictures, not counts or the word media', () => {
     assert.match(pageModel, /People\.Where\(person => person\.PhotoCount > 0\)\.Select/);
     assert.match(libraryScript, /setRow\('\[data-info-classification-row\]', Boolean\(kind\) && kind !== 'Not classified'\)/);
 });
+
+test('the bar comes first on a person\'s page too; People folds sort and filters into one menu', () => {
+    const page = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/Index.cshtml'), 'utf8');
+    assert.ok(page.indexOf('class="photos-bar" data-photos-bar') < page.indexOf('class="photos-hero photos-hero--person"'),
+        'the person is shown below the bar, as an album is');
+    assert.doesNotMatch(page, /"People in Photos"/);
+
+    const people = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/People/Index.cshtml'), 'utf8');
+    const menu = people.slice(people.indexOf('class="dropdown people-filter"'), people.indexOf('class="people-header__actions"'));
+    assert.match(menu, /data-bs-auto-close="outside"/, 'choosing in a select does not close the menu');
+    ['name="Sort"', 'name="AccountLink"', 'name="IncludeHidden"'].forEach(field => assert.ok(menu.includes(field), field));
+    // The selection is still carried by whichever form is shown.
+    const script = fs.readFileSync(path.resolve(__dirname, 'photos-people-directory.js'), 'utf8');
+    assert.match(script, /querySelector\('\.people-sort, \.people-filter__form'\)/);
+});

@@ -149,74 +149,6 @@
         }
     }
 
-    @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 0)
-    {
-        <header class="photos-hero photos-hero--person">
-            <div class="photos-person-hero">
-                @if (Model.IsPersonalPhotoProfile)
-                {
-                    <a class="photos-person-hero__back" asp-page="./Index" asp-route-View="photos"><i class="bi bi-chevron-left"></i> Photos</a>
-                }
-                else
-                {
-                    <a class="photos-person-hero__back" asp-page="/Photos/People/Index"><i class="bi bi-chevron-left"></i> People</a>
-                }
-                <div class="photos-person-hero__main">
-                    <div class="photos-person-hero__faces" aria-hidden="true">
-                        @foreach (var person in Model.SelectedPeople.Take(4))
-                        {
-                            <span>
-                                @if (person.RepresentativeFaceId.HasValue)
-                                {
-                                    <img src="@Url.Page("/Photos/People/Portrait", new { id = person.Id })" alt="" />
-                                }
-                                else
-                                {
-                                    <i class="bi bi-person-fill"></i>
-                                }
-                            </span>
-                        }
-                    </div>
-                    <div class="photos-person-hero__identity">
-                        <span class="photos-eyebrow">@(Model.IsPersonalPhotoProfile ? "Your photos in PRISM" : Model.IsSinglePersonProfile ? "People in Photos" : "People together")</span>
-                        <h1>@galleryHeading</h1>
-                        @if (Model.IsSinglePersonProfile)
-                        {
-                            <p class="photos-person-profile__meta">
-                                <span><strong data-person-confirmed-count>@(personProfile?.ConfirmedPhotoCount ?? Model.Stats.Photos)</strong> confirmed photo@((personProfile?.ConfirmedPhotoCount ?? Model.Stats.Photos) == 1 ? "" : "s")</span>
-                                @if (personProfile?.LatestMediaDateUtc is DateTimeOffset lastSeen)
-                                {
-                                    <span>Last seen <strong data-person-last-seen>@lastSeen.ToLocalTime().ToString("dd MMM yyyy")</strong></span>
-                                }
-                                @if (Model.CanReviewPersonCandidates && personProfile is not null && personProfile.PossibleMatchCount > 0)
-                                {
-                                    <span class="photos-person-profile__possible"><strong data-person-discovery-count>@personProfile.PossibleMatchCount</strong> possible match@(personProfile.PossibleMatchCount == 1 ? "" : "es")</span>
-                                }
-                                else if (Model.CanReviewPersonCandidates && personProfile?.HasTrustedReference == true && personProfile.BackgroundMatchingCount > 0)
-                                {
-                                    <span class="photos-person-profile__matching"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Checking unresolved appearances</span>
-                                }
-                            </p>
-                            @if (Model.IsCurrentUserLinkedPerson)
-                            {
-                                <span class="photos-person-profile__self-link"><i class="bi bi-person-check" aria-hidden="true"></i> Photo identity · @personProfile?.DisplayName</span>
-                            }
-                        }
-                        else if (Model.MatchAllSelectedPeople)
-                        {
-                            <p>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") containing all selected people.</p>
-                        }
-                        else
-                        {
-                            <p>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") containing any selected person.</p>
-                        }
-                    </div>
-                </div>
-            </div>
-            @{ await RenderPageActions(); }
-        </header>
-    }
-
     <div class="photos-bar" data-photos-bar>
         @if (!Model.IsPeopleGallery)
         {
@@ -333,6 +265,79 @@
             </div>
         }
     </div>
+
+    @* The person sits below the bar, as an album does, so the bar is in one place on every page. *@
+    @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 0)
+    {
+        <header class="photos-hero photos-hero--person">
+            <div class="photos-person-hero">
+                @if (Model.IsPersonalPhotoProfile)
+                {
+                    <a class="photos-person-hero__back" asp-page="./Index" asp-route-View="photos"><i class="bi bi-chevron-left"></i> Photos</a>
+                }
+                else
+                {
+                    <a class="photos-person-hero__back" asp-page="/Photos/People/Index"><i class="bi bi-chevron-left"></i> People</a>
+                }
+                <div class="photos-person-hero__main">
+                    <div class="photos-person-hero__faces" aria-hidden="true">
+                        @foreach (var person in Model.SelectedPeople.Take(4))
+                        {
+                            <span>
+                                @if (person.RepresentativeFaceId.HasValue)
+                                {
+                                    <img src="@Url.Page("/Photos/People/Portrait", new { id = person.Id })" alt="" />
+                                }
+                                else
+                                {
+                                    <i class="bi bi-person-fill"></i>
+                                }
+                            </span>
+                        }
+                    </div>
+                    <div class="photos-person-hero__identity">
+                        @* One person's page is named by the back link and the name; the line above the name is for the other two cases. *@
+                        @if (Model.IsPersonalPhotoProfile || !Model.IsSinglePersonProfile)
+                        {
+                            <span class="photos-eyebrow">@(Model.IsPersonalPhotoProfile ? "Your photos in PRISM" : "People together")</span>
+                        }
+                        <h1>@galleryHeading</h1>
+                        @if (Model.IsSinglePersonProfile)
+                        {
+                            <p class="photos-person-profile__meta">
+                                <span><strong data-person-confirmed-count>@(personProfile?.ConfirmedPhotoCount ?? Model.Stats.Photos)</strong> confirmed photo@((personProfile?.ConfirmedPhotoCount ?? Model.Stats.Photos) == 1 ? "" : "s")</span>
+                                @if (personProfile?.LatestMediaDateUtc is DateTimeOffset lastSeen)
+                                {
+                                    <span>Last seen <strong data-person-last-seen>@lastSeen.ToLocalTime().ToString("dd MMM yyyy")</strong></span>
+                                }
+                                @if (Model.CanReviewPersonCandidates && personProfile is not null && personProfile.PossibleMatchCount > 0)
+                                {
+                                    <span class="photos-person-profile__possible"><strong data-person-discovery-count>@personProfile.PossibleMatchCount</strong> possible match@(personProfile.PossibleMatchCount == 1 ? "" : "es")</span>
+                                }
+                                else if (Model.CanReviewPersonCandidates && personProfile?.HasTrustedReference == true && personProfile.BackgroundMatchingCount > 0)
+                                {
+                                    <span class="photos-person-profile__matching"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Checking unresolved appearances</span>
+                                }
+                            </p>
+                            @if (Model.IsCurrentUserLinkedPerson)
+                            {
+                                <span class="photos-person-profile__self-link"><i class="bi bi-person-check" aria-hidden="true"></i> Photo identity · @personProfile?.DisplayName</span>
+                            }
+                        }
+                        else if (Model.MatchAllSelectedPeople)
+                        {
+                            <p>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") containing all selected people.</p>
+                        }
+                        else
+                        {
+                            <p>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") containing any selected person.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+            @{ await RenderPageActions(); }
+        </header>
+    }
 
     @if (Model.IsAlbumDetail && Model.CurrentAlbum is not null)
     {

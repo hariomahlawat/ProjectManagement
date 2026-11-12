@@ -46,7 +46,7 @@
     // Ticked people live only in this page's checkboxes. Searching, sorting or changing
     // page reloads the directory, so write the current selection into those forms and
     // links; the server renders it back (off-page selections as persisted inputs).
-    const navigationForms = [searchForm, workspace.querySelector('.people-sort')].filter(Boolean);
+    const navigationForms = [searchForm, workspace.querySelector('.people-sort, .people-filter__form')].filter(Boolean);
     const pageLinks = [...workspace.querySelectorAll('.people-pagination a[href]')];
 
     function selectedIds() {
