@@ -285,11 +285,11 @@
         if (!(liveStatus instanceof HTMLElement)) return;
 
         if (previousMatching > 0 && data.matching === 0) {
-            liveStatus.textContent = `Matching complete — ${data.knownMatches} ${plural(data.knownMatches, "known match")} · ${data.individualReview} individual review.`;
+            liveStatus.textContent = `Checking finished: ${data.knownMatches} ${plural(data.knownMatches, "suggestion")} and ${data.individualReview} unnamed ${plural(data.individualReview, "face")}.`;
             if (matchingEmptyState instanceof HTMLElement) {
-                if (matchingEmptyTitle instanceof HTMLElement) matchingEmptyTitle.textContent = "Matching complete";
+                if (matchingEmptyTitle instanceof HTMLElement) matchingEmptyTitle.textContent = "Checking finished";
                 if (matchingEmptyCopy instanceof HTMLElement) {
-                    matchingEmptyCopy.textContent = `${data.knownMatches} ${plural(data.knownMatches, "known match")} and ${data.individualReview} ${plural(data.individualReview, "appearance")} are now ready for review.`;
+                    matchingEmptyCopy.textContent = `${data.knownMatches} ${plural(data.knownMatches, "suggestion")} and ${data.individualReview} unnamed ${plural(data.individualReview, "face")} are ready to review.`;
                 }
                 if (matchingEmptyAction instanceof HTMLElement) matchingEmptyAction.hidden = false;
             }
@@ -297,17 +297,23 @@
         }
 
         if (previousGroupingRefreshing && !data.groupingRefreshPending && data.groupingSnapshotAvailable) {
-            liveStatus.textContent = "Identity-group snapshot refreshed — reload Groups to view the latest membership.";
+            liveStatus.textContent = "The groups have changed. Reload to see them.";
             if (groupingRefreshAction instanceof HTMLElement) groupingRefreshAction.hidden = false;
+            // The Reload link lives in the notice, so the notice shows while reloading is offered.
+            if (groupingRefreshNotice instanceof HTMLElement) {
+                groupingRefreshNotice.hidden = false;
+                const copy = groupingRefreshNotice.querySelector("[data-grouping-refresh-copy]");
+                if (copy instanceof HTMLElement) copy.textContent = "New groups are ready.";
+            }
             return;
         }
 
         if (data.matching > 0 && data.matchingWorkerDelayed) {
-            liveStatus.textContent = `Matching worker delayed — ${data.matching} ${plural(data.matching, "appearance")} remain unresolved.`;
+            liveStatus.textContent = `Checking is running late: ${data.matching} ${plural(data.matching, "face")} still waiting.`;
         } else if (data.matching > 0) {
-            liveStatus.textContent = `${data.matching} ${plural(data.matching, "appearance")} being matched in the background.`;
+            liveStatus.textContent = `${data.matching} ${plural(data.matching, "face")} being checked in the background.`;
         } else if (data.groupingRefreshPending) {
-            liveStatus.textContent = "Identity groups are refreshing in the background.";
+            liveStatus.textContent = "PRISM is grouping the faces again.";
         } else {
             liveStatus.textContent = "";
         }
@@ -351,25 +357,29 @@
             const groupingRefreshFailed = Boolean(data.groupingFailureReason);
             groupingRefreshNotice.classList.toggle("is-refreshing", data.groupingRefreshPending && !groupingRefreshFailed);
             groupingRefreshNotice.classList.toggle("has-failure", groupingRefreshFailed);
+            // Said only while the groups are being rebuilt or could not be, and while the page
+            // is offering to reload them once they are ready.
+            const reloadOffered = groupingRefreshAction instanceof HTMLElement && !groupingRefreshAction.hidden;
+            groupingRefreshNotice.hidden = !groupingRefreshFailed && !data.groupingRefreshPending && !reloadOffered;
             const copy = groupingRefreshNotice.querySelector("[data-grouping-refresh-copy]");
             if (copy instanceof HTMLElement) {
                 if (groupingRefreshFailed) {
                     copy.textContent = data.groupingSnapshotAvailable
-                        ? "Identity grouping is showing the last successful snapshot because the latest refresh failed. The background worker will retry automatically."
-                        : "Identity grouping is temporarily unavailable because the latest background refresh failed. The worker will retry automatically.";
+                        ? "These groups are from the last time grouping worked. The latest attempt failed; PRISM will try again by itself."
+                        : "PRISM could not group the faces this time. It will try again by itself.";
                 } else if (data.groupingRefreshPending) {
                     copy.textContent = data.groupingSnapshotAvailable
-                        ? "Identity groups are refreshing in the background. The last successful snapshot remains available until the new one is ready."
-                        : "Identity groups are being prepared in the background.";
+                        ? "PRISM is grouping the faces again. These groups stay until the new ones are ready."
+                        : "PRISM is grouping the faces. The groups appear here when they are ready.";
                 } else if (data.groupingSnapshotAvailable) {
-                    copy.textContent = "Identity-group snapshot is current.";
+                    copy.textContent = reloadOffered ? "New groups are ready." : "The groups are up to date.";
                 }
             }
             const stamp = groupingRefreshNotice.querySelector("[data-grouping-refreshed-at]");
             if (stamp instanceof HTMLElement && data.groupingRefreshedAtUtc) {
                 const parsed = new Date(data.groupingRefreshedAtUtc);
                 if (!Number.isNaN(parsed.valueOf())) {
-                    stamp.textContent = `Last snapshot ${parsed.toLocaleString()}`;
+                    stamp.textContent = `Last grouped ${parsed.toLocaleString()}`;
                     stamp.hidden = false;
                 }
             }
