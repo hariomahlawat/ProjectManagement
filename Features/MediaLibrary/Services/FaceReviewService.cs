@@ -2069,9 +2069,14 @@ public sealed class FaceReviewService : IFaceReviewService
         }
     }
 
+    // The ids of the assets the reviewer may see, for use inside other queries. It must not be
+    // marked AsNoTracking: EF Core applies that to the whole query it is composed into, so the
+    // faces and assignments loaded around it came back untracked and changes to them (marking
+    // an assignment removed, suppressing a face) were silently not saved. A query that only
+    // reads says so itself.
     private IQueryable<long> BuildVisibleAssetIdsQuery()
         => _visibility
-            .Apply(_db.Assets.AsNoTracking())
+            .Apply(_db.Assets)
             .Select(asset => asset.Id);
 
     private static IReadOnlyList<Guid> NormalizeFaceSelection(IReadOnlyCollection<Guid> faceIds)

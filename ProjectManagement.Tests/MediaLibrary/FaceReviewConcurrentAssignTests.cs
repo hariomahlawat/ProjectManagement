@@ -73,6 +73,99 @@ public sealed class FaceReviewConcurrentAssignTests
         Assert.Single(await db.PersonFaces.AsNoTracking().ToListAsync());
     }
 
+    // The three corrections on a person's page take a face away from that person. They used
+    // to record the audit entry and leave the face where it was: the query that loaded the
+    // assignments was untracked, so marking them removed was never saved.
+    [Fact]
+    public async Task Returning_a_face_to_review_takes_it_away_from_the_person()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db);
+        await service.AssignAsync(FaceId, Alice, "reviewer-a", null, CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        await service.ReturnAssignmentsToReviewAsync(Alice, new[] { FaceId }, "reviewer-b", "Not this person.", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var assignment = await db.PersonFaces.AsNoTracking().SingleAsync();
+        Assert.NotNull(assignment.RemovedAtUtc);
+        Assert.Equal("reviewer-b", assignment.RemovedByUserId);
+        Assert.Equal("Not this person.", assignment.RemovalReason);
+        Assert.Contains(await db.IdentityAudits.AsNoTracking().ToListAsync(), audit => audit.Action == "AssignmentRemoved");
+
+        // The face is free again: it can be named as someone else.
+        await service.AssignAsync(FaceId, Bob, "reviewer-b", null, CancellationToken.None);
+        db.ChangeTracker.Clear();
+        Assert.Equal(Bob, (await db.PersonFaces.AsNoTracking().SingleAsync(a => a.RemovedAtUtc == null)).MediaPersonId);
+    }
+
+    [Fact]
+    public async Task Moving_a_face_to_another_person_leaves_it_with_that_person_only()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db);
+        await service.AssignAsync(FaceId, Alice, "reviewer-a", null, CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        await service.MoveAssignmentsAsync(Alice, new[] { FaceId }, Bob, "reviewer-b", "Named as the wrong person.", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var active = Assert.Single(await db.PersonFaces.AsNoTracking().Where(a => a.RemovedAtUtc == null).ToListAsync());
+        Assert.Equal(Bob, active.MediaPersonId);
+        Assert.Contains(await db.PersonFaces.AsNoTracking().ToListAsync(), a => a.MediaPersonId == Alice && a.RemovedAtUtc != null);
+    }
+
+    [Fact]
+    public async Task Splitting_a_face_into_a_new_person_leaves_it_with_the_new_person_only()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db);
+        await service.AssignAsync(FaceId, Alice, "reviewer-a", null, CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var carol = await service.SplitToNewPersonAsync(Alice, new[] { FaceId }, "Carol", "reviewer-b", "A different person.", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var active = Assert.Single(await db.PersonFaces.AsNoTracking().Where(a => a.RemovedAtUtc == null).ToListAsync());
+        Assert.Equal(carol, active.MediaPersonId);
+    }
+
+    [Fact]
+    public async Task Marking_a_detection_as_not_a_face_suppresses_it_and_frees_it_from_the_person()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db);
+        await service.AssignAsync(FaceId, Alice, "reviewer-a", null, CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        await service.SuppressManyAsync(new[] { FaceId }, "reviewer-b", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        Assert.True((await db.Faces.AsNoTracking().SingleAsync(face => face.Id == FaceId)).IsSuppressed);
+        Assert.DoesNotContain(await db.PersonFaces.AsNoTracking().ToListAsync(), a => a.RemovedAtUtc == null);
+    }
+
+    [Fact]
+    public async Task A_face_left_unnamed_can_be_brought_back_to_review()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db);
+
+        await service.IgnoreManyAsync(new[] { FaceId }, "reviewer-a", CancellationToken.None);
+        db.ChangeTracker.Clear();
+        await service.ReopenUnidentifiedManyAsync(new[] { FaceId }, "reviewer-a", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var actions = (await db.IdentityAudits.AsNoTracking().ToListAsync()).Select(audit => audit.Action).ToList();
+        Assert.Contains("FaceLeftUnidentified", actions);
+        Assert.Contains("FaceUnidentifiedReopened", actions);
+    }
+
     [Fact]
     public async Task Excluding_an_appearance_that_is_not_a_reference_needs_no_other_reference()
     {
