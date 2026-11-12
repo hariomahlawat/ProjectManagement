@@ -272,13 +272,19 @@
                         <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">1</span>Photo</h2>
                         <div class="phot-mini">
                             <canvas class="phot-mini__thumb" data-sheet-thumb aria-hidden="true"></canvas>
-                            <div>
+                            <div class="phot-mini__text">
                                 <div class="phot-mini__title" data-sheet-origin></div>
                                 <p class="phot-hint">Each copy is printed at the size chosen here.</p>
+                                <div class="phot-place" data-sheet-place hidden>
+                                    <p class="phot-hint">This photo is a different shape, so only part of it fits. Drag the picture to choose the part.</p>
+                                    <label class="phot-slider" for="photSheetZoom">Zoom
+                                        <input type="range" class="form-range" id="photSheetZoom" min="100" max="300" step="1" value="100" data-sheet-zoom autocomplete="off" />
+                                    </label>
+                                    <button type="button" class="btn btn-outline-secondary" data-action="centre-photo" disabled>Centre</button>
+                                </div>
                             </div>
                         </div>
                         <div class="phot-sizes" role="group" aria-label="Print size of one copy" data-sheet-sizes></div>
-                        <p class="phot-hint phot-hint--warning" data-sheet-shape hidden>This photo is a different shape, so its middle is used. To place the face yourself, use <a href="#passport">Passport photo</a> first.</p>
                     </div>
 
                     <div class="phot-panel">
