@@ -7,7 +7,7 @@ namespace ProjectManagement.Pages.Photos.People;
 /// decision can be taken back from the message that confirms it. Only two decisions can be
 /// undone: naming faces (they go back to review) and leaving faces unnamed (they are reopened).
 /// </summary>
-public sealed record PeopleReviewUndo(string Kind, Guid? PersonId, IReadOnlyList<Guid> FaceIds, string UserId, DateTimeOffset DecidedAtUtc)
+public sealed record PeopleReviewUndo(string Id, string Kind, Guid? PersonId, IReadOnlyList<Guid> FaceIds, string UserId, DateTimeOffset DecidedAtUtc)
 {
     public const string Named = "named";
     public const string LeftUnnamed = "left-unnamed";
@@ -31,6 +31,17 @@ public sealed record PeopleReviewUndo(string Kind, Guid? PersonId, IReadOnlyList
         => Serialize(LeftUnnamed, null, faceIds, userId, now);
 
     /// <summary>
+    /// Reads the state back for the confirmation that carries <paramref name="id"/>. A second
+    /// decision, made in another tab, replaces the note; the first tab's Undo then finds a note
+    /// with another id and is refused rather than applied to the wrong decision.
+    /// </summary>
+    public static PeopleReviewUndo? Read(string? state, string? id, string userId, DateTimeOffset now)
+    {
+        var undo = Read(state, userId, now);
+        return undo is not null && !string.IsNullOrEmpty(id) && string.Equals(undo.Id, id, StringComparison.Ordinal) ? undo : null;
+    }
+
+    /// <summary>
     /// Reads the state back. Null when there is none, when it is malformed, when it belongs to
     /// another user or when it is older than <see cref="Lifetime"/>.
     /// </summary>
@@ -52,6 +63,7 @@ public sealed record PeopleReviewUndo(string Kind, Guid? PersonId, IReadOnlyList
         }
 
         if (undo is null
+            || string.IsNullOrWhiteSpace(undo.Id)
             || undo.FaceIds is null
             || undo.FaceIds.Count == 0
             || undo.FaceIds.Count > MaximumFaces
@@ -78,6 +90,6 @@ public sealed record PeopleReviewUndo(string Kind, Guid? PersonId, IReadOnlyList
             return null;
         }
 
-        return JsonSerializer.Serialize(new PeopleReviewUndo(kind, personId, faces, userId, now));
+        return JsonSerializer.Serialize(new PeopleReviewUndo(Guid.NewGuid().ToString("N"), kind, personId, faces, userId, now));
     }
 }
