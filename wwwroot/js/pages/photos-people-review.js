@@ -113,11 +113,18 @@
             const allSelected = checkboxes.length > 0 && selected === checkboxes.length;
 
             if (count instanceof HTMLElement) {
-                count.textContent = `${selected} selected`;
+                count.textContent = selected === 0
+                    ? "Tick the faces that are this person"
+                    : `${selected} of ${checkboxes.length} ticked`;
             }
             if (toggle instanceof HTMLButtonElement) {
-                toggle.textContent = allSelected ? "Clear all" : "Select all";
+                toggle.textContent = allSelected ? "Untick all" : "Tick all";
                 toggle.disabled = refreshLocked || checkboxes.length === 0;
+            }
+            // The name field's button says how many faces it will name.
+            const confirm = form.querySelector("[data-name-field-confirm]");
+            if (confirm instanceof HTMLButtonElement) {
+                confirm.textContent = selected === 0 ? "Confirm" : `Confirm ${selected} ${selected === 1 ? "face" : "faces"}`;
             }
             [...internalSubmitButtons, ...externalCandidateButtons].forEach(button => {
                 button.disabled = refreshLocked || selected === 0;
