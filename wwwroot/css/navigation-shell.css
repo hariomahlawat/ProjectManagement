@@ -185,6 +185,21 @@
     transform: scaleX(1);
 }
 
+/* A tab that opens a menu (Tools). */
+.pm-top-tabs__menu {
+    display: flex;
+    flex: 0 0 auto;
+}
+
+button.pm-top-tabs__item {
+    background: transparent;
+    cursor: pointer;
+}
+
+button.pm-top-tabs__item .bi-chevron-down {
+    font-size: .65rem;
+}
+
 .pm-topbar__right {
     flex: 0 0 auto;
     gap: .65rem;
@@ -517,18 +532,35 @@
     }
 }
 
-@media (max-width: 1399.98px) {
-    .pm-topbar__inner,
-    .pm-topbar__left {
-        gap: .7rem;
-    }
-
+/* Just above 1400px the nine tabs need a little room: tighter tabs, and a search box without its shortcut hint. */
+@media (min-width: 1400px) and (max-width: 1499.98px) {
     .pm-top-tabs__item {
         padding-inline: .48rem;
     }
 
     .pm-top-search {
         width: 12rem;
+        padding-right: 2rem;
+    }
+
+    .pm-top-search__shortcut {
+        display: none;
+    }
+}
+
+@media (max-width: 1399.98px) {
+    .pm-topbar__inner,
+    .pm-topbar__left {
+        gap: .7rem;
+    }
+
+    /* Nine tabs (Tools is the ninth) fit down to 1280px: tighter tabs and a shorter search box. */
+    .pm-top-tabs__item {
+        padding-inline: .4rem;
+    }
+
+    .pm-top-search {
+        width: 10rem;
         padding-right: 2rem;
     }
 
