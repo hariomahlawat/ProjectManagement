@@ -87,10 +87,10 @@ test('the page: initials from the name, the same count wording, columns from the
     assert.doesNotMatch(landing, /DisplayName\.Trim\(\)\[0\]/, 'not the first letter of the rank');
     assert.match(landing, /Url\.Page\("\/Photos\/People\/Portrait", new \{ area = "", id = portraitPersonId \}\)/);
     // The wording the owner asked to keep, zeros included.
-    ['active {(option.ActiveProjectCount == 1 ? "project" : "projects")}', 'recently completed',
+    ['active {(option.ActiveProjectCount == 1 ? "project" : "projects")}',
         '{(option.IdeaCount == 1 ? "idea" : "ideas")}', '{(option.OtherTaskCount == 1 ? "other task" : "other tasks")}',
         '{moduleCount.Count} {moduleCount.Label}'].forEach(text => assert.ok(landing.includes(text), text));
-    assert.match(landing, /if \(option\.RecentlyCompletedProjectCount > 0\)/, 'recently completed only when there are some, as before');
+    assert.doesNotMatch(landing, /RecentlyCompletedProjectCount/, 'recently completed projects are not counted on a tile');
     assert.match(page, /<script src="~\/js\/pages\/officer-conference-landing\.js" asp-append-version="true"><\/script>/);
 
     const model = read('ViewModels/Workspace/OfficerConferenceViewModels.cs');
