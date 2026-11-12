@@ -242,6 +242,13 @@ its dimensions are stepped down; choosing JPG is the better way to make a PNG sm
 If a target cannot be reached at all, the photo is shown in amber with the size that was
 reached. The tool never reports a size it did not reach.
 
+A photo that was already small can come out bigger than the file it was made from. When it is
+saved in the type it already had (JPG or WEBP), the quality is searched again at the same
+dimensions for a file under the original (`retryUnderOriginal`). When that cannot help (a PNG,
+or a PNG saved as JPG), the result is shown in amber as "(not smaller)" and the summary says so; it
+is never shown as a saving. The original is not put in its place, because saving through the
+canvas is what removes a photo's hidden data.
+
 Photos are never enlarged. Phone photos are opened the right way up (their rotation is hidden
 data). Big reductions are drawn in halving steps, which keeps fine detail. Saving as JPG fills
 see-through areas with white.
