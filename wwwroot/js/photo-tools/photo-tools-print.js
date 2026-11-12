@@ -40,7 +40,9 @@
   const caption = $('[data-sheet-caption]');
   const thumb = $('[data-sheet-thumb]');
   const origin = $('[data-sheet-origin]');
-  const shapeNote = $('[data-sheet-shape]');
+  const placeBox = $('[data-sheet-place]');
+  const zoomSlider = $('[data-sheet-zoom]');
+  const centreButton = $('[data-action="centre-photo"]');
   const sizes = $('[data-sheet-sizes]');
   const papers = $('[data-sheet-papers]');
   const copiesValue = $('[data-sheet-copies]');
@@ -63,6 +65,9 @@
   let made = null;
   let size = { width: core.PASSPORT_SIZES[0].width, height: core.PASSPORT_SIZES[0].height };
   let copy = null;
+  // Where the copy is taken from a photo of another shape: the middle, until the user moves it.
+  let place = { zoom: 1, x: 0.5, y: 0.5 };
+  let movable = false;
   let sheet = core.SHEET_SIZES[0];
   // Null fills the sheet; a number is what the user asked for.
   let copies = null;
@@ -87,18 +92,55 @@
     return core.sheetLayout(sheet, size.width, size.height, copies);
   }
 
-  /** One copy at its print size. A photo of another shape gives its middle. */
+  /**
+   * One copy at its print size. A photo of another shape gives the piece the user placed, the
+   * middle to begin with; the small picture of the copy is then where it is dragged.
+   */
   function makeCopy() {
     const from = shared.sizeOf(source);
-    const part = core.coverCrop(from.width, from.height, size.width, size.height);
+    const part = core.coverCrop(from.width, from.height, size.width, size.height, place);
     const cut = shared.newCanvas(part.width, part.height);
     cut.getContext('2d').drawImage(source, part.x, part.y, part.width, part.height, 0, 0, part.width, part.height);
     copy = shared.drawPhoto(cut, size.width, size.height, { opaque: true });
-    shapeNote.hidden = part.whole;
+
+    movable = !part.whole;
+    placeBox.hidden = !movable;
+    thumb.classList.toggle('is-movable', movable);
+    if (movable) {
+      thumb.tabIndex = 0;
+      thumb.setAttribute('role', 'group');
+      thumb.setAttribute('aria-label', 'Photo position. Drag to move it, or use the arrow keys; plus and minus zoom.');
+      thumb.removeAttribute('aria-hidden');
+    } else {
+      thumb.removeAttribute('tabindex');
+      thumb.removeAttribute('role');
+      thumb.removeAttribute('aria-label');
+      thumb.setAttribute('aria-hidden', 'true');
+    }
+    zoomSlider.value = String(Math.round(place.zoom * 100));
+    centreButton.disabled = place.zoom === 1 && place.x === 0.5 && place.y === 0.5;
 
     thumb.width = size.width;
     thumb.height = size.height;
     thumb.getContext('2d').drawImage(copy, 0, 0);
+  }
+
+  // Moving the photo makes the copy again from the full photo, at most once every frame or so.
+  // A timer, not an animation frame: the copy must also be made while the page is not showing.
+  let placing = 0;
+  function placeChanged(next) {
+    place = next;
+    if (placing) return;
+    placing = setTimeout(() => {
+      placing = 0;
+      if (!source) return;
+      makeCopy();
+      drawPreview(plan());
+    }, 16);
+  }
+
+  function resetPlace() {
+    place = { zoom: 1, x: 0.5, y: 0.5 };
   }
 
   // ---------------------------------------------------------------------------
@@ -180,6 +222,7 @@
     choices(sizes, sizeList, currentSize, (option) => {
       size = { width: option.width, height: option.height };
       copies = null;
+      resetPlace();
       makeCopy();
       render();
     });
@@ -235,6 +278,7 @@
       }
     }
     copies = null;
+    resetPlace();
     fileLabel.textContent = name;
     emptyDrop.hidden = true;
     workspace.hidden = false;
@@ -368,6 +412,52 @@
     render();
   });
   cutLines.addEventListener('change', render);
+
+  // The small picture of the copy is dragged to choose which part of the photo is printed.
+  let dragFrom = null;
+  thumb.addEventListener('pointerdown', (event) => {
+    if (!movable) return;
+    event.preventDefault();
+    thumb.setPointerCapture(event.pointerId);
+    dragFrom = { x: event.clientX, y: event.clientY };
+  });
+  thumb.addEventListener('pointermove', (event) => {
+    if (!dragFrom || !movable) return;
+    const box = thumb.getBoundingClientRect();
+    const from = shared.sizeOf(source);
+    const next = core.dragCover(
+      from.width, from.height, size.width, size.height, place,
+      (event.clientX - dragFrom.x) / box.width, (event.clientY - dragFrom.y) / box.height);
+    dragFrom = { x: event.clientX, y: event.clientY };
+    placeChanged(next);
+  });
+  for (const type of ['pointerup', 'pointercancel']) {
+    thumb.addEventListener(type, () => {
+      dragFrom = null;
+    });
+  }
+  thumb.addEventListener('keydown', (event) => {
+    if (!movable) return;
+    const step = event.shiftKey ? 0.02 : 0.1;
+    // The arrow moves the frame over the photo, so the photo slides the other way.
+    const moves = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+    const from = shared.sizeOf(source);
+    if (moves[event.key]) {
+      event.preventDefault();
+      placeChanged(core.dragCover(from.width, from.height, size.width, size.height, place, moves[event.key][0], moves[event.key][1]));
+    } else if (event.key === '+' || event.key === '=' || event.key === '-') {
+      event.preventDefault();
+      const zoom = Math.min(core.COVER_MAX_ZOOM, Math.max(1, place.zoom * (event.key === '-' ? 1 / 1.1 : 1.1)));
+      placeChanged({ ...place, zoom });
+    }
+  });
+  zoomSlider.addEventListener('input', () => {
+    placeChanged({ ...place, zoom: Number(zoomSlider.value) / 100 });
+  });
+  centreButton.addEventListener('click', () => {
+    resetPlace();
+    placeChanged(place);
+  });
   for (const button of formatButtons) {
     button.addEventListener('click', () => {
       format = button.dataset.sheetFormat;

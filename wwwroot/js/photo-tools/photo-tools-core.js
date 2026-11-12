@@ -279,11 +279,16 @@
     return { pageWidth: layout.width * point, pageHeight, lineWidth, photos, cuts };
   }
 
+  const COVER_MAX_ZOOM = 3;
+
   /**
-   * The part of a photo that fills a frame of another shape: the largest piece of that shape,
-   * taken from the middle. `whole` says the photo already had the shape and nothing is lost.
+   * The part of a photo that fills a frame of another shape: the largest piece of that shape.
+   * `whole` says the photo already had the shape, so at no zoom nothing is lost.
+   *
+   * `place` moves it: zoom (1 to 3) takes a smaller piece, and x and y (0 to 1) say where in the
+   * room that is left the piece sits, 0.5 being the middle. Without it the middle is taken.
    */
-  function coverCrop(sourceWidth, sourceHeight, frameWidth, frameHeight) {
+  function coverCrop(sourceWidth, sourceHeight, frameWidth, frameHeight, place) {
     const shape = frameWidth / frameHeight;
     let width = sourceWidth;
     let height = Math.round(sourceWidth / shape);
@@ -296,12 +301,33 @@
     // A pixel or two of rounding is not a different shape.
     const whole = sourceWidth - width <= Math.max(2, sourceWidth * 0.01)
       && sourceHeight - height <= Math.max(2, sourceHeight * 0.01);
+
+    const share = value => (Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5);
+    const zoom = place && Number.isFinite(place.zoom) ? Math.min(COVER_MAX_ZOOM, Math.max(1, place.zoom)) : 1;
+    width = Math.max(1, Math.round(width / zoom));
+    height = Math.max(1, Math.round(height / zoom));
     return {
-      x: Math.floor((sourceWidth - width) / 2),
-      y: Math.floor((sourceHeight - height) / 2),
+      x: Math.floor((sourceWidth - width) * share(place ? place.x : 0.5)),
+      y: Math.floor((sourceHeight - height) * share(place ? place.y : 0.5)),
       width,
       height,
       whole
+    };
+  }
+
+  /**
+   * Where the piece sits after the photo is dragged under the frame by (dx, dy), given as shares
+   * of the frame's width and height. Dragging the photo right shows more of its left.
+   */
+  function dragCover(sourceWidth, sourceHeight, frameWidth, frameHeight, place, dx, dy) {
+    const piece = coverCrop(sourceWidth, sourceHeight, frameWidth, frameHeight, place);
+    const roomX = sourceWidth - piece.width;
+    const roomY = sourceHeight - piece.height;
+    const clamp = value => Math.min(1, Math.max(0, value));
+    return {
+      zoom: place.zoom,
+      x: roomX > 0 ? clamp((piece.x - dx * piece.width) / roomX) : 0.5,
+      y: roomY > 0 ? clamp((piece.y - dy * piece.height) / roomY) : 0.5
     };
   }
 
@@ -1503,6 +1529,8 @@
     cleanPaper,
     lengthToPixels,
     pixelsToMillimetres,
+    COVER_MAX_ZOOM,
+    dragCover,
     BACKGROUND_STATUS,
     measureBackground,
     changeBackground,

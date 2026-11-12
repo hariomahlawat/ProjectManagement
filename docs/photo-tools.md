@@ -39,7 +39,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | --- | --- |
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none), smaller dimensions, save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. What the tool gets wrong can be fixed by hand with a brush. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
-| Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
+| Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
 | Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Cover, Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
 
@@ -168,8 +168,13 @@ Done.
   on the page, `phot:print-sheet`), with the same pixels and clean-up as the downloaded photo.
   Its size is already the print size; a custom size is offered as "As made in Passport photo".
 - **From a file.** The photo is printed at the size chosen on the screen. A photo of another
-  shape gives its middle (`coverCrop`), and the screen says so and points to Passport photo for
-  placing the face. Print sheet has no crop stage of its own.
+  shape cannot fit whole, so the user chooses the part: the small picture of the copy in step 1
+  grows and is dragged (or moved with the arrow keys), with a zoom slider up to three times and
+  a Centre button. It starts at the middle. `coverCrop` gives the piece for a place (zoom, and
+  where in the room that is left), and `dragCover` moves the place by a drag and stops at the
+  edge of the photo. A photo that already has the shape, such as one from Passport photo, shows
+  no controls. Print sheet only moves and zooms; the face guide, straighten and clean-up stay in
+  Passport photo.
 - The preview and the saved JPG are drawn by the same function from the same layout, and the PDF
   is placed from that layout too, so the preview cannot disagree with the file.
 - **PDF.** `sheetPdfPlan` turns the layout into a page and boxes in points (72 to the inch, from

@@ -356,6 +356,54 @@ test('coverCrop takes the middle of a photo of another shape', () => {
   assert.ok(tiny.width >= 1 && tiny.height >= 1);
 });
 
+test('coverCrop moves and zooms the piece inside the photo', () => {
+  // A wide photo for a tall frame: there is room to move sideways only.
+  const middle = tools.coverCrop(4000, 3000, 413, 531);
+  const left = tools.coverCrop(4000, 3000, 413, 531, { zoom: 1, x: 0, y: 0.5 });
+  const right = tools.coverCrop(4000, 3000, 413, 531, { zoom: 1, x: 1, y: 0.5 });
+  assert.deepEqual([left.x, left.y, left.width, left.height], [0, 0, middle.width, 3000]);
+  assert.equal(right.x + right.width, 4000);
+  assert.deepEqual(tools.coverCrop(4000, 3000, 413, 531, { zoom: 1, x: 0.5, y: 0.5 }), middle, 'the middle is where it starts');
+
+  // Zoom takes a smaller piece of the same shape, and then there is room both ways.
+  const zoomed = tools.coverCrop(4000, 3000, 413, 531, { zoom: 2, x: 0.5, y: 0 });
+  assert.equal(zoomed.height, 1500);
+  assert.equal(zoomed.y, 0);
+  assert.ok(Math.abs(zoomed.width / zoomed.height - 413 / 531) < 0.002);
+  const low = tools.coverCrop(4000, 3000, 413, 531, { zoom: 2, x: 0.5, y: 1 });
+  assert.equal(low.y + low.height, 3000);
+
+  // Out-of-range values are held to what is possible; whole is about shape, not zoom.
+  const odd = tools.coverCrop(4000, 3000, 413, 531, { zoom: 99, x: -4, y: NaN });
+  assert.equal(odd.height, Math.round(3000 / tools.COVER_MAX_ZOOM));
+  assert.equal(odd.x, 0);
+  assert.equal(odd.y, Math.floor((3000 - odd.height) / 2));
+  assert.equal(tools.coverCrop(826, 1062, 413, 531, { zoom: 2, x: 0.5, y: 0.5 }).whole, true);
+  for (const place of [{ zoom: 1, x: 0, y: 0 }, { zoom: 3, x: 1, y: 1 }, { zoom: 1.7, x: 0.3, y: 0.9 }]) {
+    const piece = tools.coverCrop(1234, 987, 600, 600, place);
+    assert.ok(piece.x >= 0 && piece.y >= 0 && piece.x + piece.width <= 1234 && piece.y + piece.height <= 987);
+  }
+});
+
+test('dragCover follows the pointer and stops at the edge of the photo', () => {
+  const start = { zoom: 1, x: 0.5, y: 0.5 };
+  // Dragging the photo right by a tenth of the frame shows more of its left.
+  const moved = tools.dragCover(4000, 3000, 413, 531, start, 0.1, 0);
+  const before = tools.coverCrop(4000, 3000, 413, 531, start);
+  const after = tools.coverCrop(4000, 3000, 413, 531, moved);
+  assert.ok(Math.abs((before.x - after.x) - before.width * 0.1) <= 1);
+  assert.equal(moved.y, 0.5, 'no room up or down at this zoom');
+  assert.equal(moved.zoom, 1);
+
+  assert.equal(tools.dragCover(4000, 3000, 413, 531, start, 50, 0).x, 0, 'stops at the left edge');
+  assert.equal(tools.dragCover(4000, 3000, 413, 531, start, -50, 0).x, 1, 'stops at the right edge');
+
+  const zoomed = tools.dragCover(4000, 3000, 413, 531, { zoom: 2, x: 0.5, y: 0.5 }, 0, -0.2);
+  assert.ok(zoomed.y > 0.5, 'dragging up shows more of the bottom');
+  // A photo of the same shape at no zoom has nowhere to go.
+  assert.deepEqual(tools.dragCover(413, 531, 413, 531, start, 0.3, 0.3), start);
+});
+
 test('pixelsToMillimetres names a print size', () => {
   assert.equal(tools.pixelsToMillimetres(413), 35);
   assert.equal(tools.pixelsToMillimetres(531), 45);
