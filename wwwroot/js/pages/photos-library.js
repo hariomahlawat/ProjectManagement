@@ -547,12 +547,18 @@
         const barHeight = () => {
             const bar = root.querySelector('[data-photos-bar]');
             const sticky = bar && getComputedStyle(bar).position === 'sticky';
-            const cover = sticky ? bar : document.querySelector('.pm-topbar');
-            return Math.max(0, cover?.getBoundingClientRect().bottom || 0) + 12;
+            // Where the sticky bar ends once it is stuck: its own offset plus its height now,
+            // which is two rows when the bar has wrapped.
+            if (sticky) return (Number.parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight + 12;
+            return Math.max(0, document.querySelector('.pm-topbar')?.getBoundingClientRect().bottom || 0) + 12;
         };
         const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        // The heading's own scroll margin (in the stylesheet) keeps it clear of the bars.
-        const scrollToMonth = (heading) => heading.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+        // The heading is given the measured height as its scroll margin, so it clears the bar
+        // whatever the bar's height; the stylesheet's margin covers links followed without script.
+        const scrollToMonth = (heading) => {
+            heading.style.scrollMarginTop = `${barHeight()}px`;
+            heading.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+        };
         scrubber?.addEventListener('click', (event) => {
             const link = event.target?.closest?.('a[data-month]') ?? null;
             const heading = link ? document.getElementById(`month-${link.dataset.month}`) : null;
