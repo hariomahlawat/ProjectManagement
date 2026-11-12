@@ -60,6 +60,21 @@
   const paperButton = $('[data-action="clean-paper"]');
   const paperHint = $('[data-paper-hint]');
   const sheetButton = $('[data-action="print-sheet"]');
+  const bgButtons = $$('[data-bg]');
+  const bgOther = $('[data-bg-other]');
+  const bgColour = $('[data-bg-colour]');
+  const bgAmountRow = $('[data-bg-amount-row]');
+  const bgAmount = $('[data-bg-amount]');
+  const bgAmountValue = $('[data-bg-amount-value]');
+  const bgCompare = $('[data-action="bg-original"]');
+  const bgProblem = $('[data-bg-problem]');
+  const bgNote = $('[data-bg-note]');
+
+  const BG_PROBLEMS = {
+    [core.BACKGROUND_STATUS.busy]: 'This background is not plain enough to change, so the photo is left as it is. Take the photo against a plain wall.',
+    [core.BACKGROUND_STATUS.none]: 'No plain background was found at the edges of this photo, so it is left as it is.',
+    [core.BACKGROUND_STATUS.tooMuch]: 'Too much of the photo was taken as background, so it is left as it is. Move the slider towards Less.'
+  };
 
   // What each mode says. The screen is otherwise the same.
   const MODES = {
@@ -99,6 +114,14 @@
   let mode = 'photo';
   let paper = null;
   let paperOn = true;
+
+  // The new background colour as '#rrggbb', or '' to keep the photo's own. `bgStatus` is what
+  // happened the last time the photo was made; `shown` is that photo when its background was
+  // changed, laid over the frame so the stage shows the saved result.
+  let background = '';
+  let bgStatus = null;
+  let shown = null;
+  let showOriginal = false;
 
   // Where the photo sits: the photo centre's distance from the frame centre (screen px), its
   // tilt, and how far it is zoomed past "just fills the frame".
@@ -174,6 +197,10 @@
     const zoomed = scale();
     context.scale(zoomed, zoomed);
     context.drawImage(preview, -preview.width / 2, -preview.height / 2);
+    if (shown && !showOriginal) {
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.drawImage(shown, frame.left, frame.top, frame.width, frame.height);
+    }
   }
 
   function moved() {
@@ -424,6 +451,54 @@
     sheetButton.disabled = !full || sizeProblem;
   }
 
+  // ---------------------------------------------------------------------------
+  // Background colour
+  // ---------------------------------------------------------------------------
+
+  function renderBackground() {
+    const preset = bgButtons.some(button => button.dataset.bg === background);
+    for (const button of bgButtons) {
+      button.setAttribute('aria-pressed', String(button.dataset.bg === background));
+    }
+    bgOther.classList.toggle('is-pressed', !preset);
+    for (const button of bgButtons) {
+      const dot = button.querySelector('.phot-bgchoice__dot');
+      if (dot) dot.style.setProperty('--phot-swatch', button.dataset.bg);
+    }
+    const amount = Number(bgAmount.value);
+    bgAmountValue.textContent = amount < 35 ? 'Less' : amount > 65 ? 'More' : 'Normal';
+    bgAmountRow.hidden = !background;
+    const changed = Boolean(background) && bgStatus === core.BACKGROUND_STATUS.changed;
+    const problem = background ? BG_PROBLEMS[bgStatus] : undefined;
+    bgCompare.hidden = !changed;
+    bgNote.hidden = !changed;
+    bgProblem.hidden = !problem;
+    bgProblem.textContent = problem || '';
+  }
+
+  function setBackground(colour) {
+    background = colour;
+    if (!colour) bgStatus = null;
+    renderBackground();
+    if (full) queueSave();
+  }
+
+  /** Gives the finished photo its new background. Returns the status, or null when it is kept. */
+  function applyBackground(context, width, height) {
+    if (mode !== 'photo' || !background) return null;
+    const colour = [1, 3, 5].map(at => parseInt(background.slice(at, at + 2), 16));
+    const pixels = context.getImageData(0, 0, width, height);
+    const { status } = core.changeBackground(pixels.data, width, height, colour, Number(bgAmount.value));
+    if (status === core.BACKGROUND_STATUS.changed) context.putImageData(pixels, 0, 0);
+    return status;
+  }
+
+  function seeOriginal(on) {
+    if (showOriginal === on) return;
+    showOriginal = on;
+    draw();
+  }
+
   /** Hands the finished photo, at the size it prints at, to the Print sheet tool. */
   function openPrintSheet() {
     if (!full || !frame.width || sizeProblem) return;
@@ -480,6 +555,8 @@
 
     context.setTransform(1, 0, 0, 1, 0, 0);
     applyLook(context, size.width, size.height);
+    // After the lighting, so the new background is exactly the colour chosen.
+    bgStatus = applyBackground(context, size.width, size.height);
     return output;
   }
 
@@ -497,6 +574,9 @@
     }
     try {
       const output = renderOutput();
+      shown = bgStatus === core.BACKGROUND_STATUS.changed ? output : null;
+      renderBackground();
+      draw();
       const result = await core.encodeToTarget({
         encode: (width, height, quality) => shared.canvasToBytes(output, JPEG, quality),
         width: size.width,
@@ -527,6 +607,11 @@
   /** The saved file is prepared again shortly after the last change. */
   function queueSave() {
     renderSheet();
+    if (shown) {
+      // The photo laid over the frame is out of date until it is made again.
+      shown = null;
+      draw();
+    }
     if (!full) return;
     if (sizeProblem) {
       showSizeProblem();
@@ -657,6 +742,26 @@
 
   sheetButton.addEventListener('click', openPrintSheet);
 
+  for (const button of bgButtons) {
+    button.addEventListener('click', () => setBackground(button.dataset.bg));
+  }
+  // Picking a colour chooses it; pressing Other again with the same colour chooses it too.
+  bgColour.addEventListener('input', () => setBackground(bgColour.value));
+  bgColour.addEventListener('click', () => {
+    if (background !== bgColour.value) setBackground(bgColour.value);
+  });
+  bgAmount.addEventListener('input', () => {
+    renderBackground();
+    if (full && background) queueSave();
+  });
+  bgCompare.addEventListener('pointerdown', () => seeOriginal(true));
+  bgCompare.addEventListener('keydown', (event) => {
+    if (event.key === ' ' || event.key === 'Enter') seeOriginal(true);
+  });
+  for (const type of ['pointerup', 'pointerleave', 'pointercancel', 'keyup', 'blur']) {
+    bgCompare.addEventListener(type, () => seeOriginal(false));
+  }
+
   fixButton.addEventListener('click', () => {
     fixOn = !fixOn;
     fixButton.setAttribute('aria-pressed', String(fixOn));
@@ -700,4 +805,5 @@
   outHeight.value = String(size.height);
   renderSizes();
   renderSheet();
+  renderBackground();
 })();

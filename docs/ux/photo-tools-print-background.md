@@ -4,7 +4,10 @@ Two additions to Photo Tools (`/Tools/Photo`), asked for by the owner on 12 Nov 
 first build plan ([photo-tools.md](photo-tools.md)) was finished. The durable description of what
 is built stays in [../photo-tools.md](../photo-tools.md); this document is the plan.
 
-Built so far: PR 2, the Print sheet tool, and PR 3, its PDF download. "What exists today" below describes the tool before
+All four PRs are built. What was built is described in [../photo-tools.md](../photo-tools.md); where it
+differs from this plan, that document is right. One difference: when a background cannot be
+changed, the choice stays selected with a message and the photo is left as it is; it does not go
+back to Keep. "What exists today" below describes the tool before
 this plan.
 
 ## What exists today
