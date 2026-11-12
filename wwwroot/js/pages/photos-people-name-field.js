@@ -46,6 +46,12 @@
             : [];
         let active = -1;
         let offered = [];
+        // The person picked from the list or by a suggestion's button. Two people can share a
+        // name, so the pick is kept by id; typing anything else in the box lets go of it.
+        let picked = null;
+        const meaningOf = () => (picked && normalise(text.value) === normalise(picked.name)
+            ? { kind: 'known', id: picked.id, name: picked.name }
+            : resolveName(people, text.value));
 
         const close = () => {
             list.hidden = true;
@@ -56,8 +62,9 @@
             text.removeAttribute('aria-activedescendant');
         };
 
-        const choose = (name) => {
-            text.value = name;
+        const choose = (entry) => {
+            picked = entry.id ? { id: entry.id, name: entry.name } : null;
+            text.value = entry.name;
             close();
             text.dispatchEvent(new Event('change', { bubbles: true }));
         };
@@ -81,7 +88,7 @@
             const matches = matchPeople(people, typed);
             const meaning = resolveName(people, typed);
             list.replaceChildren();
-            offered = matches.map(person => person.name);
+            offered = matches.map(person => ({ id: person.id, name: person.name }));
             matches.forEach((person, index) => {
                 const item = document.createElement('li');
                 item.id = `${list.id}-${index}`;
@@ -105,7 +112,7 @@
                 item.className = 'is-new';
                 item.setAttribute('role', 'option');
                 item.textContent = `New person: ${meaning.name}`;
-                offered.push(meaning.name);
+                offered.push({ id: null, name: meaning.name });
                 list.append(item);
             }
             list.hidden = list.children.length === 0;
@@ -121,7 +128,7 @@
             if (index >= 0) choose(offered[index]);
         });
         text.addEventListener('focus', render);
-        text.addEventListener('input', render);
+        text.addEventListener('input', () => { picked = null; render(); });
         text.addEventListener('blur', () => window.setTimeout(close, 120));
         text.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && !list.hidden) {
@@ -134,21 +141,29 @@
                 const step = event.key === 'ArrowDown' ? 1 : -1;
                 setActive((active + step + offered.length) % offered.length);
             } else if (event.key === 'Enter' && active >= 0 && !list.hidden) {
-                // Enter on a highlighted entry picks it; Enter otherwise confirms the form.
+                // Enter on a highlighted entry picks it.
                 event.preventDefault();
                 choose(offered[active]);
+            } else if (event.key === 'Enter') {
+                // Enter otherwise confirms, through this field's own button. Left to the browser,
+                // Enter would press the form's first submit button, which may be another action
+                // on the card (declining a suggested person).
+                event.preventDefault();
+                if (!confirm.disabled) confirm.click();
             }
         });
 
         // A person picked elsewhere on the card (a suggestion's "Choose" button sets the select).
         select?.addEventListener('change', () => {
             const option = select.selectedOptions[0];
-            if (option?.value) text.value = option.textContent.trim();
+            if (!option?.value) return;
+            picked = { id: option.value, name: option.textContent.trim() };
+            text.value = picked.name;
         });
 
         // The form goes to the handler that fits what was typed; the plain controls carry the value.
         confirm.addEventListener('click', (event) => {
-            const meaning = resolveName(people, text.value);
+            const meaning = meaningOf();
             if (meaning.kind === 'empty') {
                 event.preventDefault();
                 text.setCustomValidity('Type the person\'s name, or pick someone from the list.');
