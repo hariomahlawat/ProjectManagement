@@ -497,7 +497,7 @@ public sealed class ReviewModel : PageModel
     // Takes back the decision the confirming message was about. Naming is undone through the
     // same correction that the person's page uses, so it is recorded like any other correction;
     // its reason is written for the reviewer. A person created by the naming is left in People.
-    public Task<IActionResult> OnPostUndoAsync(string? undoId, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostUndoAsync(string? undoId, CancellationToken cancellationToken)
     {
         // The button names its decision. If another decision has been made since (in another
         // tab), the note is about that one: it is left alone and this Undo is refused.
@@ -511,10 +511,23 @@ public sealed class ReviewModel : PageModel
         {
             NormalizeRequest();
             ErrorMessage = "That can no longer be undone here. A name can still be corrected from the person's page.";
-            return Task.FromResult<IActionResult>(Redirect(BuildReviewUrl(Mode, PageNumber)));
+            return Redirect(BuildReviewUrl(Mode, PageNumber));
         }
 
-        return undo.Kind == PeopleReviewUndo.Named
+        // The decision must still be this reviewer's own. If someone has since taken it back and
+        // decided again, what stands now is theirs, and this Undo must not remove it.
+        var since = undo.DecidedAtUtc.AddSeconds(-1);
+        var standing = undo.Kind == PeopleReviewUndo.Named
+            ? await _review.GetFacesAssignedByAsync(undo.PersonId!.Value, undo.FaceIds, UserId, since, cancellationToken)
+            : await _review.GetFacesLeftUnnamedByAsync(undo.FaceIds, UserId, since, cancellationToken);
+        if (standing.Count != undo.FaceIds.Count)
+        {
+            NormalizeRequest();
+            ErrorMessage = "Someone has changed that since, so it was not undone. Check the face again before correcting it.";
+            return Redirect(BuildReviewUrl(Mode, PageNumber));
+        }
+
+        return await (undo.Kind == PeopleReviewUndo.Named
             ? ExecuteAsync(
                 () => _review.ReturnAssignmentsToReviewAsync(undo.PersonId!.Value, undo.FaceIds.ToList(), UserId, PeopleReviewUndo.UndoReason, cancellationToken),
                 undo.FaceIds.Count == 1 ? "Undone. The face is back in review." : "Undone. The faces are back in review.",
@@ -522,7 +535,7 @@ public sealed class ReviewModel : PageModel
             : ExecuteAsync(
                 () => _review.ReopenUnidentifiedManyAsync(undo.FaceIds.ToList(), UserId, cancellationToken),
                 undo.FaceIds.Count == 1 ? "Undone. The face is back in review." : "Undone. The faces are back in review.",
-                Mode);
+                Mode));
     }
 
     public Task<IActionResult> OnPostReopenAsync(
