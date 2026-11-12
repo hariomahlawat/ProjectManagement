@@ -148,13 +148,19 @@ public sealed partial class IndexModel : PageModel
     public long AwaitingCatalogueCount => Math.Max(0L, SourceVisibleCount - CatalogueBackedCount);
     public string LibraryRevision { get; private set; } = "initial";
 
+    // Views that have no timeline to continue: the album pages and the Collections list.
+    private bool HasNoTimelinePart
+        => IsAlbumsWorkspace || IsAlbumDetail || (View == "collections" && !IsCollectionDetail && !IsPeopleGallery);
+
     // The next part of the timeline, as the page loads it while the user scrolls. It runs the
-    // same loading as the page itself, so filters, paging and visibility are identical.
+    // same loading as the page itself, so filters, paging and visibility are identical; what
+    // only the full page shows (figures, filter lists, the person profile, album choices) is
+    // skipped, because _PhotosTimeline renders none of it.
     public async Task<IActionResult> OnGetTimelinePartAsync(CancellationToken cancellationToken)
     {
         IsTimelinePart = true;
         await OnGetAsync(cancellationToken);
-        if (IsAlbumsWorkspace || IsAlbumDetail || (View == "collections" && !IsCollectionDetail && !IsPeopleGallery))
+        if (HasNoTimelinePart)
         {
             return NotFound();
         }
@@ -213,9 +219,23 @@ public sealed partial class IndexModel : PageModel
                 : $"{removed} people in this link are no longer available in Photos and were removed from the filter.";
         }
 
-        await LoadPersonPhotoProfileAsync(cancellationToken);
+        if (IsTimelinePart && HasNoTimelinePart)
+        {
+            // The handler answers Not Found for these views; there is nothing to load.
+            return;
+        }
+
+        if (!IsTimelinePart)
+        {
+            await LoadPersonPhotoProfileAsync(cancellationToken);
+        }
+
+        // The tiles of a part still mark what is already in the album being added to.
         await LoadAddMediaTargetAsync(cancellationToken);
 
+        // Kept for a part as well: whether the catalogue is fresh decides which rows are shown
+        // (catalogue, catalogue plus recent uploads, or PRISM media read directly), and a part
+        // must take the same path as the page it continues.
         var sourceSnapshot = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
         var catalogueFreshness = await GetCatalogueFreshnessAsync(sourceSnapshot, cancellationToken);
         SourceVisibleCount = sourceSnapshot.TotalCount;
@@ -255,7 +275,8 @@ public sealed partial class IndexModel : PageModel
                 CanManagePeople,
                 Sort,
                 Collection,
-                IncludeMonths: View == "photos" && !IsTimelinePart),
+                IncludeMonths: View == "photos" && !IsTimelinePart,
+                IncludeFilterFacets: !IsTimelinePart),
             cancellationToken);
 
         var identityFilterRequiresCatalogue = PeopleFeatureEnabled && PersonIds.Length > 0;
@@ -274,7 +295,11 @@ public sealed partial class IndexModel : PageModel
             if (!catalogueFreshness.IsFresh && (identityFilterRequiresCatalogue || catalogueCatchingUp))
             {
                 CatalogueCatchUpPending = true;
-                await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
+                if (!IsTimelinePart)
+                {
+                    // The page itself and its revision check already ask for the catch-up.
+                    await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
+                }
             }
 
             if (View == "collections" && !IsPeopleGallery)
@@ -290,7 +315,10 @@ public sealed partial class IndexModel : PageModel
                     await AddUncataloguedRecentUploadsAsync(catalogueFreshness, cancellationToken);
                 }
 
-                await LoadManageableAlbumsSafeAsync(cancellationToken);
+                if (!IsTimelinePart)
+                {
+                    await LoadManageableAlbumsSafeAsync(cancellationToken);
+                }
             }
             return;
         }
@@ -299,7 +327,7 @@ public sealed partial class IndexModel : PageModel
         // read PRISM-owned media directly. The catalogue catches up in the background and
         // later restores classification and people enrichment.
         CatalogueCatchUpPending = result.HasPrismCatalogue && !catalogueFreshness.IsFresh;
-        if (CatalogueCatchUpPending)
+        if (CatalogueCatchUpPending && !IsTimelinePart)
         {
             await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
         }
@@ -695,18 +723,23 @@ public sealed partial class IndexModel : PageModel
                 person.RepresentativeFaceId))
             .ToList();
 
-        var peopleById = People.ToDictionary(person => person.Id);
-        var selectedById = SelectedPeople.ToDictionary(person => person.Id);
-        SelectedPeople = PersonIds
-            .Select(personId => peopleById.GetValueOrDefault(personId)
-                                ?? selectedById.GetValueOrDefault(personId))
-            .Where(person => person is not null)
-            .Select(person => person!)
-            .ToList();
-        PersonIds = SelectedPeople.Select(person => person.Id).ToArray();
-        if (PersonIds.Length < 2)
+        // A part carries no people list, so it keeps the selection it was asked for (already
+        // narrowed to available people by LoadSelectedPeopleAsync) for its next-part address.
+        if (!IsTimelinePart)
         {
-            PeopleMatch = "all";
+            var peopleById = People.ToDictionary(person => person.Id);
+            var selectedById = SelectedPeople.ToDictionary(person => person.Id);
+            SelectedPeople = PersonIds
+                .Select(personId => peopleById.GetValueOrDefault(personId)
+                                    ?? selectedById.GetValueOrDefault(personId))
+                .Where(person => person is not null)
+                .Select(person => person!)
+                .ToList();
+            PersonIds = SelectedPeople.Select(person => person.Id).ToArray();
+            if (PersonIds.Length < 2)
+            {
+                PeopleMatch = "all";
+            }
         }
 
         Years = result.Years;
@@ -1231,6 +1264,13 @@ public sealed partial class IndexModel : PageModel
             HasNextPage = total > skip + PageSize;
             Items = filtered.Skip(skip).Take(PageSize).ToList();
             Collections = Array.Empty<CollectionCard>();
+        }
+
+        if (IsTimelinePart)
+        {
+            // The rows and paging above are all a part shows; the lists and figures are the page's.
+            BuildGroups();
+            return;
         }
 
         Years = items.Where(MatchesSearch).Where(MatchesClassification)
