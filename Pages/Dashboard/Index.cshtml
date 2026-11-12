@@ -157,9 +157,9 @@
                                 var lifecycleItems = new[]
                                 {
                                     (Label: "Approval", Count: totalBucket?.Apvl ?? 0, Bucket: "approval", Opacity: "1"),
-                                    (Label: "AoN", Count: totalBucket?.Aon ?? 0, Bucket: "aon", Opacity: ".72"),
-                                    (Label: "Tendering", Count: totalBucket?.Tender ?? 0, Bucket: "procurement", Opacity: ".48"),
-                                    (Label: "Development", Count: totalBucket?.Devp ?? 0, Bucket: "development", Opacity: ".28")
+                                    (Label: "AoN", Count: totalBucket?.Aon ?? 0, Bucket: "aon", Opacity: ".8"),
+                                    (Label: "Tendering", Count: totalBucket?.Tender ?? 0, Bucket: "procurement", Opacity: ".62"),
+                                    (Label: "Development", Count: totalBucket?.Devp ?? 0, Bucket: "development", Opacity: ".45")
                                 };
                             }
                             <div class="db-lifecycle">
@@ -274,9 +274,9 @@
                             var arppSegments = new[]
                             {
                                 (Label: "Completed", Count: arpp.CompletedCount, Opacity: "1"),
-                                (Label: "SO placed", Count: arpp.SupplyOrderCount, Opacity: ".72"),
-                                (Label: "AoN to SO", Count: arpp.AonToSupplyOrderCount, Opacity: ".48"),
-                                (Label: "Pre-AoN", Count: arpp.PreAonCount, Opacity: ".28")
+                                (Label: "SO placed", Count: arpp.SupplyOrderCount, Opacity: ".8"),
+                                (Label: "AoN to SO", Count: arpp.AonToSupplyOrderCount, Opacity: ".62"),
+                                (Label: "Pre-AoN", Count: arpp.PreAonCount, Opacity: ".45")
                             };
                             var arppNotes = new List<string> { $"New {arpp.NewCount}", $"CL {arpp.CommittedLiabilityCount}", $"CF {arpp.CarryForwardCount}" };
                             if (arpp.NotKnownCount > 0) { arppNotes.Add($"{arpp.NotKnownCount} not known"); }
