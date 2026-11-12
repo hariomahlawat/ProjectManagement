@@ -49,6 +49,8 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
         var warnings = new List<MediaLibraryQueryWarning>();
         IQueryable<MediaAsset> filteredQuery;
         IQueryable<MediaAsset> queryWithoutYear;
+        // One rule for year, month and day: the server's local time, as the page shows dates.
+        var localOffset = TimeZoneInfo.Local.BaseUtcOffset;
         List<MediaLibraryQueryItem> items;
         int total;
         int pageSize;
@@ -134,7 +136,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
 
             queryWithoutYear = baseQuery;
             filteredQuery = request.Year.HasValue
-                ? baseQuery.Where(asset => asset.MediaDateUtc.Year == request.Year.Value)
+                ? ApplyLocalYearFilter(baseQuery, request.Year.Value, localOffset)
                 : baseQuery;
             total = await filteredQuery.CountAsync(cancellationToken);
             pageSize = Math.Clamp(request.PageSize, 1, 250);
@@ -343,9 +345,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
 
         var years = await ExecuteOptionalAsync<IReadOnlyList<int>>(
             MediaLibraryQueryOperation.Years,
-            async () => await queryWithoutYear
-                .Select(asset => asset.MediaDateUtc.Year)
-                .Distinct()
+            async () => await BuildLocalYearsQuery(queryWithoutYear, localOffset)
                 .OrderByDescending(year => year)
                 .ToListAsync(cancellationToken),
             Array.Empty<int>(),
@@ -355,7 +355,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
         IReadOnlyList<MediaLibraryMonthCount> months = request.IncludeMonths
             ? await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryMonthCount>>(
                 MediaLibraryQueryOperation.Months,
-                async () => await BuildMonthCountsQuery(filteredQuery, TimeZoneInfo.Local.BaseUtcOffset)
+                async () => await BuildMonthCountsQuery(filteredQuery, localOffset)
                     .ToListAsync(cancellationToken),
                 Array.Empty<MediaLibraryMonthCount>(),
                 warnings,
@@ -462,6 +462,35 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             .Select(asset => asset.MediaDateUtc.AddMinutes(offsetMinutes))
             .GroupBy(localDate => new { localDate.Year, localDate.Month })
             .Select(group => new MediaLibraryMonthCount(group.Key.Year, group.Key.Month, group.Count()));
+    }
+
+    // The year filter follows the same local-time rule as the month counts, so a picture
+    // taken just after local midnight on 1 January is found under the year the page shows
+    // it in. Written as a range on the stored UTC date so the date indexes stay usable.
+    public static IQueryable<MediaAsset> ApplyLocalYearFilter(
+        IQueryable<MediaAsset> query,
+        int year,
+        TimeSpan localOffset)
+    {
+        if (year < 2 || year > 9997)
+        {
+            return query.Where(asset => false);
+        }
+
+        var fromUtc = new DateTimeOffset(year, 1, 1, 0, 0, 0, TimeSpan.Zero) - localOffset;
+        var toUtc = new DateTimeOffset(year + 1, 1, 1, 0, 0, 0, TimeSpan.Zero) - localOffset;
+        return query.Where(asset => asset.MediaDateUtc >= fromUtc && asset.MediaDateUtc < toUtc);
+    }
+
+    // The years offered by the filter: local years, shifted in the database like the months.
+    public static IQueryable<int> BuildLocalYearsQuery(
+        IQueryable<MediaAsset> query,
+        TimeSpan localOffset)
+    {
+        var offsetMinutes = localOffset.TotalMinutes;
+        return query
+            .Select(asset => asset.MediaDateUtc.AddMinutes(offsetMinutes).Year)
+            .Distinct();
     }
 
     private IQueryable<MediaAsset> BuildBaseQuery()
