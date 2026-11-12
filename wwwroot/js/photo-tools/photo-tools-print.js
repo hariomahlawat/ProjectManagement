@@ -1,14 +1,17 @@
 // PRISM Photo Tools — Print sheet.
 //
-// Copies of one photo on a sheet of paper, with cut lines, saved as one picture at 300 dpi so
-// each copy prints at its true size. The photo comes from Passport photo (already cropped to its
-// size) or from a file, whose middle is then used. The preview and the saved sheet are drawn
-// from the same layout. Everything happens on canvases in this browser.
+// Copies of one photo on a sheet of paper, with cut lines, saved as a PDF whose page is the
+// paper's true size, or as one picture at 300 dpi. The photo comes from Passport photo (already
+// cropped to its size) or from a file, whose middle is then used. The preview and the saved
+// sheet come from the same layout. Everything happens in this browser; the PDF is written by
+// pdf-lib, which ships with the application.
 (() => {
   'use strict';
 
   const core = window.PrismPhotoTools;
   const shared = window.PrismPhotoCanvas;
+  // Without the PDF library the sheet is still offered as a JPG.
+  const PDFLib = window.PDFLib;
   const view = document.querySelector('[data-view="sheet"]');
   if (!core || !shared || !view) {
     return;
@@ -18,6 +21,11 @@
   const PAPER_MARGIN = 20;
   const PAPER_COLOUR = '#ffffff';
   const CUT_COLOUR = '#9a9a9a';
+  const CUT_GREY = 0x9a / 255;
+  const FORMAT_NOTES = {
+    pdf: 'Recommended. The PDF page is the exact paper size, so the photos print at true size.',
+    jpg: 'One picture of the whole sheet at 300 dpi. Use it when a photo shop asks for a JPG.'
+  };
 
   const $ = (selector) => view.querySelector(selector);
   const $$ = (selector) => Array.from(view.querySelectorAll(selector));
@@ -42,6 +50,10 @@
   const fitNote = $('[data-sheet-fit]');
   const cutLines = $('[data-sheet-cut]');
   const downloadButton = $('[data-action="download-sheet"]');
+  const downloadLabel = $('[data-sheet-download-label]');
+  const formats = $('[data-sheet-formats]');
+  const formatButtons = $$('[data-sheet-format]');
+  const formatNote = $('[data-sheet-format-note]');
 
   // The photo as it was given, the size one copy is printed at (pixels at 300 dpi), and the
   // copy itself: the photo's middle at that size, drawn once and reused.
@@ -54,6 +66,7 @@
   let sheet = core.SHEET_SIZES[0];
   // Null fills the sheet; a number is what the user asked for.
   let copies = null;
+  let format = PDFLib ? 'pdf' : 'jpg';
   let openRun = 0;
 
   function sizeOptions() {
@@ -172,6 +185,12 @@
     moreButton.disabled = placed >= layout.count;
     fillButton.disabled = placed >= layout.count;
     downloadButton.disabled = !copy || placed === 0;
+    for (const button of formatButtons) {
+      button.setAttribute('aria-pressed', String(button.dataset.sheetFormat === format));
+    }
+    formats.hidden = !PDFLib;
+    formatNote.textContent = FORMAT_NOTES[format];
+    downloadLabel.textContent = `Download sheet (${format.toUpperCase()})`;
 
     if (!layout.count) {
       caption.textContent = `A ${currentSize.label} photo is too big for ${sheet.label} paper. Choose a larger paper.`;
@@ -238,16 +257,46 @@
   }
 
   /** One picture of the whole sheet at 300 dpi. */
+  async function sheetJpg(layout) {
+    const page = shared.newCanvas(layout.width, layout.height);
+    drawSheet(page.getContext('2d'), layout, 1);
+    return core.setJpegDpi(await shared.canvasToBytes(page, JPEG, core.BEST_QUALITY), core.PRINT_DPI);
+  }
+
+  /**
+   * One PDF page the size of the paper. The photo is stored once and placed at each position at
+   * its true size, and the cut lines are drawn as lines, so the file is small and stays sharp.
+   */
+  async function sheetPdf(layout) {
+    const pdf = core.sheetPdfPlan(layout, size.width, size.height);
+    const document = await PDFLib.PDFDocument.create();
+    document.setTitle('Print sheet');
+    const photo = await document.embedJpg(await shared.canvasToBytes(copy, JPEG, core.BEST_QUALITY));
+    const page = document.addPage([pdf.pageWidth, pdf.pageHeight]);
+    pdf.photos.forEach((box, index) => {
+      page.drawImage(photo, box);
+      if (cutLines.checked) {
+        page.drawRectangle({
+          ...pdf.cuts[index],
+          borderColor: PDFLib.rgb(CUT_GREY, CUT_GREY, CUT_GREY),
+          borderWidth: pdf.lineWidth
+        });
+      }
+    });
+    return document.save();
+  }
+
   async function download() {
     const layout = plan();
     if (!copy || !layout.positions.length) return;
     shared.clearError();
     downloadButton.disabled = true;
+    const asPdf = format === 'pdf' && PDFLib;
     try {
-      const page = shared.newCanvas(layout.width, layout.height);
-      drawSheet(page.getContext('2d'), layout, 1);
-      const bytes = core.setJpegDpi(await shared.canvasToBytes(page, JPEG, core.BEST_QUALITY), core.PRINT_DPI);
-      shared.saveBlob(new Blob([bytes], { type: JPEG.mime }), `${core.baseName(fileName)}-print-${sheet.key}.jpg`);
+      const bytes = asPdf ? await sheetPdf(layout) : await sheetJpg(layout);
+      shared.saveBlob(
+        new Blob([bytes], { type: asPdf ? 'application/pdf' : JPEG.mime }),
+        `${core.baseName(fileName)}-print-${sheet.key}.${asPdf ? 'pdf' : 'jpg'}`);
     } catch (error) {
       if (!(error instanceof core.PhotoToolError)) console.error(error);
       shared.showError(error instanceof core.PhotoToolError ? error.message : 'The print sheet could not be made.');
@@ -307,6 +356,12 @@
     render();
   });
   cutLines.addEventListener('change', render);
+  for (const button of formatButtons) {
+    button.addEventListener('click', () => {
+      format = button.dataset.sheetFormat;
+      render();
+    });
+  }
   downloadButton.addEventListener('click', download);
 
   // The stage has no size while its screen is hidden, and changes size with the window.

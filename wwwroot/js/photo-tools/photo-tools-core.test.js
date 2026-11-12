@@ -285,6 +285,44 @@ test('sheetLayout places only the copies asked for, from the top left', () => {
   }
 });
 
+test('sheetPdfPlan gives the paper and each photo their true size in points', () => {
+  const near = (actual, expected, what) => assert.ok(Math.abs(actual - expected) < 0.01, `${what}: ${actual} is not ${expected}`);
+  const a4 = tools.SHEET_SIZES.find(sheet => sheet.key === 'a4');
+  const layout = tools.sheetLayout(a4, 413, 531, 7);
+  const plan = tools.sheetPdfPlan(layout, 413, 531);
+
+  // A4 is 210 x 297 mm: 595.28 x 841.89 points. 300 dpi pixels land within a tenth of a point.
+  assert.ok(Math.abs(plan.pageWidth - 595.28) < 0.1 && Math.abs(plan.pageHeight - 841.89) < 0.1);
+  assert.equal(plan.photos.length, 7);
+  assert.equal(plan.cuts.length, 7);
+
+  const [first] = plan.photos;
+  near(first.width, 413 * 0.24, 'photo width in points');
+  near(first.height, 531 * 0.24, 'photo height in points');
+  // 413 x 531 pixels is 35 x 45 mm to the nearest pixel, so the print is within 0.05 mm.
+  assert.ok(Math.abs(first.width - 35 / 25.4 * 72) < 0.15 && Math.abs(first.height - 45 / 25.4 * 72) < 0.15);
+  // PDF counts up from the bottom: the first photo, at the top of the sheet, is the highest.
+  near(first.x, layout.positions[0].x * 0.24, 'left edge');
+  near(first.y + first.height, plan.pageHeight - layout.positions[0].y * 0.24, 'top edge');
+  const sixth = plan.photos[5];
+  assert.ok(sixth.y < first.y, 'the second row is lower on the page');
+  for (const box of plan.photos) {
+    assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= plan.pageWidth && box.y + box.height <= plan.pageHeight);
+  }
+
+  // The cut line is drawn around the photo, half its width outside each edge.
+  const [cut] = plan.cuts;
+  near(cut.x, first.x - plan.lineWidth / 2, 'cut line left');
+  near(cut.width, first.width + plan.lineWidth, 'cut line width');
+  near(plan.lineWidth, 0.48, 'a 2 pixel line');
+
+  // Paper on its side keeps its turned shape.
+  const photoPaper = tools.SHEET_SIZES.find(sheet => sheet.key === '4x6');
+  const turned = tools.sheetPdfPlan(tools.sheetLayout(photoPaper, 413, 531), 413, 531);
+  near(turned.pageWidth, 6 * 72, '6 inches wide');
+  near(turned.pageHeight, 4 * 72, '4 inches high');
+});
+
 test('coverCrop takes the middle of a photo of another shape', () => {
   assert.deepEqual(tools.coverCrop(413, 531, 413, 531), { x: 0, y: 0, width: 413, height: 531, whole: true });
   assert.deepEqual(tools.coverCrop(826, 1062, 413, 531), { x: 0, y: 0, width: 826, height: 1062, whole: true });
