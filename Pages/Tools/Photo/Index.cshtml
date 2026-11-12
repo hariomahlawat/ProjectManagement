@@ -389,7 +389,12 @@
                                     <span class="phot-cropbox__handle" data-handle="w"></span>
                                 </div>
                             </div>
+                            <div class="phot-busy" data-edit-busy hidden>
+                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                <span>Working…</span>
+                            </div>
                         </div>
+                        <p class="visually-hidden" role="status" data-edit-busy-status></p>
                         <p class="phot-stage__hint" data-edit-hint></p>
                     </div>
                 </div>
@@ -404,7 +409,7 @@
                             <button type="button" aria-pressed="false" data-tool="adjust"><i class="bi bi-sliders" aria-hidden="true"></i> Adjust</button>
                             <button type="button" aria-pressed="false" data-tool="filters"><i class="bi bi-palette" aria-hidden="true"></i> Filters</button>
                             <button type="button" aria-pressed="false" data-tool="markup"><i class="bi bi-pencil-square" aria-hidden="true"></i> Mark up</button>
-                            <button type="button" aria-pressed="false" data-tool="hide"><i class="bi bi-eye-slash" aria-hidden="true"></i> Blur</button>
+                            <button type="button" aria-pressed="false" data-tool="hide"><i class="bi bi-eye-slash" aria-hidden="true"></i> Hide</button>
                         </div>
 
                         <div class="phot-tool" data-tool-panel="crop">
@@ -515,10 +520,12 @@
 
                         <div class="phot-tool" data-tool-panel="hide" hidden>
                             <div class="phot-segment phot-segment--start" role="group" aria-label="How to hide it">
-                                <button type="button" aria-pressed="true" data-hide-mode="blur">Blur</button>
+                                <button type="button" aria-pressed="true" data-hide-mode="cover">Cover</button>
+                                <button type="button" aria-pressed="false" data-hide-mode="blur">Blur</button>
                                 <button type="button" aria-pressed="false" data-hide-mode="pixelate">Pixelate</button>
                             </div>
-                            <p class="phot-hint">Drag over a face, a number or anything else to hide. It is removed from the saved photo for good: nobody can bring it back from the file.</p>
+                            <p class="phot-hint">Drag over the part to hide. Cover fills it with solid black, so nothing of it is left in the saved photo. Use Cover for writing, names and numbers.</p>
+                            <p class="phot-hint">Blur and Pixelate suit faces and backgrounds. They keep a rough outline, and short words or numbers can sometimes be guessed back from it.</p>
                         </div>
                     </div>
 

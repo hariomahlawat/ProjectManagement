@@ -15,6 +15,8 @@
 
   const PREVIEW_SIDE = 1600;
   const SETTLE_MS = 300;
+  // Above this much work (pixels times steps), "Working…" is shown while a step is made.
+  const BUSY_PIXELS = 4_000_000;
 
   const $ = (selector) => view.querySelector(selector);
   const $$ = (selector) => Array.from(view.querySelectorAll(selector));
@@ -49,6 +51,8 @@
   const qualityRow = $('[data-edit-quality-row]');
   const qualityValue = $('[data-edit-quality-value]');
   const resultLine = $('[data-edit-result]');
+  const busyBox = $('[data-edit-busy]');
+  const busyStatus = $('[data-edit-busy-status]');
   const downloadButton = $('[data-action="download-edit"]');
 
   const cleanups = $('[data-cleanups]');
@@ -102,7 +106,7 @@
 
   // What the next mark will be, and the mark or hidden area being dragged out right now.
   let mark = { kind: 'box', colour: 'red', size: 'medium' };
-  let hideMode = 'blur';
+  let hideMode = 'cover';
   let drawing = null;
   // Where the keyboard's cross is on the photo, in the photo's own pixels. Null while the pointer is used.
   let keyPoint = null;
@@ -111,6 +115,9 @@
   let saveRun = 0;
   let saveTimer = null;
   let openRun = 0;
+  let working = false;
+  // Counts the photos opened. A step waiting to start is dropped if another photo is opened meanwhile.
+  let photoGeneration = 0;
 
   // ---------------------------------------------------------------------------
   // Steps
@@ -257,35 +264,103 @@
     queueSave();
   }
 
-  function addStep(step) {
-    shared.clearError();
+  /**
+   * Makes a step, an Undo or a Redo. Every step is made on the full-size photo, which on a large
+   * photo takes a moment: "Working…" is shown first, and the browser is given a frame to show it
+   * before the work starts. Presses that come in meanwhile are ignored, so steps cannot overlap.
+   */
+  async function runStep(work, stepsToApply) {
+    if (!current) return;
+    if (working) {
+      // Redrawn so a mark that was being dragged out does not stay on the screen.
+      layout();
+      return;
+    }
+    working = true;
+    // The prepared file is of the photo before this step: it must not be downloaded meanwhile
+    // (a Cover not yet made would still show what it hides). If the step fails, the file
+    // queued here is the unchanged photo again.
+    queueSave();
+    const size = currentSize();
+    const showBusy = size.width * size.height * stepsToApply > BUSY_PIXELS;
+    undoButton.disabled = true;
+    redoButton.disabled = true;
+    const generation = photoGeneration;
+    if (showBusy) {
+      busyBox.hidden = false;
+      busyStatus.textContent = 'Working…';
+      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    }
+    let done = false;
     try {
-      current = applyStep(current, step);
+      // A new photo opened while waiting: the step was meant for the old one, so it is dropped.
+      if (generation === photoGeneration) done = work();
+    } finally {
+      working = false;
+      busyBox.hidden = true;
+      busyStatus.textContent = showBusy ? (done ? 'Done.' : '') : '';
+      undoButton.disabled = steps.length === 0;
+      redoButton.disabled = undone.length === 0;
+    }
+  }
+
+  function addStep(step) {
+    return runStep(() => {
+      shared.clearError();
+      try {
+        current = applyStep(current, step);
+      } catch (error) {
+        console.error(error);
+        shared.showError('This change could not be made. The photo may be too large for this browser.');
+        return false;
+      }
+      steps.push(step);
+      undone = [];
+      changed();
+      return true;
+    }, 1);
+  }
+
+  /**
+   * Makes the photo again from the original and the given steps. Nothing changes when that
+   * fails (a very large photo can run out of memory), so the list of steps always matches the
+   * photo on the screen and the file that is saved.
+   */
+  function replay(nextSteps) {
+    shared.clearError();
+    let next;
+    try {
+      next = nextSteps.reduce(applyStep, original);
     } catch (error) {
       console.error(error);
       shared.showError('This change could not be made. The photo may be too large for this browser.');
-      return;
+      return false;
     }
-    steps.push(step);
-    undone = [];
-    changed();
-  }
-
-  function replay() {
-    current = steps.reduce(applyStep, original);
-    changed();
+    current = next;
+    steps = nextSteps;
+    return true;
   }
 
   function undo() {
     if (!steps.length) return;
-    undone.push(steps.pop());
-    replay();
+    runStep(() => {
+      const step = steps[steps.length - 1];
+      if (!replay(steps.slice(0, -1))) return false;
+      undone.push(step);
+      changed();
+      return true;
+    }, Math.max(1, steps.length - 1));
   }
 
   function redo() {
     if (!undone.length) return;
-    steps.push(undone.pop());
-    replay();
+    runStep(() => {
+      const step = undone[undone.length - 1];
+      if (!replay([...steps, step])) return false;
+      undone.pop();
+      changed();
+      return true;
+    }, steps.length + 1);
   }
 
   // ---------------------------------------------------------------------------
@@ -824,6 +899,7 @@
       return;
     }
     if (original && typeof original.close === 'function') original.close();
+    photoGeneration += 1;
     fileName = file.name;
     original = source;
     originalSmall = shrink(original);
@@ -1043,7 +1119,7 @@
   });
 
   downloadButton.addEventListener('click', () => {
-    if (!saved) return;
+    if (!saved || working) return;
     shared.saveBlob(new Blob([saved.bytes], { type: saved.type.mime }), `${core.baseName(fileName)}-edited.${saved.type.extension}`);
   });
 

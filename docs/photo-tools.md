@@ -41,7 +41,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | On the Passport photo screen. The finished photo repeated on one sheet of 4 × 6 inch photo paper or A4, each copy inside a thin cut line. One JPG at 300 dpi. |
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
-| Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
+| Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Cover, Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
 
 Every step of the build plan is done, including the review of phones, the Dark theme and the
 keyboard across all screens.
@@ -89,8 +89,12 @@ keyboard across all screens.
   `filter`, `shape`, `hide`). Undo drops the last step
   and replays the rest; Redo puts it back. Only the original and the current result are held in
   memory, however many steps there are.
-- The same function applies a step to the screen copy (no larger than 1600 px) and to the
-  full-size photo, so what is saved is what was shown.
+- Each step is applied to the full-size photo. The screen shows a copy of that result no larger
+  than 1600 px, so what is saved is what was shown. Only the live previews (the Adjust sliders
+  and Straighten before it is applied) are worked out on the screen copy.
+- If an Undo or Redo cannot be replayed (a very large photo can run out of browser memory),
+  nothing changes and the page says so: the list of steps always matches the photo shown and
+  the file that is saved.
 - The crop box rules are pure functions in the core (`defaultCrop`, `moveCrop`, `resizeCrop`):
   the box cannot leave the photo, cannot be smaller than 16 px, and keeps its shape when one is
   chosen. Cropping copies pixels one for one; nothing is re-scaled.
@@ -119,12 +123,12 @@ step, so Undo takes it back.
   preview; zero changes nothing (`adjustPixels`). Nothing is applied until Apply is pressed.
 - **Filters** are six fixed recipes (black and white, sepia, warm, cool, vivid, faded), each
   shown on a small copy of the photo as it is now (`FILTERS`, `filterPixels`).
-- Measurements (the lighting range, the paper level) are taken from the picture the step is
-  applied to, so the screen copy and the full-size photo are each measured on their own. Sharpen
-  and Reduce noise work on a pixel's nearest neighbours, so on a large photo their effect is
-  finer than on the smaller screen copy.
+- Measurements (the lighting range, the paper level) are taken from the full-size photo the step
+  is applied to.
+- Sharpen and Reduce noise hold only three rows of sums at a time (`withNeighbourAverage`), not
+  a second copy of the photo, so they need little memory beyond the photo itself.
 
-### How mark up and blur work
+### How mark up and hiding an area work
 
 - A mark is one step: a box, circle, arrow, pen line, text or numbered marker, in one of six
   colours and three sizes. Line and text sizes are a share of the photo's longer side
@@ -135,15 +139,21 @@ step, so Undo takes it back.
   the photo. Text has an outline in a contrasting colour so it reads on any photo.
 - The geometry is in the core and tested (`dragRect`, `arrowHead`, `thinPoints`); the drawing is
   the browser's canvas.
+- **Cover** (the default) fills the dragged area with solid black (`hidePixels` with `cover`).
+  The fill does not depend on what was covered (an average colour would still tell how much ink
+  was there), so nothing of it is left in the saved file. It is the mode for writing, names and
+  numbers.
 - **Blur** and **Pixelate** cut the dragged area into squares about a tenth of its longer side
-  and replace each square with its average colour (`hidePixels`); Blur then blends between the
-  squares. The detail is gone from the pixels: unlike a box drawn over something, nothing under
-  it is in the saved file. The page says this. How see-through each pixel is gets averaged the
-  same way, so writing on a see-through PNG or WEBP loses its outline as well as its colour.
+  and replace each square with its average colour; Blur then blends between the squares. The
+  detail is gone from the pixels, but one average per square is kept. A short word or number can
+  sometimes be guessed back from those averages by trying every possible text, so the page
+  recommends them for faces and backgrounds and Cover for writing.
+- In every mode, how see-through each pixel is gets averaged the same way as its colour, so
+  writing on a see-through PNG or WEBP loses its outline as well as its colour.
 - Marks and hidden areas are part of the photo from then on: a later crop, resize or filter
   treats them like any other pixels. They cannot be moved after they are placed; Undo removes
   the last one.
-- With the keyboard, the photo takes focus while Mark up or Blur is open. The arrow keys move a
+- With the keyboard, the photo takes focus while Mark up or Hide is open. The arrow keys move a
   cross over it (Shift for small steps). Enter places a text or a number at the cross; for the
   other marks and for a hidden area, Enter starts it, the arrow keys stretch it and Enter ends
   it. Escape cancels. The cross uses the same code path as the pointer.
@@ -156,7 +166,7 @@ step, so Undo takes it back.
   buttons so the bar above the photo is one row. No screen scrolls sideways at 375 px.
 - **Dark theme.** Colours come from theme tokens only. The grey outline buttons take the body
   text colour, because the stock grey is too faint on a dark surface.
-- **Keyboard.** The passport frame, the crop box and the photo under Mark up and Blur all work
+- **Keyboard.** The passport frame, the crop box and the photo under Mark up and Hide all work
   with the arrow keys and Enter; Ctrl+Z and Ctrl+Y undo and redo in the editor.
 
 ### How the target size is reached
@@ -192,3 +202,11 @@ see-through areas with white.
 - iPhone HEIC photos are not supported; the page says so when one is chosen.
 - A browser that cannot write WEBP (some older Safari versions) says so and asks for JPG or PNG.
 - Everything is held in browser memory, so very large photos depend on the user's computer.
+  Edit photo works on the full-size photo, so on a very large photo each step, and each Undo,
+  can take a few seconds. The page shows "Working…" over the photo meanwhile (above about 4
+  million pixels of work) and ignores further presses until the step is done; the work itself
+  still runs on the page, not in a background worker.
+- Saved photos are in standard sRGB colour. A wide-colour photo (such as an iPhone photo in
+  Display P3) can look very slightly less vivid after saving.
+- Reduce size shows a small thumbnail of each photo once it has been opened; a photo still
+  waiting shows an empty box.
