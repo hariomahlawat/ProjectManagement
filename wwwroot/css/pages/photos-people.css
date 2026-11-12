@@ -2040,3 +2040,8 @@ a.identity-workload-pill:hover {
 .face-review-batch__name { flex:1 1 22rem; min-width:0; }
 .face-review-batch__name .people-name-field { grid-template-columns:minmax(0, 20rem) auto; }
 .face-review-batch__name .people-name-field__list { background:var(--pm-card); }
+
+/* The message that confirms a decision, with Undo beside it. */
+.people-review-done { align-items:center; display:flex; flex-wrap:wrap; gap:.25rem .75rem; justify-content:space-between; }
+.people-review-done form { margin:0; }
+.people-review-done .btn-link { font-weight:700; padding:0; }

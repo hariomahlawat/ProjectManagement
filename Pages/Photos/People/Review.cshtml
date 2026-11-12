@@ -73,7 +73,17 @@
     {
         @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
         {
-            <div class="alert alert-success" role="status">@Model.StatusMessage</div>
+            <div class="alert alert-success people-review-done" role="status">
+                <span>@Model.StatusMessage</span>
+                @if (Model.CanUndo)
+                {
+                    <form method="post" asp-page-handler="Undo">
+                        <partial name="_ReviewStateFields" model="Model" />
+                        <input type="hidden" name="undoId" value="@Model.UndoId" />
+                        <button type="submit" class="btn btn-sm btn-link">Undo</button>
+                    </form>
+                }
+            </div>
         }
         @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
         {

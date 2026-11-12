@@ -79,7 +79,26 @@ test('unnamed faces are one grid; ticked faces are named through the one field',
     ['name="personId"', 'name="displayName"', 'asp-page-handler="AssignSelected"', 'asp-page-handler="CreateSelected"', 'asp-page-handler="IgnoreSelected"', 'asp-page-handler="SuppressSelected"', 'asp-page-handler="ReopenSelected"']
         .forEach(piece => assert.ok(bar.includes(piece), piece));
     // Naming several single faces as a new person is the group operation, kept on the reviewer's queue.
-    assert.match(model, /OnPostCreateSelectedAsync\(\s+List<Guid> faceIds,\s+string displayName,\s+CancellationToken cancellationToken\)\s+=> ExecuteAsync\(\s+\(\) => _review\.CreatePersonAndAssignManyAsync\(faceIds, displayName, UserId, cancellationToken\),\s+"[^"]+",\s+Mode\);/);
+    const createSelected = model.slice(model.indexOf('OnPostCreateSelectedAsync('), model.indexOf('OnPostIgnoreSelectedAsync('));
+    assert.ok(createSelected.includes('_review.CreatePersonAndAssignManyAsync(faceIds, displayName, UserId, cancellationToken)'));
+    assert.match(createSelected, /"New person added and the selected faces named\.",\s+Mode,/, 'it stays on the queue the reviewer is in');
     const tiles = page.slice(page.indexOf('class="face-review-triage-grid"'), page.indexOf('class="face-review-list"'));
     assert.doesNotMatch(tiles, /QualityScore/);
+});
+
+test('a decision can be undone from the message that confirms it, and only from there', () => {
+    assert.match(page, /@if \(Model\.CanUndo\)\s+\{\s+<form method="post" asp-page-handler="Undo">/);
+    // The button names its decision, so a later decision made in another tab is never undone by it.
+    assert.match(page, /<input type="hidden" name="undoId" value="@Model\.UndoId" \/>/);
+    // The note is looked at while the message shows, dropped otherwise, and used up by its own Undo.
+    assert.match(model, /UndoId = string\.IsNullOrWhiteSpace\(StatusMessage\)\s+\? null\s+: PeopleReviewUndo\.Read\(UndoState, UserId, DateTimeOffset\.UtcNow\)\?\.Id;\s+if \(!CanUndo\)\s+\{\s+UndoState = null;/);
+    const undo = model.slice(model.indexOf('OnPostUndoAsync'), model.indexOf('private async Task<string?> NamingUndoAsync'));
+    assert.match(undo, /PeopleReviewUndo\.Read\(UndoState, undoId, UserId, DateTimeOffset\.UtcNow\);\s+if \(undo is not null\)\s+\{\s+UndoState = null;/);
+    assert.match(undo, /_review\.ReturnAssignmentsToReviewAsync\(undo\.PersonId!\.Value, undo\.FaceIds\.ToList\(\), UserId, PeopleReviewUndo\.UndoReason, cancellationToken\)/, 'a naming is undone by the recorded correction');
+    assert.match(undo, /_review\.ReopenUnidentifiedManyAsync\(undo\.FaceIds\.ToList\(\), UserId, cancellationToken\)/);
+    // Only what the request itself assigned can be taken back.
+    assert.match(model, /var assigned = await _review\.GetFacesAssignedByAsync\(person, faceIds, UserId, started, cancellationToken\);\s+return PeopleReviewUndo\.ForNaming\(person, assigned, UserId, started\);/);
+    assert.equal((model.match(/started => NamingUndoAsync\(/g) || []).length, 7, 'every naming handler');
+    // Any new decision ends the chance to undo the one before.
+    assert.match(model, /Func<DateTimeOffset, Task<string\?>>\? undoState = null\)\s+\{\s+\/\/[^\n]*\n\s+UndoState = null;/);
 });

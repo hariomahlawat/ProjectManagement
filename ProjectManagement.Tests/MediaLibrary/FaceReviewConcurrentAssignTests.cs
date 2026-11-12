@@ -166,6 +166,66 @@ public sealed class FaceReviewConcurrentAssignTests
         Assert.Contains("FaceUnidentifiedReopened", actions);
     }
 
+    // Undo on the review page may only take back what a request itself assigned.
+    [Fact]
+    public async Task Only_the_reviewer_who_made_an_assignment_is_told_it_is_theirs()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db);
+        var before = DateTimeOffset.UtcNow.AddSeconds(-1);
+        await service.AssignAsync(FaceId, Alice, "reviewer-a", null, CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        // A second reviewer confirms the same person: nothing new is assigned.
+        var secondStarted = DateTimeOffset.UtcNow.AddMilliseconds(1);
+        await service.AssignAsync(FaceId, Alice, "reviewer-b", null, CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        Assert.Equal(new[] { FaceId }, await service.GetFacesAssignedByAsync(Alice, new[] { FaceId }, "reviewer-a", before, CancellationToken.None));
+        Assert.Empty(await service.GetFacesAssignedByAsync(Alice, new[] { FaceId }, "reviewer-b", secondStarted, CancellationToken.None));
+        Assert.Empty(await service.GetFacesAssignedByAsync(Alice, new[] { FaceId }, "reviewer-b", before, CancellationToken.None));
+        Assert.Empty(await service.GetFacesAssignedByAsync(Bob, new[] { FaceId }, "reviewer-a", before, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Only_the_reviewer_who_left_a_face_unnamed_is_told_it_is_theirs()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db);
+        var before = DateTimeOffset.UtcNow.AddSeconds(-1);
+        await service.IgnoreManyAsync(new[] { FaceId }, "reviewer-a", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        // A second reviewer leaves the same face unnamed: nothing new is recorded.
+        await service.IgnoreManyAsync(new[] { FaceId }, "reviewer-b", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        Assert.Equal(new[] { FaceId }, await service.GetFacesLeftUnnamedByAsync(new[] { FaceId }, "reviewer-a", before, CancellationToken.None));
+        Assert.Empty(await service.GetFacesLeftUnnamedByAsync(new[] { FaceId }, "reviewer-b", before, CancellationToken.None));
+        Assert.Empty(await service.GetFacesLeftUnnamedByAsync(new[] { FaceId }, "reviewer-a", DateTimeOffset.UtcNow.AddMinutes(1), CancellationToken.None));
+    }
+
+    // Undo checks this again when it is pressed: a decision replaced by someone else is not the reviewer's.
+    [Fact]
+    public async Task A_closure_replaced_by_another_reviewer_is_no_longer_the_first_reviewers()
+    {
+        await using var db = CreateContext();
+        await SeedAsync(db);
+        var service = CreateService(db);
+        var before = DateTimeOffset.UtcNow.AddSeconds(-1);
+        await service.IgnoreManyAsync(new[] { FaceId }, "reviewer-a", CancellationToken.None);
+        db.ChangeTracker.Clear();
+        await service.ReopenUnidentifiedManyAsync(new[] { FaceId }, "reviewer-b", CancellationToken.None);
+        db.ChangeTracker.Clear();
+        await service.IgnoreManyAsync(new[] { FaceId }, "reviewer-b", CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        Assert.Empty(await service.GetFacesLeftUnnamedByAsync(new[] { FaceId }, "reviewer-a", before, CancellationToken.None));
+        Assert.Equal(new[] { FaceId }, await service.GetFacesLeftUnnamedByAsync(new[] { FaceId }, "reviewer-b", before, CancellationToken.None));
+    }
+
     [Fact]
     public async Task Excluding_an_appearance_that_is_not_a_reference_needs_no_other_reference()
     {

@@ -421,6 +421,31 @@ public interface IFaceReviewService
         string reason,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The faces among <paramref name="faceIds"/> whose active assignment to the person was made
+    /// by this user at or after <paramref name="sinceUtc"/>. Naming a face someone else has
+    /// already given to the same person succeeds without assigning anything; this tells the two
+    /// apart, so that only what a request itself assigned can be taken back.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetFacesAssignedByAsync(
+        Guid personId,
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The faces among <paramref name="faceIds"/> that this user left unnamed at or after
+    /// <paramref name="sinceUtc"/>. Leaving unnamed a face someone else has already left unnamed
+    /// succeeds without recording anything new; this tells the two apart, so that only what a
+    /// request itself closed can be reopened by its Undo.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetFacesLeftUnnamedByAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken);
+
     Task MergePeopleAsync(
         Guid sourcePersonId,
         Guid targetPersonId,
