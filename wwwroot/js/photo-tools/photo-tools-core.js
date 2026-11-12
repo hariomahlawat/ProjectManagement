@@ -217,17 +217,21 @@
 
   // Paper in pixels at 300 dpi. The margin is the edge a printer may not reach.
   const SHEET_SIZES = Object.freeze([
-    Object.freeze({ key: '4x6', label: '4 × 6 inch photo paper', width: 1200, height: 1800, margin: 35 }),
-    Object.freeze({ key: 'a4', label: 'A4 paper', width: 2480, height: 3508, margin: 59 })
+    Object.freeze({ key: '4x6', label: '4 × 6 inch', note: 'Photo paper', width: 1200, height: 1800, margin: 35 }),
+    Object.freeze({ key: '5x7', label: '5 × 7 inch', note: 'Photo paper', width: 1500, height: 2100, margin: 35 }),
+    Object.freeze({ key: 'a5', label: 'A5', note: '148 × 210 mm', width: 1748, height: 2480, margin: 59 }),
+    Object.freeze({ key: 'a4', label: 'A4', note: '210 × 297 mm', width: 2480, height: 3508, margin: 59 })
   ]);
 
   const SHEET_GAP = 24; // 2 mm between copies, room for the scissors
 
   /**
-   * Places as many copies of a photo as fit on a sheet of paper, in a centred grid. The paper is
-   * turned on its side when that fits more. All measures are pixels at the print resolution.
+   * Places copies of a photo on a sheet of paper, in a centred grid. The paper is turned on its
+   * side when that fits more. `count` is how many fit; `positions` holds as many as were asked
+   * for (all that fit when no number is given), filled row by row from the top left so the
+   * unused paper stays in one piece. All measures are pixels at the print resolution.
    */
-  function sheetLayout(sheet, photoWidth, photoHeight) {
+  function sheetLayout(sheet, photoWidth, photoHeight, copies) {
     const gap = SHEET_GAP;
     const fit = (width, height) => {
       const columns = Math.max(0, Math.floor((width - sheet.margin * 2 + gap) / (photoWidth + gap)));
@@ -247,7 +251,39 @@
         }
       }
     }
-    return { ...best, positions };
+    const wanted = Number.isInteger(copies) && copies >= 1 ? Math.min(copies, best.count) : best.count;
+    return { ...best, positions: positions.slice(0, wanted) };
+  }
+
+  /**
+   * The part of a photo that fills a frame of another shape: the largest piece of that shape,
+   * taken from the middle. `whole` says the photo already had the shape and nothing is lost.
+   */
+  function coverCrop(sourceWidth, sourceHeight, frameWidth, frameHeight) {
+    const shape = frameWidth / frameHeight;
+    let width = sourceWidth;
+    let height = Math.round(sourceWidth / shape);
+    if (height > sourceHeight) {
+      height = sourceHeight;
+      width = Math.round(sourceHeight * shape);
+    }
+    width = Math.max(1, Math.min(sourceWidth, width));
+    height = Math.max(1, Math.min(sourceHeight, height));
+    // A pixel or two of rounding is not a different shape.
+    const whole = sourceWidth - width <= Math.max(2, sourceWidth * 0.01)
+      && sourceHeight - height <= Math.max(2, sourceHeight * 0.01);
+    return {
+      x: Math.floor((sourceWidth - width) / 2),
+      y: Math.floor((sourceHeight - height) / 2),
+      width,
+      height,
+      whole
+    };
+  }
+
+  /** Pixels at the print resolution as whole millimetres, for naming a size. */
+  function pixelsToMillimetres(pixels, dpi) {
+    return Math.round(pixels / (dpi || PRINT_DPI) * 25.4);
   }
 
   /**
@@ -1005,6 +1041,8 @@
     measurePaper,
     cleanPaper,
     lengthToPixels,
+    pixelsToMillimetres,
+    coverCrop,
     coverScale,
     clampOffset,
     setJpegDpi,

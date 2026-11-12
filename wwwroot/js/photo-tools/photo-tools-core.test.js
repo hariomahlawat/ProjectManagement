@@ -234,7 +234,8 @@ test('setJpegDpi writes the print resolution into a JFIF header only', () => {
 });
 
 test('sheetLayout fills the paper and turns it when that fits more', () => {
-  const [photoPaper, a4] = tools.SHEET_SIZES;
+  const photoPaper = tools.SHEET_SIZES.find(sheet => sheet.key === '4x6');
+  const a4 = tools.SHEET_SIZES.find(sheet => sheet.key === 'a4');
 
   const passport = tools.sheetLayout(photoPaper, 413, 531);
   assert.equal(passport.count, 8, '35 x 45 mm: eight on 4 x 6 inch paper');
@@ -253,6 +254,64 @@ test('sheetLayout fills the paper and turns it when that fits more', () => {
   const tooBig = tools.sheetLayout(photoPaper, 2000, 2000);
   assert.equal(tooBig.count, 0);
   assert.deepEqual(tooBig.positions, []);
+});
+
+test('sheetLayout knows the four papers and how many passport photos each takes', () => {
+  assert.deepEqual(tools.SHEET_SIZES.map(sheet => sheet.key), ['4x6', '5x7', 'a5', 'a4']);
+  const counts = tools.SHEET_SIZES.map(sheet => tools.sheetLayout(sheet, 413, 531).count);
+  assert.deepEqual(counts, [8, 9, 12, 30]);
+  for (const sheet of tools.SHEET_SIZES) {
+    const plan = tools.sheetLayout(sheet, 413, 531);
+    for (const { x, y } of plan.positions) {
+      assert.ok(x >= sheet.margin && x + 413 <= plan.width - sheet.margin, `${sheet.key} keeps its side edge clear`);
+      assert.ok(y >= sheet.margin && y + 531 <= plan.height - sheet.margin, `${sheet.key} keeps its top edge clear`);
+    }
+  }
+});
+
+test('sheetLayout places only the copies asked for, from the top left', () => {
+  const photoPaper = tools.SHEET_SIZES.find(sheet => sheet.key === '4x6');
+  const full = tools.sheetLayout(photoPaper, 413, 531);
+
+  const five = tools.sheetLayout(photoPaper, 413, 531, 5);
+  assert.equal(five.count, 8, 'count is still how many fit');
+  assert.deepEqual(five.positions, full.positions.slice(0, 5), 'the same places as on a full sheet');
+  assert.equal(five.positions[4].y, full.positions[4].y, 'the fifth starts the second row');
+  assert.equal(five.positions[4].x, full.positions[0].x);
+
+  assert.equal(tools.sheetLayout(photoPaper, 413, 531, 99).positions.length, 8, 'never more than fit');
+  for (const odd of [0, -3, 2.5, NaN, null, undefined, '4']) {
+    assert.equal(tools.sheetLayout(photoPaper, 413, 531, odd).positions.length, 8, `${odd} fills the sheet`);
+  }
+});
+
+test('coverCrop takes the middle of a photo of another shape', () => {
+  assert.deepEqual(tools.coverCrop(413, 531, 413, 531), { x: 0, y: 0, width: 413, height: 531, whole: true });
+  assert.deepEqual(tools.coverCrop(826, 1062, 413, 531), { x: 0, y: 0, width: 826, height: 1062, whole: true });
+
+  // A wide photo for a tall frame loses its sides.
+  const wide = tools.coverCrop(4000, 3000, 413, 531);
+  assert.equal(wide.height, 3000);
+  assert.equal(wide.width, Math.round(3000 * 413 / 531));
+  assert.equal(wide.x, Math.floor((4000 - wide.width) / 2));
+  assert.equal(wide.y, 0);
+  assert.equal(wide.whole, false);
+
+  // A tall photo for a square frame loses its top and bottom.
+  const tall = tools.coverCrop(1000, 3000, 600, 600);
+  assert.deepEqual(tall, { x: 0, y: 1000, width: 1000, height: 1000, whole: false });
+
+  // Rounding alone is not a different shape.
+  assert.equal(tools.coverCrop(414, 531, 413, 531).whole, true);
+  const tiny = tools.coverCrop(1, 1, 413, 531);
+  assert.ok(tiny.width >= 1 && tiny.height >= 1);
+});
+
+test('pixelsToMillimetres names a print size', () => {
+  assert.equal(tools.pixelsToMillimetres(413), 35);
+  assert.equal(tools.pixelsToMillimetres(531), 45);
+  assert.equal(tools.pixelsToMillimetres(600), 51);
+  assert.equal(tools.pixelsToMillimetres(96, 96), 25);
 });
 
 test('measurePaper finds paper and ink, and cleanPaper makes black on white', () => {

@@ -1,10 +1,10 @@
-// PRISM Photo Tools — Passport photo, signature and print sheet.
+// PRISM Photo Tools — Passport photo and signature.
 //
 // The crop frame stays still and the photo moves under it: drag, zoom, straighten, rotate.
 // The saved file is an exact number of pixels (413 x 531 for 35 x 45 mm at 300 dpi) and can
 // be held under a file size. Signature is the same screen with a wide frame and a clean-up
-// that makes the paper white. The print sheet repeats the finished photo on one sheet of
-// paper. Everything happens on canvases in this browser.
+// that makes the paper white. The finished photo can be handed to Print sheet. Everything
+// happens on canvases in this browser.
 (() => {
   'use strict';
 
@@ -59,9 +59,7 @@
   const sizeTitle = $('[data-size-title]');
   const paperButton = $('[data-action="clean-paper"]');
   const paperHint = $('[data-paper-hint]');
-  const sheetPaper = $('[data-sheet-paper]');
-  const sheetNote = $('[data-sheet-note]');
-  const sheetButton = $('[data-action="download-sheet"]');
+  const sheetButton = $('[data-action="print-sheet"]');
 
   // What each mode says. The screen is otherwise the same.
   const MODES = {
@@ -422,51 +420,16 @@
   // Print sheet
   // ---------------------------------------------------------------------------
 
-  function sheetChoice() {
-    const sheet = core.SHEET_SIZES.find(item => item.key === sheetPaper.value) || core.SHEET_SIZES[0];
-    return { sheet, plan: core.sheetLayout(sheet, size.width, size.height) };
-  }
-
   function renderSheet() {
-    const { plan } = sheetChoice();
-    const usable = Boolean(full) && !sizeProblem && plan.count > 0;
-    sheetButton.disabled = !usable;
-    if (sizeProblem) {
-      sheetNote.textContent = '';
-    } else if (!plan.count) {
-      sheetNote.textContent = 'This photo size is too big for this paper.';
-    } else {
-      const copies = plan.count === 1 ? '1 photo' : `${plan.count} photos`;
-      sheetNote.textContent = `${copies} on one sheet, with cut lines. Print at actual size (100%), not "fit to page".`;
-    }
+    sheetButton.disabled = !full || sizeProblem;
   }
 
-  /** One sheet of paper at 300 dpi with the finished photo repeated, each inside a thin cut line. */
-  async function downloadSheet() {
-    const { sheet, plan } = sheetChoice();
-    if (!full || !frame.width || sizeProblem || !plan.count) return;
-    shared.clearError();
-    sheetButton.disabled = true;
-    try {
-      const photo = renderOutput();
-      const page = shared.newCanvas(plan.width, plan.height);
-      const context = page.getContext('2d');
-      context.fillStyle = '#fff';
-      context.fillRect(0, 0, plan.width, plan.height);
-      context.strokeStyle = '#9a9a9a';
-      context.lineWidth = 2;
-      for (const { x, y } of plan.positions) {
-        context.drawImage(photo, x, y);
-        context.strokeRect(x - 1, y - 1, size.width + 2, size.height + 2);
-      }
-      const bytes = core.setJpegDpi(await shared.canvasToBytes(page, JPEG, core.BEST_QUALITY), core.PRINT_DPI);
-      shared.saveBlob(new Blob([bytes], { type: JPEG.mime }), `${core.baseName(fileName)}-print-${sheet.key}.jpg`);
-    } catch (error) {
-      if (!(error instanceof core.PhotoToolError)) console.error(error);
-      shared.showError(error instanceof core.PhotoToolError ? error.message : 'The print sheet could not be made.');
-    } finally {
-      renderSheet();
-    }
+  /** Hands the finished photo, at the size it prints at, to the Print sheet tool. */
+  function openPrintSheet() {
+    if (!full || !frame.width || sizeProblem) return;
+    document.dispatchEvent(new CustomEvent('phot:print-sheet', {
+      detail: { photo: renderOutput(), name: `${core.baseName(fileName)}-${MODES.photo.suffix}.jpg` }
+    }));
   }
 
   // ---------------------------------------------------------------------------
@@ -692,11 +655,7 @@
     queueSave();
   });
 
-  for (const sheet of core.SHEET_SIZES) {
-    sheetPaper.append(new Option(sheet.label, sheet.key));
-  }
-  sheetPaper.addEventListener('change', renderSheet);
-  sheetButton.addEventListener('click', downloadSheet);
+  sheetButton.addEventListener('click', openPrintSheet);
 
   fixButton.addEventListener('click', () => {
     fixOn = !fixOn;
