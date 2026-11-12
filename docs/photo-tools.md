@@ -55,6 +55,12 @@ done too.
 
 - The crop frame has the shape of the saved photo and stays still; the photo moves under it. The
   photo can never leave an empty corner in the frame (`coverScale`, `clampOffset`).
+- Which size is which: a passport applied for in India takes a 4.5 × 3.5 cm photo (the
+  Passport Seva FAQ and application instruction booklet), so 35 × 45 mm is labelled
+  "Indian passport, most forms". 2 × 2 inch (51 × 51 mm) is what Indian embassies and consulates
+  abroad ask for, so it is labelled "Passport from an embassy abroad, visa". A Passport Seva
+  Kendra takes its own photo at the counter; a printed one is needed at other collection centres
+  and for children under 4. Rules change, so the labels are a guide, not a promise.
 - Sizes are pixels at 300 dpi (35 × 45 mm is 413 × 531 px). The saved JPG carries 300 dpi in its
   header (`setJpegDpi`), so it prints at its true size.
 - The screen works on a copy no larger than 1600 px; the saved photo is drawn again from the
