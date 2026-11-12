@@ -53,3 +53,20 @@ test('a Same person? card: plain heading, sure faces start ticked, no scores on 
     assert.doesNotMatch(faces, /ToString\("0\.0+"\)/, 'no likeness number outside the disclosure');
     assert.match(script, /`Confirm \$\{selected\} \$\{selected === 1 \? "face" : "faces"\}`/);
 });
+
+test('a face card asks "Is this …?", keeps the figures behind a disclosure and names through the one field', () => {
+    const cards = page.slice(page.indexOf('class="face-review-card__face"'), page.indexOf('class="people-pagination"'));
+    assert.match(cards, /<strong>Is this <a asp-page="\.\/Details" asp-route-id="@candidate\.PersonId">@candidate\.DisplayName<\/a>\?<\/strong>/);
+    assert.match(cards, /<i class="bi bi-check-lg"><\/i> Yes<\/button>/);
+    assert.match(cards, /aria-label="No, not @candidate\.DisplayName">No<\/button>/);
+    assert.doesNotMatch(cards, /Quality @item\.QualityScore/, 'no quality score on the face');
+    // Every number is inside the disclosure.
+    const outside = cards.replace(/<details class="identity-group-figures">[\s\S]*?<\/details>/g, '');
+    assert.doesNotMatch(outside, /ToString\("0\.0+"\)|:0\.00\}/);
+    // One form for naming: the field on top, the two plain controls beneath, the two existing handlers.
+    const form = cards.slice(cards.indexOf('<form method="post" class="face-name-form">'), cards.indexOf('class="face-review-card__secondary-actions"', cards.indexOf('<form method="post" class="face-name-form">')));
+    assert.match(form, /data-assign-action="@Url\.Page\("\.\/Review", "AssignExisting"\)"\s+data-create-action="@Url\.Page\("\.\/Review", "Create"\)"/);
+    ['name="faceId"', 'select id="existing-person-@item.FaceId" class="form-select" name="personId"', 'name="displayName"', 'asp-page-handler="AssignExisting"', 'asp-page-handler="Create"']
+        .forEach(piece => assert.ok(form.includes(piece), piece));
+    ['None of these', 'Leave unnamed', 'Not a face', 'Bring back to review'].forEach(label => assert.ok(cards.includes(label), label));
+});
