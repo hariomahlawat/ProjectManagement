@@ -31,26 +31,50 @@
             @if (Model.CanManageIdentities && Model.IncludeHidden) { <input type="hidden" name="IncludeHidden" value="true" /> }
             <button class="visually-hidden" type="submit">Search</button>
         </form>
-        <form method="get" class="people-sort">
-            <input type="hidden" name="Q" value="@Model.Q" />
-            @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
-            @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
-            <select id="peopleSort" name="Sort" class="form-select" aria-label="Sort people" data-auto-submit>
-                <option value="name" selected="@(Model.Sort == "name")">Name</option>
-                <option value="photos" selected="@(Model.Sort == "photos")">Most photos</option>
-                <option value="recent" selected="@(Model.Sort == "recent")">Recently seen</option>
-            </select>
-            @if (Model.CanManageIdentities)
-            {
-                <select id="peopleAccountLink" name="AccountLink" class="form-select people-account-filter" aria-label="Filter by PRISM account linkage" data-auto-submit>
-                    <option value="all" selected="@(Model.AccountLink == "all")">All accounts</option>
-                    <option value="linked" selected="@(Model.AccountLink == "linked")">Linked</option>
-                    <option value="unlinked" selected="@(Model.AccountLink == "unlinked")">Unlinked</option>
-                    <option value="reported" selected="@(Model.AccountLink == "reported")">Needs review</option>
+        @if (Model.CanManageIdentities)
+        {
+            var activePeopleFilters = (Model.AccountLink != "all" ? 1 : 0) + (Model.IncludeHidden ? 1 : 0);
+            @* Three controls in the bar crowded it; they open from one button, and it shows how many filters are on. *@
+            <div class="dropdown people-filter">
+                <button class="photos-control" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-sliders2" aria-hidden="true"></i><span>Sort and filter</span>@if (activePeopleFilters > 0) {<b>@activePeopleFilters</b>}
+                </button>
+                <div class="dropdown-menu dropdown-menu-end people-filter__menu">
+                    <form method="get" class="people-filter__form">
+                        <input type="hidden" name="Q" value="@Model.Q" />
+                        @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
+                        @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+                        <label for="peopleSort">Sort by</label>
+                        <select id="peopleSort" name="Sort" class="form-select" data-auto-submit>
+                            <option value="name" selected="@(Model.Sort == "name")">Name</option>
+                            <option value="photos" selected="@(Model.Sort == "photos")">Most photos</option>
+                            <option value="recent" selected="@(Model.Sort == "recent")">Recently seen</option>
+                        </select>
+                        <label for="peopleAccountLink">PRISM account</label>
+                        <select id="peopleAccountLink" name="AccountLink" class="form-select" data-auto-submit>
+                            <option value="all" selected="@(Model.AccountLink == "all")">All</option>
+                            <option value="linked" selected="@(Model.AccountLink == "linked")">Linked</option>
+                            <option value="unlinked" selected="@(Model.AccountLink == "unlinked")">Not linked</option>
+                            <option value="reported" selected="@(Model.AccountLink == "reported")">Needs review</option>
+                        </select>
+                        <label class="people-filter__check"><input class="form-check-input" type="checkbox" name="IncludeHidden" value="true" checked="@Model.IncludeHidden" data-auto-submit /><span>Show hidden people</span></label>
+                    </form>
+                </div>
+            </div>
+        }
+        else
+        {
+            <form method="get" class="people-sort">
+                <input type="hidden" name="Q" value="@Model.Q" />
+                @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
+                @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+                <select id="peopleSort" name="Sort" class="form-select" aria-label="Sort people" data-auto-submit>
+                    <option value="name" selected="@(Model.Sort == "name")">Name</option>
+                    <option value="photos" selected="@(Model.Sort == "photos")">Most photos</option>
+                    <option value="recent" selected="@(Model.Sort == "recent")">Recently seen</option>
                 </select>
-                <label class="people-hidden-toggle"><input class="form-check-input" type="checkbox" name="IncludeHidden" value="true" checked="@Model.IncludeHidden" data-auto-submit /><span>Hidden</span></label>
-            }
-        </form>
+            </form>
+        }
         }
         @if (Model.FeatureEnabled)
         {

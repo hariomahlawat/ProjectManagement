@@ -388,7 +388,8 @@
 .photos-filter-people-summary span { background: #eef3fa; border-radius: 999px; color: #405675; font-size: .72rem; padding: .28rem .5rem; }
 
 @media (max-width: 767.98px) {
-    .photos-hero--person { align-items: flex-start; }
+    /* The name gets the full width; the actions sit in a row beneath it. */
+    .photos-hero--person { align-items: flex-start; flex-direction: column; gap: .6rem; }
     .photos-person-hero__main { align-items: flex-start; }
     .photos-person-hero__faces > span { height: 3.4rem; width: 3.4rem; }
     .photos-people-bar { align-items: stretch; flex-direction: column; }

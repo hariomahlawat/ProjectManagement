@@ -84,3 +84,57 @@ test('the People page uses the same slim bar and sections as Photos', () => {
     assert.doesNotMatch(page, /people-primary-tabs|class="people-header"/);
     assert.match(source, /--photos-bar-top/);
 });
+
+test('arrow keys on a select in the Sort and filter menu stay with the select', () => {
+    const dom = new JSDOM(`
+      <div data-people-directory>
+        <div class="dropdown-menu people-filter__menu">
+          <form class="people-filter__form"><select name="Sort"><option>Name</option><option>Most photos</option></select>
+            <input type="checkbox" name="IncludeHidden" /></form>
+        </div>
+      </div>`, { url: 'http://localhost/Photos/People', runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+    const { window } = dom;
+    window.eval(source);
+    // Bootstrap listens for these keys on the document and cancels them inside a menu.
+    const reachedDocument = [];
+    window.document.addEventListener('keydown', (event) => reachedDocument.push(`${event.target.name}:${event.key}`));
+    const press = (target, key) => target.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+
+    const select = window.document.querySelector('select');
+    press(select, 'ArrowDown');
+    press(select, 'ArrowUp');
+    assert.deepEqual(reachedDocument, [], 'the dropdown never sees them, so the choice can change');
+
+    press(select, 'Escape');
+    press(window.document.querySelector('[name="IncludeHidden"]'), 'ArrowDown');
+    assert.deepEqual(reachedDocument, ['Sort:Escape', 'IncludeHidden:ArrowDown'], 'Escape still closes the menu; other controls are untouched');
+    window.close();
+});
+
+test('with the shared auto-submit script loaded too, arrowing through a menu select waits for Enter', () => {
+    const shared = fs.readFileSync(path.resolve(__dirname, '../core/declarative-actions.js'), 'utf8');
+    const dom = new JSDOM(`
+      <div data-people-directory>
+        <div class="dropdown-menu people-filter__menu">
+          <form method="get" class="people-filter__form"><select name="Sort" data-auto-submit><option>Name</option><option>Most photos</option></select></form>
+        </div>
+      </div>`, { url: 'http://localhost/Photos/People', runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+    const { window } = dom;
+    window.eval(shared);
+    window.eval(source);
+    let submits = 0;
+    window.document.addEventListener('submit', (event) => { event.preventDefault(); submits += 1; });
+    const select = window.document.querySelector('select');
+    const press = (key) => select.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    const change = () => select.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    // Some browsers fire change on every arrow step.
+    press('ArrowDown');
+    select.selectedIndex = 1;
+    change();
+    assert.equal(submits, 0, 'the directory does not reload while the user is still choosing');
+
+    press('Enter');
+    assert.equal(submits, 1, 'Enter applies the choice');
+    window.close();
+});

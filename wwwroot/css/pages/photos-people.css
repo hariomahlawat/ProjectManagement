@@ -1974,3 +1974,11 @@ a.identity-workload-pill:hover {
 :where([data-bs-theme="dark"]) .person-card__account-link.is-warning {
     background: rgba(251, 191, 36, 0.3);
 }
+
+/* Sort and filter menu on the People page (identity managers). Theme tokens only. */
+.people-filter__menu { min-width:15rem; padding:.85rem; }
+.people-filter__form { display:grid; gap:.35rem; }
+.people-filter__form > label { color:var(--pm-text-muted); font-size:.74rem; font-weight:700; margin:.35rem 0 0; }
+.people-filter__form > label:first-of-type { margin-top:0; }
+.people-filter__check { align-items:center; display:flex; gap:.5rem; }
+.people-filter__check span { color:var(--pm-text); font-size:.85rem; font-weight:500; }
