@@ -27,12 +27,19 @@
                 <span class="oc-landing__mark" aria-hidden="true"><i class="bi bi-clipboard2-check"></i></span>
                 <div class="oc-landing__heading">
                     <span class="oc-eyebrow">Project monitoring</span>
-                    <div class="oc-landing__title-row">
-                        <h1 id="oc-landing-title">Conference review</h1>
-                        <span class="oc-landing__count">@Model.OfficerOptions.Count @(Model.OfficerOptions.Count == 1 ? "officer" : "officers")</span>
-                    </div>
+                    <h1 id="oc-landing-title">Conference review</h1>
                     <p>Select a Project Officer to review assigned work, issue directions and examine subsequent progress.</p>
                 </div>
+                @if (Model.OfficerOptions.Count > 0)
+                {
+                    <label class="oc-landing__find" hidden>
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <span class="visually-hidden">Find an officer</span>
+                        <input type="search" placeholder="Find an officer" autocomplete="off" data-officer-find />
+                    </label>
+                }
+                <span class="oc-landing__count" data-officer-count
+                      data-total="@Model.OfficerOptions.Count">@Model.OfficerOptions.Count @(Model.OfficerOptions.Count == 1 ? "officer" : "officers")</span>
             </header>
 
             @if (Model.OfficerOptions.Count == 0)
@@ -45,36 +52,59 @@
             }
             else
             {
-                <div class="oc-landing__officers" aria-label="Project Officers available for conference review">
+                @* One to five columns, by the width of this panel (officer-conference.css). *@
+                <div class="oc-landing__officers" aria-label="Project Officers available for conference review" data-officer-list>
                     @foreach (var option in Model.OfficerOptions)
                     {
-                        var initial = string.IsNullOrWhiteSpace(option.DisplayName)
-                            ? "P"
-                            : option.DisplayName.Trim()[0].ToString().ToUpperInvariant();
+                        var hasPortrait = Model.OfficerPortraits.TryGetValue(option.UserId, out var portraitPersonId);
+                        var officerName = string.IsNullOrWhiteSpace(option.Name) ? option.DisplayName : option.Name;
                         <a asp-page="/Workspace/Conference"
                            asp-route-officerUserId="@option.UserId"
-                           class="oc-officer-card">
-                            <span class="oc-officer-card__avatar" aria-hidden="true">@initial</span>
+                           class="oc-officer-card"
+                           data-officer-card data-officer-name="@option.DisplayName">
+                            @* The initials are always there; the picture sits over them and is taken away if it cannot load. *@
+                            <span class="oc-officer-card__avatar" aria-hidden="true">
+                                @option.Initials
+                                @if (hasPortrait)
+                                {
+                                    <img src="@Url.Page("/Photos/People/Portrait", new { area = "", id = portraitPersonId })"
+                                         alt="" loading="lazy" decoding="async" data-officer-portrait />
+                                }
+                            </span>
                             <span class="oc-officer-card__body">
-                                <strong>@option.DisplayName</strong>
-                                <small>
-                                    @option.ActiveProjectCount active @(option.ActiveProjectCount == 1 ? "project" : "projects")
-                                    @if (option.RecentlyCompletedProjectCount > 0)
+                                <strong>
+                                    @if (!string.IsNullOrWhiteSpace(option.Rank) && !string.IsNullOrWhiteSpace(option.Name))
                                     {
-                                        <span>· @option.RecentlyCompletedProjectCount recently completed</span>
+                                        <span class="oc-officer-card__rank">@option.Rank</span>
                                     }
-                                    <span>· @option.IdeaCount @(option.IdeaCount == 1 ? "idea" : "ideas")</span>
-                                    <span>· @option.OtherTaskCount @(option.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
-                                    @foreach (var moduleCount in option.ModuleProjectCounts)
+                                    @officerName
+                                </strong>
+                                @* The same counts in the same words as before. Each stays whole; the line
+                                   breaks between them, and the dot stays with the count before it. *@
+                                @{
+                                    var counts = new List<string>
                                     {
-                                        <span>· @moduleCount.Count @moduleCount.Label</span>
+                                        $"{option.ActiveProjectCount} active {(option.ActiveProjectCount == 1 ? "project" : "projects")}"
+                                    };
+                                    if (option.RecentlyCompletedProjectCount > 0)
+                                    {
+                                        counts.Add($"{option.RecentlyCompletedProjectCount} recently completed");
+                                    }
+                                    counts.Add($"{option.IdeaCount} {(option.IdeaCount == 1 ? "idea" : "ideas")}");
+                                    counts.Add($"{option.OtherTaskCount} {(option.OtherTaskCount == 1 ? "other task" : "other tasks")}");
+                                    counts.AddRange(option.ModuleProjectCounts.Select(moduleCount => $"{moduleCount.Count} {moduleCount.Label}"));
+                                }
+                                <small>
+                                    @for (var index = 0; index < counts.Count; index++)
+                                    {
+                                        <span>@counts[index]@(index < counts.Count - 1 ? " ·" : null)</span>
                                     }
                                 </small>
                             </span>
-                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
                         </a>
                     }
                 </div>
+                <p class="oc-landing__no-match" data-officer-no-match hidden>No officer matches that name.</p>
             }
         </section>
     }
@@ -214,6 +244,10 @@
 
 @section Scripts {
     <script type="module" src="~/js/pages/command-workspace.js" asp-append-version="true"></script>
+    @if (!Model.HasSelectedOfficer)
+    {
+        <script src="~/js/pages/officer-conference-landing.js" asp-append-version="true"></script>
+    }
     @if (Model.HasSelectedOfficer)
     {
         <script type="module" src="~/js/pages/officer-conference.js" asp-append-version="true"></script>

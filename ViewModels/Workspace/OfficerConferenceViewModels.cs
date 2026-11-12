@@ -64,6 +64,28 @@ public sealed record OfficerConferenceOfficerOptionVm(
     int RecentlyCompletedProjectCount = 0,
     int ItProjectCount = 0)
 {
+    /// <summary>The officer's rank alone, or empty. <see cref="DisplayName"/> stays "rank name".</summary>
+    public string Rank { get; init; } = string.Empty;
+
+    /// <summary>The officer's name without the rank; the display name when the two are not known apart.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>Up to two letters from the name (never the rank), for an officer with no picture.</summary>
+    public string Initials
+    {
+        get
+        {
+            var source = string.IsNullOrWhiteSpace(Name) ? DisplayName : Name;
+            var parts = (source ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length switch
+            {
+                0 => "?",
+                1 => char.ToUpperInvariant(parts[0][0]).ToString(),
+                _ => $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}"
+            };
+        }
+    }
+
     /// <summary>The engine projects counted per module, for the officer picker.</summary>
     public IReadOnlyList<ConferenceModuleCountVm> ModuleProjectCounts { get; init; } = Array.Empty<ConferenceModuleCountVm>();
 }

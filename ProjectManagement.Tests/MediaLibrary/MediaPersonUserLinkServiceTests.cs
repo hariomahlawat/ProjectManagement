@@ -170,6 +170,54 @@ public sealed class MediaPersonUserLinkServiceTests
         Assert.Equal(2, await media.IdentityAudits.CountAsync(audit => audit.Action == "PrismUserAvatarPreferenceChanged"));
     }
 
+    // A page that lists people (the conference officer picker) asks for many users at once.
+    [Fact]
+    public async Task PicturesForAList_AreOnlyThoseAUserChose_AndThatCanBeShown()
+    {
+        await using var media = CreateMediaContext();
+        await using var app = CreateApplicationContext();
+        var chosen = ConfirmedPerson("Chose Their Portrait");
+        var notChosen = ConfirmedPerson("Did Not Choose");
+        var noPortrait = ConfirmedPerson("Has No Portrait");
+        var hidden = ConfirmedPerson("Hidden Person");
+        media.Persons.AddRange(chosen, notChosen, noPortrait, hidden);
+        app.Users.AddRange(
+            ActiveUser("user-1", "First User", "Col"),
+            ActiveUser("user-2", "Second User", "Lt Col"),
+            ActiveUser("user-3", "Third User", "Lt Col"),
+            ActiveUser("user-4", "Fourth User", "Lt Col"));
+        await media.SaveChangesAsync();
+        await app.SaveChangesAsync();
+
+        var service = new MediaPersonUserLinkService(media, app, NullLogger<MediaPersonUserLinkService>.Instance);
+        await service.LinkAsync(chosen.Id, "user-1", "reviewer", CancellationToken.None);
+        await service.LinkAsync(notChosen.Id, "user-2", "reviewer", CancellationToken.None);
+        await service.LinkAsync(noPortrait.Id, "user-3", "reviewer", CancellationToken.None);
+        await service.LinkAsync(hidden.Id, "user-4", "reviewer", CancellationToken.None);
+        AddUsablePortrait(media, chosen, "faces/chosen.webp");
+        AddUsablePortrait(media, notChosen, "faces/not-chosen.webp");
+        AddUsablePortrait(media, hidden, "faces/hidden.webp");
+        await media.SaveChangesAsync();
+        foreach (var link in await media.PersonUserLinks.ToListAsync())
+        {
+            // The third user asked for a portrait that does not exist; it cannot be shown.
+            link.UsePortraitAsAvatar = link.UserId != "user-2";
+        }
+
+        hidden.IsHidden = true;
+        await media.SaveChangesAsync();
+
+        var everyone = new[] { "user-1", "user-2", "user-3", "user-4", "user-unknown", " " };
+        var pictures = await service.TryGetAvatarPersonIdsAsync(everyone, CancellationToken.None);
+        Assert.Equal(new[] { "user-1" }, pictures.Keys);
+        Assert.Equal(chosen.Id, pictures["user-1"]);
+
+        // An open concern about the link takes the picture away, as it does for the user's own.
+        await service.ReportIncorrectLinkAsync("user-1", "This is a different person", CancellationToken.None);
+        Assert.Empty(await service.TryGetAvatarPersonIdsAsync(everyone, CancellationToken.None));
+        Assert.Empty(await service.TryGetAvatarPersonIdsAsync(Array.Empty<string>(), CancellationToken.None));
+    }
+
     [Fact]
     public async Task IncorrectIdentityReport_DisablesAvatarAndCanBeResolvedByManager()
     {
