@@ -39,6 +39,21 @@ public sealed class PeopleReviewUndoTests
     }
 
     [Fact]
+    public void A_confirmation_can_only_undo_the_decision_it_shows()
+    {
+        var first = PeopleReviewUndo.ForNaming(Person, Faces, "reviewer", Now);
+        var firstId = PeopleReviewUndo.Read(first, "reviewer", Now)!.Id;
+        // A second decision, made in another tab, replaces the note.
+        var second = PeopleReviewUndo.ForLeavingUnnamed(new[] { Guid.NewGuid() }, "reviewer", Now.AddSeconds(5));
+        var secondId = PeopleReviewUndo.Read(second, "reviewer", Now.AddSeconds(5))!.Id;
+
+        Assert.NotEqual(firstId, secondId);
+        Assert.Null(PeopleReviewUndo.Read(second, firstId, "reviewer", Now.AddSeconds(10)));
+        Assert.NotNull(PeopleReviewUndo.Read(second, secondId, "reviewer", Now.AddSeconds(10)));
+        Assert.Null(PeopleReviewUndo.Read(second, null, "reviewer", Now.AddSeconds(10)));
+    }
+
+    [Fact]
     public void It_is_not_honoured_for_another_user()
         => Assert.Null(PeopleReviewUndo.Read(PeopleReviewUndo.ForNaming(Person, Faces, "reviewer", Now), "someone-else", Now));
 
@@ -67,8 +82,8 @@ public sealed class PeopleReviewUndoTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("not json")]
-    [InlineData("{\"Kind\":\"something-else\",\"PersonId\":null,\"FaceIds\":[\"7d0e3c0e-3c1a-4c5e-9a55-0f8f6c1d2b3a\"],\"UserId\":\"reviewer\",\"DecidedAtUtc\":\"2026-11-12T09:00:00+00:00\"}")]
-    [InlineData("{\"Kind\":\"named\",\"PersonId\":null,\"FaceIds\":[\"7d0e3c0e-3c1a-4c5e-9a55-0f8f6c1d2b3a\"],\"UserId\":\"reviewer\",\"DecidedAtUtc\":\"2026-11-12T09:00:00+00:00\"}")]
+    [InlineData("{\"Id\":\"a\",\"Kind\":\"something-else\",\"PersonId\":null,\"FaceIds\":[\"7d0e3c0e-3c1a-4c5e-9a55-0f8f6c1d2b3a\"],\"UserId\":\"reviewer\",\"DecidedAtUtc\":\"2026-11-12T09:00:00+00:00\"}")]
+    [InlineData("{\"Id\":\"a\",\"Kind\":\"named\",\"PersonId\":null,\"FaceIds\":[\"7d0e3c0e-3c1a-4c5e-9a55-0f8f6c1d2b3a\"],\"UserId\":\"reviewer\",\"DecidedAtUtc\":\"2026-11-12T09:00:00+00:00\"}")]
     public void Anything_else_is_ignored(string? state)
         => Assert.Null(PeopleReviewUndo.Read(state, "reviewer", Now));
 }

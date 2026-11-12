@@ -1349,6 +1349,31 @@ public sealed class FaceReviewService : IFaceReviewService
         await _invalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> GetFacesAssignedByAsync(
+        Guid personId,
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(faceIds);
+        var selected = faceIds.Where(id => id != Guid.Empty).Distinct().ToList();
+        if (selected.Count == 0 || personId == Guid.Empty || string.IsNullOrWhiteSpace(userId))
+        {
+            return Array.Empty<Guid>();
+        }
+
+        return await _db.PersonFaces
+            .AsNoTracking()
+            .Where(assignment => assignment.MediaPersonId == personId
+                                 && selected.Contains(assignment.MediaFaceId)
+                                 && assignment.RemovedAtUtc == null
+                                 && assignment.AssignedByUserId == userId
+                                 && assignment.AssignedAtUtc >= sinceUtc)
+            .Select(assignment => assignment.MediaFaceId)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task MergePeopleAsync(
         Guid sourcePersonId,
         Guid targetPersonId,

@@ -235,14 +235,18 @@ public sealed class ReviewModel : PageModel
     }
 
     /// <summary>True while the confirming message is on screen and its decision can be undone.</summary>
-    public bool CanUndo { get; private set; }
+    public bool CanUndo => UndoId is not null;
+
+    /// <summary>Names the decision this page's Undo button is about; sent back with the button.</summary>
+    public string? UndoId { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         NormalizeRequest();
         // Undo is offered with the message that confirms the decision, never on a later visit.
-        CanUndo = !string.IsNullOrWhiteSpace(StatusMessage)
-                  && PeopleReviewUndo.Read(UndoState, UserId, DateTimeOffset.UtcNow) is not null;
+        UndoId = string.IsNullOrWhiteSpace(StatusMessage)
+            ? null
+            : PeopleReviewUndo.Read(UndoState, UserId, DateTimeOffset.UtcNow)?.Id;
         if (!CanUndo)
         {
             UndoState = null;
@@ -402,7 +406,7 @@ public sealed class ReviewModel : PageModel
             () => _review.AssignAsync(faceId, personId, UserId, confidence, cancellationToken),
             "Named.",
             Mode,
-            () => PeopleReviewUndo.ForNaming(personId, new[] { faceId }, UserId, DateTimeOffset.UtcNow));
+            started => NamingUndoAsync(() => personId, new[] { faceId }, started, cancellationToken));
 
     public Task<IActionResult> OnPostRejectAsync(
         Guid faceId,
@@ -429,7 +433,7 @@ public sealed class ReviewModel : PageModel
             () => _review.AssignAsync(faceId, personId, UserId, null, cancellationToken),
             "Named.",
             Mode,
-            () => PeopleReviewUndo.ForNaming(personId, new[] { faceId }, UserId, DateTimeOffset.UtcNow));
+            started => NamingUndoAsync(() => personId, new[] { faceId }, started, cancellationToken));
 
     public Task<IActionResult> OnPostAssignSelectedAsync(
         List<Guid> faceIds,
@@ -439,7 +443,7 @@ public sealed class ReviewModel : PageModel
             () => _review.AssignManyAsync(faceIds, personId, UserId, null, cancellationToken),
             "The selected faces were named.",
             Mode,
-            () => PeopleReviewUndo.ForNaming(personId, faceIds, UserId, DateTimeOffset.UtcNow));
+            started => NamingUndoAsync(() => personId, faceIds, started, cancellationToken));
 
     // Several single faces named as a new person: the same operation as naming a group, kept
     // on the queue the reviewer is in.
@@ -453,7 +457,7 @@ public sealed class ReviewModel : PageModel
             async () => created = await _review.CreatePersonAndAssignManyAsync(faceIds, displayName, UserId, cancellationToken),
             "New person added and the selected faces named.",
             Mode,
-            () => PeopleReviewUndo.ForNaming(created, faceIds, UserId, DateTimeOffset.UtcNow));
+            started => NamingUndoAsync(() => created, faceIds, started, cancellationToken));
     }
 
     public Task<IActionResult> OnPostIgnoreSelectedAsync(
@@ -463,7 +467,7 @@ public sealed class ReviewModel : PageModel
             () => _review.IgnoreManyAsync(faceIds, UserId, cancellationToken),
             "The selected faces were left unnamed.",
             Mode,
-            () => PeopleReviewUndo.ForLeavingUnnamed(faceIds, UserId, DateTimeOffset.UtcNow));
+            started => Task.FromResult(PeopleReviewUndo.ForLeavingUnnamed(faceIds, UserId, started)));
 
     public Task<IActionResult> OnPostReopenSelectedAsync(
         List<Guid> faceIds,
@@ -488,15 +492,21 @@ public sealed class ReviewModel : PageModel
             () => _review.IgnoreAsync(faceId, UserId, cancellationToken),
             "Left unnamed.",
             Mode,
-            () => PeopleReviewUndo.ForLeavingUnnamed(new[] { faceId }, UserId, DateTimeOffset.UtcNow));
+            started => Task.FromResult(PeopleReviewUndo.ForLeavingUnnamed(new[] { faceId }, UserId, started)));
 
     // Takes back the decision the confirming message was about. Naming is undone through the
     // same correction that the person's page uses, so it is recorded like any other correction;
     // its reason is written for the reviewer. A person created by the naming is left in People.
-    public Task<IActionResult> OnPostUndoAsync(CancellationToken cancellationToken)
+    public Task<IActionResult> OnPostUndoAsync(string? undoId, CancellationToken cancellationToken)
     {
-        var undo = PeopleReviewUndo.Read(UndoState, UserId, DateTimeOffset.UtcNow);
-        UndoState = null;
+        // The button names its decision. If another decision has been made since (in another
+        // tab), the note is about that one: it is left alone and this Undo is refused.
+        var undo = PeopleReviewUndo.Read(UndoState, undoId, UserId, DateTimeOffset.UtcNow);
+        if (undo is not null)
+        {
+            UndoState = null;
+        }
+
         if (undo is null)
         {
             NormalizeRequest();
@@ -533,7 +543,7 @@ public sealed class ReviewModel : PageModel
             async () => created = await _review.CreatePersonAndAssignAsync(faceId, displayName, UserId, cancellationToken),
             "New person added and named.",
             Mode,
-            () => PeopleReviewUndo.ForNaming(created, new[] { faceId }, UserId, DateTimeOffset.UtcNow));
+            started => NamingUndoAsync(() => created, new[] { faceId }, started, cancellationToken));
     }
 
     public Task<IActionResult> OnPostSuppressAsync(
@@ -554,7 +564,7 @@ public sealed class ReviewModel : PageModel
             async () => created = await _review.CreatePersonAndAssignManyAsync(faceIds, displayName, UserId, cancellationToken),
             "New person added and the selected faces named.",
             "groups",
-            () => PeopleReviewUndo.ForNaming(created, faceIds, UserId, DateTimeOffset.UtcNow));
+            started => NamingUndoAsync(() => created, faceIds, started, cancellationToken));
     }
 
     public Task<IActionResult> OnPostRejectGroupCandidateAsync(
@@ -575,7 +585,7 @@ public sealed class ReviewModel : PageModel
             () => _review.AssignManyAsync(faceIds, personId, UserId, confidence, cancellationToken),
             "The selected faces were named.",
             "groups",
-            () => PeopleReviewUndo.ForNaming(personId, faceIds, UserId, DateTimeOffset.UtcNow));
+            started => NamingUndoAsync(() => personId, faceIds, started, cancellationToken));
 
     public Task<IActionResult> OnPostRefreshCandidatesAsync(CancellationToken cancellationToken)
         => ExecuteAsync(
@@ -685,14 +695,29 @@ public sealed class ReviewModel : PageModel
         return "matches";
     }
 
+    // What a naming leaves to undo: only the faces this request itself gave to the person. A
+    // face another reviewer had already given to the same person is named without anything
+    // being assigned, and must not be taken away from them by this reviewer's Undo.
+    private async Task<string?> NamingUndoAsync(
+        Func<Guid> personId,
+        IReadOnlyCollection<Guid> faceIds,
+        DateTimeOffset started,
+        CancellationToken cancellationToken)
+    {
+        var person = personId();
+        var assigned = await _review.GetFacesAssignedByAsync(person, faceIds, UserId, started, cancellationToken);
+        return PeopleReviewUndo.ForNaming(person, assigned, UserId, started);
+    }
+
     private async Task<IActionResult> ExecuteAsync(
         Func<Task> action,
         string? successMessage,
         string redirectMode,
-        Func<string?>? undoState = null)
+        Func<DateTimeOffset, Task<string?>>? undoState = null)
     {
         // An earlier decision can no longer be undone once another has been made.
         UndoState = null;
+        var started = DateTimeOffset.UtcNow;
         NormalizeRequest();
         var normalizedRedirectMode = NormalizeModeValue(redirectMode);
         if (!FeatureEnabled)
@@ -709,7 +734,7 @@ public sealed class ReviewModel : PageModel
                 StatusMessage = successMessage;
             }
 
-            UndoState = undoState?.Invoke();
+            UndoState = undoState is null ? null : await undoState(started);
         }
         catch (Exception exception) when (exception is ArgumentException
                                            or InvalidOperationException
