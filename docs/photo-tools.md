@@ -202,7 +202,9 @@ see-through areas with white.
 - A browser that cannot write WEBP (some older Safari versions) says so and asks for JPG or PNG.
 - Everything is held in browser memory, so very large photos depend on the user's computer.
   Edit photo works on the full-size photo, so on a very large photo each step, and each Undo,
-  can take a few seconds.
+  can take a few seconds. The page shows "Working…" over the photo meanwhile (above about 4
+  million pixels of work) and ignores further presses until the step is done; the work itself
+  still runs on the page, not in a background worker.
 - Saved photos are in standard sRGB colour. A wide-colour photo (such as an iPhone photo in
   Display P3) can look very slightly less vivid after saving.
 - Reduce size shows a small thumbnail of each photo once it has been opened; a photo still

@@ -764,6 +764,25 @@
     overflow: hidden;
 }
 
+/* Shown over the photo while a step is made on a large photo. */
+.phot-busy {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: color-mix(in srgb, var(--bs-body-bg) 55%, transparent);
+    color: var(--bs-body-color);
+    font-weight: 600;
+    cursor: progress;
+    z-index: 5;
+}
+
+.phot-busy[hidden] {
+    display: none;
+}
+
 .phot-edit__photo {
     position: relative;
     flex: 0 0 auto;

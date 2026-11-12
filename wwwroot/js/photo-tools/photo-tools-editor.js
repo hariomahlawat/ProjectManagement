@@ -15,6 +15,8 @@
 
   const PREVIEW_SIDE = 1600;
   const SETTLE_MS = 300;
+  // Above this much work (pixels times steps), "Working…" is shown while a step is made.
+  const BUSY_PIXELS = 4_000_000;
 
   const $ = (selector) => view.querySelector(selector);
   const $$ = (selector) => Array.from(view.querySelectorAll(selector));
@@ -49,6 +51,8 @@
   const qualityRow = $('[data-edit-quality-row]');
   const qualityValue = $('[data-edit-quality-value]');
   const resultLine = $('[data-edit-result]');
+  const busyBox = $('[data-edit-busy]');
+  const busyStatus = $('[data-edit-busy-status]');
   const downloadButton = $('[data-action="download-edit"]');
 
   const cleanups = $('[data-cleanups]');
@@ -111,6 +115,7 @@
   let saveRun = 0;
   let saveTimer = null;
   let openRun = 0;
+  let working = false;
 
   // ---------------------------------------------------------------------------
   // Steps
@@ -257,18 +262,55 @@
     queueSave();
   }
 
-  function addStep(step) {
-    shared.clearError();
-    try {
-      current = applyStep(current, step);
-    } catch (error) {
-      console.error(error);
-      shared.showError('This change could not be made. The photo may be too large for this browser.');
+  /**
+   * Makes a step, an Undo or a Redo. Every step is made on the full-size photo, which on a large
+   * photo takes a moment: "Working…" is shown first, and the browser is given a frame to show it
+   * before the work starts. Presses that come in meanwhile are ignored, so steps cannot overlap.
+   */
+  async function runStep(work, stepsToApply) {
+    if (!current) return;
+    if (working) {
+      // Redrawn so a mark that was being dragged out does not stay on the screen.
+      layout();
       return;
     }
-    steps.push(step);
-    undone = [];
-    changed();
+    working = true;
+    const size = currentSize();
+    const showBusy = size.width * size.height * stepsToApply > BUSY_PIXELS;
+    undoButton.disabled = true;
+    redoButton.disabled = true;
+    if (showBusy) {
+      busyBox.hidden = false;
+      busyStatus.textContent = 'Working…';
+      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    }
+    let done = false;
+    try {
+      done = work();
+    } finally {
+      working = false;
+      busyBox.hidden = true;
+      busyStatus.textContent = showBusy ? (done ? 'Done.' : '') : '';
+      undoButton.disabled = steps.length === 0;
+      redoButton.disabled = undone.length === 0;
+    }
+  }
+
+  function addStep(step) {
+    return runStep(() => {
+      shared.clearError();
+      try {
+        current = applyStep(current, step);
+      } catch (error) {
+        console.error(error);
+        shared.showError('This change could not be made. The photo may be too large for this browser.');
+        return false;
+      }
+      steps.push(step);
+      undone = [];
+      changed();
+      return true;
+    }, 1);
   }
 
   /**
@@ -293,18 +335,24 @@
 
   function undo() {
     if (!steps.length) return;
-    const step = steps[steps.length - 1];
-    if (!replay(steps.slice(0, -1))) return;
-    undone.push(step);
-    changed();
+    runStep(() => {
+      const step = steps[steps.length - 1];
+      if (!replay(steps.slice(0, -1))) return false;
+      undone.push(step);
+      changed();
+      return true;
+    }, Math.max(1, steps.length - 1));
   }
 
   function redo() {
     if (!undone.length) return;
-    const step = undone[undone.length - 1];
-    if (!replay([...steps, step])) return;
-    undone.pop();
-    changed();
+    runStep(() => {
+      const step = undone[undone.length - 1];
+      if (!replay([...steps, step])) return false;
+      undone.pop();
+      changed();
+      return true;
+    }, steps.length + 1);
   }
 
   // ---------------------------------------------------------------------------
