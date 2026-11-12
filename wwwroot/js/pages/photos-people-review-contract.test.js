@@ -118,3 +118,13 @@ test('a person\'s page: the Photos bar, one Manage disclosure, plain wording, th
     assert.match(person, /<details class="identity-group-figures person-photo-card__details">\s+<summary>Details<\/summary>/);
     assert.doesNotMatch(person, /@photo\.AssignmentType/);
 });
+
+test('nothing is left of the dialog and the styles the redesign replaced', () => {
+    assert.doesNotMatch(page, /assignExistingModal/);
+    assert.doesNotMatch(script, /assignExistingModal/);
+    // The face card still names through the same handler.
+    assert.match(page, /data-assign-action="@Url\.Page\("\.\/Review", "AssignExisting"\)"/);
+    const css = read('wwwroot/css/pages/photos-people.css');
+    ['face-review-layout-toggle', 'identity-review-tabs', 'review-summary--people', 'people-header--review', 'identity-group-card__kicker']
+        .forEach(name => assert.ok(!css.includes(name), name));
+});
