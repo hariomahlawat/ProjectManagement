@@ -94,3 +94,20 @@ test('icon-only actions on phones keep their words for screen readers', () => {
     assert.doesNotMatch(rule[1], /display\s*:\s*none/, 'display:none would remove the button name');
     assert.match(rule[1], /clip\s*:\s*rect\(0, 0, 0, 0\)/);
 });
+
+test('phones: three pictures to a row, one row of search and icon controls, chips that scroll, a month picker', () => {
+    const styles = fs.readFileSync(path.resolve(__dirname, '../../css/pages/photos-library.css'), 'utf8');
+    assert.match(libraryScript, /\(max-width: 575\.98px\)'\)\.matches\) return 96;/, 'a row height that fits three pictures');
+    assert.match(styles, /\.photos-tile \{ min-height:72px; \}/, 'and the stylesheet does not force them taller');
+    assert.match(styles, /\.photos-bar \.photos-control span \{[^}]*clip:rect\(0, 0, 0, 0\)/, 'control words stay for screen readers');
+    assert.match(styles, /\.photos-chips \{[^}]*flex-wrap:nowrap;[^}]*overflow-x:auto;/);
+    assert.match(styles, /\.photos-subbar \.photos-summary \{ display:none; \}/);
+    assert.match(styles, /\.photos-sections a \{[^}]*min-height:2\.75rem;/, 'tabs are a full touch target');
+
+    // The picker stands in for the month list wherever that list is not shown.
+    assert.match(photosPage, /<select data-photos-month-jump>/);
+    assert.match(photosPage, /<option value="@month\.Url" data-month="@month\.Key">/);
+    assert.match(styles, /@media \(min-width: 1200px\) \{\s+\.photos-scrubber \{ display:flex; \}\s+\.photos-month-jump \{ display:none; \}/);
+    assert.match(styles, /\.photos-month \{[^}]*scroll-margin-top:/, 'a month link does not land under the bar');
+    assert.match(photosPage, /data-month="@month\.Key" aria-label="@month\.Label"/, 'month links are named in full');
+});

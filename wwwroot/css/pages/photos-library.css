@@ -297,6 +297,8 @@
   .photos-toolbar__controls { justify-content:space-between; }
   .photos-search { min-width:0; }
   .photos-grid { gap:3px !important; }
+  /* Three pictures to a row on a phone are lower than the desktop minimum. */
+  .photos-tile { min-height:72px; }
   .photos-day__header { flex-wrap:wrap; }
   .collections-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.7rem; }
 }
@@ -806,12 +808,19 @@
 .photos-bar .photos-action { min-height:2.3rem; }
 .photos-library > .photos-summary { margin-top:0; }
 
+/* Phones: the sections, then one row holding search and icon-only controls, so the pictures
+   start high on the screen. The words of a control stay for screen readers. */
 @media (max-width: 640px) {
-    .photos-bar { position:static; }
+    .photos-bar { gap:.4rem; padding-top:.35rem; position:static; }
     .photos-sections { overflow-x:auto; width:100%; }
-    .photos-sections a { flex:1; text-align:center; }
-    .photos-bar .photos-search { border-bottom:1px solid var(--pm-border); flex-basis:100%; max-width:none; }
-    .photos-bar .photos-toolbar__controls { flex:1 1 auto; flex-wrap:wrap; margin-left:0; }
+    .photos-sections a { align-items:center; display:flex; flex:1; justify-content:center; min-height:2.75rem; text-align:center; }
+    .photos-bar .photos-search { border-bottom:1px solid var(--pm-border); flex:1 1 0; max-width:none; min-width:0; }
+    .photos-bar .photos-search input { min-height:2.75rem; }
+    .photos-bar .photos-toolbar__controls { flex:0 0 auto; flex-wrap:nowrap; gap:0; margin-left:0; }
+    .photos-bar .photos-control { justify-content:center; min-height:2.75rem; min-width:2.75rem; padding:0; position:relative; }
+    .photos-bar .photos-control span { border:0; clip:rect(0, 0, 0, 0); height:1px; margin:-1px; overflow:hidden; padding:0; position:absolute; white-space:nowrap; width:1px; }
+    .photos-bar .photos-control b { position:absolute; right:.1rem; top:.2rem; }
+    .photos-bar .photos-action { min-height:2.75rem; min-width:2.75rem; justify-content:center; padding-left:.4rem; padding-right:.4rem; }
 }
 
 /* Quick-filter chips, month and day headings. Theme tokens only. */
@@ -822,14 +831,26 @@
 .photos-chip:hover { background:var(--pm-surface-muted); color:var(--pm-text); }
 .photos-chip.is-active { background:var(--pm-primary-soft); border-color:transparent; color:var(--pm-primary); font-weight:700; }
 .photos-chips__sep { background:var(--pm-border); height:1.1rem; margin:0 .25rem; width:1px; }
-.photos-month { color:var(--pm-text); font-size:1.5rem; font-weight:700; letter-spacing:-.02em; margin:.5rem 0 -.7rem; }
+.photos-month { color:var(--pm-text); font-size:1.5rem; font-weight:700; letter-spacing:-.02em; margin:.5rem 0 -.7rem; scroll-margin-top:calc(var(--photos-bar-top, 3.5rem) + 4.5rem); }
+/* A month picker for screens too narrow for the month list on the right edge. */
+.photos-month-jump { align-items:center; background:var(--pm-card); border:1px solid var(--pm-border); border-radius:999px; color:var(--pm-text-muted); display:inline-flex; flex:none; font-size:.78rem; font-weight:600; gap:.35rem; margin:0; padding:0 .3rem 0 .7rem; }
+.photos-month-jump select { appearance:auto; background:transparent; border:0; color:var(--pm-text); font:inherit; max-width:11rem; min-height:1.9rem; outline-offset:2px; }
 .photos-timeline > .photos-month:first-child { margin-top:0; }
 .photos-day__header h3 { color:var(--pm-text); font-size:.9rem; font-weight:700; margin:0; white-space:nowrap; }
 .photos-day__header > span { color:var(--pm-text-muted); font-size:.8rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
+/* Phones: the chips are one row that scrolls sideways, and the counts make way for pictures. */
 @media (max-width: 640px) {
-    .photos-subbar .photos-summary { margin-left:0; }
-    .photos-month { font-size:1.25rem; }
+    .photos-subbar { flex-wrap:nowrap; gap:.4rem; margin-bottom:.4rem; }
+    .photos-subbar .photos-summary { display:none; }
+    .photos-chips { flex:1 1 auto; flex-wrap:nowrap; min-width:0; overflow-x:auto; padding:.15rem 0; scrollbar-width:none; }
+    .photos-chips::-webkit-scrollbar { display:none; }
+    .photos-chip { align-items:center; display:inline-flex; flex:none; min-height:2.5rem; padding-left:.9rem; padding-right:.9rem; }
+    .photos-month-jump { padding-left:.45rem; }
+    .photos-month-jump i { display:none; }
+    .photos-month-jump select { max-width:6.5rem; min-height:2.5rem; }
+    /* The bar does not stick on a phone, so a month only has to clear the application's top bar. */
+    .photos-month { font-size:1.25rem; scroll-margin-top:calc(var(--photos-bar-top, 3.5rem) + .75rem); }
 }
 
 /* Continuous scroll and the month list on the right edge. Theme tokens only. */
@@ -847,6 +868,7 @@
 /* The month list needs a free strip beside the pictures, so it shows on wide screens only. */
 @media (min-width: 1200px) {
     .photos-scrubber { display:flex; }
+    .photos-month-jump { display:none; }
     .photos-library:has([data-photos-scrubber]) .photos-timeline { padding-right:3.25rem; }
 }
 

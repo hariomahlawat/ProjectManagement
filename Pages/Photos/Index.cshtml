@@ -447,6 +447,20 @@
             }
         </nav>
     }
+    @if (!Model.IsAlbumDetail && !Model.IsAlbumsWorkspace && Model.TimelineMonths.Count > 1)
+    {
+        @* Below the width where the month list on the right edge is shown, this picker does its job. *@
+        <label class="photos-month-jump">
+            <span class="visually-hidden">Jump to a month</span>
+            <i class="bi bi-calendar3" aria-hidden="true"></i>
+            <select data-photos-month-jump>
+                @foreach (var month in Model.TimelineMonths)
+                {
+                    <option value="@month.Url" data-month="@month.Key">@month.ShortLabel @month.Year</option>
+                }
+            </select>
+        </label>
+    }
     <div class="photos-summary">
         @if (Model.IsAlbumsWorkspace)
         {
@@ -870,7 +884,7 @@
                         scrubberYear = month.Year;
                         <span class="photos-scrubber__year">@month.Year</span>
                     }
-                    <a href="@month.Url" data-month="@month.Key" title="@month.Label · @month.Count item@(month.Count == 1 ? "" : "s")">@month.ShortLabel</a>
+                    <a href="@month.Url" data-month="@month.Key" aria-label="@month.Label" title="@month.Label · @month.Count item@(month.Count == 1 ? "" : "s")">@month.ShortLabel</a>
                 }
             </nav>
         }

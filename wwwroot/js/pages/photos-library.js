@@ -247,7 +247,8 @@
     };
 
     const gridTargetHeight = () => {
-        if (window.matchMedia('(max-width: 575.98px)').matches) return 145;
+        // Phones: three pictures to a row, as a photo library is expected to show.
+        if (window.matchMedia('(max-width: 575.98px)').matches) return 96;
         if (window.matchMedia('(max-width: 991.98px)').matches) return 180;
         return 215;
     };
@@ -260,7 +261,9 @@
         const containerWidth = grid.clientWidth;
         const target = gridTargetHeight();
         const sparseLastRow = root.dataset.sparseLastRow === 'true';
-        const minHeight = Math.max(120, target * 0.72);
+        const compact = target < 120;
+        const minHeight = Math.max(compact ? 72 : 120, target * 0.72);
+        const minWidth = compact ? 64 : 96;
         const maxHeight = target * 1.26;
 
         if (items.length === 1) {
@@ -321,7 +324,7 @@
             height = Math.max(minHeight, Math.min(maxHeight, height));
 
             entries.forEach(({ tile, ratio }) => {
-                tile.style.width = `${Math.max(96, Math.round(height * ratio))}px`;
+                tile.style.width = `${Math.max(minWidth, Math.round(height * ratio))}px`;
                 tile.style.height = `${Math.round(height)}px`;
             });
         });
@@ -532,14 +535,39 @@
     // The month list on the right edge. A month already on the page is scrolled to; any other
     // month is opened by its own link, which starts the timeline at that month.
     const scrubber = root.querySelector('[data-photos-scrubber]');
-    if (scrubber && timeline) {
-        const barHeight = () => (root.querySelector('[data-photos-bar]')?.getBoundingClientRect().bottom || 0) + 12;
-        scrubber.addEventListener('click', (event) => {
+    // On screens too narrow for the list, a picker in the chip row does the same job.
+    const monthJump = root.querySelector('[data-photos-month-jump]');
+    if ((scrubber || monthJump) && timeline) {
+        // What covers the top of the page: the sticky bar, or on a phone, where the bar does
+        // not stick, only the application's top bar.
+        const barHeight = () => {
+            const bar = root.querySelector('[data-photos-bar]');
+            const sticky = bar && getComputedStyle(bar).position === 'sticky';
+            // Where the sticky bar ends once it is stuck: its own offset plus its height now,
+            // which is two rows when the bar has wrapped.
+            if (sticky) return (Number.parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight + 12;
+            return Math.max(0, document.querySelector('.pm-topbar')?.getBoundingClientRect().bottom || 0) + 12;
+        };
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        // The heading is given the measured height as its scroll margin, so it clears the bar
+        // whatever the bar's height; the stylesheet's margin covers links followed without script.
+        const scrollToMonth = (heading) => {
+            heading.style.scrollMarginTop = `${barHeight()}px`;
+            heading.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+        };
+        scrubber?.addEventListener('click', (event) => {
             const link = event.target?.closest?.('a[data-month]') ?? null;
             const heading = link ? document.getElementById(`month-${link.dataset.month}`) : null;
             if (!heading) return;
             event.preventDefault();
-            window.scrollTo({ top: heading.getBoundingClientRect().top + window.scrollY - barHeight(), behavior: 'smooth' });
+            scrollToMonth(heading);
+        });
+        monthJump?.addEventListener('change', () => {
+            const option = monthJump.selectedOptions[0];
+            if (!option) return;
+            const heading = document.getElementById(`month-${option.dataset.month}`);
+            if (heading) scrollToMonth(heading);
+            else window.location.assign(option.value);
         });
 
         let scrubberFrame = 0;
@@ -549,12 +577,21 @@
             timeline.querySelectorAll('.photos-month').forEach((heading) => {
                 if (!current || heading.getBoundingClientRect().top < limit) current = heading.id.replace('month-', '');
             });
-            scrubber.querySelectorAll('a[data-month]').forEach((link) => {
+            scrubber?.querySelectorAll('a[data-month]').forEach((link) => {
                 const isCurrent = link.dataset.month === current;
+                const wasCurrent = link.classList.contains('is-current');
                 link.classList.toggle('is-current', isCurrent);
                 if (isCurrent) link.setAttribute('aria-current', 'true');
                 else link.removeAttribute('aria-current');
+                // In a long list the current month is kept in sight inside the list itself.
+                if (isCurrent && !wasCurrent && scrubber.scrollHeight > scrubber.clientHeight) {
+                    scrubber.scrollTop = link.offsetTop - scrubber.clientHeight / 2;
+                }
             });
+            if (monthJump && current) {
+                const option = [...monthJump.options].find(candidate => candidate.dataset.month === current);
+                if (option) monthJump.value = option.value;
+            }
         };
         window.addEventListener('scroll', () => {
             cancelAnimationFrame(scrubberFrame);
