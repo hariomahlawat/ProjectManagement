@@ -147,10 +147,10 @@ public class ItProjectStageRulesTests
         Assert.Contains("The IT ARPPP / IPA cost cannot be negative.", ItProjectStageRules.Apply(Input(S("PPP", true, cost: -1m))).Errors);
 
         var negative = ItProjectStageRules.Apply(Input(S("SO", true, cost: -1m)));
-        Assert.Contains("The SO cost cannot be negative.", negative.Errors);
+        Assert.Contains("The EAS & SO cost cannot be negative.", negative.Errors);
 
         var elsewhere = ItProjectStageRules.Apply(Input(S("BID", true, cost: 5m)));
-        Assert.Contains("Only the IT ARPPP / IPA and SO stages carry a cost (Bid).", elsewhere.Errors);
+        Assert.Contains("Only the IT ARPPP / IPA and EAS & SO stages carry a cost (Bid).", elsewhere.Errors);
     }
 
     [Fact]

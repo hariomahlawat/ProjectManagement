@@ -312,7 +312,7 @@ public class ItProjectTimingTests
         Assert.Equal(132, timing.ElapsedDays);
         Assert.Equal("SO", timing.StartedStageCode);
         Assert.False(timing.ElapsedIsEndToEnd);
-        Assert.Equal("from SO", ProjectManagement.Pages.ItProjects.ItProjectBoardPresentation.ElapsedSpan(timing));
+        Assert.Equal("from EAS & SO", ProjectManagement.Pages.ItProjects.ItProjectBoardPresentation.ElapsedSpan(timing));
     }
 
     [Theory]

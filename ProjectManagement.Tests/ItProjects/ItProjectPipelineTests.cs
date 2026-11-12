@@ -51,7 +51,7 @@ public class ItProjectPipelineTests
     public void ShortStageLabel_IsOneSetForTheColumnsAndTheRegisterHeader()
     {
         Assert.Equal(
-            new[] { "ARPPP", "AoN", "Bid", "TEC", "COB", "BM", "PNC", "SO", "Delivery" },
+            new[] { "ARPPP", "AoN", "Bid", "TEC", "COB", "BM", "PNC", "EAS & SO", "Delivery" },
             ItProjectStages.All.Select(stage => ItProjectBoardPresentation.ShortStageLabel(stage.Code)));
     }
 

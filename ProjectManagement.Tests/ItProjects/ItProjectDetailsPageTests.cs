@@ -141,7 +141,7 @@ public class ItProjectDetailsPageTests
         Assert.Equal(DetailsModel.OpenStages, page.Open);
         var errors = page.DrawerErrors(DetailsModel.OpenStages, "Stages");
         Assert.Contains("AoN: The value '31-02-2026' is not valid.", errors);
-        Assert.Contains("SO: The value 'abc' is not valid.", errors);
+        Assert.Contains("EAS & SO: The value 'abc' is not valid.", errors);
         Assert.NotEmpty(page.Details.RowVersion); // the other drawers still carry their row versions
         await using var context = db.NewContext();
         Assert.Equal(new DateOnly(2026, 6, 19), (await context.ItProjectStages.SingleAsync(s => s.ItProjectId == id && s.StageCode == "AON")).CompletedOn);
@@ -241,7 +241,7 @@ public class ItProjectDetailsPageTests
         var result = await page.OnPostStagesAsync(id, reopen: "COB", CancellationToken.None);
 
         Assert.IsType<RedirectToPageResult>(result);
-        Assert.Equal("Stages saved. Reopened: COB, SO.", page.TempData["ToastSuccess"]);
+        Assert.Equal("Stages saved. Reopened: COB, EAS & SO.", page.TempData["ToastSuccess"]);
         await using var context = db.NewContext();
         var stages = await context.ItProjectStages.Where(stage => stage.ItProjectId == id).OrderBy(stage => stage.SortOrder).ToListAsync();
         Assert.Equal(new[] { "PPP", "AON", "BID", "TEC" }, stages.Where(stage => stage.IsCompleted).Select(stage => stage.StageCode));
@@ -294,10 +294,10 @@ public class ItProjectDetailsPageTests
         Assert.Null(ItProjectBoardPresentation.CascadeSummary(Array.Empty<string>(), Array.Empty<string>()));
         Assert.Equal("Saving will also complete Bid.", ItProjectBoardPresentation.CascadeSummary(new[] { "BID" }, Array.Empty<string>()));
         Assert.Equal(
-            "Saving will also complete IT ARPPP / IPA, AoN, Bid, TEC, COB and SO.",
+            "Saving will also complete IT ARPPP / IPA, AoN, Bid, TEC, COB and EAS & SO.",
             ItProjectBoardPresentation.CascadeSummary(new[] { "PPP", "AON", "BID", "TEC", "COB", "SO" }, Array.Empty<string>()));
         Assert.Equal(
-            "Saving will also complete Bid and also reopen SO and Delivery and ATP.",
+            "Saving will also complete Bid and also reopen EAS & SO and Delivery and ATP.",
             ItProjectBoardPresentation.CascadeSummary(new[] { "BID" }, new[] { "SO", "DLV" }));
     }
 

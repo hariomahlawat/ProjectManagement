@@ -148,7 +148,7 @@ public class ItProjectBoardPageTests
         Assert.Equal("TEC: done, date not recorded", ItProjectBoardPresentation.CellTitle(doneNoDate));
 
         var current = new ItProjectBoardStageCell("SO", 8, false, null, false, 46.8m, true);
-        Assert.Equal("SO: current stage, ₹ 46.80 L", ItProjectBoardPresentation.CellTitle(current));
+        Assert.Equal("EAS & SO: current stage, ₹ 46.80 L", ItProjectBoardPresentation.CellTitle(current));
 
         // The cost stays on the cell once SO is complete (Codex review, PR 2).
         var doneWithCost = new ItProjectBoardStageCell("SO", 8, true, new DateOnly(2026, 2, 12), false, 12.4m, false);

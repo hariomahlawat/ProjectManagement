@@ -95,7 +95,7 @@ public static class ItProjectBoardPresentation
 
     /// <summary>
     /// "end to end" when the elapsed figure starts at the first stage; else the stage it starts
-    /// from ("from SO"), because undated early stages make the figure shorter than the case took.
+    /// from ("from EAS & SO"), because undated early stages make the figure shorter than the case took.
     /// </summary>
     public static string ElapsedSpan(ItProjectTiming timing, string module = ItProjectModules.It)
         => timing.ElapsedIsEndToEnd ? "end to end" : $"from {ItProjectStages.LabelOf(timing.StartedStageCode!, module)}";

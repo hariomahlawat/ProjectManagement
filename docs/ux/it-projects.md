@@ -27,7 +27,7 @@ their own tables, services, pages and policies, and never reference `Projects`, 
 | Stage completion | A stage is marked complete; its completion date is optional |
 | Auto-completion | Completing a stage completes every earlier non-skipped stage; reopening a stage reopens every later one |
 | Optional stages | Benchmarking and PNC are skipped by default and can be included per project |
-| SO stage | Carries an optional SO date (its completion date) and an optional cost in lakhs |
+| EAS & SO stage | Carries an optional SO date (its completion date) and an optional cost in lakhs |
 | Approval | None. Manage roles edit directly; every change is audited |
 | Tasks | None. No link to the Action tracker |
 | Photos, videos, time plan | None |
@@ -50,7 +50,7 @@ their own tables, services, pages and policies, and never reference `Projects`, 
 | 5 | `COB` | COB | active |
 | 6 | `BM` | Benchmarking | **skipped** |
 | 7 | `PNC` | PNC | **skipped** |
-| 8 | `SO` | SO | active (date + cost) |
+| 8 | `SO` | EAS & SO (renamed from "SO" on 12 Nov 2026; the code stays `SO`) | active (date + cost) |
 | 9 | `DLV` | Delivery and ATP | active |
 
 The list lives in code (`ItProjectStages` catalogue), not in a template table. Nine stage rows
