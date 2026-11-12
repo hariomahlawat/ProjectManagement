@@ -2020,3 +2020,9 @@ a.identity-workload-pill:hover {
     .identity-group-actions > .people-name-field,
     .people-name-field { grid-template-columns:1fr; }
 }
+
+/* "How sure is PRISM?": the figures, for those who want them. Theme tokens only. */
+.identity-group-figures { color:var(--pm-text-muted); font-size:.78rem; margin-top:.7rem; }
+.identity-group-figures summary { color:var(--pm-text-muted); cursor:pointer; font-weight:700; width:fit-content; }
+.identity-group-figures p { margin:.4rem 0 .3rem; max-width:62ch; }
+.identity-group-figures ul { margin:0; padding-left:1.1rem; }

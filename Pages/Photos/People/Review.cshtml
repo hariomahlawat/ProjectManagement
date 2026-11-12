@@ -200,13 +200,8 @@
                             <article class="identity-group-card" data-identity-group="@group.GroupKey">
                                 <header class="identity-group-card__header">
                                     <div>
-                                        <span class="identity-group-card__kicker">Suggested same person</span>
-                                        <h2>@group.Members.Count appearances across @group.PhotoCount photographs</h2>
-                                        <p>@group.FirstSeenUtc.ToLocalTime().ToString("dd MMM yyyy") – @group.LastSeenUtc.ToLocalTime().ToString("dd MMM yyyy")</p>
-                                    </div>
-                                    <div class="identity-group-card__cohesion" title="Average similarity to the representative appearance; this is not identity probability.">
-                                        <span>Group similarity</span>
-                                        <strong>@group.CohesionScore.ToString("0.000")</strong>
+                                        <h2>These @group.Members.Count faces look like the same person</h2>
+                                        <p>From @group.PhotoCount picture@(group.PhotoCount == 1 ? "" : "s") · @group.FirstSeenUtc.ToLocalTime().ToString("d MMM yyyy") to @group.LastSeenUtc.ToLocalTime().ToString("d MMM yyyy") · Untick any that are someone else.</p>
                                     </div>
                                 </header>
 
@@ -215,6 +210,9 @@
                                     {
                                         var similarityBand = Model.GroupSimilarityBand(member.SimilarityToRepresentative);
                                         var checkboxId = $"group-{group.GroupKey}-{member.FaceId:N}";
+                                        // The face the group is built round and the strong likenesses start ticked;
+                                        // a doubtful face needs a deliberate tick.
+                                        var startsTicked = member.FaceId == group.RepresentativeFaceId || similarityBand == "strong";
                                         <div class="identity-group-face @(member.FaceId == group.RepresentativeFaceId ? "is-representative" : null)"
                                              role="listitem" data-group-face-tile>
                                             <input id="@checkboxId"
@@ -223,30 +221,23 @@
                                                    name="faceIds"
                                                    value="@member.FaceId"
                                                    form="@groupFormId"
+                                                   checked="@startsTicked"
                                                    disabled="@Model.GroupingActionsLocked"
                                                    data-group-face-checkbox />
                                             <label class="identity-group-face__selectable" for="@checkboxId"
-                                                   title="@member.ContextTitle · similarity @member.SimilarityToRepresentative.ToString("0.000")">
+                                                   title="@member.ContextTitle">
                                                 <img src="@Url.Page("/Photos/FaceThumbnail", new { id = member.FaceId })"
                                                      alt="Face appearance from @member.ContextTitle" loading="lazy" />
                                                 <span class="identity-group-face__check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
-                                                @if (member.FaceId == group.RepresentativeFaceId)
+                                                @if (!startsTicked)
                                                 {
-                                                    <span class="identity-similarity is-representative" title="Representative appearance used only as the comparison anchor for this suggested group.">
-                                                        <em>Representative</em>
-                                                    </span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="identity-similarity is-@similarityBand" title="Similarity is a ranking signal, not identity probability.">
-                                                        <em>@(similarityBand == "strong" ? "Strong" : similarityBand == "moderate" ? "Moderate" : "Weak")</em> @member.SimilarityToRepresentative.ToString("0.000")
-                                                    </span>
+                                                    <span class="identity-similarity is-@similarityBand"><em>Less sure</em></span>
                                                 }
                                             </label>
                                             <a class="identity-group-face__open"
                                                href="@Url.Page("/Photos/Media", new { id = member.AssetId, variant = "preview" })"
                                                target="_blank" rel="noopener"
-                                               title="Open source photograph" aria-label="Open source photograph for @member.ContextTitle">
+                                               title="Open the picture" aria-label="Open the picture from @member.ContextTitle">
                                                 <i class="bi bi-arrow-up-right"></i>
                                             </a>
                                         </div>
@@ -256,7 +247,7 @@
                                 @if (group.Candidates.Count > 0)
                                 {
                                     <section class="identity-group-candidates" aria-label="Known-person matches">
-                                        <h3>Possible group identity</h3>
+                                        <h3>PRISM thinks this may be</h3>
                                         @foreach (var candidate in group.Candidates.Take(3))
                                         {
                                             var isStrong = candidate.ConfidenceLevel == FaceCandidateConfidenceLevel.Strong;
@@ -275,9 +266,8 @@
                                                 </a>
                                                 <span>
                                                     <a asp-page="./Details" asp-route-id="@candidate.PersonId"><strong>@candidate.DisplayName</strong></a>
-                                                    <small title="Embedding similarity is a ranking signal, not an identity probability.">
-                                                        Similarity @candidate.Similarity.ToString("0.000") · @candidate.ReferenceCount trusted @(candidate.ReferenceCount == 1 ? "reference" : "references")
-                                                        <em class="candidate-strength @(isStrong ? "is-strong" : "is-possible")">@(isStrong ? "Strong candidate" : "Possible match")</em>
+                                                    <small>
+                                                        <em class="candidate-strength @(isStrong ? "is-strong" : "is-possible")">@(isStrong ? "Looks very like them" : "Looks somewhat like them")</em>
                                                     </small>
                                                 </span>
                                                 <div class="identity-group-candidate__actions">
@@ -287,7 +277,7 @@
                                                             data-person-id="@candidate.PersonId"
                                                             data-target-select="existing-@group.GroupKey"
                                                             disabled="@Model.GroupingActionsLocked">
-                                                        Choose @candidate.DisplayName
+                                                        Yes, @candidate.DisplayName
                                                     </button>
                                                     <button type="submit"
                                                             form="@groupFormId"
@@ -297,7 +287,7 @@
                                                             class="btn btn-sm btn-outline-secondary"
                                                             disabled="@Model.GroupingActionsLocked"
                                                             data-group-candidate-submit>
-                                                        Reject for selected
+                                                        Not @candidate.DisplayName
                                                     </button>
                                                 </div>
                                             </div>
@@ -310,10 +300,9 @@
                                     <input type="hidden" name="Mode" value="groups" />
                                     <div class="identity-group-selection">
                                         <div>
-                                            <strong>Confirm only the appearances you have visually checked</strong>
-                                            <span data-selected-count>0 selected</span>
+                                            <span data-selected-count data-total="@group.Members.Count">Tick the faces that are this person</span>
                                         </div>
-                                        <button type="button" class="btn btn-sm btn-link" data-toggle-group-selection disabled="@Model.GroupingActionsLocked">Select all</button>
+                                        <button type="button" class="btn btn-sm btn-link" data-toggle-group-selection disabled="@Model.GroupingActionsLocked">Tick all</button>
                                     </div>
                                     @* One name field when script runs (photos-people-name-field.js); the two plain
                                        controls below are what works without it, and what carries the value. *@
@@ -352,6 +341,17 @@
                                             <button type="submit" asp-page-handler="CreateGroup" class="btn btn-primary" disabled="@Model.GroupingActionsLocked">Create and confirm selected</button>
                                         </div>
                                     </div>
+                                    @* The figures are for those who want them; nothing is decided from them. *@
+                                    <details class="identity-group-figures">
+                                        <summary>How sure is PRISM?</summary>
+                                        <p>Likeness within this group is @group.CohesionScore.ToString("0.00") (1 is identical). PRISM uses likeness only to sort and group faces. It never names anyone.</p>
+                                        <ul>
+                                            @foreach (var member in group.Members)
+                                            {
+                                                <li>@member.ContextTitle, @member.MediaDateUtc.ToLocalTime().ToString("d MMM yyyy"): @(member.FaceId == group.RepresentativeFaceId ? "the face the group is built round" : member.SimilarityToRepresentative.ToString("0.00"))</li>
+                                            }
+                                        </ul>
+                                    </details>
                                 </form>
                             </article>
                         }
