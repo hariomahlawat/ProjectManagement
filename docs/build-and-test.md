@@ -115,6 +115,13 @@ psql -v ON_ERROR_STOP=1 -d <dev-database> -f tools/dev-data/molti-sre-demo-remov
 
 - `returned-plans-demo-seed.sql` adds eight projects named `Demo · Return N · …`, each with a timeline plan the HoD returned, shaped as `PlanApprovalService` leaves the rows: returned with nothing to fix, correction draft discarded, resubmitted then withdrawn, project handed to another PO, project completed, the older return shape, and two that were resubmitted (pending, and approved). It needs a Project Officer, a HoD and a second Project Officer (`-v other_po_user=…`). `returned-plans-demo-remove.sql` deletes only those projects. Because their names also start with `Demo · `, the Command desk remove script deletes them too, and the Command desk seed script does nothing while they exist.
 
+- `photos-bulk-demo-seed.sql` builds a large photo library for scroll and speed checks of the Photos page: 6,000 catalogue rows by default (`-v items=20000` for another size), titled `Demo bulk …`, spread over 30 months with quiet days, ordinary days of 1 to 5 pictures and a few days of 40 or more, shown under the existing projects, about 3 in 100 of them videos, with mixed tile shapes. It copies the project photos and videos the Photos page already shows, so no image files are added and thumbnails still load; the copies sit under their own catalogue source (key `demo-bulk`) so the catalogue synchroniser leaves them alone. **It only runs in a throwaway database whose name starts with `prism_review_`** and stops anywhere else. Safe to run twice: it rebuilds the set. `photos-bulk-demo-remove.sql` deletes that source and its rows, under the same name check.
+
+```bash
+psql -v ON_ERROR_STOP=1 -d prism_review_<name> -f tools/dev-data/photos-bulk-demo-seed.sql
+psql -v ON_ERROR_STOP=1 -d prism_review_<name> -f tools/dev-data/photos-bulk-demo-remove.sql
+```
+
 ## CI note
 
 `.github/workflows/notebook.yml` provides the broadest normal build/test path currently committed. The repository does not yet have one single workflow that expresses every required validation for every change type; use the affected-area tests plus the checks above.
