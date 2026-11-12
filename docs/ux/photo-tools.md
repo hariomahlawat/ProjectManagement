@@ -5,8 +5,11 @@ A standalone photo tool for a user's **own** photos, built on the same model as 
 from or saves to a PRISM record. The user opens a photo from their computer, changes it and
 downloads the result.
 
-This document records the owner direction of 11 Nov 2026 and the proposed build plan. Nothing
-here is built yet.
+This document records the owner direction of 11 Nov 2026 and the build plan, which is complete.
+What is built is described in [../photo-tools.md](../photo-tools.md). A follow-up plan for the
+print sheet and a background colour change is in
+[photo-tools-print-background.md](photo-tools-print-background.md); it replaces the "white
+background left out" assumption below.
 
 ## Owner direction (11 Nov 2026)
 
