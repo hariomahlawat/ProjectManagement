@@ -1003,3 +1003,101 @@ test('applyBackgroundFixes brings the photo back under red and removes under blu
   assert.deepEqual(Array.from(changed.slice(12, 15)), BLUE, 'a removed pixel gets the new colour');
   assert.deepEqual([changed[3], changed[7], changed[11], changed[15]], [255, 255, 255, 200], 'alpha is not touched');
 });
+
+// ----- Passport photo checks -----
+
+/** A background mask (1 is background) with a head: an ellipse from `top`, `wide` across, and shoulders. */
+function outlineMask(width, height, top, wide, extra) {
+  const mask = new Uint8Array(width * height).fill(1);
+  const cy = top + 0.34;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const head = ((x / width - 0.5) / (wide / 2)) ** 2 + ((y / height - cy) / 0.34) ** 2 <= 1;
+      if (head || y / height > 0.85) mask[y * width + x] = 0;
+    }
+  }
+  if (extra) extra(mask);
+  return mask;
+}
+
+function checksFor(options) {
+  const [w, h] = [100, 130];
+  const pixels = new Uint8ClampedArray(w * h * 4).fill(options.light ?? 150);
+  return tools.passportChecks({
+    pixels,
+    width: w,
+    height: h,
+    found: options.found === undefined ? { status: 'changed', mask: outlineMask(w, h, options.top ?? 0.1, options.wide ?? 0.55, options.extra) } : options.found,
+    plain: options.plain ?? true,
+    colour: options.colour ?? [240, 240, 240],
+    replaced: options.replaced ?? false,
+    enlarged: options.enlarged ?? 0.6
+  }).map(problem => problem.key);
+}
+
+test('headOutline finds where the head starts and how wide it is', () => {
+  const [w, h] = [100, 130];
+  const outline = tools.headOutline(outlineMask(w, h, 0.1, 0.55), w, h);
+  assert.ok(Math.abs(outline.top - 0.1) < 0.02, `top ${outline.top}`);
+  assert.ok(Math.abs(outline.width - 0.55) < 0.05, `width ${outline.width}`);
+
+  // A line along the top edge of a scan, and a plant at the side, are not the head.
+  const noisy = outlineMask(w, h, 0.2, 0.5, (mask) => {
+    for (let x = 0; x < w; x += 1) mask[x] = 0;
+    for (let y = 20; y < 100; y += 1) for (let x = 90; x < 100; x += 1) mask[y * w + x] = 0;
+  });
+  const second = tools.headOutline(noisy, w, h);
+  assert.ok(Math.abs(second.top - 0.2) < 0.02, `top ${second.top}`);
+  assert.ok(Math.abs(second.width - 0.5) < 0.05, `width ${second.width}`);
+
+  assert.equal(tools.headOutline(new Uint8Array(w * h).fill(1), w, h), null, 'no person at all');
+});
+
+test('passportChecks finds nothing wrong with a well placed photo', () => {
+  assert.deepEqual(checksFor({}), []);
+  assert.equal(tools.PASSPORT_GUIDE.top, 0.1);
+});
+
+test('passportChecks reports head position and size', () => {
+  assert.deepEqual(checksFor({ top: 0 }), ['head-cut']);
+  assert.deepEqual(checksFor({ top: 0.03 }), ['head-high']);
+  assert.deepEqual(checksFor({ top: 0.25 }), ['head-low']);
+  assert.deepEqual(checksFor({ wide: 0.95 }), ['head-large']);
+  assert.deepEqual(checksFor({ wide: 0.25 }), ['head-small']);
+  // Without a background to tell the head from, the head is not judged at all.
+  assert.deepEqual(checksFor({ top: 0.25, found: { status: 'busy', share: 0 }, plain: false }), ['background-busy']);
+  assert.deepEqual(checksFor({ top: 0.25, found: null }), []);
+});
+
+test('passportChecks reports the background, unless it was replaced', () => {
+  assert.deepEqual(checksFor({ plain: false }), ['background-busy']);
+  assert.deepEqual(checksFor({ colour: [84, 127, 192] }), ['background-dark']);
+  assert.deepEqual(checksFor({ colour: [207, 227, 247] }), [], 'light blue is light');
+  assert.deepEqual(checksFor({ colour: [20, 50, 50], replaced: true }), []);
+  assert.deepEqual(checksFor({ plain: false, replaced: true }), []);
+});
+
+test('passportChecks reports an enlarged photo and a dark or washed-out face', () => {
+  assert.deepEqual(checksFor({ enlarged: 1.1 }), [], 'a little is not worth a warning');
+  assert.deepEqual(checksFor({ enlarged: 1.64 }), ['enlarged']);
+  const [problem] = tools.passportChecks({
+    pixels: new Uint8ClampedArray(100 * 130 * 4).fill(150), width: 100, height: 130, found: null,
+    plain: true, colour: [240, 240, 240], replaced: false, enlarged: 1.64
+  });
+  assert.match(problem.text, /about 1\.6 times/);
+  assert.deepEqual(checksFor({ light: 50 }), ['face-dark']);
+  assert.deepEqual(checksFor({ light: 240 }), ['face-bright']);
+});
+
+test('findBackground finds the background and leaves the photo alone', () => {
+  const [w, h] = [80, 100];
+  const pixels = portrait(w, h, () => WALL);
+  const before = pixels.slice();
+  const found = tools.findBackground(pixels, w, h, 50);
+  assert.equal(found.status, 'changed');
+  assert.deepEqual(pixels, before);
+  assert.equal(found.mask[0], 1, 'the corner is background');
+  assert.equal(found.mask[45 * w + 40], 0, 'the face is not');
+  const outline = tools.headOutline(found.mask, w, h);
+  assert.ok(Math.abs(outline.top - 0.18) < 0.03, `the head of the test portrait starts at ${outline.top}`);
+});

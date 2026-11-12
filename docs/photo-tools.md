@@ -63,7 +63,8 @@ done too.
   between the darkest and brightest half percent, and corrects most of a colour cast. The same
   correction is applied to the preview and the saved photo. It does not change the background;
   that is the Background choice below.
-- The face guide is an aid for placing the head. It is not a check against any authority's rules.
+- The face guide is an aid for placing the head. It is not a check against any authority's rules;
+  nor are the checks listed in step 3 (see below).
 
 ### How the background colour is changed
 
@@ -151,6 +152,31 @@ Done.
 - Fixes are cleared by a new photo and by turning the photo a quarter. They are kept, but not
   applied, while the background is set to Keep or cannot be changed. Print sheet receives the
   photo with its fixes.
+
+### Checks before saving a passport photo
+
+Under the file's size, step 3 lists what a form is likely to reject, or says "No problems
+found". The checks are a guide and the screen says so: they use only what can be measured
+without a model that knows what a face looks like (`passportChecks` in the core file).
+
+| Check | How it is measured | Warns when |
+| --- | --- | --- |
+| Detail | How many times the photo is enlarged to fill the frame | Over 1.2 times |
+| Head position | The person's outline from the background search (`findBackground`, `headOutline`): the first rows where the middle of the photo stays person | The head touches the top edge, or starts well above or below the guide's top line (10% of the height) |
+| Head size | The width of the outline across the rows where the face is | It fills more than 85% of the width, or under a third |
+| Background | The same reading of the edges that the background change uses | The edges are not plain, or the colour is not light. Not shown once the background has been replaced |
+| Light on the face | Average brightness inside the guide's oval | Very dark or washed out |
+
+- Head position and size need a background the tool can tell the person from. With a busy
+  background they are not judged, and only the background warning shows.
+- The outline is the hair as well as the face, so "top of the head" means the top of the hair.
+  A line along the edge of a scan, or a mark on the wall, is not taken for the head: the head
+  starts where the middle stays person for 1% of the height.
+- Above 2 million pixels the outline is not looked for, because the search would hold the
+  screen up; the other checks still run.
+- Signature has no checks.
+- They do not check expression, glasses, head tilt, eyes open, or any one authority's
+  measurements.
 
 ### How a print sheet is made
 

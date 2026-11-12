@@ -844,7 +844,7 @@
 
     if (!replaced) {
       if (!plain) {
-        problems.push({ key: 'background-busy', text: 'The background is not plain. Most forms ask for a plain white or light background.' });
+        problems.push({ key: 'background-busy', text: 'The edges of the photo are not a plain background. Most forms ask for a plain white or light background with some space around the head.' });
       } else if (0.299 * colour[0] + 0.587 * colour[1] + 0.114 * colour[2] < 150) {
         problems.push({ key: 'background-dark', text: 'The background is not white or light, which most forms ask for. Background, above, can change it.' });
       }
