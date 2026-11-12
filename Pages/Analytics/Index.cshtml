@@ -18,6 +18,12 @@
     var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
     string Json(object value) => JsonSerializer.Serialize(value, json);
 
+    // Worked out on its own line, not as a string nested inside the sentence below: the Razor
+    // compiler in .NET SDK 11 loses track of the code block on a nested interpolated string.
+    var arppStanding = Model.Arpp?.AsOfDate is DateOnly asOf
+        ? $"where they stood on {asOf:d MMM yyyy}, the end of that year"
+        : "where they stand today";
+
     // One line under the title says what the active mode covers; the figures below it do the talking.
     var scope = Model.ActiveTab switch
     {
@@ -25,7 +31,7 @@
         AnalyticsTab.Coe => "Centre of Excellence (AR/VR) projects by stage, sub-category and lifecycle",
         AnalyticsTab.Insights => "How long each workflow stage takes, from finished stages across ongoing and completed projects",
         AnalyticsTab.Arpp => Model.Arpp is { HasData: true }
-            ? $"The {Model.Arpp.ListedCount} projects listed in the FY {Model.Arpp.FinancialYearDisplay} ARPP and {(Model.Arpp.AsOfDate is { } asOf ? $"where they stood on {asOf:d MMM yyyy}, the end of that year" : "where they stand today")}"
+            ? $"The {Model.Arpp.ListedCount} projects listed in the FY {Model.Arpp.FinancialYearDisplay} ARPP and {arppStanding}"
             : "Projects listed in the year's ARPP and where they stand today",
         _ => Model.IsOngoingFiltered
             ? $"Where {Model.Ongoing?.TotalOngoingProjects ?? 0} of the {Model.OngoingCount} ongoing projects (selected parent categories) stand, by phase and stage"
