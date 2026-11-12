@@ -159,5 +159,7 @@ test('the month picker scrolls to a month that is on the page', async () => {
     picker.selectedIndex = 1;
     picker.dispatchEvent(new window.Event('change', { bubbles: true }));
     assert.deepEqual(shown, ['month-202610']);
+    // The margin is measured when jumping, so a bar that has wrapped to two rows is cleared too.
+    assert.match(q('#month-202610').style.scrollMarginTop, /^\d+(\.\d+)?px$/);
     window.close();
 });
