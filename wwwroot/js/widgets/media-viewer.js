@@ -335,6 +335,13 @@
             render(index);
             viewer.hidden = false;
             viewer.setAttribute('aria-hidden', 'false');
+            // Hiding the page's scrollbar would widen the page behind and lay all of it out
+            // again (a long gallery pays for that on every open). The space is kept instead.
+            const scrollbarWidth = win.innerWidth - doc.documentElement.clientWidth;
+            if (scrollbarWidth > 0 && !doc.body.classList.contains(OPEN_CLASS)) {
+                doc.body.dataset.viewerPaddingRight = doc.body.style.paddingRight;
+                doc.body.style.paddingRight = `${scrollbarWidth}px`;
+            }
             doc.body.classList.add(OPEN_CLASS);
             if (!wasOpen) setOpenOrigin(trigger);
             centreStrip();
@@ -367,6 +374,10 @@
             mediaHost.replaceChildren();
             setZoom(1);
             doc.body.classList.remove(OPEN_CLASS);
+            if ('viewerPaddingRight' in doc.body.dataset) {
+                doc.body.style.paddingRight = doc.body.dataset.viewerPaddingRight;
+                delete doc.body.dataset.viewerPaddingRight;
+            }
             setBackgroundInert(false);
 
             if (previousFocus && typeof previousFocus.focus === 'function' && doc.contains(previousFocus)) {

@@ -519,3 +519,21 @@ test('the backdrop hides the page fully, and controls with keyboard focus do not
   assert.match(styles, /\.is-idle \.photos-viewer__header:not\(:has\(:focus-visible\)\)/);
   assert.doesNotMatch(styles, /rgba\(255, 255, 255, 0\.01\)/, 'no hover state that cannot be seen');
 });
+
+test('opening keeps the page as wide as it was, so the page behind is not laid out again', () => {
+  const { window } = overview();
+  const body = window.document.body;
+  // jsdom has no scrollbar; give the page one of 17 px.
+  Object.defineProperty(window, 'innerWidth', { value: 1017, configurable: true });
+  Object.defineProperty(window.document.documentElement, 'clientWidth', { value: 1000, configurable: true });
+  body.style.paddingRight = '4px';
+
+  click(window, window.document.getElementById('t1'));
+  assert.equal(body.style.paddingRight, '17px', 'the scrollbar\'s space is kept while the page cannot scroll');
+  click(window, window.document.getElementById('t2'));
+  assert.equal(body.style.paddingRight, '17px');
+
+  key(window, 'Escape');
+  assert.equal(body.style.paddingRight, '4px', 'and what was there before comes back');
+  window.close();
+});

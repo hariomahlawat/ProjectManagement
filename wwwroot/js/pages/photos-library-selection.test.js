@@ -81,3 +81,35 @@ test('after a drag that ends away from a picture, the next click on a picture co
     assert.equal(chosen(), before + 1);
     window.close();
 });
+
+test('the selection is written into a form when the action is used, not on every tick', () => {
+    const { window, doc, tiles, click } = createPage();
+    const bar = doc.querySelector('[data-photos-selection-bar]');
+    bar.insertAdjacentHTML('beforeend', `
+        <form data-selection-download-form action="/Photos/Download" method="post"><button type="submit" data-selection-download></button></form>
+        <a href="/Photos/People/Review?Mode=unidentified" data-selection-review-people data-base-url="/Photos/People/Review?Mode=unidentified">Review people</a>`);
+    // The page script has already run; run it again so it finds the form and the link.
+    window.eval(libraryScript);
+    const form = doc.querySelector('[data-selection-download-form]');
+    const link = doc.querySelector('[data-selection-review-people]');
+    const fields = () => [...form.querySelectorAll('input[name="assetIds"]')].map(input => input.value);
+
+    click(doc.querySelector('[data-photos-select-toggle]'));
+    click(tiles[0]);
+    click(tiles[2]);
+    assert.deepEqual(fields(), [], 'ticking pictures writes nothing into the form');
+    assert.equal(doc.querySelector('[data-selection-download]').disabled, false, 'but the action is ready');
+    assert.equal(link.getAttribute('aria-disabled'), 'false');
+
+    form.addEventListener('submit', event => event.preventDefault());
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.deepEqual(fields(), ['1', '3'], 'the fields are there when the form is sent');
+
+    click(tiles[1]);
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.deepEqual(fields(), ['1', '2', '3'], 'and are rewritten, not added to, the next time');
+
+    link.dispatchEvent(new window.Event('pointerdown', { bubbles: true }));
+    assert.equal(link.getAttribute('href'), '/Photos/People/Review?Mode=unidentified&AssetIds=1&AssetIds=2&AssetIds=3');
+    window.close();
+});
