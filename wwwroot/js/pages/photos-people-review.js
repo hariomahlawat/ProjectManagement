@@ -76,8 +76,12 @@
             const select = document.getElementById(targetId);
             if (!(select instanceof HTMLSelectElement)) return;
             select.value = personId;
-            select.focus({ preventScroll: true });
-            select.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            // The name field shows the person chosen; where it is in use the select is hidden.
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            const nameField = select.closest("[data-name-field]")?.querySelector("[data-name-field-text]");
+            const target = select.closest("[hidden]") && nameField instanceof HTMLElement ? nameField : select;
+            target.focus({ preventScroll: true });
+            target.scrollIntoView({ block: "nearest", behavior: "smooth" });
         });
     });
 
