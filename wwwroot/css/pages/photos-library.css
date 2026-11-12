@@ -846,8 +846,11 @@
     .photos-chips { flex:1 1 auto; flex-wrap:nowrap; min-width:0; overflow-x:auto; padding:.15rem 0; scrollbar-width:none; }
     .photos-chips::-webkit-scrollbar { display:none; }
     .photos-chip { align-items:center; display:inline-flex; flex:none; min-height:2.5rem; padding-left:.9rem; padding-right:.9rem; }
+    .photos-month-jump { padding-left:.45rem; }
+    .photos-month-jump i { display:none; }
     .photos-month-jump select { max-width:6.5rem; min-height:2.5rem; }
-    .photos-month { font-size:1.25rem; }
+    /* The bar does not stick on a phone, so a month only has to clear the application's top bar. */
+    .photos-month { font-size:1.25rem; scroll-margin-top:calc(var(--photos-bar-top, 3.5rem) + .75rem); }
 }
 
 /* Continuous scroll and the month list on the right edge. Theme tokens only. */

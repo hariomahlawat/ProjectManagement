@@ -142,3 +142,22 @@ test('a picture already on the page is not added again; a joined day names all i
     assert.equal(all('.photos-day').length, 1);
     window.close();
 });
+
+test('the month picker scrolls to a month that is on the page', async () => {
+    const { window, settle, q } = createPage([]);
+    const timeline = q('[data-photos-timeline]');
+    timeline.insertAdjacentHTML('beforeend', '<h2 class="photos-month" id="month-202610">October 2026</h2>');
+    q('[data-photos-library]').insertAdjacentHTML('beforeend',
+        '<select data-photos-month-jump><option value="/Photos?Month=202611" data-month="202611">Nov 2026</option><option value="/Photos?Month=202610" data-month="202610">Oct 2026</option></select>');
+    // The page script has already run; run it again so it finds the picker.
+    const shown = [];
+    window.Element.prototype.scrollIntoView = function () { shown.push(this.id); };
+    window.eval(libraryScript);
+    await settle();
+
+    const picker = q('[data-photos-month-jump]');
+    picker.selectedIndex = 1;
+    picker.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.deepEqual(shown, ['month-202610']);
+    window.close();
+});

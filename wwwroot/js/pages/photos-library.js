@@ -538,17 +538,17 @@
     // On screens too narrow for the list, a picker in the chip row does the same job.
     const monthJump = root.querySelector('[data-photos-month-jump]');
     if ((scrubber || monthJump) && timeline) {
-        // A sticky bar covers the top of the page; where it is not sticky (phones) it does not.
+        // What covers the top of the page: the sticky bar, or on a phone, where the bar does
+        // not stick, only the application's top bar.
         const barHeight = () => {
             const bar = root.querySelector('[data-photos-bar]');
             const sticky = bar && getComputedStyle(bar).position === 'sticky';
-            return (sticky ? bar.getBoundingClientRect().bottom : 0) + 12;
+            const cover = sticky ? bar : document.querySelector('.pm-topbar');
+            return Math.max(0, cover?.getBoundingClientRect().bottom || 0) + 12;
         };
         const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const scrollToMonth = (heading) => window.scrollTo({
-            top: heading.getBoundingClientRect().top + window.scrollY - barHeight(),
-            behavior: reducedMotion ? 'auto' : 'smooth'
-        });
+        // The heading's own scroll margin (in the stylesheet) keeps it clear of the bars.
+        const scrollToMonth = (heading) => heading.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
         scrubber?.addEventListener('click', (event) => {
             const link = event.target?.closest?.('a[data-month]') ?? null;
             const heading = link ? document.getElementById(`month-${link.dataset.month}`) : null;

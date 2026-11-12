@@ -456,7 +456,7 @@
             <select data-photos-month-jump>
                 @foreach (var month in Model.TimelineMonths)
                 {
-                    <option value="@month.Url" data-month="@month.Key">@month.Label</option>
+                    <option value="@month.Url" data-month="@month.Key">@month.ShortLabel @month.Year</option>
                 }
             </select>
         </label>
