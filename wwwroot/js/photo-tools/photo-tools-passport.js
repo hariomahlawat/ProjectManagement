@@ -671,8 +671,9 @@
   }
 
   function setFixing(on) {
+    // A stroke still being painted is finished first, so the saved file gets it too.
+    endStroke();
     fixing = on;
-    stroke = null;
     ring = on ? { x: frame.left + frame.width / 2, y: frame.top + frame.height / 2 } : null;
     renderBackground();
     draw();
@@ -857,6 +858,8 @@
       event.preventDefault();
       ring = stagePoint(event);
       startStroke(ring);
+      // Only this pointer continues and ends the stroke; another finger on the stage does not.
+      stroke.pointer = event.pointerId;
       try {
         // Keeps the stroke going when the pointer leaves the stage. Painting works without it.
         crop.setPointerCapture(event.pointerId);
@@ -877,7 +880,7 @@
     if (fixing) {
       if (!event.isPrimary) return;
       ring = stagePoint(event);
-      if (stroke && !stroke.keys) {
+      if (stroke && stroke.pointer === event.pointerId) {
         stroke.points.push(photoPointAt(ring.x, ring.y));
         showFixes();
       } else {
@@ -900,7 +903,7 @@
 
   for (const type of ['pointerup', 'pointercancel']) {
     crop.addEventListener(type, (event) => {
-      if (fixing && stroke && !stroke.keys) endStroke();
+      if (fixing && stroke && stroke.pointer === event.pointerId) endStroke();
       pointers.delete(event.pointerId);
       pinch = null;
     });
@@ -928,7 +931,6 @@
       } else if ((event.key === ' ' || event.key === 'Enter') && !stroke) {
         event.preventDefault();
         startStroke(ring);
-        stroke.keys = true;
         endStroke();
       } else if (event.key === 'Escape') {
         event.preventDefault();
