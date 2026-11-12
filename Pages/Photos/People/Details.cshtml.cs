@@ -270,7 +270,7 @@ public sealed class DetailsModel : PageModel
                 case "move":
                     if (!targetPersonId.HasValue || targetPersonId == Guid.Empty)
                     {
-                        throw new ArgumentException("Select the correct existing person.");
+                        throw new ArgumentException("Choose the person they are.");
                     }
 
                     await _review.MoveAssignmentsAsync(
@@ -280,7 +280,7 @@ public sealed class DetailsModel : PageModel
                         UserId,
                         reason ?? string.Empty,
                         cancellationToken);
-                    StatusMessage = $"{faceIds.Distinct().Count()} appearance(s) moved to the selected person.";
+                    StatusMessage = $"{faceIds.Distinct().Count()} picture(s) moved to the person you chose.";
                     return RedirectToPage("./Details", new { id = targetPersonId.Value });
 
                 case "split":
@@ -291,7 +291,7 @@ public sealed class DetailsModel : PageModel
                         UserId,
                         reason ?? string.Empty,
                         cancellationToken);
-                    StatusMessage = "A new person was created from the selected appearances.";
+                    StatusMessage = "A new person was made from the ticked pictures.";
                     return RedirectToPage("./Details", new { id = newPersonId });
 
                 case "review":
@@ -301,11 +301,11 @@ public sealed class DetailsModel : PageModel
                         UserId,
                         reason ?? string.Empty,
                         cancellationToken);
-                    StatusMessage = $"{faceIds.Distinct().Count()} appearance(s) returned to People Classification.";
+                    StatusMessage = $"{faceIds.Distinct().Count()} picture(s) sent back to review.";
                     return RedirectToPage("./Details", new { id });
 
                 default:
-                    throw new ArgumentException("Choose a valid correction action.");
+                    throw new ArgumentException("Choose what should happen to the ticked pictures.");
             }
         }
         catch (Exception exception) when (IsExpectedReviewException(exception))

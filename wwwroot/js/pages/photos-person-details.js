@@ -27,7 +27,7 @@
     function syncSelection() {
         const selected = selectedValues();
         if (selectionSummary) {
-            selectionSummary.textContent = `${selected.length} selected`;
+            selectionSummary.textContent = `${selected.length} ticked`;
         }
         if (correctionButton) {
             correctionButton.disabled = selected.length === 0;
@@ -74,7 +74,7 @@
             return input;
         }));
         if (modalSummary) {
-            modalSummary.textContent = `${selected.length} appearance${selected.length === 1 ? '' : 's'} selected.`;
+            modalSummary.textContent = `${selected.length} picture${selected.length === 1 ? '' : 's'} ticked.`;
         }
         syncAction();
     });
