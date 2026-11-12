@@ -201,10 +201,12 @@
 
   const PRINT_DPI = 300;
 
-  // Sizes in pixels at 300 dpi, so the saved photo prints at its true size.
+  // Sizes in pixels at 300 dpi, so the saved photo prints at its true size. A passport applied
+  // for in India takes 4.5 x 3.5 cm (Passport Seva); 2 x 2 inch is what Indian missions abroad
+  // ask for. See docs/photo-tools.md before changing the notes.
   const PASSPORT_SIZES = Object.freeze([
-    Object.freeze({ key: '35x45', label: '35 × 45 mm', note: 'Passport size, most forms', width: 413, height: 531 }),
-    Object.freeze({ key: '2x2', label: '2 × 2 inch', note: 'Indian passport, visa', width: 600, height: 600 }),
+    Object.freeze({ key: '35x45', label: '35 × 45 mm', note: 'Indian passport, most forms', width: 413, height: 531 }),
+    Object.freeze({ key: '2x2', label: '2 × 2 inch', note: 'Passport from an embassy abroad, visa', width: 600, height: 600 }),
     Object.freeze({ key: '20x25', label: '20 × 25 mm', note: 'Stamp size', width: 236, height: 295 })
   ]);
 
