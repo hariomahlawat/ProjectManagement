@@ -823,41 +823,6 @@
                 }
             }
         }
-
-        @if (Model.AvailablePeople.Count > 0 && !Model.IsGroupsMode && !Model.IsClosedMode)
-        {
-            <div class="modal fade" id="assignExistingModal" tabindex="-1" aria-labelledby="assignExistingModalLabel" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                        <form method="post" asp-page-handler="AssignExisting">
-                            <div class="modal-header">
-                                <div>
-                                    <h2 class="modal-title fs-5" id="assignExistingModalLabel">Assign an existing person</h2>
-                                    <p class="mb-0 small text-body-secondary" data-face-context>Choose the confirmed identity for this face.</p>
-                                </div>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <partial name="_ReviewStateFields" model="Model" />
-                                <input type="hidden" name="faceId" value="" />
-                                <label for="existingPersonId" class="form-label">Person</label>
-                                <select id="existingPersonId" class="form-select" name="personId" required>
-                                    <option value="">Select a person</option>
-                                    @foreach (var person in Model.AvailablePeople)
-                                    {
-                                        <option value="@person.Id">@person.DisplayName</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Assign person</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        }
     }
 </div>
 

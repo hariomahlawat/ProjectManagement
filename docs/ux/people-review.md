@@ -118,6 +118,37 @@ The plan assumes the recommendation unless the owner says otherwise.
 - A browser check on the local database that holds real faces, as an identity manager and as a
   user who may only review, at 1440 px and 390 px, light and dark.
 
+## What was built
+
+All ten steps are merged (12 November 2026). The owner decisions D1 to D4 were built as
+recommended.
+
+| Step | What a reviewer sees now |
+| --- | --- |
+| Frame | The Photos bar, the heading "Who is in these pictures?", and three chips with counts: Same person?, Is this …?, Unnamed faces. The tiles and the snapshot line are gone. |
+| One name field | Typing offers the people already known, or a new person for any other name. It sends the form to the handler that fits. Without script the plain select and text box remain. |
+| Same person? | A row of faces with ticks; strong likenesses start ticked, "Less sure" faces do not. The button says how many faces it will name. The figures sit behind "How sure is PRISM?". |
+| Is this …? | The face beside the known person, with Yes, No, and the name field for someone else. |
+| Unnamed faces | One grid. Ticked faces are named through the name field in the bar, or left unnamed, or marked not a face. |
+| Undo | The message that confirms a naming or a leaving-unnamed offers Undo for ten minutes. It takes back only what that request itself changed, and is recorded as a correction. |
+| A person's page | The Photos bar, a compact header, one "Manage this person" disclosure, plain wording, and per-picture details behind a disclosure. All handlers are unchanged. |
+| Phones and keyboard | Sort and filter sit behind one heading on phones; everything pressed is at least 44 px. Arrow keys move between faces, Space ticks, Enter goes to the name field (`photos-people-keys.js`). |
+| Clean-up | The unreachable "Assign an existing person" dialog and the style rules no page uses were removed from `photos-people.css`. |
+
+Differences from the mockup:
+
+- There is no "Not the same person" button on a group. No operation dismisses a group; a
+  reviewer unticks the faces that do not belong.
+- A person's page keeps its forms inside disclosures, in place of the mockup's selection bar
+  alone.
+- A person created by a naming that is then undone stays in People. The service hides a person
+  with no faces from the directory.
+
+A defect found on the way, fixed in its own PR (#3132): moving, splitting, sending back to
+review and "Not a face" recorded an audit entry but changed nothing, since 18 August 2026. The
+cause was `AsNoTracking()` inside a sub-query, which EF Core applies to the whole query it is
+composed into. Corrections made between those dates did not take effect and need redoing.
+
 ## Not in this plan
 
 - How faces are detected, matched or grouped, and the thresholds.

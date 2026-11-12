@@ -7,7 +7,6 @@
     color: var(--people-ink);
 }
 
-.people-header,
 .person-profile-header {
     display: flex;
     gap: 1.5rem;
@@ -15,7 +14,6 @@
     margin-bottom: 1.15rem;
 }
 
-.people-header h1,
 .person-profile-header h1 {
     font-size: clamp(2rem, 3vw, 2.75rem);
     font-weight: 760;
@@ -24,7 +22,6 @@
     margin: .15rem 0 .35rem;
 }
 
-.people-header p,
 .person-profile-header p,
 .person-governance p,
 .person-photo-section > header p {
@@ -59,10 +56,6 @@
     font-size: .75rem;
     font-weight: 750;
 }
-
-.people-hidden-toggle { white-space: nowrap; }
-.people-hidden-toggle .form-check-input { margin: 0; }
-.people-hidden-toggle .form-check-label { color: var(--people-muted); font-size: .78rem; }
 
 .people-grid {
     display: grid;
@@ -244,14 +237,6 @@
 }
 .person-remove-form label { font-size: .7rem; font-weight: 750; }
 
-.review-summary {
-    align-items: baseline;
-    display: flex;
-    gap: .4rem;
-    margin: -.25rem 0 1rem;
-}
-.review-summary strong { font-size: 1.05rem; }
-.review-summary span { color: var(--people-muted); font-size: .8rem; }
 .face-review-list { display: grid; gap: 1rem; }
 .face-review-card {
     background: var(--pm-card, #fff);
@@ -308,7 +293,7 @@
 .face-review-card__secondary-actions { align-items: flex-end; display: flex; gap: .4rem; }
 
 @media (max-width: 991.98px) {
-    .people-header, .person-profile-header { align-items: flex-start; flex-wrap: wrap; }
+    .person-profile-header { align-items: flex-start; flex-wrap: wrap; }
     .people-sort { flex-wrap: wrap; }
     .person-governance { grid-template-columns: 1fr; }
     .people-action-form { left: 0; right: auto; }
@@ -350,43 +335,6 @@
 }
 
 /* Phase 8.6 — people-first identity review */
-.identity-review-tabs {
-    align-items: center;
-    border-bottom: 1px solid var(--people-line);
-    display: flex;
-    gap: .35rem;
-}
-
-.identity-review-tab {
-    align-items: center;
-    border-bottom: 2px solid transparent;
-    color: var(--people-muted);
-    display: inline-flex;
-    gap: .45rem;
-    padding: .72rem .85rem;
-    text-decoration: none;
-}
-
-.identity-review-tab:hover { color: var(--people-ink); }
-.identity-review-tab.is-active { border-bottom-color: var(--people-accent); color: var(--people-accent); font-weight: 750; }
-.identity-review-tab strong { background: #eaf0fa; border-radius: 999px; font-size: .68rem; padding: .16rem .42rem; }
-
-.review-summary--people {
-    align-items: center;
-    background: var(--pm-card, #fff);
-    border: 1px solid var(--people-line);
-    border-radius: 1rem;
-    display: grid;
-    gap: .7rem 1.4rem;
-    grid-template-columns: repeat(4, auto) minmax(18rem, 1fr);
-    margin-bottom: 1rem;
-    padding: .8rem 1rem;
-}
-.review-summary--people > div { display: grid; }
-.review-summary--people > div strong { font-size: 1.15rem; }
-.review-summary--people > div span { color: var(--people-muted); font-size: .7rem; }
-.review-summary--people > p { color: var(--people-muted); font-size: .72rem; margin: 0; text-align: right; }
-.review-summary--people > p .bi { color: #278451; margin-right: .3rem; }
 
 .identity-group-list { display: grid; gap: 1rem; }
 .identity-group-card {
@@ -406,10 +354,6 @@
 }
 .identity-group-card__header h2 { font-size: 1.02rem; margin: .08rem 0 .14rem; }
 .identity-group-card__header p { color: var(--people-muted); font-size: .72rem; margin: 0; }
-.identity-group-card__kicker { color: #53729f; font-size: .63rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.identity-group-card__cohesion { display: grid; justify-items: end; }
-.identity-group-card__cohesion span { color: var(--people-muted); font-size: .65rem; }
-.identity-group-card__cohesion strong { font-size: .96rem; }
 
 .identity-group-mosaic {
     display: grid;
@@ -468,21 +412,12 @@
 .candidate-strength.is-strong { background: #dff4e8; color: #19683e; }
 .candidate-strength.is-ambiguous { background: #fff0cf; color: #835a00; }
 
-@media (max-width: 991.98px) {
-    .review-summary--people { grid-template-columns: repeat(4, 1fr); }
-    .review-summary--people > p { grid-column: 1 / -1; text-align: left; }
-}
-
 @media (max-width: 767.98px) {
     .identity-group-actions { grid-template-columns: 1fr; }
     .identity-group-card__header { align-items: flex-start; }
-    .identity-group-card__cohesion { justify-items: start; }
 }
 
 @media (max-width: 575.98px) {
-    .identity-review-tabs { overflow-x: auto; }
-    .identity-review-tab { white-space: nowrap; }
-    .review-summary--people > p { grid-column: auto; }
     .identity-group-card__header { flex-direction: column; }
     .identity-group-mosaic { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .identity-group-candidate { grid-template-columns: 1fr; }
@@ -532,11 +467,6 @@
     height: 1rem;
     margin: 0;
     width: 1rem;
-}
-.person-photo-card__quality {
-    color: #5d6e82 !important;
-    font-size: .69rem !important;
-    font-weight: 700;
 }
 .person-correction-menu {
     background: var(--pm-card, #fff);
@@ -658,9 +588,6 @@
 
 /* Phase 9B: visual people library */
 .people-workspace { padding:.55rem 0 3rem; }
-.people-header { align-items:flex-end; margin-bottom:.65rem; }
-.people-header h1 { font-size:clamp(2.15rem,4vw,3.15rem); font-weight:770; letter-spacing:-.055em; }
-.people-header p { max-width:38rem; }
 .people-review-action { align-items:center; background:#3569e8; border-radius:.72rem; color:#fff; display:inline-flex; gap:.48rem; min-height:2.55rem; padding:.55rem .82rem; text-decoration:none; }
 .people-review-action:hover { background:#2859d3; color:#fff; }
 .people-review-action b { align-items:center; background:var(--pm-card, #fff); border-radius:999px; color:#315cc8; display:inline-flex; font-size:.65rem; height:1.25rem; justify-content:center; min-width:1.25rem; }
@@ -670,7 +597,6 @@
 .people-insight span { color:#7d8796; font-size:.72rem; }
 .people-insight .is-warning strong,.people-insight .is-warning span { color:#b54708; }
 .people-sort select { border-color:transparent; box-shadow:none; font-size:.78rem; min-width:8.5rem; }
-.people-hidden-toggle { align-items:center; color:#6f7a8b; display:flex; font-size:.75rem; gap:.35rem; margin:0 .5rem; }
 .people-grid { gap:1.6rem 1rem; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
 .person-card { border:0; border-radius:.65rem; box-shadow:none; }
 .person-card:hover { border-color:transparent; box-shadow:none; transform:none; }
@@ -683,7 +609,7 @@
 .person-card__body small { font-size:.66rem; }
 .people-page-button { border:1px solid var(--people-line); border-radius:.65rem; color:#4e5c70; padding:.48rem .72rem; text-decoration:none; }
 @media (min-width:1400px) { .people-grid { grid-template-columns:repeat(7,minmax(0,1fr)); } }
-@media (max-width:767.98px) { .people-header { align-items:flex-start; } .people-review-action span { display:none; } .people-toolbar { align-items:stretch; flex-direction:column; } .people-sort { justify-content:space-between; width:100%; } .people-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:767.98px) { .people-review-action span { display:none; } .people-sort { justify-content:space-between; width:100%; } .people-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
 /* Phase 9I — identity reference governance and face-focused appearance review */
 .person-photo-grid {
@@ -976,25 +902,6 @@
     margin-bottom: .8rem;
     padding: .65rem .75rem;
 }
-.face-review-layout-toggle {
-    background: #f2f4f7;
-    border-radius: .62rem;
-    display: inline-flex;
-    padding: .18rem;
-}
-.face-review-layout-toggle a {
-    border-radius: .48rem;
-    color: #667286;
-    font-size: .72rem;
-    font-weight: 750;
-    padding: .38rem .58rem;
-    text-decoration: none;
-}
-.face-review-layout-toggle a.is-active {
-    background: var(--pm-card, #fff);
-    box-shadow: 0 1px 4px rgba(25, 39, 63, .13);
-    color: #2d5fcf;
-}
 .face-review-filters {
     align-items: end;
     display: flex;
@@ -1114,7 +1021,6 @@
 @media (max-width: 575.98px) {
     .identity-review-scope { align-items: flex-start; flex-direction: column; }
     .face-review-queue-controls { flex-direction: column; }
-    .face-review-layout-toggle { align-self: flex-start; }
     .face-review-filters { display: grid; grid-template-columns: 1fr 1fr; }
     .face-review-filters label:last-child { grid-column: 1 / -1; }
     .face-review-filters select,
@@ -1145,44 +1051,6 @@
 /* People review workflow integrity and throughput */
 .people-review-workspace {
     padding-top: .35rem;
-}
-.people-header--review {
-    align-items: center;
-    margin-bottom: .45rem;
-}
-.people-header--review h1 {
-    font-size: clamp(2rem, 3.2vw, 2.8rem);
-    line-height: .98;
-    margin-bottom: .28rem;
-}
-.people-header--review p {
-    font-size: .84rem;
-    line-height: 1.45;
-    margin-bottom: 0;
-    max-width: 48rem;
-}
-.people-header--review .people-eyebrow {
-    margin-bottom: .25rem;
-}
-.people-header--review .people-header__actions {
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    gap: .45rem;
-}
-.people-header--review .dropdown-menu form {
-    margin: 0;
-}
-.people-header--review .dropdown-item .bi {
-    margin-right: .42rem;
-}
-
-.identity-review-tabs {
-    margin-bottom: .55rem;
-}
-.identity-review-tab {
-    padding-bottom: .58rem;
-    padding-top: .58rem;
 }
 
 .identity-review-workload-strip {
@@ -1407,9 +1275,6 @@ a.identity-workload-pill:hover {
 }
 
 @media (max-width: 991.98px) {
-    .people-header--review {
-        align-items: flex-start;
-    }
     .identity-review-workload-strip__live {
         flex-basis: 100%;
         margin-left: 0;
@@ -1424,23 +1289,11 @@ a.identity-workload-pill:hover {
 }
 
 @media (max-width: 575.98px) {
-    .people-header--review h1 {
-        font-size: 2rem;
-    }
-    .people-header--review .people-header__actions {
-        width: auto;
-    }
-    .identity-review-tabs {
-        margin-bottom: .45rem;
-    }
     .identity-review-workload-strip {
         align-items: flex-start;
     }
     .identity-review-workload-strip__total {
         flex-basis: 100%;
-    }
-    .review-summary--people {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 .identity-group-refresh-notice [data-grouping-refresh-action] {
@@ -1473,7 +1326,6 @@ a.identity-workload-pill:hover {
 }
 
 /* PRISM account linkage indicators -------------------------------------- */
-.people-account-filter { min-width: 8.6rem !important; }
 .person-card__account-link {
     align-items: center;
     backdrop-filter: blur(8px);
@@ -1576,20 +1428,8 @@ a.identity-workload-pill:hover {
     border: 1px solid #2c3035;
 }
 
-:where([data-bs-theme="dark"]) .identity-review-tab strong {
-    background: color-mix(in srgb, #6ea8fe 10%, #16181b);
-}
-
-:where([data-bs-theme="dark"]) .review-summary--people > p .bi {
-    color: #4ade80;
-}
-
 :where([data-bs-theme="dark"]) .identity-group-card {
     box-shadow: 0 9px 26px rgba(0, 0, 0, 0.21);
-}
-
-:where([data-bs-theme="dark"]) .identity-group-card__kicker {
-    color: #85aae0;
 }
 
 :where([data-bs-theme="dark"]) .identity-group-face.is-representative {
@@ -1622,10 +1462,6 @@ a.identity-workload-pill:hover {
 
 :where([data-bs-theme="dark"]) .person-photo-card__select input {
     accent-color: #6ea8fe;
-}
-
-:where([data-bs-theme="dark"]) .person-photo-card__quality {
-    color: #b4b9bf !important;
 }
 
 :where([data-bs-theme="dark"]) .person-correction-menu {
@@ -1683,10 +1519,6 @@ a.identity-workload-pill:hover {
 :where([data-bs-theme="dark"]) .people-insight .is-warning strong,
 :where([data-bs-theme="dark"]) .people-insight .is-warning span {
     color: #f7a06e;
-}
-
-:where([data-bs-theme="dark"]) .people-hidden-toggle {
-    color: #9aa0a6;
 }
 
 :where([data-bs-theme="dark"]) .people-page-button {
@@ -1818,19 +1650,6 @@ a.identity-workload-pill:hover {
 
 :where([data-bs-theme="dark"]) .identity-similarity.is-weak {
     background: rgba(0, 0, 0, 0.84);
-}
-
-:where([data-bs-theme="dark"]) .face-review-layout-toggle {
-    background: #0e0f11;
-}
-
-:where([data-bs-theme="dark"]) .face-review-layout-toggle a {
-    color: #9aa0a6;
-}
-
-:where([data-bs-theme="dark"]) .face-review-layout-toggle a.is-active {
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.43);
-    color: #6ea8fe;
 }
 
 :where([data-bs-theme="dark"]) .face-review-batch .card-body {
@@ -2080,7 +1899,6 @@ a.identity-workload-pill:hover {
     .face-review-batch .btn,
     .people-review-workspace .people-name-field .form-control,
     .people-review-workspace .people-name-field .btn,
-    .people-review-workspace .identity-review-actions .btn,
     .people-review-workspace .person-photo-section__tools .btn { min-height:2.75rem; }
     .people-review-workspace .btn:not(.btn-link),
     .people-review-workspace .form-select,
