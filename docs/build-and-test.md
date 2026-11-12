@@ -126,6 +126,8 @@ psql -v ON_ERROR_STOP=1 -d prism_review_<name> -f tools/dev-data/photos-bulk-dem
 
 `.github/workflows/notebook.yml` provides the broadest normal build/test path currently committed. The repository does not yet have one single workflow that expresses every required validation for every change type; use the affected-area tests plus the checks above.
 
+Both .NET workflows write a `global.json` for the job that selects the .NET 8 SDK (`8.0.100`, `rollForward: latestFeature`) and fail if another SDK is chosen. GitHub runner images also carry newer SDKs and, without a `global.json`, `dotnet` builds with the newest one installed; when image `20261111` added .NET SDK 11, its Razor compiler failed on `Pages/Analytics/Index.cshtml` and builds passed or failed depending on the image a job landed on. The file is not committed, so a local build still uses the newest SDK on that machine. Moving to a newer SDK is a deliberate change: fix what it rejects first, then change the pin.
+
 ## Test parallelism
 
 `ProjectManagement.Tests/xunit.runner.json` sets xUnit's `parallelAlgorithm` to `conservative`. Keep it that way.

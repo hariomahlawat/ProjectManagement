@@ -45,6 +45,17 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Build with the .NET 8 SDK
+        # Runner images also carry newer SDKs, and without a global.json the newest one builds
+        # the project. Image 20261111 added .NET SDK 11, whose Razor compiler fails on
+        # Pages/Analytics/Index.cshtml, so the result depended on which image a job landed on.
+        # The documented build SDK is .NET 8 (docs/build-and-test.md); this global.json is
+        # written for the job only and is not committed.
+        run: |
+          echo '{ "sdk": { "version": "8.0.100", "rollForward": "latestFeature" } }' > global.json
+          dotnet --version
+          dotnet --version | grep -q '^8\.0\.'
+
       - name: Restore
         run: dotnet restore
 
