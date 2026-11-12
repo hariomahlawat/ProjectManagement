@@ -281,10 +281,10 @@
    */
   async function sheetPdf(layout) {
     const pdf = core.sheetPdfPlan(layout, size.width, size.height);
-    const document = await PDFLib.PDFDocument.create();
-    document.setTitle('Print sheet');
-    const photo = await document.embedJpg(await shared.canvasToBytes(copy, JPEG, core.BEST_QUALITY));
-    const page = document.addPage([pdf.pageWidth, pdf.pageHeight]);
+    const file = await PDFLib.PDFDocument.create();
+    file.setTitle('Print sheet');
+    const photo = await file.embedJpg(await shared.canvasToBytes(copy, JPEG, core.BEST_QUALITY));
+    const page = file.addPage([pdf.pageWidth, pdf.pageHeight]);
     pdf.photos.forEach((box, index) => {
       page.drawImage(photo, box);
       if (cutLines.checked) {
@@ -295,7 +295,7 @@
         });
       }
     });
-    return document.save();
+    return file.save();
   }
 
   async function download() {
