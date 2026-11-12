@@ -19,7 +19,11 @@ public sealed record MediaLibraryQuery(
     string Sort = "newest",
     string? CollectionKey = null,
     IReadOnlyList<long>? AssetIds = null,
-    bool IncludeMonths = false);
+    bool IncludeMonths = false,
+    // What only the full page shows: the figures, the year list, the project list and the
+    // people list. A part of the timeline loaded while scrolling asks for the rows alone.
+    // The rows, their order, paging and visibility are the same either way.
+    bool IncludeFilterFacets = true);
 
 /// <summary>How many items of the filtered result fall in one calendar month.</summary>
 public sealed record MediaLibraryMonthCount(int Year, int Month, int Count);
