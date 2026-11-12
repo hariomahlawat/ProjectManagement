@@ -445,65 +445,75 @@
                         <a class="face-review-back" href="@(Model.BuildReviewUrl(layout: "triage", pageNumber: 1))"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i> All faces</a>
                     }
 
-                    <form method="get" class="face-review-filters" aria-label="Filter the faces">
-                        <input type="hidden" name="Mode" value="@Model.Mode" />
-                        <input type="hidden" name="Layout" value="@Model.Layout" />
-                        <input type="hidden" name="Sort" value="@Model.Sort" />
-                        @foreach (var assetId in Model.AssetIds)
-                        {
-                            <input type="hidden" name="AssetIds" value="@assetId" />
-                        }
-                        <label>
-                            <span>From</span>
-                            <select class="form-select form-select-sm" name="Source" data-auto-submit>
-                                <option value="all" selected="@(Model.Source == "all")">Everything</option>
-                                <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
-                                <option value="visits" selected="@(Model.Source == "visits")">Visits</option>
-                                <option value="events" selected="@(Model.Source == "events")">Events</option>
-                                <option value="activities" selected="@(Model.Source == "activities")">Activities</option>
-                                @if (Model.ExternalSourcesEnabled)
-                                {
-                                    <option value="external" selected="@(Model.Source == "external")">External folders</option>
-                                }
-                            </select>
-                        </label>
-                        <label>
-                            <span>Year</span>
-                            <select class="form-select form-select-sm" name="Year" data-auto-submit>
-                                <option value="">All years</option>
-                                @foreach (var year in Model.AvailableYears)
-                                {
-                                    <option value="@year" selected="@(Model.Year == year)">@year</option>
-                                }
-                            </select>
-                        </label>
-                        @if (Model.IsUnidentifiedMode)
-                        {
-                            <label>
-                                <span>Checked against known people</span>
-                                <select class="form-select form-select-sm" name="MatchStatus" data-auto-submit>
-                                    <option value="all" selected="@(Model.MatchStatus == "all")">All</option>
-                                    <option value="no-match" selected="@(Model.MatchStatus == "no-match")">Not recognised</option>
-                                    <option value="failed" selected="@(Model.MatchStatus == "failed")">Could not be checked</option>
-                                    <option value="not-requested" selected="@(Model.MatchStatus == "not-requested")">Not checked yet</option>
-                                </select>
-                            </label>
-                        }
-                    </form>
-
                     <button type="button" class="btn btn-sm btn-outline-secondary face-review-select-page" data-batch-select-all>
                         <i class="bi bi-check2-square"></i> Tick all on this page
                     </button>
 
-                    <label class="face-review-sort">
-                        <span>Sort</span>
-                        <select class="form-select form-select-sm" aria-label="Sort the faces" data-auto-navigate>
-                            <option value="@(Model.BuildReviewUrl(sort: "quality-desc", pageNumber: 1))" selected="@(Model.Sort == "quality-desc")">Clearest first</option>
-                            <option value="@(Model.BuildReviewUrl(sort: "quality-asc", pageNumber: 1))" selected="@(Model.Sort == "quality-asc")">Least clear first</option>
-                            <option value="@(Model.BuildReviewUrl(sort: "newest", pageNumber: 1))" selected="@(Model.Sort == "newest")">Newest first</option>
-                            <option value="@(Model.BuildReviewUrl(sort: "oldest", pageNumber: 1))" selected="@(Model.Sort == "oldest")">Oldest first</option>
-                        </select>
-                    </label>
+                    @* Sort and filter: a row on wide screens, closed behind its heading on phones
+                       (photos-people-keys.js closes it there; without script it stays open). *@
+                    @{
+                        var narrowed = Model.Source != "all" || Model.Year is not null || Model.Sort != "quality-desc"
+                            || (Model.IsUnidentifiedMode && Model.MatchStatus != "all");
+                    }
+                    <details class="face-review-more" open data-face-review-more>
+                        <summary><i class="bi bi-sliders" aria-hidden="true"></i> Sort and filter@(narrowed ? " (in use)" : null)</summary>
+                        <div class="face-review-more__body">
+                            <form method="get" class="face-review-filters" aria-label="Filter the faces">
+                                <input type="hidden" name="Mode" value="@Model.Mode" />
+                                <input type="hidden" name="Layout" value="@Model.Layout" />
+                                <input type="hidden" name="Sort" value="@Model.Sort" />
+                                @foreach (var assetId in Model.AssetIds)
+                                {
+                                    <input type="hidden" name="AssetIds" value="@assetId" />
+                                }
+                                <label>
+                                    <span>From</span>
+                                    <select class="form-select form-select-sm" name="Source" data-auto-submit>
+                                        <option value="all" selected="@(Model.Source == "all")">Everything</option>
+                                        <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
+                                        <option value="visits" selected="@(Model.Source == "visits")">Visits</option>
+                                        <option value="events" selected="@(Model.Source == "events")">Events</option>
+                                        <option value="activities" selected="@(Model.Source == "activities")">Activities</option>
+                                        @if (Model.ExternalSourcesEnabled)
+                                        {
+                                            <option value="external" selected="@(Model.Source == "external")">External folders</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Year</span>
+                                    <select class="form-select form-select-sm" name="Year" data-auto-submit>
+                                        <option value="">All years</option>
+                                        @foreach (var year in Model.AvailableYears)
+                                        {
+                                            <option value="@year" selected="@(Model.Year == year)">@year</option>
+                                        }
+                                    </select>
+                                </label>
+                                @if (Model.IsUnidentifiedMode)
+                                {
+                                    <label>
+                                        <span>Checked against known people</span>
+                                        <select class="form-select form-select-sm" name="MatchStatus" data-auto-submit>
+                                            <option value="all" selected="@(Model.MatchStatus == "all")">All</option>
+                                            <option value="no-match" selected="@(Model.MatchStatus == "no-match")">Not recognised</option>
+                                            <option value="failed" selected="@(Model.MatchStatus == "failed")">Could not be checked</option>
+                                            <option value="not-requested" selected="@(Model.MatchStatus == "not-requested")">Not checked yet</option>
+                                        </select>
+                                    </label>
+                                }
+                            </form>
+                            <label class="face-review-sort">
+                                <span>Sort</span>
+                                <select class="form-select form-select-sm" aria-label="Sort the faces" data-auto-navigate>
+                                    <option value="@(Model.BuildReviewUrl(sort: "quality-desc", pageNumber: 1))" selected="@(Model.Sort == "quality-desc")">Clearest first</option>
+                                    <option value="@(Model.BuildReviewUrl(sort: "quality-asc", pageNumber: 1))" selected="@(Model.Sort == "quality-asc")">Least clear first</option>
+                                    <option value="@(Model.BuildReviewUrl(sort: "newest", pageNumber: 1))" selected="@(Model.Sort == "newest")">Newest first</option>
+                                    <option value="@(Model.BuildReviewUrl(sort: "oldest", pageNumber: 1))" selected="@(Model.Sort == "oldest")">Oldest first</option>
+                                </select>
+                            </label>
+                        </div>
+                    </details>
                 </div>
 
                 <form id="batchAssignKnownPersonForm" method="post"
@@ -854,4 +864,5 @@
 @section Scripts {
     <script src="~/js/pages/photos-people-name-field.js" asp-append-version="true"></script>
     <script src="~/js/pages/photos-people-review.js" asp-append-version="true"></script>
+    <script src="~/js/pages/photos-people-keys.js" asp-append-version="true"></script>
 }
