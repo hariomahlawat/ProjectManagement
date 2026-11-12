@@ -31,6 +31,11 @@ These invariants are intended to constrain maintenance and Codex-assisted change
 15. New schema changes require migration tests and must support a clean migration from the supported baseline.
 16. Destructive data changes require an explicit migration/backfill/rollback strategy.
 17. Avoid loading large object graphs when a projection can satisfy a read path.
+17a. Do not put `AsNoTracking()` inside a sub-query (for example a list of visible ids) that is
+    composed into a query whose entities are then changed. EF Core applies it to the whole
+    query, so the entities are not tracked and `SaveChanges` saves nothing, without an error.
+    Two defects came from this (face corrections, #3132; queueing one face for a new match
+    search). A sub-query that selects scalars tracks nothing, so it needs no `AsNoTracking()`.
 
 ## Background work
 
