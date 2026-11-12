@@ -152,7 +152,10 @@
         setText('[data-info-context]', value(tile, 'context'));
         setText('[data-info-date]', value(tile, 'date'));
         setText('[data-info-source]', `${value(tile, 'sourceLabel')} · ${value(tile, 'subtitle')}`);
-        setText('[data-info-classification]', value(tile, 'classification') || 'Not classified');
+        // A picture PRISM has not sorted into a kind shows no "Kind of picture" row at all.
+        const kind = value(tile, 'classification');
+        setRow('[data-info-classification-row]', Boolean(kind) && kind !== 'Not classified');
+        setText('[data-info-classification]', kind);
 
         const caption = value(tile, 'caption');
         setText('[data-info-caption]', caption);
@@ -507,6 +510,7 @@
             appendTimelinePart(html);
             if (!nextPartUrl && more) {
                 more.hidden = true;
+                root.querySelector('[data-photos-end]')?.removeAttribute('hidden');
             } else if (moreObserver && more) {
                 // An observer reports changes only. Watching again asks "still near the end?",
                 // so a short part on a tall screen is followed by the next one.

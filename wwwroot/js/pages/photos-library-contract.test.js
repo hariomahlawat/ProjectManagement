@@ -101,7 +101,6 @@ test('phones: three pictures to a row, one row of search and icon controls, chip
     assert.match(styles, /\.photos-tile \{ min-height:72px; \}/, 'and the stylesheet does not force them taller');
     assert.match(styles, /\.photos-bar \.photos-control span \{[^}]*clip:rect\(0, 0, 0, 0\)/, 'control words stay for screen readers');
     assert.match(styles, /\.photos-chips \{[^}]*flex-wrap:nowrap;[^}]*overflow-x:auto;/);
-    assert.match(styles, /\.photos-subbar \.photos-summary \{ display:none; \}/);
     assert.match(styles, /\.photos-sections a \{[^}]*min-height:2\.75rem;/, 'tabs are a full touch target');
 
     // The picker stands in for the month list wherever that list is not shown.
@@ -110,4 +109,22 @@ test('phones: three pictures to a row, one row of search and icon controls, chip
     assert.match(styles, /@media \(min-width: 1200px\) \{\s+\.photos-scrubber \{ display:flex; \}\s+\.photos-month-jump \{ display:none; \}/);
     assert.match(styles, /\.photos-month \{[^}]*scroll-margin-top:/, 'a month link does not land under the bar');
     assert.match(photosPage, /data-month="@month\.Key" aria-label="@month\.Label"/, 'month links are named in full');
+});
+
+test('the page shows pictures, not counts or the word media', () => {
+    assert.doesNotMatch(photosPage, /photos-summary/, 'no line of counts above the pictures');
+    // Two administration pages keep their names; everything else a user reads says pictures.
+    const wording = photosPage.replace(/>Media (intelligence|sources)</g, '><');
+    assert.doesNotMatch(wording, />[^<@]*\bmedia\b[^<]*</i, 'visible wording says pictures');
+    assert.match(photosPage, /<h2>Nothing found<\/h2>/);
+    assert.match(photosPage, /href="@Model\.BuildClearFiltersUrl\(\)">Clear search and filters<\/a>/);
+    assert.match(photosPage, /data-photos-end hidden="@\(Model\.HasNextPage \? "hidden" : null\)"/);
+    assert.match(libraryScript, /querySelector\('\[data-photos-end\]'\)\?\.removeAttribute\('hidden'\)/);
+    // One way to start an album where the New album tile is shown.
+    assert.match(photosPage, /Model\.IsAlbumsWorkspace && \(Model\.CurrentPage > 1 \|\| !string\.IsNullOrWhiteSpace\(Model\.Q\)\)/);
+    // A project with one picture is a collection like any other; people with none are not suggested.
+    assert.doesNotMatch(pageModel, /IncludeSingletonCollections \|\| group\.Rows\.Count > 1/);
+    assert.doesNotMatch(photosPage, /name="IncludeSingletonCollections" value="true" checked/);
+    assert.match(pageModel, /People\.Where\(person => person\.PhotoCount > 0\)\.Select/);
+    assert.match(libraryScript, /setRow\('\[data-info-classification-row\]', Boolean\(kind\) && kind !== 'Not classified'\)/);
 });

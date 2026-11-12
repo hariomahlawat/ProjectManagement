@@ -906,7 +906,8 @@ public sealed partial class IndexModel : PageModel
                 PeopleFeatureEnabled,
                 PeopleFeatureEnabled ? PersonIds : Array.Empty<Guid>(),
                 PeopleMatch,
-                IncludeSingletonCollections,
+                // Single-picture projects are always listed (see the fallback below).
+                IncludeSingletons: true,
                 Sort),
             cancellationToken);
 
@@ -1021,7 +1022,9 @@ public sealed partial class IndexModel : PageModel
                     IsProjectOnly = isProjectOnly
                 };
             })
-            .Where(group => IncludeSingletonCollections || group.Rows.Count > 1 || !group.IsProjectOnly);
+            // A project with a single picture is listed like any other: leaving it out read as
+            // missing data. IncludeSingletonCollections stays bound so old links still open.
+            .Where(group => group.Rows.Count > 0);
 
         var ordered = Sort == "oldest"
             ? query.OrderBy(group => group.Latest).ThenBy(group => group.Representative.ContextTitle, StringComparer.OrdinalIgnoreCase)
@@ -1904,7 +1907,8 @@ public sealed partial class IndexModel : PageModel
         var payload = new
         {
             people = PeopleFeatureEnabled
-                ? People.Select(person => new
+                // A person with no confirmed picture leads nowhere, so is not suggested.
+                ? People.Where(person => person.PhotoCount > 0).Select(person => new
                 {
                     name = person.Name,
                     count = person.PhotoCount,
