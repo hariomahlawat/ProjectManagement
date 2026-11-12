@@ -315,22 +315,38 @@
                                         </div>
                                         <button type="button" class="btn btn-sm btn-link" data-toggle-group-selection disabled="@Model.GroupingActionsLocked">Select all</button>
                                     </div>
-                                    <div class="identity-group-actions @(Model.AvailablePeople.Count == 0 ? "identity-group-actions--single" : null)">
+                                    @* One name field when script runs (photos-people-name-field.js); the two plain
+                                       controls below are what works without it, and what carries the value. *@
+                                    <div class="identity-group-actions @(Model.AvailablePeople.Count == 0 ? "identity-group-actions--single" : null)"
+                                         data-name-field
+                                         data-assign-action="@Url.Page("./Review", "AssignGroup")"
+                                         data-create-action="@Url.Page("./Review", "CreateGroup")">
+                                        <div class="people-name-field" data-name-field-ui hidden>
+                                            <label for="name-@group.GroupKey">Who is this?</label>
+                                            <div class="people-name-field__box">
+                                                <input id="name-@group.GroupKey" type="text" class="form-control" maxlength="200" autocomplete="off"
+                                                       placeholder="Type a name" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                                       aria-controls="name-list-@group.GroupKey" data-name-field-text disabled="@Model.GroupingActionsLocked" />
+                                                <ul id="name-list-@group.GroupKey" class="people-name-field__list" role="listbox" aria-label="People" data-name-field-list hidden></ul>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary" data-name-field-confirm disabled="@Model.GroupingActionsLocked">Confirm</button>
+                                            <small>Pick someone already in People, or type a new name.</small>
+                                        </div>
                                         @if (Model.AvailablePeople.Count > 0)
                                         {
-                                            <div>
+                                            <div data-name-field-fallback>
                                                 <label for="existing-@group.GroupKey">Assign to an existing person</label>
                                                 <select id="existing-@group.GroupKey" class="form-select" name="personId" disabled="@Model.GroupingActionsLocked">
                                                     <option value="">Select a person</option>
                                                     @foreach (var person in Model.AvailablePeople)
                                                     {
-                                                        <option value="@person.Id">@person.DisplayName</option>
+                                                        <option value="@person.Id" data-portrait="@Url.Page("/Photos/People/Portrait", new { id = person.Id })">@person.DisplayName</option>
                                                     }
                                                 </select>
                                                 <button type="submit" asp-page-handler="AssignGroup" class="btn btn-outline-primary" disabled="@Model.GroupingActionsLocked">Assign selected</button>
                                             </div>
                                         }
-                                        <div>
+                                        <div data-name-field-fallback>
                                             <label for="new-@group.GroupKey">Create a new person</label>
                                             <input id="new-@group.GroupKey" class="form-control" name="displayName" maxlength="200" placeholder="Enter the correct name" disabled="@Model.GroupingActionsLocked" />
                                             <button type="submit" asp-page-handler="CreateGroup" class="btn btn-primary" disabled="@Model.GroupingActionsLocked">Create and confirm selected</button>
@@ -793,5 +809,6 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/pages/photos-people-name-field.js" asp-append-version="true"></script>
     <script src="~/js/pages/photos-people-review.js" asp-append-version="true"></script>
 }
