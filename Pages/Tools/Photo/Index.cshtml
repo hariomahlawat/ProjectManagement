@@ -51,7 +51,7 @@
                 <a class="pdft-card" role="listitem" href="#passport">
                     <span class="pdft-card__icon pdft-accent--blue" aria-hidden="true"><i class="bi bi-person-bounding-box"></i></span>
                     <span class="pdft-card__title">Passport photo</span>
-                    <span class="pdft-card__text">Crop to an exact size with a face guide, then save a file at the pixels and file size a form asks for.</span>
+                    <span class="pdft-card__text">Crop to an exact size with a face guide, make a plain background white, then save a file at the pixels and file size a form asks for.</span>
                 </a>
                 <a class="pdft-card" role="listitem" href="#sheet">
                     <span class="pdft-card__icon pdft-accent--purple" aria-hidden="true"><i class="bi bi-printer"></i></span>
@@ -172,6 +172,33 @@
                             <input type="range" class="form-range" id="photBrightness" min="-50" max="50" step="1" value="0" data-brightness />
                             <span class="phot-slider__value" data-brightness-value>0</span>
                         </label>
+                        <div class="phot-bg" data-photo-only>
+                            <span class="phot-bg__title" id="photBgTitle">Background</span>
+                            <div class="phot-bg__choices" role="group" aria-labelledby="photBgTitle">
+                                <button type="button" class="phot-bgchoice" aria-pressed="true" data-bg="">
+                                    <i class="bi bi-image" aria-hidden="true"></i> Keep
+                                </button>
+                                <button type="button" class="phot-bgchoice" aria-pressed="false" data-bg="#ffffff">
+                                    <span class="phot-bgchoice__dot" aria-hidden="true"></span> White
+                                </button>
+                                <button type="button" class="phot-bgchoice" aria-pressed="false" data-bg="#cfe3f7">
+                                    <span class="phot-bgchoice__dot" aria-hidden="true"></span> Light blue
+                                </button>
+                                <label class="phot-bgchoice" data-bg-other>
+                                    <input type="color" value="#e6ecf2" data-bg-colour aria-label="Another background colour" autocomplete="off" />
+                                    Other
+                                </label>
+                            </div>
+                            <label class="phot-slider" for="photBgAmount" data-bg-amount-row hidden>How much to change
+                                <input type="range" class="form-range" id="photBgAmount" min="0" max="100" step="5" value="50" data-bg-amount autocomplete="off" />
+                                <span class="phot-slider__value" data-bg-amount-value>Normal</span>
+                            </label>
+                            <button type="button" class="btn btn-outline-secondary phot-bg__compare" data-action="bg-original" hidden>
+                                <i class="bi bi-eye" aria-hidden="true"></i> Hold to see the original
+                            </button>
+                            <p class="phot-hint phot-hint--warning" data-bg-problem aria-live="polite" hidden></p>
+                            <p class="phot-hint" data-bg-note hidden>Works on a plain wall or curtain. Check the hair and shoulders before you use the photo. Some offices do not accept a photo with a changed background, so check the rules of your form.</p>
+                        </div>
                     </div>
 
                     <div class="phot-panel">

@@ -38,7 +38,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Tool | What it does |
 | --- | --- |
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none), smaller dimensions, save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
-| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
+| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
 | Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Cover, Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
@@ -46,8 +46,8 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 Every step of the first build plan ([ux/photo-tools.md](ux/photo-tools.md)) is done, including
 the review of phones, the Dark theme and the keyboard across all screens. A follow-up plan
 ([ux/photo-tools-print-background.md](ux/photo-tools-print-background.md)) is being built: the
-Print sheet tool and its PDF download are done; a background colour change for passport photos
-is to come.
+Print sheet tool, its PDF download and the background colour change for passport photos. It is
+done too.
 
 ### How a passport photo is made
 
@@ -61,9 +61,49 @@ is to come.
   limit still cannot be met, the page says what the smallest possible size is.
 - **Fix lighting** measures the whole photo once (`measureLighting`): it stretches the range
   between the darkest and brightest half percent, and corrects most of a colour cast. The same
-  correction is applied to the preview and the saved photo. It does not change the background to
-  white; a plain, light background is still needed.
+  correction is applied to the preview and the saved photo. It does not change the background;
+  that is the Background choice below.
 - The face guide is an aid for placing the head. It is not a check against any authority's rules.
+
+### How the background colour is changed
+
+Background (Keep, White, Light blue, or any colour) is a choice in step 2 of Passport photo. It
+finds the background by colour, starting from the edges of the photo. There is no model that
+knows what a person looks like, so it works on a plain wall or curtain and refuses anything else.
+
+It runs on the cropped photo at its saved size, after the lighting fix and brightness, so the new
+colour is exactly the colour chosen (`changeBackground` in the core file):
+
+1. **Read the background.** A thin band along the top edge and down the upper 60% of both sides
+   is sampled; the bottom is left out because the shoulders reach it. The median is the
+   background colour (`measureBackground`).
+2. **Refuse a busy background.** If the edge pixels differ too much from that colour (a patterned
+   curtain, shelves, outdoors), nothing is changed and the screen says so. A little hair or a
+   shoulder at the edge does not count: the eighth decile of the differences is used.
+3. **Spread from the edges.** The background grows from the edge band to every neighbour that is
+   close enough to the background colour. Brightness counts for much less than colour, so a
+   shadow or uneven light on the wall is followed while a face or coat stops it. The slider
+   ("How much to change", Less to More) sets how close is close enough.
+4. **Tidy.** Small specks left standing inside the background (a mark on the wall) go with it.
+   Wall that is fully enclosed by the person is not reached and keeps its colour.
+5. **Stop if it went wrong.** If under 3% of the photo was found, the screen says no plain
+   background was found. If over 85% was taken, or the middle of the face, it says too much was
+   taken and to move the slider towards Less. In each case the photo is left as it is.
+6. **Soft edge.** The two rows of pixels on the person's side of the boundary are a mix of person
+   and wall. The wall's share of each gets the change of colour, which also takes the old wall
+   colour out of the edge, so hair does not end in a hard line or a grey fringe.
+
+The stage shows the saved result: the finished photo is laid over the crop frame each time it is
+made, and "Hold to see the original" takes it off while held. Print sheet receives the photo with
+its new background. Signature has no Background choice.
+
+Limits, stated on the screen where they matter:
+
+- It needs a plain background. A busy one is refused, not guessed at.
+- Clothes or hair close to the wall colour (a white shirt on a white wall) can be taken with the
+  wall, most of all towards More. The slider and the comparison are there for this.
+- Fine loose hair is softened, not cut out strand by strand.
+- Some authorities do not accept a photo with a changed background. The screen says to check.
 
 ### How a print sheet is made
 

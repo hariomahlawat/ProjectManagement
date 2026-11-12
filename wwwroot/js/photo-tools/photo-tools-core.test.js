@@ -724,3 +724,161 @@ test('hidePixels cover makes the area solid black whatever was there', () => {
   assert.deepEqual(Array.from(little), Array.from(lots));
   assert.deepEqual(Array.from(little), Array.from(clear));
 });
+
+// ----- Background colour -----
+
+const WALL = [200, 196, 184];
+const SKIN = [219, 162, 124];
+const HAIR = [42, 35, 32];
+const COAT = [38, 54, 77];
+const BLUE = [207, 227, 247];
+
+/**
+ * A small passport photo: a wall, a head with hair in the middle and shoulders across the
+ * bottom. `wall(x, y)` gives the wall colour, so it can be plain, shaded or patterned.
+ */
+function portrait(width, height, wall, shirt) {
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  const cx = width / 2;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let colour = wall(x, y);
+      const head = ((x - cx) / (width * 0.22)) ** 2 + ((y - height * 0.42) / (height * 0.24)) ** 2;
+      if (y > height * 0.74) {
+        colour = shirt && Math.abs(x - cx) < width * 0.12 ? shirt : COAT;
+      } else if (head <= 1) {
+        colour = y < height * 0.3 ? HAIR : SKIN;
+      } else if (y > height * 0.6 && Math.abs(x - cx) < width * 0.1) {
+        colour = SKIN;
+      }
+      pixels.set([colour[0], colour[1], colour[2], 255], (y * width + x) * 4);
+    }
+  }
+  return pixels;
+}
+
+const rgbAt = (pixels, width, x, y) => Array.from(pixels.slice((y * width + x) * 4, (y * width + x) * 4 + 3));
+
+test('changeBackground gives a plain wall the new colour and leaves the person alone', () => {
+  const [w, h] = [80, 100];
+  const pixels = portrait(w, h, () => WALL);
+  const before = pixels.slice();
+  const result = tools.changeBackground(pixels, w, h, BLUE, 50);
+
+  assert.equal(result.status, 'changed');
+  assert.ok(result.share > 0.4 && result.share < 0.7, `about half the photo is wall, got ${result.share}`);
+  for (const [x, y] of [[0, 0], [w - 1, 0], [2, 50], [w - 3, 60], [40, 3]]) {
+    assert.deepEqual(rgbAt(pixels, w, x, y), BLUE, `wall at ${x},${y}`);
+  }
+  // Well inside the hair, the face, the neck and the coat nothing has changed.
+  for (const [x, y] of [[40, 24], [40, 45], [40, 68], [40, 90], [5, 95], [w - 5, 95]]) {
+    assert.deepEqual(rgbAt(pixels, w, x, y), rgbAt(before, w, x, y), `person at ${x},${y}`);
+  }
+  for (let i = 3; i < pixels.length; i += 4) assert.equal(pixels[i], 255);
+});
+
+test('changeBackground follows a shadow across the wall', () => {
+  const [w, h] = [80, 100];
+  // Darker on the left, lighter on the right: a brightness change of 60 across the photo.
+  const shaded = (x) => WALL.map(value => value - 30 + Math.round(60 * x / (w - 1)));
+  const pixels = portrait(w, h, shaded);
+  const result = tools.changeBackground(pixels, w, h, [255, 255, 255], 50);
+
+  assert.equal(result.status, 'changed');
+  assert.deepEqual(rgbAt(pixels, w, 0, 10), [255, 255, 255], 'the dark side');
+  assert.deepEqual(rgbAt(pixels, w, w - 1, 10), [255, 255, 255], 'the light side');
+  assert.deepEqual(rgbAt(pixels, w, 40, 45), SKIN, 'the face is not touched');
+});
+
+test('changeBackground refuses a patterned background and changes nothing', () => {
+  const [w, h] = [80, 100];
+  const curtain = (x) => [[123, 90, 60], [92, 111, 82], [199, 181, 146], [60, 80, 140]][Math.floor(x / 6) % 4];
+  const pixels = portrait(w, h, curtain);
+  const before = pixels.slice();
+
+  assert.equal(tools.measureBackground(pixels, w, h).plain, false);
+  assert.equal(tools.changeBackground(pixels, w, h, BLUE, 50).status, 'busy');
+  assert.deepEqual(pixels, before);
+  assert.equal(tools.measureBackground(portrait(w, h, () => WALL), w, h).plain, true);
+});
+
+test('changeBackground stops when everything or the face would be taken', () => {
+  const [w, h] = [60, 80];
+  // A photo of a wall and nothing else.
+  const empty = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < empty.length; i += 4) empty.set([WALL[0], WALL[1], WALL[2], 255], i);
+  const emptyBefore = empty.slice();
+  assert.equal(tools.changeBackground(empty, w, h, BLUE, 50).status, 'too-much');
+  assert.deepEqual(empty, emptyBefore);
+
+  // A face the colour of the wall: the middle of the photo would become background.
+  const ghost = portrait(w, h, () => SKIN);
+  const ghostBefore = ghost.slice();
+  assert.equal(tools.changeBackground(ghost, w, h, BLUE, 50).status, 'too-much');
+  assert.deepEqual(ghost, ghostBefore);
+});
+
+test('changeBackground finds nothing when the person fills the photo', () => {
+  const [w, h] = [60, 80];
+  const pixels = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      // One pixel of wall along the top and the upper sides; the rest is hair.
+      const wall = y < 1 || (y < 40 && (x === 0 || x === w - 1));
+      pixels.set([...(wall ? WALL : HAIR), 255], (y * w + x) * 4);
+    }
+  }
+  const before = pixels.slice();
+  const result = tools.changeBackground(pixels, w, h, BLUE, 50);
+  assert.equal(result.status, 'none');
+  assert.deepEqual(pixels, before);
+});
+
+test('changeBackground takes more with a higher amount, and a light shirt survives at Less', () => {
+  const [w, h] = [80, 100];
+  const shirt = [246, 246, 244];
+  const little = portrait(w, h, () => WALL, shirt);
+  const less = tools.changeBackground(little, w, h, BLUE, 0);
+  assert.equal(less.status, 'changed');
+  assert.deepEqual(rgbAt(little, w, 40, 90), shirt, 'the white shirt is kept');
+
+  // A wall with uneven patches: Less leaves the far patches, More takes them.
+  const patchy = (x, y) => (x < 20 && y > 20 ? WALL.map(value => value - 45) : WALL);
+  const lessPatchy = tools.changeBackground(portrait(w, h, patchy), w, h, BLUE, 0);
+  const morePatchy = tools.changeBackground(portrait(w, h, patchy), w, h, BLUE, 100);
+  assert.equal(lessPatchy.status, 'changed');
+  assert.equal(morePatchy.status, 'changed');
+  assert.ok(morePatchy.share > lessPatchy.share, 'More takes the darker patch as well');
+});
+
+test('changeBackground softens the edge and clears specks on the wall', () => {
+  const [w, h] = [80, 100];
+  const pixels = portrait(w, h, () => WALL);
+  // A column that is half hair, half wall, as a soft edge is in a real photo.
+  const mixed = HAIR.map((value, channel) => Math.round((value + WALL[channel]) / 2));
+  const edgeX = 22;
+  for (let y = 30; y < 50; y += 1) pixels.set([...mixed, 255], (y * w + edgeX) * 4);
+  // A mark on the wall.
+  pixels.set([20, 20, 20, 255], (8 * w + 8) * 4);
+
+  const white = [255, 255, 255];
+  assert.equal(tools.changeBackground(pixels, w, h, white, 50).status, 'changed');
+  assert.deepEqual(rgbAt(pixels, w, 8, 8), white, 'the mark is gone');
+
+  // The mixed pixel moves towards the new colour by the wall's share, and no further.
+  const soft = rgbAt(pixels, w, edgeX, 40);
+  soft.forEach((value, channel) => {
+    assert.ok(value > mixed[channel], `channel ${channel} got lighter`);
+    assert.ok(value < white[channel], `channel ${channel} is not plain background`);
+    assert.ok(value <= mixed[channel] + (white[channel] - WALL[channel]), `channel ${channel} moved by no more than the wall changed`);
+  });
+});
+
+test('changeBackground does not touch alpha', () => {
+  const [w, h] = [80, 100];
+  const pixels = portrait(w, h, () => WALL);
+  for (let i = 3; i < pixels.length; i += 4) pixels[i] = (i >> 2) % 251;
+  const alpha = Array.from(pixels.filter((_, index) => index % 4 === 3));
+  assert.equal(tools.changeBackground(pixels, w, h, BLUE, 50).status, 'changed');
+  assert.deepEqual(Array.from(pixels.filter((_, index) => index % 4 === 3)), alpha);
+});
