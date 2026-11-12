@@ -57,6 +57,13 @@ public interface IMediaPersonUserLinkService
     Task<MediaPersonUserLinkInfo?> GetForUserAsync(string userId, CancellationToken cancellationToken);
     Task<MediaUserPhotoIdentityLink?> GetPhotoIdentityForUserAsync(string userId, CancellationToken cancellationToken);
     Task<MediaUserPhotoIdentityLink?> TryGetPhotoIdentityForUserAsync(string userId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For a list of people: the Photos person whose portrait each PRISM user shows as their
+    /// picture. Users who have not chosen their portrait, or whose portrait cannot be shown,
+    /// are left out. Never throws for a Photos database outage; the result is then empty.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, Guid>> TryGetAvatarPersonIdsAsync(IReadOnlyCollection<string> userIds, CancellationToken cancellationToken);
     Task<IReadOnlyList<MediaPrismUserOption>> SearchUsersAsync(string? query, int limit, CancellationToken cancellationToken);
     Task<MediaPersonUserLinkInfo> LinkAsync(Guid personId, string userId, string linkedByUserId, CancellationToken cancellationToken);
     Task<MediaUserPhotoIdentityLink> SetAvatarPreferenceAsync(string userId, bool usePortraitAsAvatar, CancellationToken cancellationToken);
@@ -165,6 +172,53 @@ public sealed class MediaPersonUserLinkService : IMediaPersonUserLinkService
                 link.ConcernReason,
                 link.ConcernRaisedAtUtc))
             .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<string, Guid>> TryGetAvatarPersonIdsAsync(
+        IReadOnlyCollection<string> userIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(userIds);
+        var wanted = userIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (wanted.Count == 0)
+        {
+            return new Dictionary<string, Guid>(StringComparer.Ordinal);
+        }
+
+        try
+        {
+            // The same conditions as ShouldUsePortraitAsAvatar: the person chose to use the
+            // portrait, the link has no open concern, and the portrait can be served.
+            var rows = await UsablePhotoLinksQuery()
+                .Where(link => wanted.Contains(link.UserId)
+                               && link.UsePortraitAsAvatar
+                               && !(link.ConcernRaisedAtUtc != null && link.ConcernResolvedAtUtc == null)
+                               && link.MediaPerson.RepresentativeFaceId.HasValue
+                               && link.MediaPerson.FaceAssignments.Any(assignment =>
+                                   assignment.RemovedAtUtc == null
+                                   && assignment.MediaFaceId == link.MediaPerson.RepresentativeFaceId.Value
+                                   && !assignment.MediaFace.IsSuppressed
+                                   && assignment.MediaFace.ReviewThumbnailPath != null))
+                .Select(link => new { link.UserId, link.MediaPersonId })
+                .ToListAsync(cancellationToken);
+            var result = new Dictionary<string, Guid>(StringComparer.Ordinal);
+            foreach (var row in rows)
+            {
+                result[row.UserId] = row.MediaPersonId;
+            }
+
+            return result;
+        }
+        catch (DbException exception)
+        {
+            // Pictures are optional. A Photos database outage must not stop a page that lists people.
+            _logger.LogDebug(exception, "Photos pictures are unavailable for {Count} PRISM users.", wanted.Count);
+            return new Dictionary<string, Guid>(StringComparer.Ordinal);
+        }
     }
 
     public async Task<MediaUserPhotoIdentityLink?> TryGetPhotoIdentityForUserAsync(

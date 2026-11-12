@@ -189,6 +189,9 @@ public sealed class AccountManagePageTests
         public Task<MediaUserPhotoIdentityLink?> GetPhotoIdentityForUserAsync(string userId, CancellationToken cancellationToken)
             => Task.FromResult<MediaUserPhotoIdentityLink?>(null);
 
+        public Task<IReadOnlyDictionary<string, Guid>> TryGetAvatarPersonIdsAsync(IReadOnlyCollection<string> userIds, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyDictionary<string, Guid>>(new Dictionary<string, Guid>());
+
         public Task<MediaUserPhotoIdentityLink?> TryGetPhotoIdentityForUserAsync(string userId, CancellationToken cancellationToken)
             => Task.FromResult<MediaUserPhotoIdentityLink?>(null);
 
@@ -243,6 +246,9 @@ public sealed class AccountManagePageTests
 
         public Task<MediaUserPhotoIdentityLink?> GetPhotoIdentityForUserAsync(string userId, CancellationToken cancellationToken)
             => Task.FromResult<MediaUserPhotoIdentityLink?>(Current);
+
+        public Task<IReadOnlyDictionary<string, Guid>> TryGetAvatarPersonIdsAsync(IReadOnlyCollection<string> userIds, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyDictionary<string, Guid>>(new Dictionary<string, Guid>());
 
         public Task<MediaUserPhotoIdentityLink?> TryGetPhotoIdentityForUserAsync(string userId, CancellationToken cancellationToken)
             => Task.FromResult<MediaUserPhotoIdentityLink?>(Current);

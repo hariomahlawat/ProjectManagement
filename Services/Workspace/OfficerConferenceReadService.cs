@@ -1213,6 +1213,8 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
                 officer.RecentlyCompletedProjects.Count,
                 officer.ItProjects.Count)
             {
+                Rank = officer.Rank?.Trim() ?? string.Empty,
+                Name = officer.OfficerName?.Trim() ?? string.Empty,
                 ModuleProjectCounts = ModuleCounts(officer.ItProjects)
             })
             .ToArray();
