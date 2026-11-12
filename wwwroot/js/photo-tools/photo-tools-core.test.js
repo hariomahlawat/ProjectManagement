@@ -865,8 +865,8 @@ test('changeBackground takes more with a higher amount, and a light shirt surviv
 test('changeBackground softens the edge and clears specks on the wall', () => {
   const [w, h] = [80, 100];
   const pixels = portrait(w, h, () => WALL);
-  // A column that is half hair, half wall, as a soft edge is in a real photo.
-  const mixed = HAIR.map((value, channel) => Math.round((value + WALL[channel]) / 2));
+  // A column that is a quarter hair and the rest wall, as a soft edge is in a real photo.
+  const mixed = HAIR.map((value, channel) => Math.round((value + WALL[channel] * 3) / 4));
   const edgeX = 22;
   for (let y = 30; y < 50; y += 1) pixels.set([...mixed, 255], (y * w + edgeX) * 4);
   // A mark on the wall.
@@ -892,4 +892,42 @@ test('changeBackground does not touch alpha', () => {
   const alpha = Array.from(pixels.filter((_, index) => index % 4 === 3));
   assert.equal(tools.changeBackground(pixels, w, h, BLUE, 50).status, 'changed');
   assert.deepEqual(Array.from(pixels.filter((_, index) => index % 4 === 3)), alpha);
+});
+
+test('changeBackground follows a mottled backdrop', () => {
+  const [w, h] = [120, 150];
+  // Soft lighter and darker patches, as on a studio backdrop: 40 apart from darkest to lightest.
+  const mottled = (x, y) => WALL.map(value => Math.round(value - 20 + 20 * Math.sin(x / 9) * Math.cos(y / 11)));
+  const pixels = portrait(w, h, mottled);
+  const result = tools.changeBackground(pixels, w, h, BLUE, 50);
+
+  assert.equal(result.status, 'changed');
+  let left = 0;
+  for (let y = 0; y < Math.floor(h * 0.15); y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      if (rgbAt(pixels, w, x, y).join() !== BLUE.join()) left += 1;
+    }
+  }
+  assert.equal(left, 0, 'no patch of the old backdrop is left above the head');
+  assert.deepEqual(rgbAt(pixels, w, 60, 68), SKIN, 'the face is not touched');
+});
+
+test('changeBackground keeps cloth of the wall colour, because cloth is not smooth', () => {
+  const [w, h] = [80, 100];
+  const pixels = portrait(w, h, () => WALL);
+  // A knitted jacket in the colour of the wall: the same colour, but with a weave.
+  for (let y = Math.ceil(h * 0.74); y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const thread = (x + y) % 4 < 2 ? 20 : -20;
+      pixels.set(WALL.map(value => value + thread), (y * w + x) * 4);
+    }
+  }
+  const before = pixels.slice();
+  const result = tools.changeBackground(pixels, w, h, BLUE, 50);
+
+  assert.equal(result.status, 'changed');
+  assert.deepEqual(rgbAt(pixels, w, 2, 20), BLUE, 'the wall is changed');
+  for (const [x, y] of [[10, 85], [40, 90], [70, 95], [40, 80]]) {
+    assert.deepEqual(rgbAt(pixels, w, x, y), rgbAt(before, w, x, y), `jacket at ${x},${y}`);
+  }
 });

@@ -80,18 +80,39 @@ colour is exactly the colour chosen (`changeBackground` in the core file):
 2. **Refuse a busy background.** If the edge pixels differ too much from that colour (a patterned
    curtain, shelves, outdoors), nothing is changed and the screen says so. A little hair or a
    shoulder at the edge does not count: the eighth decile of the differences is used.
-3. **Spread from the edges.** The background grows from the edge band to every neighbour that is
-   close enough to the background colour. Brightness counts for much less than colour, so a
-   shadow or uneven light on the wall is followed while a face or coat stops it. The slider
-   ("How much to change", Less to More) sets how close is close enough.
-4. **Tidy.** Small specks left standing inside the background (a mark on the wall) go with it.
-   Wall that is fully enclosed by the person is not reached and keeps its colour.
+3. **Spread from the edges.** The background grows from the edge band to every neighbour that
+   passes two tests. Its colour must be close to the background colour *expected at that spot*,
+   and the brightness there must not change quickly from pixel to pixel. The slider ("How much
+   to change", Less to More) loosens both tests together.
+   - *Expected colour.* A wall is not one colour: light falls off across it and a backdrop is
+     mottled. The colour is kept per square of a coarse grid (about 24 squares across the
+     shorter side), starting as the one colour read from the edges. After each spread, every
+     square is corrected from the background found in it, and the spread is repeated (up to 12
+     rounds, stopping when nothing more is found). A square with little background in it, or
+     whose colour has moved far from the edge colour, takes the colour of its sure neighbours,
+     so the colour cannot creep onto the person.
+   - *Edges.* A wall is smooth; the outline of a person and the weave of cloth are not. Where
+     the brightness (averaged over three by three pixels, so grain is not taken for an edge)
+     changes quickly, the background does not spread. This is what keeps a blue jacket against
+     a blue backdrop.
+4. **Tidy.** Islands left standing inside the background (a mark or a darker patch on the wall,
+   up to half a percent of the photo) go with it, unless they reach the bottom edge, where the
+   person is. Wall that is fully enclosed by the person is not reached and keeps its colour.
 5. **Stop if it went wrong.** If under 3% of the photo was found, the screen says no plain
    background was found. If over 85% was taken, or the middle of the face, it says too much was
    taken and to move the slider towards Less. In each case the photo is left as it is.
-6. **Soft edge.** The two rows of pixels on the person's side of the boundary are a mix of person
-   and wall. The wall's share of each gets the change of colour, which also takes the old wall
-   colour out of the edge, so hair does not end in a hard line or a grey fringe.
+6. **Soft edge.** The three rows of pixels on the person's side of the boundary are a mix of
+   person and wall. The wall's share of each gets the change of colour, measured from the
+   colour expected there, which also takes the old wall colour out of the edge. Hair does not
+   end in a hard line, though a thin rim of the old colour can remain.
+
+The method was tuned on six real photographs (public-domain NASA portraits kept with the local
+demo data): a mottled studio backdrop, three people against a blue sky, a black and white photo
+with a white sky, and one against a picture of the moon. At the default setting four came out
+clean, the moon was refused as busy, and one lost part of a blue cardigan against the blue sky
+(it is kept at Less). Brightness counts for less than colour only when deciding whether a
+background is plain; when spreading it counts nearly in full, which is what tells a white shirt
+from a white wall.
 
 The stage shows the saved result: the finished photo is laid over the crop frame each time it is
 made, and "Hold to see the original" takes it off while held. Print sheet receives the photo with
@@ -100,8 +121,11 @@ its new background. Signature has no Background choice.
 Limits, stated on the screen where they matter:
 
 - It needs a plain background. A busy one is refused, not guessed at.
-- Clothes or hair close to the wall colour (a white shirt on a white wall) can be taken with the
-  wall, most of all towards More. The slider and the comparison are there for this.
+- Clothes or hair close to the wall colour (a white shirt on a white wall, a blue jacket against
+  a blue backdrop) can be taken with the wall, most of all towards More. The slider and the
+  comparison are there for this.
+- It takes about a fifth of a second at 413 × 531 px and two to three seconds at 4000 × 4000 px,
+  the largest size the screen allows.
 - Fine loose hair is softened, not cut out strand by strand.
 - Some authorities do not accept a photo with a changed background. The screen says to check.
 
