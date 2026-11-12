@@ -443,27 +443,24 @@
     // Small specks left standing inside the background (a mark on the wall, noise) go with it.
     const speck = Math.max(4, Math.round(total * 0.0004));
     const seen = new Uint8Array(total);
+    const gather = (index) => {
+      if (!mask[index] && !seen[index]) {
+        seen[index] = 1;
+        queue[tail++] = index;
+      }
+    };
     for (let start = 0; start < total; start += 1) {
       if (mask[start] || seen[start]) continue;
       head = 0;
       tail = 0;
-      seen[start] = 1;
-      queue[tail++] = start;
+      gather(start);
       while (head < tail) {
         const index = queue[head++];
         const x = index % width;
-        const near = [
-          x > 0 ? index - 1 : -1,
-          x < width - 1 ? index + 1 : -1,
-          index >= width ? index - width : -1,
-          index < total - width ? index + width : -1
-        ];
-        for (const next of near) {
-          if (next >= 0 && !mask[next] && !seen[next]) {
-            seen[next] = 1;
-            queue[tail++] = next;
-          }
-        }
+        if (x > 0) gather(index - 1);
+        if (x < width - 1) gather(index + 1);
+        if (index >= width) gather(index - width);
+        if (index < total - width) gather(index + width);
       }
       if (tail <= speck) {
         for (let i = 0; i < tail; i += 1) mask[queue[i]] = 1;
