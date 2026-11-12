@@ -20,8 +20,13 @@ test('typed text is a known person, a new name or nothing', () => {
 });
 
 function createForm() {
+    return createFormWith('<option value="a" data-portrait="/p/a">Asha Verma</option><option value="b">Vikram Nair</option>');
+}
+
+function createFormWith(options, before = '') {
     const dom = new JSDOM(`
       <form method="post" action="/Photos/People/Review">
+        ${before}
         <div data-name-field data-assign-action="/Photos/People/Review?handler=AssignGroup" data-create-action="/Photos/People/Review?handler=CreateGroup">
           <div data-name-field-ui hidden>
             <input type="text" data-name-field-text aria-expanded="false" />
@@ -29,7 +34,7 @@ function createForm() {
             <button type="submit" data-name-field-confirm>Confirm</button>
           </div>
           <div data-name-field-fallback>
-            <select name="personId"><option value="">Select a person</option><option value="a" data-portrait="/p/a">Asha Verma</option><option value="b">Vikram Nair</option></select>
+            <select name="personId"><option value="">Select a person</option>${options}</select>
             <button type="submit" formaction="/Photos/People/Review?handler=AssignGroup">Assign selected</button>
           </div>
           <div data-name-field-fallback>
@@ -98,6 +103,42 @@ test('arrow keys move through the list and Enter picks the highlighted name', ()
     assert.equal(press('Enter').defaultPrevented, true, 'Enter picks, it does not send the form');
     assert.equal(box.value, 'Vikram Nair');
     assert.equal(q('[data-name-field-list]').hidden, true);
-    assert.equal(press('Enter').defaultPrevented, false, 'with the list closed Enter confirms as usual');
+    window.close();
+});
+
+test('two people with one name: the one picked is the one named, until the text is edited', () => {
+    const { window, q, type, confirm, sent, items } = createFormWith('<option value="b">Vikram Nair</option><option value="b2">Vikram Nair</option>');
+
+    type('vik');
+    assert.deepEqual(items(), ['Vikram Nair', 'Vikram Nair', 'New person: vik'], 'both are offered');
+    q('[data-name-field-list]').children[1].click();
+    confirm();
+    assert.equal(sent[0].personId, 'b2', 'the second entry names the second person');
+
+    // A suggestion's button sets the select; that person is kept the same way.
+    q('select').value = 'b2';
+    q('select').dispatchEvent(new window.Event('change', { bubbles: true }));
+    confirm();
+    assert.equal(sent[1].personId, 'b2');
+
+    // Typing lets go of the pick: the text alone then decides.
+    type('Vikram Nair');
+    confirm();
+    assert.equal(sent[2].personId, 'b', 'typed, the name means the first person of that name');
+    window.close();
+});
+
+test('Enter in the field confirms through its own button, not the first button of the form', () => {
+    const { window, q, type, sent } = createFormWith('<option value="b">Vikram Nair</option>',
+        '<button type="submit" formaction="/Photos/People/Review?handler=RejectGroupCandidate" id="other">Not this person</button>');
+    let otherPressed = false;
+    q('#other').addEventListener('click', () => { otherPressed = true; });
+    type('Asha Verma');
+    q('[data-name-field-list]').hidden = true;
+    const event = new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    q('[data-name-field-text]').dispatchEvent(event);
+    assert.equal(event.defaultPrevented, true, 'the browser is not left to choose a button');
+    assert.equal(otherPressed, false);
+    assert.deepEqual(sent.map(entry => entry.action), ['?handler=CreateGroup']);
     window.close();
 });
