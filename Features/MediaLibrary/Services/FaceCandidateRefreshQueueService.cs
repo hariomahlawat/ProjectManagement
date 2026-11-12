@@ -209,9 +209,12 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
                 cancellationToken);
     }
 
+    // No AsNoTracking here. EF Core applies it to the whole query this is composed into, and
+    // QueueFaceAsync changes the face that query loads: untracked, the change was not saved.
+    // The ids are scalars, so nothing is tracked by this sub-query either way.
     private IQueryable<long> BuildVisibleAssetIdsQuery()
         => _visibility
-            .Apply(_db.Assets.AsNoTracking())
+            .Apply(_db.Assets)
             .Select(asset => asset.Id);
 
     private bool IsOperational()
@@ -226,7 +229,6 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
         face.CandidateSearchCompletedAtUtc = null;
         face.UpdatedAtUtc = DateTimeOffset.UtcNow;
         // See QueueQueryAsync: an in-flight search for this face must not overwrite it.
-        face.ConcurrencyToken = Guid.NewGuid();
         face.ConcurrencyToken = Guid.NewGuid();
     }
 }
