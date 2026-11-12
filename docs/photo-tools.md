@@ -43,8 +43,8 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
 | Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
 
-Every tool in the build plan is on the page. The last planned step is a review of phones, the
-Dark theme and the keyboard across all screens.
+Every step of the build plan is done, including the review of phones, the Dark theme and the
+keyboard across all screens.
 
 ### How a passport photo is made
 
@@ -143,6 +143,21 @@ step, so Undo takes it back.
 - Marks and hidden areas are part of the photo from then on: a later crop, resize or filter
   treats them like any other pixels. They cannot be moved after they are placed; Undo removes
   the last one.
+- With the keyboard, the photo takes focus while Mark up or Blur is open. The arrow keys move a
+  cross over it (Shift for small steps). Enter places a text or a number at the cross; for the
+  other marks and for a hidden area, Enter starts it, the arrow keys stretch it and Enter ends
+  it. Escape cancels. The cross uses the same code path as the pointer.
+
+### Phones, the Dark theme and the keyboard
+
+- **Phones.** Below 576 px, and on any touch screen, every button, chip, select and text box is
+  at least 44 px high and the colour swatches are 44 px. The editor stage is shorter on a phone
+  so the photo and the tools under it are on the screen together, and Undo and Redo are icon
+  buttons so the bar above the photo is one row. No screen scrolls sideways at 375 px.
+- **Dark theme.** Colours come from theme tokens only. The grey outline buttons take the body
+  text colour, because the stock grey is too faint on a dark surface.
+- **Keyboard.** The passport frame, the crop box and the photo under Mark up and Blur all work
+  with the arrow keys and Enter; Ctrl+Z and Ctrl+Y undo and redo in the editor.
 
 ### How the target size is reached
 
