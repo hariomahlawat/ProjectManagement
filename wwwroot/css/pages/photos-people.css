@@ -2045,3 +2045,13 @@ a.identity-workload-pill:hover {
 .people-review-done { align-items:center; display:flex; flex-wrap:wrap; gap:.25rem .75rem; justify-content:space-between; }
 .people-review-done form { margin:0; }
 .people-review-done .btn-link { font-weight:700; padding:0; }
+
+/* A person's page: compact header under the Photos bar, one Manage disclosure, quiet details. Theme tokens only. */
+.person-profile-header--compact { margin-top:.35rem; }
+.person-profile-header--compact h1 { font-size:clamp(1.35rem, 2.2vw, 1.7rem); letter-spacing:-.02em; margin:0; }
+.person-profile-header--compact .person-profile-header__portrait { height:4.5rem; width:4.5rem; }
+.person-manage { margin:0 0 1rem; }
+.person-manage > summary { list-style:none; width:fit-content; }
+.person-manage > summary::-webkit-details-marker { display:none; }
+.person-manage[open] > summary { margin-bottom:.75rem; }
+.person-photo-card__details { margin:.2rem 0 .1rem; }

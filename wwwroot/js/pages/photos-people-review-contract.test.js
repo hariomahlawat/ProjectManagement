@@ -102,3 +102,19 @@ test('a decision can be undone from the message that confirms it, and only from 
     // Any new decision ends the chance to undo the one before.
     assert.match(model, /Func<DateTimeOffset, Task<string\?>>\? undoState = null\)\s+\{\s+\/\/[^\n]*\n\s+UndoState = null;/);
 });
+
+test('a person\'s page: the Photos bar, one Manage disclosure, plain wording, the same handlers', () => {
+    const person = read('Pages/Photos/People/Details.cshtml');
+    assert.match(person, /class="photos-bar" data-photos-bar/);
+    assert.ok(person.indexOf('class="photos-bar" data-photos-bar') < person.indexOf('class="person-profile-header'), 'the bar comes first');
+    assert.match(person, /<details class="person-manage" open="@\(!string\.IsNullOrWhiteSpace\(Model\.UserSearch\)\)">/);
+    // Everything the page could do before, it still does.
+    ['Rename', 'Visibility', 'Merge', 'LinkUser', 'UnlinkUser', 'ResolveLinkConcern', 'Representative', 'Reference', 'PrepareReference', 'RemoveAssignment', 'SuppressFace', 'CorrectAppearances']
+        .forEach(handler => assert.ok(person.includes(`asp-page-handler="${handler}"`), handler));
+    const visible = person.replace(/@\*[\s\S]*?\*@/g, '').match(/>[^<>@{}]+</g).join('\n');
+    assert.doesNotMatch(visible, /identity governance|trusted reference|matching reference|embedding|confirmed appearance|invalid detection|People Classification|audit trail/i);
+    ['Used to find more', 'Use as portrait', 'Not this person', 'Send back to review', 'Move or remove ticked'].forEach(text => assert.ok(person.includes(text), text));
+    // The technical detail of a picture is one disclosure, not a block on every card.
+    assert.match(person, /<details class="identity-group-figures person-photo-card__details">\s+<summary>Details<\/summary>/);
+    assert.doesNotMatch(person, /@photo\.AssignmentType/);
+});
