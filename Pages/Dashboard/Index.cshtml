@@ -419,7 +419,8 @@
             </div>
         </section>
 
-        @* Three slim cards: a few figures each. Like the output tiles above, the whole card is the link to its module. *@
+        @* Slim cards: a title with its tagline under it, then a few figures in fixed columns (number over label), so the
+           cards line up across the row. Like the output tiles above, the whole card is the link to its module. *@
         <section class="db-trio-grid db-reveal" aria-label="Activities, ideas and IT, MOLTI and SRE projects">
             <a asp-page="/Activities/Index" class="db-panel db-hue-4 db-slim" title="View activities">
                 <div class="db-section-head">
@@ -442,10 +443,10 @@
 
             <a asp-page="/ProjectIdeas/Index" class="db-panel db-hue-6 db-slim" title="Open the ideation board">
                 <div class="db-section-head">
-                    <div><span class="db-section-icon"><i class="bi bi-lightbulb"></i></span><div><h2>Innovation pipeline</h2></div></div>
+                    <div><span class="db-section-icon"><i class="bi bi-lightbulb"></i></span><div><h2>Innovation pipeline</h2><p>Ideas in the pipeline</p></div></div>
                 </div>
-                <div class="db-figures">
-                    <div class="db-figure"><strong>@Model.IdeaSummary.ActiveCount</strong><span>Active ideas</span></div>
+                <div class="db-figures db-figures--2">
+                    <div class="db-figure"><strong>@Model.IdeaSummary.ActiveCount</strong><span>Active</span></div>
                     <div class="db-figure"><strong>@Model.IdeaSummary.OnHoldCount</strong><span>On hold</span></div>
                 </div>
             </a>
