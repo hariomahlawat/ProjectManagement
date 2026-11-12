@@ -2026,3 +2026,10 @@ a.identity-workload-pill:hover {
 .identity-group-figures summary { color:var(--pm-text-muted); cursor:pointer; font-weight:700; width:fit-content; }
 .identity-group-figures p { margin:.4rem 0 .3rem; max-width:62ch; }
 .identity-group-figures ul { margin:0; padding-left:1.1rem; }
+
+/* A single face: the name form beside the quieter choices. Theme tokens only. */
+.face-name-form { flex:1; min-width:0; }
+.face-name-form .face-create-person { margin-bottom:.5rem; }
+.people-queue-note { color:var(--pm-text-muted); font-size:.85rem; margin:0 0 .8rem; }
+.people-queue-note strong { color:var(--pm-text); }
+.face-candidate__identity > strong { color:var(--pm-text); font-size:.95rem; }
