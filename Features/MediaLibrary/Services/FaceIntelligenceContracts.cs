@@ -434,6 +434,18 @@ public interface IFaceReviewService
         DateTimeOffset sinceUtc,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The faces among <paramref name="faceIds"/> that this user left unnamed at or after
+    /// <paramref name="sinceUtc"/>. Leaving unnamed a face someone else has already left unnamed
+    /// succeeds without recording anything new; this tells the two apart, so that only what a
+    /// request itself closed can be reopened by its Undo.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetFacesLeftUnnamedByAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken);
+
     Task MergePeopleAsync(
         Guid sourcePersonId,
         Guid targetPersonId,

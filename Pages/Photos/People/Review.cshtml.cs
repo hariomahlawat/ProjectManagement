@@ -467,7 +467,7 @@ public sealed class ReviewModel : PageModel
             () => _review.IgnoreManyAsync(faceIds, UserId, cancellationToken),
             "The selected faces were left unnamed.",
             Mode,
-            started => Task.FromResult(PeopleReviewUndo.ForLeavingUnnamed(faceIds, UserId, started)));
+            started => LeavingUnnamedUndoAsync(faceIds, started, cancellationToken));
 
     public Task<IActionResult> OnPostReopenSelectedAsync(
         List<Guid> faceIds,
@@ -492,7 +492,7 @@ public sealed class ReviewModel : PageModel
             () => _review.IgnoreAsync(faceId, UserId, cancellationToken),
             "Left unnamed.",
             Mode,
-            started => Task.FromResult(PeopleReviewUndo.ForLeavingUnnamed(new[] { faceId }, UserId, started)));
+            started => LeavingUnnamedUndoAsync(new[] { faceId }, started, cancellationToken));
 
     // Takes back the decision the confirming message was about. Naming is undone through the
     // same correction that the person's page uses, so it is recorded like any other correction;
@@ -707,6 +707,17 @@ public sealed class ReviewModel : PageModel
         var person = personId();
         var assigned = await _review.GetFacesAssignedByAsync(person, faceIds, UserId, started, cancellationToken);
         return PeopleReviewUndo.ForNaming(person, assigned, UserId, started);
+    }
+
+    // The same for leaving faces unnamed: a face another reviewer had already left unnamed is
+    // not closed again by this request, and this reviewer's Undo must not reopen it.
+    private async Task<string?> LeavingUnnamedUndoAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        DateTimeOffset started,
+        CancellationToken cancellationToken)
+    {
+        var closed = await _review.GetFacesLeftUnnamedByAsync(faceIds, UserId, started, cancellationToken);
+        return PeopleReviewUndo.ForLeavingUnnamed(closed, UserId, started);
     }
 
     private async Task<IActionResult> ExecuteAsync(
