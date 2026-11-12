@@ -237,20 +237,20 @@ public sealed class ReviewModel : PageModel
             if (!snapshot.IsReady)
             {
                 GroupingNotice = string.IsNullOrWhiteSpace(snapshot.FailureReason)
-                    ? "Identity groups are being prepared in the background. This page will remain on the Groups workspace while the snapshot is built."
-                    : "Identity grouping is temporarily unavailable because the latest background refresh failed. The worker will retry automatically.";
+                    ? "PRISM is grouping the faces. The groups appear here when they are ready."
+                    : "PRISM could not group the faces this time. It will try again by itself.";
             }
             else if (!string.IsNullOrWhiteSpace(snapshot.FailureReason))
             {
-                GroupingNotice = "Identity grouping is showing the last successful snapshot because the latest refresh failed. The background worker will retry automatically.";
+                GroupingNotice = "These groups are from the last time grouping worked. The latest attempt failed; PRISM will try again by itself.";
             }
             else if (snapshot.IsRefreshPending)
             {
-                GroupingNotice = "Identity groups are refreshing in the background. The last successful snapshot remains available until the new one is ready.";
+                GroupingNotice = "PRISM is grouping the faces again. These groups stay until the new ones are ready.";
             }
             else
             {
-                GroupingNotice = "Identity-group snapshot is current.";
+                GroupingNotice = "The groups are up to date.";
             }
         }
         else
@@ -357,7 +357,7 @@ public sealed class ReviewModel : PageModel
         {
             ReviewDataAvailable = false;
             _logger.LogError(exception, "Individual-face review data could not be loaded.");
-            ErrorMessage = "People review data is temporarily unavailable. The error has been logged; verify database connectivity and application logs.";
+            ErrorMessage = "The faces could not be loaded. The error is logged; try again in a moment.";
         }
     }
 
@@ -377,7 +377,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.RejectAsync(faceId, personId, UserId, cancellationToken),
-            "Suggestion rejected. It will not be recreated for this model version.",
+            "Marked as not this person. PRISM will not suggest it again.",
             Mode);
 
     public Task<IActionResult> OnPostRejectAllAsync(
@@ -385,7 +385,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.RejectAsync(faceId, null, UserId, cancellationToken),
-            "All current suggestions for this face were rejected.",
+            "None of the suggested people. The face is now under Unnamed faces.",
             Mode);
 
     public Task<IActionResult> OnPostAssignExistingAsync(
@@ -394,7 +394,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.AssignAsync(faceId, personId, UserId, null, cancellationToken),
-            "Identity assigned to the selected person.",
+            "Named.",
             Mode);
 
     public Task<IActionResult> OnPostAssignSelectedAsync(
@@ -403,7 +403,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.AssignManyAsync(faceIds, personId, UserId, null, cancellationToken),
-            "Selected appearances were assigned to the confirmed person.",
+            "The selected faces were named.",
             Mode);
 
     public Task<IActionResult> OnPostIgnoreSelectedAsync(
@@ -411,7 +411,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.IgnoreManyAsync(faceIds, UserId, cancellationToken),
-            "Selected appearances were closed as unidentified.",
+            "The selected faces were left unnamed.",
             Mode);
 
     public Task<IActionResult> OnPostReopenSelectedAsync(
@@ -419,7 +419,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.ReopenUnidentifiedManyAsync(faceIds, UserId, cancellationToken),
-            "Selected appearances were reopened for review.",
+            "The selected faces are back in review.",
             Mode);
 
     public Task<IActionResult> OnPostSuppressSelectedAsync(
@@ -427,7 +427,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.SuppressManyAsync(faceIds, UserId, cancellationToken),
-            "Selected detections were marked as not faces.",
+            "The selected items were marked as not faces.",
             Mode);
 
     public Task<IActionResult> OnPostIgnoreAsync(
@@ -435,7 +435,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.IgnoreAsync(faceId, UserId, cancellationToken),
-            "Appearance closed as unidentified.",
+            "Left unnamed.",
             Mode);
 
     public Task<IActionResult> OnPostReopenAsync(
@@ -443,7 +443,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.ReopenUnidentifiedAsync(faceId, UserId, cancellationToken),
-            "Appearance reopened for review.",
+            "Back in review.",
             Mode);
 
     public Task<IActionResult> OnPostCreateAsync(
@@ -452,7 +452,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.CreatePersonAndAssignAsync(faceId, displayName, UserId, cancellationToken),
-            "Person created and identity confirmed.",
+            "New person added and named.",
             Mode);
 
     public Task<IActionResult> OnPostSuppressAsync(
@@ -460,7 +460,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.SuppressAsync(faceId, UserId, cancellationToken),
-            "Detection marked as not a face.",
+            "Marked as not a face.",
             Mode);
 
     public Task<IActionResult> OnPostCreateGroupAsync(
@@ -469,7 +469,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.CreatePersonAndAssignManyAsync(faceIds, displayName, UserId, cancellationToken),
-            "Person created and the selected appearances were confirmed.",
+            "New person added and the selected faces named.",
             "groups");
 
     public Task<IActionResult> OnPostRejectGroupCandidateAsync(
@@ -478,7 +478,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.RejectManyAsync(faceIds, candidatePersonId, UserId, cancellationToken),
-            "The known-person suggestion was rejected for the selected appearances.",
+            "Marked as not this person for the selected faces.",
             "groups");
 
     public Task<IActionResult> OnPostAssignGroupAsync(
@@ -488,7 +488,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.AssignManyAsync(faceIds, personId, UserId, confidence, cancellationToken),
-            "The selected appearances were assigned to the person.",
+            "The selected faces were named.",
             "groups");
 
     public Task<IActionResult> OnPostRefreshCandidatesAsync(CancellationToken cancellationToken)
@@ -497,8 +497,8 @@ public sealed class ReviewModel : PageModel
             {
                 var queued = await _invalidation.ForceRequeueAllCandidatesAsync(cancellationToken);
                 StatusMessage = queued == 0
-                    ? "No unresolved faces required candidate rematching."
-                    : $"Re-run requested for {queued} unresolved face(s). Matching will continue in the background.";
+                    ? "No face needed checking again."
+                    : $"Checking {queued} face(s) again. This carries on in the background.";
             },
             null,
             Mode);
@@ -608,7 +608,7 @@ public sealed class ReviewModel : PageModel
         var normalizedRedirectMode = NormalizeModeValue(redirectMode);
         if (!FeatureEnabled)
         {
-            ErrorMessage = "People intelligence is disabled. Complete readiness checks and enable the feature before reviewing faces.";
+            ErrorMessage = "Face review is switched off. The face recognition models must pass their checks first.";
             return Redirect(BuildReviewUrl(normalizedRedirectMode, PageNumber));
         }
 

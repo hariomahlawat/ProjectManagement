@@ -2,11 +2,12 @@
 @using ProjectManagement.Features.MediaLibrary.Domain
 @model ProjectManagement.Pages.Photos.People.ReviewModel
 @{
-    ViewData["Title"] = "Identify people";
+    ViewData["Title"] = "Review people";
     ViewData["PageShell"] = "wide";
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/css/pages/photos-library.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/photos-people.css" asp-append-version="true" />
 }
 
@@ -15,19 +16,19 @@
      data-workload-status-url="@Model.BuildWorkloadStatusUrl()"
      data-initial-matching="@Model.Workload.MatchingCount"
      data-grouping-refreshing="@(Model.GroupingRefreshPending ? "true" : "false")">
-    <header class="people-header people-header--review">
-        <div>
-            <span class="people-eyebrow">Human-confirmed identity intelligence</span>
-            <h1>Identify people</h1>
-            <p>Review possible matches generated only from trusted references. Similarity is a ranking signal—not an identity probability—and PRISM never names a person automatically.</p>
-        </div>
-        <nav class="people-header__actions">
-            <a class="btn btn-outline-secondary" asp-page="./Index"><i class="bi bi-people"></i> People</a>
-            @if (Model.FeatureEnabled)
-            {
+    <div class="photos-bar" data-photos-bar>
+        <nav class="photos-sections" aria-label="Photos sections">
+            <a asp-page="/Photos/Index" asp-route-View="photos">Photos</a>
+            <a asp-page="/Photos/Index" asp-route-View="collections" asp-route-CollectionTab="albums">Albums</a>
+            <a class="is-active" asp-page="./Index">People</a>
+            <a asp-page="/Photos/Index" asp-route-View="collections" asp-route-CollectionTab="source">Collections</a>
+        </nav>
+        @if (Model.FeatureEnabled)
+        {
+            <div class="people-review-bar__menu">
                 <div class="dropdown">
-                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-three-dots"></i> More
+                    <button class="photos-action photos-action--quiet" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More options">
+                        <i class="bi bi-three-dots"></i>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
                         @if (Model.MatchingWorkerEnabled)
@@ -36,8 +37,8 @@
                                 <form method="post" asp-page-handler="RefreshCandidates">
                                     <partial name="_ReviewStateFields" model="Model" />
                                     <button type="submit" class="dropdown-item"
-                                            data-confirm-message="Re-run known-person matching for all unresolved eligible faces? Routine matching already runs automatically; use this only when a manual refresh is required.">
-                                        <i class="bi bi-arrow-repeat"></i> Re-run matching
+                                            data-confirm-message="Look again for known people in every face still waiting? PRISM already does this by itself; use this only when a manual refresh is required.">
+                                        <i class="bi bi-arrow-repeat"></i> Look for known people again
                                     </button>
                                 </form>
                             </li>
@@ -45,22 +46,27 @@
                         }
                         <li>
                             <a class="dropdown-item" asp-page="/Admin/MediaIntelligence/Index">
-                                <i class="bi bi-cpu"></i> Media intelligence readiness
+                                <i class="bi bi-cpu"></i> Face recognition status
                             </a>
                         </li>
                     </ul>
                 </div>
-            }
-        </nav>
+            </div>
+        }
+    </div>
+    <header class="people-review-heading">
+        <a class="people-review-heading__back" asp-page="./Index"><i class="bi bi-chevron-left" aria-hidden="true"></i> People</a>
+        <h1>Who is in these pictures?</h1>
+        <p>PRISM finds faces it cannot name. You decide who they are; nothing is named without you.</p>
     </header>
 
     @if (!Model.FeatureEnabled)
     {
         <section class="people-empty">
             <i class="bi bi-shield-lock" aria-hidden="true"></i>
-            <h2>People intelligence is disabled</h2>
-            <p>The approved local detector and embedding models must pass readiness before face grouping and identity review can run.</p>
-            <a class="btn btn-primary" asp-page="/Admin/MediaIntelligence/Index">Open readiness dashboard</a>
+            <h2>Face review is switched off</h2>
+            <p>The face recognition models on this server have not passed their checks yet, so PRISM cannot find or group faces.</p>
+            <a class="btn btn-primary" asp-page="/Admin/MediaIntelligence/Index">See what is missing</a>
         </section>
     }
     else
@@ -74,50 +80,44 @@
             <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
         }
 
-        <nav class="identity-review-tabs" aria-label="People review mode">
-            <a class="identity-review-tab @(Model.IsMatchesMode ? "is-active" : null)"
-               href="@(Model.BuildReviewUrl("matches", 1, "detail"))">
-                <i class="bi bi-person-check"></i>
-                <span>Direct person suggestions</span>
-                <strong data-workload-known>@Model.Workload.KnownMatchCount</strong>
-            </a>
-            <a class="identity-review-tab @(Model.IsUnidentifiedMode ? "is-active" : null)"
-               href="@(Model.BuildReviewUrl("unidentified", 1, "triage"))">
-                <i class="bi bi-person-question"></i>
-                <span>Individual review</span>
-                <strong data-workload-individual>@Model.Workload.IndividualReviewCount</strong>
-            </a>
+        <nav class="photos-chips people-queues" aria-label="What to review">
             @if (Model.GroupingEnabled && !Model.IsScopedToMedia)
             {
-                <a class="identity-review-tab @(Model.IsGroupsMode ? "is-active" : null)"
+                <a class="photos-chip @(Model.IsGroupsMode ? "is-active" : null)" aria-current="@(Model.IsGroupsMode ? "true" : null)"
                    href="@(Model.BuildReviewUrl("groups", 1, "detail"))">
-                    <i class="bi bi-collection"></i>
-                    <span>Identity groups</span>
-                    <strong data-workload-groups>@Model.Workload.SuggestedGroupCount</strong>
+                    Same person? <strong data-workload-groups>@Model.Workload.SuggestedGroupCount</strong>
                 </a>
             }
+            <a class="photos-chip @(Model.IsMatchesMode ? "is-active" : null)" aria-current="@(Model.IsMatchesMode ? "true" : null)"
+               href="@(Model.BuildReviewUrl("matches", 1, "detail"))">
+                Is this …? <strong data-workload-known>@Model.Workload.KnownMatchCount</strong>
+            </a>
+            <a class="photos-chip @(Model.IsUnidentifiedMode ? "is-active" : null)" aria-current="@(Model.IsUnidentifiedMode ? "true" : null)"
+               href="@(Model.BuildReviewUrl("unidentified", 1, "triage"))">
+                Unnamed faces <strong data-workload-individual>@Model.Workload.IndividualReviewCount</strong>
+            </a>
         </nav>
 
         <div class="identity-review-workload-strip" aria-label="Review workload status" data-workload-strip>
             <span class="identity-workload-pill @(Model.Workload.MatchingCount > 0 ? "is-processing" : null)"
                   data-workload-matching-wrap hidden="@(Model.Workload.MatchingCount == 0 ? "hidden" : null)">
                 <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
-                <strong data-workload-matching>@Model.Workload.MatchingCount</strong> matching
+                <strong data-workload-matching>@Model.Workload.MatchingCount</strong> being checked
             </span>
             <a class="identity-workload-pill is-warning"
                href="@(Model.BuildReviewUrl("unidentified", 1, "triage", matchStatus: "failed"))"
                data-workload-failures-wrap hidden="@(Model.Workload.MatchingFailureCount == 0 ? "hidden" : null)">
                 <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-                <strong data-workload-failures>@Model.Workload.MatchingFailureCount</strong> matching failed
+                <strong data-workload-failures>@Model.Workload.MatchingFailureCount</strong> could not be checked
             </a>
             <a class="identity-workload-pill @(Model.IsClosedMode ? "is-active" : null)"
                href="@(Model.BuildReviewUrl("closed", 1, "triage"))"
                data-workload-closed-wrap hidden="@(Model.Workload.ClosedUnidentifiedCount == 0 && !Model.IsClosedMode ? "hidden" : null)">
                 <i class="bi bi-archive" aria-hidden="true"></i>
-                <strong data-workload-closed>@Model.Workload.ClosedUnidentifiedCount</strong> closed unidentified
+                <strong data-workload-closed>@Model.Workload.ClosedUnidentifiedCount</strong> left unnamed
             </a>
             <span class="identity-review-workload-strip__total">
-                <strong data-workload-total>@Model.Workload.TotalUnresolvedCount</strong> unresolved appearances
+                <strong data-workload-total>@Model.Workload.TotalUnresolvedCount</strong> faces waiting in all
             </span>
             <span class="identity-review-workload-strip__live" data-workload-live-status aria-live="polite"></span>
         </div>
@@ -127,14 +127,14 @@
              data-matching-worker-warning
              hidden="@(!Model.MatchingWorkerDelayed ? "hidden" : null)">
             <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
-            <strong>Matching worker delayed.</strong> PRISM will recover stale Processing leases automatically. Timed-out searches move to the failed queue for controlled retry rather than remaining stuck indefinitely.
+            <strong>Checking faces is running late.</strong> PRISM will catch up by itself. A face that takes too long moves to “could not be checked”, where it can be tried again, rather than remaining stuck indefinitely.
         </div>
 
         @if (Model.IsScopedToMedia && !Model.IsGroupsMode)
         {
             <div class="identity-review-scope" role="status">
-                <span><i class="bi bi-images"></i> Review is limited to faces detected in <strong>@Model.AssetIds.Length selected media item@(Model.AssetIds.Length == 1 ? "" : "s")</strong>.</span>
-                <a href="@Model.BuildClearMediaScopeUrl()">Clear media scope</a>
+                <span><i class="bi bi-images"></i> Showing only faces from the <strong>@Model.AssetIds.Length picture@(Model.AssetIds.Length == 1 ? "" : "s")</strong> you selected.</span>
+                <a href="@Model.BuildClearMediaScopeUrl()">Show all faces</a>
             </div>
         }
 
@@ -142,13 +142,15 @@
         {
             @if (!string.IsNullOrWhiteSpace(Model.GroupingNotice))
             {
+                @* Said only while the groups are being rebuilt or could not be; up-to-date groups need no notice. *@
                 <div class="identity-group-refresh-notice @(Model.GroupingRefreshing ? "is-refreshing" : null)"
-                     role="status" data-grouping-refresh-notice>
+                     role="status" data-grouping-refresh-notice
+                     hidden="@(!Model.GroupingRefreshing && !Model.GroupingFailed ? "hidden" : null)">
                     <i class="bi @(Model.GroupingRefreshing ? "bi-arrow-repeat" : "bi-info-circle")" aria-hidden="true"></i>
                     <span data-grouping-refresh-copy>@Model.GroupingNotice</span>
                     @if (Model.GroupingRefreshedAtUtc.HasValue)
                     {
-                        <small data-grouping-refreshed-at>Last snapshot @Model.GroupingRefreshedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</small>
+                        <small data-grouping-refreshed-at>Last grouped @Model.GroupingRefreshedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small>
                     }
                     else
                     {
@@ -165,35 +167,27 @@
                     <i class="bi @(Model.GroupingFailed ? "bi-exclamation-triangle" : "bi-arrow-repeat identity-refresh-icon")" aria-hidden="true"></i>
                     @if (Model.GroupingFailed)
                     {
-                        <h2>Identity grouping temporarily unavailable</h2>
-                        <p>The latest background refresh failed. The last error has been logged and the worker will retry automatically.</p>
+                        <h2>Groups are not available just now</h2>
+                        <p>PRISM could not group the faces this time. The error is logged and it will try again by itself.</p>
                     }
                     else
                     {
-                        <h2>Preparing identity groups</h2>
-                        <p>Strict multi-photo grouping runs in the background. Stay on this workspace; the status above will update when a snapshot is ready.</p>
+                        <h2>Grouping faces</h2>
+                        <p>PRISM is working out which faces belong together. You can stay here; the groups appear when they are ready.</p>
                     }
                 </section>
             }
             else
             {
-                <section class="review-summary review-summary--people">
-                    <div><strong data-workload-groups>@Model.GroupResult.TotalGroups</strong><span>suggested groups</span></div>
-                    <div><strong data-workload-grouped>@Model.GroupResult.GroupedFaceCount</strong><span>appearances grouped</span></div>
-                    <div><strong data-workload-ungrouped>@Model.GroupResult.UngroupedFaceCount</strong><span>ungrouped appearances</span></div>
-                    <div><strong data-workload-individual-summary>@Model.Workload.IndividualReviewCount</strong><span>individual review now</span></div>
-                    <p><i class="bi bi-shield-check"></i> Grouping is a review aid only. A reviewer must explicitly select the correct appearances and confirm a name.</p>
-                </section>
-
                 @if (Model.GroupResult.Groups.Count == 0)
                 {
                     <section class="people-empty people-empty--compact">
                         <i class="bi bi-person-check"></i>
-                        <h2>No repeated unnamed people found</h2>
-                        <p>No strict multi-photo group currently requires confirmation. Ungrouped appearances can continue through individual review.</p>
+                        <h2>No groups to review</h2>
+                        <p>PRISM has not found the same unnamed person in several pictures. Faces on their own are under Unnamed faces.</p>
                         @if (Model.Workload.IndividualReviewCount > 0)
                         {
-                            <a class="btn btn-primary" href="@(Model.BuildReviewUrl("unidentified", 1, "triage"))">Review individual faces</a>
+                            <a class="btn btn-primary" href="@(Model.BuildReviewUrl("unidentified", 1, "triage"))">Open Unnamed faces</a>
                         }
                     </section>
                 }
@@ -367,8 +361,8 @@
             {
                 <section class="people-empty">
                     <i class="bi bi-database-exclamation"></i>
-                    <h2>Review data temporarily unavailable</h2>
-                    <p>The error has been logged. Retry after checking database connectivity and application logs.</p>
+                    <h2>The faces could not be loaded</h2>
+                    <p>The error is logged. Try again in a moment; if it persists, tell the administrator.</p>
                 </section>
             }
             else if (Model.Result.Items.Count == 0)
@@ -378,44 +372,44 @@
                     {
                         <i class="bi bi-funnel"></i>
                         <h2>No faces match these filters</h2>
-                        <p>The review queue may still contain other faces. Clear the current source, year or matching-status filters to continue reviewing.</p>
+                        <p>There may be other faces waiting. Clear the source, year or status filter to see them.</p>
                         <a class="btn btn-outline-primary" href="@Model.BuildClearQueueFiltersUrl()">Clear review filters</a>
                     }
                     else if (Model.IsClosedMode)
                     {
                         <i class="bi bi-archive"></i>
-                        <h2>No closed unidentified appearances</h2>
-                        <p>Nothing is currently closed as intentionally unidentified.</p>
+                        <h2>No faces left unnamed</h2>
+                        <p>Faces you choose to leave unnamed are kept here, and can be brought back.</p>
                     }
                     else if (Model.IsMatchesMode)
                     {
                         <i class="bi @(Model.Workload.MatchingCount > 0 ? "bi-arrow-repeat identity-refresh-icon" : "bi-check2-circle")"></i>
                         @if (Model.Workload.MatchingCount > 0)
                         {
-                            <h2>No direct person suggestions ready yet</h2>
-                            <p><strong>@Model.Workload.MatchingCount</strong> unresolved face appearance@(Model.Workload.MatchingCount == 1 ? " is" : "s are") still being compared with trusted references. Any direct person suggestions will appear here after background matching completes.</p>
+                            <h2>Nothing to suggest yet</h2>
+                            <p><strong>@Model.Workload.MatchingCount</strong> face@(Model.Workload.MatchingCount == 1 ? " is" : "s are") still being checked against the people PRISM knows. Suggestions appear here when that is done.</p>
                         }
                         else
                         {
-                            <h2>Known-match queue clear</h2>
-                            <p>No detected face currently has a pending known-person suggestion. New matches are generated automatically in the background.</p>
+                            <h2>Nothing to confirm</h2>
+                            <p>PRISM has no face it thinks is someone already in People. New suggestions appear here by themselves.</p>
                         }
                     }
                     else if (Model.Workload.MatchingCount > 0)
                     {
                         <div data-matching-empty-state>
                             <i class="bi bi-arrow-repeat identity-refresh-icon"></i>
-                            <h2 data-matching-empty-title>Matching in progress</h2>
-                            <p data-matching-empty-copy><strong>@Model.Workload.MatchingCount</strong> unresolved face appearance@(Model.Workload.MatchingCount == 1 ? " is" : "s are") currently being compared with trusted references. The queue is not clear; results will appear when background matching finishes.</p>
+                            <h2 data-matching-empty-title>Checking faces</h2>
+                            <p data-matching-empty-copy><strong>@Model.Workload.MatchingCount</strong> face@(Model.Workload.MatchingCount == 1 ? " is" : "s are") being checked against the people PRISM knows. They will appear here when that is done.</p>
                             <a class="btn btn-primary" href="@(Model.BuildReviewUrl("unidentified", 1, Model.Layout))"
-                               data-matching-empty-action hidden>Open updated individual-review queue</a>
+                               data-matching-empty-action hidden>Show the faces now ready</a>
                         </div>
                     }
                     else
                     {
                         <i class="bi bi-check2-circle"></i>
-                        <h2>Individual-review queue clear</h2>
-                        <p>No unresolved face is currently ready for manual assignment or creation of a new person.</p>
+                        <h2>No unnamed faces</h2>
+                        <p>Every face PRISM has found is named, grouped or set aside.</p>
                     }
                 </section>
             }
@@ -608,7 +602,7 @@
                                     @if (item.CandidateSearchStatus == ProjectManagement.Features.MediaLibrary.Domain.FaceCandidateSearchStatus.Failed)
                                     {
                                         <div class="alert alert-warning py-2 mb-3" role="status">
-                                            <strong>Known-person matching needs retry.</strong>
+                                            <strong>This face could not be checked against known people.</strong>
                                             @if (!string.IsNullOrWhiteSpace(item.CandidateSearchFailureReason))
                                             {
                                                 <span>@item.CandidateSearchFailureReason</span>
@@ -626,11 +620,11 @@
                                                 }
                                                 else if (Model.AvailablePeople.Count > 0)
                                                 {
-                                                    <span>No reliable known-person match was found. Assign an existing person or create a new identity.</span>
+                                                    <span>PRISM does not recognise this face. Name it as someone already in People, or as a new person.</span>
                                                 }
                                                 else
                                                 {
-                                                    <span>No reliable known-person match was found. There is no confirmed person to assign yet; create a new identity if this person should be identified.</span>
+                                                    <span>PRISM does not recognise this face, and nobody is in People yet. Name it as a new person if it should be named.</span>
                                                 }
                                             </div>
                                         }

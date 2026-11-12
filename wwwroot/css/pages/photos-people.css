@@ -1982,3 +1982,21 @@ a.identity-workload-pill:hover {
 .people-filter__form > label:first-of-type { margin-top:0; }
 .people-filter__check { align-items:center; display:flex; gap:.5rem; }
 .people-filter__check span { color:var(--pm-text); font-size:.85rem; font-weight:500; }
+
+/* Review people: the Photos bar, one plain heading, the three queues as chips. Theme tokens only. */
+.people-review-bar__menu { margin-left:auto; }
+.people-review-heading { margin:.2rem 0 .9rem; }
+.people-review-heading__back { color:var(--pm-text-muted); font-size:.8rem; font-weight:700; text-decoration:none; }
+.people-review-heading__back:hover { color:var(--pm-text); }
+.people-review-heading h1 { color:var(--pm-text); font-size:clamp(1.35rem, 2.2vw, 1.7rem); font-weight:700; letter-spacing:-.02em; margin:.15rem 0 .2rem; }
+.people-review-heading p { color:var(--pm-text-muted); font-size:.9rem; margin:0; max-width:62ch; }
+.people-queues { margin-bottom:.8rem; }
+.people-queues .photos-chip { align-items:center; display:inline-flex; gap:.4rem; min-height:2.4rem; }
+.people-queues .photos-chip strong { background:var(--pm-surface-muted); border-radius:999px; color:var(--pm-text); font-size:.72rem; padding:.05rem .45rem; }
+.people-queues .photos-chip.is-active strong { background:var(--pm-card); }
+/* On a phone the More menu stays on the row of the sections instead of taking a row of its own. */
+@media (max-width: 640px) {
+    .people-review-workspace .photos-bar { flex-wrap:nowrap; }
+    .people-review-workspace .photos-sections { flex:1 1 auto; min-width:0; width:auto; }
+    .people-review-workspace .photos-sections a { padding-left:.4rem; padding-right:.4rem; }
+}
