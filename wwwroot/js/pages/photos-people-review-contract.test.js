@@ -38,3 +38,18 @@ test('the grouping notice is shown only while groups are being rebuilt or could 
     assert.match(script, /groupingRefreshNotice\.hidden = !groupingRefreshFailed && !data\.groupingRefreshPending && !reloadOffered;/);
     assert.match(script, /groupingRefreshAction\.hidden = false;\s+\/\/.*\s+if \(groupingRefreshNotice instanceof HTMLElement\) \{\s+groupingRefreshNotice\.hidden = false;/);
 });
+
+test('a Same person? card: plain heading, sure faces start ticked, no scores on faces', () => {
+    const card = page.slice(page.indexOf('class="identity-group-card"'), page.indexOf('</article>', page.indexOf('class="identity-group-card"')));
+    assert.match(card, /<h2>These @group\.Members\.Count faces look like the same person<\/h2>/);
+    assert.match(card, /var startsTicked = member\.FaceId == group\.RepresentativeFaceId \|\| similarityBand == "strong";/);
+    assert.match(card, /checked="@startsTicked"/);
+    assert.match(card, /@if \(!startsTicked\)\s+\{\s+<span class="identity-similarity is-@similarityBand"><em>Less sure<\/em><\/span>/);
+    // The figures are in one place, behind a disclosure, and say what they are for.
+    const figures = card.slice(card.indexOf('<details class="identity-group-figures">'));
+    assert.match(figures, /<summary>How sure is PRISM\?<\/summary>/);
+    assert.match(figures, /It never names anyone\./);
+    const faces = card.slice(card.indexOf('class="identity-group-mosaic"'), card.indexOf('<details class="identity-group-figures">'));
+    assert.doesNotMatch(faces, /ToString\("0\.0+"\)/, 'no likeness number outside the disclosure');
+    assert.match(script, /`Confirm \$\{selected\} \$\{selected === 1 \? "face" : "faces"\}`/);
+});
