@@ -2055,3 +2055,47 @@ a.identity-workload-pill:hover {
 .person-manage > summary::-webkit-details-marker { display:none; }
 .person-manage[open] > summary { margin-bottom:.75rem; }
 .person-photo-card__details { margin:.2rem 0 .1rem; }
+
+/* Sort and filter for the faces: a row on wide screens, behind its heading on phones. Theme tokens only. */
+.face-review-more { flex:1 1 auto; min-width:0; }
+.face-review-more > summary { display:none; }
+.face-review-more__body { align-items:end; display:flex; flex-wrap:wrap; gap:.6rem .9rem; justify-content:space-between; }
+
+/* A tick box reached by keyboard shows on its tile. */
+.face-triage-card:has(:focus-visible),
+.person-photo-card:has(.person-photo-card__select :focus-visible) { outline:2px solid var(--pm-primary); outline-offset:2px; }
+
+/* Phones: faces start near the top, and everything pressed is at least 44px. */
+@media (max-width: 575.98px) {
+    .face-review-queue-controls { gap:.5rem; padding:.6rem; }
+    .face-review-more > summary { align-items:center; color:var(--pm-primary); cursor:pointer; display:flex; font-size:.86rem; font-weight:700; gap:.4rem; list-style:none; min-height:2.75rem; }
+    .face-review-more > summary::-webkit-details-marker { display:none; }
+    .face-review-more > summary::after { border-bottom:2px solid currentColor; border-right:2px solid currentColor; content:""; height:.45rem; margin-left:auto; transform:rotate(45deg); width:.45rem; }
+    .face-review-more[open] > summary::after { transform:rotate(-135deg); }
+    .face-review-more__body { display:grid; gap:.6rem; padding-top:.35rem; }
+    .face-review-queue-controls .form-select,
+    .face-review-queue-controls .btn,
+    .face-review-batch .form-select,
+    .face-review-batch .form-control,
+    .face-review-batch .btn,
+    .people-review-workspace .people-name-field .form-control,
+    .people-review-workspace .people-name-field .btn,
+    .people-review-workspace .identity-review-actions .btn,
+    .people-review-workspace .person-photo-section__tools .btn { min-height:2.75rem; }
+    .people-review-workspace .btn:not(.btn-link),
+    .people-review-workspace .form-select,
+    .people-review-workspace .form-control { min-height:2.75rem; }
+    .people-review-workspace .btn:not(.btn-link) { align-items:center; display:inline-flex; gap:.35rem; justify-content:center; }
+    .people-review-heading__back { align-items:center; display:inline-flex; min-height:2.75rem; }
+    .person-photo-card__select { height:2.75rem; width:2.75rem; }
+    .person-photo-card__details > summary,
+    .identity-group-figures > summary { align-items:center; display:inline-flex; min-height:2.75rem; }
+    .people-queues .photos-chip { min-height:2.75rem; }
+    .face-review-back,
+    .people-review-workspace .photos-bar a,
+    .face-triage-card__actions a,
+    .people-review-done .btn-link { align-items:center; display:inline-flex; min-height:2.75rem; }
+    .face-triage-card__actions { margin-top:0; }
+    .face-triage-card__select { min-height:2.75rem; min-width:2.75rem; }
+    .face-review-batch__name .people-name-field { grid-template-columns:minmax(0, 1fr); }
+}
