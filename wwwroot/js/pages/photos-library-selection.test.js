@@ -11,11 +11,11 @@ const libraryScript = fs.readFileSync(path.resolve(__dirname, 'photos-library.js
 const tile = (id) => `<button type="button" class="photos-tile" data-media-item data-media-key="asset-${id}" data-asset-id="${id}" data-kind="photo">
     <span class="photos-tile__select"></span><img alt=""></button>`;
 
-function createPage() {
+function createPage(barExtra = '') {
     const dom = new JSDOM(`<!doctype html><html><body>
       <div data-photos-library>
         <button type="button" data-photos-select-toggle aria-pressed="false"><span>Select</span></button>
-        <div data-photos-selection-bar hidden><span data-selection-count></span></div>
+        <div data-photos-selection-bar hidden><span data-selection-count></span>${barExtra}</div>
         <div class="photos-grid">${[1, 2, 3].map(tile).join('')}</div>
       </div>
       <div class="modal" id="albumModal"></div>
@@ -83,13 +83,9 @@ test('after a drag that ends away from a picture, the next click on a picture co
 });
 
 test('the selection is written into a form when the action is used, not on every tick', () => {
-    const { window, doc, tiles, click } = createPage();
-    const bar = doc.querySelector('[data-photos-selection-bar]');
-    bar.insertAdjacentHTML('beforeend', `
+    const { window, doc, tiles, click } = createPage(`
         <form data-selection-download-form action="/Photos/Download" method="post"><button type="submit" data-selection-download></button></form>
         <a href="/Photos/People/Review?Mode=unidentified" data-selection-review-people data-base-url="/Photos/People/Review?Mode=unidentified">Review people</a>`);
-    // The page script has already run; run it again so it finds the form and the link.
-    window.eval(libraryScript);
     const form = doc.querySelector('[data-selection-download-form]');
     const link = doc.querySelector('[data-selection-review-people]');
     const fields = () => [...form.querySelectorAll('input[name="assetIds"]')].map(input => input.value);

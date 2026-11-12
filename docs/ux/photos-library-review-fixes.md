@@ -81,6 +81,48 @@ names stay as they are.
 
 Order: 2, 3, 4 first (bugs and cost), 5 to confirm them, then 6 to 9.
 
+## Large-library check (PR 5)
+
+Run on 12 Nov 2026 against a throwaway copy of the local database filled by
+`tools/dev-data/photos-bulk-demo-seed.sql`: 6,018 visible items (5,834 photos, 184 videos) over
+30 months and 552 days, up to 82 in a day. The copies reuse the 18 local pictures, so image
+decoding and network cost are lighter than a real library's. The browser was the desktop app's
+built-in pane at 1440 px; it throttles painting, so times are script and layout time, not
+what a person sees frame by frame.
+
+| What | Result |
+| --- | --- |
+| First page | 0.5 s to first byte, 510 KB of HTML for 120 tiles |
+| A scrolled part, server | about 25 ms to first byte, 35 ms to download, 390 KB |
+| A scrolled part, browser | about 200 ms in all, steady from the first part to the fiftieth |
+| Scrolling to the end | all 6,018 pictures loaded in 50 parts, none twice, "No more pictures" shown |
+| Page size at the end | 85,000 elements, 9 to 18 MB of script memory |
+| Database (EXPLAIN ANALYZE) | first page 0.35 ms, page 40 5.7 ms, total count 4.1 ms, month counts 6.0 ms |
+
+Two things were slow and are fixed in the same PR:
+
+| What | Before | After |
+| --- | --- | --- |
+| "Select all shown" | 7.3 s with 6,018 loaded | 0.27 s with 3,000 loaded |
+| Opening or closing the viewer | 0.46 s with 6,018 loaded | 0.24 to 0.34 s with 3,000 loaded |
+
+- **Select all:** a hidden field for every selected picture was written into three forms on every
+  change of selection. The fields are now written when the form is sent, and the review link when
+  it is used.
+- **Viewer:** hiding the page's scrollbar widened the page behind, so every grid was laid out
+  again. The scrollbar's space is now kept while the viewer is open.
+
+Still true, and accepted for now:
+
+- Tiles are never removed, so with thousands loaded each change that touches the whole page
+  (opening the viewer, starting to select) costs about 0.3 s. Removing off-screen days would fix
+  it and is a larger change than this plan covers.
+- A tile is about 2.4 KB of HTML, most of it data attributes the viewer reads. A leaner tile
+  would cut the 390 KB per part.
+- Paging is by offset. It is fast at this size (5.7 ms at page 40); a keyset cursor would matter
+  only for libraries far larger than this.
+- `IX_MediaAssets_LibraryTimeline` was not chosen by the planner for any of the three queries.
+
 ## Owner decisions
 
 | # | Question | Recommendation |
