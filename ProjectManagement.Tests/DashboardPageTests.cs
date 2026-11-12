@@ -241,7 +241,7 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
-        public async Task OnGetAsync_ItProjectsCardCountsListedAsCompletedPlusOngoing()
+        public async Task OnGetAsync_ProjectModuleCardsCountListedAsCompletedPlusOngoing()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -282,20 +282,27 @@ namespace ProjectManagement.Tests
             await signedIn.OnGetAsync(CancellationToken.None);
 
             // Ten ongoing and two completed are listed; the dropped case is in none of the three.
-            var card = Assert.IsType<IndexModel.DashboardItProjectsVm>(signedIn.ItProjects);
+            // One card per module, in the modules' order, each from that module's own board.
+            Assert.Equal(new[] { "IT", "MOLTI", "SRE" }, signedIn.ModuleProjects.Select(card => card.Module));
+            Assert.Equal(new[] { "/ItProjects/Index", "/MoltiProjects/Index", "/SreProjects/Index" }, signedIn.ModuleProjects.Select(card => card.Page));
+            Assert.Equal(new[] { "IT", "MOLTI", "SRE" }, itProjects.Queries.Select(query => query.Module));
+            var card = signedIn.ModuleProjects[0];
             Assert.Equal((12, 2, 10), (card.Listed, card.Completed, card.Ongoing));
-            Assert.Equal(ItProjectBoardScope.All, itProjects.LastQuery!.Scope);
-            Assert.Equal(card.FinancialYearStart, itProjects.LastQuery.FinancialYearStart);
+            Assert.All(itProjects.Queries, query =>
+            {
+                Assert.Equal(ItProjectBoardScope.All, query.Scope);
+                Assert.Equal(card.FinancialYearStart, query.FinancialYearStart);
+            });
 
             // Not signed in: the card is not built at all.
             var anonymous = Build(new ClaimsPrincipal(new ClaimsIdentity()));
             await anonymous.OnGetAsync(CancellationToken.None);
-            Assert.Null(anonymous.ItProjects);
+            Assert.Empty(anonymous.ModuleProjects);
         }
 
         private sealed class StubItProjectReadService : IItProjectReadService
         {
-            public ItProjectBoardQuery? LastQuery { get; private set; }
+            public List<ItProjectBoardQuery> Queries { get; } = new();
 
             public Task<ProjectManagement.Models.ItProjects.ItProject?> GetAsync(int id, string module, CancellationToken cancellationToken = default)
                 => throw new NotSupportedException();
@@ -305,7 +312,7 @@ namespace ProjectManagement.Tests
 
             public Task<ItProjectBoard> GetBoardAsync(ItProjectBoardQuery query, CancellationToken cancellationToken = default)
             {
-                LastQuery = query;
+                Queries.Add(query);
                 return Task.FromResult(new ItProjectBoard(
                     Array.Empty<ItProjectBoardRow>(),
                     Array.Empty<ItProjectBoardStageCount>(),

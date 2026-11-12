@@ -420,7 +420,7 @@
         </section>
 
         @* Three slim cards: a few figures each. Like the output tiles above, the whole card is the link to its module. *@
-        <section class="db-trio-grid db-reveal" aria-label="Activities, ideas and IT projects">
+        <section class="db-trio-grid db-reveal" aria-label="Activities, ideas and IT, MOLTI and SRE projects">
             <a asp-page="/Activities/Index" class="db-panel db-hue-4 db-slim" title="View activities">
                 <div class="db-section-head">
                     <div><span class="db-section-icon"><i class="bi bi-people"></i></span><div><h2>Institutional activities</h2><p>Last 12 months</p></div></div>
@@ -450,16 +450,22 @@
                 </div>
             </a>
 
-            @if (Model.ItProjects is { } it)
+            @foreach (var module in Model.ModuleProjects)
             {
-                <a asp-page="/ItProjects/Index" class="db-panel db-hue-5 db-slim" title="Open IT projects">
+                var moduleIcon = module.Module switch
+                {
+                    ProjectManagement.Models.ItProjects.ItProjectModules.Molti => "bi-clipboard-check",
+                    ProjectManagement.Models.ItProjects.ItProjectModules.Sre => "bi-clipboard-pulse",
+                    _ => "bi-pc-display"
+                };
+                <a asp-page="@module.Page" class="db-panel db-hue-5 db-slim db-slim--module" title="Open @module.Name">
                     <div class="db-section-head">
-                        <div><span class="db-section-icon"><i class="bi bi-pc-display"></i></span><div><h2>IT projects</h2><p>FY @it.FinancialYearDisplay</p></div></div>
+                        <div><span class="db-section-icon"><i class="bi @moduleIcon"></i></span><div><h2>@module.Name</h2><p>FY @module.FinancialYearDisplay</p></div></div>
                     </div>
                     <div class="db-figures">
-                        <div class="db-figure"><strong>@it.Listed</strong><span>Listed</span></div>
-                        <div class="db-figure"><strong>@it.Completed</strong><span>Completed</span></div>
-                        <div class="db-figure"><strong>@it.Ongoing</strong><span>Ongoing</span></div>
+                        <div class="db-figure"><strong>@module.Listed</strong><span>Listed</span></div>
+                        <div class="db-figure"><strong>@module.Completed</strong><span>Completed</span></div>
+                        <div class="db-figure"><strong>@module.Ongoing</strong><span>Ongoing</span></div>
                     </div>
                 </a>
             }

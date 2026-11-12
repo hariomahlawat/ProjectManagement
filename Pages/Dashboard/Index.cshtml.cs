@@ -12,6 +12,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Notebook;
 using ProjectManagement.Services.Dashboard;
+using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Helpers;
 using System;
@@ -87,8 +88,8 @@ namespace ProjectManagement.Pages.Dashboard
         public DashboardActivitySummaryVm ActivitySummary { get; private set; } = new();
         public DashboardIdeaSummaryVm IdeaSummary { get; private set; } = new();
 
-        /// <summary>Null when the caller may not view IT projects or the figures could not be read.</summary>
-        public DashboardItProjectsVm? ItProjects { get; private set; }
+        /// <summary>One card each for IT, MOLTI and SRE projects; empty when the caller may not view them, and without a module whose figures could not be read.</summary>
+        public IReadOnlyList<DashboardModuleProjectsVm> ModuleProjects { get; private set; } = Array.Empty<DashboardModuleProjectsVm>();
         public DateTimeOffset DashboardLoadedAtIst { get; private set; }
 
         /// <summary>"Good morning, Lt Col A Kumar": the header greeting for the signed-in user.</summary>
@@ -131,10 +132,18 @@ namespace ProjectManagement.Pages.Dashboard
         }
 
         /// <summary>
-        /// IT projects card: the cases that count in the current financial year. Listed is completed
+        /// A project module's card (IT, MOLTI, SRE): the cases that count in the current financial year. Listed is completed
         /// plus ongoing; a dropped case is in none of the three.
         /// </summary>
-        public sealed record DashboardItProjectsVm(int FinancialYearStart, string FinancialYearDisplay, int Listed, int Completed, int Ongoing);
+        public sealed record DashboardModuleProjectsVm(
+            string Module,
+            string Name,
+            string Page,
+            int FinancialYearStart,
+            string FinancialYearDisplay,
+            int Listed,
+            int Completed,
+            int Ongoing);
 
         // SECTION: My Projects widget state
         public bool ShowMyProjectsWidget { get; private set; }
@@ -471,27 +480,36 @@ namespace ProjectManagement.Pages.Dashboard
                 IdeaSummary = new DashboardIdeaSummaryVm();
             }
 
-            // IT projects: the same board counts the IT projects page shows for the current financial year.
+            // IT, MOLTI and SRE projects: for each module, the board counts its own page shows for the
+            // current financial year. A module that fails is left out; the others still show.
             if (_itProjects is not null && ItProjectAccess.CanView(User))
             {
-                try
+                var financialYear = ItProjectYearTypes.CurrentFinancialYear(DateTimeOffset.UtcNow);
+                var cards = new List<DashboardModuleProjectsVm>();
+                foreach (var module in ItProjectModules.All)
                 {
-                    var financialYear = ItProjectYearTypes.CurrentFinancialYear(DateTimeOffset.UtcNow);
-                    var board = await _itProjects.GetBoardAsync(
-                        new ItProjectBoardQuery(ItProjectBoardScope.All, financialYear),
-                        cancellationToken);
-                    ItProjects = new DashboardItProjectsVm(
-                        financialYear,
-                        ProjectManagement.Utilities.FinancialYearHelper.Format(financialYear),
-                        board.ActiveCount + board.CompletedCount,
-                        board.CompletedCount,
-                        board.ActiveCount);
+                    try
+                    {
+                        var board = await _itProjects.GetBoardAsync(
+                            new ItProjectBoardQuery(ItProjectBoardScope.All, financialYear, Module: module.Code),
+                            cancellationToken);
+                        cards.Add(new DashboardModuleProjectsVm(
+                            module.Code,
+                            module.Name,
+                            module.PageFolder + "/Index",
+                            financialYear,
+                            ProjectManagement.Utilities.FinancialYearHelper.Format(financialYear),
+                            board.ActiveCount + board.CompletedCount,
+                            board.CompletedCount,
+                            board.ActiveCount));
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Dashboard widget failed: {Module} projects", module.Code);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Dashboard widget failed: IT projects");
-                    ItProjects = null;
-                }
+
+                ModuleProjects = cards;
             }
 
             try
