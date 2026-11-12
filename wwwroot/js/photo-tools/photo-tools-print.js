@@ -99,9 +99,9 @@
   function makeCopy() {
     const from = shared.sizeOf(source);
     const part = core.coverCrop(from.width, from.height, size.width, size.height, place);
-    const cut = shared.newCanvas(part.width, part.height);
-    cut.getContext('2d').drawImage(source, part.x, part.y, part.width, part.height, 0, 0, part.width, part.height);
-    copy = shared.drawPhoto(cut, size.width, size.height, { opaque: true });
+    // Read straight from the photo: copying the part out first would make a full-size canvas
+    // on every move while the photo is dragged.
+    copy = shared.drawPhoto(source, size.width, size.height, { opaque: true, area: part });
 
     movable = !part.whole;
     placeBox.hidden = !movable;

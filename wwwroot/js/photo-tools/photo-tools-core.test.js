@@ -663,6 +663,16 @@ test('arrowHead points along the line, and thinPoints keeps the ends', () => {
   assert.deepEqual(tools.thinPoints(line.slice(0, 2), 5), line.slice(0, 2));
 });
 
+test('penStroke ignores a tap, and a wiggle that never leaves the line width', () => {
+  assert.equal(tools.penStroke([], 4), null);
+  assert.equal(tools.penStroke([{ x: 5, y: 5 }], 4), null, 'a tap');
+  assert.equal(tools.penStroke([{ x: 5, y: 5 }, { x: 5, y: 5 }], 4), null, 'a tap that sent a move');
+  assert.equal(tools.penStroke([{ x: 5, y: 5 }, { x: 7, y: 6 }, { x: 5, y: 6 }], 4), null, 'a wiggle under the line width');
+  // A loop that comes back to its start still counts: what matters is how far it went.
+  const loop = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 0 }];
+  assert.deepEqual(tools.penStroke(loop, 4), tools.thinPoints(loop, 2));
+});
+
 test('hidePixels removes the detail: pixelate gives flat squares, blur blends them', () => {
   assert.equal(tools.hideBlock(200, 100), 20);
   assert.equal(tools.hideBlock(30, 20), 6);
