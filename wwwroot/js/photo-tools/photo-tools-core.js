@@ -316,14 +316,29 @@
   //
   // The background of a passport photo is found by colour, starting from the edges of the photo.
   // It works on a plain wall or curtain and refuses anything else; there is no model that knows
-  // what a person looks like.
+  // what a person looks like. The numbers below were set on real photographs; see
+  // docs/photo-tools.md before changing them.
 
-  // Brightness counts for much less than colour when telling wall from person, so a shadow or
-  // uneven light on a wall is still wall. Colour differences count double.
+  // When deciding whether a background is plain, brightness counts for much less than colour,
+  // so a shadow or uneven light on a wall is still a plain wall. Colour differences count double.
   const BACKGROUND_LUMA_WEIGHT = 0.4;
   const BACKGROUND_COLOUR_WEIGHT = 2;
   // Above this spread along the edges the background is patterned, not plain.
   const BACKGROUND_BUSY_SPREAD = 22;
+  // Against the colour expected at a pixel, brightness counts nearly in full: there the uneven
+  // light is already allowed for, and brightness is what tells a white shirt from a white wall.
+  const BACKGROUND_STEP_LUMA = 0.8;
+  // How far a pixel may be from the colour expected there, at Less and at More.
+  const BACKGROUND_LIMIT_LESS = 7;
+  const BACKGROUND_LIMIT_MORE = 21;
+  // How far the colour of one square may move from the edge colour before it is not believed.
+  const BACKGROUND_DRIFT = 45;
+  const BACKGROUND_ROUNDS = 12;
+  // A boundary pixel this far from the wall colour is all person; nearer, it is part wall.
+  const BACKGROUND_EDGE_SOFTNESS = 36;
+  // How quickly the brightness may change from pixel to pixel and still be wall, at Less and More.
+  const BACKGROUND_EDGE_LESS = 6;
+  const BACKGROUND_EDGE_MORE = 13;
   const BACKGROUND_STATUS = Object.freeze({
     changed: 'changed',
     busy: 'busy',
@@ -331,14 +346,14 @@
     tooMuch: 'too-much'
   });
 
-  function backgroundDistance(r, g, b, colour) {
+  function backgroundDistance(r, g, b, colour, lumaWeight) {
     const dr = r - colour[0];
     const dg = g - colour[1];
     const db = b - colour[2];
     const luma = 0.299 * dr + 0.587 * dg + 0.114 * db;
     const blue = (db - luma) * 0.564 * BACKGROUND_COLOUR_WEIGHT;
     const red = (dr - luma) * 0.713 * BACKGROUND_COLOUR_WEIGHT;
-    const light = luma * BACKGROUND_LUMA_WEIGHT;
+    const light = luma * lumaWeight;
     return Math.sqrt(light * light + blue * blue + red * red);
   }
 
@@ -384,7 +399,7 @@
     });
     const distances = new Float32Array(edge.length);
     edge.forEach((index, at) => {
-      distances[at] = backgroundDistance(pixels[index * 4], pixels[index * 4 + 1], pixels[index * 4 + 2], colour);
+      distances[at] = backgroundDistance(pixels[index * 4], pixels[index * 4 + 1], pixels[index * 4 + 2], colour, BACKGROUND_LUMA_WEIGHT);
     });
     distances.sort();
     // The eighth decile: a little hair or a shoulder at the edge does not make a wall busy.
@@ -393,8 +408,9 @@
   }
 
   /**
-   * Gives the background of RGBA pixels a new colour, in place. `amount` (0 to 100) is how far
-   * from the background colour a pixel may be and still count as background.
+   * Gives the background of RGBA pixels a new colour, in place. `amount` (0 to 100) is how
+   * readily a pixel counts as background: how far it may be from the colour expected at that
+   * spot, and how quickly the brightness may change there.
    *
    * Returns a status and leaves the pixels alone unless it is "changed":
    *   busy      the background is not plain;
@@ -408,40 +424,196 @@
     if (!measured.plain) return { status: BACKGROUND_STATUS.busy, share: 0 };
 
     const old = measured.colour;
-    const limit = 12 + Math.min(100, Math.max(0, Number(amount) || 0)) * 0.36;
-    const distance = new Float32Array(total);
+    const limit = BACKGROUND_LIMIT_LESS
+      + Math.min(100, Math.max(0, Number(amount) || 0)) / 100 * (BACKGROUND_LIMIT_MORE - BACKGROUND_LIMIT_LESS);
+
+    // The background colour is not the same everywhere: light falls off across a wall and a
+    // backdrop is mottled. So the colour is kept per square of a coarse grid, starting as the
+    // one colour read from the edges and corrected from the background found so far.
+    const cell = Math.max(6, Math.round(Math.min(width, height) / 24));
+    const columns = Math.ceil(width / cell);
+    const rows = Math.ceil(height / cell);
+    const field = new Float32Array(columns * rows * 3);
+    for (let i = 0; i < columns * rows; i += 1) field.set(old, i * 3);
+    const local = [0, 0, 0];
+    /** The background colour expected at a pixel, blended between the squares around it. */
+    const colourAt = (x, y) => {
+      const fx = Math.min(columns - 1, Math.max(0, (x + 0.5) / cell - 0.5));
+      const fy = Math.min(rows - 1, Math.max(0, (y + 0.5) / cell - 0.5));
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = Math.min(columns - 1, x0 + 1);
+      const y1 = Math.min(rows - 1, y0 + 1);
+      const tx = fx - x0;
+      const ty = fy - y0;
+      for (let channel = 0; channel < 3; channel += 1) {
+        const top = field[(y0 * columns + x0) * 3 + channel] * (1 - tx) + field[(y0 * columns + x1) * 3 + channel] * tx;
+        const bottom = field[(y1 * columns + x0) * 3 + channel] * (1 - tx) + field[(y1 * columns + x1) * 3 + channel] * tx;
+        local[channel] = top * (1 - ty) + bottom * ty;
+      }
+      return local;
+    };
+
+    // A wall is smooth; the outline of a person, and cloth, are not. Where the brightness
+    // changes quickly from one pixel to the next the background does not spread, even when
+    // the colour there is close to the wall's (a blue jacket against a blue backdrop).
+    const strength = Math.min(100, Math.max(0, Number(amount) || 0)) / 100;
+    const edgeLimit = BACKGROUND_EDGE_LESS + strength * (BACKGROUND_EDGE_MORE - BACKGROUND_EDGE_LESS);
+    const light = new Float32Array(total);
     for (let i = 0; i < total; i += 1) {
-      distance[i] = backgroundDistance(pixels[i * 4], pixels[i * 4 + 1], pixels[i * 4 + 2], old);
+      light[i] = 0.299 * pixels[i * 4] + 0.587 * pixels[i * 4 + 1] + 0.114 * pixels[i * 4 + 2];
+    }
+    // Averaged over three by three pixels first, so film grain and noise are not taken for edges.
+    const smooth = new Float32Array(total);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let sum = 0;
+        let count = 0;
+        for (let ny = Math.max(0, y - 1); ny <= Math.min(height - 1, y + 1); ny += 1) {
+          for (let nx = Math.max(0, x - 1); nx <= Math.min(width - 1, x + 1); nx += 1) {
+            sum += light[ny * width + nx];
+            count += 1;
+          }
+        }
+        smooth[y * width + x] = sum / count;
+      }
+    }
+    const steep = new Uint8Array(total);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const i = y * width + x;
+        const across = smooth[y * width + Math.min(width - 1, x + 1)] - smooth[y * width + Math.max(0, x - 1)];
+        const down = smooth[Math.min(height - 1, y + 1) * width + x] - smooth[Math.max(0, y - 1) * width + x];
+        steep[i] = Math.abs(across) + Math.abs(down) > edgeLimit ? 1 : 0;
+      }
     }
 
-    // Spread from the edges to every neighbour that is close enough to the background colour.
+    const rowColours = new Float32Array(columns * 3);
+    const distance = new Float32Array(total);
     const mask = new Uint8Array(total);
     const queue = new Int32Array(total);
     let head = 0;
     let tail = 0;
-    for (const index of measured.edge) {
-      if (!mask[index] && distance[index] < limit) {
-        mask[index] = 1;
-        queue[tail++] = index;
-      }
-    }
     const visit = (index) => {
-      if (!mask[index] && distance[index] < limit) {
+      if (!mask[index] && !steep[index] && distance[index] < limit) {
         mask[index] = 1;
         queue[tail++] = index;
       }
     };
-    while (head < tail) {
-      const index = queue[head++];
-      const x = index % width;
-      if (x > 0) visit(index - 1);
-      if (x < width - 1) visit(index + 1);
-      if (index >= width) visit(index - width);
-      if (index < total - width) visit(index + width);
+    let reached = -1;
+    for (let round = 0; round < BACKGROUND_ROUNDS; round += 1) {
+      for (let y = 0, i = 0; y < height; y += 1) {
+        // The colours of this row of pixels, one per column of squares; a pixel then only
+        // blends the two beside it.
+        const fy = Math.min(rows - 1, Math.max(0, (y + 0.5) / cell - 0.5));
+        const y0 = Math.floor(fy);
+        const y1 = Math.min(rows - 1, y0 + 1);
+        const ty = fy - y0;
+        for (let at = 0; at < columns * 3; at += 1) {
+          rowColours[at] = field[y0 * columns * 3 + at] * (1 - ty) + field[y1 * columns * 3 + at] * ty;
+        }
+        for (let x = 0; x < width; x += 1, i += 1) {
+          const fx = Math.min(columns - 1, Math.max(0, (x + 0.5) / cell - 0.5));
+          const x0 = Math.floor(fx);
+          const x1 = Math.min(columns - 1, x0 + 1);
+          const tx = fx - x0;
+          local[0] = rowColours[x0 * 3] * (1 - tx) + rowColours[x1 * 3] * tx;
+          local[1] = rowColours[x0 * 3 + 1] * (1 - tx) + rowColours[x1 * 3 + 1] * tx;
+          local[2] = rowColours[x0 * 3 + 2] * (1 - tx) + rowColours[x1 * 3 + 2] * tx;
+          distance[i] = backgroundDistance(pixels[i * 4], pixels[i * 4 + 1], pixels[i * 4 + 2], local, BACKGROUND_STEP_LUMA);
+        }
+      }
+      // Spread from the edges to every neighbour that is close enough to the colour expected there.
+      mask.fill(0);
+      head = 0;
+      tail = 0;
+      for (const index of measured.edge) visit(index);
+      while (head < tail) {
+        const index = queue[head++];
+        const x = index % width;
+        if (x > 0) visit(index - 1);
+        if (x < width - 1) visit(index + 1);
+        if (index >= width) visit(index - width);
+        if (index < total - width) visit(index + width);
+      }
+      // Nothing more was found with the corrected colours: done.
+      if (tail - reached <= total * 0.002) break;
+      reached = tail;
+      if (round === BACKGROUND_ROUNDS - 1) break;
+
+      // Correct each square from the background found in it. A square with little background,
+      // or whose colour has moved far from the edge colour (it has crept onto the person), takes
+      // the colour of the nearest squares that are sure.
+      const sums = new Float64Array(columns * rows * 4);
+      for (let y = 0, i = 0; y < height; y += 1) {
+        const row = Math.floor(y / cell) * columns;
+        for (let x = 0; x < width; x += 1, i += 1) {
+          if (!mask[i]) continue;
+          const at = (row + Math.floor(x / cell)) * 4;
+          sums[at] += pixels[i * 4];
+          sums[at + 1] += pixels[i * 4 + 1];
+          sums[at + 2] += pixels[i * 4 + 2];
+          sums[at + 3] += 1;
+        }
+      }
+      const known = new Uint8Array(columns * rows);
+      let waiting = [];
+      for (let i = 0; i < columns * rows; i += 1) {
+        const count = sums[i * 4 + 3];
+        if (count >= cell * cell * 0.1) {
+          const r = sums[i * 4] / count;
+          const g = sums[i * 4 + 1] / count;
+          const b = sums[i * 4 + 2] / count;
+          if (backgroundDistance(r, g, b, old, BACKGROUND_LUMA_WEIGHT) < BACKGROUND_DRIFT) {
+            field[i * 3] = r;
+            field[i * 3 + 1] = g;
+            field[i * 3 + 2] = b;
+            known[i] = 1;
+            continue;
+          }
+        }
+        waiting.push(i);
+      }
+      while (waiting.length && waiting.length < columns * rows) {
+        const filled = [];
+        const still = [];
+        for (const i of waiting) {
+          const cx = i % columns;
+          const cy = Math.floor(i / columns);
+          let r = 0;
+          let g = 0;
+          let b = 0;
+          let count = 0;
+          for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (nx < 0 || ny < 0 || nx >= columns || ny >= rows || !known[ny * columns + nx]) continue;
+            r += field[(ny * columns + nx) * 3];
+            g += field[(ny * columns + nx) * 3 + 1];
+            b += field[(ny * columns + nx) * 3 + 2];
+            count += 1;
+          }
+          if (count) {
+            filled.push([i, r / count, g / count, b / count]);
+          } else {
+            still.push(i);
+          }
+        }
+        if (!filled.length) break;
+        for (const [i, r, g, b] of filled) {
+          field[i * 3] = r;
+          field[i * 3 + 1] = g;
+          field[i * 3 + 2] = b;
+          known[i] = 1;
+        }
+        waiting = still;
+      }
     }
 
-    // Small specks left standing inside the background (a mark on the wall, noise) go with it.
-    const speck = Math.max(4, Math.round(total * 0.0004));
+    // Islands left standing inside the background (a mark or a darker patch on the wall, noise)
+    // go with it. The person is one large piece that reaches the bottom of the photo, so a
+    // piece that reaches the bottom is never an island.
+    const speck = Math.max(4, Math.round(total * 0.005));
     const seen = new Uint8Array(total);
     const gather = (index) => {
       if (!mask[index] && !seen[index]) {
@@ -463,7 +635,11 @@
         if (index < total - width) gather(index + width);
       }
       if (tail <= speck) {
-        for (let i = 0; i < tail; i += 1) mask[queue[i]] = 1;
+        let standing = false;
+        for (let i = 0; i < tail && !standing; i += 1) standing = queue[i] >= total - width;
+        if (!standing) {
+          for (let i = 0; i < tail; i += 1) mask[queue[i]] = 1;
+        }
       }
     }
 
@@ -484,10 +660,10 @@
     }
     if (inFace > (right - left) * (bottom - top) * 0.2) return { status: BACKGROUND_STATUS.tooMuch, share };
 
-    // The two rows of pixels on the person's side of the boundary: 1 touches the background,
-    // 2 touches those. They are a mix of person and wall (hair, a soft edge).
+    // The three rows of pixels on the person's side of the boundary: 1 touches the background,
+    // 2 touches those, 3 touches those. They are a mix of person and wall (hair, a soft edge).
     const ring = new Uint8Array(total);
-    for (let pass = 1; pass <= 2; pass += 1) {
+    for (let pass = 1; pass <= 3; pass += 1) {
       for (let y = 0; y < height; y += 1) {
         for (let x = 0; x < width; x += 1) {
           const index = y * width + x;
@@ -500,18 +676,18 @@
               const nx = x + dx;
               if (nx < 0 || nx >= width) continue;
               const near = ny * width + nx;
-              if (pass === 1 ? mask[near] : ring[near] === 1) {
+              if (pass === 1 ? mask[near] : ring[near] === pass - 1) {
                 touches = true;
                 break;
               }
             }
           }
           // Marked after the pass, so a pixel found in this pass does not pull in its neighbours.
-          if (touches) ring[index] = pass + 2;
+          if (touches) ring[index] = pass + 100;
         }
       }
       for (let i = 0; i < total; i += 1) {
-        if (ring[i] === pass + 2) ring[i] = pass;
+        if (ring[i] === pass + 100) ring[i] = pass;
       }
     }
 
@@ -523,14 +699,17 @@
         pixels[at + 2] = colour[2];
       } else if (ring[i]) {
         // How much of this pixel is person: nothing near the wall colour, all of it far from it.
-        let person = Math.min(1, Math.max(0, (distance[i] - limit * 0.6) / (limit * 1.2)));
-        if (ring[i] === 2) person = 0.5 + person * 0.5;
+        // The further in from the boundary, the more of it is person whatever its colour.
+        let person = Math.min(1, Math.max(0, (distance[i] - limit * 0.5) / BACKGROUND_EDGE_SOFTNESS));
+        if (ring[i] === 2) person = 0.35 + person * 0.65;
+        if (ring[i] === 3) person = 0.7 + person * 0.3;
         // The wall's share of the pixel changes colour; the person's share stays. This also
         // takes the old wall colour out of the edge, so no fringe of it is left.
         const wall = 1 - person;
-        pixels[at] = Math.min(255, Math.max(0, Math.round(pixels[at] + wall * (colour[0] - old[0]))));
-        pixels[at + 1] = Math.min(255, Math.max(0, Math.round(pixels[at + 1] + wall * (colour[1] - old[1]))));
-        pixels[at + 2] = Math.min(255, Math.max(0, Math.round(pixels[at + 2] + wall * (colour[2] - old[2]))));
+        const was = colourAt(i % width, Math.floor(i / width));
+        pixels[at] = Math.min(255, Math.max(0, Math.round(pixels[at] + wall * (colour[0] - was[0]))));
+        pixels[at + 1] = Math.min(255, Math.max(0, Math.round(pixels[at + 1] + wall * (colour[1] - was[1]))));
+        pixels[at + 2] = Math.min(255, Math.max(0, Math.round(pixels[at + 2] + wall * (colour[2] - was[2]))));
       }
     }
     return { status: BACKGROUND_STATUS.changed, share };
