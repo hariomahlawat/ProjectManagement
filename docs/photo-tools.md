@@ -139,9 +139,10 @@ step, so Undo takes it back.
   the photo. Text has an outline in a contrasting colour so it reads on any photo.
 - The geometry is in the core and tested (`dragRect`, `arrowHead`, `thinPoints`); the drawing is
   the browser's canvas.
-- **Cover** (the default) fills the dragged area with one plain colour, the average of the area
-  (`hidePixels` with `cover`). Nothing of what was there is left in the saved file, so it is the
-  mode for writing, names and numbers.
+- **Cover** (the default) fills the dragged area with solid black (`hidePixels` with `cover`).
+  The fill does not depend on what was covered (an average colour would still tell how much ink
+  was there), so nothing of it is left in the saved file. It is the mode for writing, names and
+  numbers.
 - **Blur** and **Pixelate** cut the dragged area into squares about a tenth of its longer side
   and replace each square with its average colour; Blur then blends between the squares. The
   detail is gone from the pixels, but one average per square is kept. A short word or number can

@@ -608,23 +608,22 @@ test('sharpenPixels and softenPixels give the same picture as a full-size copy w
   }
 });
 
-test('hidePixels cover leaves one plain colour and nothing of what was there', () => {
+test('hidePixels cover makes the area solid black whatever was there', () => {
   assert.deepEqual(Array.from(tools.HIDE_MODES), ['cover', 'blur', 'pixelate']);
 
-  // Dark writing on light paper: every pixel becomes the same colour, so no stroke is left.
+  // Dark writing on light paper: every pixel becomes solid black, so no stroke is left.
   const writing = picture(80, 20, (x, y) => ((x % 7 < 2 && y > 4 && y < 16) ? 20 : 230));
   tools.hidePixels(writing, 80, 20, 'cover');
-  const first = Array.from(writing.slice(0, 4));
   for (let i = 0; i < writing.length; i += 4) {
-    assert.deepEqual(Array.from(writing.slice(i, i + 4)), first, `pixel ${i / 4} is the plain colour`);
+    assert.deepEqual(Array.from(writing.slice(i, i + 4)), [0, 0, 0, 255], `pixel ${i / 4} is solid black`);
   }
-  assert.ok(first[0] > 20 && first[0] < 230, 'the colour is the average of the area');
-  assert.equal(first[3], 255, 'a solid photo stays solid');
 
-  // Two different texts of the same amount of ink give exactly the same cover.
-  const one = picture(40, 10, (x) => (x < 10 ? 0 : 255));
-  const two = picture(40, 10, (x) => (x >= 30 ? 0 : 255));
-  tools.hidePixels(one, 40, 10, 'cover');
-  tools.hidePixels(two, 40, 10, 'cover');
-  assert.deepEqual(Array.from(one), Array.from(two));
+  // The fill does not depend on what was covered: a little ink and a lot of ink (a "1" and an
+  // "8"), or a see-through patch, all give exactly the same pixels.
+  const little = picture(40, 10, (x) => (x < 4 ? 0 : 255));
+  const lots = picture(40, 10, (x) => (x < 30 ? 0 : 255));
+  const clear = new Uint8ClampedArray(40 * 10 * 4);
+  for (const patch of [little, lots, clear]) tools.hidePixels(patch, 40, 10, 'cover');
+  assert.deepEqual(Array.from(little), Array.from(lots));
+  assert.deepEqual(Array.from(little), Array.from(clear));
 });

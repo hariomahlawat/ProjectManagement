@@ -846,11 +846,21 @@
    * writing on a see-through PNG or WEBP is removed as well, not only its colour.
    *
    * Blur and pixelate keep one average per square, and a short text or number can sometimes be
-   * guessed back from those averages by trying every possible text. "cover" keeps nothing but one
-   * colour for the whole patch, so nothing of what was there is left to guess from.
+   * guessed back from those averages by trying every possible text. "cover" makes the patch solid
+   * black whatever was there (not its average, which would still tell how much ink it held), so
+   * nothing of what was there is left to guess from.
    */
   function hidePixels(pixels, width, height, mode) {
-    const block = mode === 'cover' ? Math.max(width, height) : hideBlock(width, height);
+    if (mode === 'cover') {
+      for (let i = 0; i < width * height * 4; i += 4) {
+        pixels[i] = 0;
+        pixels[i + 1] = 0;
+        pixels[i + 2] = 0;
+        pixels[i + 3] = 255;
+      }
+      return pixels;
+    }
+    const block = hideBlock(width, height);
     const columns = Math.ceil(width / block);
     const rows = Math.ceil(height / block);
     const sums = new Float64Array(columns * rows * 4);

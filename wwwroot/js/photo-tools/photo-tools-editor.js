@@ -116,6 +116,8 @@
   let saveTimer = null;
   let openRun = 0;
   let working = false;
+  // Counts the photos opened. A step waiting to start is dropped if another photo is opened meanwhile.
+  let photoGeneration = 0;
 
   // ---------------------------------------------------------------------------
   // Steps
@@ -283,6 +285,7 @@
     const showBusy = size.width * size.height * stepsToApply > BUSY_PIXELS;
     undoButton.disabled = true;
     redoButton.disabled = true;
+    const generation = photoGeneration;
     if (showBusy) {
       busyBox.hidden = false;
       busyStatus.textContent = 'Working…';
@@ -290,7 +293,8 @@
     }
     let done = false;
     try {
-      done = work();
+      // A new photo opened while waiting: the step was meant for the old one, so it is dropped.
+      if (generation === photoGeneration) done = work();
     } finally {
       working = false;
       busyBox.hidden = true;
@@ -895,6 +899,7 @@
       return;
     }
     if (original && typeof original.close === 'function') original.close();
+    photoGeneration += 1;
     fileName = file.name;
     original = source;
     originalSmall = shrink(original);
