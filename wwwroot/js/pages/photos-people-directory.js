@@ -12,6 +12,14 @@
         if ('ResizeObserver' in window) new ResizeObserver(syncBarOffset).observe(topbar);
     }
 
+    // Sort and filter menu: Bootstrap's dropdown takes the arrow keys of anything inside a menu
+    // that is not a text field, which would stop a select from changing its choice by keyboard.
+    // Arrow keys pressed on a select stay with the select.
+    workspace.querySelector('.people-filter__menu')?.addEventListener('keydown', (event) => {
+        const onSelect = event.target?.matches?.('select');
+        if (onSelect && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) event.stopPropagation();
+    });
+
     const searchForm = workspace.querySelector('[data-people-search-form]');
     const searchInput = workspace.querySelector('[data-people-search-input]');
     if (searchForm && searchInput) {
