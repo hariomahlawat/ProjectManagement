@@ -447,3 +447,75 @@ test('on narrow screens the details sheet is stacked above the arrows and the th
   assert.ok(zIndex(sheet) > zIndex(strip));
   assert.ok(zIndex(sheet) > zIndex(arrows));
 });
+
+test('a gallery still loading parts does not wrap round, and its count says more is to come', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <div class="photos-viewer" data-photos-viewer hidden aria-hidden="true">
+      <div role="dialog">
+        <strong data-viewer-title></strong><span data-viewer-position></span>
+        <button type="button" data-viewer-close></button>
+        <button type="button" data-viewer-prev></button><div data-viewer-media></div><button type="button" data-viewer-next></button>
+      </div>
+    </div></body></html>`, { url: 'http://localhost/Photos', runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const { window } = dom;
+  window.eval(viewerScript);
+  const viewer = window.document.querySelector('[data-photos-viewer]');
+  const make = (count) => Array.from({ length: count }, (_, i) => ({ key: `asset-${i + 1}`, kind: 'photo', displayUrl: `/m/${i + 1}`, title: `Picture ${i + 1}` }));
+  let more = true;
+  const asked = [];
+  const controller = window.PMMediaViewer.attach(viewer, { items: make(3), hasMore: () => more, onNearEnd: (index) => asked.push(index) });
+  const title = () => viewer.querySelector('[data-viewer-title]').textContent;
+  const position = () => viewer.querySelector('[data-viewer-position]').textContent;
+
+  controller.open(0);
+  assert.equal(position(), '1 of 3+');
+  key(window, 'ArrowLeft');
+  assert.equal(title(), 'Picture 1', 'Left on the first picture does not jump to the last one loaded');
+
+  controller.open(2);
+  asked.length = 0;
+  key(window, 'ArrowRight');
+  assert.equal(title(), 'Picture 3', 'Right on the last one loaded waits for the next part');
+  assert.deepEqual(asked, [2], 'and asks for it');
+
+  more = false;
+  controller.setItems(make(5));
+  assert.equal(position(), '3 of 5');
+  key(window, 'ArrowRight');
+  assert.equal(title(), 'Picture 4');
+  controller.open(4);
+  key(window, 'ArrowRight');
+  assert.equal(title(), 'Picture 1', 'the whole gallery is loaded, so it wraps as before');
+  window.close();
+});
+
+test('browser shortcuts pass through, and arrows on a focused video are left to the video', () => {
+  const { window } = overview();
+  click(window, window.document.getElementById('t1'));
+  const press = (name, init, target) => {
+    const event = new window.KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...init });
+    (target || window.document).dispatchEvent(event);
+    return event;
+  };
+
+  assert.equal(press('0', { ctrlKey: true }).defaultPrevented, false, 'Ctrl+0 is the browser\'s zoom reset');
+  assert.equal(press('-', { metaKey: true }).defaultPrevented, false);
+  assert.equal(press('ArrowLeft', { altKey: true }).defaultPrevented, false, 'Alt+Left is Back');
+  assert.equal(text(window, '[data-viewer-title]'), 'Cover', 'and the picture did not change');
+  assert.equal(press('ArrowRight').defaultPrevented, true);
+  assert.equal(text(window, '[data-viewer-title]'), 'Trials');
+
+  const video = window.document.createElement('video');
+  viewerOf(window).querySelector('[data-viewer-media]').appendChild(video);
+  assert.equal(press('ArrowRight', {}, video).defaultPrevented, false);
+  assert.equal(text(window, '[data-viewer-title]'), 'Trials', 'the arrow seeks the video, it does not change the item');
+  window.close();
+});
+
+test('the backdrop hides the page fully, and controls with keyboard focus do not fade', () => {
+  const styles = fs.readFileSync(path.join(root, 'wwwroot', 'css', 'widgets', 'media-viewer.css'), 'utf8');
+  const backdrop = styles.match(/\.photos-viewer__backdrop \{([^}]*)\}/)[1];
+  assert.doesNotMatch(backdrop, /rgba\(/, 'an opaque colour');
+  assert.match(styles, /\.is-idle \.photos-viewer__header:not\(:has\(:focus-visible\)\)/);
+  assert.doesNotMatch(styles, /rgba\(255, 255, 255, 0\.01\)/, 'no hover state that cannot be seen');
+});

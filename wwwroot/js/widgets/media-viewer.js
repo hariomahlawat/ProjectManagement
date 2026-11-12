@@ -54,6 +54,9 @@
         const hashPrefix = options.hashPrefix || '';
         const onRender = typeof options.onRender === 'function' ? options.onRender : null;
         const onNearEnd = typeof options.onNearEnd === 'function' ? options.onNearEnd : null;
+        // A gallery that loads in parts says whether more is still to come. While it is, the
+        // list held here is not the whole gallery: no wrapping round, and no false total.
+        const moreToCome = () => typeof options.hasMore === 'function' && Boolean(options.hasMore());
 
         const q = (selector) => viewer.querySelector(selector);
         const mediaHost = q('[data-viewer-media]');
@@ -196,7 +199,7 @@
         }
 
         function showPosition() {
-            if (position) position.textContent = items.length > 1 ? `${currentIndex + 1} of ${items.length}` : '';
+            if (position) position.textContent = items.length > 1 ? `${currentIndex + 1} of ${items.length}${moreToCome() ? '+' : ''}` : '';
         }
 
         // A strip of the thumbnails around the current item. Only a window of them is built,
@@ -274,6 +277,12 @@
 
         function step(delta) {
             if (!isOpen() || items.length < 2) return;
+            const target = currentIndex + delta;
+            if ((target < 0 || target >= items.length) && moreToCome()) {
+                // The end of what is loaded, not of the gallery: ask for more and stay put.
+                if (target >= items.length && onNearEnd) onNearEnd(currentIndex, items.length);
+                return;
+            }
             mediaHost.dataset.enter = delta > 0 ? 'next' : 'previous';
             render(currentIndex + delta);
             writeHash();
@@ -497,8 +506,14 @@
                 && event.target.closest('input, textarea, select, [contenteditable="true"]');
             if (typing && event.key !== 'Escape') return;
 
-            if (event.key === 'Escape') { event.preventDefault(); close(); }
-            else if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); }
+            if (event.key === 'Escape') { event.preventDefault(); close(); return; }
+            // Ctrl, Alt and the command key belong to the browser (zoom, back, forward).
+            if (event.ctrlKey || event.metaKey || event.altKey) return;
+            // On a focused video the arrow keys seek, as its own controls expect.
+            const onVideo = event.target instanceof win.HTMLElement && event.target.closest('video');
+            if (onVideo && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) return;
+
+            if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); }
             else if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
             else if (event.key === '+' || event.key === '=') { event.preventDefault(); setZoom(zoom + ZOOM_STEP); }
             else if (event.key === '-') { event.preventDefault(); setZoom(zoom - ZOOM_STEP); }

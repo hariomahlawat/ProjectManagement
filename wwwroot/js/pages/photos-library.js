@@ -195,7 +195,9 @@
         hashPrefix: '#media=',
         onRender: renderInfo,
         // Near the end of what is loaded, fetch the next part so the viewer can carry on.
-        onNearEnd: () => { void loadNextPart(); }
+        onNearEnd: () => { void loadNextPart(); },
+        // While parts remain, the viewer neither wraps round nor shows a final total.
+        hasMore: () => Boolean(nextPartUrl)
     });
 
     // One listener for every tile, including tiles added later as the user scrolls.
@@ -840,9 +842,18 @@
         removeLasso();
     });
     document.addEventListener('pointercancel', removeLasso);
+    // A drag that ended away from a picture is followed by no click on one; a new press
+    // starts afresh, so the click after it is not swallowed.
+    document.addEventListener('pointerdown', () => { suppressNextClick = false; }, true);
+    // Escape ends selecting, but not when it was pressed to close something lying over the
+    // page. Heard before those close themselves, so what was open can still be seen.
     document.addEventListener('keydown', event => {
-        if (selecting && event.key === 'Escape') leaveSelectionMode();
-    });
+        if (!selecting || event.key !== 'Escape') return;
+        const lyingOver = [...document.querySelectorAll('.modal, .offcanvas, .dropdown-menu')].some(layer => layer.classList.contains('show'))
+            || [...document.querySelectorAll('[data-photos-viewer], [data-photos-suggest]')].some(layer => !layer.hidden);
+        if (lyingOver) return;
+        leaveSelectionMode();
+    }, true);
 
     // Tiles added while scrolling join the selection mode that is already active.
     library.addEventListener('photos:tiles-changed', () => {

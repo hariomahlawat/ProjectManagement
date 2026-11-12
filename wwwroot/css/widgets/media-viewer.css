@@ -7,7 +7,7 @@
 /* Sized to the screen (100vw), not the layout: if something on the page behind is wider than a
    phone, the layout widens with it and a viewer pinned to it would hang off the right edge. */
 .photos-viewer { inset: 0 auto 0 0; position: fixed; width: 100vw; z-index: 1085; }
-.photos-viewer__backdrop { backdrop-filter: blur(4px); background: rgba(5, 8, 14, .965); inset: 0; position: absolute; }
+.photos-viewer__backdrop { background: rgb(5, 8, 14); inset: 0; position: absolute; }
 
 .photos-viewer__dialog {
     color: #fff;
@@ -130,10 +130,11 @@
 @keyframes photos-viewer-next { from { opacity: 0; transform: translateX(3.5rem); } }
 @keyframes photos-viewer-previous { from { opacity: 0; transform: translateX(-3.5rem); } }
 
-/* The header and arrows fade while the pointer is still, leaving only the picture. */
-.photos-viewer.is-idle .photos-viewer__header,
-.photos-viewer.is-idle .photos-viewer__nav,
-.photos-viewer.is-idle .photos-viewer__strip { opacity: 0; pointer-events: none; }
+/* The header and arrows fade while the pointer is still, leaving only the picture. They stay
+   while a control in them shows keyboard focus, so the focused control is never invisible. */
+.photos-viewer.is-idle .photos-viewer__header:not(:has(:focus-visible)),
+.photos-viewer.is-idle .photos-viewer__nav:not(:focus-visible),
+.photos-viewer.is-idle .photos-viewer__strip:not(:has(:focus-visible)) { opacity: 0; pointer-events: none; }
 
 /* A strip of nearby thumbnails along the bottom of the stage (galleries that provide them). */
 .photos-viewer__strip { align-items: center; bottom: 0; display: flex; gap: .25rem; left: 0; overflow-x: auto; overflow-y: hidden; padding: .6rem 1rem .75rem; position: absolute; right: 0; scrollbar-width: none; transition: opacity .25s ease; z-index: 2; }
@@ -223,7 +224,7 @@
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__backdrop {
-    background: rgba(0, 0, 0, 0.97);
+    background: #000;
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__dialog {
@@ -248,23 +249,30 @@
     color: #fff;
 }
 
+/* The viewer is dark in both themes, so hover and pressed states match the light theme's. */
 :where([data-bs-theme="dark"]) .photos-viewer__actions a:hover,
 :where([data-bs-theme="dark"]) .photos-viewer__actions button:hover,
 :where([data-bs-theme="dark"]) .photos-viewer__actions button[aria-pressed="true"] {
-    background: rgba(255, 255, 255, 0.01);
-}
-
-:where([data-bs-theme="dark"]) .photos-viewer__media video {
-    background: #000;
+    background: rgba(255, 255, 255, 0.12);
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__nav {
-    background: rgba(255, 255, 255, 0.01);
+    background: rgba(255, 255, 255, 0.08);
     color: #fff;
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__nav:hover {
-    background: rgba(255, 255, 255, 0.01);
+    background: rgba(255, 255, 255, 0.18);
+}
+
+/* On phones the arrows are full-height strips with no background, in both themes. */
+@media (max-width: 640px) {
+    :where([data-bs-theme="dark"]) .photos-viewer__nav,
+    :where([data-bs-theme="dark"]) .photos-viewer__nav:hover { background: transparent; }
+}
+
+:where([data-bs-theme="dark"]) .photos-viewer__media video {
+    background: #000;
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__info {
