@@ -17,7 +17,7 @@
         <span class="visually-hidden">Select possible appearance from @candidate.ContextTitle</span>
     </label>
     <div class="person-photo-candidate__face">
-        <img src="@Url.Page("/Photos/FaceThumbnail", new { id = candidate.FaceId })"
+        <img src="@Url.Page("/Photos/FaceThumbnail", new { id = candidate.FaceId, personId = Model.PersonId })"
              alt="Possible appearance of @Model.PersonDisplayName from @candidate.ContextTitle"
              loading="lazy" decoding="async" />
         <span class="person-photo-candidate__evidence @evidenceClass" title="Similarity is a ranking signal, not identity probability.">

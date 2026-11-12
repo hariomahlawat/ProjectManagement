@@ -7,7 +7,6 @@
     color: var(--people-ink);
 }
 
-.people-header,
 .person-profile-header {
     display: flex;
     gap: 1.5rem;
@@ -15,7 +14,6 @@
     margin-bottom: 1.15rem;
 }
 
-.people-header h1,
 .person-profile-header h1 {
     font-size: clamp(2rem, 3vw, 2.75rem);
     font-weight: 760;
@@ -24,7 +22,6 @@
     margin: .15rem 0 .35rem;
 }
 
-.people-header p,
 .person-profile-header p,
 .person-governance p,
 .person-photo-section > header p {
@@ -48,72 +45,6 @@
     gap: .5rem;
 }
 
-.people-count-badge {
-    align-items: center;
-    background: #b42318;
-    border: 2px solid #fff;
-    border-radius: 999px;
-    color: #fff;
-    display: inline-flex;
-    font-size: .62rem;
-    font-weight: 800;
-    height: 1.25rem;
-    justify-content: center;
-    min-width: 1.25rem;
-    padding: 0 .25rem;
-    position: absolute;
-    right: -.38rem;
-    top: -.42rem;
-}
-
-.people-summary {
-    background: var(--pm-card, #fff);
-    border: 1px solid var(--people-line);
-    border-radius: 1rem;
-    display: flex;
-    gap: clamp(1rem, 4vw, 3.5rem);
-    margin-bottom: .85rem;
-    padding: .78rem 1rem;
-}
-
-.people-summary div {
-    align-items: baseline;
-    display: flex;
-    gap: .38rem;
-}
-
-.people-summary strong { font-size: 1rem; }
-.people-summary span { color: var(--people-muted); font-size: .78rem; }
-
-.people-toolbar {
-    align-items: center;
-    background: var(--pm-card, #fff);
-    border: 1px solid var(--people-line);
-    display: flex;
-    gap: 1rem;
-    justify-content: space-between;
-    padding: .48rem;
-}
-
-.people-search {
-    align-items: center;
-    display: flex;
-    flex: 1;
-    gap: .45rem;
-    min-width: 15rem;
-    padding-left: .55rem;
-}
-
-.people-search > i { color: #7c8797; }
-.people-search input {
-    border: 0;
-    box-shadow: none;
-    flex: 1;
-    min-width: 0;
-    outline: 0;
-    padding: .52rem .35rem;
-}
-
 .people-sort {
     align-items: center;
     display: flex;
@@ -126,20 +57,16 @@
     font-weight: 750;
 }
 
-.people-hidden-toggle { white-space: nowrap; }
-.people-hidden-toggle .form-check-input { margin: 0; }
-.people-hidden-toggle .form-check-label { color: var(--people-muted); font-size: .78rem; }
-
 .people-grid {
     display: grid;
 }
 
 .person-card {
-    background: var(--pm-card, #fff);
+    background: transparent;
     color: var(--people-ink);
     display: block;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
     text-decoration: none;
     transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
@@ -155,11 +82,13 @@
     background: linear-gradient(145deg, var(--pm-surface-porcelain, #eef2f7), #dde5ef);
     display: flex;
     justify-content: center;
-    overflow: hidden;
+    overflow: visible;
     position: relative;
 }
 
-.person-card__portrait img { height: 100%; object-fit: cover; width: 100%; }
+/* The portrait is a circle. The picture is rounded, not the frame clipped, so the small
+   badges on its edge (linked account, hidden) are not cut off. */
+.person-card__portrait img { border-radius: 50%; height: 100%; object-fit: cover; width: 100%; }
 .person-card__portrait > i { color: #7e8ca0; font-size: 4rem; }
 .person-card__state {
     background: rgba(24, 34, 53, .78);
@@ -168,13 +97,15 @@
     color: #fff;
     font-size: .68rem;
     font-weight: 750;
-    left: .55rem;
+    left: 50%;
     padding: .25rem .5rem;
     position: absolute;
+    transform: translateX(-50%);
+    white-space: nowrap;
 }
 
 .person-card__body { display: grid; }
-.person-card__body strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-card__body strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .person-card__body span { color: var(--people-muted); }
 .person-card__body small { color: #8a94a3; }
 
@@ -282,27 +213,6 @@
     position: relative;
 }
 .person-photo-card.is-representative { border-color: #e1ae3b; box-shadow: 0 0 0 1px rgba(225, 174, 59, .18); }
-.person-photo-card__image {
-    aspect-ratio: 4 / 3;
-    background: var(--pm-surface-silver, #edf1f5);
-    border-radius: .85rem .85rem 0 0;
-    display: block;
-    overflow: hidden;
-    position: relative;
-}
-.person-photo-card__image img { height: 100%; object-fit: cover; transition: transform .25s ease; width: 100%; }
-.person-photo-card__image:hover img { transform: scale(1.025); }
-.person-photo-card__image > span {
-    background: rgba(104, 72, 10, .9);
-    border-radius: 999px;
-    color: #fff;
-    font-size: .69rem;
-    font-weight: 750;
-    left: .55rem;
-    padding: .28rem .52rem;
-    position: absolute;
-    top: .55rem;
-}
 .person-photo-card__body { display: grid; gap: .12rem; padding: .75rem; }
 .person-photo-card__body > strong { font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .person-photo-card__body > span { color: var(--people-muted); font-size: .73rem; }
@@ -327,14 +237,6 @@
 }
 .person-remove-form label { font-size: .7rem; font-weight: 750; }
 
-.review-summary {
-    align-items: baseline;
-    display: flex;
-    gap: .4rem;
-    margin: -.25rem 0 1rem;
-}
-.review-summary strong { font-size: 1.05rem; }
-.review-summary span { color: var(--people-muted); font-size: .8rem; }
 .face-review-list { display: grid; gap: 1rem; }
 .face-review-card {
     background: var(--pm-card, #fff);
@@ -386,15 +288,12 @@
 .face-candidate__identity strong { font-size: .84rem; }
 .face-candidate__identity small { color: var(--people-muted); font-size: .68rem; }
 .face-review-card__alternatives { border-top: 1px solid var(--people-line); display: flex; gap: 1rem; justify-content: space-between; padding-top: .75rem; }
-.face-assign-existing { align-items: flex-start; display: flex; flex: 1; flex-direction: column; gap: .45rem; }
-.face-assign-existing__label { font-size: .72rem; font-weight: 750; }
 .face-create-person { align-items: end; display: grid; flex: 1; gap: .45rem; grid-template-columns: minmax(11rem, 1fr) auto; max-width: 34rem; }
 .face-create-person label { font-size: .72rem; font-weight: 750; grid-column: 1 / -1; }
 .face-review-card__secondary-actions { align-items: flex-end; display: flex; gap: .4rem; }
 
 @media (max-width: 991.98px) {
-    .people-header, .person-profile-header { align-items: flex-start; flex-wrap: wrap; }
-    .people-toolbar { align-items: stretch; flex-direction: column; }
+    .person-profile-header { align-items: flex-start; flex-wrap: wrap; }
     .people-sort { flex-wrap: wrap; }
     .person-governance { grid-template-columns: 1fr; }
     .people-action-form { left: 0; right: auto; }
@@ -403,22 +302,20 @@
 }
 
 @media (max-width: 575.98px) {
-    .people-summary { align-items: flex-start; flex-direction: column; gap: .4rem; }
-    .people-search { min-width: 0; }
     .people-sort { align-items: stretch; flex-direction: column; }
     .person-profile-header__portrait { flex-basis: 5.5rem; height: 5.5rem; width: 5.5rem; }
     .person-photo-section > header { align-items: flex-start; flex-direction: column; gap: .35rem; }
     .person-photo-section > header p { text-align: left; }
     .face-review-card { grid-template-columns: 1fr; }
-    .face-review-card__face { max-height: 18rem; min-height: 0; }
+    .face-review-card__face { height: 13rem; min-height: 0; }
     .face-candidate { grid-template-columns: 1fr 1fr; }
     .face-candidate__identity { grid-column: 1 / -1; }
     .face-create-person { grid-template-columns: 1fr; }
-    .face-review-card__secondary-actions { align-items: stretch; flex-direction: column; }
+    .face-review-card__secondary-actions { align-items: stretch; flex-direction: row; flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .person-card, .person-photo-card__image img { transition: none; }
+    .person-card { transition: none; }
 }
 
 .face-candidates__empty {
@@ -438,43 +335,6 @@
 }
 
 /* Phase 8.6 — people-first identity review */
-.identity-review-tabs {
-    align-items: center;
-    border-bottom: 1px solid var(--people-line);
-    display: flex;
-    gap: .35rem;
-}
-
-.identity-review-tab {
-    align-items: center;
-    border-bottom: 2px solid transparent;
-    color: var(--people-muted);
-    display: inline-flex;
-    gap: .45rem;
-    padding: .72rem .85rem;
-    text-decoration: none;
-}
-
-.identity-review-tab:hover { color: var(--people-ink); }
-.identity-review-tab.is-active { border-bottom-color: var(--people-accent); color: var(--people-accent); font-weight: 750; }
-.identity-review-tab strong { background: #eaf0fa; border-radius: 999px; font-size: .68rem; padding: .16rem .42rem; }
-
-.review-summary--people {
-    align-items: center;
-    background: var(--pm-card, #fff);
-    border: 1px solid var(--people-line);
-    border-radius: 1rem;
-    display: grid;
-    gap: .7rem 1.4rem;
-    grid-template-columns: repeat(4, auto) minmax(18rem, 1fr);
-    margin-bottom: 1rem;
-    padding: .8rem 1rem;
-}
-.review-summary--people > div { display: grid; }
-.review-summary--people > div strong { font-size: 1.15rem; }
-.review-summary--people > div span { color: var(--people-muted); font-size: .7rem; }
-.review-summary--people > p { color: var(--people-muted); font-size: .72rem; margin: 0; text-align: right; }
-.review-summary--people > p .bi { color: #278451; margin-right: .3rem; }
 
 .identity-group-list { display: grid; gap: 1rem; }
 .identity-group-card {
@@ -494,10 +354,6 @@
 }
 .identity-group-card__header h2 { font-size: 1.02rem; margin: .08rem 0 .14rem; }
 .identity-group-card__header p { color: var(--people-muted); font-size: .72rem; margin: 0; }
-.identity-group-card__kicker { color: #53729f; font-size: .63rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.identity-group-card__cohesion { display: grid; justify-items: end; }
-.identity-group-card__cohesion span { color: var(--people-muted); font-size: .65rem; }
-.identity-group-card__cohesion strong { font-size: .96rem; }
 
 .identity-group-mosaic {
     display: grid;
@@ -552,25 +408,16 @@
 .identity-group-actions > div { align-items: end; display: grid; gap: .42rem; grid-template-columns: minmax(0, 1fr) auto; }
 .identity-group-actions label { font-size: .7rem; font-weight: 750; grid-column: 1 / -1; }
 
-.candidate-strength { border-radius: 999px; font-size: .58rem; font-style: normal; font-weight: 800; margin-left: .35rem; padding: .12rem .32rem; text-transform: uppercase; }
+.candidate-strength { border-radius: 999px; font-size: .68rem; font-style: normal; font-weight: 800; margin-left: .35rem; padding: .12rem .32rem; text-transform: uppercase; }
 .candidate-strength.is-strong { background: #dff4e8; color: #19683e; }
 .candidate-strength.is-ambiguous { background: #fff0cf; color: #835a00; }
-
-@media (max-width: 991.98px) {
-    .review-summary--people { grid-template-columns: repeat(4, 1fr); }
-    .review-summary--people > p { grid-column: 1 / -1; text-align: left; }
-}
 
 @media (max-width: 767.98px) {
     .identity-group-actions { grid-template-columns: 1fr; }
     .identity-group-card__header { align-items: flex-start; }
-    .identity-group-card__cohesion { justify-items: start; }
 }
 
 @media (max-width: 575.98px) {
-    .identity-review-tabs { overflow-x: auto; }
-    .identity-review-tab { white-space: nowrap; }
-    .review-summary--people > p { grid-column: auto; }
     .identity-group-card__header { flex-direction: column; }
     .identity-group-mosaic { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .identity-group-candidate { grid-template-columns: 1fr; }
@@ -620,11 +467,6 @@
     height: 1rem;
     margin: 0;
     width: 1rem;
-}
-.person-photo-card__quality {
-    color: #5d6e82 !important;
-    font-size: .69rem !important;
-    font-weight: 700;
 }
 .person-correction-menu {
     background: var(--pm-card, #fff);
@@ -746,40 +588,28 @@
 
 /* Phase 9B: visual people library */
 .people-workspace { padding:.55rem 0 3rem; }
-.people-header { align-items:flex-end; margin-bottom:.65rem; }
-.people-header h1 { font-size:clamp(2.15rem,4vw,3.15rem); font-weight:770; letter-spacing:-.055em; }
-.people-header p { max-width:38rem; }
 .people-review-action { align-items:center; background:#3569e8; border-radius:.72rem; color:#fff; display:inline-flex; gap:.48rem; min-height:2.55rem; padding:.55rem .82rem; text-decoration:none; }
 .people-review-action:hover { background:#2859d3; color:#fff; }
 .people-review-action b { align-items:center; background:var(--pm-card, #fff); border-radius:999px; color:#315cc8; display:inline-flex; font-size:.65rem; height:1.25rem; justify-content:center; min-width:1.25rem; }
-.people-primary-tabs { border-bottom:1px solid var(--people-line); display:flex; gap:1.65rem; margin-bottom:.85rem; }
-.people-primary-tabs a { color:#626e80; font-size:.84rem; font-weight:700; padding:.75rem .1rem .7rem; position:relative; text-decoration:none; }
-.people-primary-tabs a.is-active { color:#3569e8; }
-.people-primary-tabs a.is-active::after { background:#3569e8; border-radius:999px; bottom:-1px; content:""; height:2px; left:0; position:absolute; right:0; }
 .people-insight { align-items:center; display:flex; flex-wrap:wrap; gap:.4rem 1.35rem; margin:.15rem 0 .75rem; }
 .people-insight div { align-items:baseline; display:flex; gap:.3rem; }
 .people-insight strong { font-size:.9rem; }
 .people-insight span { color:#7d8796; font-size:.72rem; }
 .people-insight .is-warning strong,.people-insight .is-warning span { color:#b54708; }
-.people-toolbar { border-radius:.9rem; box-shadow:0 7px 22px rgba(24,39,70,.05); margin-bottom:1rem; }
-.people-search button.btn { display:none; }
 .people-sort select { border-color:transparent; box-shadow:none; font-size:.78rem; min-width:8.5rem; }
-.people-hidden-toggle { align-items:center; color:#6f7a8b; display:flex; font-size:.75rem; gap:.35rem; margin:0 .5rem; }
-.people-grid { gap:.9rem; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); }
+.people-grid { gap:1.6rem 1rem; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
 .person-card { border:0; border-radius:.65rem; box-shadow:none; }
 .person-card:hover { border-color:transparent; box-shadow:none; transform:none; }
-.person-card__portrait { aspect-ratio:1/1.08; border-radius:.65rem; }
+.person-card__portrait { aspect-ratio:1; border-radius:50%; margin:0 auto; width:min(100%, 9.5rem); }
 .person-card__portrait img { transition:filter .18s ease, transform .25s ease; }
 .person-card:hover .person-card__portrait img { filter:brightness(.9); transform:scale(1.015); }
-.person-card__menu { align-items:center; backdrop-filter:blur(8px); background:rgba(19,28,44,.55); border-radius:50%; color:#fff; display:flex; height:1.75rem; justify-content:center; opacity:0; position:absolute; right:.5rem; top:.5rem; transition:opacity .18s ease; width:1.75rem; }
-.person-card:hover .person-card__menu { opacity:1; }
-.person-card__body { gap:.12rem; padding:.58rem .08rem .35rem; }
+.person-card__body { gap:.12rem; justify-items:center; padding:.7rem .08rem .35rem; text-align:center; }
 .person-card__body strong { font-size:.84rem; }
 .person-card__body span { font-size:.7rem; }
 .person-card__body small { font-size:.66rem; }
 .people-page-button { border:1px solid var(--people-line); border-radius:.65rem; color:#4e5c70; padding:.48rem .72rem; text-decoration:none; }
 @media (min-width:1400px) { .people-grid { grid-template-columns:repeat(7,minmax(0,1fr)); } }
-@media (max-width:767.98px) { .people-header { align-items:flex-start; } .people-review-action span { display:none; } .people-toolbar { align-items:stretch; flex-direction:column; } .people-sort { justify-content:space-between; width:100%; } .people-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:767.98px) { .people-review-action span { display:none; } .people-sort { justify-content:space-between; width:100%; } .people-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
 /* Phase 9I — identity reference governance and face-focused appearance review */
 .person-photo-grid {
@@ -915,14 +745,15 @@
     font-size: .68rem;
     font-weight: 750;
     gap: .35rem;
-    left: .55rem;
+    left: 50%;
     opacity: 0;
     padding: .3rem .55rem;
     position: absolute;
-    transform: translateY(.25rem);
+    transform: translate(-50%, .25rem);
     transition: opacity .18s ease, transform .18s ease;
+    white-space: nowrap;
 }
-.person-card:hover .person-card__open { opacity: 1; transform: translateY(0); }
+.person-card:hover .person-card__open { opacity: 1; transform: translate(-50%, 0); }
 .person-card__manage {
     align-items: center;
     backdrop-filter: blur(9px);
@@ -972,7 +803,7 @@
 .people-workspace.is-selecting .person-card__selection-control { display: inline-flex; }
 .people-workspace.is-selecting .person-card__manage { display: none; }
 .people-workspace.is-selecting .person-card { cursor: pointer; }
-.person-card-shell.is-selected .person-card { box-shadow: 0 0 0 3px #3569e8; }
+.person-card-shell.is-selected .person-card__portrait { box-shadow: 0 0 0 3px var(--pm-primary); }
 .person-card-shell.is-selected .person-card__selection-control { background: #3569e8; color: #fff; }
 
 .people-selection-bar {
@@ -1013,7 +844,7 @@
     .people-selection-bar__summary span { display: none; }
     .people-selection-bar__mode { margin-left: auto; }
     .people-selection-bar__submit span { display: none; }
-    .person-card__open { opacity: 1; transform: none; }
+    .person-card__open { display: none; }
     .person-card__manage { opacity: 1; }
 }
 
@@ -1049,7 +880,7 @@
     padding: .2rem .3rem !important;
 }
 .identity-similarity em {
-    font-size: .54rem;
+    font-size: .68rem;
     font-style: normal;
     font-weight: 800;
     letter-spacing: .025em;
@@ -1070,25 +901,6 @@
     justify-content: space-between;
     margin-bottom: .8rem;
     padding: .65rem .75rem;
-}
-.face-review-layout-toggle {
-    background: #f2f4f7;
-    border-radius: .62rem;
-    display: inline-flex;
-    padding: .18rem;
-}
-.face-review-layout-toggle a {
-    border-radius: .48rem;
-    color: #667286;
-    font-size: .72rem;
-    font-weight: 750;
-    padding: .38rem .58rem;
-    text-decoration: none;
-}
-.face-review-layout-toggle a.is-active {
-    background: var(--pm-card, #fff);
-    box-shadow: 0 1px 4px rgba(25, 39, 63, .13);
-    color: #2d5fcf;
 }
 .face-review-filters {
     align-items: end;
@@ -1209,7 +1021,6 @@
 @media (max-width: 575.98px) {
     .identity-review-scope { align-items: flex-start; flex-direction: column; }
     .face-review-queue-controls { flex-direction: column; }
-    .face-review-layout-toggle { align-self: flex-start; }
     .face-review-filters { display: grid; grid-template-columns: 1fr 1fr; }
     .face-review-filters label:last-child { grid-column: 1 / -1; }
     .face-review-filters select,
@@ -1240,44 +1051,6 @@
 /* People review workflow integrity and throughput */
 .people-review-workspace {
     padding-top: .35rem;
-}
-.people-header--review {
-    align-items: center;
-    margin-bottom: .45rem;
-}
-.people-header--review h1 {
-    font-size: clamp(2rem, 3.2vw, 2.8rem);
-    line-height: .98;
-    margin-bottom: .28rem;
-}
-.people-header--review p {
-    font-size: .84rem;
-    line-height: 1.45;
-    margin-bottom: 0;
-    max-width: 48rem;
-}
-.people-header--review .people-eyebrow {
-    margin-bottom: .25rem;
-}
-.people-header--review .people-header__actions {
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    gap: .45rem;
-}
-.people-header--review .dropdown-menu form {
-    margin: 0;
-}
-.people-header--review .dropdown-item .bi {
-    margin-right: .42rem;
-}
-
-.identity-review-tabs {
-    margin-bottom: .55rem;
-}
-.identity-review-tab {
-    padding-bottom: .58rem;
-    padding-top: .58rem;
 }
 
 .identity-review-workload-strip {
@@ -1502,9 +1275,6 @@ a.identity-workload-pill:hover {
 }
 
 @media (max-width: 991.98px) {
-    .people-header--review {
-        align-items: flex-start;
-    }
     .identity-review-workload-strip__live {
         flex-basis: 100%;
         margin-left: 0;
@@ -1519,23 +1289,11 @@ a.identity-workload-pill:hover {
 }
 
 @media (max-width: 575.98px) {
-    .people-header--review h1 {
-        font-size: 2rem;
-    }
-    .people-header--review .people-header__actions {
-        width: auto;
-    }
-    .identity-review-tabs {
-        margin-bottom: .45rem;
-    }
     .identity-review-workload-strip {
         align-items: flex-start;
     }
     .identity-review-workload-strip__total {
         flex-basis: 100%;
-    }
-    .review-summary--people {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 .identity-group-refresh-notice [data-grouping-refresh-action] {
@@ -1568,7 +1326,6 @@ a.identity-workload-pill:hover {
 }
 
 /* PRISM account linkage indicators -------------------------------------- */
-.people-account-filter { min-width: 8.6rem !important; }
 .person-card__account-link {
     align-items: center;
     backdrop-filter: blur(8px);
@@ -1589,10 +1346,6 @@ a.identity-workload-pill:hover {
 .people-workspace.is-selecting .person-card__account-link { display: none; }
 
 /* Dark: the bare search input sits inside the pill, as it does in Light. */
-[data-bs-theme="dark"] .people-search input {
-    background: transparent;
-    color: inherit;
-}
 
 /* ============================================================
    Dark theme (generated by tools/theme-dark-codemod.js, then reviewed).
@@ -1609,21 +1362,6 @@ a.identity-workload-pill:hover {
 
 :where([data-bs-theme="dark"]) .people-eyebrow {
     color: #85a8e0;
-}
-
-:where([data-bs-theme="dark"]) .people-count-badge {
-    background: #b42318;
-    border: 2px solid #2c3035;
-    color: #fff;
-}
-
-:where([data-bs-theme="dark"]) .people-search > i {
-    color: #9aa0a6;
-}
-
-:where([data-bs-theme="dark"]) .person-card:hover {
-    border-color: #3a3f45;
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
 }
 
 :where([data-bs-theme="dark"]) .person-card__portrait {
@@ -1673,11 +1411,6 @@ a.identity-workload-pill:hover {
     box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.27);
 }
 
-:where([data-bs-theme="dark"]) .person-photo-card__image > span {
-    background: rgba(251, 191, 36, 0.3);
-    color: #fff;
-}
-
 :where([data-bs-theme="dark"]) .person-photo-card__body > small {
     color: #9aa0a6;
 }
@@ -1695,20 +1428,8 @@ a.identity-workload-pill:hover {
     border: 1px solid #2c3035;
 }
 
-:where([data-bs-theme="dark"]) .identity-review-tab strong {
-    background: color-mix(in srgb, #6ea8fe 10%, #16181b);
-}
-
-:where([data-bs-theme="dark"]) .review-summary--people > p .bi {
-    color: #4ade80;
-}
-
 :where([data-bs-theme="dark"]) .identity-group-card {
     box-shadow: 0 9px 26px rgba(0, 0, 0, 0.21);
-}
-
-:where([data-bs-theme="dark"]) .identity-group-card__kicker {
-    color: #85aae0;
 }
 
 :where([data-bs-theme="dark"]) .identity-group-face.is-representative {
@@ -1741,10 +1462,6 @@ a.identity-workload-pill:hover {
 
 :where([data-bs-theme="dark"]) .person-photo-card__select input {
     accent-color: #6ea8fe;
-}
-
-:where([data-bs-theme="dark"]) .person-photo-card__quality {
-    color: #b4b9bf !important;
 }
 
 :where([data-bs-theme="dark"]) .person-correction-menu {
@@ -1795,18 +1512,6 @@ a.identity-workload-pill:hover {
     color: #6ea8fe;
 }
 
-:where([data-bs-theme="dark"]) .people-primary-tabs a {
-    color: #b4b9bf;
-}
-
-:where([data-bs-theme="dark"]) .people-primary-tabs a.is-active {
-    color: #6ea8fe;
-}
-
-:where([data-bs-theme="dark"]) .people-primary-tabs a.is-active::after {
-    background: #3569e8;
-}
-
 :where([data-bs-theme="dark"]) .people-insight span {
     color: #9aa0a6;
 }
@@ -1814,19 +1519,6 @@ a.identity-workload-pill:hover {
 :where([data-bs-theme="dark"]) .people-insight .is-warning strong,
 :where([data-bs-theme="dark"]) .people-insight .is-warning span {
     color: #f7a06e;
-}
-
-:where([data-bs-theme="dark"]) .people-toolbar {
-    box-shadow: 0 7px 22px rgba(0, 0, 0, 0.23);
-}
-
-:where([data-bs-theme="dark"]) .people-hidden-toggle {
-    color: #9aa0a6;
-}
-
-:where([data-bs-theme="dark"]) .person-card__menu {
-    background: rgba(0, 0, 0, 0.72);
-    color: #fff;
 }
 
 :where([data-bs-theme="dark"]) .people-page-button {
@@ -1905,10 +1597,6 @@ a.identity-workload-pill:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 
-:where([data-bs-theme="dark"]) .person-card-shell.is-selected .person-card {
-    box-shadow: 0 0 0 3px #2c3035;
-}
-
 :where([data-bs-theme="dark"]) .person-card-shell.is-selected .person-card__selection-control {
     background: #3569e8;
     color: #fff;
@@ -1962,19 +1650,6 @@ a.identity-workload-pill:hover {
 
 :where([data-bs-theme="dark"]) .identity-similarity.is-weak {
     background: rgba(0, 0, 0, 0.84);
-}
-
-:where([data-bs-theme="dark"]) .face-review-layout-toggle {
-    background: #0e0f11;
-}
-
-:where([data-bs-theme="dark"]) .face-review-layout-toggle a {
-    color: #9aa0a6;
-}
-
-:where([data-bs-theme="dark"]) .face-review-layout-toggle a.is-active {
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.43);
-    color: #6ea8fe;
 }
 
 :where([data-bs-theme="dark"]) .face-review-batch .card-body {
@@ -2117,4 +1792,146 @@ a.identity-workload-pill:hover {
 
 :where([data-bs-theme="dark"]) .person-card__account-link.is-warning {
     background: rgba(251, 191, 36, 0.3);
+}
+
+/* Sort and filter menu on the People page (identity managers). Theme tokens only. */
+.people-filter__menu { min-width:15rem; padding:.85rem; }
+.people-filter__form { display:grid; gap:.35rem; }
+.people-filter__form > label { color:var(--pm-text-muted); font-size:.74rem; font-weight:700; margin:.35rem 0 0; }
+.people-filter__form > label:first-of-type { margin-top:0; }
+.people-filter__check { align-items:center; display:flex; gap:.5rem; }
+.people-filter__check span { color:var(--pm-text); font-size:.85rem; font-weight:500; }
+
+/* Review people: the Photos bar, one plain heading, the three queues as chips. Theme tokens only. */
+.people-review-bar__menu { margin-left:auto; }
+.people-review-heading { margin:.2rem 0 .9rem; }
+.people-review-heading__back { color:var(--pm-text-muted); font-size:.8rem; font-weight:700; text-decoration:none; }
+.people-review-heading__back:hover { color:var(--pm-text); }
+.people-review-heading h1 { color:var(--pm-text); font-size:clamp(1.35rem, 2.2vw, 1.7rem); font-weight:700; letter-spacing:-.02em; margin:.15rem 0 .2rem; }
+.people-review-heading p { color:var(--pm-text-muted); font-size:.9rem; margin:0; max-width:62ch; }
+.people-queues { margin-bottom:.8rem; }
+.people-queues .photos-chip { align-items:center; display:inline-flex; gap:.4rem; min-height:2.4rem; }
+.people-queues .photos-chip strong { background:var(--pm-surface-muted); border-radius:999px; color:var(--pm-text); font-size:.72rem; padding:.05rem .45rem; }
+.people-queues .photos-chip.is-active strong { background:var(--pm-card); }
+/* On a phone the More menu stays on the row of the sections instead of taking a row of its own. */
+@media (max-width: 640px) {
+    .people-review-workspace .photos-bar { flex-wrap:nowrap; }
+    .people-review-workspace .photos-sections { flex:1 1 auto; min-width:0; width:auto; }
+    .people-review-workspace .photos-sections a { padding-left:.4rem; padding-right:.4rem; }
+}
+
+/* One name field for naming faces. Theme tokens only. */
+.identity-group-actions.is-enhanced { display:block; }
+/* Written with the card's own selector so the card's two-column rule for its blocks does not stretch it. */
+.identity-group-actions > .people-name-field,
+.people-name-field { align-items:start; display:grid; gap:.3rem .5rem; grid-template-columns:minmax(0, 26rem) auto; justify-content:start; }
+.people-name-field > label { color:var(--pm-text); font-size:.78rem; font-weight:700; grid-column:1 / -1; margin:0; }
+.people-name-field > small { color:var(--pm-text-muted); font-size:.76rem; grid-column:1 / -1; }
+.people-name-field__box { position:relative; }
+/* In the flow of the card, which clips what hangs outside it: the card grows while the list is open. */
+.people-name-field__list { background:var(--pm-card); border:1px solid var(--pm-border); border-radius:.6rem; list-style:none; margin:.25rem 0 0; max-height:16rem; overflow-y:auto; padding:.25rem; }
+.people-name-field__list li { align-items:center; border-radius:.45rem; color:var(--pm-text); cursor:pointer; display:flex; font-size:.86rem; gap:.5rem; padding:.4rem .5rem; }
+.people-name-field__list li:hover,
+.people-name-field__list li.is-active { background:var(--pm-surface-muted); }
+.people-name-field__list li img { border-radius:50%; flex:none; height:1.6rem; object-fit:cover; width:1.6rem; }
+.people-name-field__list li.is-new { color:var(--pm-primary); font-weight:700; }
+@media (max-width: 640px) {
+    .identity-group-actions > .people-name-field,
+    .people-name-field { grid-template-columns:1fr; }
+}
+
+/* "How sure is PRISM?": the figures, for those who want them. Theme tokens only. */
+.identity-group-figures { color:var(--pm-text-muted); font-size:.78rem; margin-top:.7rem; }
+.identity-group-figures summary { color:var(--pm-text-muted); cursor:pointer; font-weight:700; width:fit-content; }
+.identity-group-figures p { margin:.4rem 0 .3rem; max-width:62ch; }
+.identity-group-figures ul { margin:0; padding-left:1.1rem; }
+
+/* A single face: the name form beside the quieter choices. Theme tokens only. */
+.face-name-form { flex:1; min-width:0; }
+.face-name-form .face-create-person { margin-bottom:.5rem; }
+.people-queue-note { color:var(--pm-text-muted); font-size:.85rem; margin:0 0 .8rem; }
+.people-queue-note strong { color:var(--pm-text); }
+.face-candidate__identity > strong { color:var(--pm-text); font-size:.95rem; }
+
+/* Unnamed faces: the way back to the grid, and the name field in the bar of ticked faces. Theme tokens only. */
+.face-review-back { align-items:center; color:var(--pm-primary); display:inline-flex; font-size:.82rem; font-weight:700; gap:.35rem; text-decoration:none; }
+.face-review-back:hover { text-decoration:underline; }
+.face-review-batch__name { flex:1 1 22rem; min-width:0; }
+.face-review-batch__name .people-name-field { grid-template-columns:minmax(0, 20rem) auto; }
+.face-review-batch__name .people-name-field__list { background:var(--pm-card); }
+
+/* The message that confirms a decision, with Undo beside it. */
+.people-review-done { align-items:center; display:flex; flex-wrap:wrap; gap:.25rem .75rem; justify-content:space-between; }
+.people-review-done form { margin:0; }
+.people-review-done .btn-link { font-weight:700; padding:0; }
+
+/* A person's page: compact header under the Photos bar, one Manage disclosure, quiet details. Theme tokens only. */
+.person-profile-header--compact { margin-top:.35rem; }
+.person-profile-header--compact h1 { font-size:clamp(1.35rem, 2.2vw, 1.7rem); letter-spacing:-.02em; margin:0; }
+.person-profile-header--compact .person-profile-header__portrait { height:4.5rem; width:4.5rem; }
+.person-manage { margin:0 0 1rem; }
+.person-manage > summary { list-style:none; width:fit-content; }
+.person-manage > summary::-webkit-details-marker { display:none; }
+.person-manage[open] > summary { margin-bottom:.75rem; }
+.person-photo-card__details { margin:.2rem 0 .1rem; }
+
+/* Sort and filter for the faces: a row on wide screens, behind its heading on phones. Theme tokens only. */
+.face-review-more { flex:1 1 auto; min-width:0; }
+.face-review-more > summary { display:none; }
+.face-review-more__body { align-items:end; display:flex; flex-wrap:wrap; gap:.6rem .9rem; justify-content:space-between; }
+
+/* A tick box reached by keyboard shows on its tile. */
+.face-triage-card:has(:focus-visible),
+.person-photo-card:has(.person-photo-card__select :focus-visible) { outline:2px solid var(--pm-primary); outline-offset:2px; }
+
+/* A face in a group, reached by keyboard: its tick box is hidden, so the tile shows the focus. */
+.identity-group-face:has(.identity-group-face__checkbox:focus-visible) { outline:2px solid var(--pm-primary); outline-offset:2px; }
+
+/* Phones: faces start near the top, and everything pressed is at least 44px. */
+@media (max-width: 575.98px) {
+    .identity-group-card [data-toggle-group-selection] { align-items:center; display:inline-flex; min-height:2.75rem; }
+    /* The link that opens the picture: the same mark, with a larger area to press. */
+    .identity-group-face__open::after { content:""; inset:-.7rem; position:absolute; }
+    /* "Is this …?" on a phone: a shorter face so the question is in view, Yes and No side by
+       side, and the quieter choices in one wrapping row. */
+    .face-review-card__select { min-height:2.75rem; min-width:2.75rem; justify-content:center; }
+    .face-candidate--with-portrait { grid-template-columns:3rem minmax(0, 1fr) minmax(0, 1fr); }
+    .face-candidate--with-portrait .face-candidate__identity { grid-column:2 / -1; }
+    .face-candidate--with-portrait form:first-of-type { grid-column:1 / 3; }
+    .face-candidate--with-portrait form:last-of-type { grid-column:3; }
+    .face-candidate form .btn,
+    .face-review-card__secondary-actions form .btn { width:100%; }
+    .face-candidate .candidate-strength { display:inline-block; margin-left:0; }
+    .face-candidate__identity strong a { text-decoration:underline; }
+    .face-review-card__secondary-actions form { flex:1 1 auto; }
+    .face-review-queue-controls { gap:.5rem; padding:.6rem; }
+    .face-review-more > summary { align-items:center; color:var(--pm-primary); cursor:pointer; display:flex; font-size:.86rem; font-weight:700; gap:.4rem; list-style:none; min-height:2.75rem; }
+    .face-review-more > summary::-webkit-details-marker { display:none; }
+    .face-review-more > summary::after { border-bottom:2px solid currentColor; border-right:2px solid currentColor; content:""; height:.45rem; margin-left:auto; transform:rotate(45deg); width:.45rem; }
+    .face-review-more[open] > summary::after { transform:rotate(-135deg); }
+    .face-review-more__body { display:grid; gap:.6rem; padding-top:.35rem; }
+    .face-review-queue-controls .form-select,
+    .face-review-queue-controls .btn,
+    .face-review-batch .form-select,
+    .face-review-batch .form-control,
+    .face-review-batch .btn,
+    .people-review-workspace .people-name-field .form-control,
+    .people-review-workspace .people-name-field .btn,
+    .people-review-workspace .person-photo-section__tools .btn { min-height:2.75rem; }
+    .people-review-workspace .btn:not(.btn-link),
+    .people-review-workspace .form-select,
+    .people-review-workspace .form-control { min-height:2.75rem; }
+    .people-review-workspace .btn:not(.btn-link) { align-items:center; display:inline-flex; gap:.35rem; justify-content:center; }
+    .people-review-heading__back { align-items:center; display:inline-flex; min-height:2.75rem; }
+    .person-photo-card__select { height:2.75rem; width:2.75rem; }
+    .person-photo-card__details > summary,
+    .identity-group-figures > summary { align-items:center; display:inline-flex; min-height:2.75rem; }
+    .people-queues .photos-chip { min-height:2.75rem; }
+    .face-review-back,
+    .people-review-workspace .photos-bar a,
+    .face-triage-card__actions a,
+    .people-review-done .btn-link { align-items:center; display:inline-flex; min-height:2.75rem; }
+    .face-triage-card__actions { margin-top:0; }
+    .face-triage-card__select { min-height:2.75rem; min-width:2.75rem; }
+    .face-review-batch__name .people-name-field { grid-template-columns:minmax(0, 1fr); }
 }

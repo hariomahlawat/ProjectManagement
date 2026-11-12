@@ -9,7 +9,7 @@
         ConferenceItemKind.Project => "project",
         ConferenceItemKind.ProjectIdea => "idea",
         ConferenceItemKind.ActionTask => "task",
-        ConferenceItemKind.ItProject => "IT project",
+        ConferenceItemKind.ItProject => item.ItemLabel ?? "IT project",
         _ => "item"
     };
     var openLabel = $"Open {kindLabel}";

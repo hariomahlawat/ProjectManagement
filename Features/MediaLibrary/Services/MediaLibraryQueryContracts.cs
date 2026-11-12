@@ -18,7 +18,15 @@ public sealed record MediaLibraryQuery(
     bool IncludeUnidentifiedFaces = false,
     string Sort = "newest",
     string? CollectionKey = null,
-    IReadOnlyList<long>? AssetIds = null);
+    IReadOnlyList<long>? AssetIds = null,
+    bool IncludeMonths = false,
+    // What only the full page shows: the figures, the year list, the project list and the
+    // people list. A part of the timeline loaded while scrolling asks for the rows alone.
+    // The rows, their order, paging and visibility are the same either way.
+    bool IncludeFilterFacets = true);
+
+/// <summary>How many items of the filtered result fall in one calendar month.</summary>
+public sealed record MediaLibraryMonthCount(int Year, int Month, int Count);
 
 public sealed record MediaLibraryPersonSummary(Guid Id, string DisplayName);
 public sealed record MediaLibraryAlbumSummary(Guid Id, string Name);
@@ -66,7 +74,8 @@ public enum MediaLibraryQueryOperation
     Years,
     Projects,
     People,
-    PrismSourceStatus
+    PrismSourceStatus,
+    Months
 }
 
 public sealed record MediaLibraryQueryWarning(
@@ -92,6 +101,9 @@ public sealed record MediaLibraryQueryResult(
     string? Warning)
 {
     public bool IsDegraded => IsAvailable && Warnings.Count > 0;
+
+    /// <summary>Per-month counts of the filtered result; empty unless the query asked for them.</summary>
+    public IReadOnlyList<MediaLibraryMonthCount> Months { get; init; } = Array.Empty<MediaLibraryMonthCount>();
 
     public static MediaLibraryQueryResult Unavailable(
         int pageNumber,

@@ -297,6 +297,20 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(Policies.ItProjects.ManageRoles));
     options.AddPolicy(Policies.ItProjects.Remark, policy =>
         policy.RequireRole(Policies.ItProjects.RemarkRoles));
+    // MOLTI projects and SRE projects (docs/ux/molti-sre-projects.md). The assigned Project
+    // Officer's rights on a project are a per-project check in ItProjectAccess.
+    options.AddPolicy(Policies.MoltiProjects.View, policy =>
+        policy.RequireAuthenticatedUser());
+    options.AddPolicy(Policies.MoltiProjects.Manage, policy =>
+        policy.RequireRole(Policies.MoltiProjects.ManageRoles));
+    options.AddPolicy(Policies.MoltiProjects.Remark, policy =>
+        policy.RequireRole(Policies.MoltiProjects.RemarkRoles));
+    options.AddPolicy(Policies.SreProjects.View, policy =>
+        policy.RequireAuthenticatedUser());
+    options.AddPolicy(Policies.SreProjects.Manage, policy =>
+        policy.RequireRole(Policies.SreProjects.ManageRoles));
+    options.AddPolicy(Policies.SreProjects.Remark, policy =>
+        policy.RequireRole(Policies.SreProjects.RemarkRoles));
     // SECTION: Industry partner authorization policies
     // NOTE: The Industry Partners page is available to every authenticated user.
     options.AddPolicy(Policies.IndustryPartners.View, policy =>
@@ -741,6 +755,7 @@ builder.Services.Configure<TodoOptions>(
     builder.Configuration.GetSection("Todo"));
 builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();
 builder.Services.AddScoped<IProjectPulseService, ProjectPulseService>();
+builder.Services.AddScoped<IDashboardAnalyticsService, DashboardAnalyticsService>();
 builder.Services.AddScoped<IOpsSignalsService, OpsSignalsService>();
 builder.Services.AddScoped<ISearchHealthService, SearchHealthService>();
 builder.Services.AddHostedService<LoginAggregationWorker>();
@@ -1423,6 +1438,21 @@ contentTypeProvider.Mappings[".topojson"] = "application/json";
 contentTypeProvider.Mappings[".mjs"] = "text/javascript";
 contentTypeProvider.Mappings[".bcmap"] = "application/octet-stream";
 contentTypeProvider.Mappings[".pfb"] = "application/octet-stream";
+
+// SECTION: Never serve stored uploads as static files.
+// Upload storage falls back to wwwroot/uploads when no storage root is configured. Static
+// files run before authentication and authorisation, so files there would be reachable by
+// anyone on the LAN. Uploads are only ever served through their authorised endpoints.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/uploads", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next();
+});
 
 app.UseStaticFiles(new StaticFileOptions
 {

@@ -28,9 +28,14 @@
                             <span class="oc-header__metric"><strong>@conference.IdeaCount</strong> @(conference.IdeaCount == 1 ? "idea" : "ideas")</span>
                             <span class="oc-header__metric oc-header__metric--tasks @(conference.OtherTaskCount == 0 ? "is-zero" : string.Empty)"><strong>@conference.OtherTaskCount</strong> @(conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
                         }
-                        @if (conference.ItProjectCount > 0 || itProjectsOnly)
+                        @* One figure per module: IT projects for an ITO, MOLTI and SRE projects for their officer. *@
+                        @foreach (var moduleCount in conference.ModuleProjectCounts)
                         {
-                            <span class="oc-header__metric"><strong>@conference.ItProjectCount</strong> @(conference.ItProjectCount == 1 ? "IT project" : "IT projects")</span>
+                            <span class="oc-header__metric"><strong>@moduleCount.Count</strong> @moduleCount.Label</span>
+                        }
+                        @if (itProjectsOnly && conference.ItProjectCount == 0)
+                        {
+                            <span class="oc-header__metric"><strong>0</strong> IT projects</span>
                         }
                     </p>
                 </div>

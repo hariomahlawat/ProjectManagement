@@ -1,0 +1,16 @@
+@page
+@model ProjectManagement.Pages.MoltiProjects.CreateModel
+@{
+    ViewData["Title"] = "New " + Model.Module.Singular;
+    ViewData["PageShell"] = "focused";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/it-projects.css" asp-append-version="true" />
+}
+
+<partial name="~/Pages/ItProjects/_ModuleCreate.cshtml" model="Model" />
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/it-projects-create.js" asp-append-version="true" defer></script>
+}

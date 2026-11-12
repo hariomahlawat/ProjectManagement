@@ -59,7 +59,7 @@ public sealed class AccountPhotoAvatarContractTests
         Assert.Contains("ShouldUsePortraitAsAvatar", details, StringComparison.Ordinal);
         Assert.Contains("person-account-link__profile-state", details, StringComparison.Ordinal);
         Assert.Contains(".person-account-link__current .person-account-link__profile-state.is-photo", peopleCss, StringComparison.Ordinal);
-        Assert.Contains("Choose or prepare a trusted matching reference below.", details, StringComparison.Ordinal);
+        Assert.Contains("PRISM cannot look for more pictures of this person yet.", details, StringComparison.Ordinal);
 
         Assert.Contains("account-photo-avatar-setting__use-initials", account, StringComparison.Ordinal);
         Assert.Contains(".account-photo-avatar-setting__use-initials", siteCss, StringComparison.Ordinal);

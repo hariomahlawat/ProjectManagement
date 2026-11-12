@@ -49,6 +49,8 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
         var warnings = new List<MediaLibraryQueryWarning>();
         IQueryable<MediaAsset> filteredQuery;
         IQueryable<MediaAsset> queryWithoutYear;
+        // One rule for year, month and day: the server's local time, as the page shows dates.
+        var localOffset = TimeZoneInfo.Local.BaseUtcOffset;
         List<MediaLibraryQueryItem> items;
         int total;
         int pageSize;
@@ -124,7 +126,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                         || (asset.RelativePath != null && EF.Functions.ILike(asset.RelativePath, pattern, "\\"))
                         || asset.AlbumItems.Any(item => !item.MediaAlbum.IsArchived
                             && EF.Functions.ILike(item.MediaAlbum.Name, pattern, "\\"))
-                        || asset.Faces.Any(face => face.PersonAssignments.Any(assignment =>
+                        || asset.Faces.Any(face => !face.IsSuppressed && face.PersonAssignments.Any(assignment =>
                             assignment.RemovedAtUtc == null
                             && assignment.MediaPerson.Status == MediaPersonStatus.Confirmed
                             && !assignment.MediaPerson.IsHidden
@@ -134,7 +136,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
 
             queryWithoutYear = baseQuery;
             filteredQuery = request.Year.HasValue
-                ? baseQuery.Where(asset => asset.MediaDateUtc.Year == request.Year.Value)
+                ? ApplyLocalYearFilter(baseQuery, request.Year.Value, localOffset)
                 : baseQuery;
             total = await filteredQuery.CountAsync(cancellationToken);
             pageSize = Math.Clamp(request.PageSize, 1, 250);
@@ -310,7 +312,16 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 ToWarning(diagnostic));
         }
 
-        var statistics = await ExecuteOptionalAsync(
+        // The figures the loaded page alone can give; used when the full count is not asked
+        // for, or fails.
+        var pageStatistics = new MediaLibraryStatistics(
+            total,
+            items.Count(item => item.Kind == MediaAssetKind.Photo),
+            items.Count(item => item.Kind == MediaAssetKind.Video),
+            items.Select(item => item.CollectionKey).Distinct(StringComparer.Ordinal).Count());
+        var includeFacets = request.IncludeFilterFacets;
+
+        var statistics = !includeFacets ? pageStatistics : await ExecuteOptionalAsync(
             MediaLibraryQueryOperation.Statistics,
             async () =>
             {
@@ -333,26 +344,30 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                     counts?.Videos ?? 0,
                     collections);
             },
-            new MediaLibraryStatistics(
-                total,
-                items.Count(item => item.Kind == MediaAssetKind.Photo),
-                items.Count(item => item.Kind == MediaAssetKind.Video),
-                items.Select(item => item.CollectionKey).Distinct(StringComparer.Ordinal).Count()),
+            pageStatistics,
             warnings,
             cancellationToken);
 
-        var years = await ExecuteOptionalAsync<IReadOnlyList<int>>(
+        var years = !includeFacets ? Array.Empty<int>() : await ExecuteOptionalAsync<IReadOnlyList<int>>(
             MediaLibraryQueryOperation.Years,
-            async () => await queryWithoutYear
-                .Select(asset => asset.MediaDateUtc.Year)
-                .Distinct()
+            async () => await BuildLocalYearsQuery(queryWithoutYear, localOffset)
                 .OrderByDescending(year => year)
                 .ToListAsync(cancellationToken),
             Array.Empty<int>(),
             warnings,
             cancellationToken);
 
-        var projects = await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryProjectOption>>(
+        IReadOnlyList<MediaLibraryMonthCount> months = request.IncludeMonths
+            ? await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryMonthCount>>(
+                MediaLibraryQueryOperation.Months,
+                async () => await BuildMonthCountsQuery(filteredQuery, localOffset)
+                    .ToListAsync(cancellationToken),
+                Array.Empty<MediaLibraryMonthCount>(),
+                warnings,
+                cancellationToken)
+            : Array.Empty<MediaLibraryMonthCount>();
+
+        var projects = !includeFacets ? Array.Empty<MediaLibraryProjectOption>() : await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryProjectOption>>(
             MediaLibraryQueryOperation.Projects,
             async () =>
             {
@@ -375,7 +390,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             .Apply(_db.Assets.AsNoTracking())
             .Select(asset => asset.Id);
 
-        IReadOnlyList<MediaLibraryPersonOption> people = request.IncludePeople && _options.People.Enabled
+        IReadOnlyList<MediaLibraryPersonOption> people = includeFacets && request.IncludePeople && _options.People.Enabled
             ? await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryPersonOption>>(
                 MediaLibraryQueryOperation.People,
                 async () => await _db.Persons
@@ -385,8 +400,11 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                     .Select(person => new MediaLibraryPersonOption(
                         person.Id,
                         person.DisplayName,
+                        // Same definition as the People directory and the person gallery:
+                        // visible assets with an active assignment on a non-suppressed face.
                         person.FaceAssignments
                             .Where(assignment => assignment.RemovedAtUtc == null
+                                                 && !assignment.MediaFace.IsSuppressed
                                                  && visiblePeopleAssetIds.Contains(assignment.MediaFace.MediaAssetId))
                             .Select(assignment => assignment.MediaFace.MediaAssetId)
                             .Distinct()
@@ -429,7 +447,55 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             true,
             hasPrismCatalogue,
             warnings,
-            summaryWarning);
+            summaryWarning)
+        {
+            Months = months
+        };
+    }
+
+    // Counted and grouped in the database: one row per calendar month of the filtered result.
+    // The timeline shows dates in the server's local time, so the months are local too: a
+    // photo taken late on the last evening of a month (UTC) belongs to the month the page
+    // shows it under. The zone's standard offset is used; where daylight saving applies, a
+    // photo within an hour of a month boundary in summer can still be counted next door.
+    public static IQueryable<MediaLibraryMonthCount> BuildMonthCountsQuery(
+        IQueryable<MediaAsset> filteredQuery,
+        TimeSpan localOffset)
+    {
+        var offsetMinutes = localOffset.TotalMinutes;
+        return filteredQuery
+            .Select(asset => asset.MediaDateUtc.AddMinutes(offsetMinutes))
+            .GroupBy(localDate => new { localDate.Year, localDate.Month })
+            .Select(group => new MediaLibraryMonthCount(group.Key.Year, group.Key.Month, group.Count()));
+    }
+
+    // The year filter follows the same local-time rule as the month counts, so a picture
+    // taken just after local midnight on 1 January is found under the year the page shows
+    // it in. Written as a range on the stored UTC date so the date indexes stay usable.
+    public static IQueryable<MediaAsset> ApplyLocalYearFilter(
+        IQueryable<MediaAsset> query,
+        int year,
+        TimeSpan localOffset)
+    {
+        if (year < 2 || year > 9997)
+        {
+            return query.Where(asset => false);
+        }
+
+        var fromUtc = new DateTimeOffset(year, 1, 1, 0, 0, 0, TimeSpan.Zero) - localOffset;
+        var toUtc = new DateTimeOffset(year + 1, 1, 1, 0, 0, 0, TimeSpan.Zero) - localOffset;
+        return query.Where(asset => asset.MediaDateUtc >= fromUtc && asset.MediaDateUtc < toUtc);
+    }
+
+    // The years offered by the filter: local years, shifted in the database like the months.
+    public static IQueryable<int> BuildLocalYearsQuery(
+        IQueryable<MediaAsset> query,
+        TimeSpan localOffset)
+    {
+        var offsetMinutes = localOffset.TotalMinutes;
+        return query
+            .Select(asset => asset.MediaDateUtc.AddMinutes(offsetMinutes).Year)
+            .Distinct();
     }
 
     private IQueryable<MediaAsset> BuildBaseQuery()

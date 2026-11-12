@@ -21,8 +21,16 @@ namespace ProjectManagement.Pages.Photos;
 public sealed partial class IndexModel : PageModel
 {
     private const int PageSize = 120;
+    private const string GridThumbnailSize = "sm";
     private const int CollectionPageSize = 48;
     private const int AlbumPageSize = 48;
+
+    /// <summary>
+    /// The catalogue pass reads sources before it records completion, so an upload made
+    /// during a pass may be newer than the source snapshot yet older than the recorded
+    /// completion time. Look back a little further so it is not missed.
+    /// </summary>
+    private static readonly TimeSpan UncataloguedUploadOverlap = TimeSpan.FromMinutes(15);
     private readonly ApplicationDbContext _db;
     private readonly MediaLibraryDbContext _mediaDb;
     private readonly IMediaLibraryQueryService _library;
@@ -34,6 +42,7 @@ public sealed partial class IndexModel : PageModel
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
     private readonly MediaLibraryOptions _mediaOptions;
     private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
+    private readonly IMediaAssetVisibilityPolicy _visibility;
     private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
@@ -48,8 +57,10 @@ public sealed partial class IndexModel : PageModel
         IPrismMediaSourceSnapshotService sourceSnapshot,
         IOptions<MediaLibraryOptions> mediaOptions,
         IProtectedFileUrlBuilder fileUrlBuilder,
+        IMediaAssetVisibilityPolicy visibility,
         ILogger<IndexModel> logger)
     {
+        _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
         _library = library ?? throw new ArgumentNullException(nameof(library));
@@ -106,6 +117,8 @@ public sealed partial class IndexModel : PageModel
     public bool HasPreviousPage { get; private set; }
     public bool HasNextPage { get; private set; }
     public int CurrentPage => Math.Max(1, PageNumber);
+    public bool IsTimelinePart { get; private set; }
+    public IReadOnlyList<TimelineMonth> TimelineMonths { get; private set; } = Array.Empty<TimelineMonth>();
     public bool ExternalSourcesEnabled => _mediaOptions.IsExternalSourceFeatureEnabled;
     public bool PeopleFeatureEnabled => _mediaOptions.People.Enabled;
     public bool CanManagePeople => User.IsInRole("Admin") || User.IsInRole("HoD");
@@ -122,12 +135,40 @@ public sealed partial class IndexModel : PageModel
     public bool MatchAllSelectedPeople => !string.Equals(PeopleMatch, "any", StringComparison.OrdinalIgnoreCase);
     public bool ExternalLibraryAvailable { get; private set; } = true;
     public string? ExternalLibraryWarning { get; private set; }
+
+    /// <summary>
+    /// Explains a people filter that no longer matches everyone requested, for example a
+    /// bookmarked link to a person who has since been hidden or merged.
+    /// </summary>
+    public string? PeopleFilterNotice { get; private set; }
     public bool IsUsingCatalogue { get; private set; }
     public bool CatalogueCatchUpPending { get; private set; }
     public int SourceVisibleCount { get; private set; }
     public long CatalogueBackedCount { get; private set; }
     public long AwaitingCatalogueCount => Math.Max(0L, SourceVisibleCount - CatalogueBackedCount);
     public string LibraryRevision { get; private set; } = "initial";
+
+    // Views that have no timeline to continue: the album pages and the Collections list.
+    private bool HasNoTimelinePart
+        => IsAlbumsWorkspace || IsAlbumDetail || (View == "collections" && !IsCollectionDetail && !IsPeopleGallery);
+
+    // The next part of the timeline, as the page loads it while the user scrolls. It runs the
+    // same loading as the page itself, so filters, paging and visibility are identical; what
+    // only the full page shows (figures, filter lists, the person profile, album choices) is
+    // skipped, because _PhotosTimeline renders none of it.
+    public async Task<IActionResult> OnGetTimelinePartAsync(CancellationToken cancellationToken)
+    {
+        IsTimelinePart = true;
+        await OnGetAsync(cancellationToken);
+        if (HasNoTimelinePart)
+        {
+            return NotFound();
+        }
+
+        Response.Headers["X-Photos-Next-Part"] = HasNextPage ? BuildTimelinePartUrl(CurrentPage + 1) : string.Empty;
+        Response.Headers.CacheControl = "no-store";
+        return Partial("_PhotosTimeline", this);
+    }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -159,15 +200,58 @@ public sealed partial class IndexModel : PageModel
         }
 
         NormalizeRequest();
-        await LoadSelectedPeopleAsync(cancellationToken);
-        await LoadPersonPhotoProfileAsync(cancellationToken);
+        var requestedPeopleCount = PeopleFeatureEnabled ? PersonIds.Length : 0;
+        var selectedPeopleResolved = await LoadSelectedPeopleAsync(cancellationToken);
+        var requestedPeopleUnavailable = selectedPeopleResolved
+                                         && requestedPeopleCount > 0
+                                         && PersonIds.Length == 0;
+        if (requestedPeopleUnavailable)
+        {
+            PeopleFilterNotice = requestedPeopleCount == 1
+                ? "The person in this link is no longer available in Photos. No other photographs have been substituted."
+                : "The people in this link are no longer available in Photos. No other photographs have been substituted.";
+        }
+        else if (selectedPeopleResolved && requestedPeopleCount > 0 && PersonIds.Length < requestedPeopleCount)
+        {
+            var removed = requestedPeopleCount - PersonIds.Length;
+            PeopleFilterNotice = removed == 1
+                ? "One person in this link is no longer available in Photos and was removed from the filter."
+                : $"{removed} people in this link are no longer available in Photos and were removed from the filter.";
+        }
+
+        if (IsTimelinePart && HasNoTimelinePart)
+        {
+            // The handler answers Not Found for these views; there is nothing to load.
+            return;
+        }
+
+        if (!IsTimelinePart)
+        {
+            await LoadPersonPhotoProfileAsync(cancellationToken);
+        }
+
+        // The tiles of a part still mark what is already in the album being added to.
         await LoadAddMediaTargetAsync(cancellationToken);
 
+        // Kept for a part as well: whether the catalogue is fresh decides which rows are shown
+        // (catalogue, catalogue plus recent uploads, or PRISM media read directly), and a part
+        // must take the same path as the page it continues.
         var sourceSnapshot = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
         var catalogueFreshness = await GetCatalogueFreshnessAsync(sourceSnapshot, cancellationToken);
         SourceVisibleCount = sourceSnapshot.TotalCount;
         CatalogueBackedCount = catalogueFreshness.IndexedAssetCount;
         LibraryRevision = BuildLibraryRevision(sourceSnapshot, catalogueFreshness);
+
+        if (requestedPeopleUnavailable && !IsAlbumsWorkspace && !IsAlbumDetail)
+        {
+            // Never widen a people filter to the whole library: the link names people who
+            // are no longer available, so show nothing rather than unrelated photographs.
+            Items = Array.Empty<MediaItem>();
+            Groups = Array.Empty<MediaGroup>();
+            Collections = Array.Empty<CollectionCard>();
+            Stats = new LibraryStats();
+            return;
+        }
 
         if (IsAlbumsWorkspace)
         {
@@ -190,18 +274,32 @@ public sealed partial class IndexModel : PageModel
                 PeopleMatch,
                 CanManagePeople,
                 Sort,
-                Collection),
+                Collection,
+                IncludeMonths: View == "photos" && !IsTimelinePart,
+                IncludeFilterFacets: !IsTimelinePart),
             cancellationToken);
 
         var identityFilterRequiresCatalogue = PeopleFeatureEnabled && PersonIds.Length > 0;
+        // A catalogue that has completed at least one pass is complete apart from media
+        // added since then. Use it while it catches up, rather than re-reading every PRISM
+        // media row per page view (which also dropped external folders from "All sources").
+        var catalogueCatchingUp = !catalogueFreshness.IsFresh
+                                  && catalogueFreshness.LastSuccessfulScanAtUtc.HasValue;
         if (result.IsAvailable
             && result.HasPrismCatalogue
-            && (catalogueFreshness.IsFresh || Source == "external" || identityFilterRequiresCatalogue))
+            && (catalogueFreshness.IsFresh
+                || Source == "external"
+                || identityFilterRequiresCatalogue
+                || catalogueCatchingUp))
         {
-            if (!catalogueFreshness.IsFresh && identityFilterRequiresCatalogue)
+            if (!catalogueFreshness.IsFresh && (identityFilterRequiresCatalogue || catalogueCatchingUp))
             {
                 CatalogueCatchUpPending = true;
-                await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
+                if (!IsTimelinePart)
+                {
+                    // The page itself and its revision check already ask for the catch-up.
+                    await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
+                }
             }
 
             if (View == "collections" && !IsPeopleGallery)
@@ -212,18 +310,24 @@ public sealed partial class IndexModel : PageModel
             else
             {
                 ApplyCatalogueResult(result, includeTimeline: true);
-                await LoadManageableAlbumsSafeAsync(cancellationToken);
+                if (catalogueCatchingUp)
+                {
+                    await AddUncataloguedRecentUploadsAsync(catalogueFreshness, cancellationToken);
+                }
+
+                if (!IsTimelinePart)
+                {
+                    await LoadManageableAlbumsSafeAsync(cancellationToken);
+                }
             }
             return;
         }
 
-        // A catalogue row existing is not proof that it represents the latest PRISM
-        // uploads. When the source revision is newer than the last successful catalogue
-        // pass, read PRISM-owned media directly so uploads remain visible immediately.
-        // The catalogue continues catching up in the background and later restores
-        // classification and people enrichment.
+        // Degraded path: the catalogue is unavailable or has never completed a pass, so
+        // read PRISM-owned media directly. The catalogue catches up in the background and
+        // later restores classification and people enrichment.
         CatalogueCatchUpPending = result.HasPrismCatalogue && !catalogueFreshness.IsFresh;
-        if (CatalogueCatchUpPending)
+        if (CatalogueCatchUpPending && !IsTimelinePart)
         {
             await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
         }
@@ -534,17 +638,25 @@ public sealed partial class IndexModel : PageModel
         }
     }
 
-    private async Task LoadSelectedPeopleAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Loads the selected people and narrows <see cref="PersonIds"/> to those still
+    /// available. Returns false when the lookup itself failed, so callers do not mistake
+    /// an outage for people having been removed.
+    /// </summary>
+    private async Task<bool> LoadSelectedPeopleAsync(CancellationToken cancellationToken)
     {
         if (!PeopleFeatureEnabled || PersonIds.Length == 0)
         {
             SelectedPeople = Array.Empty<PersonOption>();
-            return;
+            return true;
         }
 
         try
         {
             var selectedIds = PersonIds;
+            var visibleAssetIds = _visibility
+                .Apply(_mediaDb.Assets.AsNoTracking())
+                .Select(asset => asset.Id);
             var rows = await _mediaDb.Persons
                 .AsNoTracking()
                 .Where(person => selectedIds.Contains(person.Id)
@@ -553,12 +665,12 @@ public sealed partial class IndexModel : PageModel
                 .Select(person => new PersonOption(
                     person.Id,
                     person.DisplayName,
+                    // Same definition as the People directory and the person gallery,
+                    // including the source rules (enabled, visible) of the visibility policy.
                     person.FaceAssignments
                         .Where(assignment => assignment.RemovedAtUtc == null
                                              && !assignment.MediaFace.IsSuppressed
-                                             && assignment.MediaFace.MediaAsset.IsAvailable
-                                             && !assignment.MediaFace.MediaAsset.IsDeleted
-                                             && !assignment.MediaFace.MediaAsset.IsArchived)
+                                             && visibleAssetIds.Contains(assignment.MediaFace.MediaAssetId))
                         .Select(assignment => assignment.MediaFace.MediaAssetId)
                         .Distinct()
                         .Count(),
@@ -575,6 +687,8 @@ public sealed partial class IndexModel : PageModel
             {
                 PeopleMatch = "all";
             }
+
+            return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -584,6 +698,7 @@ public sealed partial class IndexModel : PageModel
         {
             _logger.LogWarning(exception, "Unable to load the selected people gallery header.");
             SelectedPeople = Array.Empty<PersonOption>();
+            return false;
         }
     }
 
@@ -595,6 +710,7 @@ public sealed partial class IndexModel : PageModel
             PageNumber = result.PageNumber;
             HasPreviousPage = result.HasPreviousPage;
             HasNextPage = result.HasNextPage;
+            TimelineMonths = BuildTimelineMonths(result.Months, result.PageSize);
         }
         ExternalLibraryAvailable = true;
         ExternalLibraryWarning = result.Warning;
@@ -607,18 +723,23 @@ public sealed partial class IndexModel : PageModel
                 person.RepresentativeFaceId))
             .ToList();
 
-        var peopleById = People.ToDictionary(person => person.Id);
-        var selectedById = SelectedPeople.ToDictionary(person => person.Id);
-        SelectedPeople = PersonIds
-            .Select(personId => peopleById.GetValueOrDefault(personId)
-                                ?? selectedById.GetValueOrDefault(personId))
-            .Where(person => person is not null)
-            .Select(person => person!)
-            .ToList();
-        PersonIds = SelectedPeople.Select(person => person.Id).ToArray();
-        if (PersonIds.Length < 2)
+        // A part carries no people list, so it keeps the selection it was asked for (already
+        // narrowed to available people by LoadSelectedPeopleAsync) for its next-part address.
+        if (!IsTimelinePart)
         {
-            PeopleMatch = "all";
+            var peopleById = People.ToDictionary(person => person.Id);
+            var selectedById = SelectedPeople.ToDictionary(person => person.Id);
+            SelectedPeople = PersonIds
+                .Select(personId => peopleById.GetValueOrDefault(personId)
+                                    ?? selectedById.GetValueOrDefault(personId))
+                .Where(person => person is not null)
+                .Select(person => person!)
+                .ToList();
+            PersonIds = SelectedPeople.Select(person => person.Id).ToArray();
+            if (PersonIds.Length < 2)
+            {
+                PeopleMatch = "all";
+            }
         }
 
         Years = result.Years;
@@ -660,6 +781,7 @@ public sealed partial class IndexModel : PageModel
         string thumbnail;
         string display;
         string original;
+        string? gridThumbnail = null;
         string? download = null;
         string? sourceUrl;
 
@@ -668,6 +790,7 @@ public sealed partial class IndexModel : PageModel
             case MediaAssetOrigin.ProjectPhoto:
                 display = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "xl", v = version }) ?? string.Empty;
                 thumbnail = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "md", v = version }) ?? display;
+                gridThumbnail = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = GridThumbnailSize, v = version });
                 original = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "original", v = version }) ?? display;
                 download = Url.Page("/Projects/Photos/Download", new { id = parentId, photoId = id, size = "original" });
                 sourceUrl = Url.Page("/Projects/Photos/Index", new { id = parentId });
@@ -684,6 +807,7 @@ public sealed partial class IndexModel : PageModel
             case MediaAssetOrigin.VisitPhoto:
                 display = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "xl", v = version }) ?? string.Empty;
                 thumbnail = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "md", v = version }) ?? display;
+                gridThumbnail = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = GridThumbnailSize, v = version });
                 original = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "original", v = version }) ?? display;
                 sourceUrl = Url.Page("/Visits/Details", new { area = "ProjectOfficeReports", id = parentId });
                 break;
@@ -753,6 +877,7 @@ public sealed partial class IndexModel : PageModel
             Albums = row.Albums.Select(album => new AlbumSummary(album.Id, album.Name)).ToList(),
             MediaDate = row.MediaDateUtc.ToLocalTime().DateTime,
             ThumbnailUrl = thumbnail,
+            GridThumbnailUrl = gridThumbnail,
             DisplayUrl = display,
             OriginalUrl = original,
             DownloadUrl = download,
@@ -781,14 +906,18 @@ public sealed partial class IndexModel : PageModel
                 PeopleFeatureEnabled,
                 PeopleFeatureEnabled ? PersonIds : Array.Empty<Guid>(),
                 PeopleMatch,
-                IncludeSingletonCollections,
+                // Single-picture projects are always listed (see the fallback below).
+                IncludeSingletons: true,
                 Sort),
             cancellationToken);
 
         PageNumber = result.PageNumber;
         HasPreviousPage = result.HasPreviousPage;
         HasNextPage = result.HasNextPage;
-        Collections = result.Collections.Select(MapCollection).ToList();
+        var coverVersions = await LoadCoverCacheVersionsAsync(
+            result.Collections.Select(collection => collection.CoverAssetId),
+            cancellationToken);
+        Collections = result.Collections.Select(row => MapCollection(row, coverVersions)).ToList();
         Stats = new LibraryStats
         {
             Total = result.TotalItems,
@@ -798,11 +927,55 @@ public sealed partial class IndexModel : PageModel
         };
     }
 
-    private CollectionCard MapCollection(MediaCollectionSummary row)
+    /// <summary>
+    /// Cover thumbnails are cached by the browser like timeline tiles, so their URLs carry
+    /// the asset's cache version; a replaced cover then loads fresh instead of showing the
+    /// old image until the browser cache expires. One batched read per page.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<long, int>> LoadCoverCacheVersionsAsync(
+        IEnumerable<long?> coverAssetIds,
+        CancellationToken cancellationToken)
     {
-        var coverUrl = row.CoverAssetId.HasValue
-            ? Url.Page("/Photos/Media", new { id = row.CoverAssetId.Value, variant = "thumb" })
-            : null;
+        var ids = coverAssetIds
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<long, int>();
+        }
+
+        try
+        {
+            return await _mediaDb.Assets
+                .AsNoTracking()
+                .Where(asset => ids.Contains(asset.Id))
+                .Select(asset => new { asset.Id, asset.CacheVersion })
+                .ToDictionaryAsync(asset => asset.Id, asset => asset.CacheVersion, cancellationToken);
+        }
+        catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
+        {
+            _logger.LogDebug(ex, "Cover cache versions could not be read; cover URLs are unversioned.");
+            return new Dictionary<long, int>();
+        }
+    }
+
+    private string? BuildCoverUrl(long? coverAssetId, IReadOnlyDictionary<long, int> coverVersions)
+    {
+        if (!coverAssetId.HasValue)
+        {
+            return null;
+        }
+
+        return coverVersions.TryGetValue(coverAssetId.Value, out var version)
+            ? Url.Page("/Photos/Media", new { id = coverAssetId.Value, variant = "thumb", v = version })
+            : Url.Page("/Photos/Media", new { id = coverAssetId.Value, variant = "thumb" });
+    }
+
+    private CollectionCard MapCollection(MediaCollectionSummary row, IReadOnlyDictionary<long, int> coverVersions)
+    {
+        var coverUrl = BuildCoverUrl(row.CoverAssetId, coverVersions);
 
         return new CollectionCard(
             row.CollectionKey,
@@ -849,7 +1022,9 @@ public sealed partial class IndexModel : PageModel
                     IsProjectOnly = isProjectOnly
                 };
             })
-            .Where(group => IncludeSingletonCollections || group.Rows.Count > 1 || !group.IsProjectOnly);
+            // A project with a single picture is listed like any other: leaving it out read as
+            // missing data. IncludeSingletonCollections stays bound so old links still open.
+            .Where(group => group.Rows.Count > 0);
 
         var ordered = Sort == "oldest"
             ? query.OrderBy(group => group.Latest).ThenBy(group => group.Representative.ContextTitle, StringComparer.OrdinalIgnoreCase)
@@ -933,23 +1108,97 @@ public sealed partial class IndexModel : PageModel
             _ => "External"
         };
 
-    private async Task LoadPrismFallbackAsync(Guid? prismSourceId, CancellationToken cancellationToken)
+    /// <summary>
+    /// Reads PRISM-owned media for the current Source and Kind filters. With no window it
+    /// reads every row (the degraded fallback used only when no usable catalogue exists);
+    /// with a window it reads at most <see cref="PrismUploadWindow.Take"/> recent uploads
+    /// per source.
+    /// </summary>
+    private async Task<List<MediaItem>> LoadPrismSourceItemsAsync(
+        PrismUploadWindow? window,
+        CancellationToken cancellationToken)
     {
-        IsUsingCatalogue = false;
-        var items = new List<MediaItem>(512);
-
+        var items = new List<MediaItem>();
         if (Source is "all" or "projects")
         {
-            if (Kind is "all" or "photo") items.AddRange(await LoadProjectPhotosAsync(cancellationToken));
-            if (Kind is "all" or "video") items.AddRange(await LoadProjectVideosAsync(cancellationToken));
+            if (Kind is "all" or "photo") items.AddRange(await LoadProjectPhotosAsync(window, cancellationToken));
+            if (Kind is "all" or "video") items.AddRange(await LoadProjectVideosAsync(window, cancellationToken));
         }
 
         if (Kind is "all" or "photo")
         {
-            if (Source is "all" or "visits") items.AddRange(await LoadVisitPhotosAsync(cancellationToken));
-            if (Source is "all" or "events") items.AddRange(await LoadSocialMediaPhotosAsync(cancellationToken));
-            if (Source is "all" or "activities") items.AddRange(await LoadActivityPhotosAsync(cancellationToken));
+            if (Source is "all" or "visits") items.AddRange(await LoadVisitPhotosAsync(window, cancellationToken));
+            if (Source is "all" or "events") items.AddRange(await LoadSocialMediaPhotosAsync(window, cancellationToken));
+            if (Source is "all" or "activities") items.AddRange(await LoadActivityPhotosAsync(window, cancellationToken));
         }
+
+        return items;
+    }
+
+    /// <summary>
+    /// While the catalogue catches up after an upload, the catalogue timeline is still
+    /// complete apart from media added since its last successful pass. Rather than
+    /// re-reading every PRISM media row on each page view, show the catalogue and add the
+    /// recent uploads it has not indexed yet, so new uploads stay visible immediately.
+    /// The read is bounded by upload time and by page size for each source.
+    /// </summary>
+    private async Task AddUncataloguedRecentUploadsAsync(
+        PrismCatalogueFreshness freshness,
+        CancellationToken cancellationToken)
+    {
+        if (!freshness.SourceId.HasValue
+            || !freshness.LastSuccessfulScanAtUtc.HasValue
+            || !PhotosUploadOverlay.Applies(PageNumber, Sort, Classification, PersonIds.Length, Source))
+        {
+            return;
+        }
+
+        try
+        {
+            var window = new PrismUploadWindow(
+                freshness.LastSuccessfulScanAtUtc.Value - UncataloguedUploadOverlap,
+                PageSize);
+            var recent = (await LoadPrismSourceItemsAsync(window, cancellationToken))
+                .Where(MatchesSearch)
+                .Where(item => !Year.HasValue || item.MediaDate.Year == Year.Value)
+                .Where(item => Collection is null || string.Equals(item.CollectionKey, Collection, StringComparison.Ordinal))
+                .ToList();
+            if (recent.Count == 0)
+            {
+                return;
+            }
+
+            var sourceId = freshness.SourceId.Value;
+            var recentIds = recent.Select(item => item.Id).ToArray();
+            var alreadyCatalogued = await _mediaDb.Assets
+                .AsNoTracking()
+                .Where(asset => asset.SourceId == sourceId && recentIds.Contains(asset.SourceEntityId))
+                .Select(asset => asset.SourceEntityId)
+                .ToListAsync(cancellationToken);
+            var pending = PhotosUploadOverlay.SelectPending(
+                recent,
+                alreadyCatalogued.ToHashSet(StringComparer.Ordinal),
+                PageSize);
+            if (pending.Count == 0)
+            {
+                return;
+            }
+
+            Items = pending.Concat(Items).ToList();
+            BuildGroups();
+        }
+        catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
+        {
+            // The catalogue timeline is already shown; recent uploads appear once it catches up.
+            _logger.LogWarning(ex, "Unable to add recent PRISM uploads to the catalogue timeline.");
+        }
+    }
+
+    private async Task LoadPrismFallbackAsync(Guid? prismSourceId, CancellationToken cancellationToken)
+    {
+        IsUsingCatalogue = false;
+        var items = new List<MediaItem>(512);
+        items.AddRange(await LoadPrismSourceItemsAsync(window: null, cancellationToken));
 
         // Do not resurrect historical rows whose physical source was already proven
         // unavailable. A changed version is allowed through because it represents a new
@@ -1020,6 +1269,13 @@ public sealed partial class IndexModel : PageModel
             Collections = Array.Empty<CollectionCard>();
         }
 
+        if (IsTimelinePart)
+        {
+            // The rows and paging above are all a part shows; the lists and figures are the page's.
+            BuildGroups();
+            return;
+        }
+
         Years = items.Where(MatchesSearch).Where(MatchesClassification)
             .Select(item => item.MediaDate.Year).Distinct().OrderByDescending(year => year).ToList();
         Projects = await _db.Projects.AsNoTracking()
@@ -1057,10 +1313,17 @@ public sealed partial class IndexModel : PageModel
             .ToList();
     }
 
-    private async Task<List<MediaItem>> LoadProjectPhotosAsync(CancellationToken cancellationToken)
+    private async Task<List<MediaItem>> LoadProjectPhotosAsync(PrismUploadWindow? window, CancellationToken cancellationToken)
     {
         var query = _db.ProjectPhotos.AsNoTracking().Where(photo => !photo.Project.IsDeleted);
         if (ProjectId.HasValue) query = query.Where(photo => photo.ProjectId == ProjectId.Value);
+        if (window is not null)
+        {
+            var since = window.AddedAfterUtc.UtcDateTime;
+            query = query.Where(photo => photo.CreatedUtc > since)
+                .OrderByDescending(photo => photo.CreatedUtc)
+                .Take(window.Take);
+        }
         var rows = await query.Select(photo => new
         {
             photo.Id, photo.ProjectId, ProjectName = photo.Project.Name, photo.Caption,
@@ -1078,8 +1341,9 @@ public sealed partial class IndexModel : PageModel
                 ContextTitle = row.ProjectName, ContextSubtitle = "Project media",
                 Title = string.IsNullOrWhiteSpace(row.Caption) ? row.OriginalFileName : row.Caption,
                 Caption = row.Caption, OriginalFileName = row.OriginalFileName,
-                MediaDate = DateTime.SpecifyKind(row.CreatedUtc, DateTimeKind.Utc),
+                MediaDate = DateTime.SpecifyKind(row.CreatedUtc, DateTimeKind.Utc).ToLocalTime(),
                 ThumbnailUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "md", v = row.Version }) ?? display,
+                GridThumbnailUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = GridThumbnailSize, v = row.Version }),
                 DisplayUrl = display,
                 OriginalUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "original", v = row.Version }) ?? display,
                 DownloadUrl = Url.Page("/Projects/Photos/Download", new { id = row.ProjectId, photoId = row.Id, size = "original" }),
@@ -1089,10 +1353,17 @@ public sealed partial class IndexModel : PageModel
         }).ToList();
     }
 
-    private async Task<List<MediaItem>> LoadProjectVideosAsync(CancellationToken cancellationToken)
+    private async Task<List<MediaItem>> LoadProjectVideosAsync(PrismUploadWindow? window, CancellationToken cancellationToken)
     {
         var query = _db.ProjectVideos.AsNoTracking().Where(video => !video.Project.IsDeleted);
         if (ProjectId.HasValue) query = query.Where(video => video.ProjectId == ProjectId.Value);
+        if (window is not null)
+        {
+            var since = window.AddedAfterUtc.UtcDateTime;
+            query = query.Where(video => video.CreatedUtc > since)
+                .OrderByDescending(video => video.CreatedUtc)
+                .Take(window.Take);
+        }
         var rows = await query.Select(video => new
         {
             video.Id, video.ProjectId, ProjectName = video.Project.Name, video.Title, video.Description,
@@ -1105,7 +1376,7 @@ public sealed partial class IndexModel : PageModel
             ContextTitle = row.ProjectName, ContextSubtitle = "Project media",
             Title = string.IsNullOrWhiteSpace(row.Title) ? row.OriginalFileName : row.Title,
             Caption = row.Description, OriginalFileName = row.OriginalFileName,
-            MediaDate = DateTime.SpecifyKind(row.CreatedUtc, DateTimeKind.Utc),
+            MediaDate = DateTime.SpecifyKind(row.CreatedUtc, DateTimeKind.Utc).ToLocalTime(),
             ThumbnailUrl = Url.Page("/Projects/Videos/Poster", new { id = row.ProjectId, videoId = row.Id, v = row.Version }) ?? string.Empty,
             DisplayUrl = Url.Page("/Projects/Videos/Stream", new { id = row.ProjectId, videoId = row.Id, v = row.Version }) ?? string.Empty,
             OriginalUrl = Url.Page("/Projects/Videos/Stream", new { id = row.ProjectId, videoId = row.Id, v = row.Version }) ?? string.Empty,
@@ -1114,10 +1385,18 @@ public sealed partial class IndexModel : PageModel
         }).ToList();
     }
 
-    private async Task<List<MediaItem>> LoadVisitPhotosAsync(CancellationToken cancellationToken)
+    private async Task<List<MediaItem>> LoadVisitPhotosAsync(PrismUploadWindow? window, CancellationToken cancellationToken)
     {
         if (ProjectId.HasValue) return new();
-        var rows = await _db.VisitPhotos.AsNoTracking().Select(photo => new
+        var query = _db.VisitPhotos.AsNoTracking();
+        if (window is not null)
+        {
+            var since = window.AddedAfterUtc;
+            query = query.Where(photo => photo.CreatedAtUtc > since)
+                .OrderByDescending(photo => photo.CreatedAtUtc)
+                .Take(window.Take);
+        }
+        var rows = await query.Select(photo => new
         {
             photo.Id, photo.VisitId, VisitorName = photo.Visit!.VisitorName,
             VisitType = photo.Visit.VisitType != null ? photo.Visit.VisitType.Name : null,
@@ -1134,6 +1413,7 @@ public sealed partial class IndexModel : PageModel
                 Title = string.IsNullOrWhiteSpace(row.Caption) ? MediaCollectionTitleFormatter.FormatVisitTitle(row.VisitorName) : row.Caption,
                 Caption = row.Caption, MediaDate = row.DateOfVisit.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local),
                 ThumbnailUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "md", v = row.VersionStamp }) ?? display,
+                GridThumbnailUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = GridThumbnailSize, v = row.VersionStamp }),
                 DisplayUrl = display,
                 OriginalUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "original", v = row.VersionStamp }) ?? display,
                 SourceUrl = Url.Page("/Visits/Details", new { area = "ProjectOfficeReports", id = row.VisitId }),
@@ -1142,10 +1422,18 @@ public sealed partial class IndexModel : PageModel
         }).ToList();
     }
 
-    private async Task<List<MediaItem>> LoadSocialMediaPhotosAsync(CancellationToken cancellationToken)
+    private async Task<List<MediaItem>> LoadSocialMediaPhotosAsync(PrismUploadWindow? window, CancellationToken cancellationToken)
     {
         if (ProjectId.HasValue) return new();
-        var rows = await _db.SocialMediaEventPhotos.AsNoTracking().Select(photo => new
+        var query = _db.SocialMediaEventPhotos.AsNoTracking();
+        if (window is not null)
+        {
+            var since = window.AddedAfterUtc;
+            query = query.Where(photo => photo.CreatedAtUtc > since)
+                .OrderByDescending(photo => photo.CreatedAtUtc)
+                .Take(window.Take);
+        }
+        var rows = await query.Select(photo => new
         {
             photo.Id, EventId = photo.SocialMediaEventId, EventTitle = photo.SocialMediaEvent!.Title,
             EventType = photo.SocialMediaEvent.SocialMediaEventType != null ? photo.SocialMediaEvent.SocialMediaEventType.Name : null,
@@ -1170,13 +1458,21 @@ public sealed partial class IndexModel : PageModel
         }).ToList();
     }
 
-    private async Task<List<MediaItem>> LoadActivityPhotosAsync(CancellationToken cancellationToken)
+    private async Task<List<MediaItem>> LoadActivityPhotosAsync(PrismUploadWindow? window, CancellationToken cancellationToken)
     {
         if (ProjectId.HasValue) return new();
-        var rows = await _db.ActivityAttachments
+        var query = _db.ActivityAttachments
             .AsNoTracking()
             .Where(attachment => !attachment.Activity.IsDeleted)
-            .Where(ActivityAttachmentClassifier.IsPhotoExpression)
+            .Where(ActivityAttachmentClassifier.IsPhotoExpression);
+        if (window is not null)
+        {
+            var since = window.AddedAfterUtc;
+            query = query.Where(attachment => attachment.UploadedAtUtc > since)
+                .OrderByDescending(attachment => attachment.UploadedAtUtc)
+                .Take(window.Take);
+        }
+        var rows = await query
             .Select(attachment => new
             {
                 attachment.Id,
@@ -1286,6 +1582,58 @@ public sealed partial class IndexModel : PageModel
     public string BuildMediaTypeUrl(string kind)
         => BuildPhotosUrl(PersonIds, kind: kind, pageNumber: 1);
 
+    public string BuildSourceUrl(string source)
+        => BuildPhotosUrl(PersonIds, pageNumber: 1, source: source);
+
+    // The source chips under the bar, in the order they are shown.
+    public IReadOnlyList<(string Key, string Label)> QuickSourceFilters
+    {
+        get
+        {
+            var filters = new List<(string Key, string Label)>
+            {
+                ("projects", "Projects"),
+                ("visits", "Visits"),
+                ("events", "Events"),
+                ("activities", "Activities")
+            };
+            if (ExternalSourcesEnabled)
+            {
+                filters.Add(("external", "External folders"));
+            }
+
+            return filters;
+        }
+    }
+
+    // The heading over a group of collections: where the pictures were added in PRISM.
+    public static string CollectionGroupTitle(string? typeLabel)
+    {
+        var label = (typeLabel ?? string.Empty).Trim();
+        if (label.Length == 0) return "Other";
+        if (label.EndsWith("y", StringComparison.OrdinalIgnoreCase) && label.Length > 1) return label[..^1] + "ies";
+        return label.EndsWith("s", StringComparison.OrdinalIgnoreCase) ? label : label + "s";
+    }
+
+    // What a day's pictures came from, for the day heading: up to two names, then "and N more".
+    public static string DaySourceSummary(IReadOnlyCollection<MediaItem> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        var names = items
+            .Select(item => DisplayContext(item) ?? item.ContextTitle)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return names.Count switch
+        {
+            0 => "Photos",
+            1 => names[0],
+            2 => $"{names[0]} · {names[1]}",
+            _ => $"{names[0]} · {names[1]} and {names.Count - 2} more"
+        };
+    }
+
     public string BuildPageUrl(int pageNumber)
     {
         if (IsAlbumsWorkspace)
@@ -1302,6 +1650,43 @@ public sealed partial class IndexModel : PageModel
         }
 
         return BuildPhotosUrl(PersonIds, pageNumber: pageNumber);
+    }
+
+    public string BuildTimelinePartUrl(int pageNumber)
+    {
+        var url = BuildPageUrl(pageNumber);
+        return url + (url.Contains('?', StringComparison.Ordinal) ? "&" : "?") + "handler=TimelinePart";
+    }
+
+    // The month list beside the timeline. Each month links to the page its first picture is on,
+    // so a month that is not loaded yet can still be reached.
+    private IReadOnlyList<TimelineMonth> BuildTimelineMonths(IReadOnlyList<MediaLibraryMonthCount> months, int pageSize)
+    {
+        if (months.Count == 0 || pageSize <= 0)
+        {
+            return Array.Empty<TimelineMonth>();
+        }
+
+        var ordered = Sort == "oldest"
+            ? months.OrderBy(month => month.Year).ThenBy(month => month.Month)
+            : months.OrderByDescending(month => month.Year).ThenByDescending(month => month.Month);
+        var result = new List<TimelineMonth>(months.Count);
+        var before = 0;
+        foreach (var month in ordered)
+        {
+            var first = new DateTime(month.Year, month.Month, 1);
+            var key = first.ToString("yyyyMM", CultureInfo.InvariantCulture);
+            result.Add(new TimelineMonth(
+                key,
+                month.Year,
+                first.ToString("MMMM yyyy", CultureInfo.CurrentCulture),
+                first.ToString("MMM", CultureInfo.CurrentCulture),
+                month.Count,
+                $"{BuildPageUrl(before / pageSize + 1)}#month-{key}"));
+            before += month.Count;
+        }
+
+        return result;
     }
 
     public string BuildPeopleMatchUrl(string matchMode)
@@ -1338,18 +1723,22 @@ public sealed partial class IndexModel : PageModel
         string? view = null,
         string? collection = null,
         string? sort = null,
-        bool? findMore = null)
+        bool? findMore = null,
+        string? source = null)
     {
         var targetView = view ?? View;
         var targetKind = kind ?? Kind;
+        var targetSource = source ?? Source;
+        // A project filter only makes sense with all sources or project media.
+        var targetProjectId = targetSource is "all" or "projects" ? ProjectId : null;
         var values = new RouteValueDictionary
         {
             ["View"] = targetView,
             ["Q"] = Q,
-            ["Source"] = Source == "all" ? null : Source,
+            ["Source"] = targetSource == "all" ? null : targetSource,
             ["Kind"] = targetKind == "all" ? null : targetKind,
             ["Classification"] = Classification == "all" ? null : Classification,
-            ["ProjectId"] = ProjectId,
+            ["ProjectId"] = targetProjectId,
             ["Year"] = Year,
             ["Sort"] = (sort ?? Sort) == "newest" ? null : (sort ?? Sort),
             ["Collection"] = collection ?? Collection,
@@ -1511,6 +1900,42 @@ public sealed partial class IndexModel : PageModel
             ? Projects.FirstOrDefault(project => project.Id == ProjectId.Value)?.Name
             : null;
 
+    // People, projects and years for the search box's suggestions. They are the lists the
+    // filter drawer already offers this user, so the suggestions expose nothing new.
+    public string SerializeSearchSuggestions()
+    {
+        var payload = new
+        {
+            people = PeopleFeatureEnabled
+                // A person with no confirmed picture leads nowhere, so is not suggested.
+                ? People.Where(person => person.PhotoCount > 0).Select(person => new
+                {
+                    name = person.Name,
+                    count = person.PhotoCount,
+                    // A fresh link, like the project and year suggestions: it must not carry the
+                    // text search or filters of the page it was offered on.
+                    url = Url.Page("/Photos/Index", new { View = "photos", PersonIds = person.Id }) ?? string.Empty,
+                    portrait = person.RepresentativeFaceId.HasValue
+                        ? Url.Page("/Photos/People/Portrait", new { id = person.Id })
+                        : null
+                })
+                : null,
+            projects = Projects.Select(project => new
+            {
+                name = project.Name,
+                url = Url.Page("/Photos/Index", new { View = "photos", ProjectId = project.Id }) ?? string.Empty
+            }),
+            years = Years.Select(year => new
+            {
+                year,
+                url = Url.Page("/Photos/Index", new { View = "photos", Year = year }) ?? string.Empty
+            })
+        };
+
+        // The default encoder escapes <, > and &, so the JSON is safe inside a script block.
+        return JsonSerializer.Serialize(payload);
+    }
+
     public string SerializeViewerPeople(MediaItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
@@ -1519,43 +1944,6 @@ public sealed partial class IndexModel : PageModel
             name = person.Name,
             url = Url.Page("/Photos/Index", new { PersonIds = person.Id, View = "photos" }) ?? string.Empty
         }));
-    }
-
-    public static string PeopleBadgeTitle(MediaItem item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        if (item.People.Count > 0)
-        {
-            var confirmed = string.Join(", ", item.People.Select(person => person.Name));
-            return item.UnidentifiedFaceCount > 0
-                ? $"{confirmed}; {item.UnidentifiedFaceCount} unidentified"
-                : confirmed;
-        }
-
-        return item.UnidentifiedFaceCount == 1
-            ? "1 unidentified person"
-            : $"{item.UnidentifiedFaceCount} unidentified people";
-    }
-
-    public static string PeopleBadgeLabel(MediaItem item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        if (item.People.Count == 1 && item.UnidentifiedFaceCount == 0)
-        {
-            return item.People[0].Name;
-        }
-
-        if (item.People.Count > 0)
-        {
-            var additional = item.People.Count - 1 + item.UnidentifiedFaceCount;
-            return additional > 0
-                ? $"{item.People[0].Name} +{additional}"
-                : item.People[0].Name;
-        }
-
-        return item.UnidentifiedFaceCount == 1
-            ? "1 unidentified"
-            : $"{item.UnidentifiedFaceCount} unidentified";
     }
 
     public static string ClassificationLabel(MediaClassification classification)
@@ -1584,6 +1972,9 @@ public sealed partial class IndexModel : PageModel
         string? VersionToken,
         bool IsAvailable);
 
+    /// <summary>Recent-upload read used while the catalogue catches up.</summary>
+    private sealed record PrismUploadWindow(DateTimeOffset AddedAfterUtc, int Take);
+
     private sealed record PrismCatalogueFreshness(
         Guid? SourceId,
         bool IsFresh,
@@ -1594,6 +1985,8 @@ public sealed partial class IndexModel : PageModel
     {
         public static PrismCatalogueFreshness Unavailable { get; } = new(null, false, null, null, null, 0);
     }
+
+    public sealed record TimelineMonth(string Key, int Year, string Label, string ShortLabel, int Count, string Url);
 
     public sealed class MediaItem
     {
@@ -1621,6 +2014,9 @@ public sealed partial class IndexModel : PageModel
         public IReadOnlyList<AlbumSummary> Albums { get; init; } = Array.Empty<AlbumSummary>();
         public required DateTime MediaDate { get; init; }
         public required string ThumbnailUrl { get; init; }
+        // A smaller picture for timeline tiles (about 215px tall). When it cannot be loaded the
+        // page falls back to ThumbnailUrl, so a library without this size keeps working.
+        public string? GridThumbnailUrl { get; init; }
         public required string DisplayUrl { get; init; }
         public required string OriginalUrl { get; init; }
         public string? DownloadUrl { get; init; }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Data;
+using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
 
@@ -31,6 +32,121 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
         Assert.Contains("MediaFaces", sql);
         Assert.Contains("MediaAssets", sql);
         Assert.Contains("NOT EXISTS", sql.ToUpperInvariant());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Collection_representative_rows_are_chosen_in_the_database(bool coverOnly)
+    {
+        using var db = CreateContext();
+
+        var sql = MediaCollectionQueryService.BuildRepresentativeIdsQuery(
+                db.Assets,
+                new[] { "project:1", "external:nas:root" },
+                coverOnly)
+            .ToQueryString()
+            .ToUpperInvariant();
+
+        // One id per collection, chosen in the database (grouped, with a LIMIT 1 pick per
+        // group), not every asset of each listed collection.
+        Assert.Contains("GROUP BY", sql);
+        Assert.Contains("LIMIT 1", sql);
+    }
+
+    [Fact]
+    public void Timeline_month_counts_are_grouped_in_the_database()
+    {
+        using var db = CreateContext();
+
+        var sql = MediaLibraryQueryService.BuildMonthCountsQuery(db.Assets, new TimeSpan(5, 30, 0))
+            .ToQueryString()
+            .ToUpperInvariant();
+
+        // The Photos month list needs one row per month, not every asset's date.
+        Assert.Contains("GROUP BY", sql);
+        Assert.Contains("COUNT(", sql);
+        // Months are those of the server's local time, as the timeline shows them: the
+        // stored UTC date is shifted by the local offset before the month is taken.
+        Assert.Contains("INTERVAL", sql);
+    }
+
+    [Fact]
+    public void Year_filter_is_a_range_on_the_stored_date_and_translates_for_postgresql()
+    {
+        using var db = CreateContext();
+
+        var sql = MediaLibraryQueryService.ApplyLocalYearFilter(db.Assets, 2026, new TimeSpan(5, 30, 0))
+            .ToQueryString()
+            .ToUpperInvariant();
+
+        // A plain range on the column (index-friendly), not a function of the column.
+        Assert.Contains("\"MEDIADATEUTC\" >=", sql);
+        Assert.Contains("\"MEDIADATEUTC\" <", sql);
+        Assert.DoesNotContain("DATE_PART", sql);
+    }
+
+    [Fact]
+    public void Year_list_is_shifted_to_local_time_in_the_database()
+    {
+        using var db = CreateContext();
+
+        var sql = MediaLibraryQueryService.BuildLocalYearsQuery(db.Assets, new TimeSpan(5, 30, 0))
+            .OrderByDescending(year => year)
+            .ToQueryString()
+            .ToUpperInvariant();
+
+        Assert.Contains("DISTINCT", sql);
+        Assert.Contains("INTERVAL", sql);
+    }
+
+    [Fact]
+    public void Picture_just_after_local_midnight_on_1_january_belongs_to_the_new_year()
+    {
+        // 1 Jan 2026 02:00 IST is 31 Dec 2025 20:30 UTC. The offset is passed in, so the
+        // test does not depend on this machine's time zone.
+        var ist = new TimeSpan(5, 30, 0);
+        var newYearPicture = new MediaAsset
+        {
+            Id = 1,
+            MediaDateUtc = new DateTimeOffset(2025, 12, 31, 20, 30, 0, TimeSpan.Zero)
+        };
+        var oldYearPicture = new MediaAsset
+        {
+            Id = 2,
+            MediaDateUtc = new DateTimeOffset(2025, 12, 31, 18, 29, 0, TimeSpan.Zero)
+        };
+        var assets = new[] { newYearPicture, oldYearPicture }.AsQueryable();
+
+        Assert.Equal(
+            new[] { 2026, 2025 },
+            MediaLibraryQueryService.BuildLocalYearsQuery(assets, ist).OrderByDescending(year => year).ToArray());
+        Assert.Equal(
+            new[] { newYearPicture.Id },
+            MediaLibraryQueryService.ApplyLocalYearFilter(assets, 2026, ist).Select(asset => asset.Id).ToArray());
+        Assert.Equal(
+            new[] { oldYearPicture.Id },
+            MediaLibraryQueryService.ApplyLocalYearFilter(assets, 2025, ist).Select(asset => asset.Id).ToArray());
+
+        // Year, month and day agree: the month counts put the same picture in January 2026.
+        var months = MediaLibraryQueryService.BuildMonthCountsQuery(assets, ist).ToList();
+        Assert.Contains(months, month => month.Year == 2026 && month.Month == 1 && month.Count == 1);
+        Assert.Contains(months, month => month.Year == 2025 && month.Month == 12 && month.Count == 1);
+    }
+
+    [Fact]
+    public void Recently_seen_sort_places_people_without_photos_last()
+    {
+        using var db = CreateContext();
+        var filteredPeople = MediaPeopleQueryService.BuildFilteredPeopleQuery(db, null, includeHidden: false);
+
+        var sql = MediaPeopleQueryService.BuildPeopleIndexRowsQuery(db, filteredPeople, "recent", skip: 0, take: 36)
+            .ToQueryString()
+            .ToUpperInvariant();
+
+        // PostgreSQL sorts NULL first in DESC order; the query orders by "has a date" first.
+        var orderBy = sql[sql.LastIndexOf("ORDER BY", StringComparison.Ordinal)..];
+        Assert.Contains("IS NOT NULL", orderBy);
     }
 
     [Theory]

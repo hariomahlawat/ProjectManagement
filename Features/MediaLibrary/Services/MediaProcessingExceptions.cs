@@ -23,3 +23,14 @@ public sealed class MediaProcessingSupersededException : Exception
     public MediaProcessingSupersededException(string message, Exception innerException)
         : base(message, innerException) { }
 }
+
+/// <summary>
+/// Raised in place of a "source missing" failure when the storage root that holds the
+/// asset (an external share or the PRISM upload root) is itself unreachable. A missing
+/// root is an outage, not proof that the file was removed, so the failure is recoverable
+/// and the asset must stay visible.
+/// </summary>
+public sealed class MediaSourceStorageUnreachableException : IOException
+{
+    public MediaSourceStorageUnreachableException(string message) : base(message) { }
+}

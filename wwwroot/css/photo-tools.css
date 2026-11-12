@@ -1,0 +1,1344 @@
+/* PRISM Photo Tools — standalone page (Pages/Tools/Photo). The shell (top bar, home cards,
+   drop zone) comes from pdf-tools.css; this file adds only what Photo Tools needs. Colours
+   come from Bootstrap's theme variables only, so Light and Dark both work. */
+
+.phot {
+    --pdft-brand: var(--bs-primary);
+    --phot-stage: var(--bs-dark);
+    --phot-stage-text: var(--bs-light);
+}
+
+.phot-main {
+    max-width: 1320px;
+}
+
+/* Four tools: two by two, one column on a phone. */
+.phot-grid {
+    max-width: 760px;
+    margin: 0 auto;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+/* ---------- Tool header ---------- */
+
+.phot-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.phot-head__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 44px;
+    color: var(--pdft-muted);
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.phot-head__back:hover,
+.phot-head__back:focus-visible {
+    color: var(--bs-emphasis-color);
+}
+
+.phot-head h1 {
+    margin: 0;
+    font-size: clamp(1.4rem, 3vw, 1.75rem);
+    font-weight: 800;
+    color: var(--bs-emphasis-color);
+}
+
+.phot-head__action {
+    margin-left: auto;
+    font-weight: 700;
+}
+
+/* ---------- Layout ---------- */
+
+.phot-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.phot-layout.is-dragging .phot-list {
+    border-color: var(--pdft-brand);
+}
+
+.phot-layout__main,
+.phot-layout__side {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+}
+
+.phot-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 1.25rem;
+    border-radius: var(--pdft-radius);
+    background: var(--pdft-surface);
+    border: 1px solid var(--pdft-border);
+}
+
+.phot-panel__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--bs-emphasis-color);
+}
+
+.phot-hint {
+    margin: 0;
+    color: var(--pdft-muted);
+    font-size: 0.875rem;
+}
+
+.phot-hint--warning {
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+}
+
+/* ---------- Photo list ---------- */
+
+.phot-list {
+    padding: 0;
+    overflow-x: auto;
+}
+
+.phot-table {
+    width: 100%;
+    min-width: 520px;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.phot-table th {
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--pdft-muted);
+    border-bottom: 1px solid var(--pdft-border);
+    white-space: nowrap;
+}
+
+.phot-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    vertical-align: middle;
+}
+
+.phot-table th:first-child,
+.phot-table td:first-child {
+    padding-left: 1.25rem;
+}
+
+.phot-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.phot-table tbody tr.is-selected {
+    background: var(--bs-primary-bg-subtle);
+}
+
+.phot-num {
+    text-align: right;
+    white-space: nowrap;
+    color: var(--pdft-muted);
+}
+
+.phot-row__pick {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+}
+
+.phot-row__thumb {
+    flex: 0 0 auto;
+    width: 48px;
+    height: 36px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: var(--bs-secondary-bg);
+}
+
+.phot-row__name {
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+.phot-after {
+    font-weight: 800;
+    color: var(--bs-success-text-emphasis);
+}
+
+.phot-after.is-over {
+    color: var(--bs-warning-text-emphasis);
+}
+
+.phot-after.is-error {
+    color: var(--bs-danger-text-emphasis);
+    font-weight: 600;
+    white-space: normal;
+}
+
+.phot-row__remove {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--pdft-muted);
+}
+
+.phot-row__remove:hover,
+.phot-row__remove:focus-visible {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-emphasis-color);
+}
+
+/* ---------- Quality check ---------- */
+
+.phot-stage {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--pdft-radius);
+    overflow: hidden;
+    background: var(--phot-stage);
+    color: var(--phot-stage-text);
+}
+
+.phot-stage__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: 0.7rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.phot-stage__slider {
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    margin: 0;
+}
+
+.phot-compare {
+    position: relative;
+    height: clamp(240px, 46vh, 460px);
+}
+
+.phot-compare__image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.phot-compare__line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--bs-white);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--bs-black) 35%, transparent);
+}
+
+.phot-compare__tag {
+    position: absolute;
+    bottom: 0.75rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--bs-black) 78%, transparent);
+    color: var(--bs-white);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.phot-compare__tag--before { left: 0.75rem; }
+.phot-compare__tag--after { right: 0.75rem; }
+
+/* ---------- Target size ---------- */
+
+.phot-target {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.phot-target__value {
+    width: 7rem;
+    min-height: 52px;
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.phot-segment {
+    display: inline-flex;
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--bs-secondary-bg);
+}
+
+.phot-segment button {
+    min-height: 40px;
+    padding: 0 0.9rem;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--bs-secondary-color);
+    font: inherit;
+    font-weight: 700;
+}
+
+.phot-segment button[aria-pressed="true"] {
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font-weight: 800;
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--bs-emphasis-color) 18%, transparent);
+}
+
+.phot-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.phot-chips button {
+    min-height: 38px;
+    padding: 0 0.8rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 999px;
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.phot-chips button[aria-pressed="true"] {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    font-weight: 800;
+}
+
+.phot-field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem 0.75rem;
+}
+
+.phot-field label {
+    font-weight: 700;
+}
+
+.phot-field .form-select,
+.phot-field .form-control {
+    width: auto;
+    min-width: 11rem;
+    max-width: 100%;
+    min-height: 42px;
+}
+
+/* ---------- Summary ---------- */
+
+.phot-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1.25rem;
+    border-radius: var(--pdft-radius);
+    background: var(--phot-stage);
+    color: var(--phot-stage-text);
+}
+
+.phot-summary__count {
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.phot-summary__sizes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+.phot-summary__before {
+    font-size: 1.1rem;
+    text-decoration: line-through;
+}
+
+.phot-summary__after {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--bs-white);
+}
+
+.phot-summary__note {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.phot-summary .btn {
+    font-weight: 800;
+}
+
+/* ---------- Phones ---------- */
+
+@media (max-width: 900px) {
+    .phot-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 575.98px) {
+    .phot-head__action {
+        margin-left: 0;
+    }
+
+    .phot-table th:nth-child(4),
+    .phot-table td:nth-child(4) {
+        display: none;
+    }
+
+    .phot-table {
+        min-width: 0;
+    }
+
+    .phot-table th,
+    .phot-table td {
+        padding-left: 0.4rem;
+        padding-right: 0.4rem;
+    }
+
+    .phot-table th:first-child,
+    .phot-table td:first-child {
+        padding-left: 0.75rem;
+    }
+
+    .phot-row__pick {
+        gap: 0.5rem;
+    }
+
+    .phot-row__thumb {
+        width: 40px;
+        height: 30px;
+    }
+}
+
+/* ---------- Passport photo ---------- */
+
+.phot-head__file {
+    color: var(--pdft-muted);
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
+.phot-crop {
+    position: relative;
+    height: clamp(340px, 62vh, 640px);
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.phot-crop:active {
+    cursor: grabbing;
+}
+
+.phot-crop:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: -3px;
+}
+
+.phot-crop__canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* The frame is the saved photo; everything outside it is dimmed. */
+.phot-crop__frame {
+    position: absolute;
+    border: 2px solid var(--bs-white);
+    box-shadow: 0 0 0 9999px color-mix(in srgb, var(--bs-black) 62%, transparent);
+    pointer-events: none;
+}
+
+.phot-crop__oval {
+    position: absolute;
+    left: 21%;
+    top: 10%;
+    width: 58%;
+    height: 68%;
+    border: 2px dashed var(--bs-warning);
+    border-radius: 50%;
+}
+
+.phot-crop__rule {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px dashed var(--bs-warning);
+}
+
+.phot-crop__rule--top { top: 10%; }
+.phot-crop__rule--chin { top: 78%; }
+
+.phot-crop__label {
+    position: absolute;
+    right: 6px;
+    padding: 0 0.4rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--bs-black) 75%, transparent);
+    color: var(--bs-warning);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.phot-crop__label--top { top: calc(10% - 1.4rem); }
+.phot-crop__label--chin { top: calc(78% + 0.3rem); }
+
+.phot-stage__bar--tools {
+    justify-content: flex-start;
+    gap: 0.75rem 1.5rem;
+}
+
+.phot-stage__control {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.phot-stage__control .form-range {
+    width: 9rem;
+}
+
+.phot-stage__value {
+    min-width: 2.75rem;
+    font-weight: 600;
+}
+
+.phot-stage__check {
+    margin: 0;
+}
+
+.phot-stage__hint {
+    margin: 0;
+    padding: 0 1.25rem 0.9rem;
+    font-size: 0.875rem;
+}
+
+.phot-step {
+    display: inline-grid;
+    place-items: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    margin-right: 0.6rem;
+    border-radius: 50%;
+    background: var(--bs-emphasis-color);
+    color: var(--bs-body-bg);
+    font-size: 0.85rem;
+}
+
+.phot-sizes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.phot-size {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-height: 56px;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 10px;
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    text-align: left;
+}
+
+.phot-size[aria-pressed="true"] {
+    border-color: var(--bs-primary);
+    box-shadow: inset 0 0 0 1px var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+}
+
+.phot-size__label {
+    font-weight: 800;
+}
+
+.phot-size__note {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+}
+
+.phot-custom {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.phot-custom__field label {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--bs-secondary-color);
+}
+
+.phot-custom__field .form-control,
+.phot-custom__field .form-select {
+    min-height: 42px;
+}
+
+.phot-fix {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+.phot-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0 0.9rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 10px;
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.phot-toggle[aria-pressed="true"] {
+    border-color: var(--bs-primary);
+    box-shadow: inset 0 0 0 1px var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    font-weight: 800;
+}
+
+.phot-fix .phot-hint {
+    flex: 1 1 10rem;
+}
+
+.phot-slider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.phot-slider__value {
+    min-width: 2rem;
+    text-align: right;
+}
+
+.phot-result {
+    margin: 0;
+    min-height: 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--pdft-muted);
+}
+
+.phot-result.is-ready { color: var(--bs-success-text-emphasis); }
+.phot-result.is-over { color: var(--bs-warning-text-emphasis); }
+.phot-result.is-problem { color: var(--bs-danger-text-emphasis); }
+
+@media (max-width: 575.98px) {
+    .phot-stage__control {
+        flex: 1 1 100%;
+    }
+
+    .phot-stage__control .form-range {
+        flex: 1;
+        width: auto;
+    }
+}
+
+/* On a phone the stage does not scroll the page (a finger on it moves the photo), so it is
+   kept short enough that the page can always be scrolled from above or below it. */
+@media (max-width: 575.98px) {
+    .phot-crop {
+        height: clamp(300px, 52vh, 460px);
+    }
+}
+
+/* ---------- Passport photo: Photo / Signature switch, and the way on to Print sheet ---------- */
+
+.phot-head__mode {
+    flex: 0 0 auto;
+}
+
+.phot-next {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+/* ---------- Passport photo: background colour ---------- */
+
+.phot-bg {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+.phot-bg__title {
+    font-weight: 700;
+    color: var(--bs-emphasis-color);
+}
+
+.phot-bg__choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.phot-bg__compare {
+    align-self: flex-start;
+}
+
+.phot-bgchoice {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0.3rem 0.9rem 0.3rem 0.5rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 999px;
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    cursor: pointer;
+}
+
+.phot-bgchoice[aria-pressed="true"],
+.phot-bgchoice.is-pressed {
+    border-color: var(--bs-primary);
+    box-shadow: inset 0 0 0 1px var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+}
+
+.phot-bgchoice:focus-within {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.phot-bgchoice .bi {
+    width: 28px;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.phot-bgchoice__dot {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--pdft-border);
+    border-radius: 50%;
+    background: var(--phot-swatch);
+}
+
+.phot-bgchoice input[type="color"] {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    cursor: pointer;
+}
+
+/* Fixing the background by hand: the brush tools, shown while painting. */
+.phot-bgfix {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding: 0.85rem;
+    border: 1px solid var(--bs-primary-border-subtle);
+    border-radius: 10px;
+    background: var(--bs-primary-bg-subtle);
+}
+
+.phot-bgfix__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+/* On the tinted box the outline buttons need a surface of their own to read as buttons. */
+.phot-bgfix .btn-outline-secondary {
+    --bs-btn-bg: var(--pdft-surface);
+}
+
+.phot-crop.is-painting {
+    cursor: crosshair;
+}
+
+/* ---------- Passport photo: checks before saving ---------- */
+
+.phot-check {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 10px;
+    background: var(--bs-tertiary-bg);
+}
+
+.phot-check.has-problems {
+    background: var(--bs-warning-bg-subtle);
+}
+
+.phot-check__title {
+    margin: 0;
+    font-weight: 800;
+    color: var(--bs-success-text-emphasis);
+}
+
+.phot-check.has-problems .phot-check__title {
+    color: var(--bs-warning-text-emphasis);
+}
+
+.phot-check__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.9rem;
+    color: var(--bs-emphasis-color);
+}
+
+.phot-check__list:empty {
+    display: none;
+}
+
+/* ---------- Print sheet ---------- */
+
+/* The paper is drawn to scale on the dark stage. */
+.phot-paper {
+    position: relative;
+    height: clamp(340px, 62vh, 640px);
+}
+
+.phot-paper__canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.phot-paper__caption {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    text-align: center;
+}
+
+.phot-mini {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+}
+
+.phot-mini__text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* A photo of another shape: the small picture grows and is dragged to choose the part printed. */
+.phot-mini__thumb.is-movable {
+    height: 160px;
+    max-width: 160px;
+    cursor: grab;
+    touch-action: none;
+}
+
+.phot-mini__thumb.is-movable:active {
+    cursor: grabbing;
+}
+
+.phot-mini__thumb:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.phot-place {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-top: 0.6rem;
+}
+
+.phot-place .phot-slider {
+    width: 100%;
+}
+
+.phot-mini__thumb {
+    flex: 0 0 auto;
+    width: auto;
+    height: 64px;
+    max-width: 64px;
+    border: 1px solid var(--pdft-border);
+    border-radius: 4px;
+}
+
+.phot-mini__title {
+    font-weight: 800;
+    color: var(--bs-emphasis-color);
+}
+
+.phot-copies {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.85rem;
+}
+
+.phot-copies__label {
+    font-weight: 700;
+    color: var(--bs-emphasis-color);
+}
+
+.phot-stepper {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--pdft-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.phot-stepper button {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+}
+
+.phot-stepper button:disabled {
+    color: var(--bs-secondary-color);
+    opacity: 0.5;
+}
+
+.phot-stepper button:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: -3px;
+}
+
+.phot-stepper output {
+    min-width: 3rem;
+    text-align: center;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--bs-emphasis-color);
+}
+
+@media (max-width: 575.98px) {
+    .phot-paper {
+        height: clamp(260px, 46vh, 420px);
+    }
+}
+
+/* ---------- Edit photo ---------- */
+
+.phot-edit {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: clamp(340px, 62vh, 640px);
+    padding: 20px;
+    overflow: hidden;
+}
+
+/* Shown over the photo while a step is made on a large photo. */
+.phot-busy {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: color-mix(in srgb, var(--bs-body-bg) 55%, transparent);
+    color: var(--bs-body-color);
+    font-weight: 600;
+    cursor: progress;
+    z-index: 5;
+}
+
+.phot-busy[hidden] {
+    display: none;
+}
+
+.phot-edit__photo {
+    position: relative;
+    flex: 0 0 auto;
+    overflow: hidden;
+    line-height: 0;
+}
+
+.phot-edit__canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.phot-edit__size {
+    margin-left: auto;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* The crop box: everything outside it is dimmed by its own very large shadow. */
+.phot-cropbox {
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px solid var(--phot-stage-text);
+    box-shadow: 0 0 0 9999px color-mix(in srgb, var(--phot-stage) 62%, transparent);
+    cursor: move;
+    touch-action: none;
+    user-select: none;
+}
+
+.phot-cropbox:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.phot-cropbox__grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(to right, transparent calc(33.33% - 0.5px), color-mix(in srgb, var(--phot-stage-text) 45%, transparent) calc(33.33% - 0.5px), color-mix(in srgb, var(--phot-stage-text) 45%, transparent) calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), color-mix(in srgb, var(--phot-stage-text) 45%, transparent) calc(66.66% - 0.5px), color-mix(in srgb, var(--phot-stage-text) 45%, transparent) calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px)),
+        linear-gradient(to bottom, transparent calc(33.33% - 0.5px), color-mix(in srgb, var(--phot-stage-text) 45%, transparent) calc(33.33% - 0.5px), color-mix(in srgb, var(--phot-stage-text) 45%, transparent) calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), color-mix(in srgb, var(--phot-stage-text) 45%, transparent) calc(66.66% - 0.5px), color-mix(in srgb, var(--phot-stage-text) 45%, transparent) calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px));
+    pointer-events: none;
+}
+
+/* A handle is a small square to look at inside a larger area to grab. */
+.phot-cropbox__handle {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    margin: -16px 0 0 -16px;
+}
+
+.phot-cropbox__handle::after {
+    content: "";
+    position: absolute;
+    inset: 10px;
+    border-radius: 2px;
+    background: var(--phot-stage-text);
+    box-shadow: 0 0 0 1px var(--phot-stage);
+}
+
+.phot-cropbox__handle[data-handle="nw"] { left: 0; top: 0; cursor: nwse-resize; }
+.phot-cropbox__handle[data-handle="n"] { left: 50%; top: 0; cursor: ns-resize; }
+.phot-cropbox__handle[data-handle="ne"] { left: 100%; top: 0; cursor: nesw-resize; }
+.phot-cropbox__handle[data-handle="e"] { left: 100%; top: 50%; cursor: ew-resize; }
+.phot-cropbox__handle[data-handle="se"] { left: 100%; top: 100%; cursor: nwse-resize; }
+.phot-cropbox__handle[data-handle="s"] { left: 50%; top: 100%; cursor: ns-resize; }
+.phot-cropbox__handle[data-handle="sw"] { left: 0; top: 100%; cursor: nesw-resize; }
+.phot-cropbox__handle[data-handle="w"] { left: 0; top: 50%; cursor: ew-resize; }
+
+.phot-segment--full {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.phot-segment--full button {
+    flex: 1 1 30%;
+    padding: 0 0.4rem;
+    white-space: nowrap;
+}
+
+.phot-tool {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.phot-tool .phot-hint {
+    margin: 0;
+}
+
+.phot-tool > .btn {
+    align-self: flex-start;
+    font-weight: 700;
+}
+
+.phot-turns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.phot-turns .btn {
+    min-height: 44px;
+    font-weight: 700;
+}
+
+.phot-custom--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 575.98px) {
+    /* Short enough that the photo and the tools under it are on the screen together. */
+    .phot-edit {
+        height: clamp(240px, 44vh, 400px);
+        padding: 16px;
+    }
+
+    .phot-edit__size {
+        margin-left: 0;
+        flex-basis: 100%;
+    }
+
+    /* Undo and Redo are icons here, so the three buttons fit on one row. */
+    .phot-stage__bar--tools {
+        gap: 0.5rem;
+    }
+
+    .phot-stage__bar--tools .btn {
+        min-width: 44px;
+    }
+
+    .phot-turns {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* ---------- Edit photo: clean up, adjust, filters ---------- */
+
+.phot-cleanups {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.phot-cleanups .phot-toggle {
+    flex: 0 0 10.5rem;
+    justify-content: center;
+}
+
+.phot-slider--named {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr) 2.5rem;
+}
+
+.phot-tool__actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.phot-tool__actions .btn {
+    font-weight: 700;
+}
+
+.phot-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.phot-filter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 10px;
+    background: var(--pdft-surface);
+    color: var(--bs-emphasis-color);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.phot-filter:hover,
+.phot-filter:focus-visible {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+}
+
+.phot-filter canvas {
+    display: block;
+    max-width: 100%;
+    height: 64px;
+    object-fit: contain;
+    border-radius: 6px;
+}
+
+@media (max-width: 575.98px) {
+    .phot-cleanups .phot-fix {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .phot-cleanups .phot-toggle {
+        flex-basis: auto;
+    }
+
+    /* Stacked, the note is as tall as its words, not as tall as it was wide. */
+    .phot-cleanups .phot-hint {
+        flex: 0 0 auto;
+    }
+}
+
+/* ---------- Edit photo: mark up and blur ---------- */
+
+.phot-edit__photo.is-drawing {
+    cursor: crosshair;
+    touch-action: none;
+    user-select: none;
+}
+
+.phot-chips button .bi {
+    margin-right: 0.15rem;
+}
+
+.phot-field__label {
+    font-weight: 700;
+}
+
+.phot-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+/* The colour comes from the script (it is a colour drawn into the photo, not a theme colour). */
+.phot-swatch {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 2px solid var(--pdft-border);
+    border-radius: 50%;
+    background: var(--phot-swatch);
+    box-shadow: inset 0 0 0 2px var(--pdft-surface);
+}
+
+.phot-swatch[aria-pressed="true"] {
+    border-color: var(--bs-primary);
+    box-shadow: inset 0 0 0 2px var(--pdft-surface), 0 0 0 2px var(--bs-primary);
+}
+
+.phot-segment--start {
+    align-self: flex-start;
+}
+
+/* ---------- Phones, Dark theme and keyboard ---------- */
+
+/* The grey outline button from Bootstrap is too faint on the Dark theme. */
+.phot .btn-outline-secondary {
+    --bs-btn-color: var(--bs-body-color);
+    --bs-btn-border-color: var(--bs-border-color);
+}
+
+/* The photo takes the keyboard while Mark up or Blur is open. */
+.phot-edit__photo:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+/* Everything pressed with a finger is at least 44px. */
+@media (max-width: 575.98px), (pointer: coarse) {
+    .phot .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        min-height: 44px;
+    }
+
+    .phot .form-select,
+    .phot .form-control,
+    .phot-chips button,
+    .phot-segment button {
+        min-height: 44px;
+    }
+
+    .phot-swatch {
+        width: 44px;
+        height: 44px;
+    }
+
+    .phot .form-check {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+    }
+
+    .phot .form-check-input {
+        flex: 0 0 auto;
+        margin-top: 0;
+    }
+
+    .phot .form-check-label {
+        padding-left: 0.5rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .phot-field .form-select,
+    .phot-field .form-control {
+        width: 100%;
+    }
+}

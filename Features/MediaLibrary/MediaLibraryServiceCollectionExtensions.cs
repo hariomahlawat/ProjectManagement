@@ -36,6 +36,7 @@ public static class MediaLibraryServiceCollectionExtensions
 
         services.AddSingleton<IFileSystemPathResolver, FileSystemPathResolver>();
         services.AddSingleton<IMediaCachePathResolver, MediaCachePathResolver>();
+        services.AddSingleton<IMediaStorageRootProbe, MediaStorageRootProbe>();
         services.AddSingleton<IMediaProcessingRuntimeState>(_ =>
         {
             var state = new MediaProcessingRuntimeState();
@@ -78,6 +79,8 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaLibraryQueryService, MediaLibraryQueryService>();
         services.AddScoped<IMediaCollectionQueryService, MediaCollectionQueryService>();
         services.AddScoped<IMediaAlbumService, MediaAlbumService>();
+        services.AddSingleton(provider => new MediaBulkDownloadThrottle(
+            provider.GetRequiredService<IOptions<MediaLibraryOptions>>().Value.BulkDownload.MaxConcurrentArchives));
         services.AddScoped<IMediaBulkDownloadService, MediaBulkDownloadService>();
         services.AddScoped<IMediaPeopleQueryService, MediaPeopleQueryService>();
         services.AddScoped<IPersonPhotoDiscoveryQueryService, PersonPhotoDiscoveryQueryService>();

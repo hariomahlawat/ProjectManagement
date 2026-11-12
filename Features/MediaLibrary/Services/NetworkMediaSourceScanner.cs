@@ -100,6 +100,18 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             var batch = new List<FileCandidate>(batchSize);
             var nextLeaseRenewalUtc = DateTimeOffset.UtcNow.AddTicks(leaseDuration.Ticks / 2);
 
+            // A batch reads every changed file in full, possibly over a slow share, so a
+            // batch can outlast the lease. Renew whenever it is due, between files as well as
+            // between batches, so another instance never takes over a scan still running.
+            async Task RenewLeaseIfDueAsync(CancellationToken token)
+            {
+                if (DateTimeOffset.UtcNow >= nextLeaseRenewalUtc)
+                {
+                    await RenewLeaseAsync(sourceId, workerId, leaseDuration, token);
+                    nextLeaseRenewalUtc = DateTimeOffset.UtcNow.AddTicks(leaseDuration.Ticks / 2);
+                }
+            }
+
             foreach (var fullPath in _enumerator.EnumerateFiles(root, source.IncludeSubfolders, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -159,7 +171,7 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
                 if (batch.Count >= batchSize)
                 {
                     await RenewLeaseAsync(sourceId, workerId, leaseDuration, cancellationToken);
-                    await ProcessBatchAsync(source, scanId, batch, cancellationToken);
+                    await ProcessBatchAsync(source, scanId, batch, RenewLeaseIfDueAsync, cancellationToken);
                     batch.Clear();
                     await RenewLeaseAsync(sourceId, workerId, leaseDuration, cancellationToken);
                     nextLeaseRenewalUtc = DateTimeOffset.UtcNow.AddTicks(leaseDuration.Ticks / 2);
@@ -169,16 +181,21 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             if (batch.Count > 0)
             {
                 await RenewLeaseAsync(sourceId, workerId, leaseDuration, cancellationToken);
-                await ProcessBatchAsync(source, scanId, batch, cancellationToken);
+                await ProcessBatchAsync(source, scanId, batch, RenewLeaseIfDueAsync, cancellationToken);
                 await RenewLeaseAsync(sourceId, workerId, leaseDuration, cancellationToken);
             }
 
             // Reconcile only after a complete, successful enumeration. A network outage or
             // inaccessible subtree must never make the catalogue mark the archive missing.
+            // Only while this scan still holds the lease, checked in the same statement: if
+            // another instance took the scan over, this pass's view of what was "seen" is
+            // stale, and hiding files on it would hide ones the other scan has seen.
             await _db.Assets
                 .Where(asset => asset.SourceId == source.Id
                                 && asset.LastSeenScanId != scanId
-                                && asset.IsAvailable)
+                                && asset.IsAvailable
+                                && _db.Sources.Any(owner => owner.Id == source.Id
+                                                            && owner.ScanLockedBy == workerId))
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(asset => asset.IsAvailable, false)
                     .SetProperty(asset => asset.LastSeenAtUtc, DateTimeOffset.UtcNow), cancellationToken);
@@ -249,6 +266,7 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
         MediaLibrarySource source,
         Guid scanId,
         IReadOnlyCollection<FileCandidate> batch,
+        Func<CancellationToken, Task> renewLeaseIfDue,
         CancellationToken cancellationToken)
     {
         var keys = batch.Select(item => item.SourceEntityId).ToArray();
@@ -264,6 +282,7 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
         foreach (var candidate in batch)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            await renewLeaseIfDue(cancellationToken);
 
             if (existing.TryGetValue(candidate.SourceEntityId, out var unchanged)
                 && string.Equals(unchanged.QuickFingerprint, candidate.QuickFingerprint, StringComparison.Ordinal)
@@ -360,6 +379,21 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             asset.Height = metadata.Height;
             asset.DurationSeconds = metadata.DurationSeconds;
             asset.IsAvailable = true;
+            if (asset.AvailabilityStatus is MediaAvailabilityStatus.SourceMissing
+                or MediaAvailabilityStatus.AccessDenied
+                or MediaAvailabilityStatus.TemporarilyUnavailable)
+            {
+                // The scan has just found and read this file, so a reachability failure
+                // recorded earlier (for example during a share outage) no longer applies.
+                // Content-level states (Corrupt, Unsupported) are left for processing to
+                // re-establish. Without this the asset stayed hidden from Photos even
+                // though IsAvailable was restored.
+                asset.AvailabilityStatus = MediaAvailabilityStatus.Available;
+                asset.UnavailableReason = null;
+                asset.UnavailableSinceUtc = null;
+                asset.LastAvailabilityCheckUtc = now;
+            }
+
             asset.IsDeleted = false;
             asset.LastSeenAtUtc = now;
             asset.LastSeenScanId = scanId;
@@ -388,11 +422,13 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             await QueueJobsAsync(
                 changedAssets,
                 MediaProcessingJobType.AnalyseAsset,
+                respectAdministratorHold: false,
                 now,
                 cancellationToken);
             await QueueJobsAsync(
                 classificationRefreshAssets,
                 MediaProcessingJobType.ClassifyMedia,
+                respectAdministratorHold: true,
                 now,
                 cancellationToken);
         }
@@ -435,9 +471,10 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
         asset.ClassificationConcurrencyToken = Guid.NewGuid();
     }
 
-    private async Task QueueJobsAsync(
+    internal async Task QueueJobsAsync(
         IReadOnlyCollection<MediaAsset> assets,
         MediaProcessingJobType jobType,
+        bool respectAdministratorHold,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -475,6 +512,14 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             {
                 // The asset concurrency token has already been advanced for changed or stale
                 // content. The running processor will yield and the worker will retry this job.
+                continue;
+            }
+
+            // An unchanged file whose job repeatedly took the worker down is not re-run just
+            // because its classifier version is stale; a crashing classification never
+            // records one. Changed or restored content is queued as before.
+            if (respectAdministratorHold && MediaProcessingFailurePolicy.IsHeldForAdministrator(job))
+            {
                 continue;
             }
 
@@ -522,10 +567,14 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
         TimeSpan leaseDuration,
         CancellationToken cancellationToken)
     {
+        // Computed here, not inside the update: EF translates DateTimeOffset.UtcNow to SQL
+        // now() and cannot translate .Add on it, so the expression failed at run time and
+        // every scan that reached a lease renewal ended as Failed.
+        var expiresAtUtc = DateTimeOffset.UtcNow.Add(leaseDuration);
         var affected = await _db.Sources
             .Where(source => source.Id == sourceId && source.ScanLockedBy == workerId)
             .ExecuteUpdateAsync(setters => setters
-                .SetProperty(source => source.ScanLockExpiresAtUtc, DateTimeOffset.UtcNow.Add(leaseDuration)),
+                .SetProperty(source => source.ScanLockExpiresAtUtc, expiresAtUtc),
                 cancellationToken);
 
         if (affected != 1)

@@ -268,3 +268,272 @@ test('a list marked data-media-viewer-links keeps the open photo in the address 
   assert.equal(text(shared, '[data-viewer-title]'), 'Trials');
   shared.close();
 });
+
+test('the mouse wheel zooms a photo, never below its fitted size, and arrows mark the slide direction', () => {
+  const { window } = overview();
+  click(window, window.document.getElementById('t1'));
+  const viewer = viewerOf(window);
+  const media = viewer.querySelector('[data-viewer-media]');
+  const wheel = (deltaY) => {
+    const event = new window.WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true });
+    media.dispatchEvent(event);
+    return event;
+  };
+
+  // jsdom has no layout, so the photo fades in instead of growing out of the thumbnail.
+  assert.equal(media.dataset.enter, 'fade');
+
+  assert.equal(wheel(-100).defaultPrevented, true, 'the page behind does not scroll');
+  assert.equal(media.classList.contains('is-zoomed'), true);
+  assert.ok(Number(media.style.getPropertyValue('--viewer-zoom')) > 1);
+
+  for (let i = 0; i < 10; i += 1) wheel(100);
+  assert.equal(media.style.getPropertyValue('--viewer-zoom'), '1');
+  assert.equal(media.classList.contains('is-zoomed'), false);
+  assert.equal(media.style.getPropertyValue('--viewer-pan-x'), '0px');
+
+  key(window, 'ArrowRight');
+  assert.equal(media.dataset.enter, 'next');
+  assert.equal(media.querySelector('img').draggable, false);
+  key(window, 'ArrowLeft');
+  assert.equal(media.dataset.enter, 'previous');
+
+  key(window, 'Escape');
+  assert.equal(viewer.hidden, true);
+  assert.equal(media.dataset.enter, undefined);
+  assert.equal(viewer.classList.contains('is-idle'), false);
+  window.close();
+});
+
+test('the controls fade after a still moment and return on a key press', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { window } = overview();
+  // The viewer schedules with the page's own timer; route it through the mocked one.
+  window.setTimeout = setTimeout;
+  window.clearTimeout = clearTimeout;
+  click(window, window.document.getElementById('t1'));
+  const viewer = viewerOf(window);
+
+  t.mock.timers.tick(2700);
+  assert.equal(viewer.classList.contains('is-idle'), false);
+  t.mock.timers.tick(200);
+  assert.equal(viewer.classList.contains('is-idle'), true);
+
+  key(window, 'ArrowRight');
+  assert.equal(viewer.classList.contains('is-idle'), false);
+  window.close();
+});
+
+test('a gallery that gives thumbnails gets a strip of the nearby ones, and can add items while open', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <div class="photos-viewer" data-photos-viewer hidden aria-hidden="true">
+      <div data-viewer-close></div>
+      <div role="dialog">
+        <strong data-viewer-title></strong><span data-viewer-position></span>
+        <button type="button" data-viewer-close></button>
+        <button type="button" data-viewer-prev></button><div data-viewer-media></div><button type="button" data-viewer-next></button>
+        <div data-viewer-strip hidden></div>
+      </div>
+    </div></body></html>`, { url: 'http://localhost/Photos', runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const { window } = dom;
+  window.eval(viewerScript);
+  const viewer = window.document.querySelector('[data-photos-viewer]');
+  const make = (count) => Array.from({ length: count }, (_, i) => ({
+    key: `asset-${i + 1}`, kind: 'photo', displayUrl: `/m/${i + 1}`, thumbUrl: `/t/${i + 1}`, title: `Picture ${i + 1}` }));
+  const nearEnd = [];
+  const controller = window.PMMediaViewer.attach(viewer, { items: make(30), onNearEnd: (index, count) => nearEnd.push([index, count]) });
+  const strip = viewer.querySelector('[data-viewer-strip]');
+
+  controller.open(0);
+  assert.equal(strip.hidden, false);
+  assert.equal(strip.children.length, 11, 'the current item and ten after it');
+  assert.equal(strip.querySelector('.is-current img').getAttribute('src'), '/t/1');
+  assert.deepEqual(nearEnd, []);
+
+  strip.children[5].click();
+  assert.equal(viewer.querySelector('[data-viewer-title]').textContent, 'Picture 6');
+  assert.equal(viewer.querySelector('[data-viewer-media]').dataset.enter, 'next');
+  assert.equal(strip.children.length, 16, 'five before, the current item, ten after');
+
+  controller.open(28);
+  assert.deepEqual(nearEnd, [[28, 30]], 'the gallery is told when the end is near');
+  controller.setItems(make(60));
+  assert.equal(viewer.querySelector('[data-viewer-position]').textContent, '29 of 60');
+  assert.equal(strip.children.length, 21);
+  assert.equal(viewer.querySelector('[data-viewer-title]').textContent, 'Picture 29', 'the open item stays');
+
+  controller.setItems([{ key: 'only', kind: 'photo', displayUrl: '/m/only' }]);
+  assert.equal(strip.hidden, true, 'no strip for one item or without thumbnails');
+  window.close();
+});
+
+test('a pinch that ends with one finger down carries on as a drag; a video keeps a scrolling stage', () => {
+  const { window } = overview();
+  click(window, window.document.getElementById('t1'));
+  const viewer = viewerOf(window);
+  const media = viewer.querySelector('[data-viewer-media]');
+  const pointer = (type, pointerId, clientX) => {
+    const event = new window.Event(type, { bubbles: true, cancelable: true });
+    Object.assign(event, { pointerId, clientX, clientY: 100 });
+    media.dispatchEvent(event);
+  };
+
+  assert.equal(media.classList.contains('has-video'), false);
+  pointer('pointerdown', 1, 100);
+  pointer('pointerdown', 2, 200);
+  pointer('pointermove', 2, 300);
+  assert.equal(media.style.getPropertyValue('--viewer-zoom'), '2', 'fingers twice as far apart: twice the size');
+  assert.equal(media.classList.contains('is-panning'), false);
+
+  pointer('pointerup', 2, 300);
+  assert.equal(media.classList.contains('is-panning'), true, 'the finger still down now drags the photo');
+  pointer('pointerup', 1, 100);
+  assert.equal(media.classList.contains('is-panning'), false);
+
+  key(window, 'Escape');
+  click(window, window.document.getElementById('v1'));
+  assert.equal(media.classList.contains('has-video'), true);
+  window.close();
+});
+
+test('a strip thumbnail that cannot be loaded tries the fallback once; the strip follows a tile that fell back', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <div class="photos-viewer" data-photos-viewer hidden aria-hidden="true">
+      <div role="dialog"><strong data-viewer-title></strong><span data-viewer-position></span>
+        <button type="button" data-viewer-close></button>
+        <button type="button" data-viewer-prev></button><div data-viewer-media></div><button type="button" data-viewer-next></button>
+        <div data-viewer-strip hidden></div>
+      </div>
+    </div></body></html>`, { url: 'http://localhost/Photos', runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const { window } = dom;
+  window.eval(viewerScript);
+  const viewer = window.document.querySelector('[data-photos-viewer]');
+  // The first item reads its thumbnail when asked, as the gallery's items do.
+  let firstThumb = '/sm/1';
+  const items = [
+    { key: 'a', kind: 'photo', displayUrl: '/m/1', title: 'One', get thumbUrl() { return firstThumb; }, thumbFallbackUrl: '/md/1' },
+    { key: 'b', kind: 'photo', displayUrl: '/m/2', title: 'Two', thumbUrl: '/sm/2', thumbFallbackUrl: '/md/2' },
+    { key: 'c', kind: 'photo', displayUrl: '/m/3', title: 'Three', thumbUrl: '/sm/3' }
+  ];
+  const controller = window.PMMediaViewer.attach(viewer, { items });
+  const strip = viewer.querySelector('[data-viewer-strip]');
+  const fail = (image) => image.dispatchEvent(new window.Event('error'));
+
+  controller.open(0);
+  const second = strip.children[1].querySelector('img');
+  fail(second);
+  assert.equal(second.getAttribute('src'), '/md/2', 'the fallback is tried');
+  fail(second);
+  assert.equal(strip.children[1].querySelector('img'), null, 'then the frame is left empty');
+
+  fail(strip.children[2].querySelector('img'));
+  assert.equal(strip.children[2].querySelector('img'), null, 'no fallback: the frame is left empty at once');
+
+  // The tile behind the first item fell back to its larger thumbnail; the next draw uses it.
+  firstThumb = '/md/1';
+  controller.step(1);
+  assert.equal(strip.children[0].querySelector('img').getAttribute('src'), '/md/1');
+  window.close();
+});
+
+test('on narrow screens the details sheet is stacked above the arrows and the thumbnail strip', () => {
+  const css = fs.readFileSync(path.join(root, 'wwwroot', 'css', 'widgets', 'media-viewer.css'), 'utf8');
+  const zIndex = (rule) => Number(/z-index:\s*(\d+)/.exec(rule)[1]);
+  const narrow = css.slice(css.indexOf('@media (max-width: 900px)'));
+  const sheet = /\.photos-viewer__info \{[^}]*\}/.exec(narrow)[0];
+  const strip = /^\.photos-viewer__strip \{[^}]*\}/m.exec(css)[0];
+  const arrows = /^\.photos-viewer__nav \{[^}]*\}/m.exec(css)[0];
+  assert.match(sheet, /position: absolute/);
+  assert.ok(zIndex(sheet) > zIndex(strip));
+  assert.ok(zIndex(sheet) > zIndex(arrows));
+});
+
+test('a gallery still loading parts does not wrap round, and its count says more is to come', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <div class="photos-viewer" data-photos-viewer hidden aria-hidden="true">
+      <div role="dialog">
+        <strong data-viewer-title></strong><span data-viewer-position></span>
+        <button type="button" data-viewer-close></button>
+        <button type="button" data-viewer-prev></button><div data-viewer-media></div><button type="button" data-viewer-next></button>
+      </div>
+    </div></body></html>`, { url: 'http://localhost/Photos', runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const { window } = dom;
+  window.eval(viewerScript);
+  const viewer = window.document.querySelector('[data-photos-viewer]');
+  const make = (count) => Array.from({ length: count }, (_, i) => ({ key: `asset-${i + 1}`, kind: 'photo', displayUrl: `/m/${i + 1}`, title: `Picture ${i + 1}` }));
+  let more = true;
+  const asked = [];
+  const controller = window.PMMediaViewer.attach(viewer, { items: make(3), hasMore: () => more, onNearEnd: (index) => asked.push(index) });
+  const title = () => viewer.querySelector('[data-viewer-title]').textContent;
+  const position = () => viewer.querySelector('[data-viewer-position]').textContent;
+
+  controller.open(0);
+  assert.equal(position(), '1 of 3+');
+  key(window, 'ArrowLeft');
+  assert.equal(title(), 'Picture 1', 'Left on the first picture does not jump to the last one loaded');
+
+  controller.open(2);
+  asked.length = 0;
+  key(window, 'ArrowRight');
+  assert.equal(title(), 'Picture 3', 'Right on the last one loaded waits for the next part');
+  assert.deepEqual(asked, [2], 'and asks for it');
+
+  more = false;
+  controller.setItems(make(5));
+  assert.equal(position(), '3 of 5');
+  key(window, 'ArrowRight');
+  assert.equal(title(), 'Picture 4');
+  controller.open(4);
+  key(window, 'ArrowRight');
+  assert.equal(title(), 'Picture 1', 'the whole gallery is loaded, so it wraps as before');
+  window.close();
+});
+
+test('browser shortcuts pass through, and arrows on a focused video are left to the video', () => {
+  const { window } = overview();
+  click(window, window.document.getElementById('t1'));
+  const press = (name, init, target) => {
+    const event = new window.KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...init });
+    (target || window.document).dispatchEvent(event);
+    return event;
+  };
+
+  assert.equal(press('0', { ctrlKey: true }).defaultPrevented, false, 'Ctrl+0 is the browser\'s zoom reset');
+  assert.equal(press('-', { metaKey: true }).defaultPrevented, false);
+  assert.equal(press('ArrowLeft', { altKey: true }).defaultPrevented, false, 'Alt+Left is Back');
+  assert.equal(text(window, '[data-viewer-title]'), 'Cover', 'and the picture did not change');
+  assert.equal(press('ArrowRight').defaultPrevented, true);
+  assert.equal(text(window, '[data-viewer-title]'), 'Trials');
+
+  const video = window.document.createElement('video');
+  viewerOf(window).querySelector('[data-viewer-media]').appendChild(video);
+  assert.equal(press('ArrowRight', {}, video).defaultPrevented, false);
+  assert.equal(text(window, '[data-viewer-title]'), 'Trials', 'the arrow seeks the video, it does not change the item');
+  window.close();
+});
+
+test('the backdrop hides the page fully, and controls with keyboard focus do not fade', () => {
+  const styles = fs.readFileSync(path.join(root, 'wwwroot', 'css', 'widgets', 'media-viewer.css'), 'utf8');
+  const backdrop = styles.match(/\.photos-viewer__backdrop \{([^}]*)\}/)[1];
+  assert.doesNotMatch(backdrop, /rgba\(/, 'an opaque colour');
+  assert.match(styles, /\.is-idle \.photos-viewer__header:not\(:has\(:focus-visible\)\)/);
+  assert.doesNotMatch(styles, /rgba\(255, 255, 255, 0\.01\)/, 'no hover state that cannot be seen');
+});
+
+test('opening keeps the page as wide as it was, so the page behind is not laid out again', () => {
+  const { window } = overview();
+  const body = window.document.body;
+  // jsdom has no scrollbar; give the page one of 17 px.
+  Object.defineProperty(window, 'innerWidth', { value: 1017, configurable: true });
+  Object.defineProperty(window.document.documentElement, 'clientWidth', { value: 1000, configurable: true });
+  body.style.paddingRight = '4px';
+
+  click(window, window.document.getElementById('t1'));
+  assert.equal(body.style.paddingRight, '17px', 'the scrollbar\'s space is kept while the page cannot scroll');
+  click(window, window.document.getElementById('t2'));
+  assert.equal(body.style.paddingRight, '17px');
+
+  key(window, 'Escape');
+  assert.equal(body.style.paddingRight, '4px', 'and what was there before comes back');
+  window.close();
+});

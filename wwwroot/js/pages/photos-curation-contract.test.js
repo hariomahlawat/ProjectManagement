@@ -5,7 +5,9 @@ const path = require('node:path');
 
 const libraryScript = fs.readFileSync(path.resolve(__dirname, 'photos-library.js'), 'utf8');
 const curationScript = fs.readFileSync(path.resolve(__dirname, 'photos-curation.js'), 'utf8');
-const photosPage = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/Index.cshtml'), 'utf8');
+// The page and the timeline partial it renders (also returned on its own while scrolling).
+const photosPage = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/Index.cshtml'), 'utf8')
+    + fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/_PhotosTimeline.cshtml'), 'utf8');
 
 test('target-album selection mode auto-starts and preserves a dedicated cancel destination', () => {
     assert.match(libraryScript, /selectionAutoStart/);

@@ -24,6 +24,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Pages.Dashboard;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Dashboard;
+using ProjectManagement.Services.ItProjects;
 using ProjectManagement.Services.Notebook;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Models.Scheduling;
@@ -189,6 +190,158 @@ namespace ProjectManagement.Tests
 
             var expected = holidayDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
             Assert.Equal(expected, ev.When);
+        }
+
+        [Fact]
+        public async Task OnGetAsync_AnalyticsCardDropsArppForACallerTheArppPolicyDoesNotAdmit()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+
+            await using var context = new ApplicationDbContext(options);
+            using var serviceProvider = new ServiceCollection().BuildServiceProvider();
+
+            var userManager = new UserManager<ApplicationUser>(
+                new UserStore<ApplicationUser>(context),
+                Options.Create(new IdentityOptions()),
+                new PasswordHasher<ApplicationUser>(),
+                Array.Empty<IUserValidator<ApplicationUser>>(),
+                Array.Empty<IPasswordValidator<ApplicationUser>>(),
+                new UpperInvariantLookupNormalizer(),
+                new IdentityErrorDescriber(),
+                serviceProvider,
+                NullLogger<UserManager<ApplicationUser>>.Instance);
+
+            // No authorization service is wired, so the ARPP policy cannot pass: the card must fail closed.
+            var page = new IndexModel(
+                new StubNotebookService(),
+                userManager,
+                context,
+                new StubProjectPulseService(),
+                new StubOpsSignalsService(),
+                new StubSearchHealthService(),
+                NullLogger<IndexModel>.Instance,
+                new StubDashboardAnalyticsService())
+            {
+                PageContext = new PageContext(new ActionContext(
+                    new DefaultHttpContext
+                    {
+                        User = new ClaimsPrincipal(new ClaimsIdentity())
+                    },
+                    new RouteData(),
+                    new ActionDescriptor()))
+            };
+
+            await page.OnGetAsync(CancellationToken.None);
+
+            Assert.NotNull(page.Analytics);
+            Assert.Null(page.Analytics!.Arpp);
+            Assert.NotNull(page.Analytics.Coe);
+        }
+
+        [Fact]
+        public async Task OnGetAsync_ProjectModuleCardsCountListedAsCompletedPlusOngoing()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+
+            await using var context = new ApplicationDbContext(options);
+            using var serviceProvider = new ServiceCollection().BuildServiceProvider();
+
+            var userManager = new UserManager<ApplicationUser>(
+                new UserStore<ApplicationUser>(context),
+                Options.Create(new IdentityOptions()),
+                new PasswordHasher<ApplicationUser>(),
+                Array.Empty<IUserValidator<ApplicationUser>>(),
+                Array.Empty<IPasswordValidator<ApplicationUser>>(),
+                new UpperInvariantLookupNormalizer(),
+                new IdentityErrorDescriber(),
+                serviceProvider,
+                NullLogger<UserManager<ApplicationUser>>.Instance);
+
+            var itProjects = new StubItProjectReadService();
+            IndexModel Build(ClaimsPrincipal user) => new(
+                new StubNotebookService(),
+                userManager,
+                context,
+                new StubProjectPulseService(),
+                new StubOpsSignalsService(),
+                new StubSearchHealthService(),
+                NullLogger<IndexModel>.Instance,
+                itProjects: itProjects)
+            {
+                PageContext = new PageContext(new ActionContext(
+                    new DefaultHttpContext { User = user },
+                    new RouteData(),
+                    new ActionDescriptor()))
+            };
+
+            var signedIn = Build(new ClaimsPrincipal(new ClaimsIdentity(Array.Empty<Claim>(), "test")));
+            await signedIn.OnGetAsync(CancellationToken.None);
+
+            // Ten ongoing and two completed are listed; the dropped case is in none of the three.
+            // One card per module, in the modules' order, each from that module's own board.
+            Assert.Equal(new[] { "IT", "MOLTI", "SRE" }, signedIn.ModuleProjects.Select(card => card.Module));
+            Assert.Equal(new[] { "/ItProjects/Index", "/MoltiProjects/Index", "/SreProjects/Index" }, signedIn.ModuleProjects.Select(card => card.Page));
+            Assert.Equal(new[] { "IT", "MOLTI", "SRE" }, itProjects.Queries.Select(query => query.Module));
+            var card = signedIn.ModuleProjects[0];
+            Assert.Equal((12, 2, 10), (card.Listed, card.Completed, card.Ongoing));
+            Assert.All(itProjects.Queries, query =>
+            {
+                Assert.Equal(ItProjectBoardScope.All, query.Scope);
+                Assert.Equal(card.FinancialYearStart, query.FinancialYearStart);
+            });
+
+            // Not signed in: the card is not built at all.
+            var anonymous = Build(new ClaimsPrincipal(new ClaimsIdentity()));
+            await anonymous.OnGetAsync(CancellationToken.None);
+            Assert.Empty(anonymous.ModuleProjects);
+        }
+
+        private sealed class StubItProjectReadService : IItProjectReadService
+        {
+            public List<ItProjectBoardQuery> Queries { get; } = new();
+
+            public Task<ProjectManagement.Models.ItProjects.ItProject?> GetAsync(int id, string module, CancellationToken cancellationToken = default)
+                => throw new NotSupportedException();
+
+            public Task<IReadOnlyList<ItProjectOfficerOption>> GetAssignableOfficersAsync(CancellationToken cancellationToken = default)
+                => throw new NotSupportedException();
+
+            public Task<ItProjectBoard> GetBoardAsync(ItProjectBoardQuery query, CancellationToken cancellationToken = default)
+            {
+                Queries.Add(query);
+                return Task.FromResult(new ItProjectBoard(
+                    Array.Empty<ItProjectBoardRow>(),
+                    Array.Empty<ItProjectBoardStageCount>(),
+                    ActiveCount: 10,
+                    CompletedCount: 2,
+                    DroppedCount: 1,
+                    Array.Empty<int>(),
+                    new ItProjectBoardFigures(null, 0, 0, 0m, 0, 0, null, 2026, 2026, 0, 0, 0, 0)));
+            }
+
+            public Task<ProjectManagement.Models.ItProjects.ItProject?> GetAsync(int id, CancellationToken cancellationToken = default) =>
+                throw new NotSupportedException();
+
+            public ItProjectTiming GetTiming(ProjectManagement.Models.ItProjects.ItProject project) => throw new NotSupportedException();
+
+            public IReadOnlyList<ItProjectYearTypeInfo> GetYearTypes(ProjectManagement.Models.ItProjects.ItProject project) => throw new NotSupportedException();
+
+            public Task<string?> GetUserDisplayNameAsync(string userId, CancellationToken cancellationToken = default) =>
+                throw new NotSupportedException();
+        }
+
+        private sealed class StubDashboardAnalyticsService : IDashboardAnalyticsService
+        {
+            public Task<DashboardAnalyticsVm> GetAsync(CancellationToken cancellationToken = default) =>
+                Task.FromResult(new DashboardAnalyticsVm(
+                    new DashboardArppVm(2026, "2026-27", null, 38, "₹196.65 Cr", 4, 13, 13, 7, 11, 22, 5, 1, 1, 0),
+                    new DashboardCoeVm(18, 15, 2, 1, Array.Empty<DashboardCoeSubcategoryVm>(), false),
+                    null,
+                    Array.Empty<DashboardSlowStageVm>()));
         }
 
         private sealed class StubNotebookService : INotebookService

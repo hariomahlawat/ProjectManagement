@@ -45,7 +45,7 @@ public static class ItProjectBoardPresentation
             reached[index] = cell.IsSkipped ? laterReached : cell.IsCompleted || cell.IsCurrent;
         }
 
-        var (nowText, _, nowTone) = TimeText(row.Timing);
+        var (_, _, nowTone) = TimeText(row.Timing);
         return cells
             .Select((cell, index) =>
             {
@@ -65,7 +65,9 @@ public static class ItProjectBoardPresentation
                 else if (cell.IsCurrent && live)
                 {
                     state = "cur";
-                    text = row.Status.Kind == ItProjectStatusKind.NotStarted ? "now" : row.Timing.Basis == ItProjectTimeBasis.StageDate ? nowText : "now";
+                    // The days at the stage are in the Now column; under the circle "now", in
+                    // the ageing colour, so the figure is not shown twice (owner, 11 Nov 2026).
+                    text = "now";
                     tone = row.Timing.Basis == ItProjectTimeBasis.StageDate ? nowTone : "calm";
                 }
                 else if (row.Status.Kind == ItProjectStatusKind.Dropped && row.Status.CurrentStageCode == cell.StageCode)
@@ -84,21 +86,19 @@ public static class ItProjectBoardPresentation
                     state,
                     tone,
                     text,
-                    CellTitle(cell),
+                    CellTitle(cell, row.Status.Module),
                     LineIn: index > 0 && reached[index],
                     LineOut: index + 1 < cells.Count && reached[index + 1]);
             })
             .ToList();
     }
 
-    /// <summary>The short column heading above a row's track.</summary>
-    public static string TrackHeading(string code) => code switch
-    {
-        ItProjectStages.Ppp => "ARPPP",
-        ItProjectStages.Benchmarking => "BM",
-        ItProjectStages.Delivery => "DLV",
-        _ => ItProjectStages.LabelOf(code)
-    };
+    /// <summary>
+    /// "end to end" when the elapsed figure starts at the first stage; else the stage it starts
+    /// from ("from EAS & SO"), because undated early stages make the figure shorter than the case took.
+    /// </summary>
+    public static string ElapsedSpan(ItProjectTiming timing, string module = ItProjectModules.It)
+        => timing.ElapsedIsEndToEnd ? "end to end" : $"from {ItProjectStages.LabelOf(timing.StartedStageCode!, module)}";
 
     /// <summary>The Now column of a register row.</summary>
     public sealed record NowCell(string Label, string? Badge, string BadgeTone, string? BadgeTitle, string? Note);
@@ -113,7 +113,7 @@ public static class ItProjectBoardPresentation
             case ItProjectStatusKind.Completed:
             {
                 var on = row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.Delivery)?.CompletedOn;
-                var span = row.Timing.ElapsedDays is { } days ? $"{days} days end to end" : null;
+                var span = row.Timing.ElapsedDays is { } days ? $"{days} days {ElapsedSpan(row.Timing, row.Status.Module)}" : null;
                 var note = string.Join(" · ", new[] { span, soText }.Where(part => part is not null));
                 return new NowCell(on is { } date ? $"Delivered {ShortDate(date)}" : "Delivered", null, "ok", null, note.Length == 0 ? null : note);
             }
@@ -137,7 +137,7 @@ public static class ItProjectBoardPresentation
     }
 
     /// <summary>A case card in the "Where the cases are now" pipeline.</summary>
-    public sealed record PipelineCase(int Id, string Title, string? TimeText, string? TimeTitle, string Tone, string? SoCost);
+    public sealed record PipelineCase(int Id, string Title, string TimeText, string? TimeTitle, string Tone, string? SoCost);
 
     /// <summary>One stage column of the pipeline: the live cases at that stage, longest wait first.</summary>
     public sealed record PipelineColumn(
@@ -158,7 +158,7 @@ public static class ItProjectBoardPresentation
     /// cases without a stage date, then by title. The facts (current stage, timing) come from the
     /// read service; this only groups and words them.
     /// </summary>
-    public static IReadOnlyList<PipelineColumn> Pipeline(IEnumerable<ItProjectBoardRow> rows)
+    public static IReadOnlyList<PipelineColumn> Pipeline(IEnumerable<ItProjectBoardRow> rows, string module = ItProjectModules.It)
     {
         var live = rows
             .Where(row => row.Status.Kind is ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress && row.Status.CurrentStageCode is not null)
@@ -175,7 +175,7 @@ public static class ItProjectBoardPresentation
                     .ToList();
                 return new PipelineColumn(
                     stage.Code,
-                    stage.Label,
+                    ItProjectStages.LabelOf(stage.Code, module),
                     ShortStageLabel(stage.Code),
                     stage.IsOptional,
                     here.Count,
@@ -185,18 +185,29 @@ public static class ItProjectBoardPresentation
             .ToList();
     }
 
-    /// <summary>The column heading when space is short: "Delivery and ATP" becomes "Delivery &amp; ATP", Benchmarking "BM".</summary>
+    /// <summary>
+    /// The one short stage name the board uses, above a pipeline column and above the register's
+    /// track: "ARPPP", "BM", "Delivery". The full label ("Delivery and ATP") is the tooltip.
+    /// </summary>
     public static string ShortStageLabel(string code) => code switch
     {
-        ItProjectStages.Ppp => "ARPPP / IPA",
+        ItProjectStages.Ppp => "ARPPP",
         ItProjectStages.Benchmarking => "BM",
-        ItProjectStages.Delivery => "Delivery & ATP",
+        ItProjectStages.Delivery => "Delivery",
         _ => ItProjectStages.LabelOf(code)
     };
 
+    /// <summary>What a case card says when the previous stage has no date to count from.</summary>
+    public const string NoStageDateText = "no stage date";
+
+    /// <summary>The note beside the three ageing badges in the key: Delivery and ATP has its own bands.</summary>
+    public static string AgeingKeyNote
+        => $"days at the stage ({ItProjectStages.LabelOf(ItProjectStages.Delivery)}: {ItProjectTiming.DeliveryNormalUpToDays} / {ItProjectTiming.DeliveryAmberUpToDays})";
+
     /// <summary>
-    /// The time line of a case card, following the redesign's rule: days from the previous stage's
-    /// date (coloured by age); else when the move was recorded (never coloured); else not recorded.
+    /// The time figure of the register's Now column, following the redesign's rule: days from the
+    /// previous stage's date (coloured by age); else when the move was recorded (never coloured);
+    /// else not recorded.
     /// </summary>
     public static (string Text, string? Title, string Tone) TimeText(ItProjectTiming timing) => timing.Basis switch
     {
@@ -224,14 +235,16 @@ public static class ItProjectBoardPresentation
 
     /// <summary>
     /// A card carries a time only when it means something: days from a stage date, or "added"
-    /// for a case not started. A recorded move is left to the register's Now column, because
-    /// cases entered together all show the same day (production, 10 Nov 2026).
+    /// for a case not started. The day a move was recorded is left to the register's Now column,
+    /// because cases entered together all show the same day (production, 10 Nov 2026); such a
+    /// card says "no stage date" in muted text, never coloured, so every card has a time line.
     /// </summary>
     private static PipelineCase ToPipelineCase(ItProjectBoardRow row)
     {
-        var (text, title, tone) = row.Timing.Basis is ItProjectTimeBasis.StageDate or ItProjectTimeBasis.SinceAdded
+        (string Text, string? Title, string Tone) time = row.Timing.Basis is ItProjectTimeBasis.StageDate or ItProjectTimeBasis.SinceAdded
             ? TimeText(row.Timing)
-            : (null, null, "calm");
+            : (NoStageDateText, "The previous stage has no date, so the days here cannot be counted.", "nodate");
+        var (text, title, tone) = time;
         var so = row.Status.CurrentStageCode == ItProjectStages.Delivery
             ? row.Stages.FirstOrDefault(cell => cell.StageCode == ItProjectStages.So && cell.IsCompleted)?.CostLakhs
             : null;
@@ -313,9 +326,9 @@ public static class ItProjectBoardPresentation
     };
 
     /// <summary>The tooltip of a stage cell.</summary>
-    public static string CellTitle(ItProjectBoardStageCell cell)
+    public static string CellTitle(ItProjectBoardStageCell cell, string module = ItProjectModules.It)
     {
-        var label = ItProjectStages.LabelOf(cell.StageCode);
+        var label = ItProjectStages.LabelOf(cell.StageCode, module);
         if (cell.IsSkipped)
         {
             return $"{label}: skipped";
@@ -379,25 +392,25 @@ public static class ItProjectBoardPresentation
     /// One sentence for the stage editor's note and confirm dialog: what a save will also do
     /// beyond the stages the user touched. Null when nothing else changes.
     /// </summary>
-    public static string? CascadeSummary(IReadOnlyList<string> completedCodes, IReadOnlyList<string> reopenedCodes)
+    public static string? CascadeSummary(IReadOnlyList<string> completedCodes, IReadOnlyList<string> reopenedCodes, string module = ItProjectModules.It)
     {
         var parts = new List<string>();
         if (completedCodes.Count > 0)
         {
-            parts.Add("also complete " + JoinLabels(completedCodes));
+            parts.Add("also complete " + JoinLabels(completedCodes, module));
         }
 
         if (reopenedCodes.Count > 0)
         {
-            parts.Add("also reopen " + JoinLabels(reopenedCodes));
+            parts.Add("also reopen " + JoinLabels(reopenedCodes, module));
         }
 
         return parts.Count == 0 ? null : $"Saving will {string.Join(" and ", parts)}.";
     }
 
-    private static string JoinLabels(IReadOnlyList<string> codes)
+    private static string JoinLabels(IReadOnlyList<string> codes, string module)
     {
-        var labels = codes.Select(ItProjectStages.LabelOf).ToList();
+        var labels = codes.Select(code => ItProjectStages.LabelOf(code, module)).ToList();
         return labels.Count <= 1
             ? string.Concat(labels)
             : $"{string.Join(", ", labels.Take(labels.Count - 1))} and {labels[^1]}";
@@ -454,6 +467,10 @@ public static class ItProjectBoardPresentation
         _ => "bi-file-earmark"
     };
 
-    /// <summary>"3 projects" / "1 project".</summary>
-    public static string Projects(int count) => count == 1 ? "1 project" : $"{count} projects";
+    /// <summary>
+    /// "3 cases" / "1 case". The board's sentences call the work a case ("Every IT ARPPP case",
+    /// "Each card is a live case"), so its counts do too; "IT project" stays the name of the
+    /// module, the page and the New button (UI review, 11 Nov 2026).
+    /// </summary>
+    public static string Cases(int count) => count == 1 ? "1 case" : $"{count} cases";
 }

@@ -26,6 +26,8 @@ public sealed class ErpUsageModuleCatalog : IErpUsageModuleCatalog
         Module("workspace", "Workspace", "bi-person-workspace", "/Workspace"),
         Module("projects", "Projects", "bi-kanban", "/Projects", "/Process", "/Approvals", "/IndustryPartners"),
         Module("it-projects", "IT projects", "bi-pc-display", "/ItProjects"),
+        Module("molti-projects", "MOLTI projects", "bi-clipboard-check", "/MoltiProjects"),
+        Module("sre-projects", "SRE projects", "bi-clipboard-pulse", "/SreProjects"),
         Module("calendar", "Calendar", "bi-calendar3", "/Calendar", "/Celebrations", "/Settings/Holidays"),
         Module("documents", "Documents", "bi-files", "/DocumentRepository", "/Files"),
         Module("media", "Photos and media", "bi-images", "/Photos", "/MediaLibrary"),
@@ -35,7 +37,8 @@ public sealed class ErpUsageModuleCatalog : IErpUsageModuleCatalog
         Module("reports", "Reports and FFC", "bi-bar-chart", "/ProjectOfficeReports", "/FFC", "/Reports"),
         Module("administration", "Administration", "bi-shield-lock", "/Admin", "/Usage"),
         Module("search", "Search", "bi-search", "/Common/Search"),
-        Module("pdf-tools", "PDF Tools", "bi-file-earmark-pdf", "/Tools/Pdf")
+        Module("pdf-tools", "PDF Tools", "bi-file-earmark-pdf", "/Tools/Pdf"),
+        Module("photo-tools", "Photo Tools", "bi-image", "/Tools/Photo")
     ];
 
     public IReadOnlyList<ErpUsageModuleDescriptor> Modules => Items;

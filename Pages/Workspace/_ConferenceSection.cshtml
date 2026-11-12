@@ -14,7 +14,10 @@
     var isIdeaSection = sectionModel.Kind == ConferenceItemKind.ProjectIdea;
     var isTaskSection = sectionModel.Kind == ConferenceItemKind.ActionTask;
     var isItProjectSection = sectionModel.Kind == ConferenceItemKind.ItProject;
-    var itemColumnLabel = isProjectSection ? "Project" : isIdeaSection ? "Idea" : isItProjectSection ? "IT project" : "Task";
+    // An officer can have a section per engine module (IT, MOLTI, SRE): the module names the item and the section.
+    var engineItemLabel = sectionModel.ItemLabel ?? "IT project";
+    var itemColumnLabel = isProjectSection ? "Project" : isIdeaSection ? "Idea" : isItProjectSection ? engineItemLabel : "Task";
+    var sectionHeadingId = $"oc-section-{sectionModel.Kind}" + (sectionModel.ModuleCode is null or "IT" ? string.Empty : $"-{sectionModel.ModuleCode}");
     var activeProjectItems = isProjectSection
         ? sectionModel.Items.Where(item => !item.IsRecentlyCompleted).ToArray()
         : Array.Empty<OfficerConferenceItemVm>();
@@ -37,10 +40,10 @@
 }
 
 <section class="oc-section oc-section--@sectionClass"
-         aria-labelledby="oc-section-@sectionModel.Kind"
+         aria-labelledby="@sectionHeadingId"
          data-oc-section="@sectionClass">
     <header class="oc-section__header">
-        <h2 id="oc-section-@sectionModel.Kind">
+        <h2 id="@sectionHeadingId">
             <i class="bi @sectionModel.IconClass" aria-hidden="true"></i>
             <span>@sectionModel.Title</span>
         </h2>
@@ -272,7 +275,7 @@
             ConferenceItemKind.Project => "No projects assigned.",
             ConferenceItemKind.ProjectIdea => "No ideas assigned.",
             ConferenceItemKind.ActionTask => "No other tasks assigned.",
-            ConferenceItemKind.ItProject => "No IT project in progress.",
+            ConferenceItemKind.ItProject => $"No {engineItemLabel} in progress.",
             _ => "No items assigned."
         };
         <div class="oc-section__empty" data-oc-section-empty>@emptyMessage</div>

@@ -127,6 +127,8 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
                 .SetProperty(face => face.CandidateSearchStatus, FaceCandidateSearchStatus.Pending)
                 .SetProperty(face => face.CandidateSearchFailureReason, (string?)null)
                 .SetProperty(face => face.CandidateSearchCompletedAtUtc, (DateTimeOffset?)null)
+                // A worker that is still finishing the stale batch must not overwrite this.
+                .SetProperty(face => face.ConcurrencyToken, face => Guid.NewGuid())
                 .SetProperty(face => face.UpdatedAtUtc, now),
                 cancellationToken);
 
@@ -199,13 +201,20 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
                 .SetProperty(face => face.CandidateSearchModelVersion, modelVersion)
                 .SetProperty(face => face.CandidateSearchFailureReason, (string?)null)
                 .SetProperty(face => face.CandidateSearchCompletedAtUtc, (DateTimeOffset?)null)
+                // Rotating the token makes a search that is already running for this face fail
+                // its save instead of marking it Ready with candidates computed against the
+                // evidence this requeue replaces. The face stays Pending and is searched again.
+                .SetProperty(face => face.ConcurrencyToken, face => Guid.NewGuid())
                 .SetProperty(face => face.UpdatedAtUtc, now),
                 cancellationToken);
     }
 
+    // No AsNoTracking here. EF Core applies it to the whole query this is composed into, and
+    // QueueFaceAsync changes the face that query loads: untracked, the change was not saved.
+    // The ids are scalars, so nothing is tracked by this sub-query either way.
     private IQueryable<long> BuildVisibleAssetIdsQuery()
         => _visibility
-            .Apply(_db.Assets.AsNoTracking())
+            .Apply(_db.Assets)
             .Select(asset => asset.Id);
 
     private bool IsOperational()
@@ -219,6 +228,7 @@ public sealed class FaceCandidateRefreshQueueService : IFaceCandidateRefreshQueu
         face.CandidateSearchFailureReason = null;
         face.CandidateSearchCompletedAtUtc = null;
         face.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        // See QueueQueryAsync: an in-flight search for this face must not overwrite it.
         face.ConcurrencyToken = Guid.NewGuid();
     }
 }

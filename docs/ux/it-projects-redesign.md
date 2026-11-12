@@ -32,6 +32,9 @@ how long?**
 
 ## The concept: a pipeline that shows waiting time
 
+0. **Header**: the title with a short spectrum rule under it, as on the Dashboard (168px), and no
+   lead sentence; the pipeline card below no longer has its own spectrum strip, so the spectrum
+   appears once on the page (owner, 11 Nov 2026). New IT project uses the same rule.
 1. **One quiet summary line** under the header: the New / CL / CF of the cases in progress in the
    board's year (types with none left out) and the supply orders awaiting delivery, with their
    value only where it was entered. It replaced four figure tiles after the production review of
@@ -41,22 +44,37 @@ how long?**
 2. **Where the cases are now**: a chevron pipeline of the nine stages; under each, the live cases
    at that stage as small cards, edged amber or red when stage dates show them ageing. A card
    shows days only from a stage date ("added 5 d ago" for a case not started); a recorded move
-   is left to the register's Now column, because cases entered together all show the same day.
-   Optional stages are narrower and hatched when unused. Each card opens the case.
+   is left to the register's Now column, because cases entered together all show the same day;
+   such a card says "no stage date" in muted text, never coloured, so every card has a time line.
+   A stage with no live case is muted the same plain way, optional or not (the hatching on unused
+   optional stages was removed on 11 Nov 2026: nothing explained it); optional stages are narrower.
+   Each card opens the case.
 3. **Register**: one row per case with a **track** (a line with the stage dots on it, filled to
    the current stage, which pulses) and a **Now** column ("At COB", the time figure from the
-   rule below, SO value). A completed stage without a date shows a hollow tick. Dates appear on row hover. Delivered cases show "Delivered 30 Jun 25 ·
-   356 days end to end". Status, sort (Stage order / Longest wait), FY and search sit in one bar;
+   rule below, SO value). A completed stage without a date shows a hollow tick. Dates appear on row hover and when the
+   row has keyboard focus. The stage names above the track stay in view under the top navigation
+   while the register scrolls, and on wide screens the title column stops growing so the track
+   takes the spare width. Delivered cases show "Delivered 30 Jun 25 ·
+   356 days end to end". When the early stages have no date the figure runs from the first dated
+   stage and says so ("132 days from SO"), because it is then shorter than the case took. Status, sort (Stage order / Longest wait), FY and search sit in one bar;
    FY becomes a segmented control in the header.
 4. **Project page**: a hero card (reference, FY and status chips, title, description, actions)
    with **one status line**: where the case is and for how long ("At Delivery and ATP for 332 days ·
-   since SO closed on 12 Dec 2025"), plus a New / CL / CF chip for a carried-over case. Then
+   since SO closed on 12 Dec 2025"). The chips lead with the latest year the case counts in (type,
+   that year's IT ARPPP number, the year), as the register row does; a carried-over case then says
+   "first listed FY 2025-26 as IT PPP 02/2025" (owner, 11 Nov 2026). Then
    **Journey**: the stepper with the days between stages above the line. (A five-card "now strip"
    and a "where the time went" bar were built and then removed on 9 Nov 2026: they repeated what the
    page already shows. Keep the page lean; no extra metrics.)
    Below, two columns: **Remarks and history** (composer, then remarks with stage completions in
-   line, older stages folded) and **Documents** (file rows, drop zone) plus a small **Record**
-   card that holds Mark dropped and Delete.
+   line, older stages folded; the composer is one line until it is used and opens on focus, and
+   its date is labelled "Date", owner 11 Nov 2026) and **Documents** (file rows, drop zone) plus a small **Record**
+   card of facts. Mark dropped (or Reinstate) and Delete sit under a **More** menu beside Update
+   stages, as on the main project page; a remark's Edit and Delete sit in one small menu at the end
+   of its header line; an attachment's remove control is a bin that shows on the row being pointed
+   at or tabbed into, and always on touch screens (owner, 11 Nov 2026: the red Delete link on the
+   Record card, a Delete link under every remark and an X on every file were too prominent for how
+   rarely they are used). Each still asks in the shared confirm dialog.
 5. **Stage editor**: a vertical stepper; ticking a stage shows the stages it will complete
    (dashed) before Save, each row shows its gap from the previous date, and a live summary says
    what Save will do. Native date pickers stay (offline, accessible).
@@ -74,12 +92,23 @@ All colours are existing `--pm-*` tokens (theme coverage check), no new assets, 
 | Days between stages | Completion date minus the completion date of the stage just before it (skipped stages ignored); blank when either date is missing, never measured from an earlier stage. |
 | Elapsed | Today (or the Delivery date) minus the first dated completion. |
 | Longest wait (sort) | Days-at-stage from stage dates only; cases without one sort after those with one. (The Waiting longest tile was removed on 10 Nov 2026.) |
-| Dates missing | Active cases with a completed stage that has no date. Shown to Manage roles only, as a link that filters the register to them. |
+| Dates missing | Active cases with a completed stage that has no date. Shown to Manage roles only, as a quiet link in the filter bar that filters the register to them; while the filter is on it is a filled chip with an X that clears it. |
 | On order | Active cases whose SO is complete and Delivery is not, with the sum of the SO values entered; "value not entered" when none has one, never "₹0.00". |
-| Ageing band | From the stage-date figure only, the same for every stage (owner decision 8 Nov 2026): up to 30 days normal, 31–60 amber, over 60 red. |
+| Ageing band | From the stage-date figure only (owner decision 8 Nov 2026): up to 30 days normal, 31–60 amber, over 60 red. Delivery and ATP waits on the supplier, so there it is up to 60 normal, 61–90 amber, over 90 red (owner, 11 Nov 2026). |
 
 The key under the register lists only the marks the register actually draws, so a board with no
-stage dates does not explain ageing colours it cannot show.
+stage dates does not explain ageing colours it cannot show. The ageing entry is the three badges
+and a short note, "days at the stage (Delivery and ATP: 60 / 90)".
+
+**One set of short stage names** (UI review, 11 Nov 2026): the pipeline columns and the register
+header both use `ItProjectBoardPresentation.ShortStageLabel`: ARPPP, AoN, Bid, TEC, COB, BM, PNC,
+SO, Delivery. The full label ("IT ARPPP / IPA", "Benchmarking", "Delivery and ATP") is the tooltip
+and is what every sentence uses ("At Delivery and ATP").
+
+**Case and project** (UI review, 11 Nov 2026): "IT project" is the name of the module, the page
+and the New button; the board's sentences and counts call the work a case ("Every IT ARPPP case",
+"Dates missing on 1 case", "9 cases"). On phones a wrapped line never ends or starts with a lone
+separator dot: the summary line drops its dot and the project page's status note takes its own line.
 
 `StageMovedAtUtc` is one new nullable column on `ItProjects` (hand-written, additive migration;
 existing rows stay null, which simply means fallback 3). The stage save sets it only when the
@@ -110,10 +139,29 @@ type for that year changes.
   under a new IT ARPPP reference number. The case keeps its first number on the project; each later
   year holds its own number, entered by the ITO, HoD or Admin when that year's IT ARPPP is made
   ("number not entered" until then). Search finds a case by any year's number.
+- **Created as CL or CF** (owner, 10 Nov 2026): the module started long after the IT ARPPP did,
+  so most cases already sit in this year's IT ARPPP as carried over. The New IT project form asks
+  "In the IT ARPPP: New / CL / CF". New is as before. CL or CF asks for this year's IT ARPPP number,
+  the year the case was first listed (the ten years before this one, last year by default) and,
+  if known, its first number. One save (`CreateCarriedOverAsync`) creates the project in its first
+  year, with its first number or "Not recorded" (changed later with Edit), and this year's
+  `ItProjectFinancialYear` row with the number and the type set by hand, so the case reads as CL
+  or CF before any stage or SO date is entered. The years in between are typed automatically.
+  The `ItProjects.Created` audit entry adds `CarriedOverInto`, `CarriedOverType` and
+  `CarriedOverPppReferenceNumber`. No schema change.
 - **Change by hand**: the same people can set the type of one case for one year (New, CL or CF),
-  or go back to the automatic type. Both are stored in `ItProjectFinancialYear` (one row per case
-  and later year: reference number, optional type), audited as `ItProjects.YearChanged`. The first
-  year's number is changed with Edit.
+  or go back to the automatic type. A type chosen by hand for a later year is kept even when it is
+  the automatic type at the time, so it does not change when the automatic type later does; only
+  "Automatic" follows the rule. In the case's own year (always New automatically) only a different
+  type is stored. Both are stored in `ItProjectFinancialYear` (one row per case
+  and later year: reference number, optional type), audited as `ItProjects.YearChanged`. On the
+  Record card every year reads as plain text with its own **Edit**, which opens that one row
+  (number, type, Save, Cancel); a type set by hand says so beside the number. The first year has
+  the same Edit: its number is the project's own (also changed with Edit details) and its type
+  can be set by hand like any other (owner, 11 Nov 2026; before that later years were always an
+  open form and the first year had none). When Edit details moves the project's own year to or past a later
+  year's row, that row is removed (it would otherwise become a type set by hand on the own year);
+  the `ItProjects.Updated` audit entry lists what it held under `RemovedYears`. An edit that keeps the year leaves every row alone.
 - The board's **financial year filter** shows every case live in that year, each with its type
   chip, and the figure tiles split by type ("8 in progress · 3 New · 2 CL · 3 CF").
 
@@ -123,7 +171,7 @@ type for that year changes.
 | --- | --- |
 | Design | Mockup approved |
 | Time figure | Stage dates first; recorded move as a light fallback; never borrow an earlier stage's date (rule above) |
-| Ageing bands | Up to 30 days normal, 31–60 amber, over 60 red; one rule for every stage |
+| Ageing bands | Up to 30 days normal, 31–60 amber, over 60 red; at Delivery and ATP 60 / 90 |
 | Register order | Stage order by default, Longest wait as an option (the phone list uses Longest wait) |
 | Remarks feed | Stage completions shown in line with the remarks |
 | Wording | "Delivered" instead of "Completed"; "Update stages" instead of "Stages" |

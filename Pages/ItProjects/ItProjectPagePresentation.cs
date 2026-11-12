@@ -20,6 +20,34 @@ public static class ItProjectPagePresentation
     /// </summary>
     public sealed record HeroStatus(string Text, string? Note, string Tone);
 
+    /// <summary>The last thing that happened on the case: when (India date), by whom, and what.</summary>
+    public sealed record Activity(DateOnly On, string? Who, string What);
+
+    /// <summary>
+    /// The latest of a details or stage save (the project row), a remark added or edited and a file
+    /// attached. "Last change" used the project row alone, so a case with recent remarks looked
+    /// untouched for months (owner, 11 Nov 2026).
+    /// </summary>
+    public static Activity LastActivity(
+        ItProject project,
+        string? projectUpdatedBy,
+        IEnumerable<ItProjectRemarkView> remarks,
+        IEnumerable<ItProjectAttachmentView> attachments)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        var candidates = new List<(DateTime AtUtc, string? Who, string What)>
+        {
+            (project.UpdatedAtUtc, projectUpdatedBy, "Details or stages saved")
+        };
+        candidates.AddRange((remarks ?? Enumerable.Empty<ItProjectRemarkView>()).Select(remark =>
+            (remark.LastEditedAtUtc ?? remark.CreatedAtUtc, (string?)remark.AuthorName, remark.LastEditedAtUtc.HasValue ? "Remark edited" : "Remark added")));
+        candidates.AddRange((attachments ?? Enumerable.Empty<ItProjectAttachmentView>()).Select(file =>
+            (file.UploadedAtUtc, (string?)file.UploadedByName, "File attached")));
+
+        var latest = candidates.OrderByDescending(item => item.AtUtc).First();
+        return new Activity(ItProjectYearTypes.ToIstDate(latest.AtUtc), latest.Who, latest.What);
+    }
+
     public static string LongDate(DateOnly date) => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
 
     /// <summary>Where the case is and for how long, in one sentence.</summary>
@@ -35,7 +63,7 @@ public static class ItProjectPagePresentation
                 var on = stages.FirstOrDefault(stage => stage.StageCode == ItProjectStages.Delivery)?.CompletedOn;
                 return new HeroStatus(
                     on is { } date ? $"Delivered on {LongDate(date)}" : "Delivered",
-                    timing.ElapsedDays is { } days ? $"{Days(days)} end to end" : null,
+                    timing.ElapsedDays is { } days ? $"{Days(days)} {ItProjectBoardPresentation.ElapsedSpan(timing, project.Module)}" : null,
                     "ok");
             }
 
@@ -54,7 +82,7 @@ public static class ItProjectPagePresentation
         }
 
         var stage = status.CurrentStageLabel ?? "the current stage";
-        var previous = PreviousStageLabel(stages, status.CurrentStageCode) ?? "the previous stage";
+        var previous = PreviousStageLabel(stages, status.CurrentStageCode, status.Module) ?? "the previous stage";
         return timing.Basis switch
         {
             ItProjectTimeBasis.StageDate => new HeroStatus(
@@ -112,7 +140,7 @@ public static class ItProjectPagePresentation
 
         return stages.Select((stage, index) =>
         {
-            var label = ItProjectStages.LabelOf(stage.StageCode);
+            var label = ItProjectStages.LabelOf(stage.StageCode, project.Module);
             var cost = stage.CostLakhs is { } lakhs && !stage.IsSkipped ? ItProjectBoardPresentation.Cost(lakhs) : null;
             if (stage.IsSkipped)
             {
@@ -195,8 +223,9 @@ public static class ItProjectPagePresentation
 
         foreach (var stage in project.Stages.Where(stage => !stage.IsSkipped && stage.IsCompleted && stage.CompletedOn.HasValue))
         {
-            var label = ItProjectStages.LabelOf(stage.StageCode);
-            var text = stage.StageCode == ItProjectStages.So && stage.CostLakhs is { } cost
+            var label = ItProjectStages.LabelOf(stage.StageCode, project.Module);
+            // The IPA cost on the first stage and the SO value on SO ride along with their stage.
+            var text = stage.CostLakhs is { } cost
                 ? $"{label} completed · {ItProjectBoardPresentation.Cost(cost)}"
                 : $"{label} completed";
             events.Add((stage.CompletedOn!.Value, 1, -stage.SortOrder, new StageEvent(stage.StageCode, label, text, stage.CompletedOn.Value)));
@@ -260,7 +289,7 @@ public static class ItProjectPagePresentation
     }
 
     /// <summary>The label of the last non-skipped stage before the current one.</summary>
-    private static string? PreviousStageLabel(IReadOnlyList<ItProjectStage> stages, string? currentCode)
+    private static string? PreviousStageLabel(IReadOnlyList<ItProjectStage> stages, string? currentCode, string module)
     {
         if (currentCode is null)
         {
@@ -269,7 +298,7 @@ public static class ItProjectPagePresentation
 
         var currentOrder = ItProjectStages.OrderOf(currentCode);
         var previous = stages.LastOrDefault(stage => !stage.IsSkipped && stage.SortOrder < currentOrder);
-        return previous is null ? null : ItProjectStages.LabelOf(previous.StageCode);
+        return previous is null ? null : ItProjectStages.LabelOf(previous.StageCode, module);
     }
 
     private static string Days(int days) => days == 1 ? "1 day" : $"{days.ToString("#,##0", CultureInfo.InvariantCulture)} days";

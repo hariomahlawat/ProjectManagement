@@ -23,6 +23,7 @@
       "BatchSize": 1,
       "MaxAttempts": 5,
       "MaxImageFileSizeBytes": 209715200,
+      "MaxImagePixels": 100000000,
       "ThumbnailMaxPixels": 480,
       "PreviewMaxPixels": 1920,
       "WebpQuality": 84

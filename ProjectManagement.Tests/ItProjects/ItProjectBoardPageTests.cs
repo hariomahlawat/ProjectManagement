@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Pages.ItProjects;
@@ -147,7 +148,7 @@ public class ItProjectBoardPageTests
         Assert.Equal("TEC: done, date not recorded", ItProjectBoardPresentation.CellTitle(doneNoDate));
 
         var current = new ItProjectBoardStageCell("SO", 8, false, null, false, 46.8m, true);
-        Assert.Equal("SO: current stage, ₹ 46.80 L", ItProjectBoardPresentation.CellTitle(current));
+        Assert.Equal("EAS & SO: current stage, ₹ 46.80 L", ItProjectBoardPresentation.CellTitle(current));
 
         // The cost stays on the cell once SO is complete (Codex review, PR 2).
         var doneWithCost = new ItProjectBoardStageCell("SO", 8, true, new DateOnly(2026, 2, 12), false, 12.4m, false);
@@ -162,8 +163,8 @@ public class ItProjectBoardPageTests
         Assert.Equal("FY 2026-27", ItProjectBoardPresentation.FinancialYear(2026));
         Assert.Equal("₹ 1,23,456.70 L", ItProjectBoardPresentation.Cost(123456.7m));
         Assert.Equal("At TEC", ItProjectBoardPresentation.StatusChip(new ItProjectStatus(ItProjectStatusKind.InProgress, "TEC")));
-        Assert.Equal("1 project", ItProjectBoardPresentation.Projects(1));
-        Assert.Equal("3 projects", ItProjectBoardPresentation.Projects(3));
+        Assert.Equal("1 case", ItProjectBoardPresentation.Cases(1));
+        Assert.Equal("3 cases", ItProjectBoardPresentation.Cases(3));
     }
 
     [Fact]
@@ -172,7 +173,7 @@ public class ItProjectBoardPageTests
         await using var db = await ItProjectTestDb.CreateAsync();
 
         var page = CreatePage(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
-        page.OnGet();
+        await page.OnGetAsync(System.Threading.CancellationToken.None);
         Assert.Equal(2026, page.Input.FinancialYearStart);
         Assert.Equal("2027-28", page.FinancialYearOptions[0].Text);
         Assert.Equal("2026-27", page.FinancialYearOptions[1].Text);
@@ -288,4 +289,84 @@ public class ItProjectBoardPageTests
 
         return id;
     }
+
+    [Fact]
+    public void FinancialYearOptions_CountFromTheCurrentYear_SoAnOldProjectCanMoveToThisYear()
+    {
+        var options = CreateModel.BuildFinancialYearOptions(2015, 2026).Select(option => int.Parse(option.Value)).ToList();
+
+        Assert.Equal(2027, options[0]); // next year first
+        Assert.Contains(2026, options);
+        Assert.Contains(2016, options);
+        Assert.Contains(2015, options); // the project's own year, older than the ten offered
+        Assert.Equal(options.OrderByDescending(year => year), options);
+    }
+
+    [Fact]
+    public async Task Create_AsCarriedOver_CreatesTheCaseAsCLInThisYear()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var page = CreatePage(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await page.OnGetAsync(System.Threading.CancellationToken.None);
+        Assert.Equal(2026, page.CurrentFinancialYear);
+        Assert.Equal("2025-26", page.FirstYearOptions[0].Text);
+        Assert.True(page.FirstYearOptions[0].Selected); // last year by default
+        Assert.DoesNotContain(page.FirstYearOptions, option => option.Value == "2026");
+        Assert.Equal(CreateModel.PastFinancialYearsOffered, page.FirstYearOptions.Count);
+
+        page.Input = new CreateModel.InputModel
+        {
+            Kind = "CL",
+            Title = "Core switches",
+            PppReferenceNumber = "IT ARPPP 04/2026",
+            FinancialYearStart = 2026,
+            FirstFinancialYearStart = 2024,
+            FirstPppReferenceNumber = null,
+            Description = "Twelve switches."
+        };
+        var result = await page.OnPostAsync(CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains("created as CL in FY 2026-27", (string)page.TempData["ToastSuccess"]!);
+        await using var context = db.NewContext();
+        var project = await context.ItProjects.Include(p => p.FinancialYears).SingleAsync();
+        Assert.Equal(2024, project.FinancialYearStart);
+        Assert.Equal(ItProjectCommandService.ReferenceNotRecorded, project.PppReferenceNumber);
+        var year = Assert.Single(project.FinancialYears);
+        Assert.Equal((2026, "IT ARPPP 04/2026", (ItProjectYearType?)ItProjectYearType.CommittedLiability), (year.FinancialYearStart, year.PppReferenceNumber, year.TypeOverride));
+    }
+
+    [Fact]
+    public async Task Create_AsCarriedOver_NeedsAnEarlierFirstYear_AndIgnoresTheNewYearPicker()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var page = CreatePage(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        page.Input = new CreateModel.InputModel
+        {
+            Kind = "CF",
+            Title = "Laptops",
+            PppReferenceNumber = "IT ARPPP 07/2026",
+            FinancialYearStart = null,
+            FirstFinancialYearStart = 2026,
+            Description = "Forty laptops."
+        };
+        page.ModelState.AddModelError("Input.FinancialYearStart", "Choose the financial year.");
+
+        var result = await page.OnPostAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(page.ModelState.ContainsKey("Input.FinancialYearStart"));
+        Assert.Contains(page.ModelState["Input.FirstFinancialYearStart"]!.Errors, error => error.ErrorMessage.Contains("first listed"));
+        await using var context = db.NewContext();
+        Assert.False(await context.ItProjects.AnyAsync());
+    }
+
+    [Theory]
+    [InlineData("CL", ItProjectYearType.CommittedLiability)]
+    [InlineData("cf", ItProjectYearType.CarriedForward)]
+    [InlineData("New", null)]
+    [InlineData("something", null)]
+    [InlineData(null, null)]
+    public void CarriedOverType_ReadsTheKind(string? kind, ItProjectYearType? expected)
+        => Assert.Equal(expected, CreateModel.CarriedOverType(kind));
 }

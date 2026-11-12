@@ -2,11 +2,12 @@
 @using ProjectManagement.Features.MediaLibrary.Domain
 @model ProjectManagement.Pages.Photos.People.ReviewModel
 @{
-    ViewData["Title"] = "Identify people";
+    ViewData["Title"] = "Review people";
     ViewData["PageShell"] = "wide";
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/css/pages/photos-library.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/photos-people.css" asp-append-version="true" />
 }
 
@@ -15,19 +16,19 @@
      data-workload-status-url="@Model.BuildWorkloadStatusUrl()"
      data-initial-matching="@Model.Workload.MatchingCount"
      data-grouping-refreshing="@(Model.GroupingRefreshPending ? "true" : "false")">
-    <header class="people-header people-header--review">
-        <div>
-            <span class="people-eyebrow">Human-confirmed identity intelligence</span>
-            <h1>Identify people</h1>
-            <p>Review possible matches generated only from trusted references. Similarity is a ranking signal—not an identity probability—and PRISM never names a person automatically.</p>
-        </div>
-        <nav class="people-header__actions">
-            <a class="btn btn-outline-secondary" asp-page="./Index"><i class="bi bi-people"></i> People</a>
-            @if (Model.FeatureEnabled)
-            {
+    <div class="photos-bar" data-photos-bar>
+        <nav class="photos-sections" aria-label="Photos sections">
+            <a asp-page="/Photos/Index" asp-route-View="photos">Photos</a>
+            <a asp-page="/Photos/Index" asp-route-View="collections" asp-route-CollectionTab="albums">Albums</a>
+            <a class="is-active" asp-page="./Index">People</a>
+            <a asp-page="/Photos/Index" asp-route-View="collections" asp-route-CollectionTab="source">Collections</a>
+        </nav>
+        @if (Model.FeatureEnabled)
+        {
+            <div class="people-review-bar__menu">
                 <div class="dropdown">
-                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-three-dots"></i> More
+                    <button class="photos-action photos-action--quiet" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More options">
+                        <i class="bi bi-three-dots"></i>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
                         @if (Model.MatchingWorkerEnabled)
@@ -36,8 +37,8 @@
                                 <form method="post" asp-page-handler="RefreshCandidates">
                                     <partial name="_ReviewStateFields" model="Model" />
                                     <button type="submit" class="dropdown-item"
-                                            data-confirm-message="Re-run known-person matching for all unresolved eligible faces? Routine matching already runs automatically; use this only when a manual refresh is required.">
-                                        <i class="bi bi-arrow-repeat"></i> Re-run matching
+                                            data-confirm-message="Look again for known people in every face still waiting? PRISM already does this by itself; use this only when a manual refresh is required.">
+                                        <i class="bi bi-arrow-repeat"></i> Look for known people again
                                     </button>
                                 </form>
                             </li>
@@ -45,79 +46,88 @@
                         }
                         <li>
                             <a class="dropdown-item" asp-page="/Admin/MediaIntelligence/Index">
-                                <i class="bi bi-cpu"></i> Media intelligence readiness
+                                <i class="bi bi-cpu"></i> Face recognition status
                             </a>
                         </li>
                     </ul>
                 </div>
-            }
-        </nav>
+            </div>
+        }
+    </div>
+    <header class="people-review-heading">
+        <a class="people-review-heading__back" asp-page="./Index"><i class="bi bi-chevron-left" aria-hidden="true"></i> People</a>
+        <h1>Who is in these pictures?</h1>
+        <p>PRISM finds faces it cannot name. You decide who they are; nothing is named without you.</p>
     </header>
 
     @if (!Model.FeatureEnabled)
     {
         <section class="people-empty">
             <i class="bi bi-shield-lock" aria-hidden="true"></i>
-            <h2>People intelligence is disabled</h2>
-            <p>The approved local detector and embedding models must pass readiness before face grouping and identity review can run.</p>
-            <a class="btn btn-primary" asp-page="/Admin/MediaIntelligence/Index">Open readiness dashboard</a>
+            <h2>Face review is switched off</h2>
+            <p>The face recognition models on this server have not passed their checks yet, so PRISM cannot find or group faces.</p>
+            <a class="btn btn-primary" asp-page="/Admin/MediaIntelligence/Index">See what is missing</a>
         </section>
     }
     else
     {
         @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
         {
-            <div class="alert alert-success" role="status">@Model.StatusMessage</div>
+            <div class="alert alert-success people-review-done" role="status">
+                <span>@Model.StatusMessage</span>
+                @if (Model.CanUndo)
+                {
+                    <form method="post" asp-page-handler="Undo">
+                        <partial name="_ReviewStateFields" model="Model" />
+                        <input type="hidden" name="undoId" value="@Model.UndoId" />
+                        <button type="submit" class="btn btn-sm btn-link">Undo</button>
+                    </form>
+                }
+            </div>
         }
         @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
         {
             <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
         }
 
-        <nav class="identity-review-tabs" aria-label="People review mode">
-            <a class="identity-review-tab @(Model.IsMatchesMode ? "is-active" : null)"
-               href="@(Model.BuildReviewUrl("matches", 1, "detail"))">
-                <i class="bi bi-person-check"></i>
-                <span>Direct person suggestions</span>
-                <strong data-workload-known>@Model.Workload.KnownMatchCount</strong>
-            </a>
-            <a class="identity-review-tab @(Model.IsUnidentifiedMode ? "is-active" : null)"
-               href="@(Model.BuildReviewUrl("unidentified", 1, "triage"))">
-                <i class="bi bi-person-question"></i>
-                <span>Individual review</span>
-                <strong data-workload-individual>@Model.Workload.IndividualReviewCount</strong>
-            </a>
+        <nav class="photos-chips people-queues" aria-label="What to review">
             @if (Model.GroupingEnabled && !Model.IsScopedToMedia)
             {
-                <a class="identity-review-tab @(Model.IsGroupsMode ? "is-active" : null)"
+                <a class="photos-chip @(Model.IsGroupsMode ? "is-active" : null)" aria-current="@(Model.IsGroupsMode ? "true" : null)"
                    href="@(Model.BuildReviewUrl("groups", 1, "detail"))">
-                    <i class="bi bi-collection"></i>
-                    <span>Identity groups</span>
-                    <strong data-workload-groups>@Model.Workload.SuggestedGroupCount</strong>
+                    Same person? <strong data-workload-groups>@Model.Workload.SuggestedGroupCount</strong>
                 </a>
             }
+            <a class="photos-chip @(Model.IsMatchesMode ? "is-active" : null)" aria-current="@(Model.IsMatchesMode ? "true" : null)"
+               href="@(Model.BuildReviewUrl("matches", 1, "detail"))">
+                Is this …? <strong data-workload-known>@Model.Workload.KnownMatchCount</strong>
+            </a>
+            <a class="photos-chip @(Model.IsUnidentifiedMode ? "is-active" : null)" aria-current="@(Model.IsUnidentifiedMode ? "true" : null)"
+               href="@(Model.BuildReviewUrl("unidentified", 1, "triage"))">
+                Unnamed faces <strong data-workload-individual>@Model.Workload.IndividualReviewCount</strong>
+            </a>
         </nav>
 
         <div class="identity-review-workload-strip" aria-label="Review workload status" data-workload-strip>
             <span class="identity-workload-pill @(Model.Workload.MatchingCount > 0 ? "is-processing" : null)"
                   data-workload-matching-wrap hidden="@(Model.Workload.MatchingCount == 0 ? "hidden" : null)">
                 <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
-                <strong data-workload-matching>@Model.Workload.MatchingCount</strong> matching
+                <strong data-workload-matching>@Model.Workload.MatchingCount</strong> being checked
             </span>
             <a class="identity-workload-pill is-warning"
                href="@(Model.BuildReviewUrl("unidentified", 1, "triage", matchStatus: "failed"))"
                data-workload-failures-wrap hidden="@(Model.Workload.MatchingFailureCount == 0 ? "hidden" : null)">
                 <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-                <strong data-workload-failures>@Model.Workload.MatchingFailureCount</strong> matching failed
+                <strong data-workload-failures>@Model.Workload.MatchingFailureCount</strong> could not be checked
             </a>
             <a class="identity-workload-pill @(Model.IsClosedMode ? "is-active" : null)"
                href="@(Model.BuildReviewUrl("closed", 1, "triage"))"
                data-workload-closed-wrap hidden="@(Model.Workload.ClosedUnidentifiedCount == 0 && !Model.IsClosedMode ? "hidden" : null)">
                 <i class="bi bi-archive" aria-hidden="true"></i>
-                <strong data-workload-closed>@Model.Workload.ClosedUnidentifiedCount</strong> closed unidentified
+                <strong data-workload-closed>@Model.Workload.ClosedUnidentifiedCount</strong> left unnamed
             </a>
             <span class="identity-review-workload-strip__total">
-                <strong data-workload-total>@Model.Workload.TotalUnresolvedCount</strong> unresolved appearances
+                <strong data-workload-total>@Model.Workload.TotalUnresolvedCount</strong> still to review
             </span>
             <span class="identity-review-workload-strip__live" data-workload-live-status aria-live="polite"></span>
         </div>
@@ -127,14 +137,14 @@
              data-matching-worker-warning
              hidden="@(!Model.MatchingWorkerDelayed ? "hidden" : null)">
             <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
-            <strong>Matching worker delayed.</strong> PRISM will recover stale Processing leases automatically. Timed-out searches move to the failed queue for controlled retry rather than remaining stuck indefinitely.
+            <strong>Checking faces is running late.</strong> PRISM will catch up by itself. A face that takes too long moves to “could not be checked”, where it can be tried again, rather than remaining stuck indefinitely.
         </div>
 
         @if (Model.IsScopedToMedia && !Model.IsGroupsMode)
         {
             <div class="identity-review-scope" role="status">
-                <span><i class="bi bi-images"></i> Review is limited to faces detected in <strong>@Model.AssetIds.Length selected media item@(Model.AssetIds.Length == 1 ? "" : "s")</strong>.</span>
-                <a href="@Model.BuildClearMediaScopeUrl()">Clear media scope</a>
+                <span><i class="bi bi-images"></i> Showing only faces from the <strong>@Model.AssetIds.Length picture@(Model.AssetIds.Length == 1 ? "" : "s")</strong> you selected.</span>
+                <a href="@Model.BuildClearMediaScopeUrl()">Show all faces</a>
             </div>
         }
 
@@ -142,13 +152,15 @@
         {
             @if (!string.IsNullOrWhiteSpace(Model.GroupingNotice))
             {
+                @* Said only while the groups are being rebuilt or could not be; up-to-date groups need no notice. *@
                 <div class="identity-group-refresh-notice @(Model.GroupingRefreshing ? "is-refreshing" : null)"
-                     role="status" data-grouping-refresh-notice>
+                     role="status" data-grouping-refresh-notice
+                     hidden="@(!Model.GroupingRefreshing && !Model.GroupingFailed ? "hidden" : null)">
                     <i class="bi @(Model.GroupingRefreshing ? "bi-arrow-repeat" : "bi-info-circle")" aria-hidden="true"></i>
                     <span data-grouping-refresh-copy>@Model.GroupingNotice</span>
                     @if (Model.GroupingRefreshedAtUtc.HasValue)
                     {
-                        <small data-grouping-refreshed-at>Last snapshot @Model.GroupingRefreshedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</small>
+                        <small data-grouping-refreshed-at>Last grouped @Model.GroupingRefreshedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small>
                     }
                     else
                     {
@@ -165,35 +177,27 @@
                     <i class="bi @(Model.GroupingFailed ? "bi-exclamation-triangle" : "bi-arrow-repeat identity-refresh-icon")" aria-hidden="true"></i>
                     @if (Model.GroupingFailed)
                     {
-                        <h2>Identity grouping temporarily unavailable</h2>
-                        <p>The latest background refresh failed. The last error has been logged and the worker will retry automatically.</p>
+                        <h2>Groups are not available just now</h2>
+                        <p>PRISM could not group the faces this time. The error is logged and it will try again by itself.</p>
                     }
                     else
                     {
-                        <h2>Preparing identity groups</h2>
-                        <p>Strict multi-photo grouping runs in the background. Stay on this workspace; the status above will update when a snapshot is ready.</p>
+                        <h2>Grouping faces</h2>
+                        <p>PRISM is working out which faces belong together. You can stay here; the groups appear when they are ready.</p>
                     }
                 </section>
             }
             else
             {
-                <section class="review-summary review-summary--people">
-                    <div><strong data-workload-groups>@Model.GroupResult.TotalGroups</strong><span>suggested groups</span></div>
-                    <div><strong data-workload-grouped>@Model.GroupResult.GroupedFaceCount</strong><span>appearances grouped</span></div>
-                    <div><strong data-workload-ungrouped>@Model.GroupResult.UngroupedFaceCount</strong><span>ungrouped appearances</span></div>
-                    <div><strong data-workload-individual-summary>@Model.Workload.IndividualReviewCount</strong><span>individual review now</span></div>
-                    <p><i class="bi bi-shield-check"></i> Grouping is a review aid only. A reviewer must explicitly select the correct appearances and confirm a name.</p>
-                </section>
-
                 @if (Model.GroupResult.Groups.Count == 0)
                 {
                     <section class="people-empty people-empty--compact">
                         <i class="bi bi-person-check"></i>
-                        <h2>No repeated unnamed people found</h2>
-                        <p>No strict multi-photo group currently requires confirmation. Ungrouped appearances can continue through individual review.</p>
+                        <h2>No groups to review</h2>
+                        <p>PRISM has not found the same unnamed person in several pictures. Faces on their own are under Unnamed faces.</p>
                         @if (Model.Workload.IndividualReviewCount > 0)
                         {
-                            <a class="btn btn-primary" href="@(Model.BuildReviewUrl("unidentified", 1, "triage"))">Review individual faces</a>
+                            <a class="btn btn-primary" href="@(Model.BuildReviewUrl("unidentified", 1, "triage"))">Open Unnamed faces</a>
                         }
                     </section>
                 }
@@ -206,13 +210,8 @@
                             <article class="identity-group-card" data-identity-group="@group.GroupKey">
                                 <header class="identity-group-card__header">
                                     <div>
-                                        <span class="identity-group-card__kicker">Suggested same person</span>
-                                        <h2>@group.Members.Count appearances across @group.PhotoCount photographs</h2>
-                                        <p>@group.FirstSeenUtc.ToLocalTime().ToString("dd MMM yyyy") – @group.LastSeenUtc.ToLocalTime().ToString("dd MMM yyyy")</p>
-                                    </div>
-                                    <div class="identity-group-card__cohesion" title="Average similarity to the representative appearance; this is not identity probability.">
-                                        <span>Group similarity</span>
-                                        <strong>@group.CohesionScore.ToString("0.000")</strong>
+                                        <h2>These @group.Members.Count faces look like the same person</h2>
+                                        <p>From @group.PhotoCount picture@(group.PhotoCount == 1 ? "" : "s") · @group.FirstSeenUtc.ToLocalTime().ToString("d MMM yyyy") to @group.LastSeenUtc.ToLocalTime().ToString("d MMM yyyy") · Untick any that are someone else.</p>
                                     </div>
                                 </header>
 
@@ -221,6 +220,9 @@
                                     {
                                         var similarityBand = Model.GroupSimilarityBand(member.SimilarityToRepresentative);
                                         var checkboxId = $"group-{group.GroupKey}-{member.FaceId:N}";
+                                        // The face the group is built round and the strong likenesses start ticked;
+                                        // a doubtful face needs a deliberate tick.
+                                        var startsTicked = member.FaceId == group.RepresentativeFaceId || similarityBand == "strong";
                                         <div class="identity-group-face @(member.FaceId == group.RepresentativeFaceId ? "is-representative" : null)"
                                              role="listitem" data-group-face-tile>
                                             <input id="@checkboxId"
@@ -229,30 +231,23 @@
                                                    name="faceIds"
                                                    value="@member.FaceId"
                                                    form="@groupFormId"
+                                                   checked="@startsTicked"
                                                    disabled="@Model.GroupingActionsLocked"
                                                    data-group-face-checkbox />
                                             <label class="identity-group-face__selectable" for="@checkboxId"
-                                                   title="@member.ContextTitle · similarity @member.SimilarityToRepresentative.ToString("0.000")">
+                                                   title="@member.ContextTitle">
                                                 <img src="@Url.Page("/Photos/FaceThumbnail", new { id = member.FaceId })"
                                                      alt="Face appearance from @member.ContextTitle" loading="lazy" />
                                                 <span class="identity-group-face__check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
-                                                @if (member.FaceId == group.RepresentativeFaceId)
+                                                @if (!startsTicked)
                                                 {
-                                                    <span class="identity-similarity is-representative" title="Representative appearance used only as the comparison anchor for this suggested group.">
-                                                        <em>Representative</em>
-                                                    </span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="identity-similarity is-@similarityBand" title="Similarity is a ranking signal, not identity probability.">
-                                                        <em>@(similarityBand == "strong" ? "Strong" : similarityBand == "moderate" ? "Moderate" : "Weak")</em> @member.SimilarityToRepresentative.ToString("0.000")
-                                                    </span>
+                                                    <span class="identity-similarity is-@similarityBand"><em>Less sure</em></span>
                                                 }
                                             </label>
                                             <a class="identity-group-face__open"
                                                href="@Url.Page("/Photos/Media", new { id = member.AssetId, variant = "preview" })"
                                                target="_blank" rel="noopener"
-                                               title="Open source photograph" aria-label="Open source photograph for @member.ContextTitle">
+                                               title="Open the picture" aria-label="Open the picture from @member.ContextTitle">
                                                 <i class="bi bi-arrow-up-right"></i>
                                             </a>
                                         </div>
@@ -262,7 +257,7 @@
                                 @if (group.Candidates.Count > 0)
                                 {
                                     <section class="identity-group-candidates" aria-label="Known-person matches">
-                                        <h3>Possible group identity</h3>
+                                        <h3>PRISM thinks this may be</h3>
                                         @foreach (var candidate in group.Candidates.Take(3))
                                         {
                                             var isStrong = candidate.ConfidenceLevel == FaceCandidateConfidenceLevel.Strong;
@@ -281,9 +276,8 @@
                                                 </a>
                                                 <span>
                                                     <a asp-page="./Details" asp-route-id="@candidate.PersonId"><strong>@candidate.DisplayName</strong></a>
-                                                    <small title="Embedding similarity is a ranking signal, not an identity probability.">
-                                                        Similarity @candidate.Similarity.ToString("0.000") · @candidate.ReferenceCount trusted @(candidate.ReferenceCount == 1 ? "reference" : "references")
-                                                        <em class="candidate-strength @(isStrong ? "is-strong" : "is-possible")">@(isStrong ? "Strong candidate" : "Possible match")</em>
+                                                    <small>
+                                                        <em class="candidate-strength @(isStrong ? "is-strong" : "is-possible")">@(isStrong ? "Looks very like them" : "Looks somewhat like them")</em>
                                                     </small>
                                                 </span>
                                                 <div class="identity-group-candidate__actions">
@@ -293,7 +287,7 @@
                                                             data-person-id="@candidate.PersonId"
                                                             data-target-select="existing-@group.GroupKey"
                                                             disabled="@Model.GroupingActionsLocked">
-                                                        Choose @candidate.DisplayName
+                                                        Yes, @candidate.DisplayName
                                                     </button>
                                                     <button type="submit"
                                                             form="@groupFormId"
@@ -303,7 +297,7 @@
                                                             class="btn btn-sm btn-outline-secondary"
                                                             disabled="@Model.GroupingActionsLocked"
                                                             data-group-candidate-submit>
-                                                        Reject for selected
+                                                        Not @candidate.DisplayName
                                                     </button>
                                                 </div>
                                             </div>
@@ -316,32 +310,58 @@
                                     <input type="hidden" name="Mode" value="groups" />
                                     <div class="identity-group-selection">
                                         <div>
-                                            <strong>Confirm only the appearances you have visually checked</strong>
-                                            <span data-selected-count>0 selected</span>
+                                            <span data-selected-count data-total="@group.Members.Count">Tick the faces that are this person</span>
                                         </div>
-                                        <button type="button" class="btn btn-sm btn-link" data-toggle-group-selection disabled="@Model.GroupingActionsLocked">Select all</button>
+                                        <button type="button" class="btn btn-sm btn-link" data-toggle-group-selection disabled="@Model.GroupingActionsLocked">Tick all</button>
                                     </div>
-                                    <div class="identity-group-actions @(Model.AvailablePeople.Count == 0 ? "identity-group-actions--single" : null)">
+                                    @* One name field when script runs (photos-people-name-field.js); the two plain
+                                       controls below are what works without it, and what carries the value. *@
+                                    <div class="identity-group-actions @(Model.AvailablePeople.Count == 0 ? "identity-group-actions--single" : null)"
+                                         data-name-field
+                                         data-assign-action="@Url.Page("./Review", "AssignGroup")"
+                                         data-create-action="@Url.Page("./Review", "CreateGroup")">
+                                        <div class="people-name-field" data-name-field-ui hidden>
+                                            <label for="name-@group.GroupKey">Who is this?</label>
+                                            <div class="people-name-field__box">
+                                                <input id="name-@group.GroupKey" type="text" class="form-control" maxlength="200" autocomplete="off"
+                                                       placeholder="Type a name" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                                       aria-controls="name-list-@group.GroupKey" data-name-field-text disabled="@Model.GroupingActionsLocked" />
+                                                <ul id="name-list-@group.GroupKey" class="people-name-field__list" role="listbox" aria-label="People" data-name-field-list hidden></ul>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary" data-name-field-confirm disabled="@Model.GroupingActionsLocked">Confirm</button>
+                                            <small>Pick someone already in People, or type a new name.</small>
+                                        </div>
                                         @if (Model.AvailablePeople.Count > 0)
                                         {
-                                            <div>
+                                            <div data-name-field-fallback>
                                                 <label for="existing-@group.GroupKey">Assign to an existing person</label>
                                                 <select id="existing-@group.GroupKey" class="form-select" name="personId" disabled="@Model.GroupingActionsLocked">
                                                     <option value="">Select a person</option>
                                                     @foreach (var person in Model.AvailablePeople)
                                                     {
-                                                        <option value="@person.Id">@person.DisplayName</option>
+                                                        <option value="@person.Id" data-portrait="@Url.Page("/Photos/People/Portrait", new { id = person.Id })">@person.DisplayName</option>
                                                     }
                                                 </select>
                                                 <button type="submit" asp-page-handler="AssignGroup" class="btn btn-outline-primary" disabled="@Model.GroupingActionsLocked">Assign selected</button>
                                             </div>
                                         }
-                                        <div>
+                                        <div data-name-field-fallback>
                                             <label for="new-@group.GroupKey">Create a new person</label>
                                             <input id="new-@group.GroupKey" class="form-control" name="displayName" maxlength="200" placeholder="Enter the correct name" disabled="@Model.GroupingActionsLocked" />
                                             <button type="submit" asp-page-handler="CreateGroup" class="btn btn-primary" disabled="@Model.GroupingActionsLocked">Create and confirm selected</button>
                                         </div>
                                     </div>
+                                    @* The figures are for those who want them; nothing is decided from them. *@
+                                    <details class="identity-group-figures">
+                                        <summary>How sure is PRISM?</summary>
+                                        <p>Likeness within this group is @group.CohesionScore.ToString("0.00") (1 is identical). PRISM uses likeness only to sort and group faces. It never names anyone.</p>
+                                        <ul>
+                                            @foreach (var member in group.Members)
+                                            {
+                                                <li>@member.ContextTitle, @member.MediaDateUtc.ToLocalTime().ToString("d MMM yyyy"): @(member.FaceId == group.RepresentativeFaceId ? "the face the group is built round" : member.SimilarityToRepresentative.ToString("0.00"))</li>
+                                            }
+                                        </ul>
+                                    </details>
                                 </form>
                             </article>
                         }
@@ -353,22 +373,19 @@
         {
             @if (Model.ReviewDataAvailable)
             {
-                <section class="review-summary">
-                    <strong>@Model.Result.TotalFaces</strong>
-                    <span>@(Model.IsMatchesMode
-                        ? $"known-person suggestion{(Model.Result.TotalFaces == 1 ? string.Empty : "s")} awaiting a human decision"
-                        : Model.IsClosedMode
-                            ? $"closed unidentified appearance{(Model.Result.TotalFaces == 1 ? string.Empty : "s")}"
-                            : $"face{(Model.Result.TotalFaces == 1 ? string.Empty : "s")} ready for individual review")</span>
-                </section>
+                @* The chips carry the counts; only the set-aside list needs a line of its own. *@
+                @if (Model.IsClosedMode)
+                {
+                    <p class="people-queue-note"><strong>@Model.Result.TotalFaces</strong> face@(Model.Result.TotalFaces == 1 ? "" : "s") left unnamed. Bring one back to review to name it.</p>
+                }
             }
 
             @if (!Model.ReviewDataAvailable)
             {
                 <section class="people-empty">
                     <i class="bi bi-database-exclamation"></i>
-                    <h2>Review data temporarily unavailable</h2>
-                    <p>The error has been logged. Retry after checking database connectivity and application logs.</p>
+                    <h2>The faces could not be loaded</h2>
+                    <p>The error is logged. Try again in a moment; if it persists, tell the administrator.</p>
                 </section>
             }
             else if (Model.Result.Items.Count == 0)
@@ -378,117 +395,125 @@
                     {
                         <i class="bi bi-funnel"></i>
                         <h2>No faces match these filters</h2>
-                        <p>The review queue may still contain other faces. Clear the current source, year or matching-status filters to continue reviewing.</p>
+                        <p>There may be other faces waiting. Clear the source, year or status filter to see them.</p>
                         <a class="btn btn-outline-primary" href="@Model.BuildClearQueueFiltersUrl()">Clear review filters</a>
                     }
                     else if (Model.IsClosedMode)
                     {
                         <i class="bi bi-archive"></i>
-                        <h2>No closed unidentified appearances</h2>
-                        <p>Nothing is currently closed as intentionally unidentified.</p>
+                        <h2>No faces left unnamed</h2>
+                        <p>Faces you choose to leave unnamed are kept here, and can be brought back.</p>
                     }
                     else if (Model.IsMatchesMode)
                     {
                         <i class="bi @(Model.Workload.MatchingCount > 0 ? "bi-arrow-repeat identity-refresh-icon" : "bi-check2-circle")"></i>
                         @if (Model.Workload.MatchingCount > 0)
                         {
-                            <h2>No direct person suggestions ready yet</h2>
-                            <p><strong>@Model.Workload.MatchingCount</strong> unresolved face appearance@(Model.Workload.MatchingCount == 1 ? " is" : "s are") still being compared with trusted references. Any direct person suggestions will appear here after background matching completes.</p>
+                            <h2>Nothing to suggest yet</h2>
+                            <p><strong>@Model.Workload.MatchingCount</strong> face@(Model.Workload.MatchingCount == 1 ? " is" : "s are") still being checked against the people PRISM knows. Suggestions appear here when that is done.</p>
                         }
                         else
                         {
-                            <h2>Known-match queue clear</h2>
-                            <p>No detected face currently has a pending known-person suggestion. New matches are generated automatically in the background.</p>
+                            <h2>Nothing to confirm</h2>
+                            <p>PRISM has no face it thinks is someone already in People. New suggestions appear here by themselves.</p>
                         }
                     }
                     else if (Model.Workload.MatchingCount > 0)
                     {
                         <div data-matching-empty-state>
                             <i class="bi bi-arrow-repeat identity-refresh-icon"></i>
-                            <h2 data-matching-empty-title>Matching in progress</h2>
-                            <p data-matching-empty-copy><strong>@Model.Workload.MatchingCount</strong> unresolved face appearance@(Model.Workload.MatchingCount == 1 ? " is" : "s are") currently being compared with trusted references. The queue is not clear; results will appear when background matching finishes.</p>
+                            <h2 data-matching-empty-title>Checking faces</h2>
+                            <p data-matching-empty-copy><strong>@Model.Workload.MatchingCount</strong> face@(Model.Workload.MatchingCount == 1 ? " is" : "s are") being checked against the people PRISM knows. They will appear here when that is done.</p>
                             <a class="btn btn-primary" href="@(Model.BuildReviewUrl("unidentified", 1, Model.Layout))"
-                               data-matching-empty-action hidden>Open updated individual-review queue</a>
+                               data-matching-empty-action hidden>Show the faces now ready</a>
                         </div>
                     }
                     else
                     {
                         <i class="bi bi-check2-circle"></i>
-                        <h2>Individual-review queue clear</h2>
-                        <p>No unresolved face is currently ready for manual assignment or creation of a new person.</p>
+                        <h2>No unnamed faces</h2>
+                        <p>Every face PRISM has found is named, grouped or set aside.</p>
                     }
                 </section>
             }
             else
             {
                 <div class="face-review-queue-controls">
-                    <div class="face-review-layout-toggle" role="group" aria-label="Review layout">
-                        @if (Model.IsUnidentifiedMode || Model.IsClosedMode)
-                        {
-                            <a class="@(Model.IsTriageLayout ? "is-active" : null)" href="@(Model.BuildReviewUrl(layout: "triage", pageNumber: 1))">Triage</a>
-                            <a class="@(!Model.IsTriageLayout ? "is-active" : null)" href="@(Model.BuildReviewUrl(layout: "detail", pageNumber: 1))">Detailed</a>
-                        }
-                    </div>
-
-                    <form method="get" class="face-review-filters" aria-label="Filter review queue">
-                        <input type="hidden" name="Mode" value="@Model.Mode" />
-                        <input type="hidden" name="Layout" value="@Model.Layout" />
-                        <input type="hidden" name="Sort" value="@Model.Sort" />
-                        @foreach (var assetId in Model.AssetIds)
-                        {
-                            <input type="hidden" name="AssetIds" value="@assetId" />
-                        }
-                        <label>
-                            <span>Source</span>
-                            <select class="form-select form-select-sm" name="Source" data-auto-submit>
-                                <option value="all" selected="@(Model.Source == "all")">All sources</option>
-                                <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
-                                <option value="visits" selected="@(Model.Source == "visits")">Visits</option>
-                                <option value="events" selected="@(Model.Source == "events")">Events</option>
-                                <option value="activities" selected="@(Model.Source == "activities")">Activities</option>
-                                @if (Model.ExternalSourcesEnabled)
-                                {
-                                    <option value="external" selected="@(Model.Source == "external")">External folders</option>
-                                }
-                            </select>
-                        </label>
-                        <label>
-                            <span>Year</span>
-                            <select class="form-select form-select-sm" name="Year" data-auto-submit>
-                                <option value="">All years</option>
-                                @foreach (var year in Model.AvailableYears)
-                                {
-                                    <option value="@year" selected="@(Model.Year == year)">@year</option>
-                                }
-                            </select>
-                        </label>
-                        @if (Model.IsUnidentifiedMode)
-                        {
-                            <label>
-                                <span>Matching</span>
-                                <select class="form-select form-select-sm" name="MatchStatus" data-auto-submit>
-                                    <option value="all" selected="@(Model.MatchStatus == "all")">All statuses</option>
-                                    <option value="no-match" selected="@(Model.MatchStatus == "no-match")">No reliable match</option>
-                                    <option value="failed" selected="@(Model.MatchStatus == "failed")">Matching failed</option>
-                                    <option value="not-requested" selected="@(Model.MatchStatus == "not-requested")">Not yet matched</option>
-                                </select>
-                            </label>
-                        }
-                    </form>
+                    @* The faces are one grid. A face opened on its own (Layout=detail, from its tile) offers the way back. *@
+                    @if ((Model.IsUnidentifiedMode || Model.IsClosedMode) && !Model.IsTriageLayout)
+                    {
+                        <a class="face-review-back" href="@(Model.BuildReviewUrl(layout: "triage", pageNumber: 1))"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i> All faces</a>
+                    }
 
                     <button type="button" class="btn btn-sm btn-outline-secondary face-review-select-page" data-batch-select-all>
-                        <i class="bi bi-check2-square"></i> Select page
+                        <i class="bi bi-check2-square"></i> Tick all on this page
                     </button>
 
-                    <label class="face-review-sort">
-                        <span>Sort</span>
-                        <select class="form-select form-select-sm" aria-label="Sort review queue" data-auto-navigate>
-                            <option value="@(Model.BuildReviewUrl(sort: "quality-desc", pageNumber: 1))" selected="@(Model.Sort == "quality-desc")">Highest quality first</option>
-                            <option value="@(Model.BuildReviewUrl(sort: "quality-asc", pageNumber: 1))" selected="@(Model.Sort == "quality-asc")">Lowest quality first</option>
-                            <option value="@(Model.BuildReviewUrl(sort: "newest", pageNumber: 1))" selected="@(Model.Sort == "newest")">Newest first</option>
-                            <option value="@(Model.BuildReviewUrl(sort: "oldest", pageNumber: 1))" selected="@(Model.Sort == "oldest")">Oldest first</option>
-                        </select>
-                    </label>
+                    @* Sort and filter: a row on wide screens, closed behind its heading on phones
+                       (photos-people-keys.js closes it there; without script it stays open). *@
+                    @{
+                        var narrowed = Model.Source != "all" || Model.Year is not null || Model.Sort != "quality-desc"
+                            || (Model.IsUnidentifiedMode && Model.MatchStatus != "all");
+                    }
+                    <details class="face-review-more" open data-face-review-more>
+                        <summary><i class="bi bi-sliders" aria-hidden="true"></i> Sort and filter@(narrowed ? " (in use)" : null)</summary>
+                        <div class="face-review-more__body">
+                            <form method="get" class="face-review-filters" aria-label="Filter the faces">
+                                <input type="hidden" name="Mode" value="@Model.Mode" />
+                                <input type="hidden" name="Layout" value="@Model.Layout" />
+                                <input type="hidden" name="Sort" value="@Model.Sort" />
+                                @foreach (var assetId in Model.AssetIds)
+                                {
+                                    <input type="hidden" name="AssetIds" value="@assetId" />
+                                }
+                                <label>
+                                    <span>From</span>
+                                    <select class="form-select form-select-sm" name="Source" data-auto-submit>
+                                        <option value="all" selected="@(Model.Source == "all")">Everything</option>
+                                        <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
+                                        <option value="visits" selected="@(Model.Source == "visits")">Visits</option>
+                                        <option value="events" selected="@(Model.Source == "events")">Events</option>
+                                        <option value="activities" selected="@(Model.Source == "activities")">Activities</option>
+                                        @if (Model.ExternalSourcesEnabled)
+                                        {
+                                            <option value="external" selected="@(Model.Source == "external")">External folders</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Year</span>
+                                    <select class="form-select form-select-sm" name="Year" data-auto-submit>
+                                        <option value="">All years</option>
+                                        @foreach (var year in Model.AvailableYears)
+                                        {
+                                            <option value="@year" selected="@(Model.Year == year)">@year</option>
+                                        }
+                                    </select>
+                                </label>
+                                @if (Model.IsUnidentifiedMode)
+                                {
+                                    <label>
+                                        <span>Checked against known people</span>
+                                        <select class="form-select form-select-sm" name="MatchStatus" data-auto-submit>
+                                            <option value="all" selected="@(Model.MatchStatus == "all")">All</option>
+                                            <option value="no-match" selected="@(Model.MatchStatus == "no-match")">Not recognised</option>
+                                            <option value="failed" selected="@(Model.MatchStatus == "failed")">Could not be checked</option>
+                                            <option value="not-requested" selected="@(Model.MatchStatus == "not-requested")">Not checked yet</option>
+                                        </select>
+                                    </label>
+                                }
+                            </form>
+                            <label class="face-review-sort">
+                                <span>Sort</span>
+                                <select class="form-select form-select-sm" aria-label="Sort the faces" data-auto-navigate>
+                                    <option value="@(Model.BuildReviewUrl(sort: "quality-desc", pageNumber: 1))" selected="@(Model.Sort == "quality-desc")">Clearest first</option>
+                                    <option value="@(Model.BuildReviewUrl(sort: "quality-asc", pageNumber: 1))" selected="@(Model.Sort == "quality-asc")">Least clear first</option>
+                                    <option value="@(Model.BuildReviewUrl(sort: "newest", pageNumber: 1))" selected="@(Model.Sort == "newest")">Newest first</option>
+                                    <option value="@(Model.BuildReviewUrl(sort: "oldest", pageNumber: 1))" selected="@(Model.Sort == "oldest")">Oldest first</option>
+                                </select>
+                            </label>
+                        </div>
+                    </details>
                 </div>
 
                 <form id="batchAssignKnownPersonForm" method="post"
@@ -496,34 +521,56 @@
                     @Html.AntiForgeryToken()
                     <div class="card-body py-2 d-flex flex-wrap align-items-end gap-2">
                         <partial name="_ReviewStateFields" model="Model" />
-                        <div class="face-review-batch__selection"><strong><span data-batch-identity-count>0</span> selected</strong></div>
-                        @if (!Model.IsClosedMode && Model.AvailablePeople.Count > 0)
+                        <div class="face-review-batch__selection"><strong><span data-batch-identity-count>0</span> ticked</strong></div>
+                        @if (!Model.IsClosedMode)
                         {
-                            <div class="face-review-batch__person">
-                                <label class="form-label mb-1" for="batchKnownPerson">Assign selected to</label>
-                                <select id="batchKnownPerson" class="form-select form-select-sm" name="personId">
-                                    <option value="">Select a confirmed person</option>
-                                    @foreach (var person in Model.AvailablePeople)
-                                    {
-                                        <option value="@person.Id">@person.DisplayName</option>
-                                    }
-                                </select>
+                            <div class="face-review-batch__name" data-name-field
+                                 data-assign-action="@Url.Page("./Review", "AssignSelected")"
+                                 data-create-action="@Url.Page("./Review", "CreateSelected")">
+                                <div class="people-name-field" data-name-field-ui hidden>
+                                    <label for="batchName">Who are they?</label>
+                                    <div class="people-name-field__box">
+                                        <input id="batchName" type="text" class="form-control form-control-sm" maxlength="200" autocomplete="off"
+                                               placeholder="Type a name" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                               aria-controls="batchNameList" data-name-field-text />
+                                        <ul id="batchNameList" class="people-name-field__list" role="listbox" aria-label="People" data-name-field-list hidden></ul>
+                                    </div>
+                                    <button type="submit" class="btn btn-sm btn-primary" data-name-field-confirm data-batch-identity-submit>Confirm</button>
+                                </div>
+                                @if (Model.AvailablePeople.Count > 0)
+                                {
+                                    <div class="face-review-batch__person" data-name-field-fallback>
+                                        <label class="form-label mb-1" for="batchKnownPerson">Someone already in People</label>
+                                        <select id="batchKnownPerson" class="form-select form-select-sm" name="personId">
+                                            <option value="">Select a person</option>
+                                            @foreach (var person in Model.AvailablePeople)
+                                            {
+                                                <option value="@person.Id" data-portrait="@Url.Page("/Photos/People/Portrait", new { id = person.Id })">@person.DisplayName</option>
+                                            }
+                                        </select>
+                                        <button type="submit" asp-page-handler="AssignSelected" class="btn btn-sm btn-outline-primary" data-batch-identity-submit data-requires-person>
+                                            Name as this person
+                                        </button>
+                                    </div>
+                                }
+                                <div class="face-review-batch__person" data-name-field-fallback>
+                                    <label class="form-label mb-1" for="batchNewPerson">A new person</label>
+                                    <input id="batchNewPerson" class="form-control form-control-sm" name="displayName" maxlength="200" placeholder="Type the name" />
+                                    <button type="submit" asp-page-handler="CreateSelected" class="btn btn-sm btn-primary" data-batch-identity-submit>Add and name</button>
+                                </div>
                             </div>
-                            <button type="submit" asp-page-handler="AssignSelected" class="btn btn-sm btn-primary" data-batch-identity-submit data-requires-person>
-                                Assign selected
-                            </button>
                         }
                         @if (Model.IsUnidentifiedMode)
                         {
-                            <button type="submit" asp-page-handler="IgnoreSelected" class="btn btn-sm btn-outline-secondary" data-batch-triage-submit>Close unidentified</button>
+                            <button type="submit" asp-page-handler="IgnoreSelected" class="btn btn-sm btn-outline-secondary" data-batch-triage-submit>Leave unnamed</button>
                             <button type="submit" asp-page-handler="SuppressSelected" class="btn btn-sm btn-outline-danger" data-batch-triage-submit
-                                    data-confirm-message="Mark the selected detections as not faces? This suppresses the detections and removes their active face embeddings.">Not a face</button>
+                                    data-confirm-message="Mark the ticked items as not faces? PRISM will stop treating them as faces.">Not a face</button>
                         }
                         @if (Model.IsClosedMode)
                         {
-                            <button type="submit" asp-page-handler="ReopenSelected" class="btn btn-sm btn-primary" data-batch-triage-submit>Reopen selected</button>
+                            <button type="submit" asp-page-handler="ReopenSelected" class="btn btn-sm btn-primary" data-batch-triage-submit>Bring back to review</button>
                             <button type="submit" asp-page-handler="SuppressSelected" class="btn btn-sm btn-outline-danger" data-batch-triage-submit
-                                    data-confirm-message="Mark the selected detections as not faces? This suppresses the detections and removes their active face embeddings.">Not a face</button>
+                                    data-confirm-message="Mark the ticked items as not faces? PRISM will stop treating them as faces.">Not a face</button>
                         }
                         <button type="button" class="btn btn-sm btn-link ms-auto" data-batch-clear>Clear</button>
                     </div>
@@ -535,18 +582,17 @@
                         @foreach (var item in Model.Result.Items)
                         {
                             <article class="face-triage-card" id="face-@item.FaceId">
-                                <label class="face-triage-card__select" title="Select this appearance for a batch action">
+                                <label class="face-triage-card__select" title="Tick to name several faces at once">
                                     <input class="form-check-input" type="checkbox" name="faceIds" value="@item.FaceId" form="batchAssignKnownPersonForm" data-batch-identity-face />
                                     <span class="visually-hidden">Select face from @item.ContextTitle</span>
                                 </label>
-                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = item.FaceId })" alt="Detected face from @item.ContextTitle" loading="lazy" />
+                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = item.FaceId })" alt="Face from @item.ContextTitle" loading="lazy" />
                                 <div class="face-triage-card__body">
-                                    <div><strong>Quality @item.QualityScore.ToString("0.00")</strong><span>@item.MediaDateUtc.ToLocalTime().ToString("dd MMM yyyy")</span></div>
                                     <h2 title="@item.ContextTitle">@item.ContextTitle</h2>
-                                    <p>@item.ContextSubtitle</p>
+                                    <p>@item.MediaDateUtc.ToLocalTime().ToString("d MMM yyyy")</p>
                                     <div class="face-triage-card__actions">
-                                        <a href="@Url.Page("/Photos/Media", new { id = item.AssetId, variant = "preview" })" target="_blank" rel="noopener">Photograph <i class="bi bi-arrow-up-right"></i></a>
-                                        <a href="@(Model.BuildReviewUrl(layout: "detail"))#face-@item.FaceId">Details</a>
+                                        <a href="@Url.Page("/Photos/Media", new { id = item.AssetId, variant = "preview" })" target="_blank" rel="noopener">Picture <i class="bi bi-arrow-up-right"></i></a>
+                                        <a href="@(Model.BuildReviewUrl(layout: "detail"))#face-@item.FaceId">@(Model.IsClosedMode ? "Open" : "Name it")</a>
                                     </div>
                                 </div>
                             </article>
@@ -559,14 +605,13 @@
                     @foreach (var item in Model.Result.Items)
                     {
                         <article class="face-review-card" id="face-@item.FaceId">
-                            <label class="face-review-card__select" title="Select this appearance for a batch action">
+                            <label class="face-review-card__select" title="Tick to name several faces at once">
                                 <input class="form-check-input" type="checkbox" name="faceIds" value="@item.FaceId"
                                        form="batchAssignKnownPersonForm" data-batch-identity-face />
                                 <span class="visually-hidden">Select face from @item.ContextTitle</span>
                             </label>
                             <div class="face-review-card__face">
-                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = item.FaceId })" alt="Detected face" loading="lazy" />
-                                <span>Quality @item.QualityScore.ToString("0.00")</span>
+                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = item.FaceId })" alt="The face found" loading="lazy" />
                             </div>
                             <div class="face-review-card__content">
                                 <header>
@@ -576,7 +621,7 @@
                                     </div>
                                     <a class="btn btn-sm btn-outline-secondary"
                                        href="@Url.Page("/Photos/Media", new { id = item.AssetId, variant = "preview" })"
-                                       target="_blank" rel="noopener">View photograph <i class="bi bi-arrow-up-right"></i></a>
+                                       target="_blank" rel="noopener">Open the picture <i class="bi bi-arrow-up-right"></i></a>
                                 </header>
 
                                 @if (Model.IsClosedMode)
@@ -584,7 +629,7 @@
                                     <div class="face-candidates" aria-label="Closed review state">
                                         <div class="face-candidates__empty face-candidates__empty--closed">
                                             <i class="bi bi-archive" aria-hidden="true"></i>
-                                            <span>This appearance was intentionally closed as unidentified. Reopen it to return it to normal candidate matching and human review.</span>
+                                            <span>You left this face unnamed. Bring it back to review to name it.</span>
                                         </div>
                                     </div>
                                     <div class="face-review-card__alternatives face-review-card__alternatives--closed">
@@ -592,13 +637,13 @@
                                             <form method="post" asp-page-handler="Reopen">
                                                 <partial name="_ReviewStateFields" model="Model" />
                                                 <input type="hidden" name="faceId" value="@item.FaceId" />
-                                                <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-arrow-counterclockwise"></i> Reopen for review</button>
+                                                <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-arrow-counterclockwise"></i> Bring back to review</button>
                                             </form>
                                             <form method="post" asp-page-handler="Suppress">
                                                 <partial name="_ReviewStateFields" model="Model" />
                                                 <input type="hidden" name="faceId" value="@item.FaceId" />
                                                 <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                        data-confirm-message="Mark this detection as not a face? This suppresses the detection and removes its active face embeddings.">Not a face</button>
+                                                        data-confirm-message="Mark this as not a face? PRISM will stop treating it as a face.">Not a face</button>
                                             </form>
                                         </div>
                                     </div>
@@ -608,7 +653,7 @@
                                     @if (item.CandidateSearchStatus == ProjectManagement.Features.MediaLibrary.Domain.FaceCandidateSearchStatus.Failed)
                                     {
                                         <div class="alert alert-warning py-2 mb-3" role="status">
-                                            <strong>Known-person matching needs retry.</strong>
+                                            <strong>This face could not be checked against known people.</strong>
                                             @if (!string.IsNullOrWhiteSpace(item.CandidateSearchFailureReason))
                                             {
                                                 <span>@item.CandidateSearchFailureReason</span>
@@ -622,15 +667,15 @@
                                                 <i class="bi bi-person-question" aria-hidden="true"></i>
                                                 @if (Model.IsMatchesMode)
                                                 {
-                                                    <span>No active suggestion remains for this face.</span>
+                                                    <span>PRISM has no suggestion left for this face.</span>
                                                 }
                                                 else if (Model.AvailablePeople.Count > 0)
                                                 {
-                                                    <span>No reliable known-person match was found. Assign an existing person or create a new identity.</span>
+                                                    <span>PRISM does not recognise this face. Name it as someone already in People, or as a new person.</span>
                                                 }
                                                 else
                                                 {
-                                                    <span>No reliable known-person match was found. There is no confirmed person to assign yet; create a new identity if this person should be identified.</span>
+                                                    <span>PRISM does not recognise this face, and nobody is in People yet. Name it as a new person if it should be named.</span>
                                                 }
                                             </div>
                                         }
@@ -650,66 +695,84 @@
                                                     }
                                                 </a>
                                                 <span class="face-candidate__identity">
-                                                    <a asp-page="./Details" asp-route-id="@candidate.PersonId"><strong>@candidate.DisplayName</strong></a>
-                                                    <small title="Embedding similarity is a ranking signal, not an identity probability.">
-                                                        Similarity @(candidate.Similarity?.ToString("0.000") ?? "—") · rank @candidate.Rank · @candidate.ReferenceCount trusted @(candidate.ReferenceCount == 1 ? "reference" : "references")
-                                                        @if (candidate.MarginAvailable && candidate.MarginToNext.HasValue)
-                                                        {
-                                                            <span> · separation @candidate.MarginToNext.Value.ToString("0.000")</span>
-                                                        }
-                                                        else
-                                                        {
-                                                            <span> · separation unavailable</span>
-                                                        }
+                                                    <strong>Is this <a asp-page="./Details" asp-route-id="@candidate.PersonId">@candidate.DisplayName</a>?</strong>
+                                                    <small>
                                                         @if (candidate.IsStrong)
                                                         {
-                                                            <em class="candidate-strength is-strong">Strong candidate</em>
+                                                            <em class="candidate-strength is-strong">Looks very like them</em>
                                                         }
                                                         else if (candidate.IsPossible)
                                                         {
-                                                            <em class="candidate-strength is-possible">Possible match</em>
+                                                            <em class="candidate-strength is-possible">Looks somewhat like them</em>
+                                                        }
+                                                        @if (!candidate.MarginAvailable)
+                                                        {
+                                                            <span class="candidate-evidence-note">PRISM has little to compare with here. Say yes only if you recognise the person.</span>
                                                         }
                                                     </small>
-                                                    @if (!candidate.MarginAvailable)
-                                                    {
-                                                        <span class="candidate-evidence-note">Strong separation evidence is unavailable for this candidate; confirm only after visual verification.</span>
-                                                    }
+                                                    @* The figures are for those who want them; nothing is decided from them. *@
+                                                    <details class="identity-group-figures">
+                                                        <summary>How sure is PRISM?</summary>
+                                                        <p>
+                                                            Likeness @(candidate.Similarity?.ToString("0.00") ?? "not known") (1 is identical), suggestion @candidate.Rank for this face, compared with @candidate.ReferenceCount picture@(candidate.ReferenceCount == 1 ? "" : "s") of @candidate.DisplayName@(candidate.MarginAvailable && candidate.MarginToNext.HasValue ? $", {candidate.MarginToNext.Value:0.00} clear of the next person" : "").
+                                                            PRISM uses likeness only to suggest. It never names anyone.
+                                                        </p>
+                                                    </details>
                                                 </span>
                                                 <form method="post" asp-page-handler="Confirm">
                                                     <partial name="_ReviewStateFields" model="Model" />
                                                     <input type="hidden" name="faceId" value="@item.FaceId" />
                                                     <input type="hidden" name="personId" value="@candidate.PersonId" />
                                                     <input type="hidden" name="confidence" value="@candidate.Similarity" />
-                                                    <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Confirm</button>
+                                                    <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Yes</button>
                                                 </form>
                                                 <form method="post" asp-page-handler="Reject">
                                                     <partial name="_ReviewStateFields" model="Model" />
                                                     <input type="hidden" name="faceId" value="@item.FaceId" />
                                                     <input type="hidden" name="personId" value="@candidate.PersonId" />
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i> Not this person</button>
+                                                    <button type="submit" class="btn btn-sm btn-outline-secondary" aria-label="No, not @candidate.DisplayName">No</button>
                                                 </form>
                                             </div>
                                         }
                                     </div>
 
                                     <div class="face-review-card__alternatives">
-                                        @if (Model.AvailablePeople.Count > 0)
-                                        {
-                                            <button type="button"
-                                                    class="btn btn-outline-primary"
-                                                    data-bs-toggle="modal"
-                                                    data-bs-target="#assignExistingModal"
-                                                    data-face-id="@item.FaceId"
-                                                    data-face-context="@item.ContextTitle">
-                                                <i class="bi bi-person-check"></i> Assign an existing person
-                                            </button>
-                                        }
-                                        <form method="post" asp-page-handler="Create" class="face-create-person">
+                                        <form method="post" class="face-name-form">
                                             <partial name="_ReviewStateFields" model="Model" />
                                             <input type="hidden" name="faceId" value="@item.FaceId" />
-                                            <label for="new-person-@item.FaceId">Create a new person</label>
-                                            <input id="new-person-@item.FaceId" class="form-control" name="displayName" maxlength="200" placeholder="Enter the correct name" required />
-                                            <button type="submit" class="btn btn-primary">Create and confirm</button>
+                                            <div data-name-field
+                                                 data-assign-action="@Url.Page("./Review", "AssignExisting")"
+                                                 data-create-action="@Url.Page("./Review", "Create")">
+                                                <div class="people-name-field" data-name-field-ui hidden>
+                                                    <label for="name-@item.FaceId">@(item.Candidates.Count > 0 ? "Someone else?" : "Who is this?")</label>
+                                                    <div class="people-name-field__box">
+                                                        <input id="name-@item.FaceId" type="text" class="form-control" maxlength="200" autocomplete="off"
+                                                               placeholder="Type a name" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                                               aria-controls="name-list-@item.FaceId" data-name-field-text />
+                                                        <ul id="name-list-@item.FaceId" class="people-name-field__list" role="listbox" aria-label="People" data-name-field-list hidden></ul>
+                                                    </div>
+                                                    <button type="submit" class="btn @(item.Candidates.Count > 0 ? "btn-outline-primary" : "btn-primary")" data-name-field-confirm>Confirm</button>
+                                                </div>
+                                                @if (Model.AvailablePeople.Count > 0)
+                                                {
+                                                    <div class="face-create-person" data-name-field-fallback>
+                                                        <label for="existing-person-@item.FaceId">Someone already in People</label>
+                                                        <select id="existing-person-@item.FaceId" class="form-select" name="personId">
+                                                            <option value="">Select a person</option>
+                                                            @foreach (var person in Model.AvailablePeople)
+                                                            {
+                                                                <option value="@person.Id" data-portrait="@Url.Page("/Photos/People/Portrait", new { id = person.Id })">@person.DisplayName</option>
+                                                            }
+                                                        </select>
+                                                        <button type="submit" asp-page-handler="AssignExisting" class="btn btn-outline-primary">Name as this person</button>
+                                                    </div>
+                                                }
+                                                <div class="face-create-person" data-name-field-fallback>
+                                                    <label for="new-person-@item.FaceId">A new person</label>
+                                                    <input id="new-person-@item.FaceId" class="form-control" name="displayName" maxlength="200" placeholder="Type the name" />
+                                                    <button type="submit" asp-page-handler="Create" class="btn btn-primary">Add and name</button>
+                                                </div>
+                                            </div>
                                         </form>
                                         <div class="face-review-card__secondary-actions">
                                             @if (item.Candidates.Count > 0)
@@ -717,19 +780,19 @@
                                                 <form method="post" asp-page-handler="RejectAll">
                                                     <partial name="_ReviewStateFields" model="Model" />
                                                     <input type="hidden" name="faceId" value="@item.FaceId" />
-                                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Reject all suggestions</button>
+                                                    <button type="submit" class="btn btn-sm btn-outline-secondary">None of these</button>
                                                 </form>
                                             }
                                             <form method="post" asp-page-handler="Ignore">
                                                 <partial name="_ReviewStateFields" model="Model" />
                                                 <input type="hidden" name="faceId" value="@item.FaceId" />
-                                                <button type="submit" class="btn btn-sm btn-outline-secondary">Close unidentified</button>
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary">Leave unnamed</button>
                                             </form>
                                             <form method="post" asp-page-handler="Suppress">
                                                 <partial name="_ReviewStateFields" model="Model" />
                                                 <input type="hidden" name="faceId" value="@item.FaceId" />
                                                 <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                        data-confirm-message="Mark this detection as not a face? This suppresses the detection and removes its active face embeddings.">Not a face</button>
+                                                        data-confirm-message="Mark this as not a face? PRISM will stop treating it as a face.">Not a face</button>
                                             </form>
                                         </div>
                                     </div>
@@ -760,44 +823,11 @@
                 }
             }
         }
-
-        @if (Model.AvailablePeople.Count > 0 && !Model.IsGroupsMode && !Model.IsClosedMode)
-        {
-            <div class="modal fade" id="assignExistingModal" tabindex="-1" aria-labelledby="assignExistingModalLabel" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                        <form method="post" asp-page-handler="AssignExisting">
-                            <div class="modal-header">
-                                <div>
-                                    <h2 class="modal-title fs-5" id="assignExistingModalLabel">Assign an existing person</h2>
-                                    <p class="mb-0 small text-body-secondary" data-face-context>Choose the confirmed identity for this face.</p>
-                                </div>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <partial name="_ReviewStateFields" model="Model" />
-                                <input type="hidden" name="faceId" value="" />
-                                <label for="existingPersonId" class="form-label">Person</label>
-                                <select id="existingPersonId" class="form-select" name="personId" required>
-                                    <option value="">Select a person</option>
-                                    @foreach (var person in Model.AvailablePeople)
-                                    {
-                                        <option value="@person.Id">@person.DisplayName</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Assign person</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        }
     }
 </div>
 
 @section Scripts {
+    <script src="~/js/pages/photos-people-name-field.js" asp-append-version="true"></script>
     <script src="~/js/pages/photos-people-review.js" asp-append-version="true"></script>
+    <script src="~/js/pages/photos-people-keys.js" asp-append-version="true"></script>
 }

@@ -19,8 +19,17 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
 {
     public const string NotFoundMessage = "The remark could not be found.";
     public const string NoRoleMessage = "Only the ITO, MCO, HoD or Comdt can write remarks on IT projects.";
+    /// <summary>Who may write remarks in a module with an assigned Project Officer ({0} is the module's name).</summary>
+    public const string NoRoleAssignedOfficerMessage = "Only the assigned officer, MCO, HoD or Comdt can write remarks on {0}.";
+
+    /// <summary>The "you may not write remarks" message of a module.</summary>
+    public static string NoRoleMessageFor(string module)
+        => ItProjectModules.IsKnown(module) && ItProjectModules.HasAssignedOfficer(module)
+            ? string.Format(System.Globalization.CultureInfo.InvariantCulture, NoRoleAssignedOfficerMessage, ItProjectModules.Get(module).Name)
+            : NoRoleMessage;
+
     public const string NotAuthorMessage = "Only the author can change this remark.";
-    public const string NotAuthorOrAdminMessage = "Only the author or an administrator can delete this remark.";
+    public const string NotAuthorOrAdminMessage = "Only the author, the HoD or an administrator can delete this remark.";
     public const string ConferenceRoleMessage = "Only the Comdt or HoD can write or change a conference remark.";
 
     /// <summary>Whether a remark role may write conference remarks (Comdt, HoD), as in the other modules.</summary>
@@ -39,10 +48,13 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
-    public async Task<IReadOnlyList<ItProjectRemarkView>> ListAsync(int itProjectId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<ItProjectRemarkView>> ListAsync(int itProjectId, CancellationToken cancellationToken = default)
+        => ListAsync(itProjectId, ItProjectModules.It, cancellationToken);
+
+    public async Task<IReadOnlyList<ItProjectRemarkView>> ListAsync(int itProjectId, string module, CancellationToken cancellationToken = default)
     {
         var rows = await _db.ItProjectRemarks.AsNoTracking()
-            .Where(remark => remark.ItProjectId == itProjectId && !remark.IsDeleted)
+            .Where(remark => remark.ItProjectId == itProjectId && !remark.IsDeleted && remark.ItProject != null && remark.ItProject.Module == module)
             .OrderByDescending(remark => remark.EventDate)
             .ThenByDescending(remark => remark.CreatedAtUtc)
             .Select(remark => new
@@ -80,14 +92,28 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             .ToList();
     }
 
+    // ---- public surface: every result goes out in the actor's module's words -----------------
+
     public async Task<(ItProjectCommandResult Result, int RemarkId)> AddAsync(int itProjectId, ItProjectRemarkInput input, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
+    {
+        var (result, remarkId) = await AddCoreAsync(itProjectId, input, actor, cancellationToken);
+        return (result.In(actor.Module), remarkId);
+    }
+
+    public async Task<ItProjectCommandResult> EditAsync(int itProjectId, int remarkId, ItProjectRemarkInput input, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
+        => (await EditCoreAsync(itProjectId, remarkId, input, rowVersion, actor, cancellationToken)).In(actor.Module);
+
+    public async Task<ItProjectCommandResult> DeleteAsync(int itProjectId, int remarkId, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
+        => (await DeleteCoreAsync(itProjectId, remarkId, rowVersion, actor, cancellationToken)).In(actor.Module);
+
+    private async Task<(ItProjectCommandResult Result, int RemarkId)> AddCoreAsync(int itProjectId, ItProjectRemarkInput input, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         EnsureActor(actor);
 
         if (string.IsNullOrWhiteSpace(actor.RemarkRole))
         {
-            return (ItProjectCommandResult.Fail(NoRoleMessage), 0);
+            return (ItProjectCommandResult.Fail(NoRoleMessageFor(actor.Module)), 0);
         }
 
         var errors = Validate(input);
@@ -104,7 +130,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         var project = await _db.ItProjects
             .AsNoTracking()
             .Include(candidate => candidate.Stages)
-            .SingleOrDefaultAsync(candidate => candidate.Id == itProjectId && !candidate.IsDeleted, cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Id == itProjectId && candidate.Module == actor.Module && !candidate.IsDeleted, cancellationToken);
         if (project is null)
         {
             return (ItProjectCommandResult.Fail(ItProjectCommandService.NotFoundMessage), 0);
@@ -140,7 +166,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         return (ItProjectCommandResult.Ok(), remark.Id);
     }
 
-    public async Task<ItProjectCommandResult> EditAsync(int itProjectId, int remarkId, ItProjectRemarkInput input, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
+    private async Task<ItProjectCommandResult> EditCoreAsync(int itProjectId, int remarkId, ItProjectRemarkInput input, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         EnsureActor(actor);
@@ -151,7 +177,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
             return ItProjectCommandResult.Fail(errors);
         }
 
-        var remark = await LoadAsync(itProjectId, remarkId, cancellationToken);
+        var remark = await LoadAsync(itProjectId, remarkId, actor.Module, cancellationToken);
         if (remark is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -177,25 +203,30 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
         return await CommitAsync(remark, rowVersion, actor, "ItProjects.RemarkEdited", cancellationToken);
     }
 
-    public async Task<ItProjectCommandResult> DeleteAsync(int itProjectId, int remarkId, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
+    private async Task<ItProjectCommandResult> DeleteCoreAsync(int itProjectId, int remarkId, byte[] rowVersion, ItProjectRemarkActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
 
-        var remark = await LoadAsync(itProjectId, remarkId, cancellationToken);
+        var remark = await LoadAsync(itProjectId, remarkId, actor.Module, cancellationToken);
         if (remark is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
         }
 
+        // Owner decision 11 Nov 2026: an Admin or the HoD may delete any remark; everyone else,
+        // the Comdt included, only their own.
         var isAuthor = string.Equals(remark.AuthorUserId, actor.UserId, StringComparison.Ordinal);
-        if (!isAuthor && !actor.IsAdmin)
+        if (!actor.CanDeleteAnyRemark)
         {
-            return ItProjectCommandResult.Fail(NotAuthorOrAdminMessage);
-        }
+            if (!isAuthor)
+            {
+                return ItProjectCommandResult.Fail(NotAuthorOrAdminMessage);
+            }
 
-        if (!actor.IsAdmin && remark.Type == ItProjectRemarkType.Conference && !CanWriteConference(actor.RemarkRole))
-        {
-            return ItProjectCommandResult.Fail(ConferenceRoleMessage);
+            if (remark.Type == ItProjectRemarkType.Conference && !CanWriteConference(actor.RemarkRole))
+            {
+                return ItProjectCommandResult.Fail(ConferenceRoleMessage);
+            }
         }
 
         var now = UtcNow();
@@ -238,7 +269,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
     /// from a soft-deleted project, is "not found": the route's project is the one the caller
     /// has been authorised for (engineering invariant 6).
     /// </summary>
-    private Task<ItProjectRemark?> LoadAsync(int itProjectId, int remarkId, CancellationToken cancellationToken)
+    private Task<ItProjectRemark?> LoadAsync(int itProjectId, int remarkId, string module, CancellationToken cancellationToken)
         => _db.ItProjectRemarks
             .Include(remark => remark.AuditEntries)
             .FirstOrDefaultAsync(remark =>
@@ -246,6 +277,7 @@ public sealed class ItProjectRemarkService : IItProjectRemarkService
                 remark.ItProjectId == itProjectId &&
                 !remark.IsDeleted &&
                 remark.ItProject != null &&
+                remark.ItProject.Module == module &&
                 !remark.ItProject.IsDeleted,
                 cancellationToken);
 

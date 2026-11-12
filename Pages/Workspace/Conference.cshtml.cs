@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -25,6 +26,7 @@ public sealed class ConferenceModel : PageModel
     private readonly ILogger<ConferenceModel> _logger;
 
     private readonly IItoWorkspaceQuery? _itoWorkspace;
+    private readonly ProjectManagement.Features.MediaLibrary.Services.IMediaPersonUserLinkService? _personUserLinks;
 
     public ConferenceModel(
         IOfficerConferenceReadService readService,
@@ -36,9 +38,11 @@ public sealed class ConferenceModel : PageModel
         UserManager<ApplicationUser> users,
         IActionTrackerClock taskClock,
         ILogger<ConferenceModel> logger,
-        IItoWorkspaceQuery? itoWorkspace = null)
+        IItoWorkspaceQuery? itoWorkspace = null,
+        ProjectManagement.Features.MediaLibrary.Services.IMediaPersonUserLinkService? personUserLinks = null)
     {
         _itoWorkspace = itoWorkspace;
+        _personUserLinks = personUserLinks;
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _commandWorkspaceService = commandWorkspaceService ?? throw new ArgumentNullException(nameof(commandWorkspaceService));
         _projectOfficerWorkspaceService = projectOfficerWorkspaceService ?? throw new ArgumentNullException(nameof(projectOfficerWorkspaceService));
@@ -54,6 +58,13 @@ public sealed class ConferenceModel : PageModel
     public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { HasCommandAccess = true, ActiveLens = "command", ActiveItem = "command-conference" };
     public IReadOnlyList<OfficerConferenceOfficerOptionVm> OfficerOptions { get; private set; }
         = Array.Empty<OfficerConferenceOfficerOptionVm>();
+    /// <summary>
+    /// For the officer picker: the Photos person whose portrait an officer shows as their
+    /// picture, by user id. An officer not listed here is shown by the initials of their name.
+    /// </summary>
+    public IReadOnlyDictionary<string, Guid> OfficerPortraits { get; private set; }
+        = new Dictionary<string, Guid>();
+
     public bool HasSelectedOfficer => !string.IsNullOrWhiteSpace(Conference.OfficerUserId);
     public DateTime MinimumTaskDueDate => _taskClock.IstToday;
     public DateTime DefaultTaskDueDate => _taskClock.IstToday.AddDays(7);
@@ -75,6 +86,12 @@ public sealed class ConferenceModel : PageModel
                 userId,
                 selectedOfficerUserId: null,
                 cancellationToken: cancellationToken);
+            if (_personUserLinks is not null && OfficerOptions.Count > 0)
+            {
+                OfficerPortraits = await _personUserLinks.TryGetAvatarPersonIdsAsync(
+                    OfficerOptions.Select(option => option.UserId).ToArray(),
+                    cancellationToken);
+            }
         }
         else
         {
@@ -117,6 +134,7 @@ public sealed class ConferenceModel : PageModel
             HasProjectOfficerAccess = hasProjectOfficerAccess,
             HasItoAccess = hasItoAccess,
             LiveItProjectCount = liveItProjectCount,
+            AssignedModuleLinks = await AssignedModuleLinksAsync(cancellationToken),
             CanViewDocuments = hasProjectOfficerAccess,
             ActiveLens = "command",
             ActiveItem = "command-conference",
@@ -505,4 +523,10 @@ public sealed class ConferenceModel : PageModel
         {
             StatusCode = statusCode
         };
+
+    /// <summary>The MOLTI and SRE modules in which the signed-in officer has live projects assigned, for the rail.</summary>
+    private async Task<IReadOnlyList<WorkspaceModuleLinkVm>> AssignedModuleLinksAsync(CancellationToken cancellationToken)
+        => _itoWorkspace is null
+            ? Array.Empty<WorkspaceModuleLinkVm>()
+            : await _itoWorkspace.GetAssignedModuleLinksAsync(User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier), cancellationToken);
 }

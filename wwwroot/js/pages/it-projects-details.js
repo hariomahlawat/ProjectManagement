@@ -23,7 +23,7 @@
     // ---- open the drawer the address asks for -------------------------------------------------
 
     var open = page.getAttribute('data-itp-open');
-    var drawerIds = { stages: 'itpStagesDrawer', edit: 'itpEditDrawer', drop: 'itpDropDrawer' };
+    var drawerIds = { stages: 'itpStagesDrawer', edit: 'itpEditDrawer', drop: 'itpDropDrawer', officer: 'itpOfficerDrawer' };
     if (open && drawerIds[open] && window.bootstrap && window.bootstrap.Offcanvas) {
         var drawer = document.getElementById(drawerIds[open]);
         if (drawer) {
@@ -57,8 +57,59 @@
                 event.preventDefault();
                 details.open = false;
             }
+            return;
+        }
+
+        // ---- Record card: a year's editor opens in its row, one at a time -----------------------
+
+        var yearEdit = event.target.closest('[data-itp-year-edit]');
+        if (yearEdit) {
+            var yearEditor = document.getElementById(yearEdit.getAttribute('href').slice(1));
+            if (yearEditor) {
+                event.preventDefault();
+                Array.prototype.forEach.call(page.querySelectorAll('.itp-years__editor[open]'), function (other) {
+                    other.open = false;
+                });
+                yearEditor.open = true;
+                var first = yearEditor.querySelector('input[name="yearReference"]');
+                if (first) {
+                    first.focus();
+                }
+            }
+            return;
+        }
+
+        var yearCancel = event.target.closest('[data-itp-year-cancel]');
+        if (yearCancel) {
+            var yearDetails = yearCancel.closest('details');
+            if (yearDetails) {
+                event.preventDefault();
+                var yearForm = yearDetails.querySelector('form');
+                if (yearForm) {
+                    yearForm.reset(); // Cancel puts back what the row shows
+                }
+                yearDetails.open = false;
+                var opener = page.querySelector('[data-itp-year-edit][href="#' + yearDetails.id + '"]');
+                if (opener) {
+                    opener.focus();
+                }
+            }
         }
     });
+
+    // ---- remarks: the new-remark composer stays open once something is typed ---------------------
+    // CSS opens the closed composer while it has focus. With text in it, it must not shut when
+    // focus moves away, so the closed class comes off; emptied again, it goes back on.
+
+    var composer = page.querySelector('[data-itp-composer]');
+    if (composer) {
+        var composerText = composer.querySelector('textarea');
+        if (composerText) {
+            composerText.addEventListener('input', function () {
+                composer.classList.toggle('itp-composer--closed', composerText.value.trim() === '');
+            });
+        }
+    }
 
     // ---- stage editor -------------------------------------------------------------------------
 
@@ -192,6 +243,7 @@
         var tick = row.querySelector('[data-itp-completed]');
         var date = row.querySelector('[data-itp-date]');
         var include = row.querySelector('[data-itp-included]');
+        var cost = row.querySelector('[data-itp-cost]');
 
         if (tick) {
             tick.addEventListener('change', function () {
@@ -216,6 +268,14 @@
         }
         if (include) {
             include.addEventListener('change', function () {
+                touched[code] = true;
+                preview();
+            });
+        }
+        if (cost) {
+            // The SO value does not move the chain, but the server checks it, so a bad value
+            // is reported here before Save rather than only after it.
+            cost.addEventListener('change', function () {
                 touched[code] = true;
                 preview();
             });
@@ -262,10 +322,16 @@
         }
 
         event.preventDefault();
-        if (inFlight) {
-            inFlight.then(decide);
-        } else {
-            decide();
-        }
+        // Never submit again from inside this submit event: browsers ignore a submit started while
+        // one is being dispatched, so a save that needs no confirm would silently do nothing. A
+        // task (not a microtask, which still runs inside the dispatch) starts after it is over.
+        var pending = inFlight;
+        window.setTimeout(function () {
+            if (pending) {
+                pending.then(decide);
+            } else {
+                decide();
+            }
+        }, 0);
     });
 })();

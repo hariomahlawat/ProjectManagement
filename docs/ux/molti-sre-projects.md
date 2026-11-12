@@ -1,0 +1,225 @@
+# MOLTI projects and SRE projects (`/MoltiProjects`, `/SreProjects`)
+
+Two more modules that work like IT projects ([it-projects.md](it-projects.md)): the same nine
+stages, the same reference number and financial years, the same remarks and attachments. The one
+real difference is who runs a project. The ITO runs every IT project; a MOLTI or SRE project is
+run by a **Project Officer who is assigned to it** and can be unassigned again.
+
+For users these are three separate modules. In code they are one engine.
+
+This document records the owner decisions of 11 Nov 2026 and the proposed plan. Nothing here is
+built yet.
+
+## Owner decisions (11 Nov 2026)
+
+| Topic | Decision |
+| --- | --- |
+| Names | "MOLTI projects" and "SRE projects", written exactly so. The abbreviations are not expanded anywhere |
+| Wording | Where IT pages say "IT ARPPP", MOLTI pages say "MOLTI ARPPP" and SRE pages say "SRE ARPPP": the reference number label, the first stage ("MOLTI ARPPP / IPA") and "In each year's MOLTI ARPPP" (owner, 11 Nov 2026) |
+| Separation | Three modules for the user: own menu entry, own board, own pages, own access rows. A project belongs to exactly one module and never moves |
+| Stages | The same nine as IT projects, same rules, same optional Benchmarking and PNC, same IPA and SO cost |
+| Reference and years | The same: a reference number, a financial year, and New / CL / CF when a case is carried into a later year |
+| Who runs a project | One assigned Project Officer per project. May be empty (unassigned) |
+| Who can be assigned | Any active user who holds the Project Officer role |
+| Who assigns and unassigns | Admin and HoD |
+| Who creates, drops, deletes | Admin and HoD |
+| What the assigned officer may do | Everything the ITO may do on an IT project, but only on their own project: edit details, update stages, attachments, drop and reinstate |
+| Who can read | Every signed-in user, as for IT projects |
+| Remark writers | Comdt, HoD, MCO and the project's assigned officer. Delete rules as for IT projects |
+| IT projects | Unchanged. The ITO still runs all of them; no officer is assigned |
+
+## Why one engine
+
+The IT projects module is about 7,000 lines plus 19 test files. Copying it twice would add about
+14,000 lines and twelve tables, and every later fix would have to be made three times. The rules
+(stage chain, status, timing, year types) are identical by owner decision, so they must stay in
+one place.
+
+The engine therefore gains two things:
+
+1. **A module on every project** (`IT`, `MOLTI`, `SRE`).
+2. **An optional assigned officer** on every project (used by MOLTI and SRE, always empty for IT).
+
+Class and table names stay `ItProject…`. Renaming shipped tables would break migration lineage
+for no user benefit; a code-only rename can be a later clean-up PR if wanted.
+
+## Data model changes
+
+One additive, hand-written migration on `ItProjects`:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `Module` | varchar(8), not null, default `'IT'` | Every existing row becomes IT. Indexed with `FinancialYearStart` |
+| `ProjectOfficerUserId` | varchar(450), null | Indexed. No foreign key, like the other user ids on the row; rights also need the Project Officer role, so a removed or demoted user has none |
+| `ProjectOfficerAssignedAtUtc` | timestamp, null | For "assigned since" on the page |
+
+Migration `20270102080020_AddItProjectModuleAndOfficer` (PR 2).
+
+No other table changes: stages, financial years, remarks, remark audits and attachments hang off
+the project and need no module of their own. Attachment files stay under
+`{upload root}/it-projects/{projectId}/…` for all three modules (project ids are unique across
+modules), so no file moves.
+
+Deployment and rollback:
+
+- **Overlap.** The columns are nullable or defaulted, so a process of the previous build that is
+  still running keeps working while the migration is applied. It would list a MOLTI or SRE row
+  on the IT board, but no such row can exist until the new build is serving, and the deployment
+  SOP's outage step covers the rest.
+- **Rollback.** The previous build does not start against the migrated database: startup
+  (`DatabaseStartupMigrator`) refuses a migration history that holds a migration the deployed
+  build does not know. Going back therefore follows the offline update and rollback SOP
+  ([deployment/offline-ws2022.md](../deployment/offline-ws2022.md), section D2), then starts
+  the previous build:
+  - **Restore the database backup taken before the update.** This is the rollback once any
+    MOLTI or SRE project exists. Those projects, and every other change since the backup, are
+    lost, so the release note must say so.
+  - **Reverse migration**, only while no MOLTI or SRE project exists. Without the module column
+    such a project would read as an IT project in the previous build, so the migration's `Down`
+    refuses to run while any row has a module other than IT (soft-deleted ones included); it
+    then drops the two indexes and three columns.
+
+## One catalogue for what differs (`ItProjectModules`)
+
+A small code catalogue, like `ItProjectStages`, holds everything that differs per module:
+
+| | IT | MOLTI | SRE |
+| --- | --- | --- | --- |
+| Route | `/ItProjects` | `/MoltiProjects` | `/SreProjects` |
+| Menu and page title | IT projects | MOLTI projects | SRE projects |
+| Run by | ITO role | assigned officer | assigned officer |
+| Policies | `ItProjects.*` | `MoltiProjects.*` | `SreProjects.*` |
+| List name | IT ARPPP | MOLTI ARPPP | SRE ARPPP |
+| One project | IT project | MOLTI project | SRE project |
+
+Pages, presentation classes and scripts read wording from the catalogue. No page text names a
+module directly.
+
+**Wording (PR 3).** The engine's rules, labels and messages are written once, for IT projects.
+`ItProjectModules.Reword(text, module)` is the one place that turns them into another module's
+words: its list name, its plural and its singular take the place of the IT ones. It is applied
+where text leaves the engine: stage labels (`ItProjectStages.LabelOf(code, module)`, and the
+status carries its module), stage-rule errors (`ItProjectStageRules.Apply(input, module)`) and
+every service result (`ItProjectCommandResult.In(module)`). Role sentences ("The ITO, ... adds
+them") are separate texts per kind of module, because "ITO" is a role, not the module's name. A
+test reads the shared views and the service messages and fails if "IT" appears in another
+module.
+
+## Authorization
+
+| Policy (per module) | IT | MOLTI and SRE |
+| --- | --- | --- |
+| View | any signed-in user | any signed-in user |
+| Manage (create, assign, delete) | Admin, HoD, ITO | Admin, HoD |
+| Work on a project (edit, stages, attachments, drop) | Admin, HoD, ITO | Admin, HoD, **the assigned officer of that project** |
+| Remark | Comdt, HoD, MCO, ITO | Comdt, HoD, MCO, **the assigned officer of that project** |
+
+"The assigned officer" is a resource check, not a role check. `ItProjectAccess` already receives
+the project on every call, so it gains the rule there and every handler and service keeps calling
+it. A Project Officer who is not assigned to a project can read it and nothing more. An officer
+who is unassigned loses the rights at once; their remarks stay, with their name.
+
+Every query is scoped by module (PR 2). Reads take the module (`ItProjectBoardQuery.Module`, `GetAsync(id, module)`, and the same on remark and attachment lists and downloads); writes take it from the actor (`ItProjectActor.Module`, `ItProjectRemarkActor.Module`). Calls that name no module mean IT projects, so existing IT code is unchanged. There are eleven `db.ItProjects` query sites today (read,
+command, remark and attachment services, `LiveItProjects`, conference remarks); each takes the
+module, and a project opened through another module's route is "not found". A test walks the
+services to prove an IT call never returns a MOLTI or SRE row.
+
+## Pages
+
+Each module has its own Razor pages in its own folder (`Pages/ItProjects`, `Pages/MoltiProjects`,
+`Pages/SreProjects`): board, create and project page. That gives each module its own route,
+its own policy attribute, its own menu highlight and its own usage count, and relative links
+(`./Index`, `./Details`) stay inside the module being shown. What the pages share (PR 3):
+
+- **Page models.** `ItProjectBoardPageModel`, `ItProjectCreatePageModel` and
+  `ItProjectDetailsPageModel` hold all the behaviour and carry no policy. Each module's page
+  class derives from them and supplies only its module code and its `[Authorize]` policy. The
+  module is fixed by the page class, never read from the request.
+- **Markup.** The partials `_ModuleBoard`, `_ModuleCreate` and `_ModuleProject` under
+  `Pages/ItProjects`. A module's `.cshtml` only sets the title, loads the stylesheet and script,
+  and renders the partial.
+- **Rights on the project page.** `CanWorkOn` (manage roles and the assigned officer) gates the
+  editors, stages, years, files, drop and reinstate; `CanManage` (manage roles only) gates
+  Delete. For IT projects the two are the same people.
+
+Board, create and project page look and behave as the IT ones do. Additions for MOLTI and SRE
+only (PR 4, done):
+
+1. **Project page header**: "Project Officer: *name*, since *date*", or "No officer assigned".
+   Admin and HoD get **Assign officer** / **Change**, which opens a drawer with the active Project
+   Officers by name and "No officer" to unassign. The officer cannot reassign the project. A
+   current officer who has lost the role or the account stays in the list, marked so, and has no
+   rights. `?open=officer` opens the drawer.
+2. **Board**: the officer's name (or "No officer") on each row. Two switches beside the search
+   box, each counting live cases: **No officer (n)** for Admin and HoD, and **My projects
+   (n)** for a user with projects assigned. The address carries `officer=unassigned|mine`; like
+   the year and the search, the status counts and the pipeline follow it.
+3. **Create** (Admin, HoD): the IT form plus an optional officer.
+4. **The command**: `IItProjectCommandService.AssignOfficerAsync` assigns, changes or (with no
+   user) unassigns. Only an active user who holds the Project Officer role can be chosen
+   (`ItProjectOfficers`, the same query as the list). Saving the officer a project already has
+   changes nothing. Audit actions `ItProjects.OfficerAssigned` / `OfficerChanged` /
+   `OfficerUnassigned` carry the old and new officer; a project created with an officer records
+   it on `ItProjects.Created`.
+
+IT projects show none of these.
+
+## Workspace
+
+| View | IT today | MOLTI and SRE |
+| --- | --- | --- |
+| Officer workload card | every live IT project on each ITO's card | each live project on its assigned officer's card |
+| Conference review | live IT projects under each ITO | live projects under their assigned officer, one section per module |
+| Conference remark | officer must hold the ITO role | officer must be the project's assigned officer |
+| Officer's own workspace | ITO sees an IT projects link and count | a Project Officer sees a link and count for each module they hold projects in |
+
+Unassigned live projects appear in no officer's review. The board's "No officer" switch is where
+Admin and HoD find them.
+
+How it is built (PR 5):
+
+- **One feed.** `LiveItProjects.LoadAsync` is the live IT projects (for every ITO);
+  `LiveItProjects.LoadAssignedAsync` is the live MOLTI and SRE projects whose officer is still an
+  active Project Officer. A project whose officer lost the role is nobody's workload, as it
+  gives them no rights. Both views read these two, so they cannot drift apart.
+- **Officer workload.** A card lists its engine projects a module at a time, each under its own
+  heading. An officer with such projects and no other workload still gets a card.
+- **Conference review.** Engine projects keep the one item kind (`ConferenceItemKind.ItProject`;
+  the ids are one sequence), and a section carries its `ModuleCode`, so an officer can have a
+  "MOLTI projects" and an "SRE projects" section. A Project Officer keeps the project, idea
+  and task sections; only an officer listed purely as the ITO gets the IT section alone.
+- **Conference remark.** The direction is the project's own conference remark. The selected
+  officer must be the one the project sits under: an ITO for an IT project, the assigned officer
+  (still an active Project Officer) for a MOLTI or SRE project.
+- **Rail.** `IItoWorkspaceQuery.GetAssignedModuleLinksAsync` gives a link per module the signed-in
+  officer has live projects in, to that board with `officer=mine`.
+- **Wording.** "The ITO has not written a remark" reads "The officer has not ..." for MOLTI and
+  SRE projects; stage snapshots use the module's stage labels.
+
+## Wiring
+
+| Concern | Change |
+| --- | --- |
+| Navigation | two more left-drawer entries, each behind its own View policy |
+| Access governance | `AdminRoleAccessCatalog` groups for MOLTI projects and SRE projects: view, keep, write remarks, and "Run the ... projects assigned to them" for the Project Officer role (PR 4) |
+| Usage | two more `ErpUsageModuleCatalog` modules |
+| Audit | the existing `ItProjects.*` actions carry the module in their data (PR 2). The officer assigned / changed / unassigned actions came with PR 4. The audit log shows these actions by their raw name and data, as it does the other `ItProjects.*` actions |
+| Docs | this file, `it-projects.md` (decision row "IT projects only" is superseded), `docs/data-domain.md`, `docs/razor-pages.md` |
+
+Out of scope until asked: Dashboard cards for MOLTI and SRE, notifications on assignment, Search
+indexing, export, moving a project between modules.
+
+## Plan
+
+| PR | Content | Tests |
+| --- | --- | --- |
+| 1 | This document | none |
+| 2 | Engine: migration, `ItProjectModules` catalogue, module scoping on all query sites, policies, `ItProjectAccess` with the assigned-officer rule. No visible change | IT behaviour unchanged (existing suite), module isolation, access matrix per role and assignment, migration manifest |
+| 3 | The two modules on screen: routes, wording from the catalogue, menu entries, access governance, usage. Projects can be created and run by Admin and HoD | page policy per route, wrong-module id is not found, wording never says "IT" on a MOLTI or SRE page |
+| 4 | Officer assignment: assign, change, unassign, audit; officer on the page and board; Unassigned and My projects filters; assigned officer can work on and remark on their project | only Project Officers can be chosen, rights follow assignment and end on unassign, concurrency |
+| 5 | Workspace: workload cards, conference review and conference remarks by assigned officer; officer's own workspace links | each project under its officer only, unassigned under nobody, IT feeds unchanged |
+| 6 | Phones, dark theme, live check with realistic data in a throwaway database. Found and fixed: the officer line on the project page split into two columns on a phone; the "No officer" switch was long enough to push the search box off the toolbar row. Demo data scripts: `tools/dev-data/molti-sre-demo-seed.sql` and `-remove.sql` | none new |
+
+Each PR is reviewed by Codex and merged when CI and Codex are clean.
+
+All six PRs are merged or open as of 11 Nov 2026; the module is complete with PR 6.

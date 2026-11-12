@@ -290,4 +290,49 @@ public class ItProjectTimingTests
         await using var context = db.NewContext();
         return await context.ItProjects.Where(project => project.Id == id).Select(project => project.StageMovedAtUtc).SingleAsync();
     }
+
+    [Fact]
+    public void Elapsed_FromTheFirstStage_IsEndToEnd()
+    {
+        var timing = Resolve(Project(
+            ("PPP", D(2024, 7, 10)), ("AON", null), ("BID", null), ("TEC", null), ("COB", null), ("SO", null), ("DLV", D(2025, 6, 30))));
+
+        Assert.Equal("PPP", timing.StartedStageCode);
+        Assert.True(timing.ElapsedIsEndToEnd);
+        Assert.Equal("end to end", ProjectManagement.Pages.ItProjects.ItProjectBoardPresentation.ElapsedSpan(timing));
+    }
+
+    [Fact]
+    public void Elapsed_WhenTheEarlyStagesHaveNoDate_SaysWhichStageItRunsFrom()
+    {
+        // Only SO and Delivery are dated: 132 days is SO to delivery, not the whole case.
+        var timing = Resolve(Project(
+            ("PPP", null), ("AON", null), ("BID", null), ("TEC", null), ("COB", null), ("SO", D(2026, 4, 10)), ("DLV", D(2026, 8, 20))));
+
+        Assert.Equal(132, timing.ElapsedDays);
+        Assert.Equal("SO", timing.StartedStageCode);
+        Assert.False(timing.ElapsedIsEndToEnd);
+        Assert.Equal("from EAS & SO", ProjectManagement.Pages.ItProjects.ItProjectBoardPresentation.ElapsedSpan(timing));
+    }
+
+    [Theory]
+    [InlineData(60, ItProjectAgeBand.Normal)]
+    [InlineData(61, ItProjectAgeBand.Amber)]
+    [InlineData(90, ItProjectAgeBand.Amber)]
+    [InlineData(91, ItProjectAgeBand.Red)]
+    public void BandOf_AtDelivery_Uses60And90Days(int days, ItProjectAgeBand expected)
+    {
+        Assert.Equal(expected, ItProjectTiming.BandOf(days, ItProjectStages.Delivery));
+        Assert.Equal(days <= 30 ? ItProjectAgeBand.Normal : days <= 60 ? ItProjectAgeBand.Amber : ItProjectAgeBand.Red, ItProjectTiming.BandOf(days, ItProjectStages.Bid));
+    }
+
+    [Fact]
+    public void Resolve_AtDelivery_BandsByTheDeliveryLimits()
+    {
+        // SO closed 75 days before the test day: amber at Delivery, where at any other stage it would be red.
+        var timing = Resolve(Project(("PPP", D(2026, 1, 5)), ("AON", D(2026, 2, 1)), ("BID", D(2026, 3, 1)), ("TEC", D(2026, 4, 1)), ("COB", D(2026, 5, 1)), ("SO", Today.AddDays(-75))));
+
+        Assert.Equal(75, timing.DaysAtStage);
+        Assert.Equal(ItProjectAgeBand.Amber, timing.Band);
+    }
 }

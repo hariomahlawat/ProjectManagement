@@ -11,6 +11,7 @@ public sealed class ErpUsageModuleCatalogTests
     [InlineData("/Calendar/Index", "calendar")]
     [InlineData("/Admin/Users/Index", "administration")]
     [InlineData("/Tools/Pdf", "pdf-tools")]
+    [InlineData("/Tools/Photo", "photo-tools")]
     [InlineData("/ItProjects/Index", "it-projects")]
     [InlineData("/ItProjects/Create", "it-projects")]
     public void ResolvePath_ReturnsStablePrivacySafeModule(string path, string expected)

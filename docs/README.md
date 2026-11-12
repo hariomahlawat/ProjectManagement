@@ -50,6 +50,9 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Confirmation dialogs](ux/confirm-dialogs.md) | The one glass confirmation dialog (`PrismConfirm`): options, wording rules, behaviour and the plan for converting the remaining browser `confirm()` calls. |
 | [Toasts](ux/toasts.md) | The one glass toast (`PrismToast`): server and script use, behaviour, wording rules and the conversion plan. |
 | [Top bar, Dashboard and workspace headers](ux/app-shell-and-dashboard.md) | What a signed-in user sees first: top-bar fit rules by width, the Dashboard greeting header, workspace page headers and minimum type sizes. |
+| [Photos library](ux/photos-library.md) | The `/Photos` library: review findings of 11 Nov 2026, the approved design (continuous timeline, viewer, selecting, albums, people) and the 12-step build plan. |
+| [Photos library: review fixes](ux/photos-library-review-fixes.md) | The review of 12 Nov 2026 after the redesign shipped (usability 7.5, code 7), its findings and the 10-step fix plan. |
+| [People review and identity pages](ux/people-review.md) | `/Photos/People/Review` and a person's identity page: findings of 12 Nov 2026 against real faces, the approved design (three plain queues, one name field, Undo) and the 10-step build plan. |
 | [Navigation drawer (Menu)](ux/navigation-drawer.md) | The Menu drawer: its fixed sections, what belongs in it (areas, not settings or actions), behaviour, compatibility and the reachability rule. |
 | [Project Office Reports](ProjectOfficeReports_Directions.md) | Visits, Social Media, Proliferation, ToT, IPR and related reports. |
 | [Timeline pipeline](timeline.md) | Canonical timeline rules, implemented plan revision behavior and remaining target semantics. |
@@ -59,6 +62,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Phase D release runbook](phase-d-release-runbook.md) | Coordinated D-2 + D-3 release: topology and writer inventory (K-12), migration-execution decision record (K-13), runbook, staging acceptance and recovery, rollback, blocker register and go/no-go. |
 | [Phase D release readiness](phase-d-release-readiness.md) | D-3e acceptance evidence, release-blocker register (#2683, K-12, K-13), UX observations and remaining steps before the coordinated D-2 + D-3 release. |
 | [PDF Tools](pdf-tools.md) | Standalone in-browser PDF editor at `/Tools/Pdf`: privacy contract (nothing uploaded), offline assets, tools and limits. |
+| [Photo Tools](photo-tools.md) | Standalone in-browser photo tool at `/Tools/Photo`: privacy contract (nothing uploaded), how the target size is reached, limits. Build plan in [ux/photo-tools.md](ux/photo-tools.md). |
 | [Document Repository](document-repository.md) | Who can read repository documents (active, deactivated, copied in from other modules), what is audited, upload and change rules. |
 | [Search and OCR architecture](search-and-ocr-architecture.md) | Search/OCR implementation notes. |
 | [Search V2 ranking](search-v2-ranking.md) | Normalisation, retrieval tiers, clustering, keyset paging, autocomplete/did-you-mean and how to measure relevance. |

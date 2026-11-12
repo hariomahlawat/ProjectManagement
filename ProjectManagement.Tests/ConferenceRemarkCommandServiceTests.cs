@@ -258,6 +258,70 @@ public sealed class ConferenceRemarkCommandServiceTests
         Assert.False(await scope.Db.ItProjectRemarks.AnyAsync());
     }
 
+    [Fact]
+    public async Task AddAsync_MoltiProject_GoesUnderItsAssignedOfficer_InTheModulesWords()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        var actor = await scope.AddCommandUserAsync("command", RoleNames.HoD);
+        var officer = await scope.AddCommandUserAsync("officer", RoleNames.ProjectOfficer);
+        var project = ItProject(actor.Id);
+        project.Module = ItProjectModules.Molti;
+        project.ProjectOfficerUserId = officer.Id;
+        scope.Db.ItProjects.Add(project);
+        await scope.Db.SaveChangesAsync();
+
+        var result = await ItService(scope).AddAsync(
+            actor.Id,
+            new AddConferenceRemarkRequest(officer.Id, ConferenceItemKind.ItProject, project.Id, "Put up the IPA file."));
+
+        var remark = await scope.Db.ItProjectRemarks.SingleAsync();
+        Assert.Equal(ItProjectRemarkType.Conference, remark.Type);
+        Assert.Equal(RoleNames.HoD, remark.AuthorRole);
+        Assert.Equal(ItProjectStages.Ppp, remark.StageCode);
+        Assert.Equal("MOLTI ARPPP / IPA", result.Direction.SnapshotValue);
+        Assert.Equal("Progress update awaited. The officer has not written a remark since the direction was issued.", result.EmptyProgressText);
+    }
+
+    [Fact]
+    public async Task AddAsync_MoltiProject_NeedsTheOfficerItIsAssignedTo()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        var actor = await scope.AddCommandUserAsync("command", RoleNames.HoD);
+        var officer = await scope.AddCommandUserAsync("officer", RoleNames.ProjectOfficer);
+        var another = await scope.AddCommandUserAsync("another", RoleNames.ProjectOfficer);
+        var ito = await scope.AddCommandUserAsync("ito", RoleNames.Ito);
+        var assigned = ItProject(actor.Id);
+        assigned.Module = ItProjectModules.Molti;
+        assigned.ProjectOfficerUserId = officer.Id;
+        var unassigned = ItProject(actor.Id);
+        unassigned.Module = ItProjectModules.Sre;
+        var it = ItProject(actor.Id);
+        scope.Db.ItProjects.AddRange(assigned, unassigned, it);
+        await scope.Db.SaveChangesAsync();
+        var service = ItService(scope);
+
+        // Another officer, the ITO, or nobody's project: not that officer's workload.
+        foreach (var (officerId, projectId) in new[]
+                 {
+                     (another.Id, assigned.Id),
+                     (ito.Id, assigned.Id),
+                     (officer.Id, unassigned.Id),
+                     (officer.Id, it.Id)
+                 })
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => service.AddAsync(
+                actor.Id, new AddConferenceRemarkRequest(officerId, ConferenceItemKind.ItProject, projectId, "Direction")));
+        }
+
+        Assert.False(await scope.Db.ItProjectRemarks.AnyAsync());
+
+        // An officer who lost the role no longer has the project under them.
+        await scope.UserManager.RemoveFromRoleAsync(officer, RoleNames.ProjectOfficer);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.AddAsync(
+            actor.Id, new AddConferenceRemarkRequest(officer.Id, ConferenceItemKind.ItProject, assigned.Id, "Direction")));
+        Assert.False(await scope.Db.ItProjectRemarks.AnyAsync());
+    }
+
     private static ConferenceRemarkCommandService ItService(TestScope scope)
     {
         var clock = new FixedClock(new DateTimeOffset(2026, 7, 12, 3, 0, 0, TimeSpan.Zero));

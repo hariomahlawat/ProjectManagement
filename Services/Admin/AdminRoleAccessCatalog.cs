@@ -365,7 +365,7 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
             Access(
                 "it-projects-manage",
                 "Keep IT projects",
-                "Create IT projects, edit their details, record stage completion and SO cost, upload and remove attachments, and mark a project dropped.",
+                "Create IT projects, edit their details, record stage completion, IPA cost and SO cost, upload and remove attachments, and mark a project dropped.",
                 Policies.ItProjects.ManageRoles,
                 Group.ItProjects,
                 20),
@@ -376,6 +376,66 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
                 Policies.ItProjects.RemarkRoles,
                 Group.ItProjects,
                 30),
+
+            AllRoles(
+                "molti-projects-view",
+                "View MOLTI projects",
+                "See the MOLTI projects board, each project's stages, remarks and attachments.",
+                Group.MoltiProjects,
+                10),
+            Access(
+                "molti-projects-manage",
+                "Keep MOLTI projects",
+                "Create MOLTI projects, edit their details, record stage completion, IPA cost and SO cost, upload and remove attachments, mark a project dropped, and delete a project.",
+                Policies.MoltiProjects.ManageRoles,
+                Group.MoltiProjects,
+                20),
+            Access(
+                "molti-projects-remark",
+                "Write MOLTI project remarks",
+                "Add remarks on a MOLTI project and edit or delete their own. Remarks carry the author's role.",
+                Policies.MoltiProjects.RemarkRoles,
+                Group.MoltiProjects,
+                30),
+            // The officer assigned to a project works on that project alone: a per-project rule
+            // (ItProjectAccess), listed here so the role page shows what the role can lead to.
+            Access(
+                "molti-projects-assigned",
+                "Run the MOLTI projects assigned to them",
+                "On a MOLTI project that Admin or the HoD has assigned to them: edit its details, record stage completion, IPA cost and SO cost, upload and remove attachments, mark it dropped or reinstate it, and write remarks. They cannot delete it or change its officer.",
+                Roles(RoleNames.ProjectOfficer),
+                Group.MoltiProjects,
+                40),
+
+            AllRoles(
+                "sre-projects-view",
+                "View SRE projects",
+                "See the SRE projects board, each project's stages, remarks and attachments.",
+                Group.SreProjects,
+                10),
+            Access(
+                "sre-projects-manage",
+                "Keep SRE projects",
+                "Create SRE projects, edit their details, record stage completion, IPA cost and SO cost, upload and remove attachments, mark a project dropped, and delete a project.",
+                Policies.SreProjects.ManageRoles,
+                Group.SreProjects,
+                20),
+            Access(
+                "sre-projects-remark",
+                "Write SRE project remarks",
+                "Add remarks on an SRE project and edit or delete their own. Remarks carry the author's role.",
+                Policies.SreProjects.RemarkRoles,
+                Group.SreProjects,
+                30),
+            // The officer assigned to a project works on that project alone: a per-project rule
+            // (ItProjectAccess), listed here so the role page shows what the role can lead to.
+            Access(
+                "sre-projects-assigned",
+                "Run the SRE projects assigned to them",
+                "On a SRE project that Admin or the HoD has assigned to them: edit its details, record stage completion, IPA cost and SO cost, upload and remove attachments, mark it dropped or reinstate it, and write remarks. They cannot delete it or change its officer.",
+                Roles(RoleNames.ProjectOfficer),
+                Group.SreProjects,
+                40),
 
             AllRoles(
                 "industry-view-contact",
@@ -575,6 +635,8 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
         Group.Command => "command",
         Group.Reports => "reports",
         Group.ItProjects => "it-projects",
+        Group.MoltiProjects => "molti-projects",
+        Group.SreProjects => "sre-projects",
         Group.Industry => "industry",
         Group.Documents => "documents",
         Group.Calendar => "calendar-activities",
@@ -590,6 +652,8 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
         Group.Command => "Command and coordination",
         Group.Reports => "Project Office reports",
         Group.ItProjects => "IT projects",
+        Group.MoltiProjects => "MOLTI projects",
+        Group.SreProjects => "SRE projects",
         Group.Industry => "Industry Directory",
         Group.Documents => "Documents",
         Group.Calendar => "Calendar and activities",
@@ -605,6 +669,8 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
         Group.Command => "bi-diagram-3",
         Group.Reports => "bi-clipboard-data",
         Group.ItProjects => "bi-pc-display",
+        Group.MoltiProjects => "bi-clipboard-check",
+        Group.SreProjects => "bi-clipboard-pulse",
         Group.Industry => "bi-buildings",
         Group.Documents => "bi-folder2-open",
         Group.Calendar => "bi-calendar3",
@@ -620,6 +686,8 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
         Group.Command => 40,
         Group.Reports => 50,
         Group.ItProjects => 55,
+        Group.MoltiProjects => 56,
+        Group.SreProjects => 57,
         Group.Industry => 60,
         Group.Documents => 70,
         Group.Calendar => 80,
@@ -635,6 +703,8 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
         Command,
         Reports,
         ItProjects,
+        MoltiProjects,
+        SreProjects,
         Industry,
         Documents,
         Calendar,

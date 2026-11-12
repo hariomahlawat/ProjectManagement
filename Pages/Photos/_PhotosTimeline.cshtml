@@ -1,0 +1,94 @@
+@model ProjectManagement.Pages.Photos.IndexModel
+@using ProjectManagement.Pages.Photos
+@* The days of the Photos timeline. Rendered inside the page, and returned on its own by the
+   TimelinePart handler when the page loads the next part while the user scrolls. *@
+@{ var currentMonth = string.Empty; }
+@foreach (var day in (Model.Sort == "oldest"
+    ? Model.Groups.GroupBy(group => group.Date.Date).OrderBy(group => group.Key)
+    : Model.Groups.GroupBy(group => group.Date.Date).OrderByDescending(group => group.Key)))
+{
+    var monthKey = day.Key.ToString("yyyyMM");
+    if (!Model.IsAlbumDetail && monthKey != currentMonth)
+    {
+        currentMonth = monthKey;
+        <h2 class="photos-month" id="month-@monthKey">@day.Key.ToString("MMMM yyyy")</h2>
+    }
+    var dayItems = Model.IsAlbumDetail
+        ? day.SelectMany(group => group.Items).ToList()
+        : (Model.Sort == "oldest"
+            ? day.SelectMany(group => group.Items).OrderBy(item => item.MediaDate)
+            : day.SelectMany(group => group.Items).OrderByDescending(item => item.MediaDate)).ToList();
+    <section class="photos-day @(Model.IsAlbumDetail ? "photos-day--album" : null)" aria-labelledby="day-@day.Key.ToString("yyyyMMdd")">
+        @if (!Model.IsAlbumDetail)
+        {
+            <header class="photos-day__header">@if (!Model.OrganizeAlbum) {<button type="button" class="photos-day__select" data-day-select aria-pressed="false" aria-label="Select every picture from @day.Key.ToString("dddd d MMMM")" title="Select the whole day"><i class="bi bi-check-lg" aria-hidden="true"></i></button>}<h3 id="day-@day.Key.ToString("yyyyMMdd")">@day.Key.ToString("dddd d MMMM")</h3><span><span data-day-sources>@IndexModel.DaySourceSummary(dayItems)</span> · <span data-day-count="@dayItems.Count">@dayItems.Count item@(dayItems.Count == 1 ? "" : "s")</span></span></header>
+        }
+        <div class="photos-grid @(Model.OrganizeAlbum ? "photos-grid--organize" : null)" role="group" aria-label="@(Model.IsAlbumDetail ? $"Pictures in {Model.CurrentAlbum?.Name}" : $"Pictures from {day.Key:dd MMMM yyyy}")" data-album-sortable="@(Model.OrganizeAlbum ? "true" : null)">
+            @foreach (var item in dayItems)
+            {
+                var alreadyInTargetAlbum = Model.IsAddMediaMode
+                    && item.AssetId.HasValue
+                    && Model.AddMediaExistingAssetIds.Contains(item.AssetId.Value);
+                <button type="button"
+                                    class="photos-tile @(item.IsAlbumCover ? "photos-tile--album-cover" : null) @(alreadyInTargetAlbum ? "photos-tile--already-in-album" : null)"
+                                    style="--media-ratio:@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                                    data-aspect-ratio="@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                                    data-media-item
+                                    data-media-key="@(item.AssetId.HasValue ? $"asset-{item.AssetId.Value}" : item.Id)"
+                                    data-kind="@item.Kind.ToString().ToLowerInvariant()"
+                                    data-title="@item.Title"
+                                    data-original-title="@item.OriginalTitle"
+                                    data-caption="@item.Caption"
+                                    data-editorial-caption="@item.EditorialCaption"
+                                    data-editorial-token="@item.EditorialConcurrencyToken"
+                                    data-context="@(IndexModel.DisplayContext(item) ?? item.ContextTitle)"
+                                    data-subtitle="@(item.DisplaySubtitle ?? item.ContextSubtitle)"
+                                    data-date="@item.MediaDate.ToString("dd MMMM yyyy")"
+                                    data-source-label="@item.SourceLabel"
+                                    data-classification="@IndexModel.ClassificationLabel(item.Classification)"
+                                    data-people="@Model.SerializeViewerPeople(item)"
+                                    data-albums="@Model.SerializeViewerAlbums(item)"
+                                    data-unidentified="@item.UnidentifiedFaceCount"
+                                    data-asset-id="@item.AssetId"
+                                    data-display-url="@item.DisplayUrl"
+                                    data-original-url="@item.OriginalUrl"
+                                    data-download-url="@item.DownloadUrl"
+                                    data-source-url="@item.SourceUrl"
+                                    data-filename="@item.OriginalFileName"
+                                    data-file-size="@IndexModel.FormatFileSize(item.FileSizeBytes)"
+                                    data-duration="@IndexModel.FormatDuration(item.DurationSeconds)"
+                                    data-width="@item.Width"
+                                    data-height="@item.Height"
+                                    data-album-cover="@(item.IsAlbumCover ? "true" : "false")"
+                                    data-already-in-target="@(alreadyInTargetAlbum ? "true" : "false")"
+                                    disabled="@(alreadyInTargetAlbum ? "disabled" : null)"
+                                    draggable="@(Model.OrganizeAlbum ? "true" : null)"
+                                    aria-label="@(alreadyInTargetAlbum ? $"{item.Title} is already in {Model.AddMediaTargetAlbum?.Name}" : Model.OrganizeAlbum ? $"Reorder {item.Title}" : $"Open {item.Title}")">
+                                <span class="photos-tile__placeholder" aria-hidden="true"></span>
+                                <img src="@(item.GridThumbnailUrl ?? item.ThumbnailUrl)" alt="" loading="lazy" decoding="async" data-media-image data-fallback-src="@(item.GridThumbnailUrl is null ? null : item.ThumbnailUrl)" />
+                                <span class="photos-tile__unavailable" aria-hidden="true"><i class="bi bi-image"></i><strong>Picture unavailable</strong><small>Source file could not be opened</small></span>
+                                <span class="photos-tile__shade"></span>
+                                <span class="photos-tile__select" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                                @if (item.Kind == IndexModel.MediaKind.Video)
+                                {
+                                    <span class="photos-tile__play"><i class="bi bi-play-fill" aria-hidden="true"></i></span>
+                                    <span class="photos-tile__duration">@IndexModel.FormatDuration(item.DurationSeconds)</span>
+                                }
+                                @if (item.IsAlbumCover)
+                                {
+                                    <span class="photos-tile__album-cover" title="Album cover"><i class="bi bi-image-fill"></i></span>
+                                }
+                                @if (alreadyInTargetAlbum)
+                                {
+                                    <span class="photos-tile__in-album" title="Already in target album"><i class="bi bi-check2"></i> In album</span>
+                                }
+                                @if (Model.OrganizeAlbum)
+                                {
+                                    <span class="photos-tile__drag" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
+                                }
+                                <span class="photos-tile__meta"><strong>@item.Title</strong>@if (!string.IsNullOrWhiteSpace(IndexModel.DisplayContext(item))) { <span>@IndexModel.DisplayContext(item)</span> }</span>
+                            </button>
+            }
+        </div>
+    </section>
+}

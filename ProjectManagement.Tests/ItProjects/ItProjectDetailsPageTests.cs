@@ -141,7 +141,7 @@ public class ItProjectDetailsPageTests
         Assert.Equal(DetailsModel.OpenStages, page.Open);
         var errors = page.DrawerErrors(DetailsModel.OpenStages, "Stages");
         Assert.Contains("AoN: The value '31-02-2026' is not valid.", errors);
-        Assert.Contains("SO: The value 'abc' is not valid.", errors);
+        Assert.Contains("EAS & SO: The value 'abc' is not valid.", errors);
         Assert.NotEmpty(page.Details.RowVersion); // the other drawers still carry their row versions
         await using var context = db.NewContext();
         Assert.Equal(new DateOnly(2026, 6, 19), (await context.ItProjectStages.SingleAsync(s => s.ItProjectId == id && s.StageCode == "AON")).CompletedOn);
@@ -241,7 +241,7 @@ public class ItProjectDetailsPageTests
         var result = await page.OnPostStagesAsync(id, reopen: "COB", CancellationToken.None);
 
         Assert.IsType<RedirectToPageResult>(result);
-        Assert.Equal("Stages saved. Reopened: COB, SO.", page.TempData["ToastSuccess"]);
+        Assert.Equal("Stages saved. Reopened: COB, EAS & SO.", page.TempData["ToastSuccess"]);
         await using var context = db.NewContext();
         var stages = await context.ItProjectStages.Where(stage => stage.ItProjectId == id).OrderBy(stage => stage.SortOrder).ToListAsync();
         Assert.Equal(new[] { "PPP", "AON", "BID", "TEC" }, stages.Where(stage => stage.IsCompleted).Select(stage => stage.StageCode));
@@ -294,10 +294,10 @@ public class ItProjectDetailsPageTests
         Assert.Null(ItProjectBoardPresentation.CascadeSummary(Array.Empty<string>(), Array.Empty<string>()));
         Assert.Equal("Saving will also complete Bid.", ItProjectBoardPresentation.CascadeSummary(new[] { "BID" }, Array.Empty<string>()));
         Assert.Equal(
-            "Saving will also complete IT ARPPP / IPA, AoN, Bid, TEC, COB and SO.",
+            "Saving will also complete IT ARPPP / IPA, AoN, Bid, TEC, COB and EAS & SO.",
             ItProjectBoardPresentation.CascadeSummary(new[] { "PPP", "AON", "BID", "TEC", "COB", "SO" }, Array.Empty<string>()));
         Assert.Equal(
-            "Saving will also complete Bid and also reopen SO and Delivery and ATP.",
+            "Saving will also complete Bid and also reopen EAS & SO and Delivery and ATP.",
             ItProjectBoardPresentation.CascadeSummary(new[] { "BID" }, new[] { "SO", "DLV" }));
     }
 
@@ -439,7 +439,11 @@ public class ItProjectDetailsPageTests
         var hod = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
         await hod.OnGetAsync(id, CancellationToken.None);
         Assert.False(hod.CanEditRemark(remark));
-        Assert.False(hod.CanDeleteRemark(remark));
+        Assert.True(hod.CanDeleteRemark(remark)); // the HoD may delete any remark (owner, 11 Nov 2026)
+
+        var comdt = Page(db, ItProjectTestDb.User("comdt-1", RoleNames.Comdt));
+        await comdt.OnGetAsync(id, CancellationToken.None);
+        Assert.False(comdt.CanDeleteRemark(remark)); // ...the Comdt only their own
         hod.RemarkEdit = new DetailsModel.RemarkEditInput { Id = remark.Id, Body = "Hijacked.", EventDate = remark.EventDate, RowVersion = DetailsModel.EncodeRowVersion(remark.RowVersion) };
         Assert.IsType<RedirectToPageResult>(await hod.OnPostRemarkEditAsync(id, CancellationToken.None));
         Assert.Equal(ItProjectRemarkService.NotAuthorMessage, hod.TempData["ToastError"]);
@@ -635,11 +639,14 @@ public class ItProjectDetailsPageTests
         var page = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
         await page.OnGetAsync(id, CancellationToken.None);
         Assert.Equal(new[] { "New", "CF" }, page.YearTypes.Select(type => type.Code));
+        // Until this year's number is entered the page goes by the first one, as the register does.
+        Assert.Equal(page.Project.PppReferenceNumber, page.DisplayReference);
 
         Assert.IsType<RedirectToPageResult>(await page.OnPostYearAsync(id, 2026, "CL", "IT PPP 03/2026", CancellationToken.None));
 
         var reloaded = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
         await reloaded.OnGetAsync(id, CancellationToken.None);
+        Assert.Equal("IT PPP 03/2026", reloaded.DisplayReference);
         var year = reloaded.YearTypes.Single(type => type.FinancialYearStart == 2026);
         Assert.Equal("CL", year.Code);
         Assert.True(year.IsManual);
@@ -650,6 +657,25 @@ public class ItProjectDetailsPageTests
         await reset.OnGetAsync(id, CancellationToken.None);
         Assert.False(reset.YearTypes.Single(type => type.FinancialYearStart == 2026).IsManual);
         Assert.Equal("IT PPP 03/2026", reset.YearTypes.Single(type => type.FinancialYearStart == 2026).PppReferenceNumber);
+    }
+
+    [Fact]
+    public async Task Year_TheFirstYearsNumberIsChangedFromItsRow()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync(fy: 2025);
+        var page = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        await page.OnGetAsync(id, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(await page.OnPostYearAsync(id, 2025, "auto", "IT PPP 11/2025", CancellationToken.None));
+
+        var reloaded = Page(db, ItProjectTestDb.User("hod-1", RoleNames.HoD));
+        await reloaded.OnGetAsync(id, CancellationToken.None);
+        Assert.Equal("IT PPP 11/2025", reloaded.Project.PppReferenceNumber);
+        var first = reloaded.YearTypes.Single(type => type.IsOwnYear);
+        Assert.Equal("IT PPP 11/2025", first.PppReferenceNumber);
+        Assert.Equal("New", first.Code);
+        Assert.False(first.IsManual);
     }
 
     [Fact]
@@ -669,6 +695,51 @@ public class ItProjectDetailsPageTests
         await reloaded.OnGetAsync(id, CancellationToken.None);
         Assert.Equal("New", reloaded.YearTypes.Single().Code);
         Assert.False(reloaded.YearTypes.Single().IsManual);
+    }
+
+    [Fact]
+    public async Task DroppedProject_StageSaveAndPreviewAreRefusedWithAMessage()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync();
+        Assert.True((await db.Commands().DropAsync(id, new DateOnly(2026, 11, 1), "Merged", rowVersion, ItProjectTestDb.Actor())).Succeeded);
+
+        var page = Page(db, ItProjectTestDb.User("ito-1", RoleNames.Ito));
+        await page.OnGetAsync(id, CancellationToken.None);
+        Assert.True(page.IsDropped);
+        page.Stages.Items.Single(item => item.StageCode == "DLV").IsCompleted = true;
+
+        var save = await page.OnPostStagesAsync(id, null, CancellationToken.None);
+        Assert.IsType<RedirectToPageResult>(save);
+        Assert.Equal(ItProjectCommandService.DroppedStagesMessage, page.TempData["ToastError"]);
+
+        var preview = Assert.IsType<JsonResult>(await page.OnPostPreviewAsync(id, null, null, CancellationToken.None));
+        Assert.Contains("\"valid\":false", System.Text.Json.JsonSerializer.Serialize(preview.Value));
+
+        await using var context = db.NewContext();
+        Assert.DoesNotContain(await context.ItProjectStages.Where(stage => stage.ItProjectId == id).ToListAsync(), stage => stage.IsCompleted);
+    }
+
+    [Fact]
+    public async Task RecordDates_AreIndianCalendarDays()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+        await using (var context = db.NewContext())
+        {
+            var project = await context.ItProjects.SingleAsync(p => p.Id == id);
+            // 20:00 UTC on 7 Nov is 01:30 IST on 8 Nov.
+            project.CreatedAtUtc = new DateTime(2026, 11, 7, 20, 0, 0, DateTimeKind.Utc);
+            project.UpdatedAtUtc = new DateTime(2026, 11, 7, 18, 0, 0, DateTimeKind.Utc);
+            await context.SaveChangesAsync();
+        }
+
+        var page = Page(db, ItProjectTestDb.User("viewer"));
+        await page.OnGetAsync(id, CancellationToken.None);
+
+        Assert.Equal(new DateOnly(2026, 11, 8), page.AddedOn);
+        Assert.Equal(new DateOnly(2026, 11, 7), page.LastChangedOn);
+        Assert.Equal("2026-11-08", page.DropDateMax);
     }
 
     internal static DetailsModel PageFor(ItProjectTestDb db, ClaimsPrincipal user) => Page(db, user);

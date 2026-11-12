@@ -12,8 +12,6 @@ namespace ProjectManagement.Services.ItProjects;
 
 public sealed class ItProjectReadService : IItProjectReadService
 {
-    private static readonly TimeZoneInfo Ist = TimeZoneHelper.GetIst();
-
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
 
@@ -30,7 +28,7 @@ public sealed class ItProjectReadService : IItProjectReadService
         // The module holds tens of cases, not thousands: load them all once, because the year
         // filter ("live in that year") and the year list both need every case's stages.
         var all = await _db.ItProjects.AsNoTracking()
-            .Where(project => !project.IsDeleted)
+            .Where(project => !project.IsDeleted && project.Module == query.Module)
             .Include(project => project.Stages)
             .Include(project => project.FinancialYears)
             .ToListAsync(cancellationToken);
@@ -60,7 +58,22 @@ public sealed class ItProjectReadService : IItProjectReadService
 
         var today = Today();
         var typeYear = query.FinancialYearStart ?? currentYear;
-        var rows = loaded.Select(project => ToRow(project, today, ItProjectYearTypes.Resolve(project, typeYear, currentYear))).ToList();
+        var officerNames = await OfficerNamesAsync(all, cancellationToken);
+        var rows = loaded
+            .Select(project => ToRow(project, today, ItProjectYearTypes.Resolve(project, typeYear, currentYear), officerNames))
+            .ToList();
+
+        // What the two officer switches would show, counted before either is applied.
+        var unassignedActive = rows.Count(row => IsActive(row.Status.Kind) && row.ProjectOfficerUserId is null);
+        var mineActive = query.ViewerUserId is { Length: > 0 } viewer
+            ? rows.Count(row => IsActive(row.Status.Kind) && row.ProjectOfficerUserId == viewer)
+            : 0;
+        rows = query.Officer switch
+        {
+            ItProjectOfficerFilter.Unassigned => rows.Where(row => row.ProjectOfficerUserId is null).ToList(),
+            ItProjectOfficerFilter.Mine => rows.Where(row => query.ViewerUserId is { Length: > 0 } && row.ProjectOfficerUserId == query.ViewerUserId).ToList(),
+            _ => rows
+        };
 
         var activeCount = rows.Count(row => IsActive(row.Status.Kind));
         var completedCount = rows.Count(row => row.Status.Kind == ItProjectStatusKind.Completed);
@@ -94,19 +107,49 @@ public sealed class ItProjectReadService : IItProjectReadService
             .ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return new ItProjectBoard(ordered, stageCounts, activeCount, completedCount, droppedCount, years, Figures(rows, today, typeYear, currentYear));
+        return new ItProjectBoard(ordered, stageCounts, activeCount, completedCount, droppedCount, years, Figures(rows, today, typeYear, currentYear), unassignedActive, mineActive);
     }
 
     public Task<ItProject?> GetAsync(int id, CancellationToken cancellationToken = default)
+        => GetAsync(id, ItProjectModules.It, cancellationToken);
+
+    public Task<ItProject?> GetAsync(int id, string module, CancellationToken cancellationToken = default)
         => _db.ItProjects
             .Include(project => project.Stages.OrderBy(stage => stage.SortOrder))
             .Include(project => project.FinancialYears)
-            .FirstOrDefaultAsync(project => project.Id == id && !project.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(project => project.Id == id && project.Module == module && !project.IsDeleted, cancellationToken);
 
-    public ItProjectTiming GetTiming(ItProject project) => ItProjectTiming.Resolve(project, Today(), ToLocalDate);
+    public ItProjectTiming GetTiming(ItProject project) => ItProjectTiming.Resolve(project, Today(), ItProjectYearTypes.ToIstDate);
 
     public IReadOnlyList<ItProjectYearTypeInfo> GetYearTypes(ItProject project)
         => ItProjectYearTypes.ResolveAll(project, ItProjectYearTypes.CurrentFinancialYear(_clock.UtcNow));
+
+    public Task<IReadOnlyList<ItProjectOfficerOption>> GetAssignableOfficersAsync(CancellationToken cancellationToken = default)
+        => ItProjectOfficers.ListAssignableAsync(_db, cancellationToken);
+
+    /// <summary>The display names of the officers these projects are assigned to, in one query.</summary>
+    private async Task<IReadOnlyDictionary<string, string>> OfficerNamesAsync(IEnumerable<ItProject> projects, CancellationToken cancellationToken)
+    {
+        var ids = projects
+            .Select(project => project.ProjectOfficerUserId)
+            .Where(id => id is not null)
+            .Select(id => id!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (ids.Count == 0)
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        return await _db.Users.AsNoTracking()
+            .Where(user => ids.Contains(user.Id))
+            .Select(user => new { user.Id, user.FullName, user.UserName })
+            .ToDictionaryAsync(
+                user => user.Id,
+                user => string.IsNullOrWhiteSpace(user.FullName) ? user.UserName ?? user.Id : user.FullName,
+                StringComparer.Ordinal,
+                cancellationToken);
+    }
 
     public async Task<string?> GetUserDisplayNameAsync(string userId, CancellationToken cancellationToken = default)
     {
@@ -139,10 +182,8 @@ public sealed class ItProjectReadService : IItProjectReadService
         _ => 3
     };
 
-    private DateOnly Today() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, Ist).DateTime);
+    private DateOnly Today() => ItProjectYearTypes.TodayIst(_clock.UtcNow);
 
-    private static DateOnly ToLocalDate(DateTime utc)
-        => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Ist));
 
     /// <summary>Title, the first IT ARPPP number or any later year's number, ignoring case.</summary>
     private static bool Matches(ItProject project, string search)
@@ -198,7 +239,7 @@ public sealed class ItProjectReadService : IItProjectReadService
             OnOrderWithoutValue: onOrder.Count(cell => cell!.CostLakhs is null));
     }
 
-    private static ItProjectBoardRow ToRow(ItProject project, DateOnly today, ItProjectYearTypeInfo? yearType)
+    private static ItProjectBoardRow ToRow(ItProject project, DateOnly today, ItProjectYearTypeInfo? yearType, IReadOnlyDictionary<string, string> officerNames)
     {
         var status = ItProjectStatus.Resolve(project);
         var cells = project.Stages
@@ -223,12 +264,14 @@ public sealed class ItProjectReadService : IItProjectReadService
             project.DroppedReason,
             project.UpdatedAtUtc,
             cells,
-            ItProjectTiming.Resolve(project, today, ToLocalDate),
+            ItProjectTiming.Resolve(project, today, ItProjectYearTypes.ToIstDate),
             yearType,
             project.FinancialYears
                 .Where(year => !string.IsNullOrWhiteSpace(year.PppReferenceNumber))
                 .OrderBy(year => year.FinancialYearStart)
                 .Select(year => year.PppReferenceNumber!)
-                .ToList());
+                .ToList(),
+            project.ProjectOfficerUserId,
+            project.ProjectOfficerUserId is { } officerId && officerNames.TryGetValue(officerId, out var officerName) ? officerName : null);
     }
 }

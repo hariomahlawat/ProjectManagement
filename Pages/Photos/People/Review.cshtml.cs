@@ -213,9 +213,45 @@ public sealed class ReviewModel : PageModel
     [TempData]
     public string? ErrorMessage { get; set; }
 
+    // What was just decided, so the message that confirms it can offer Undo (PeopleReviewUndo).
+    // Held in TempData by hand: it is looked at without being used up while the message is on
+    // screen, used up by the Undo request, and dropped as soon as the message is gone.
+    private const string UndoStateKey = "PeopleReviewUndo";
+
+    private string? UndoState
+    {
+        get => TempData.Peek(UndoStateKey) as string;
+        set
+        {
+            if (value is null)
+            {
+                TempData.Remove(UndoStateKey);
+            }
+            else
+            {
+                TempData[UndoStateKey] = value;
+            }
+        }
+    }
+
+    /// <summary>True while the confirming message is on screen and its decision can be undone.</summary>
+    public bool CanUndo => UndoId is not null;
+
+    /// <summary>Names the decision this page's Undo button is about; sent back with the button.</summary>
+    public string? UndoId { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         NormalizeRequest();
+        // Undo is offered with the message that confirms the decision, never on a later visit.
+        UndoId = string.IsNullOrWhiteSpace(StatusMessage)
+            ? null
+            : PeopleReviewUndo.Read(UndoState, UserId, DateTimeOffset.UtcNow)?.Id;
+        if (!CanUndo)
+        {
+            UndoState = null;
+        }
+
         CandidateRuntime = _candidateRuntime.GetSnapshot();
         if (!FeatureEnabled)
         {
@@ -237,20 +273,20 @@ public sealed class ReviewModel : PageModel
             if (!snapshot.IsReady)
             {
                 GroupingNotice = string.IsNullOrWhiteSpace(snapshot.FailureReason)
-                    ? "Identity groups are being prepared in the background. This page will remain on the Groups workspace while the snapshot is built."
-                    : "Identity grouping is temporarily unavailable because the latest background refresh failed. The worker will retry automatically.";
+                    ? "PRISM is grouping the faces. The groups appear here when they are ready."
+                    : "PRISM could not group the faces this time. It will try again by itself.";
             }
             else if (!string.IsNullOrWhiteSpace(snapshot.FailureReason))
             {
-                GroupingNotice = "Identity grouping is showing the last successful snapshot because the latest refresh failed. The background worker will retry automatically.";
+                GroupingNotice = "These groups are from the last time grouping worked. The latest attempt failed; PRISM will try again by itself.";
             }
             else if (snapshot.IsRefreshPending)
             {
-                GroupingNotice = "Identity groups are refreshing in the background. The last successful snapshot remains available until the new one is ready.";
+                GroupingNotice = "PRISM is grouping the faces again. These groups stay until the new ones are ready.";
             }
             else
             {
-                GroupingNotice = "Identity-group snapshot is current.";
+                GroupingNotice = "The groups are up to date.";
             }
         }
         else
@@ -357,7 +393,7 @@ public sealed class ReviewModel : PageModel
         {
             ReviewDataAvailable = false;
             _logger.LogError(exception, "Individual-face review data could not be loaded.");
-            ErrorMessage = "People review data is temporarily unavailable. The error has been logged; verify database connectivity and application logs.";
+            ErrorMessage = "The faces could not be loaded. The error is logged; try again in a moment.";
         }
     }
 
@@ -368,8 +404,9 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.AssignAsync(faceId, personId, UserId, confidence, cancellationToken),
-            "Identity confirmed.",
-            Mode);
+            "Named.",
+            Mode,
+            started => NamingUndoAsync(() => personId, new[] { faceId }, started, cancellationToken));
 
     public Task<IActionResult> OnPostRejectAsync(
         Guid faceId,
@@ -377,7 +414,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.RejectAsync(faceId, personId, UserId, cancellationToken),
-            "Suggestion rejected. It will not be recreated for this model version.",
+            "Marked as not this person. PRISM will not suggest it again.",
             Mode);
 
     public Task<IActionResult> OnPostRejectAllAsync(
@@ -385,7 +422,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.RejectAsync(faceId, null, UserId, cancellationToken),
-            "All current suggestions for this face were rejected.",
+            "None of the suggested people. The face is now under Unnamed faces.",
             Mode);
 
     public Task<IActionResult> OnPostAssignExistingAsync(
@@ -394,8 +431,9 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.AssignAsync(faceId, personId, UserId, null, cancellationToken),
-            "Identity assigned to the selected person.",
-            Mode);
+            "Named.",
+            Mode,
+            started => NamingUndoAsync(() => personId, new[] { faceId }, started, cancellationToken));
 
     public Task<IActionResult> OnPostAssignSelectedAsync(
         List<Guid> faceIds,
@@ -403,23 +441,40 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.AssignManyAsync(faceIds, personId, UserId, null, cancellationToken),
-            "Selected appearances were assigned to the confirmed person.",
-            Mode);
+            "The selected faces were named.",
+            Mode,
+            started => NamingUndoAsync(() => personId, faceIds, started, cancellationToken));
+
+    // Several single faces named as a new person: the same operation as naming a group, kept
+    // on the queue the reviewer is in.
+    public Task<IActionResult> OnPostCreateSelectedAsync(
+        List<Guid> faceIds,
+        string displayName,
+        CancellationToken cancellationToken)
+    {
+        var created = Guid.Empty;
+        return ExecuteAsync(
+            async () => created = await _review.CreatePersonAndAssignManyAsync(faceIds, displayName, UserId, cancellationToken),
+            "New person added and the selected faces named.",
+            Mode,
+            started => NamingUndoAsync(() => created, faceIds, started, cancellationToken));
+    }
 
     public Task<IActionResult> OnPostIgnoreSelectedAsync(
         List<Guid> faceIds,
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.IgnoreManyAsync(faceIds, UserId, cancellationToken),
-            "Selected appearances were closed as unidentified.",
-            Mode);
+            "The selected faces were left unnamed.",
+            Mode,
+            started => LeavingUnnamedUndoAsync(faceIds, started, cancellationToken));
 
     public Task<IActionResult> OnPostReopenSelectedAsync(
         List<Guid> faceIds,
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.ReopenUnidentifiedManyAsync(faceIds, UserId, cancellationToken),
-            "Selected appearances were reopened for review.",
+            "The selected faces are back in review.",
             Mode);
 
     public Task<IActionResult> OnPostSuppressSelectedAsync(
@@ -427,7 +482,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.SuppressManyAsync(faceIds, UserId, cancellationToken),
-            "Selected detections were marked as not faces.",
+            "The selected items were marked as not faces.",
             Mode);
 
     public Task<IActionResult> OnPostIgnoreAsync(
@@ -435,42 +490,95 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.IgnoreAsync(faceId, UserId, cancellationToken),
-            "Appearance closed as unidentified.",
-            Mode);
+            "Left unnamed.",
+            Mode,
+            started => LeavingUnnamedUndoAsync(new[] { faceId }, started, cancellationToken));
+
+    // Takes back the decision the confirming message was about. Naming is undone through the
+    // same correction that the person's page uses, so it is recorded like any other correction;
+    // its reason is written for the reviewer. A person created by the naming is left in People.
+    public async Task<IActionResult> OnPostUndoAsync(string? undoId, CancellationToken cancellationToken)
+    {
+        // The button names its decision. If another decision has been made since (in another
+        // tab), the note is about that one: it is left alone and this Undo is refused.
+        var undo = PeopleReviewUndo.Read(UndoState, undoId, UserId, DateTimeOffset.UtcNow);
+        if (undo is not null)
+        {
+            UndoState = null;
+        }
+
+        if (undo is null)
+        {
+            NormalizeRequest();
+            ErrorMessage = "That can no longer be undone here. A name can still be corrected from the person's page.";
+            return Redirect(BuildReviewUrl(Mode, PageNumber));
+        }
+
+        // The decision must still be this reviewer's own. If someone has since taken it back and
+        // decided again, what stands now is theirs, and this Undo must not remove it.
+        var since = undo.DecidedAtUtc.AddSeconds(-1);
+        var standing = undo.Kind == PeopleReviewUndo.Named
+            ? await _review.GetFacesAssignedByAsync(undo.PersonId!.Value, undo.FaceIds, UserId, since, cancellationToken)
+            : await _review.GetFacesLeftUnnamedByAsync(undo.FaceIds, UserId, since, cancellationToken);
+        if (standing.Count != undo.FaceIds.Count)
+        {
+            NormalizeRequest();
+            ErrorMessage = "Someone has changed that since, so it was not undone. Check the face again before correcting it.";
+            return Redirect(BuildReviewUrl(Mode, PageNumber));
+        }
+
+        return await (undo.Kind == PeopleReviewUndo.Named
+            ? ExecuteAsync(
+                () => _review.ReturnAssignmentsToReviewAsync(undo.PersonId!.Value, undo.FaceIds.ToList(), UserId, PeopleReviewUndo.UndoReason, cancellationToken),
+                undo.FaceIds.Count == 1 ? "Undone. The face is back in review." : "Undone. The faces are back in review.",
+                Mode)
+            : ExecuteAsync(
+                () => _review.ReopenUnidentifiedManyAsync(undo.FaceIds.ToList(), UserId, cancellationToken),
+                undo.FaceIds.Count == 1 ? "Undone. The face is back in review." : "Undone. The faces are back in review.",
+                Mode));
+    }
 
     public Task<IActionResult> OnPostReopenAsync(
         Guid faceId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.ReopenUnidentifiedAsync(faceId, UserId, cancellationToken),
-            "Appearance reopened for review.",
+            "Back in review.",
             Mode);
 
     public Task<IActionResult> OnPostCreateAsync(
         Guid faceId,
         string displayName,
         CancellationToken cancellationToken)
-        => ExecuteAsync(
-            () => _review.CreatePersonAndAssignAsync(faceId, displayName, UserId, cancellationToken),
-            "Person created and identity confirmed.",
-            Mode);
+    {
+        var created = Guid.Empty;
+        return ExecuteAsync(
+            async () => created = await _review.CreatePersonAndAssignAsync(faceId, displayName, UserId, cancellationToken),
+            "New person added and named.",
+            Mode,
+            started => NamingUndoAsync(() => created, new[] { faceId }, started, cancellationToken));
+    }
 
     public Task<IActionResult> OnPostSuppressAsync(
         Guid faceId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.SuppressAsync(faceId, UserId, cancellationToken),
-            "Detection marked as not a face.",
+            "Marked as not a face.",
             Mode);
 
     public Task<IActionResult> OnPostCreateGroupAsync(
         List<Guid> faceIds,
         string displayName,
         CancellationToken cancellationToken)
-        => ExecuteAsync(
-            () => _review.CreatePersonAndAssignManyAsync(faceIds, displayName, UserId, cancellationToken),
-            "Person created and the selected appearances were confirmed.",
-            "groups");
+    {
+        var created = Guid.Empty;
+        return ExecuteAsync(
+            async () => created = await _review.CreatePersonAndAssignManyAsync(faceIds, displayName, UserId, cancellationToken),
+            "New person added and the selected faces named.",
+            "groups",
+            started => NamingUndoAsync(() => created, faceIds, started, cancellationToken));
+    }
 
     public Task<IActionResult> OnPostRejectGroupCandidateAsync(
         List<Guid> faceIds,
@@ -478,7 +586,7 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.RejectManyAsync(faceIds, candidatePersonId, UserId, cancellationToken),
-            "The known-person suggestion was rejected for the selected appearances.",
+            "Marked as not this person for the selected faces.",
             "groups");
 
     public Task<IActionResult> OnPostAssignGroupAsync(
@@ -488,8 +596,9 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.AssignManyAsync(faceIds, personId, UserId, confidence, cancellationToken),
-            "The selected appearances were assigned to the person.",
-            "groups");
+            "The selected faces were named.",
+            "groups",
+            started => NamingUndoAsync(() => personId, faceIds, started, cancellationToken));
 
     public Task<IActionResult> OnPostRefreshCandidatesAsync(CancellationToken cancellationToken)
         => ExecuteAsync(
@@ -497,8 +606,8 @@ public sealed class ReviewModel : PageModel
             {
                 var queued = await _invalidation.ForceRequeueAllCandidatesAsync(cancellationToken);
                 StatusMessage = queued == 0
-                    ? "No unresolved faces required candidate rematching."
-                    : $"Re-run requested for {queued} unresolved face(s). Matching will continue in the background.";
+                    ? "No face needed checking again."
+                    : $"Checking {queued} face(s) again. This carries on in the background.";
             },
             null,
             Mode);
@@ -599,16 +708,45 @@ public sealed class ReviewModel : PageModel
         return "matches";
     }
 
+    // What a naming leaves to undo: only the faces this request itself gave to the person. A
+    // face another reviewer had already given to the same person is named without anything
+    // being assigned, and must not be taken away from them by this reviewer's Undo.
+    private async Task<string?> NamingUndoAsync(
+        Func<Guid> personId,
+        IReadOnlyCollection<Guid> faceIds,
+        DateTimeOffset started,
+        CancellationToken cancellationToken)
+    {
+        var person = personId();
+        var assigned = await _review.GetFacesAssignedByAsync(person, faceIds, UserId, started, cancellationToken);
+        return PeopleReviewUndo.ForNaming(person, assigned, UserId, started);
+    }
+
+    // The same for leaving faces unnamed: a face another reviewer had already left unnamed is
+    // not closed again by this request, and this reviewer's Undo must not reopen it.
+    private async Task<string?> LeavingUnnamedUndoAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        DateTimeOffset started,
+        CancellationToken cancellationToken)
+    {
+        var closed = await _review.GetFacesLeftUnnamedByAsync(faceIds, UserId, started, cancellationToken);
+        return PeopleReviewUndo.ForLeavingUnnamed(closed, UserId, started);
+    }
+
     private async Task<IActionResult> ExecuteAsync(
         Func<Task> action,
         string? successMessage,
-        string redirectMode)
+        string redirectMode,
+        Func<DateTimeOffset, Task<string?>>? undoState = null)
     {
+        // An earlier decision can no longer be undone once another has been made.
+        UndoState = null;
+        var started = DateTimeOffset.UtcNow;
         NormalizeRequest();
         var normalizedRedirectMode = NormalizeModeValue(redirectMode);
         if (!FeatureEnabled)
         {
-            ErrorMessage = "People intelligence is disabled. Complete readiness checks and enable the feature before reviewing faces.";
+            ErrorMessage = "Face review is switched off. The face recognition models must pass their checks first.";
             return Redirect(BuildReviewUrl(normalizedRedirectMode, PageNumber));
         }
 
@@ -619,6 +757,8 @@ public sealed class ReviewModel : PageModel
             {
                 StatusMessage = successMessage;
             }
+
+            UndoState = undoState is null ? null : await undoState(started);
         }
         catch (Exception exception) when (exception is ArgumentException
                                            or InvalidOperationException

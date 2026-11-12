@@ -190,7 +190,9 @@ public sealed class FaceReviewService : IFaceReviewService
                     Action = "FaceGroupAssigned",
                     PerformedByUserId = userId,
                     Notes = $"Assigned {selectedFaces.Count} reviewer-selected faces to '{person.DisplayName}'.",
-                    MetadataJson = JsonSerializer.Serialize(new { FaceIds = selectedFaces, Similarity = confidence, Source = reviewSource }),
+                    // The per-face audits record server-side evidence. The confidence posted
+                    // by the page is client-supplied and is not recorded as a similarity fact.
+                    MetadataJson = JsonSerializer.Serialize(new { FaceIds = selectedFaces, Source = reviewSource }),
                     PerformedAtUtc = DateTimeOffset.UtcNow
                 });
             }
@@ -351,40 +353,51 @@ public sealed class FaceReviewService : IFaceReviewService
         CancellationToken cancellationToken)
     {
         ValidateUserId(userId);
-        await ValidateUnassignedFaceAsync(faceId, cancellationToken);
-        var decisions = await _db.FaceReviewDecisions
-            .Where(decision => decision.MediaFaceId == faceId
-                               && decision.Decision == FaceReviewDecisionType.Pending
-                               && (!personId.HasValue || decision.CandidatePersonId == personId))
-            .ToListAsync(cancellationToken);
-        if (decisions.Count == 0)
+        var rejected = false;
+        // Validation and the decision update run in one transaction, like the other
+        // identity mutations, so a concurrent assignment cannot slip in between them.
+        await ExecuteTransactionalAsync(async () =>
         {
-            return;
-        }
+            await ValidateUnassignedFaceAsync(faceId, cancellationToken);
+            var decisions = await _db.FaceReviewDecisions
+                .Where(decision => decision.MediaFaceId == faceId
+                                   && decision.Decision == FaceReviewDecisionType.Pending
+                                   && (!personId.HasValue || decision.CandidatePersonId == personId))
+                .ToListAsync(cancellationToken);
+            if (decisions.Count == 0)
+            {
+                return;
+            }
 
-        var now = DateTimeOffset.UtcNow;
-        foreach (var decision in decisions)
-        {
-            decision.Decision = FaceReviewDecisionType.Rejected;
-            decision.DecidedByUserId = userId;
-            decision.DecidedAtUtc = now;
-            decision.ConcurrencyToken = Guid.NewGuid();
-        }
+            var now = DateTimeOffset.UtcNow;
+            foreach (var decision in decisions)
+            {
+                decision.Decision = FaceReviewDecisionType.Rejected;
+                decision.DecidedByUserId = userId;
+                decision.DecidedAtUtc = now;
+                decision.ConcurrencyToken = Guid.NewGuid();
+            }
 
-        _db.IdentityAudits.Add(new MediaIdentityAudit
+            _db.IdentityAudits.Add(new MediaIdentityAudit
+            {
+                FaceId = faceId,
+                PersonId = personId,
+                PreviousPersonId = personId,
+                Action = "CandidateRejected",
+                PerformedByUserId = userId,
+                Notes = personId.HasValue
+                    ? "The suggested identity was rejected."
+                    : "All pending identity suggestions for the face were rejected.",
+                PerformedAtUtc = now
+            });
+            await _db.SaveChangesAsync(cancellationToken);
+            rejected = true;
+        }, cancellationToken);
+
+        if (rejected)
         {
-            FaceId = faceId,
-            PersonId = personId,
-            PreviousPersonId = personId,
-            Action = "CandidateRejected",
-            PerformedByUserId = userId,
-            Notes = personId.HasValue
-                ? "The suggested identity was rejected."
-                : "All pending identity suggestions for the face were rejected.",
-            PerformedAtUtc = now
-        });
-        await SaveWithConflictTranslationAsync(cancellationToken);
-        await _invalidation.NotifyFacesNeedRematchAsync(new[] { faceId }, cancellationToken);
+            await _invalidation.NotifyFacesNeedRematchAsync(new[] { faceId }, cancellationToken);
+        }
     }
 
     public async Task RejectManyAsync(
@@ -401,67 +414,71 @@ public sealed class FaceReviewService : IFaceReviewService
             throw new ArgumentException("A suggested person is required.", nameof(personId));
         }
 
-        await ValidateGroupSelectionAsync(selectedFaces, requireUnassigned: true, cancellationToken);
-        var activePerson = await _db.Persons
-            .AsNoTracking()
-            .AnyAsync(person => person.Id == personId
-                                && !person.IsHidden
-                                && person.Status == MediaPersonStatus.Confirmed,
-                cancellationToken);
-        if (!activePerson)
+        await ExecuteTransactionalAsync(async () =>
         {
-            throw new KeyNotFoundException("The suggested person is no longer active.");
-        }
-
-        var existing = await _db.FaceReviewDecisions
-            .Where(decision => selectedFaces.Contains(decision.MediaFaceId)
-                               && decision.CandidatePersonId == personId
-                               && decision.ModelKey == _options.Embedder.Key
-                               && decision.ModelVersion == _options.Embedder.Version)
-            .ToListAsync(cancellationToken);
-        var now = DateTimeOffset.UtcNow;
-        foreach (var decision in existing.Where(decision => decision.Decision == FaceReviewDecisionType.Pending))
-        {
-            decision.Decision = FaceReviewDecisionType.Rejected;
-            decision.DecidedByUserId = userId;
-            decision.DecidedAtUtc = now;
-            decision.Notes = "Known-person suggestion rejected for this reviewer-selected identity group.";
-            decision.ConcurrencyToken = Guid.NewGuid();
-        }
-
-        var alreadyRejected = existing
-            .Where(decision => decision.Decision == FaceReviewDecisionType.Rejected)
-            .Select(decision => decision.MediaFaceId)
-            .ToHashSet();
-        foreach (var faceId in selectedFaces.Where(faceId => !alreadyRejected.Contains(faceId)))
-        {
-            _db.FaceReviewDecisions.Add(new MediaFaceReviewDecision
+            await ValidateGroupSelectionAsync(selectedFaces, requireUnassigned: true, cancellationToken);
+            var activePerson = await _db.Persons
+                .AsNoTracking()
+                .AnyAsync(person => person.Id == personId
+                                    && !person.IsHidden
+                                    && person.Status == MediaPersonStatus.Confirmed,
+                    cancellationToken);
+            if (!activePerson)
             {
-                MediaFaceId = faceId,
-                CandidatePersonId = personId,
-                Decision = FaceReviewDecisionType.Rejected,
-                ModelKey = _options.Embedder.Key,
-                ModelVersion = _options.Embedder.Version,
-                DecidedByUserId = userId,
-                Notes = "Known-person suggestion rejected for this reviewer-selected identity group.",
-                ConcurrencyToken = Guid.NewGuid(),
-                CreatedAtUtc = now,
-                DecidedAtUtc = now
-            });
-        }
+                throw new KeyNotFoundException("The suggested person is no longer active.");
+            }
 
-        _db.IdentityAudits.Add(new MediaIdentityAudit
-        {
-            FaceId = selectedFaces[0],
-            PersonId = personId,
-            PreviousPersonId = personId,
-            Action = "GroupCandidateRejected",
-            PerformedByUserId = userId,
-            Notes = $"Rejected the suggested person for {selectedFaces.Count} face appearance(s).",
-            MetadataJson = JsonSerializer.Serialize(new { FaceIds = selectedFaces, CandidatePersonId = personId, Source = reviewSource }),
-            PerformedAtUtc = now
-        });
-        await SaveWithConflictTranslationAsync(cancellationToken);
+            var existing = await _db.FaceReviewDecisions
+                .Where(decision => selectedFaces.Contains(decision.MediaFaceId)
+                                   && decision.CandidatePersonId == personId
+                                   && decision.ModelKey == _options.Embedder.Key
+                                   && decision.ModelVersion == _options.Embedder.Version)
+                .ToListAsync(cancellationToken);
+            var now = DateTimeOffset.UtcNow;
+            foreach (var decision in existing.Where(decision => decision.Decision == FaceReviewDecisionType.Pending))
+            {
+                decision.Decision = FaceReviewDecisionType.Rejected;
+                decision.DecidedByUserId = userId;
+                decision.DecidedAtUtc = now;
+                decision.Notes = "Known-person suggestion rejected for this reviewer-selected identity group.";
+                decision.ConcurrencyToken = Guid.NewGuid();
+            }
+
+            var alreadyRejected = existing
+                .Where(decision => decision.Decision == FaceReviewDecisionType.Rejected)
+                .Select(decision => decision.MediaFaceId)
+                .ToHashSet();
+            foreach (var faceId in selectedFaces.Where(faceId => !alreadyRejected.Contains(faceId)))
+            {
+                _db.FaceReviewDecisions.Add(new MediaFaceReviewDecision
+                {
+                    MediaFaceId = faceId,
+                    CandidatePersonId = personId,
+                    Decision = FaceReviewDecisionType.Rejected,
+                    ModelKey = _options.Embedder.Key,
+                    ModelVersion = _options.Embedder.Version,
+                    DecidedByUserId = userId,
+                    Notes = "Known-person suggestion rejected for this reviewer-selected identity group.",
+                    ConcurrencyToken = Guid.NewGuid(),
+                    CreatedAtUtc = now,
+                    DecidedAtUtc = now
+                });
+            }
+
+            _db.IdentityAudits.Add(new MediaIdentityAudit
+            {
+                FaceId = selectedFaces[0],
+                PersonId = personId,
+                PreviousPersonId = personId,
+                Action = "GroupCandidateRejected",
+                PerformedByUserId = userId,
+                Notes = $"Rejected the suggested person for {selectedFaces.Count} face appearance(s).",
+                MetadataJson = JsonSerializer.Serialize(new { FaceIds = selectedFaces, CandidatePersonId = personId, Source = reviewSource }),
+                PerformedAtUtc = now
+            });
+            await _db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+
         await _invalidation.NotifyFacesNeedRematchAsync(selectedFaces, cancellationToken);
     }
 
@@ -969,8 +986,12 @@ public sealed class FaceReviewService : IFaceReviewService
                     throw new FaceIdentityConflictException(trustReadiness.Message);
                 }
             }
-            else
+            else if (assignment.ReferenceStatus == FaceReferenceStatus.TrustedReference)
             {
+                // Only excluding a trusted reference can remove the person's last usable
+                // matching evidence. Excluding an appearance that is not a reference changes
+                // nothing about matching, so it is allowed even when the person has no
+                // trusted references yet.
                 var otherTrustedFaceIds = await _db.PersonFaces
                     .AsNoTracking()
                     .Where(item => item.MediaPersonId == personId
@@ -1328,6 +1349,56 @@ public sealed class FaceReviewService : IFaceReviewService
         await _invalidation.NotifyReferenceEvidenceChangedAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> GetFacesAssignedByAsync(
+        Guid personId,
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(faceIds);
+        var selected = faceIds.Where(id => id != Guid.Empty).Distinct().ToList();
+        if (selected.Count == 0 || personId == Guid.Empty || string.IsNullOrWhiteSpace(userId))
+        {
+            return Array.Empty<Guid>();
+        }
+
+        return await _db.PersonFaces
+            .AsNoTracking()
+            .Where(assignment => assignment.MediaPersonId == personId
+                                 && selected.Contains(assignment.MediaFaceId)
+                                 && assignment.RemovedAtUtc == null
+                                 && assignment.AssignedByUserId == userId
+                                 && assignment.AssignedAtUtc >= sinceUtc)
+            .Select(assignment => assignment.MediaFaceId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetFacesLeftUnnamedByAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(faceIds);
+        var selected = faceIds.Where(id => id != Guid.Empty).Distinct().ToList();
+        if (selected.Count == 0 || string.IsNullOrWhiteSpace(userId))
+        {
+            return Array.Empty<Guid>();
+        }
+
+        return await _db.FaceReviewDecisions
+            .AsNoTracking()
+            .Where(decision => selected.Contains(decision.MediaFaceId)
+                               && !decision.CandidatePersonId.HasValue
+                               && decision.Decision == FaceReviewDecisionType.Ignored
+                               && decision.DecidedByUserId == userId
+                               && decision.DecidedAtUtc >= sinceUtc)
+            .Select(decision => decision.MediaFaceId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task MergePeopleAsync(
         Guid sourcePersonId,
         Guid targetPersonId,
@@ -1499,6 +1570,50 @@ public sealed class FaceReviewService : IFaceReviewService
                 decision.ConcurrencyToken = Guid.NewGuid();
             }
 
+            // A face a reviewer rejected as the duplicate record is, after the merge, a face
+            // rejected as the merged person. Candidate search excludes people by rejected
+            // CandidatePersonId, so leaving these on the merged-away person let the same
+            // faces be suggested again as the target. Carry them over, and close any target
+            // suggestion for those faces that the rejection now contradicts.
+            var sourceRejections = await _db.FaceReviewDecisions
+                .Where(decision => decision.CandidatePersonId == sourcePersonId
+                                   && decision.Decision == FaceReviewDecisionType.Rejected)
+                .ToListAsync(cancellationToken);
+            foreach (var rejection in sourceRejections)
+            {
+                rejection.CandidatePersonId = targetPersonId;
+                rejection.Notes = TrimTo(
+                    string.IsNullOrWhiteSpace(rejection.Notes)
+                        ? $"Rejection carried over when '{source.DisplayName}' was merged."
+                        : $"{rejection.Notes} Carried over when '{source.DisplayName}' was merged.",
+                    1024);
+                rejection.ConcurrencyToken = Guid.NewGuid();
+            }
+
+            var rejectedFaceIds = sourceRejections.Select(rejection => rejection.MediaFaceId).ToHashSet();
+            if (rejectedFaceIds.Count > 0)
+            {
+                var rejectedFaceIdList = rejectedFaceIds.ToList();
+                var contradicted = await _db.FaceReviewDecisions
+                    .Where(decision => rejectedFaceIdList.Contains(decision.MediaFaceId)
+                                       && decision.CandidatePersonId == targetPersonId
+                                       && decision.Decision == FaceReviewDecisionType.Pending)
+                    .ToListAsync(cancellationToken);
+                // Suggestions redirected from the source above are tracked but not yet saved.
+                contradicted.AddRange(sourceDecisions.Where(decision =>
+                    decision.Decision == FaceReviewDecisionType.Pending
+                    && decision.CandidatePersonId == targetPersonId
+                    && rejectedFaceIds.Contains(decision.MediaFaceId)));
+                foreach (var decision in contradicted.Distinct())
+                {
+                    decision.Decision = FaceReviewDecisionType.Ignored;
+                    decision.DecidedAtUtc = now;
+                    decision.DecidedByUserId = userId;
+                    decision.Notes = "Superseded by a rejection carried over during person merge.";
+                    decision.ConcurrencyToken = Guid.NewGuid();
+                }
+            }
+
             _db.IdentityAudits.Add(new MediaIdentityAudit
             {
                 PersonId = target.Id,
@@ -1563,18 +1678,15 @@ public sealed class FaceReviewService : IFaceReviewService
             return;
         }
 
-        var previousPersonId = activeAssignments.Select(assignment => (Guid?)assignment.MediaPersonId).FirstOrDefault();
-        foreach (var assignment in activeAssignments)
-        {
-            assignment.RemovedAtUtc = now;
-            assignment.RemovedByUserId = userId;
-            assignment.RemovalReason = $"Reassigned to {person.DisplayName}.";
-            assignment.ConcurrencyToken = Guid.NewGuid();
-        }
-
+        // Every caller assigns a face from a review queue of unassigned faces; moving a
+        // confirmed face between people goes through MoveAssignmentsAsync, which repairs
+        // the previous person. Finding an active assignment here means another reviewer
+        // assigned the face after this page was loaded. Silently replacing it would leave
+        // that person without the face while their portrait still showed it.
         if (activeAssignments.Count > 0)
         {
-            await _db.SaveChangesAsync(cancellationToken);
+            throw new FaceIdentityConflictException(
+                "This appearance was assigned to someone else by another reviewer. Refresh the page and review it again.");
         }
 
         _db.PersonFaces.Add(new MediaPersonFace
@@ -1637,9 +1749,8 @@ public sealed class FaceReviewService : IFaceReviewService
         {
             FaceId = faceId,
             PersonId = person.Id,
-            PreviousPersonId = previousPersonId,
             NewPersonId = person.Id,
-            Action = previousPersonId.HasValue ? "FaceReassigned" : "FaceAssigned",
+            Action = "FaceAssigned",
             PerformedByUserId = userId,
             Notes = TrimTo(auditNotes, 1024),
             MetadataJson = JsonSerializer.Serialize(new
@@ -2008,9 +2119,14 @@ public sealed class FaceReviewService : IFaceReviewService
         }
     }
 
+    // The ids of the assets the reviewer may see, for use inside other queries. It must not be
+    // marked AsNoTracking: EF Core applies that to the whole query it is composed into, so the
+    // faces and assignments loaded around it came back untracked and changes to them (marking
+    // an assignment removed, suppressing a face) were silently not saved. A query that only
+    // reads says so itself.
     private IQueryable<long> BuildVisibleAssetIdsQuery()
         => _visibility
-            .Apply(_db.Assets.AsNoTracking())
+            .Apply(_db.Assets)
             .Select(asset => asset.Id);
 
     private static IReadOnlyList<Guid> NormalizeFaceSelection(IReadOnlyCollection<Guid> faceIds)

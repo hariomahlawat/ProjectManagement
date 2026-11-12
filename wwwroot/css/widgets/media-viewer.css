@@ -7,7 +7,7 @@
 /* Sized to the screen (100vw), not the layout: if something on the page behind is wider than a
    phone, the layout widens with it and a viewer pinned to it would hang off the right edge. */
 .photos-viewer { inset: 0 auto 0 0; position: fixed; width: 100vw; z-index: 1085; }
-.photos-viewer__backdrop { backdrop-filter: blur(4px); background: rgba(5, 8, 14, .965); inset: 0; position: absolute; }
+.photos-viewer__backdrop { background: rgb(5, 8, 14); inset: 0; position: absolute; }
 
 .photos-viewer__dialog {
     color: #fff;
@@ -30,6 +30,7 @@
     grid-column: 1 / -1;
     justify-content: space-between;
     padding: .62rem .8rem .62rem 1.1rem;
+    transition: opacity .25s ease;
     z-index: 3;
 }
 
@@ -91,8 +92,9 @@
     display: flex;
     height: 100%;
     justify-content: center;
-    overflow: auto;
+    overflow: hidden;
     padding: 1.25rem 4.5rem;
+    touch-action: none;
     width: 100%;
 }
 
@@ -101,9 +103,57 @@
     max-height: 100%;
     max-width: 100%;
     object-fit: contain;
-    transform: scale(var(--viewer-zoom, 1));
+    transform: translate(var(--viewer-pan-x, 0px), var(--viewer-pan-y, 0px)) scale(var(--viewer-zoom, 1));
     transform-origin: center center;
     transition: transform .12s ease;
+}
+
+/* Photos are moved by dragging. A video cannot be, so its stage scrolls as before and a
+   zoomed video's playback controls can always be brought back into view. */
+.photos-viewer__media.has-video { overflow: auto; touch-action: auto; }
+
+.photos-viewer__media img { cursor: zoom-in; user-select: none; -webkit-user-drag: none; }
+.photos-viewer__media.is-zoomed img { cursor: grab; }
+.photos-viewer__media.is-panning img { cursor: grabbing; transition: none; }
+
+/* A photo grows out of its thumbnail when opened and slides in from the side it came from. */
+.photos-viewer__media[data-enter="open"] img { animation: photos-viewer-open .28s cubic-bezier(.2, .7, .2, 1); }
+.photos-viewer__media[data-enter="fade"] img,
+.photos-viewer__media[data-enter] video { animation: photos-viewer-fade .2s ease; }
+.photos-viewer__media[data-enter="next"] img { animation: photos-viewer-next .22s ease; }
+.photos-viewer__media[data-enter="previous"] img { animation: photos-viewer-previous .22s ease; }
+
+@keyframes photos-viewer-open {
+    from { opacity: .35; transform: translate(var(--viewer-from-x, 0px), var(--viewer-from-y, 0px)) scale(var(--viewer-from-scale, .4)); }
+}
+@keyframes photos-viewer-fade { from { opacity: 0; } }
+@keyframes photos-viewer-next { from { opacity: 0; transform: translateX(3.5rem); } }
+@keyframes photos-viewer-previous { from { opacity: 0; transform: translateX(-3.5rem); } }
+
+/* The header and arrows fade while the pointer is still, leaving only the picture. They stay
+   while a control in them shows keyboard focus, so the focused control is never invisible. */
+.photos-viewer.is-idle .photos-viewer__header:not(:has(:focus-visible)),
+.photos-viewer.is-idle .photos-viewer__nav:not(:focus-visible),
+.photos-viewer.is-idle .photos-viewer__strip:not(:has(:focus-visible)) { opacity: 0; pointer-events: none; }
+
+/* A strip of nearby thumbnails along the bottom of the stage (galleries that provide them). */
+.photos-viewer__strip { align-items: center; bottom: 0; display: flex; gap: .25rem; left: 0; overflow-x: auto; overflow-y: hidden; padding: .6rem 1rem .75rem; position: absolute; right: 0; scrollbar-width: none; transition: opacity .25s ease; z-index: 2; }
+.photos-viewer__strip::-webkit-scrollbar { display: none; }
+/* Two growing spacers centre the thumbnails when they fit and vanish when they do not, so a
+   strip wider than a phone scrolls from its true start instead of being cut off both ends. */
+.photos-viewer__strip::before,
+.photos-viewer__strip::after { content: ""; flex: 1 0 0; }
+.photos-viewer__strip[hidden] { display: none; }
+.photos-viewer__thumb { background: color-mix(in srgb, currentColor 8%, transparent); border: 0; border-radius: .25rem; flex: none; height: 3.25rem; opacity: .55; overflow: hidden; padding: 0; transition: opacity .15s ease, width .15s ease; width: 2.5rem; }
+.photos-viewer__thumb img { display: block; height: 100%; object-fit: cover; width: 100%; }
+.photos-viewer__thumb:hover { opacity: .9; }
+.photos-viewer__thumb.is-current { margin: 0 .35rem; opacity: 1; outline: 2px solid currentColor; outline-offset: 1px; width: 4.4rem; }
+.photos-viewer__stage:has(.photos-viewer__strip:not([hidden])) .photos-viewer__media { padding-bottom: 5.25rem; }
+.photos-viewer.is-idle { cursor: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .photos-viewer__media[data-enter] img,
+    .photos-viewer__media[data-enter] video { animation: none; }
 }
 
 .photos-viewer__media video { background: #000; width: min(1100px, 100%); }
@@ -121,6 +171,7 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
+    transition: opacity .25s ease;
     width: 3rem;
     z-index: 2;
 }
@@ -152,7 +203,8 @@
 
 @media (max-width: 900px) {
     .photos-viewer.is-info-open .photos-viewer__dialog { grid-template-columns: minmax(0, 1fr); }
-    .photos-viewer__info { bottom: 0; grid-column: 1; grid-row: 2; max-height: 62%; position: absolute; transform: translateY(100%); width: 100%; }
+    /* As a sheet over the stage, the details panel sits above the arrows and the thumbnail strip. */
+    .photos-viewer__info { bottom: 0; grid-column: 1; grid-row: 2; max-height: 62%; position: absolute; transform: translateY(100%); width: 100%; z-index: 4; }
     .photos-viewer.is-info-open .photos-viewer__info { transform: none; }
     .photos-viewer__media { padding: 1rem 3.5rem; }
 }
@@ -162,8 +214,9 @@
     .photos-viewer__actions button[data-viewer-zoom-out],
     .photos-viewer__actions button[data-viewer-zoom-in],
     .photos-viewer__actions button[data-viewer-zoom-reset],
-    .photos-viewer__actions a[data-viewer-original],
-    .photos-viewer__actions a[data-viewer-download] { display: none; }
+    .photos-viewer__actions a[data-viewer-original] { display: none; }
+    .photos-viewer__thumb { height: 2.6rem; width: 2rem; }
+    .photos-viewer__thumb.is-current { width: 3.4rem; }
     .photos-viewer__media { padding: .5rem 0; }
     .photos-viewer__nav { background: transparent; height: 100%; top: 0; transform: none; width: 3rem; }
     .photos-viewer__nav--prev { left: 0; }
@@ -171,7 +224,7 @@
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__backdrop {
-    background: rgba(0, 0, 0, 0.97);
+    background: #000;
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__dialog {
@@ -196,23 +249,30 @@
     color: #fff;
 }
 
+/* The viewer is dark in both themes, so hover and pressed states match the light theme's. */
 :where([data-bs-theme="dark"]) .photos-viewer__actions a:hover,
 :where([data-bs-theme="dark"]) .photos-viewer__actions button:hover,
 :where([data-bs-theme="dark"]) .photos-viewer__actions button[aria-pressed="true"] {
-    background: rgba(255, 255, 255, 0.01);
-}
-
-:where([data-bs-theme="dark"]) .photos-viewer__media video {
-    background: #000;
+    background: rgba(255, 255, 255, 0.12);
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__nav {
-    background: rgba(255, 255, 255, 0.01);
+    background: rgba(255, 255, 255, 0.08);
     color: #fff;
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__nav:hover {
-    background: rgba(255, 255, 255, 0.01);
+    background: rgba(255, 255, 255, 0.18);
+}
+
+/* On phones the arrows are full-height strips with no background, in both themes. */
+@media (max-width: 640px) {
+    :where([data-bs-theme="dark"]) .photos-viewer__nav,
+    :where([data-bs-theme="dark"]) .photos-viewer__nav:hover { background: transparent; }
+}
+
+:where([data-bs-theme="dark"]) .photos-viewer__media video {
+    background: #000;
 }
 
 :where([data-bs-theme="dark"]) .photos-viewer__info {

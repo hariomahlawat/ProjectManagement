@@ -1,0 +1,716 @@
+@page
+@model ProjectManagement.Pages.Tools.Photo.IndexModel
+@{
+    // Standalone tool: it opens in its own tab with its own minimal shell instead of the
+    // PRISM layout, and never posts photos back to the server. The shell (top bar, cards,
+    // drop zone) is shared with PDF Tools through pdf-tools.css.
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10213f" />
+    <title>Photo Tools | PRISM ERP</title>
+    <script src="~/js/core/theme-preference.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pdf-tools.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/photo-tools.css" asp-append-version="true" />
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
+</head>
+<body class="pdft phot" data-photo-tools>
+
+    <header class="pdft-topbar">
+        <a class="pdft-brand" href="#" data-nav-home>
+            <span class="pdft-brand__mark" aria-hidden="true"><i class="bi bi-image"></i></span>
+            <span class="pdft-brand__text">Photo Tools <span>by PRISM</span></span>
+        </a>
+        <span class="pdft-privacy" title="Your photos are processed by this browser and are never uploaded to PRISM.">
+            <i class="bi bi-shield-lock" aria-hidden="true"></i>
+            <span>Photos stay on this computer</span>
+        </span>
+        <a class="pdft-topbar__back" asp-page="/Dashboard/Index">
+            <i class="bi bi-box-arrow-up-left" aria-hidden="true"></i>
+            <span>PRISM</span>
+        </a>
+    </header>
+
+    <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple data-file-input tabindex="-1" aria-hidden="true" />
+
+    <main class="pdft-main phot-main" id="photMain">
+        @* ---------- Home ---------- *@
+        <section class="pdft-view" data-view="home" aria-labelledby="photHomeTitle">
+            <div class="pdft-hero">
+                <h1 id="photHomeTitle">What do you want to do with your photo?</h1>
+                <p>Everything happens in this browser. Nothing is uploaded or saved in PRISM; you download the result.</p>
+            </div>
+            <div class="pdft-grid phot-grid" role="list">
+                <a class="pdft-card" role="listitem" href="#passport">
+                    <span class="pdft-card__icon pdft-accent--blue" aria-hidden="true"><i class="bi bi-person-bounding-box"></i></span>
+                    <span class="pdft-card__title">Passport photo</span>
+                    <span class="pdft-card__text">Crop to an exact size with a face guide, make a plain background white, then save a file at the pixels and file size a form asks for.</span>
+                </a>
+                <a class="pdft-card" role="listitem" href="#sheet">
+                    <span class="pdft-card__icon pdft-accent--purple" aria-hidden="true"><i class="bi bi-printer"></i></span>
+                    <span class="pdft-card__title">Print sheet</span>
+                    <span class="pdft-card__text">Put copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper with cut lines, then download a PDF or JPG that prints at true size.</span>
+                </a>
+                <a class="pdft-card" role="listitem" href="#reduce">
+                    <span class="pdft-card__icon pdft-accent--orange" aria-hidden="true"><i class="bi bi-arrows-angle-contract"></i></span>
+                    <span class="pdft-card__title">Reduce size</span>
+                    <span class="pdft-card__text">Type the size you need, such as under 100 KB, and get the best quality that fits. Works on many photos at once.</span>
+                </a>
+                <a class="pdft-card" role="listitem" href="#edit">
+                    <span class="pdft-card__icon pdft-accent--green" aria-hidden="true"><i class="bi bi-crop"></i></span>
+                    <span class="pdft-card__title">Edit photo</span>
+                    <span class="pdft-card__text">Crop, rotate, clean up, add a filter, mark up or blur part of one photo, with undo. Save it as JPG, PNG or WEBP.</span>
+                </a>
+            </div>
+        </section>
+
+        @* ---------- Passport photo ---------- *@
+        <section class="pdft-view" data-view="passport" hidden aria-labelledby="photPassportTitle">
+            <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-passport-input tabindex="-1" aria-hidden="true" />
+            <div class="phot-head">
+                <a class="phot-head__back" href="#" data-nav-home>
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
+                </a>
+                <h1 id="photPassportTitle" data-passport-title>Passport photo</h1>
+                <div class="phot-segment phot-head__mode" role="group" aria-label="What to make">
+                    <button type="button" aria-pressed="true" data-mode="photo">Photo</button>
+                    <button type="button" aria-pressed="false" data-mode="signature">Signature</button>
+                </div>
+                <span class="phot-head__file" data-passport-file></span>
+                <button type="button" class="btn btn-outline-secondary phot-head__action" data-action="change-photo" hidden>
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Change photo
+                </button>
+            </div>
+
+            <div class="pdft-drop" data-drop data-empty>
+                <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-photo">
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose a photo
+                </button>
+                <p class="pdft-drop__hint" data-passport-drop-hint>or drop a photo here. JPG, PNG or WEBP. A plain, light background works best.</p>
+            </div>
+
+            <div class="phot-layout" data-workspace data-drop hidden>
+                <div class="phot-layout__main">
+                    <div class="phot-stage">
+                        <div class="phot-crop" data-crop tabindex="0" role="group" aria-label="Photo position. Drag to move it, or use the arrow keys; plus and minus zoom.">
+                            <canvas class="phot-crop__canvas" data-crop-canvas></canvas>
+                            <div class="phot-crop__frame" data-crop-frame aria-hidden="true">
+                                <div class="phot-crop__guide" data-crop-guide>
+                                    <span class="phot-crop__oval"></span>
+                                    <span class="phot-crop__rule phot-crop__rule--top"></span>
+                                    <span class="phot-crop__label phot-crop__label--top">Top of head</span>
+                                    <span class="phot-crop__rule phot-crop__rule--chin"></span>
+                                    <span class="phot-crop__label phot-crop__label--chin">Chin</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="phot-stage__bar phot-stage__bar--tools">
+                            <label class="phot-stage__control" for="photZoom">Zoom
+                                <input type="range" class="form-range" id="photZoom" min="100" max="400" step="1" value="100" data-zoom />
+                            </label>
+                            <label class="phot-stage__control" for="photStraighten">Straighten
+                                <input type="range" class="form-range" id="photStraighten" min="-15" max="15" step="0.5" value="0" data-straighten />
+                                <span class="phot-stage__value" data-straighten-value>0°</span>
+                            </label>
+                            <button type="button" class="btn btn-outline-light btn-sm" data-action="rotate">
+                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Rotate
+                            </button>
+                            <div class="form-check phot-stage__check" data-photo-only>
+                                <input class="form-check-input" type="checkbox" id="photGuide" checked data-guide />
+                                <label class="form-check-label" for="photGuide">Face guide</label>
+                            </div>
+                        </div>
+                        <p class="phot-stage__hint" data-stage-hint>Drag the photo so the face fills the oval, with the top of the head and the chin near the two lines.</p>
+                    </div>
+                </div>
+
+                <aside class="phot-layout__side" aria-label="Passport photo settings">
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">1</span><span data-size-title>Photo size</span></h2>
+                        <div class="phot-sizes" role="group" aria-label="Photo size" data-sizes></div>
+                        <div class="phot-custom" data-custom-size hidden>
+                            <div class="phot-custom__field">
+                                <label for="photCustomWidth">Width</label>
+                                <input type="text" inputmode="decimal" class="form-control" id="photCustomWidth" value="35" maxlength="6" data-custom-width />
+                            </div>
+                            <div class="phot-custom__field">
+                                <label for="photCustomHeight">Height</label>
+                                <input type="text" inputmode="decimal" class="form-control" id="photCustomHeight" value="45" maxlength="6" data-custom-height />
+                            </div>
+                            <div class="phot-custom__field">
+                                <label for="photCustomUnit">Unit</label>
+                                <select class="form-select" id="photCustomUnit" data-custom-unit>
+                                    <option value="mm" selected>mm</option>
+                                    <option value="inch">inch</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">2</span>Clean up</h2>
+                        <div class="phot-fix" data-photo-only>
+                            <button type="button" class="phot-toggle" aria-pressed="false" data-action="fix-lighting">
+                                <i class="bi bi-magic" aria-hidden="true"></i> Fix lighting
+                            </button>
+                            <span class="phot-hint">Corrects a dull photo and a yellow or blue colour cast.</span>
+                        </div>
+                        <div class="phot-fix" data-signature-only hidden>
+                            <button type="button" class="phot-toggle" aria-pressed="true" data-action="clean-paper">
+                                <i class="bi bi-magic" aria-hidden="true"></i> Clean paper
+                            </button>
+                            <span class="phot-hint" data-paper-hint>Makes the paper white and the ink black.</span>
+                        </div>
+                        <label class="phot-slider" for="photBrightness" data-photo-only>Brightness
+                            <input type="range" class="form-range" id="photBrightness" min="-50" max="50" step="1" value="0" data-brightness />
+                            <span class="phot-slider__value" data-brightness-value>0</span>
+                        </label>
+                        <div class="phot-bg" data-photo-only>
+                            <span class="phot-bg__title" id="photBgTitle">Background</span>
+                            <div class="phot-bg__choices" role="group" aria-labelledby="photBgTitle">
+                                <button type="button" class="phot-bgchoice" aria-pressed="true" data-bg="">
+                                    <i class="bi bi-image" aria-hidden="true"></i> Keep
+                                </button>
+                                <button type="button" class="phot-bgchoice" aria-pressed="false" data-bg="#ffffff">
+                                    <span class="phot-bgchoice__dot" aria-hidden="true"></span> White
+                                </button>
+                                <button type="button" class="phot-bgchoice" aria-pressed="false" data-bg="#cfe3f7">
+                                    <span class="phot-bgchoice__dot" aria-hidden="true"></span> Light blue
+                                </button>
+                                <label class="phot-bgchoice" data-bg-other>
+                                    <input type="color" value="#e6ecf2" data-bg-colour aria-label="Another background colour" autocomplete="off" />
+                                    Other
+                                </label>
+                            </div>
+                            <label class="phot-slider" for="photBgAmount" data-bg-amount-row hidden>How much to change
+                                <input type="range" class="form-range" id="photBgAmount" min="0" max="100" step="5" value="50" data-bg-amount autocomplete="off" />
+                                <span class="phot-slider__value" data-bg-amount-value>Normal</span>
+                            </label>
+                            <button type="button" class="btn btn-outline-secondary phot-bg__compare" data-action="bg-original" hidden>
+                                <i class="bi bi-eye" aria-hidden="true"></i> Hold to see the original
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary phot-bg__compare" data-action="bg-fix" aria-expanded="false" hidden>
+                                <i class="bi bi-brush" aria-hidden="true"></i> <span data-bg-fix-label>Fix by hand</span>
+                            </button>
+                            <div class="phot-bgfix" data-bg-fix hidden>
+                                <div class="phot-segment phot-segment--start" role="group" aria-label="What the brush does">
+                                    <button type="button" aria-pressed="true" data-bg-brush="keep">Bring back</button>
+                                    <button type="button" aria-pressed="false" data-bg-brush="remove">Remove</button>
+                                </div>
+                                <p class="phot-hint" data-bg-brush-hint aria-live="polite"></p>
+                                <div class="phot-bgfix__row">
+                                    <span class="phot-bg__title" id="photBrushSize">Brush</span>
+                                    <div class="phot-segment" role="group" aria-labelledby="photBrushSize">
+                                        <button type="button" aria-pressed="false" data-bg-size="small">Small</button>
+                                        <button type="button" aria-pressed="true" data-bg-size="medium">Medium</button>
+                                        <button type="button" aria-pressed="false" data-bg-size="large">Large</button>
+                                    </div>
+                                </div>
+                                <div class="phot-bgfix__row">
+                                    <button type="button" class="btn btn-outline-secondary" data-action="bg-fix-undo" disabled>Undo</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-action="bg-fix-clear" disabled>Clear all fixes</button>
+                                    <button type="button" class="btn btn-primary" data-action="bg-fix-done">Done</button>
+                                </div>
+                            </div>
+                            <p class="phot-hint phot-hint--warning" data-bg-problem aria-live="polite" hidden></p>
+                            <p class="phot-hint" data-bg-note hidden>Works on a plain wall or curtain. Check the hair and shoulders before you use the photo. Some offices do not accept a photo with a changed background, so check the rules of your form.</p>
+                        </div>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">3</span>Save</h2>
+                        <div class="phot-custom">
+                            <div class="phot-custom__field">
+                                <label for="photOutWidth">Width (px)</label>
+                                <input type="text" inputmode="numeric" class="form-control" id="photOutWidth" maxlength="5" data-out-width />
+                            </div>
+                            <div class="phot-custom__field">
+                                <label for="photOutHeight">Height (px)</label>
+                                <input type="text" inputmode="numeric" class="form-control" id="photOutHeight" maxlength="5" data-out-height />
+                            </div>
+                            <div class="phot-custom__field">
+                                <label for="photOutLimit">Under (KB)</label>
+                                <input type="text" inputmode="decimal" class="form-control" id="photOutLimit" maxlength="6" placeholder="No limit" data-out-limit />
+                            </div>
+                        </div>
+                        <p class="phot-hint">Change the pixels or the file size if a form asks for something else. It is saved as a JPG at 300 dpi.</p>
+                        <p class="phot-result" data-passport-result aria-live="polite"></p>
+                        <div class="phot-check" data-passport-check aria-live="polite" hidden>
+                            <p class="phot-check__title" data-check-title></p>
+                            <ul class="phot-check__list" data-check-list></ul>
+                            <p class="phot-hint">A guide only. It looks at detail, head position, background and light on the face, and cannot check every rule of your form.</p>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-lg" data-action="download-passport" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> <span data-download-passport-label>Download photo</span>
+                        </button>
+                        <div class="phot-next" data-photo-only>
+                            <button type="button" class="btn btn-outline-primary" data-action="print-sheet" aria-describedby="photSheetNote" disabled>
+                                <i class="bi bi-printer" aria-hidden="true"></i> Print sheet
+                            </button>
+                            <p class="phot-hint" id="photSheetNote">Puts copies of this photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper.</p>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        @* ---------- Print sheet ---------- *@
+        <section class="pdft-view" data-view="sheet" hidden aria-labelledby="photSheetTitle">
+            <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-sheet-input tabindex="-1" aria-hidden="true" />
+            <div class="phot-head">
+                <a class="phot-head__back" href="#" data-nav-home>
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
+                </a>
+                <h1 id="photSheetTitle">Print sheet</h1>
+                <span class="phot-head__file" data-sheet-file></span>
+                <button type="button" class="btn btn-outline-secondary phot-head__action" data-action="change-photo" hidden>
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Change photo
+                </button>
+            </div>
+
+            <div class="pdft-drop" data-drop data-empty>
+                <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-photo">
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose a photo
+                </button>
+                <p class="pdft-drop__hint">or drop a photo here. JPG, PNG or WEBP. For a passport photo, make it in <a href="#passport">Passport photo</a> first and press Print sheet there.</p>
+            </div>
+
+            <div class="phot-layout" data-workspace data-drop hidden>
+                <div class="phot-layout__main">
+                    <div class="phot-stage">
+                        <div class="phot-paper" data-sheet-stage>
+                            <canvas class="phot-paper__canvas" data-sheet-canvas role="img" aria-label="Preview of the print sheet" aria-describedby="photSheetCaption"></canvas>
+                        </div>
+                        <p class="phot-stage__hint phot-paper__caption">
+                            <strong id="photSheetCaption" data-sheet-caption aria-live="polite"></strong>
+                            <span>Print at actual size (100%), not “fit to page”.</span>
+                        </p>
+                    </div>
+                </div>
+
+                <aside class="phot-layout__side" aria-label="Print sheet settings">
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">1</span>Photo</h2>
+                        <div class="phot-mini">
+                            <canvas class="phot-mini__thumb" data-sheet-thumb aria-hidden="true"></canvas>
+                            <div class="phot-mini__text">
+                                <div class="phot-mini__title" data-sheet-origin></div>
+                                <p class="phot-hint">Each copy is printed at the size chosen here.</p>
+                                <div class="phot-place" data-sheet-place hidden>
+                                    <p class="phot-hint">This photo is a different shape, so only part of it fits. Drag the picture to choose the part.</p>
+                                    <label class="phot-slider" for="photSheetZoom">Zoom
+                                        <input type="range" class="form-range" id="photSheetZoom" min="100" max="300" step="1" value="100" data-sheet-zoom autocomplete="off" />
+                                    </label>
+                                    <button type="button" class="btn btn-outline-secondary" data-action="centre-photo" disabled>Centre</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="phot-sizes" role="group" aria-label="Print size of one copy" data-sheet-sizes></div>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">2</span>Paper and copies</h2>
+                        <div class="phot-sizes" role="group" aria-label="Paper" data-sheet-papers></div>
+                        <div class="phot-copies">
+                            <span class="phot-copies__label" id="photCopiesLabel">Copies</span>
+                            <span class="phot-stepper" role="group" aria-labelledby="photCopiesLabel">
+                                <button type="button" data-action="fewer-copies" aria-label="One copy fewer"><i class="bi bi-dash-lg" aria-hidden="true"></i></button>
+                                <output data-sheet-copies aria-live="polite">0</output>
+                                <button type="button" data-action="more-copies" aria-label="One copy more"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+                            </span>
+                            <button type="button" class="btn btn-link" data-action="fill-sheet">Fill the sheet</button>
+                        </div>
+                        <p class="phot-hint" data-sheet-fit></p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="photSheetCut" checked data-sheet-cut autocomplete="off" />
+                            <label class="form-check-label" for="photSheetCut">Cut lines around each photo</label>
+                        </div>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">3</span>Save</h2>
+                        <div class="phot-segment phot-segment--start" role="group" aria-label="File type" data-sheet-formats>
+                            <button type="button" aria-pressed="true" data-sheet-format="pdf">PDF</button>
+                            <button type="button" aria-pressed="false" data-sheet-format="jpg">JPG</button>
+                        </div>
+                        <p class="phot-hint" data-sheet-format-note aria-live="polite"></p>
+                        <button type="button" class="btn btn-primary btn-lg" data-action="download-sheet" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> <span data-sheet-download-label>Download sheet</span>
+                        </button>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        @* ---------- Reduce size ---------- *@
+        <section class="pdft-view" data-view="reduce" hidden aria-labelledby="photReduceTitle">
+            <div class="phot-head">
+                <a class="phot-head__back" href="#" data-nav-home>
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
+                </a>
+                <h1 id="photReduceTitle">Reduce size</h1>
+                <button type="button" class="btn btn-outline-secondary phot-head__action" data-action="add-files" hidden>
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i> Add photos
+                </button>
+            </div>
+
+            <div class="pdft-drop" data-drop data-empty>
+                <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-files">
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose photos
+                </button>
+                <p class="pdft-drop__hint">or drop photos here. JPG, PNG or WEBP.</p>
+            </div>
+
+            <div class="phot-layout" data-workspace data-drop hidden>
+                <div class="phot-layout__main">
+                    <div class="phot-panel phot-list">
+                        <table class="phot-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Photo</th>
+                                    <th scope="col" class="phot-num">Now</th>
+                                    <th scope="col" class="phot-num">After</th>
+                                    <th scope="col" class="phot-num">Dimensions after</th>
+                                    <th scope="col"><span class="visually-hidden">Remove</span></th>
+                                </tr>
+                            </thead>
+                            <tbody data-rows></tbody>
+                        </table>
+                    </div>
+
+                    <div class="phot-stage" data-compare hidden>
+                        <div class="phot-stage__bar">
+                            <span>Check the quality: <span data-compare-name></span></span>
+                        </div>
+                        <div class="phot-compare">
+                            <img class="phot-compare__image" data-compare-before alt="Original photo" />
+                            <img class="phot-compare__image phot-compare__image--after" data-compare-after alt="Reduced photo" />
+                            <span class="phot-compare__line" data-compare-line aria-hidden="true"></span>
+                            <span class="phot-compare__tag phot-compare__tag--before" data-compare-before-label></span>
+                            <span class="phot-compare__tag phot-compare__tag--after" data-compare-after-label></span>
+                        </div>
+                        <div class="phot-stage__bar">
+                            <label class="phot-stage__slider" for="photCompareSlider">Move the line
+                                <input type="range" class="form-range" id="photCompareSlider" min="0" max="100" value="50" data-compare-slider />
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="phot-layout__side" aria-label="Size settings">
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><label for="photTargetValue">Make each photo under</label></h2>
+                        <div class="phot-target">
+                            <input type="text" inputmode="decimal" class="form-control phot-target__value" id="photTargetValue" value="100" maxlength="7" data-target-value aria-describedby="photTargetHint" />
+                            <div class="phot-segment" role="group" aria-label="Unit">
+                                <button type="button" aria-pressed="true" data-target-unit="KB">KB</button>
+                                <button type="button" aria-pressed="false" data-target-unit="MB">MB</button>
+                            </div>
+                        </div>
+                        <div class="phot-chips" role="group" aria-label="Common sizes">
+                            <button type="button" data-target-preset="20:KB">20 KB</button>
+                            <button type="button" data-target-preset="50:KB">50 KB</button>
+                            <button type="button" data-target-preset="100:KB">100 KB</button>
+                            <button type="button" data-target-preset="200:KB">200 KB</button>
+                            <button type="button" data-target-preset="500:KB">500 KB</button>
+                            <button type="button" data-target-preset="1:MB">1 MB</button>
+                        </div>
+                        <p class="phot-hint" id="photTargetHint">Leave empty for no size limit.</p>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title">Options</h2>
+                        <div class="phot-field">
+                            <label for="photDimensions">Dimensions</label>
+                            <select class="form-select" id="photDimensions" data-dimensions>
+                                <option value="keep">Keep as they are</option>
+                                <option value="longest:1600" selected>Longest side 1600 px</option>
+                                <option value="longest:1280">Longest side 1280 px</option>
+                                <option value="longest:800">Longest side 800 px</option>
+                                <option value="percent:50">Half size</option>
+                                <option value="custom">Custom longest side</option>
+                            </select>
+                        </div>
+                        <div class="phot-field" data-custom-side hidden>
+                            <label for="photCustomSide">Longest side (px)</label>
+                            <input type="number" class="form-control" id="photCustomSide" min="16" max="20000" step="1" value="1024" data-custom-side-value />
+                        </div>
+                        <div class="phot-field">
+                            <label for="photFormat">Save as</label>
+                            <select class="form-select" id="photFormat" data-format>
+                                <option value="jpeg" selected>JPG (smallest)</option>
+                                <option value="same">Same as original</option>
+                                <option value="png">PNG</option>
+                                <option value="webp">WEBP</option>
+                            </select>
+                        </div>
+                        <p class="phot-hint phot-hint--warning" data-png-hint hidden>
+                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                            PNG cannot trade quality for size, so a PNG is made smaller only by cutting its dimensions. JPG keeps far more detail at the same size.
+                        </p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="photGreyscale" data-greyscale />
+                            <label class="form-check-label" for="photGreyscale">Convert to black and white</label>
+                        </div>
+                        <p class="phot-hint">
+                            <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                            Location and camera details hidden in a photo are always left out of the saved file.
+                        </p>
+                    </div>
+
+                    <div class="phot-summary" aria-live="polite">
+                        <span class="phot-summary__count" data-summary-count></span>
+                        <div class="phot-summary__sizes">
+                            <span class="phot-summary__before" data-summary-before></span>
+                            <span class="phot-summary__after" data-summary-after></span>
+                        </div>
+                        <p class="phot-summary__note" data-summary-note hidden></p>
+                        <button type="button" class="btn btn-light btn-lg" data-action="download" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> <span data-download-label>Download</span>
+                        </button>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        @* ---------- Edit photo ---------- *@
+        <section class="pdft-view" data-view="edit" hidden aria-labelledby="photEditTitle">
+            <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-edit-input tabindex="-1" aria-hidden="true" />
+            <div class="phot-head">
+                <a class="phot-head__back" href="#" data-nav-home>
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
+                </a>
+                <h1 id="photEditTitle">Edit photo</h1>
+                <span class="phot-head__file" data-edit-file></span>
+                <button type="button" class="btn btn-outline-secondary phot-head__action" data-action="change-photo" hidden>
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Change photo
+                </button>
+            </div>
+
+            <div class="pdft-drop" data-drop data-empty>
+                <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-photo">
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose a photo
+                </button>
+                <p class="pdft-drop__hint">or drop a photo here. JPG, PNG or WEBP.</p>
+            </div>
+
+            <div class="phot-layout" data-workspace data-drop hidden>
+                <div class="phot-layout__main">
+                    <div class="phot-stage">
+                        <div class="phot-stage__bar phot-stage__bar--tools">
+                            <button type="button" class="btn btn-outline-light btn-sm" data-action="undo" aria-label="Undo" disabled>
+                                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> <span class="d-none d-sm-inline">Undo</span>
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm" data-action="redo" aria-label="Redo" disabled>
+                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> <span class="d-none d-sm-inline">Redo</span>
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm" data-action="see-original" aria-label="Hold to see the original" disabled>
+                                <i class="bi bi-eye" aria-hidden="true"></i>
+                                <span class="d-none d-sm-inline">Hold to see the original</span><span class="d-sm-none">Hold for original</span>
+                            </button>
+                            <span class="phot-edit__size" data-edit-size aria-live="polite"></span>
+                        </div>
+                        <div class="phot-edit" data-edit-stage>
+                            <div class="phot-edit__photo" data-edit-photo>
+                                <canvas class="phot-edit__canvas" data-edit-canvas></canvas>
+                                <div class="phot-cropbox" data-cropbox tabindex="0" role="group" hidden
+                                     aria-label="Crop box. Drag it to move it, drag a corner or side to change its size. Arrow keys move it; Shift and arrow keys change its size.">
+                                    <span class="phot-cropbox__grid" aria-hidden="true"></span>
+                                    <span class="phot-cropbox__handle" data-handle="nw"></span>
+                                    <span class="phot-cropbox__handle" data-handle="n"></span>
+                                    <span class="phot-cropbox__handle" data-handle="ne"></span>
+                                    <span class="phot-cropbox__handle" data-handle="e"></span>
+                                    <span class="phot-cropbox__handle" data-handle="se"></span>
+                                    <span class="phot-cropbox__handle" data-handle="s"></span>
+                                    <span class="phot-cropbox__handle" data-handle="sw"></span>
+                                    <span class="phot-cropbox__handle" data-handle="w"></span>
+                                </div>
+                            </div>
+                            <div class="phot-busy" data-edit-busy hidden>
+                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                <span>Working…</span>
+                            </div>
+                        </div>
+                        <p class="visually-hidden" role="status" data-edit-busy-status></p>
+                        <p class="phot-stage__hint" data-edit-hint></p>
+                    </div>
+                </div>
+
+                <aside class="phot-layout__side" aria-label="Edit photo tools">
+                    <div class="phot-panel">
+                        <div class="phot-segment phot-segment--full" role="group" aria-label="Tool">
+                            <button type="button" aria-pressed="true" data-tool="crop"><i class="bi bi-crop" aria-hidden="true"></i> Crop</button>
+                            <button type="button" aria-pressed="false" data-tool="rotate"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Rotate</button>
+                            <button type="button" aria-pressed="false" data-tool="resize"><i class="bi bi-aspect-ratio" aria-hidden="true"></i> Resize</button>
+                            <button type="button" aria-pressed="false" data-tool="cleanup"><i class="bi bi-magic" aria-hidden="true"></i> Clean up</button>
+                            <button type="button" aria-pressed="false" data-tool="adjust"><i class="bi bi-sliders" aria-hidden="true"></i> Adjust</button>
+                            <button type="button" aria-pressed="false" data-tool="filters"><i class="bi bi-palette" aria-hidden="true"></i> Filters</button>
+                            <button type="button" aria-pressed="false" data-tool="markup"><i class="bi bi-pencil-square" aria-hidden="true"></i> Mark up</button>
+                            <button type="button" aria-pressed="false" data-tool="hide"><i class="bi bi-eye-slash" aria-hidden="true"></i> Hide</button>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="crop">
+                            <div class="phot-field">
+                                <label for="photCropShape">Shape</label>
+                                <select class="form-select" id="photCropShape" autocomplete="off" data-crop-shape></select>
+                            </div>
+                            <p class="phot-hint" data-crop-size aria-live="polite"></p>
+                            <button type="button" class="btn btn-primary" data-action="apply-crop" disabled>
+                                <i class="bi bi-check-lg" aria-hidden="true"></i> Crop
+                            </button>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="rotate" hidden>
+                            <div class="phot-turns" role="group" aria-label="Turn or flip">
+                                <button type="button" class="btn btn-outline-secondary" data-turn="-1"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Turn left</button>
+                                <button type="button" class="btn btn-outline-secondary" data-turn="1"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Turn right</button>
+                                <button type="button" class="btn btn-outline-secondary" data-flip="h"><i class="bi bi-symmetry-vertical" aria-hidden="true"></i> Flip sideways</button>
+                                <button type="button" class="btn btn-outline-secondary" data-flip="v"><i class="bi bi-symmetry-horizontal" aria-hidden="true"></i> Flip upside down</button>
+                            </div>
+                            <label class="phot-slider" for="photEditStraighten">Straighten
+                                <input type="range" class="form-range" id="photEditStraighten" min="-15" max="15" step="0.5" value="0" autocomplete="off" data-edit-straighten />
+                                <span class="phot-slider__value" data-edit-straighten-value>0°</span>
+                            </label>
+                            <p class="phot-hint">Straightening trims a little off the edges so no empty corner shows.</p>
+                            <button type="button" class="btn btn-primary" data-action="apply-straighten" disabled>
+                                <i class="bi bi-check-lg" aria-hidden="true"></i> Straighten
+                            </button>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="resize" hidden>
+                            <div class="phot-custom phot-custom--two">
+                                <div class="phot-custom__field">
+                                    <label for="photResizeWidth">Width (px)</label>
+                                    <input type="text" inputmode="numeric" class="form-control" id="photResizeWidth" maxlength="5" autocomplete="off" data-resize-width />
+                                </div>
+                                <div class="phot-custom__field">
+                                    <label for="photResizeHeight">Height (px)</label>
+                                    <input type="text" inputmode="numeric" class="form-control" id="photResizeHeight" maxlength="5" autocomplete="off" data-resize-height />
+                                </div>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="photResizeKeep" checked autocomplete="off" data-resize-keep />
+                                <label class="form-check-label" for="photResizeKeep">Keep the shape</label>
+                            </div>
+                            <div class="phot-chips" role="group" aria-label="Quick sizes">
+                                <button type="button" data-resize-percent="75">75%</button>
+                                <button type="button" data-resize-percent="50">50%</button>
+                                <button type="button" data-resize-percent="25">25%</button>
+                            </div>
+                            <p class="phot-hint" data-resize-note aria-live="polite"></p>
+                            <button type="button" class="btn btn-primary" data-action="apply-resize" disabled>
+                                <i class="bi bi-check-lg" aria-hidden="true"></i> Resize
+                            </button>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="cleanup" hidden>
+                            <div class="phot-cleanups" data-cleanups></div>
+                            <p class="phot-hint">Each press is one step. Undo takes it back.</p>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="adjust" hidden>
+                            <label class="phot-slider phot-slider--named" for="photAdjustBrightness">Brightness
+                                <input type="range" class="form-range" id="photAdjustBrightness" min="-50" max="50" step="1" value="0" autocomplete="off" data-adjust="brightness" />
+                                <span class="phot-slider__value" data-adjust-value="brightness">0</span>
+                            </label>
+                            <label class="phot-slider phot-slider--named" for="photAdjustContrast">Contrast
+                                <input type="range" class="form-range" id="photAdjustContrast" min="-50" max="50" step="1" value="0" autocomplete="off" data-adjust="contrast" />
+                                <span class="phot-slider__value" data-adjust-value="contrast">0</span>
+                            </label>
+                            <label class="phot-slider phot-slider--named" for="photAdjustSaturation">Colour
+                                <input type="range" class="form-range" id="photAdjustSaturation" min="-50" max="50" step="1" value="0" autocomplete="off" data-adjust="saturation" />
+                                <span class="phot-slider__value" data-adjust-value="saturation">0</span>
+                            </label>
+                            <label class="phot-slider phot-slider--named" for="photAdjustWarmth">Warmth
+                                <input type="range" class="form-range" id="photAdjustWarmth" min="-50" max="50" step="1" value="0" autocomplete="off" data-adjust="warmth" />
+                                <span class="phot-slider__value" data-adjust-value="warmth">0</span>
+                            </label>
+                            <div class="phot-tool__actions">
+                                <button type="button" class="btn btn-primary" data-action="apply-adjust" disabled>
+                                    <i class="bi bi-check-lg" aria-hidden="true"></i> Apply
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" data-action="reset-adjust" disabled>Reset</button>
+                            </div>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="filters" hidden>
+                            <div class="phot-filters" role="group" aria-label="Filters" data-filters></div>
+                            <p class="phot-hint">Press a filter to use it. Undo takes it back.</p>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="markup" hidden>
+                            <div class="phot-chips" role="group" aria-label="What to draw" data-mark-kinds></div>
+                            <div class="phot-field">
+                                <span class="phot-field__label" id="photMarkColour">Colour</span>
+                                <div class="phot-swatches" role="group" aria-labelledby="photMarkColour" data-mark-colours></div>
+                            </div>
+                            <div class="phot-field">
+                                <span class="phot-field__label" id="photMarkSize">Size</span>
+                                <div class="phot-segment" role="group" aria-labelledby="photMarkSize" data-mark-sizes></div>
+                            </div>
+                            <div class="phot-field" data-mark-text-row hidden>
+                                <label for="photMarkText">Text</label>
+                                <input type="text" class="form-control" id="photMarkText" maxlength="80" autocomplete="off" data-mark-text />
+                            </div>
+                            <p class="phot-hint" data-mark-note aria-live="polite"></p>
+                        </div>
+
+                        <div class="phot-tool" data-tool-panel="hide" hidden>
+                            <div class="phot-segment phot-segment--start" role="group" aria-label="How to hide it">
+                                <button type="button" aria-pressed="true" data-hide-mode="cover">Cover</button>
+                                <button type="button" aria-pressed="false" data-hide-mode="blur">Blur</button>
+                                <button type="button" aria-pressed="false" data-hide-mode="pixelate">Pixelate</button>
+                            </div>
+                            <p class="phot-hint">Drag over the part to hide. Cover fills it with solid black, so nothing of it is left in the saved photo. Use Cover for writing, names and numbers.</p>
+                            <p class="phot-hint">Blur and Pixelate suit faces and backgrounds. They keep a rough outline, and short words or numbers can sometimes be guessed back from it.</p>
+                        </div>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title">Save</h2>
+                        <div class="phot-field">
+                            <label for="photEditFormat">Save as</label>
+                            <select class="form-select" id="photEditFormat" autocomplete="off" data-edit-format>
+                                <option value="jpeg">JPG</option>
+                                <option value="png">PNG</option>
+                                <option value="webp">WEBP</option>
+                            </select>
+                        </div>
+                        <label class="phot-slider" for="photEditQuality" data-edit-quality-row>Quality
+                            <input type="range" class="form-range" id="photEditQuality" min="40" max="100" step="1" value="90" autocomplete="off" data-edit-quality />
+                            <span class="phot-slider__value" data-edit-quality-value>90</span>
+                        </label>
+                        <p class="phot-result" data-edit-result aria-live="polite"></p>
+                        <button type="button" class="btn btn-primary btn-lg" data-action="download-edit" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> Download photo
+                        </button>
+                        <p class="phot-hint">
+                            <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                            Location and camera details hidden in a photo are always left out of the saved file.
+                        </p>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <div class="alert alert-danger pdft-error" role="alert" data-error hidden></div>
+    </main>
+
+    <script src="~/js/tools-shared/zip-writer.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-core.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-canvas.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-app.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-passport.js" asp-append-version="true"></script>
+    @* The same PDF library PDF Tools uses, shipped with the application. Print sheet writes its PDF with it. *@
+    <script src="~/lib/pdf-lib/1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="~/js/photo-tools/photo-tools-print.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-editor.js" asp-append-version="true"></script>
+</body>
+</html>

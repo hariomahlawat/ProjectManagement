@@ -16,9 +16,10 @@ public enum ItProjectStatusKind
 /// The derived status of an IT project. Never stored: it is resolved from the stage rows and
 /// the Dropped marker every time it is read (docs/ux/it-projects.md, "Derived status").
 /// </summary>
-public sealed record ItProjectStatus(ItProjectStatusKind Kind, string? CurrentStageCode)
+/// <param name="Module">The project's module, so the stage label is in that module's words.</param>
+public sealed record ItProjectStatus(ItProjectStatusKind Kind, string? CurrentStageCode, string Module = ItProjectModules.It)
 {
-    public string? CurrentStageLabel => CurrentStageCode is null ? null : ItProjectStages.LabelOf(CurrentStageCode);
+    public string? CurrentStageLabel => CurrentStageCode is null ? null : ItProjectStages.LabelOf(CurrentStageCode, Module);
 
     public string Label => Kind switch
     {
@@ -32,10 +33,10 @@ public sealed record ItProjectStatus(ItProjectStatusKind Kind, string? CurrentSt
     public static ItProjectStatus Resolve(ItProject project)
     {
         ArgumentNullException.ThrowIfNull(project);
-        return Resolve(project.DroppedOn.HasValue, project.Stages);
+        return Resolve(project.DroppedOn.HasValue, project.Stages, project.Module);
     }
 
-    public static ItProjectStatus Resolve(bool isDropped, IEnumerable<ItProjectStage> stages)
+    public static ItProjectStatus Resolve(bool isDropped, IEnumerable<ItProjectStage> stages, string module = ItProjectModules.It)
     {
         ArgumentNullException.ThrowIfNull(stages);
         var ordered = stages.OrderBy(stage => stage.SortOrder).ToList();
@@ -43,19 +44,19 @@ public sealed record ItProjectStatus(ItProjectStatusKind Kind, string? CurrentSt
 
         if (isDropped)
         {
-            return new ItProjectStatus(ItProjectStatusKind.Dropped, current?.StageCode);
+            return new ItProjectStatus(ItProjectStatusKind.Dropped, current?.StageCode, module);
         }
 
         if (!ordered.Any(stage => stage.IsCompleted))
         {
-            return new ItProjectStatus(ItProjectStatusKind.NotStarted, current?.StageCode);
+            return new ItProjectStatus(ItProjectStatusKind.NotStarted, current?.StageCode, module);
         }
 
         if (current is null)
         {
-            return new ItProjectStatus(ItProjectStatusKind.Completed, null);
+            return new ItProjectStatus(ItProjectStatusKind.Completed, null, module);
         }
 
-        return new ItProjectStatus(ItProjectStatusKind.InProgress, current.StageCode);
+        return new ItProjectStatus(ItProjectStatusKind.InProgress, current.StageCode, module);
     }
 }

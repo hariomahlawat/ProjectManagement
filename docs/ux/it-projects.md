@@ -19,7 +19,7 @@ their own tables, services, pages and policies, and never reference `Projects`, 
 
 | Topic | Decision |
 | --- | --- |
-| Scope | IT projects only (no kind list, no SRE/infra for now) |
+| Scope | IT projects only (no kind list, no SRE/infra for now). Since 11 Nov 2026 MOLTI projects and SRE projects are planned as two more modules on this engine: [molti-sre-projects.md](molti-sre-projects.md) |
 | Required fields | Title, description, **IT ARPPP reference number** (free text, not unique, not a case file number), **Financial year** |
 | Financial year | The FY the IT ARPPP belongs to (April to March, shown as "2026-27"). Stored as the start year with `FinancialYearHelper`, as ARPP does. Picked from a list, defaulting to the current FY; the board filters and groups by it |
 | Other fields | None for users. Only bookkeeping: created/updated by and at, row version, soft delete, Dropped |
@@ -27,12 +27,12 @@ their own tables, services, pages and policies, and never reference `Projects`, 
 | Stage completion | A stage is marked complete; its completion date is optional |
 | Auto-completion | Completing a stage completes every earlier non-skipped stage; reopening a stage reopens every later one |
 | Optional stages | Benchmarking and PNC are skipped by default and can be included per project |
-| SO stage | Carries an optional SO date (its completion date) and an optional cost in lakhs |
+| EAS & SO stage | Carries an optional SO date (its completion date) and an optional cost in lakhs |
 | Approval | None. Manage roles edit directly; every change is audited |
 | Tasks | None. No link to the Action tracker |
 | Photos, videos, time plan | None |
 | Remarks | Yes, like the R&D remarks panel but simpler: no Internal/External type, no @mentions, no notifications. Since 9 Nov 2026: not tied to a stage, and the Comdt / HoD can write **conference** remarks as on projects, ideas and tasks, on the project page or from Workspace › Conference, where the live IT projects sit under each officer who holds the ITO role; a conference remark records the stage when it was issued. Since 10 Nov 2026 the Officer workload view lists them on each ITO's card too (docs/ux/command-desk.md), and the ITO's own workspace opens on their conference review with an IT projects link in its menu (docs/ux/project-officer-briefing-desk.md) |
-| Remark writers | ITO, MCO, HoD, Comdt. Admin may delete any remark (moderation) but does not write |
+| Remark writers | ITO, MCO, HoD, Comdt. Admin and HoD may delete any remark (owner, 11 Nov 2026); everyone else, the Comdt included, only their own. Admin does not write |
 | Attachments | Yes: PDF and Office documents, Industry partners storage pattern |
 | Visibility | Every signed-in user can read the board, the project page, remarks and attachments |
 | Manage | Admin, HoD, ITO |
@@ -50,7 +50,7 @@ their own tables, services, pages and policies, and never reference `Projects`, 
 | 5 | `COB` | COB | active |
 | 6 | `BM` | Benchmarking | **skipped** |
 | 7 | `PNC` | PNC | **skipped** |
-| 8 | `SO` | SO | active (date + cost) |
+| 8 | `SO` | EAS & SO (renamed from "SO" on 12 Nov 2026; the code stays `SO`) | active (date + cost) |
 | 9 | `DLV` | Delivery and ATP | active |
 
 The list lives in code (`ItProjectStages` catalogue), not in a template table. Nine stage rows
@@ -70,7 +70,10 @@ the R&D workflow metadata.
    into the chain as not complete, unless a later stage is already complete, in which case rule 1
    makes it complete (date empty). Skipping leaves the other stages alone.
 5. **SO cost** is optional, in lakhs, two decimals, stored on the SO stage row. It may be entered
-   whether or not the SO stage is complete.
+   whether or not the SO stage is complete. The **IPA cost** (the cost approved in principle) is
+   kept the same way on the IT ARPPP / IPA stage row (owner, 11 Nov 2026): entered in Update stages
+   beside that stage's date, shown under the stage on the Journey and in the history line. No other
+   stage carries a cost, and the board's supply-order figure still counts SO values only.
 6. The stage editor saves all nine stages in one post so a historic project can be entered in one
    go; rules 1 to 4 run on the final state.
 
@@ -83,10 +86,14 @@ the R&D workflow metadata.
 | Completed | Delivery and ATP complete |
 | Dropped | `DroppedOn` set; wins over the others and keeps the stage flags as they were |
 
+A dropped project's stages are frozen: the stage editor is not offered and the command refuses a
+stage save until the project is reinstated, so a dropped case cannot become Completed (which
+could not itself be dropped). The dropped date cannot be later than today (India time).
+
 ## Data model (`Models/ItProjects`)
 
 - `ItProject`: `Id`, `Title` (200), `PppReferenceNumber` (100), `FinancialYearStart` (int,
-  indexed), `Description` (text), `CreatedByUserId`, `CreatedAtUtc`, `UpdatedByUserId`, `UpdatedAtUtc`, `DroppedOn` (date?),
+  indexed), `Description` (text; a save accepts up to 8000 characters, and an older longer description while it is left unchanged), `CreatedByUserId`, `CreatedAtUtc`, `UpdatedByUserId`, `UpdatedAtUtc`, `DroppedOn` (date?),
   `DroppedReason` (500?), `DroppedByUserId`, `IsDeleted`, `DeletedAtUtc`, `DeletedByUserId`,
   `RowVersion`, `StageMovedAtUtc` (added by the redesign, PR 1).
 - `ItProjectStage`: `Id`, `ItProjectId`, `StageCode` (8), `SortOrder`, `IsCompleted`,
@@ -111,7 +118,7 @@ a global query filter (same as `Projects`).
 | `ItProjects.Manage` | Admin, HoD, ITO | create, edit, stage editor, SO cost, attachments upload/delete, Dropped, delete |
 | `ItProjects.Remark` | ITO, MCO, HoD, Comdt | add a remark; edit/delete own remark |
 
-Admin may delete any remark (audited with the author kept). Resource checks are per project in
+Admin and HoD may delete any remark (audited with the author kept); the Comdt deletes only their own. Resource checks are per project in
 `ItProjectAccess` even though today every project is readable by every signed-in user, so a later
 narrowing is one change.
 
@@ -165,7 +172,7 @@ editor, so stages reached so far can be entered at once.
 | Access governance | `AdminRoleAccessCatalog` entries for Manage and Remark |
 | Usage | `ErpUsageModuleCatalog` module for `/ItProjects` |
 | Audit | `ItProjects.Created/Updated/StagesChanged/Dropped/Reinstated/Deleted`, `ItProjects.RemarkAdded/Edited/Deleted`, `ItProjects.AttachmentUploaded/Deleted`; rows in `AuditActionPresentationCatalog` |
-| Storage | `{upload root}/it-projects/{projectId}/{guid}{ext}` (`FileSystemItProjectAttachmentStorage`); `IFileSecurityValidator` on every key and stored file, `IFileScanner` on every upload; downloads go through the project page's `Attachment` handler (View policy, resolved by project and attachment id), not a token URL. Allowed: PDF, Word, Excel, PowerPoint, within `ProjectDocuments:MaxSizeMb`; the bytes are checked against the declared type. Soft delete keeps the file |
+| Storage | `{upload root}/it-projects/{projectId}/{guid}{ext}` (`FileSystemItProjectAttachmentStorage`); `IFileSecurityValidator` on every key and stored file, `IFileScanner` on every upload; downloads go through the project page's `Attachment` handler (View policy, resolved by project and attachment id), not a token URL. Allowed: PDF, Word, Excel, PowerPoint, within `ProjectDocuments:MaxSizeMb`; the bytes are checked against the declared type. When the browser sends a generic type (`application/octet-stream`, `application/zip` and the like, common where Office is not installed) the extension names the type and the same content check applies; the resolved type is what is stored. An upload is buffered in a temporary file (deleted on close), not in memory. Soft delete keeps the file |
 | Migration | hand-written (`tools/Add-PrismMigration.ps1` for the id), manifest line, tail test in `AdminDataJobTidyUpTests` |
 | Styles | `wwwroot/css/pages/it-projects.css`, tokens only (theme coverage check) |
 | Script | `wwwroot/js/pages/it-projects.js` (board filter and search, stage editor confirm text) |

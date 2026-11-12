@@ -49,15 +49,18 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
 
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaContentProviderResolver _contentResolver;
+    private readonly IMediaStorageRootProbe _storageRoots;
     private readonly ILogger<MediaAvailabilityRecoveryService> _logger;
 
     public MediaAvailabilityRecoveryService(
         MediaLibraryDbContext db,
         IMediaContentProviderResolver contentResolver,
+        IMediaStorageRootProbe storageRoots,
         ILogger<MediaAvailabilityRecoveryService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _contentResolver = contentResolver ?? throw new ArgumentNullException(nameof(contentResolver));
+        _storageRoots = storageRoots ?? throw new ArgumentNullException(nameof(storageRoots));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -164,6 +167,7 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
         var markedUnavailable = 0;
         var temporarilyUnavailable = 0;
         var errors = 0;
+        var storageUnreachable = false;
         var affectedCollections = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var asset in candidates)
@@ -171,7 +175,15 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
             try
             {
                 var outcome = await ProbeAsync(asset, cancellationToken);
-                if (outcome.Status == MediaAvailabilityStatus.Available)
+                if (outcome.StorageUnreachable)
+                {
+                    // An outage proves nothing about these historical rows. Leave them
+                    // visible and untouched, and stop this pass instead of re-probing the
+                    // same batch every few seconds until storage returns.
+                    temporarilyUnavailable++;
+                    storageUnreachable = true;
+                }
+                else if (outcome.Status == MediaAvailabilityStatus.Available)
                 {
                     Restore(asset);
                     QueueProcessing(asset);
@@ -214,7 +226,12 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
         await RepairCollectionCoversAsync(affectedCollections, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        var hasMore = await HistoricalCandidatesQuery().AnyAsync(cancellationToken);
+        // Ask for the short batch delay only when this pass changed something. Rows that
+        // keep failing to probe would otherwise be retried every few seconds forever.
+        var madeProgress = restored + markedUnavailable > 0;
+        var hasMore = !storageUnreachable
+                      && madeProgress
+                      && await HistoricalCandidatesQuery().AnyAsync(cancellationToken);
         return new(candidates.Count, restored, markedUnavailable, temporarilyUnavailable, errors, hasMore);
     }
 
@@ -236,6 +253,19 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
             .FirstOrDefault();
 
     private async Task<AvailabilityProbeOutcome> ProbeAsync(MediaAsset asset, CancellationToken cancellationToken)
+    {
+        var outcome = await ProbeContentAsync(asset, cancellationToken);
+        if (outcome.Status == MediaAvailabilityStatus.SourceMissing
+            && !_storageRoots.IsStorageRootReachable(asset))
+        {
+            return AvailabilityProbeOutcome.Unreachable(
+                "The storage holding this media is unreachable. " + outcome.Reason);
+        }
+
+        return outcome;
+    }
+
+    private async Task<AvailabilityProbeOutcome> ProbeContentAsync(MediaAsset asset, CancellationToken cancellationToken)
     {
         try
         {
@@ -329,6 +359,31 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
             .OrderByDescending(job => job.UpdatedAtUtc)
             .FirstOrDefault();
 
+        // The asset was just found again, so earlier "source missing" dead letters of any
+        // job type no longer apply. Leaving them made the asset a reconciliation candidate
+        // for ever: it was restored and requeued on every pass, every few seconds.
+        // Re-analysis queues the dependent work (derivatives, classification, faces).
+        foreach (var stale in asset.ProcessingJobs.Where(item =>
+                     !ReferenceEquals(item, job)
+                     && item.Status == MediaProcessingJobStatus.DeadLetter
+                     && item.FailureCode != null
+                     && SourceUnavailableFailureCodes.Contains(item.FailureCode)))
+        {
+            stale.Status = MediaProcessingJobStatus.Completed;
+            stale.CompletedAtUtc = now;
+            stale.FailureCode = null;
+            stale.FailureMessage = "Superseded: the source was found again and the asset was requeued for analysis.";
+            stale.UpdatedAtUtc = now;
+        }
+
+        // A worker is processing this asset right now; taking its lease would make two
+        // workers run the same job. It already works on the current content.
+        if (job is { Status: MediaProcessingJobStatus.Running, LockExpiresAtUtc: { } lockExpiry }
+            && lockExpiry > now)
+        {
+            return;
+        }
+
         if (job is null)
         {
             asset.ProcessingJobs.Add(new MediaProcessingJob
@@ -394,8 +449,13 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
     private static string Trim(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength];
 
-    private sealed record AvailabilityProbeOutcome(MediaAvailabilityStatus Status, string Reason)
+    private sealed record AvailabilityProbeOutcome(
+        MediaAvailabilityStatus Status,
+        string Reason,
+        bool StorageUnreachable = false)
     {
+        public static AvailabilityProbeOutcome Unreachable(string reason)
+            => new(MediaAvailabilityStatus.TemporarilyUnavailable, reason, StorageUnreachable: true);
         public static AvailabilityProbeOutcome Available() => new(MediaAvailabilityStatus.Available, string.Empty);
         public static AvailabilityProbeOutcome Missing(string reason) => new(MediaAvailabilityStatus.SourceMissing, reason);
         public static AvailabilityProbeOutcome AccessDenied(string reason) => new(MediaAvailabilityStatus.AccessDenied, reason);

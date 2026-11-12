@@ -25,14 +25,15 @@ public static class ItProjectStages
     /// <summary>Stages in order. Optional stages are skipped by default.</summary>
     public static readonly IReadOnlyList<Definition> All = new[]
     {
-        new Definition(Ppp, 1, "IT ARPPP / IPA", IsOptional: false, CarriesCost: false),
+        // The IPA cost (the cost approved in principle) sits on the first stage; the SO value on EAS & SO.
+        new Definition(Ppp, 1, "IT ARPPP / IPA", IsOptional: false, CarriesCost: true),
         new Definition(Aon, 2, "AoN", IsOptional: false, CarriesCost: false),
         new Definition(Bid, 3, "Bid", IsOptional: false, CarriesCost: false),
         new Definition(Tec, 4, "TEC", IsOptional: false, CarriesCost: false),
         new Definition(Cob, 5, "COB", IsOptional: false, CarriesCost: false),
         new Definition(Benchmarking, 6, "Benchmarking", IsOptional: true, CarriesCost: false),
         new Definition(Pnc, 7, "PNC", IsOptional: true, CarriesCost: false),
-        new Definition(So, 8, "SO", IsOptional: false, CarriesCost: true),
+        new Definition(So, 8, "EAS & SO", IsOptional: false, CarriesCost: true),
         new Definition(Delivery, 9, "Delivery and ATP", IsOptional: false, CarriesCost: false)
     };
 
@@ -49,6 +50,9 @@ public static class ItProjectStages
             : throw new ArgumentOutOfRangeException(nameof(code), code, "Unknown IT project stage.");
 
     public static string LabelOf(string code) => Get(code).Label;
+
+    /// <summary>The stage's label in a module's words: the first stage is "MOLTI ARPPP / IPA" for MOLTI projects.</summary>
+    public static string LabelOf(string code, string module) => ItProjectModules.Reword(Get(code).Label, module);
 
     public static int OrderOf(string code) => Get(code).SortOrder;
 

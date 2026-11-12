@@ -487,4 +487,50 @@ public class ItProjectAttachmentServiceTests
 
         public Task<bool> IsSafeAsync(string filePath, string contentType, CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
+
+    // ---- generic browser types ------------------------------------------------------------
+
+    [Theory]
+    [InlineData("SO.docx", "application/octet-stream", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")]
+    [InlineData("SO.xlsx", "application/zip", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+    [InlineData("SO.pdf", "", "application/pdf")]
+    [InlineData("SO.pdf", "APPLICATION/PDF", "application/pdf")]
+    [InlineData("SO.doc", "application/msword; charset=binary", "application/msword")]
+    public void ResolveContentType_UsesTheExtensionOnlyForAGenericDeclaredType(string fileName, string declared, string expected)
+        => Assert.Equal(expected, ItProjectAttachmentValidator.ResolveContentType(fileName, declared));
+
+    [Theory]
+    [InlineData("setup.exe", "application/octet-stream")]
+    [InlineData("notes.txt", "text/plain")]
+    [InlineData("SO.pdf", "text/html")]
+    public void ResolveContentType_LeavesAnythingElseForValidateToReject(string fileName, string declared)
+    {
+        var resolved = ItProjectAttachmentValidator.ResolveContentType(fileName, declared);
+        Assert.Contains(ItProjectAttachmentValidator.TypeNotAllowedMessage, ItProjectTestDb.AttachmentValidator().Validate(fileName, resolved, 10));
+    }
+
+    [Fact]
+    public async Task Upload_WithAGenericBrowserType_StoresTheRealType()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+
+        var (result, _) = await db.Attachments().UploadAsync(id, FormFile("SO.docx", "application/octet-stream", BytesFor("SO.docx")), ItProjectTestDb.Actor());
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        Assert.Equal(DocxType, Assert.Single(await db.Attachments().ListAsync(id)).ContentType);
+    }
+
+    [Fact]
+    public async Task Upload_WithAGenericBrowserType_StillChecksTheContent()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, _) = await db.SeedAsync();
+
+        var (result, _) = await db.Attachments().UploadAsync(id, FormFile("SO.pdf", "application/octet-stream", System.Text.Encoding.ASCII.GetBytes("not a pdf")), ItProjectTestDb.Actor());
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(ItProjectAttachmentValidator.ContentMismatchMessage, result.Errors);
+        Assert.Empty(db.Storage.Saved);
+    }
 }

@@ -323,8 +323,10 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
     }
 
     /// <summary>
-    /// A conference direction on an IT project: stored as the IT project's own conference remark.
-    /// IT projects sit under the ITO on the review, so the selected officer must hold that role.
+    /// A conference direction on a project of the IT projects engine: stored as the project's own
+    /// conference remark. The selected officer must be the one the project sits under on the
+    /// review: an officer who holds the ITO role for an IT project, the assigned Project Officer
+    /// for a MOLTI or SRE project (docs/ux/molti-sre-projects.md).
     /// </summary>
     private async Task<AddConferenceRemarkResult> AddItProjectRemarkAsync(
         ApplicationUser actor,
@@ -339,24 +341,37 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
         }
 
         var officer = await _users.Users.SingleOrDefaultAsync(user => user.Id == request.OfficerUserId, cancellationToken);
-        if (officer is null || !await _users.IsInRoleAsync(officer, RoleNames.Ito))
-        {
-            throw new InvalidOperationException("IT projects are reviewed under the ITO.");
-        }
-
         var project = await _db.ItProjects
             .AsNoTracking()
             .Include(candidate => candidate.Stages)
             .SingleOrDefaultAsync(candidate => candidate.Id == request.ItemId && !candidate.IsDeleted && candidate.DroppedOn == null, cancellationToken);
-        if (project is null || ItProjectStatus.Resolve(project).Kind is not (ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress))
+        if (officer is null
+            || project is null
+            || !ItProjectModules.IsKnown(project.Module)
+            || ItProjectStatus.Resolve(project).Kind is not (ItProjectStatusKind.NotStarted or ItProjectStatusKind.InProgress))
         {
-            throw new InvalidOperationException("This IT project is not part of the selected officer's current workload.");
+            throw new InvalidOperationException("This project is not part of the selected officer's current workload.");
+        }
+
+        var module = ItProjectModules.Get(project.Module);
+        if (module.HasAssignedOfficer)
+        {
+            // Under its assigned officer, and only while that officer can still be one.
+            if (!string.Equals(project.ProjectOfficerUserId, officer.Id, StringComparison.Ordinal)
+                || !await ItProjectOfficers.IsAssignableAsync(_db, officer.Id, cancellationToken))
+            {
+                throw new InvalidOperationException($"This {module.Singular} is not part of the selected officer's current workload.");
+            }
+        }
+        else if (!await _users.IsInRoleAsync(officer, RoleNames.Ito))
+        {
+            throw new InvalidOperationException("IT projects are reviewed under the ITO.");
         }
 
         var (result, remarkId) = await _itProjectRemarks.AddAsync(
             project.Id,
             new ItProjectRemarkInput(body, ItProjectYearTypes.TodayIst(_clock.UtcNow), ItProjectRemarkType.Conference),
-            new ItProjectRemarkActor(actor.Id, actor.UserName, commandRole, IsAdmin: false),
+            new ItProjectRemarkActor(actor.Id, actor.UserName, commandRole, IsAdmin: false, Module: project.Module),
             cancellationToken);
         if (!result.Succeeded)
         {
@@ -373,10 +388,10 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
                 AuthorRole = DisplayRole(commandRole),
                 CreatedAtUtc = AsUtc(remark.CreatedAtUtc),
                 SnapshotLabel = "Stage when issued",
-                SnapshotValue = remark.StageCode is { } code && ItProjectStages.IsKnown(code) ? ItProjectStages.LabelOf(code) : "Not recorded"
+                SnapshotValue = remark.StageCode is { } code && ItProjectStages.IsKnown(code) ? ItProjectStages.LabelOf(code, project.Module) : "Not recorded"
             },
             Array.Empty<ConferenceProgressEntryVm>(),
-            "Progress update awaited. The ITO has not written a remark since the direction was issued.",
+            $"Progress update awaited. {LiveItProjects.RunnerText(project.Module)} has not written a remark since the direction was issued.",
             string.Empty,
             null);
     }

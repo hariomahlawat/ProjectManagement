@@ -54,10 +54,13 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
 
     public long MaxSizeBytes => _validator.MaxSizeBytes;
 
-    public async Task<IReadOnlyList<ItProjectAttachmentView>> ListAsync(int itProjectId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<ItProjectAttachmentView>> ListAsync(int itProjectId, CancellationToken cancellationToken = default)
+        => ListAsync(itProjectId, ItProjectModules.It, cancellationToken);
+
+    public async Task<IReadOnlyList<ItProjectAttachmentView>> ListAsync(int itProjectId, string module, CancellationToken cancellationToken = default)
     {
         var rows = await _db.ItProjectAttachments.AsNoTracking()
-            .Where(attachment => attachment.ItProjectId == itProjectId && !attachment.IsDeleted)
+            .Where(attachment => attachment.ItProjectId == itProjectId && !attachment.IsDeleted && attachment.ItProject != null && attachment.ItProject.Module == module)
             .OrderByDescending(attachment => attachment.UploadedAtUtc)
             .ThenBy(attachment => attachment.OriginalFileName)
             .Select(attachment => new
@@ -91,6 +94,15 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
 
     public async Task<(ItProjectCommandResult Result, Guid AttachmentId)> UploadAsync(int itProjectId, IFormFile file, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
+        var (result, attachmentId) = await UploadCoreAsync(itProjectId, file, actor, cancellationToken);
+        return (result.In(actor.Module), attachmentId);
+    }
+
+    public async Task<ItProjectCommandResult> DeleteAsync(int itProjectId, Guid attachmentId, ItProjectActor actor, CancellationToken cancellationToken = default)
+        => (await DeleteCoreAsync(itProjectId, attachmentId, actor, cancellationToken)).In(actor.Module);
+
+    private async Task<(ItProjectCommandResult Result, Guid AttachmentId)> UploadCoreAsync(int itProjectId, IFormFile file, ItProjectActor actor, CancellationToken cancellationToken = default)
+    {
         EnsureActor(actor);
         if (file is null)
         {
@@ -99,39 +111,48 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
 
         // Some browsers send a full client path; only the file name is kept.
         var fileName = Path.GetFileName((file.FileName ?? string.Empty).Replace('\\', '/')).Trim();
-        var errors = _validator.Validate(fileName, file.ContentType, file.Length);
+        var contentType = ItProjectAttachmentValidator.ResolveContentType(fileName, file.ContentType);
+        var errors = _validator.Validate(fileName, contentType, file.Length);
         if (errors.Count > 0)
         {
             return (ItProjectCommandResult.Fail(errors), Guid.Empty);
         }
 
-        var projectExists = await _db.ItProjects.AnyAsync(project => project.Id == itProjectId && !project.IsDeleted, cancellationToken);
+        var projectExists = await _db.ItProjects.AnyAsync(project => project.Id == itProjectId && project.Module == actor.Module && !project.IsDeleted, cancellationToken);
         if (!projectExists)
         {
             return (ItProjectCommandResult.Fail(ItProjectCommandService.NotFoundMessage), Guid.Empty);
         }
 
-        await using var memory = new MemoryStream();
-        await file.CopyToAsync(memory, cancellationToken);
-        memory.Position = 0;
-        if (memory.Length != file.Length)
+        // The upload is buffered in a temporary file, not in buffer: the limit is the configured
+        // MaxSizeMb (100 MB by default), and the content check, scan and store each read it again.
+        await using var buffer = new FileStream(
+            Path.Combine(Path.GetTempPath(), $"prism-itp-{Guid.NewGuid():N}.upload"),
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.None,
+            81920,
+            FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+        await file.CopyToAsync(buffer, cancellationToken);
+        buffer.Position = 0;
+        if (buffer.Length != file.Length)
         {
             // The declared length was checked; the bytes that arrived must be checked too.
-            var sizeErrors = _validator.Validate(fileName, file.ContentType, memory.Length);
+            var sizeErrors = _validator.Validate(fileName, contentType, buffer.Length);
             if (sizeErrors.Count > 0)
             {
                 return (ItProjectCommandResult.Fail(sizeErrors), Guid.Empty);
             }
         }
 
-        if (!_validator.ContentMatches(file.ContentType, memory))
+        if (!_validator.ContentMatches(contentType, buffer))
         {
             return (ItProjectCommandResult.Fail(ItProjectAttachmentValidator.ContentMismatchMessage), Guid.Empty);
         }
 
         try
         {
-            await _scanner.ScanOrThrowAsync(memory, cancellationToken);
+            await _scanner.ScanOrThrowAsync(buffer, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -139,11 +160,11 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
             return (ItProjectCommandResult.Fail(ScanFailedMessage), Guid.Empty);
         }
 
-        memory.Position = 0;
+        buffer.Position = 0;
         string storageKey;
         try
         {
-            storageKey = await _storage.SaveAsync(itProjectId, fileName, memory, cancellationToken);
+            storageKey = await _storage.SaveAsync(itProjectId, fileName, buffer, cancellationToken);
         }
         catch (ItProjectAttachmentRejectedException exception)
         {
@@ -155,8 +176,8 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
             ItProjectId = itProjectId,
             OriginalFileName = fileName,
             StorageKey = storageKey,
-            ContentType = file.ContentType,
-            SizeBytes = memory.Length,
+            ContentType = contentType,
+            SizeBytes = buffer.Length,
             UploadedByUserId = actor.UserId,
             UploadedAtUtc = UtcNow()
         };
@@ -180,9 +201,12 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
         return (ItProjectCommandResult.Ok(), attachment.Id);
     }
 
-    public async Task<ItProjectAttachmentDownload?> OpenAsync(int itProjectId, Guid attachmentId, CancellationToken cancellationToken = default)
+    public Task<ItProjectAttachmentDownload?> OpenAsync(int itProjectId, Guid attachmentId, CancellationToken cancellationToken = default)
+        => OpenAsync(itProjectId, attachmentId, ItProjectModules.It, cancellationToken);
+
+    public async Task<ItProjectAttachmentDownload?> OpenAsync(int itProjectId, Guid attachmentId, string module, CancellationToken cancellationToken = default)
     {
-        var attachment = await LoadAsync(itProjectId, attachmentId, cancellationToken);
+        var attachment = await LoadAsync(itProjectId, attachmentId, module, cancellationToken);
         if (attachment is null)
         {
             return null;
@@ -200,11 +224,11 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
         }
     }
 
-    public async Task<ItProjectCommandResult> DeleteAsync(int itProjectId, Guid attachmentId, ItProjectActor actor, CancellationToken cancellationToken = default)
+    private async Task<ItProjectCommandResult> DeleteCoreAsync(int itProjectId, Guid attachmentId, ItProjectActor actor, CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
 
-        var attachment = await LoadAsync(itProjectId, attachmentId, cancellationToken);
+        var attachment = await LoadAsync(itProjectId, attachmentId, actor.Module, cancellationToken);
         if (attachment is null)
         {
             return ItProjectCommandResult.Fail(NotFoundMessage);
@@ -228,13 +252,14 @@ public sealed class ItProjectAttachmentService : IItProjectAttachmentService
     /// from a soft-deleted project, is "not found": the route's project is the one the caller
     /// has been authorised for (engineering invariant 6).
     /// </summary>
-    private Task<ItProjectAttachment?> LoadAsync(int itProjectId, Guid attachmentId, CancellationToken cancellationToken)
+    private Task<ItProjectAttachment?> LoadAsync(int itProjectId, Guid attachmentId, string module, CancellationToken cancellationToken)
         => _db.ItProjectAttachments
             .FirstOrDefaultAsync(attachment =>
                 attachment.Id == attachmentId &&
                 attachment.ItProjectId == itProjectId &&
                 !attachment.IsDeleted &&
                 attachment.ItProject != null &&
+                attachment.ItProject.Module == module &&
                 !attachment.ItProject.IsDeleted,
                 cancellationToken);
 

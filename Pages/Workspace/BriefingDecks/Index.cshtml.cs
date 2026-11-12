@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -1362,6 +1363,7 @@ public sealed class IndexModel : PageModel
             HasProjectOfficerAccess = hasProjectOfficerAccess,
             HasItoAccess = hasItoAccess,
             LiveItProjectCount = liveItProjectCount,
+            AssignedModuleLinks = await AssignedModuleLinksAsync(cancellationToken),
             CanViewDocuments = hasProjectOfficerAccess,
             ActiveLens = "command",
             ActiveItem = "command-briefing-decks",
@@ -1779,4 +1781,10 @@ public sealed class IndexModel : PageModel
         public ProjectBriefingItemPresentation Presentation { get; set; }
         public string RowVersion { get; set; } = string.Empty;
     }
+
+    /// <summary>The MOLTI and SRE modules in which the signed-in officer has live projects assigned, for the rail.</summary>
+    private async Task<IReadOnlyList<WorkspaceModuleLinkVm>> AssignedModuleLinksAsync(CancellationToken cancellationToken)
+        => _itoWorkspace is null
+            ? Array.Empty<WorkspaceModuleLinkVm>()
+            : await _itoWorkspace.GetAssignedModuleLinksAsync(User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier), cancellationToken);
 }

@@ -176,6 +176,16 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         {
             failures.Add("MediaLibrary:BulkDownload:MaxSourceBytes must be between 10 MB and 50 GB.");
         }
+
+        if (options.MaxConcurrentArchives is < 1 or > 16)
+        {
+            failures.Add("MediaLibrary:BulkDownload:MaxConcurrentArchives must be between 1 and 16.");
+        }
+
+        if (options.MinimumFreeSpaceBytes < 0 || options.MinimumFreeSpaceBytes > maximumBytes)
+        {
+            failures.Add("MediaLibrary:BulkDownload:MinimumFreeSpaceBytes must be between 0 and 50 GB.");
+        }
     }
 
     private static void ValidateProcessingOptions(
@@ -200,6 +210,11 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         if (options.Processing.MaxImageFileSizeBytes is < 1_048_576 or > 2_147_483_648)
         {
             failures.Add("MediaLibrary:Processing:MaxImageFileSizeBytes must be between 1 MB and 2 GB.");
+        }
+
+        if (options.Processing.MaxImagePixels is < 1_000_000 or > 1_000_000_000)
+        {
+            failures.Add("MediaLibrary:Processing:MaxImagePixels must be between 1,000,000 and 1,000,000,000.");
         }
 
         if (options.Processing.ThumbnailMaxPixels is < 128 or > 2048)

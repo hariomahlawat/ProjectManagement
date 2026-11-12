@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photos Library Mockup</title>
+<style>
+/* Layout: pictures first. One slim sticky bar (sections, search, select), then an unbroken
+   month/day timeline of justified rows with a date scrubber on the right edge. */
+:root {
+  --bg: #f4f6fa; --surface: #ffffff; --ink: #172033; --muted: #68748a; --line: #e2e7ef;
+  --accent: #2f62e0; --accent-soft: #e8efff; --on-accent: #ffffff; --hover: #edf1f7;
+  --shadow: 0 8px 28px rgba(24, 39, 70, .12);
+  --v-bg: #0a0c10; --v-fg: #f2f4f8; --v-muted: #a4adbc; --v-line: rgba(255,255,255,.14); --v-chip: rgba(255,255,255,.1);
+  --scrim: linear-gradient(to top, rgba(8,12,20,.72), rgba(8,12,20,0) 55%);
+  --font: "Mulish", "Segoe UI", system-ui, sans-serif;
+  --gutter-l: max(16px, env(safe-area-inset-left, 0px)); --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1116; --surface: #181b22; --ink: #e9ecf2; --muted: #98a2b3; --line: #2a2f3a;
+  --accent: #7aa2ff; --accent-soft: #1c2742; --on-accent: #0c1220; --hover: #20242d;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1116; --surface: #181b22; --ink: #e9ecf2; --muted: #98a2b3; --line: #2a2f3a;
+  --accent: #7aa2ff; --accent-soft: #1c2742; --on-accent: #0c1220; --hover: #20242d;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.45; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
+
+/* PRISM top navigation, shown only for context */
+.erp { display: flex; align-items: center; gap: 18px; height: 44px; border-bottom: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--muted); overflow: hidden; white-space: nowrap; }
+.erp strong { color: var(--ink); letter-spacing: .04em; }
+.erp .on { color: var(--ink); font-weight: 700; box-shadow: inset 0 -2px 0 var(--accent); align-self: stretch; display: flex; align-items: center; }
+.erp .note { margin-left: auto; font-size: 12px; border: 1px dashed var(--line); border-radius: 999px; padding: 3px 10px; }
+
+/* Slim sticky bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid transparent; }
+.bar.is-stuck { border-bottom-color: var(--line); }
+.bar__row { display: flex; align-items: center; gap: 12px; min-height: 56px; flex-wrap: wrap; padding-block: 8px; }
+.tabs { display: flex; gap: 2px; background: var(--hover); border-radius: 10px; padding: 3px; }
+.tabs button { padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 4px rgba(20,30,60,.14); }
+.search { position: relative; flex: 1 1 240px; min-width: 0; max-width: 560px; }
+.search input { width: 100%; height: 38px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; padding: 0 14px 0 38px; }
+.search input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+.search svg { position: absolute; left: 13px; top: 11px; width: 16px; height: 16px; color: var(--muted); }
+.suggest { position: absolute; top: 44px; left: 0; right: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 6px; z-index: 6; }
+.suggest h4 { margin: 8px 10px 4px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.suggest button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 7px 10px; border-radius: 8px; }
+.suggest button:hover, .suggest button:focus-visible { background: var(--hover); }
+.suggest .dot { width: 26px; height: 26px; border-radius: 50%; background-size: cover; background-position: center; flex: none; }
+.suggest small { color: var(--muted); margin-left: auto; }
+.spacer { flex: 1 1 0; }
+.btn { height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 7px; }
+.btn:hover { background: var(--hover); }
+.btn--primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn--primary:hover { background: var(--accent); filter: brightness(1.08); }
+.btn--ghost { border-color: transparent; background: none; }
+
+/* Selection replaces the bar contents */
+.selbar { display: flex; align-items: center; gap: 10px; min-height: 56px; flex-wrap: wrap; padding-block: 8px; }
+.selbar strong { font-size: 16px; margin-right: 6px; }
+.bar.is-selecting { background: var(--accent-soft); border-bottom-color: var(--line); }
+.x { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; }
+.x:hover { background: var(--hover); }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-block: 2px 12px; }
+.chip { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.chip:hover { background: var(--hover); }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 700; }
+.chips .sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
+.count { margin-left: auto; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+/* Timeline */
+.timeline { padding-block: 4px 80px; }
+@media (min-width: 900px) { .timeline { padding-right: 64px; } }
+.month { font-size: 24px; font-weight: 700; letter-spacing: -.02em; margin: 26px 0 2px; }
+.month:first-child { margin-top: 6px; }
+.day { margin-top: 14px; }
+.day__head { display: flex; align-items: center; gap: 10px; min-height: 30px; margin-bottom: 6px; }
+.day__pick { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--muted); display: grid; place-items: center; color: transparent; opacity: 0; transition: opacity .15s; flex: none; font-size: 12px; font-weight: 700; }
+.day:hover .day__pick, .day__pick:focus-visible, .is-selecting-mode .day__pick { opacity: 1; }
+.day__pick.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); opacity: 1; }
+.day__head b { font-weight: 700; white-space: nowrap; }
+.day__head span { color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grid { display: flex; flex-wrap: wrap; gap: 4px; }
+.tile { position: relative; height: 200px; flex: 0 0 auto; border-radius: 4px; overflow: hidden; background-size: cover; background-position: center; background-color: var(--hover); cursor: zoom-in; transition: transform .16s ease, border-radius .16s ease; }
+.tile::after { content: ""; position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .16s; }
+.tile:hover::after, .tile:focus-visible::after { opacity: 1; }
+.tile__cap { position: absolute; left: 10px; right: 10px; bottom: 8px; z-index: 1; color: var(--v-fg); font-size: 12.5px; font-weight: 600; opacity: 0; transform: translateY(4px); transition: .16s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile:hover .tile__cap, .tile:focus-visible .tile__cap { opacity: 1; transform: none; }
+.tile__tick { position: absolute; top: 8px; left: 8px; z-index: 2; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--v-fg); background: rgba(8,12,20,.28); color: transparent; display: grid; place-items: center; font-size: 13px; font-weight: 700; opacity: 0; transition: opacity .15s; }
+.tile:hover .tile__tick, .tile__tick:focus-visible, .is-selecting-mode .tile__tick { opacity: 1; }
+.tile.is-sel { transform: scale(.9); border-radius: 12px; box-shadow: 0 0 0 3px var(--accent); }
+.tile.is-sel .tile__tick { background: var(--accent); border-color: var(--accent); color: var(--on-accent); opacity: 1; }
+.is-selecting-mode .tile { cursor: pointer; }
+.tile__vid { position: absolute; top: 8px; right: 8px; z-index: 1; background: rgba(8,12,20,.6); color: var(--v-fg); font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 2px 8px 2px 6px; font-variant-numeric: tabular-nums; }
+.empty { text-align: center; padding: 80px 0; color: var(--muted); }
+.empty h3 { color: var(--ink); font-size: 18px; margin: 0 0 6px; }
+
+/* Date scrubber */
+.scrub { position: fixed; right: max(8px, env(safe-area-inset-right, 0px)); top: 150px; bottom: 28px; width: 52px; display: none; flex-direction: column; justify-content: space-between; align-items: flex-end; z-index: 4; }
+@media (min-width: 900px) { .scrub.show { display: flex; } }
+.scrub button { font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 2px 8px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.scrub button.yr { font-weight: 700; color: var(--ink); }
+.scrub button:hover { background: var(--hover); color: var(--ink); }
+.scrub button.on { background: var(--accent); color: var(--on-accent); }
+
+/* Albums, people, collections */
+.page { padding-block: 10px 80px; }
+.page h2 { font-size: 24px; letter-spacing: -.02em; margin: 6px 0 2px; }
+.page > p { color: var(--muted); margin: 0 0 18px; max-width: 65ch; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 22px 18px; }
+.album { text-align: left; display: block; width: 100%; }
+.album__cover { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: 3px; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; transition: transform .18s; }
+.album:hover .album__cover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.album__cover i { background-size: cover; background-position: center; }
+.album__cover i:first-child { grid-row: span 2; }
+.album b { display: block; margin-top: 10px; font-size: 15px; }
+.album small { color: var(--muted); }
+.album--new .album__cover { display: grid; place-items: center; grid-template: none; border: 2px dashed var(--line); color: var(--muted); font-size: 34px; }
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 26px 14px; }
+.person { text-align: center; display: block; width: 100%; }
+.person i { display: block; width: 112px; max-width: 100%; aspect-ratio: 1; margin: 0 auto 10px; border-radius: 50%; background-size: cover; transition: transform .18s; }
+.person:hover i { transform: scale(1.05); box-shadow: var(--shadow); }
+.person b { display: block; }
+.person small { color: var(--muted); }
+.group-title { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin: 26px 0 12px; }
+.coll .album__cover { grid-template: none; }
+.coll .album__cover i:first-child { grid-row: auto; }
+
+/* Viewer (always dark) */
+.viewer { position: fixed; inset: 0; z-index: 20; background: var(--v-bg); color: var(--v-fg); display: flex; opacity: 0; transition: opacity .22s; }
+.viewer.open { opacity: 1; }
+.vmain { position: relative; flex: 1 1 auto; min-width: 0; }
+.vstage { position: absolute; inset: 60px 0 84px; overflow: hidden; touch-action: none; }
+.vpic { position: absolute; transform-origin: 0 0; border-radius: 2px; overflow: hidden; }
+.vpic.anim { transition: transform .3s cubic-bezier(.2,.7,.2,1), opacity .18s; }
+.vinner { width: 100%; height: 100%; background-size: cover; background-position: center; transform-origin: center; cursor: zoom-in; }
+.vinner.zoomed { cursor: grab; }
+.vtop { position: absolute; inset: 0 0 auto; height: 60px; display: flex; align-items: center; gap: 6px; padding: env(safe-area-inset-top, 0px) var(--gutter-r) 0 var(--gutter-l); transition: opacity .25s; }
+.vtop__title { min-width: 0; flex: 1 1 auto; }
+.vtop__title b { display: block; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vtop__title span { color: var(--v-muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.vbtn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--v-fg); flex: none; }
+.vbtn:hover, .vbtn[aria-pressed="true"] { background: var(--v-chip); }
+.vbtn svg { width: 19px; height: 19px; }
+.vnav { position: absolute; top: 50%; width: 46px; height: 46px; margin-top: -35px; border-radius: 50%; background: var(--v-chip); color: var(--v-fg); display: grid; place-items: center; font-size: 22px; transition: opacity .25s; }
+.vnav--p { left: var(--gutter-l); } .vnav--n { right: var(--gutter-r); }
+.vnav:hover { background: rgba(255,255,255,.2); }
+.vstrip { position: absolute; inset: auto 0 0; height: 84px; display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 0 50%; transition: opacity .25s; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.vstrip::-webkit-scrollbar { display: none; }
+.vstrip button { flex: none; width: 40px; height: 52px; border-radius: 4px; background-size: cover; background-position: center; opacity: .5; transition: .18s; }
+.vstrip button:hover { opacity: .85; }
+.vstrip button.on { width: 70px; opacity: 1; margin: 0 6px; box-shadow: 0 0 0 2px var(--v-fg); }
+.viewer.idle .vtop, .viewer.idle .vnav, .viewer.idle .vstrip { opacity: 0; }
+.viewer.idle { cursor: none; }
+.vinfo { flex: none; width: 0; overflow: hidden; border-left: 1px solid transparent; transition: width .25s; background: #12151b; }
+.viewer.info .vinfo { width: 340px; border-left-color: var(--v-line); }
+.vinfo__in { width: 340px; padding: 22px 22px 30px; height: 100%; overflow-y: auto; }
+.vinfo h3 { margin: 0 0 4px; font-size: 18px; }
+.vinfo p { margin: 0 0 18px; color: var(--v-muted); }
+.vinfo dl { margin: 0; display: grid; gap: 14px; }
+.vinfo dt { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--v-muted); font-weight: 700; }
+.vinfo dd { margin: 3px 0 0; }
+.vinfo .pill { display: inline-flex; align-items: center; gap: 6px; background: var(--v-chip); border-radius: 999px; padding: 3px 10px 3px 3px; margin: 3px 4px 0 0; font-size: 12.5px; }
+.vinfo .pill i { width: 22px; height: 22px; border-radius: 50%; background-size: cover; }
+.vinfo .pill.plain { padding-left: 10px; }
+@media (max-width: 760px) {
+  .viewer { flex-direction: column; }
+  .viewer.info .vinfo { width: 100%; height: 46%; border-left: 0; border-top: 1px solid var(--v-line); }
+  .vinfo { width: 100%; height: 0; transition: height .25s; }
+  .vinfo__in { width: 100%; }
+  .vnav { display: none; }
+  .tabs button { padding: 6px 10px; }
+  .month { font-size: 20px; }
+}
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 600; opacity: 0; transition: .25s; z-index: 30; pointer-events: none; max-width: calc(100% - 32px); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { * { transition-duration: .01ms !important; } }
+</style>
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="erp wrap"><strong>PRISM ERP</strong><span>Dashboard</span><span>Calendar</span><span class="on">Photos</span><span>Projects</span><span>Documents</span><span class="note">Mockup · sample pictures are drawn, not real photos</span></div>
+
+<div class="bar" id="bar">
+  <div class="wrap">
+    <div class="bar__row" id="barMain">
+      <div class="tabs" role="tablist" aria-label="Photos sections">
+        <button role="tab" data-view="photos">Photos</button>
+        <button role="tab" data-view="albums">Albums</button>
+        <button role="tab" data-view="people">People</button>
+        <button role="tab" data-view="collections">Collections</button>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.6"/><path d="M10.6 10.6 14 14" stroke-linecap="round"/></svg>
+        <input id="q" type="search" placeholder="Search by project, visit, event, person or year" autocomplete="off" aria-label="Search photos">
+        <div class="suggest" id="suggest" hidden></div>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn" id="selectBtn">Select</button>
+    </div>
+    <div class="selbar" id="barSel" hidden>
+      <button class="x" id="selClose" aria-label="Clear selection">✕</button>
+      <strong id="selCount">0 selected</strong>
+      <span class="spacer"></span>
+      <button class="btn btn--primary" data-act="Download">Download</button>
+      <button class="btn" data-act="Add to album">Add to album</button>
+      <button class="btn" data-act="Tag people">Tag people</button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+</div>
+
+<main class="wrap">
+  <section id="view-photos"><div class="timeline" id="timeline"></div></section>
+  <section id="view-albums" class="page" hidden>
+    <h2>Albums</h2><p>Pictures picked by hand for briefings, visits and the record. Everyone with access to Photos can see them.</p>
+    <div class="cards" id="albums"></div>
+  </section>
+  <section id="view-people" class="page" hidden>
+    <h2>People</h2><p>Open a person to see every picture they are confirmed in.</p>
+    <div class="people" id="people"></div>
+  </section>
+  <section id="view-collections" class="page" hidden>
+    <h2>Collections</h2><p>Pictures grouped by where they were added in PRISM: a project, a visit, an event or an activity.</p>
+    <div id="collections"></div>
+  </section>
+</main>
+<nav class="scrub" id="scrub" aria-label="Jump to month"></nav>
+
+<div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="Picture viewer">
+  <div class="vmain">
+    <div class="vstage" id="vstage"><div class="vpic" id="vpic"><div class="vinner" id="vinner"></div></div></div>
+    <div class="vtop">
+      <button class="vbtn" id="vclose" aria-label="Close">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12.5 4 6.5 10l6 6"/></svg></button>
+      <div class="vtop__title"><b id="vtitle"></b><span id="vsub"></span></div>
+      <button class="vbtn" data-act="Download" aria-label="Download"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 16.5h12"/></svg></button>
+      <button class="vbtn" data-act="Add to album" aria-label="Add to album"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M10 7.5v5M7.5 10h5"/></svg></button>
+      <button class="vbtn" id="vinfoBtn" aria-pressed="false" aria-label="Details"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10" cy="10" r="7"/><path d="M10 9v4.5M10 6.4v.2"/></svg></button>
+    </div>
+    <button class="vnav vnav--p" id="vprev" aria-label="Previous">‹</button>
+    <button class="vnav vnav--n" id="vnext" aria-label="Next">›</button>
+    <div class="vstrip" id="vstrip"></div>
+  </div>
+  <aside class="vinfo"><div class="vinfo__in" id="vinfo"></div></aside>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+
+  // ---- drawn sample pictures -------------------------------------------------
+  const PALS = [
+    ['#f2a97a','#fde6c4','#b98562','#8b5b45','#553429','#fff1d0'], ['#5f9bd6','#cfe6f7','#93b06c','#6c8e4e','#47663a','#ffffff'],
+    ['#343a70','#e88c6c','#5c3f5f','#3b2944','#21182a','#ffd9a0'], ['#86b2d8','#f2e0c2','#d3b17c','#b7925a','#8a6a40','#fffbe8'],
+    ['#0d1530','#2a4572','#1b2c47','#121e33','#0a1220','#dfe8ff'], ['#454b59','#6b7282','#30343e','#24272e','#191b20','#ffd27a'],
+    ['#b4cbe4','#eef4fa','#dde7f0','#bfcfe0','#98adc4','#ffffff'], ['#2d6a6a','#bfe3d0','#3f7f5f','#2d5f48','#1d4233','#fff6c9']];
+  function scene(seed, ar) {
+    const r = rng(seed), p = PALS[Math.floor(r() * PALS.length)], w = 300, h = Math.round(w / ar);
+    let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p[0]}"/><stop offset="1" stop-color="${p[1]}"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/>`;
+    s += `<circle cx="${(40 + r() * 220).toFixed(0)}" cy="${(h * (.18 + r() * .25)).toFixed(0)}" r="${(10 + r() * 16).toFixed(0)}" fill="${p[5]}" opacity=".85"/>`;
+    for (let k = 0; k < 3; k++) {
+      const base = h * (.52 + k * .15), amp = h * (.1 - k * .025), f = 1 + r() * 2, ph = r() * 6;
+      let d = `M0 ${h}`;
+      for (let x = 0; x <= w; x += 20) d += ` L${x} ${(base + Math.sin(x / w * Math.PI * f + ph) * amp).toFixed(1)}`;
+      s += `<path d="${d} L${w} ${h} Z" fill="${p[2 + k]}"/>`;
+    }
+    const dark = p[4], gy = h * .9;
+    if (r() > .45) { const x = 30 + r() * 150; s += `<rect x="${x}" y="${gy - 30}" width="70" height="22" rx="4" fill="${dark}"/><rect x="${x + 40}" y="${gy - 44}" width="26" height="16" rx="3" fill="${dark}"/><circle cx="${x + 15}" cy="${gy - 6}" r="8" fill="${dark}"/><circle cx="${x + 55}" cy="${gy - 6}" r="8" fill="${dark}"/>`; }
+    const n = Math.floor(r() * 5);
+    for (let i = 0; i < n; i++) { const x = 150 + r() * 130, t = 26 + r() * 12; s += `<rect x="${x}" y="${gy - t}" width="9" height="${t}" rx="3" fill="${dark}"/><circle cx="${x + 4.5}" cy="${gy - t - 6}" r="5.5" fill="${dark}"/>`; }
+    return `url("data:image/svg+xml,${encodeURIComponent(s + '</svg>')}")`;
+  }
+  function portrait(seed) {
+    const r = rng(seed), hue = Math.floor(r() * 360);
+    const s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="hsl(${hue} 34% 78%)"/><circle cx="50" cy="42" r="19" fill="hsl(${hue} 30% 42%)"/><path d="M14 104c2-28 18-40 36-40s34 12 36 40z" fill="hsl(${hue} 30% 34%)"/></svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(s)}")`;
+  }
+
+  // ---- sample data -----------------------------------------------------------
+  const PEOPLE = ['Arjun Mehra','Kavita Rao','R. S. Chauhan','Neha Gill','Vikram Nair','Sana Iqbal','Deepak Joshi','Meera Pillai','Rohit Bansal','Anita Dogra','Manoj Thakur','Priya Sethi']
+    .map((name, i) => ({ id: i, name, img: portrait(900 + i * 7), count: 0 }));
+  const EVENTS = [
+    ['2026-11-06','Driving simulator: user trials','Project',9],['2026-11-02','Visit of training delegation','Visit',7],
+    ['2026-10-21','Counter-drone system: field demonstration','Project',11],['2026-10-14','Workshop on virtual reality training','Activity',6],
+    ['2026-10-03','Raising day','Event',12],['2026-09-18','Firing range simulator: installation','Project',8],
+    ['2026-09-05','Visit of senior officers','Visit',5],['2026-08-15','Independence Day','Event',10],
+    ['2026-08-02','Tank gunnery trainer: acceptance trials','Project',7],['2026-07-20','Technical seminar','Activity',4],
+    ['2026-07-08','Visit of industry partners','Visit',6],['2026-06-21','Yoga day','Event',5],
+    ['2026-06-10','Convoy trainer: factory tests','Project',6],['2026-05-12','Software team offsite','Activity',8],
+    ['2026-03-27','Annual sports day','Event',9],['2026-02-14','Flight trainer: handing over','Project',7],
+    ['2026-01-26','Republic Day','Event',6],['2025-12-11','Year-end review','Activity',5],
+    ['2025-11-19','Visit of foreign delegation','Visit',8],['2025-10-02','Cleanliness drive','Event',4]];
+  const CAPS = ['Setting up before the run','Crew at the controls','Instructor station','Group picture','Briefing the visitors','Close view of the equipment','Team after the trial','Walk-round','Demonstration in progress','Award presentation','Evening shot','Packing up'];
+  const RATIOS = [1.5, 1.5, 1.33, 1.78, .75, .67, 1, 1.5, 1.33];
+  const photos = []; const r0 = rng(42);
+  EVENTS.forEach(([date, ctx, source, n], e) => {
+    for (let i = 0; i < n; i++) {
+      const ar = RATIOS[Math.floor(r0() * RATIOS.length)], id = photos.length, video = r0() > .93;
+      const who = PEOPLE.filter(() => r0() > .86).slice(0, 3);
+      who.forEach(p => p.count++);
+      photos.push({ id, date, ctx, source, ar, video, dur: `0:${String(12 + Math.floor(r0() * 47)).padStart(2, '0')}`, cap: CAPS[Math.floor(r0() * CAPS.length)], img: scene(1000 + id * 13 + e, ar), people: who,
+        file: `IMG_${String(4100 + id * 3)}.${video ? 'mp4' : 'jpg'}`, size: `${(1.2 + r0() * 4).toFixed(1)} MB`, dims: ar >= 1 ? `4000 × ${Math.round(4000 / ar)}` : `${Math.round(4000 * ar)} × 4000` });
+    }
+  });
+  const ALBUMS = [['Raising day 2026', p => p.ctx === 'Raising day'], ['Pictures for briefings', p => p.id % 9 === 0], ['Visits 2026', p => p.source === 'Visit' && p.date > '2026'],
+    ['Trials and demonstrations', p => p.source === 'Project' && p.id % 2 === 0], ['Workshops and seminars', p => p.source === 'Activity'], ['Best of 2025', p => p.date < '2026']]
+    .map(([name, f]) => ({ name, items: photos.filter(f) }));
+
+  const fmtMonth = d => new Date(d + 'T00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const fmtDay = d => new Date(d + 'T00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const fmtFull = d => new Date(d + 'T00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  // ---- state -----------------------------------------------------------------
+  const state = { view: 'photos', q: '', kind: 'all', source: 'all', person: null, album: null, selecting: false, sel: new Set(), last: -1, list: [] };
+  const toastEl = $('#toast'); let toastT;
+  const toast = msg => { toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 2200); };
+
+  function filtered() {
+    const q = state.q.trim().toLowerCase();
+    return photos.filter(p => (state.kind === 'all' || (state.kind === 'video') === p.video)
+      && (state.source === 'all' || p.source === state.source)
+      && (!state.person || p.people.includes(state.person))
+      && (!state.album || state.album.items.includes(p))
+      && (!q || `${p.ctx} ${p.cap} ${p.source} ${p.date.slice(0, 4)} ${fmtMonth(p.date)} ${p.people.map(x => x.name).join(' ')}`.toLowerCase().includes(q)));
+  }
+
+  // ---- chips -----------------------------------------------------------------
+  function renderChips() {
+    const host = $('#chips'); host.replaceChildren(); host.hidden = state.view !== 'photos';
+    const add = (label, on, fn) => { const b = el('button', 'chip', label); b.setAttribute('aria-pressed', on); b.onclick = fn; host.append(b); };
+    [['all', 'Everything'], ['photo', 'Photos'], ['video', 'Videos']].forEach(([k, l]) => add(l, state.kind === k, () => { state.kind = k; refresh(); }));
+    host.append(el('span', 'sep'));
+    ['Project', 'Visit', 'Event', 'Activity'].forEach(s => add(s === 'Activity' ? 'Activities' : s + 's', state.source === s, () => { state.source = state.source === s ? 'all' : s; refresh(); }));
+    if (state.person) add(`${state.person.name} ✕`, true, () => { state.person = null; refresh(); });
+    if (state.album) add(`Album: ${state.album.name} ✕`, true, () => { state.album = null; refresh(); });
+    host.append(el('span', 'count', `${state.list.length} of ${photos.length} items`));
+  }
+
+  // ---- timeline --------------------------------------------------------------
+  const timeline = $('#timeline');
+  function renderTimeline() {
+    state.list = filtered(); timeline.replaceChildren();
+    if (!state.list.length) { const e = el('div', 'empty', '<h3>No pictures match</h3><p>Try a different word, or clear the filters.</p>'); const b = el('button', 'btn', 'Clear filters'); b.onclick = () => { Object.assign(state, { q: '', kind: 'all', source: 'all', person: null, album: null }); $('#q').value = ''; refresh(); }; e.append(b); timeline.append(e); renderScrub([]); return; }
+    let month = '', dayKey = '', grid, months = [];
+    state.list.forEach((p, idx) => {
+      const m = fmtMonth(p.date);
+      if (m !== month) { month = m; const h = el('h2', 'month', m); h.id = 'm-' + p.date.slice(0, 7); timeline.append(h); months.push({ key: p.date.slice(0, 7), el: h }); }
+      if (p.date !== dayKey) {
+        dayKey = p.date;
+        const items = state.list.filter(x => x.date === p.date), ctxs = [...new Set(items.map(x => x.ctx))];
+        const day = el('section', 'day'), head = el('div', 'day__head');
+        const pick = el('button', 'day__pick', '✓'); pick.setAttribute('aria-label', `Select all from ${fmtDay(p.date)}`); pick.dataset.day = p.date;
+        pick.onclick = () => { const all = items.every(x => state.sel.has(x.id)); items.forEach(x => all ? state.sel.delete(x.id) : state.sel.add(x.id)); syncSel(); };
+        head.append(pick, el('b', '', fmtDay(p.date)), el('span', '', `${ctxs.slice(0, 2).join(' · ')}${ctxs.length > 2 ? ' and more' : ''} · ${items.length}`));
+        grid = el('div', 'grid'); day.append(head, grid); timeline.append(day);
+      }
+      const t = el('div', 'tile'); t.tabIndex = 0; t.setAttribute('role', 'button'); t.setAttribute('aria-label', `${p.cap}, ${p.ctx}`);
+      t.style.backgroundImage = p.img; t.dataset.idx = idx; t.dataset.ar = p.ar;
+      const tick = el('button', 'tile__tick', '✓'); tick.setAttribute('aria-label', 'Select');
+      t.append(tick, el('span', 'tile__cap', `${p.cap} · ${p.ctx}`));
+      if (p.video) t.append(el('span', 'tile__vid', `▶ ${p.dur}`));
+      grid.append(t);
+    });
+    layout(); renderScrub(months); syncSel();
+  }
+  function layout() {
+    const target = innerWidth < 600 ? 112 : innerWidth < 1000 ? 160 : 210, gap = 4;
+    timeline.querySelectorAll('.grid').forEach(g => {
+      const W = g.clientWidth, tiles = [...g.children]; let row = [], sum = 0;
+      const flush = last => { let h = (W - gap * (row.length - 1)) / sum; if (last && h > target * 1.15) h = target * 1.15; row.forEach(t => { t.style.height = Math.floor(h) + 'px'; t.style.width = Math.floor(h * t.dataset.ar) + 'px'; }); row = []; sum = 0; };
+      tiles.forEach((t, i) => { row.push(t); sum += +t.dataset.ar; if (sum * target + gap * (row.length - 1) >= W) flush(false); else if (i === tiles.length - 1) flush(true); });
+    });
+  }
+  addEventListener('resize', () => { layout(); if (!viewer.hidden) fit(); });
+
+  timeline.addEventListener('click', e => {
+    const t = e.target.closest('.tile'); if (!t) return;
+    const idx = +t.dataset.idx, p = state.list[idx];
+    if (e.target.closest('.tile__tick') || state.selecting || state.sel.size) {
+      if (e.shiftKey && state.last >= 0) { const [a, b] = [Math.min(state.last, idx), Math.max(state.last, idx)]; for (let i = a; i <= b; i++) state.sel.add(state.list[i].id); }
+      else state.sel.has(p.id) ? state.sel.delete(p.id) : state.sel.add(p.id);
+      state.last = idx; syncSel();
+    } else openViewer(idx, t);
+  });
+  timeline.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('tile')) { e.preventDefault(); e.target.click(); } });
+
+  function syncSel() {
+    const n = state.sel.size, on = n > 0 || state.selecting;
+    timeline.querySelectorAll('.tile').forEach(t => t.classList.toggle('is-sel', state.sel.has(state.list[+t.dataset.idx].id)));
+    timeline.querySelectorAll('.day__pick').forEach(b => { const items = state.list.filter(x => x.date === b.dataset.day); b.classList.toggle('on', items.length > 0 && items.every(x => state.sel.has(x.id))); });
+    document.body.classList.toggle('is-selecting-mode', on);
+    $('#bar').classList.toggle('is-selecting', on); $('#barMain').hidden = on; $('#barSel').hidden = !on;
+    $('#selCount').textContent = n ? `${n} selected` : 'Choose pictures';
+  }
+  $('#selectBtn').onclick = () => { state.selecting = true; syncSel(); };
+  $('#selClose').onclick = () => { state.selecting = false; state.sel.clear(); syncSel(); };
+  document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) toast(`${b.dataset.act}: ${!viewer.hidden ? '1 item' : state.sel.size + ' items'} (mockup only)`); });
+
+  // ---- scrubber --------------------------------------------------------------
+  const scrub = $('#scrub'); let scrubMonths = [];
+  function renderScrub(months) {
+    scrubMonths = months; scrub.replaceChildren(); let yr = '';
+    months.forEach(m => {
+      const [y, mo] = m.key.split('-'), b = el('button', '', new Date(m.key + '-01T00:00').toLocaleDateString('en-GB', { month: 'short' }));
+      if (y !== yr) { yr = y; const yb = el('button', 'yr', y); yb.onclick = () => m.el.scrollIntoView({ behavior: 'smooth', block: 'start' }); scrub.append(yb); }
+      b.dataset.key = m.key; b.onclick = () => scrollTo({ top: m.el.getBoundingClientRect().top + scrollY - 120, behavior: 'smooth' }); scrub.append(b);
+    });
+    scrub.classList.toggle('show', state.view === 'photos' && months.length > 1); onScroll();
+  }
+  function onScroll() {
+    $('#bar').classList.toggle('is-stuck', scrollY > 50);
+    let cur = scrubMonths[0]; scrubMonths.forEach(m => { if (m.el.getBoundingClientRect().top < 200) cur = m; });
+    scrub.querySelectorAll('button[data-key]').forEach(b => b.classList.toggle('on', cur && b.dataset.key === cur.key));
+  }
+  addEventListener('scroll', onScroll, { passive: true });
+
+  // ---- search ----------------------------------------------------------------
+  const q = $('#q'), suggest = $('#suggest');
+  function renderSuggest() {
+    const s = q.value.trim().toLowerCase(); suggest.replaceChildren();
+    const ppl = PEOPLE.filter(p => p.count && (!s || p.name.toLowerCase().includes(s))).slice(0, 4);
+    const ctx = [...new Set(photos.map(p => p.ctx))].filter(c => !s || c.toLowerCase().includes(s)).slice(0, 4);
+    const yrs = ['2026', '2025'].filter(y => !s || y.includes(s));
+    const sec = (title, rows) => { if (!rows.length) return; suggest.append(el('h4', '', title)); rows.forEach(r => suggest.append(r)); };
+    sec('People', ppl.map(p => { const b = el('button', '', `<i class="dot"></i>${p.name}<small>${p.count}</small>`); b.firstChild.style.backgroundImage = p.img; b.onclick = () => { state.person = p; q.value = state.q = ''; close(); refresh(); }; return b; }));
+    sec('Projects, visits and events', ctx.map(c => { const b = el('button', '', `${c}<small>${photos.filter(p => p.ctx === c).length}</small>`); b.onclick = () => { q.value = state.q = c; close(); refresh(); }; return b; }));
+    sec('Years', yrs.map(y => { const b = el('button', '', `${y}<small>${photos.filter(p => p.date.startsWith(y)).length}</small>`); b.onclick = () => { q.value = state.q = y; close(); refresh(); }; return b; }));
+    suggest.hidden = !suggest.children.length;
+  }
+  const close = () => { suggest.hidden = true; };
+  q.addEventListener('focus', renderSuggest);
+  q.addEventListener('input', () => { state.q = q.value; if (state.view !== 'photos') go('photos'); renderSuggest(); renderTimeline(); renderChips(); });
+  document.addEventListener('click', e => { if (!e.target.closest('.search')) close(); });
+
+  // ---- albums, people, collections --------------------------------------------
+  function cover(items) { const c = el('span', 'album__cover'); items.slice(0, 3).forEach(p => { const i = el('i'); i.style.backgroundImage = p.img; c.append(i); }); return c; }
+  function renderPages() {
+    const a = $('#albums'); a.replaceChildren();
+    const n = el('button', 'album album--new'); n.append(el('span', 'album__cover', '+'), el('b', '', 'New album')); n.onclick = () => toast('New album (mockup only)'); a.append(n);
+    ALBUMS.forEach(al => { const b = el('button', 'album'); b.append(cover(al.items), el('b', '', al.name), el('small', '', `${al.items.length} items`)); b.onclick = () => { state.album = al; go('photos'); }; a.append(b); });
+    const pe = $('#people'); pe.replaceChildren();
+    PEOPLE.filter(p => p.count).sort((x, y) => y.count - x.count).forEach(p => { const b = el('button', 'person'); const i = el('i'); i.style.backgroundImage = p.img; b.append(i, el('b', '', p.name), el('small', '', `${p.count} pictures`)); b.onclick = () => { state.person = p; go('photos'); }; pe.append(b); });
+    const co = $('#collections'); co.replaceChildren();
+    ['Project', 'Visit', 'Event', 'Activity'].forEach(src => {
+      co.append(el('h3', 'group-title', src === 'Activity' ? 'Activities' : src + 's')); const g = el('div', 'cards');
+      EVENTS.filter(e => e[2] === src).forEach(([date, ctx]) => { const items = photos.filter(p => p.ctx === ctx), b = el('button', 'album coll'); b.append(cover(items.slice(0, 1)), el('b', '', ctx), el('small', '', `${items.length} items · ${fmtFull(date)}`)); b.onclick = () => { q.value = state.q = ctx; go('photos'); }; g.append(b); });
+      co.append(g);
+    });
+  }
+
+  // ---- views -----------------------------------------------------------------
+  function go(view) { if (location.hash !== '#' + view) location.hash = view; else show(view); }
+  function show(view) {
+    state.view = view;
+    if (view !== 'photos') { state.selecting = false; state.sel.clear(); syncSel(); }
+    ['photos', 'albums', 'people', 'collections'].forEach(v => { $('#view-' + v).hidden = v !== view; });
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === view));
+    $('#selectBtn').hidden = view !== 'photos'; scrollTo(0, 0); refresh();
+  }
+  function refresh() { if (state.view === 'photos') renderTimeline(); else scrub.classList.remove('show'); renderChips(); }
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { if (b.dataset.view !== 'photos') { state.person = null; state.album = null; } go(b.dataset.view); });
+  const fromHash = () => show(['photos', 'albums', 'people', 'collections'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'photos');
+  addEventListener('hashchange', fromHash);
+
+  // ---- viewer ----------------------------------------------------------------
+  const viewer = $('#viewer'), stage = $('#vstage'), pic = $('#vpic'), inner = $('#vinner'), strip = $('#vstrip');
+  let cur = 0, zoom = 1, pan = { x: 0, y: 0 }, idleT, opener = null;
+  function fit() {
+    const p = state.list[cur], W = stage.clientWidth, H = stage.clientHeight, w = Math.min(W, H * p.ar), h = w / p.ar;
+    Object.assign(pic.style, { width: w + 'px', height: h + 'px', left: (W - w) / 2 + 'px', top: (H - h) / 2 + 'px' });
+  }
+  function applyZoom() { inner.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`; inner.classList.toggle('zoomed', zoom > 1); }
+  function showItem(i, dir = 0) {
+    cur = (i + state.list.length) % state.list.length; const p = state.list[cur];
+    zoom = 1; pan = { x: 0, y: 0 }; applyZoom(); fit(); inner.style.backgroundImage = p.img;
+    if (dir) { pic.classList.remove('anim'); pic.style.transform = `translateX(${dir * 60}px)`; pic.style.opacity = 0; void pic.offsetWidth; pic.classList.add('anim'); pic.style.transform = ''; pic.style.opacity = 1; }
+    $('#vtitle').textContent = p.cap; $('#vsub').textContent = `${p.ctx} · ${fmtFull(p.date)} · ${cur + 1} of ${state.list.length}`;
+    strip.querySelectorAll('button').forEach((b, k) => b.classList.toggle('on', k === cur));
+    const on = strip.children[cur]; if (on) strip.scrollTo({ left: on.offsetLeft - strip.clientWidth / 2 + 35, behavior: dir ? 'smooth' : 'auto' });
+    const pills = p.people.map(x => `<span class="pill"><i style='background-image:${x.img}'></i>${x.name}</span>`).join('') || '<span class="pill plain">No one tagged yet</span>';
+    const albums = ALBUMS.filter(a => a.items.includes(p)).map(a => `<span class="pill plain">${a.name}</span>`).join('') || '—';
+    $('#vinfo').innerHTML = `<h3>${p.cap}</h3><p>${fmtFull(p.date)}</p><dl>
+      <div><dt>${p.source}</dt><dd>${p.ctx}</dd></div><div><dt>People</dt><dd>${pills}</dd></div><div><dt>Albums</dt><dd>${albums}</dd></div>
+      <div><dt>File</dt><dd>${p.file} · ${p.size} · ${p.dims}</dd></div></dl>`;
+  }
+  function openViewer(i, tile) {
+    opener = tile; viewer.hidden = false; strip.replaceChildren();
+    state.list.forEach((p, k) => { const b = el('button'); b.style.backgroundImage = p.img; b.setAttribute('aria-label', p.cap); b.onclick = () => showItem(k, k > cur ? 1 : -1); strip.append(b); });
+    showItem(i);
+    const a = tile.getBoundingClientRect(), b = pic.getBoundingClientRect();
+    pic.classList.remove('anim'); pic.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px) scale(${a.width / b.width}, ${a.height / b.height})`;
+    void pic.offsetWidth; pic.classList.add('anim'); pic.style.transform = ''; viewer.classList.add('open'); document.documentElement.style.overflow = 'hidden';
+    $('#vclose').focus(); wake();
+  }
+  function closeViewer() {
+    viewer.classList.remove('open', 'info'); $('#vinfoBtn').setAttribute('aria-pressed', false); document.documentElement.style.overflow = '';
+    setTimeout(() => { viewer.hidden = true; }, 220); opener?.focus({ preventScroll: true });
+  }
+  function wake() { viewer.classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => { if (!viewer.classList.contains('info')) viewer.classList.add('idle'); }, 2800); }
+  viewer.addEventListener('mousemove', wake); viewer.addEventListener('touchstart', wake, { passive: true });
+  $('#vclose').onclick = closeViewer; $('#vprev').onclick = () => showItem(cur - 1, -1); $('#vnext').onclick = () => showItem(cur + 1, 1);
+  $('#vinfoBtn').onclick = () => { const on = viewer.classList.toggle('info'); $('#vinfoBtn').setAttribute('aria-pressed', on); setTimeout(fit, 260); wake(); };
+  stage.addEventListener('wheel', e => { e.preventDefault(); zoom = Math.min(4, Math.max(1, zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15))); if (zoom === 1) pan = { x: 0, y: 0 }; applyZoom(); }, { passive: false });
+  inner.addEventListener('dblclick', () => { zoom = zoom > 1 ? 1 : 2.2; pan = { x: 0, y: 0 }; applyZoom(); });
+  let drag = null;
+  stage.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y }; });
+  stage.addEventListener('pointermove', e => { if (drag && zoom > 1) { pan = { x: drag.px + e.clientX - drag.x, y: drag.py + e.clientY - drag.y }; applyZoom(); } });
+  stage.addEventListener('pointerup', e => { if (drag && zoom === 1) { const dx = e.clientX - drag.x; if (Math.abs(dx) > 50) showItem(cur + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1); } drag = null; });
+  document.addEventListener('keydown', e => {
+    if (viewer.hidden) { if (e.key === 'Escape' && (state.sel.size || state.selecting)) $('#selClose').click(); return; }
+    wake();
+    if (e.key === 'Escape') closeViewer(); else if (e.key === 'ArrowLeft') showItem(cur - 1, -1); else if (e.key === 'ArrowRight') showItem(cur + 1, 1); else if (e.key.toLowerCase() === 'i') $('#vinfoBtn').click();
+  });
+
+  renderPages(); fromHash();
+})();
+</script>
+</body>
+</html>

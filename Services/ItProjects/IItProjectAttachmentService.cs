@@ -25,14 +25,20 @@ public interface IItProjectAttachmentService
     /// <summary>The configured upload limit, for the page's hint.</summary>
     long MaxSizeBytes { get; }
 
-    /// <summary>Live attachments of a project, newest first.</summary>
+    /// <summary>Live attachments of an IT project, newest first.</summary>
     Task<IReadOnlyList<ItProjectAttachmentView>> ListAsync(int itProjectId, CancellationToken cancellationToken = default);
+
+    /// <summary>The same for a project of the given module; a project of another module has none.</summary>
+    Task<IReadOnlyList<ItProjectAttachmentView>> ListAsync(int itProjectId, string module, CancellationToken cancellationToken = default);
 
     /// <summary>Validates, scans and stores the file, then writes its record and the audit row. Nothing is kept when any step fails.</summary>
     Task<(ItProjectCommandResult Result, Guid AttachmentId)> UploadAsync(int itProjectId, IFormFile file, ItProjectActor actor, CancellationToken cancellationToken = default);
 
     /// <summary>Opens a live attachment of the given, live project; null when there is no such attachment on that project.</summary>
     Task<ItProjectAttachmentDownload?> OpenAsync(int itProjectId, Guid attachmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>The same for a project of the given module; an attachment on a project of another module is not found.</summary>
+    Task<ItProjectAttachmentDownload?> OpenAsync(int itProjectId, Guid attachmentId, string module, CancellationToken cancellationToken = default);
 
     /// <summary>Soft-deletes a live attachment of the given, live project. The file stays on disk for a later restore.</summary>
     Task<ItProjectCommandResult> DeleteAsync(int itProjectId, Guid attachmentId, ItProjectActor actor, CancellationToken cancellationToken = default);

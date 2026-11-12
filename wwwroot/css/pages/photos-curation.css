@@ -4,25 +4,6 @@
 .photos-hero { margin-bottom:.28rem; padding-bottom:.25rem; }
 .photos-hero:not(.photos-hero--person) h1 { font-size:clamp(2rem,2.65vw,2.65rem); margin:.16rem 0 .28rem; }
 .photos-hero:not(.photos-hero--person) p { font-size:.84rem; line-height:1.35; }
-.photos-primary-tabs { gap:1.45rem; margin-bottom:.55rem; margin-top:.18rem; }
-.photos-primary-tabs a { padding:.58rem .1rem .55rem; }
-.photos-collection-tabs {
-    align-items:center;
-    display:flex;
-    gap:.3rem;
-    margin:.24rem 0 .55rem;
-}
-.photos-collection-tabs a {
-    border:1px solid transparent;
-    border-radius:999px;
-    color:#65748a;
-    font-size:.73rem;
-    font-weight:750;
-    padding:.36rem .72rem;
-    text-decoration:none;
-}
-.photos-collection-tabs a:hover { background:#f2f5f9; color:#284f95; }
-.photos-collection-tabs a.is-active { background:#eaf1ff; border-color:#d4e1ff; color:#2557c7; }
 .photos-action--primary { background:#285fd5; border-color:#285fd5; color:#fff; }
 .photos-action--primary:hover { background:#1f51bf; color:#fff; }
 .photos-control.is-active { background:#edf3ff; color:#2457c5; }
@@ -43,7 +24,7 @@
 .photos-album-context__back { color:#52657f; flex:0 0 auto; font-size:.72rem; font-weight:750; margin-top:.14rem; text-decoration:none; }
 .photos-album-context__back:hover { color:#285ccf; }
 .photos-album-context__title-row { align-items:center; display:flex; gap:.5rem; }
-.photos-album-context h2 { color:#1c2940; font-size:1rem; font-weight:800; margin:0; }
+.photos-album-context h2 { color:var(--pm-text); font-size:1.5rem; font-weight:700; letter-spacing:-.02em; margin:0; }
 .photos-album-context p { color:#58677c; font-size:.75rem; margin:.18rem 0 .12rem; max-width:70rem; }
 .photos-album-context__main > div > span { color:#8290a2; font-size:.66rem; }
 .photos-album-context__actions { display:flex; flex:0 0 auto; gap:.4rem; }
@@ -89,6 +70,12 @@
 }
 .album-card__ownership { color:#446da9!important; font-size:.62rem!important; font-weight:700; }
 .albums-grid .collection-card__cover { background:var(--pm-surface-porcelain, #eef2f7); }
+/* The first tile on the Albums page starts a new album. */
+.album-card--new { background:transparent; border:0; padding:0; text-align:left; }
+.album-card--new .collection-card__cover { align-items:center; background:transparent; border:2px dashed var(--pm-border); color:var(--pm-text-muted); display:flex; font-size:2rem; justify-content:center; }
+.album-card--new:hover .collection-card__cover { border-color:var(--pm-primary); color:var(--pm-primary); }
+.album-card--new .collection-card__body { display:grid; }
+.album-card--new .collection-card__body .album-card__title { color:var(--pm-text); font-size:.86rem; font-weight:700; }
 
 .photos-album-form { display:grid; gap:1rem; }
 .photos-album-form .form-label { color:#35445a; font-size:.74rem; font-weight:750; margin-bottom:.28rem; }
@@ -182,7 +169,6 @@
     .photos-album-context__actions { flex-wrap:wrap; }
     .photos-add-target { align-items:stretch; flex-direction:column; }
     .photos-add-target > a { align-self:flex-start; }
-    .photos-collection-tabs { overflow-x:auto; }
     .photos-organize-status { bottom:.5rem; max-width:calc(100vw - 1rem); text-align:center; width:max-content; }
 }
 
@@ -198,20 +184,6 @@
    Light is unchanged; these rules only apply under data-bs-theme="dark".
    Palette: docs/ux/dark-theme-palette.md
    ============================================================ */
-:where([data-bs-theme="dark"]) .photos-collection-tabs a {
-    color: #9aa0a6;
-}
-
-:where([data-bs-theme="dark"]) .photos-collection-tabs a:hover {
-    background: #1e2125;
-    color: #6ea8fe;
-}
-
-:where([data-bs-theme="dark"]) .photos-collection-tabs a.is-active {
-    background: color-mix(in srgb, #6ea8fe 9%, #16181b);
-    border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
-    color: #6ea8fe;
-}
 
 :where([data-bs-theme="dark"]) .photos-action--primary {
     background: #285fd5;
@@ -239,10 +211,6 @@
 
 :where([data-bs-theme="dark"]) .photos-album-context__back:hover {
     color: #6ea8fe;
-}
-
-:where([data-bs-theme="dark"]) .photos-album-context h2 {
-    color: #e6e8eb;
 }
 
 :where([data-bs-theme="dark"]) .photos-album-context p {

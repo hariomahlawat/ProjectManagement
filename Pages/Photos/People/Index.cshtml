@@ -6,16 +6,76 @@
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/css/pages/photos-library.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/photos-people.css" asp-append-version="true" />
 }
 
 <div class="people-workspace" data-people-directory>
-    <header class="people-header">
-        <div>
-            <span class="people-eyebrow">People in Photos</span>
-            <h1>People</h1>
-            <p>Choose a person to see every confirmed photograph, or select several people to find photos they share.</p>
-        </div>
+    <div class="photos-bar" data-photos-bar>
+        <h1 class="visually-hidden">People</h1>
+        <nav class="photos-sections" aria-label="Photos sections">
+            <a asp-page="/Photos/Index" asp-route-View="photos">Photos</a>
+            <a asp-page="/Photos/Index" asp-route-View="collections" asp-route-CollectionTab="albums">Albums</a>
+            <a class="is-active" asp-page="./Index">People</a>
+            <a asp-page="/Photos/Index" asp-route-View="collections" asp-route-CollectionTab="source">Collections</a>
+        </nav>
+        @if (Model.FeatureEnabled && Model.DirectoryAvailable)
+        {
+        <form method="get" class="photos-search" role="search" data-people-search-form>
+            <i class="bi bi-search"></i>
+            <input type="search" name="Q" value="@Model.Q" placeholder="Search people" autocomplete="off" data-people-search-input />
+            <input type="hidden" name="Sort" value="@Model.Sort" />
+            @if (Model.CanManageIdentities && Model.AccountLink != "all") { <input type="hidden" name="AccountLink" value="@Model.AccountLink" /> }
+            @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
+            @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+            @if (Model.CanManageIdentities && Model.IncludeHidden) { <input type="hidden" name="IncludeHidden" value="true" /> }
+            <button class="visually-hidden" type="submit">Search</button>
+        </form>
+        @if (Model.CanManageIdentities)
+        {
+            var activePeopleFilters = (Model.AccountLink != "all" ? 1 : 0) + (Model.IncludeHidden ? 1 : 0);
+            @* Three controls in the bar crowded it; they open from one button, and it shows how many filters are on. *@
+            <div class="dropdown people-filter">
+                <button class="photos-control" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-sliders2" aria-hidden="true"></i><span>Sort and filter</span>@if (activePeopleFilters > 0) {<b>@activePeopleFilters</b>}
+                </button>
+                <div class="dropdown-menu dropdown-menu-end people-filter__menu">
+                    <form method="get" class="people-filter__form">
+                        <input type="hidden" name="Q" value="@Model.Q" />
+                        @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
+                        @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+                        <label for="peopleSort">Sort by</label>
+                        <select id="peopleSort" name="Sort" class="form-select" data-auto-submit>
+                            <option value="name" selected="@(Model.Sort == "name")">Name</option>
+                            <option value="photos" selected="@(Model.Sort == "photos")">Most photos</option>
+                            <option value="recent" selected="@(Model.Sort == "recent")">Recently seen</option>
+                        </select>
+                        <label for="peopleAccountLink">PRISM account</label>
+                        <select id="peopleAccountLink" name="AccountLink" class="form-select" data-auto-submit>
+                            <option value="all" selected="@(Model.AccountLink == "all")">All</option>
+                            <option value="linked" selected="@(Model.AccountLink == "linked")">Linked</option>
+                            <option value="unlinked" selected="@(Model.AccountLink == "unlinked")">Not linked</option>
+                            <option value="reported" selected="@(Model.AccountLink == "reported")">Needs review</option>
+                        </select>
+                        <label class="people-filter__check"><input class="form-check-input" type="checkbox" name="IncludeHidden" value="true" checked="@Model.IncludeHidden" data-auto-submit /><span>Show hidden people</span></label>
+                    </form>
+                </div>
+            </div>
+        }
+        else
+        {
+            <form method="get" class="people-sort">
+                <input type="hidden" name="Q" value="@Model.Q" />
+                @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
+                @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+                <select id="peopleSort" name="Sort" class="form-select" aria-label="Sort people" data-auto-submit>
+                    <option value="name" selected="@(Model.Sort == "name")">Name</option>
+                    <option value="photos" selected="@(Model.Sort == "photos")">Most photos</option>
+                    <option value="recent" selected="@(Model.Sort == "recent")">Recently seen</option>
+                </select>
+            </form>
+        }
+        }
         @if (Model.FeatureEnabled)
         {
             <div class="people-header__actions">
@@ -33,13 +93,7 @@
                 }
             </div>
         }
-    </header>
-
-    <nav class="people-primary-tabs" aria-label="Photos sections">
-        <a asp-page="/Photos/Index" asp-route-View="photos">Photos</a>
-        <a asp-page="/Photos/Index" asp-route-View="collections">Collections</a>
-        <a class="is-active" asp-page="./Index">People</a>
-    </nav>
+    </div>
 
     @if (!Model.FeatureEnabled)
     {
@@ -51,37 +105,49 @@
     }
     else
     {
-        <section class="people-insight" aria-label="People summary and review queues">
-            <div><strong>@Model.Result.TotalPeople</strong><span>confirmed people</span></div>
-            @if (Model.CanManageIdentities && Model.WorkloadAvailable)
+        @* Only what needs doing is shown, and only to those who can do it. *@
+        @if (Model.CanManageIdentities && Model.WorkloadAvailable)
+        {
+            var showGroups = Model.GroupingEnabled && Model.Workload.SuggestedGroupCount > 0;
+            @if (Model.Workload.KnownMatchCount > 0 || showGroups || Model.Workload.IndividualReviewCount > 0 || Model.Workload.MatchingFailureCount > 0)
             {
-                <a class="people-insight__work" asp-page="./Review" asp-route-Mode="matches" title="Open direct person suggestions">
-                    <strong>@Model.Workload.KnownMatchCount</strong><span>direct person suggestions</span>
-                </a>
-                @if (Model.GroupingEnabled)
-                {
-                    <a class="people-insight__work" asp-page="./Review" asp-route-Mode="groups" title="Open suggested identity groups">
-                        <strong>@Model.Workload.SuggestedGroupCount</strong><span>suggested groups</span>
-                    </a>
-                }
-                <a class="people-insight__work" asp-page="./Review" asp-route-Mode="unidentified" title="Open faces ready for individual review">
-                    <strong>@Model.Workload.IndividualReviewCount</strong><span>individual review</span>
-                </a>
-                @if (Model.Workload.MatchingFailureCount > 0)
-                {
-                    <a class="people-insight__work is-warning" asp-page="./Review" asp-route-Mode="unidentified" asp-route-MatchStatus="failed" title="Open matching failures">
-                        <strong>@Model.Workload.MatchingFailureCount</strong><span>matching failures</span>
-                    </a>
-                }
+                <section class="people-insight" aria-label="Waiting for review">
+                    @if (Model.Workload.KnownMatchCount > 0)
+                    {
+                        <a class="people-insight__work" asp-page="./Review" asp-route-Mode="matches" title="Open suggested matches">
+                            <strong>@Model.Workload.KnownMatchCount</strong><span>suggested match@(Model.Workload.KnownMatchCount == 1 ? "" : "es")</span>
+                        </a>
+                    }
+                    @if (showGroups)
+                    {
+                        <a class="people-insight__work" asp-page="./Review" asp-route-Mode="groups" title="Open suggested groups">
+                            <strong>@Model.Workload.SuggestedGroupCount</strong><span>suggested group@(Model.Workload.SuggestedGroupCount == 1 ? "" : "s")</span>
+                        </a>
+                    }
+                    @if (Model.Workload.IndividualReviewCount > 0)
+                    {
+                        <a class="people-insight__work" asp-page="./Review" asp-route-Mode="unidentified" title="Open faces to review one by one">
+                            <strong>@Model.Workload.IndividualReviewCount</strong><span>face@(Model.Workload.IndividualReviewCount == 1 ? "" : "s") to review</span>
+                        </a>
+                    }
+                    @if (Model.Workload.MatchingFailureCount > 0)
+                    {
+                        <a class="people-insight__work is-warning" asp-page="./Review" asp-route-Mode="unidentified" asp-route-MatchStatus="failed" title="Open matching failures">
+                            <strong>@Model.Workload.MatchingFailureCount</strong><span>matching failure@(Model.Workload.MatchingFailureCount == 1 ? "" : "s")</span>
+                        </a>
+                    }
+                </section>
             }
-            else if (Model.CanManageIdentities)
-            {
+        }
+        else if (Model.CanManageIdentities)
+        {
+            <section class="people-insight" aria-label="Waiting for review">
                 <div class="people-insight__workload-unavailable" role="status">
                     <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
                     <span>Review workload temporarily unavailable</span>
                 </div>
-            }
-        </section>
+            </section>
+        }
         @if (Model.CanManageIdentities && Model.WorkloadAvailable && (Model.TotalReviewableAppearances > 0 || Model.Workload.ClosedUnidentifiedCount > 0))
         {
             <p class="people-workload-note">
@@ -100,39 +166,6 @@
                 }
             </p>
         }
-
-        <section class="people-toolbar">
-            <form method="get" class="people-search" role="search" data-people-search-form>
-                <i class="bi bi-search"></i>
-                <input type="search" name="Q" value="@Model.Q" placeholder="Search people" autocomplete="off" data-people-search-input />
-                <input type="hidden" name="Sort" value="@Model.Sort" />
-                @if (Model.CanManageIdentities && Model.AccountLink != "all") { <input type="hidden" name="AccountLink" value="@Model.AccountLink" /> }
-                @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
-                @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
-                @if (Model.CanManageIdentities && Model.IncludeHidden) { <input type="hidden" name="IncludeHidden" value="true" /> }
-                <button class="visually-hidden" type="submit">Search</button>
-            </form>
-            <form method="get" class="people-sort">
-                <input type="hidden" name="Q" value="@Model.Q" />
-                @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
-                @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
-                <select id="peopleSort" name="Sort" class="form-select" aria-label="Sort people" data-auto-submit>
-                    <option value="name" selected="@(Model.Sort == "name")">Name</option>
-                    <option value="photos" selected="@(Model.Sort == "photos")">Most photos</option>
-                    <option value="recent" selected="@(Model.Sort == "recent")">Recently seen</option>
-                </select>
-                @if (Model.CanManageIdentities)
-                {
-                    <select id="peopleAccountLink" name="AccountLink" class="form-select people-account-filter" aria-label="Filter by PRISM account linkage" data-auto-submit>
-                        <option value="all" selected="@(Model.AccountLink == "all")">All accounts</option>
-                        <option value="linked" selected="@(Model.AccountLink == "linked")">Linked</option>
-                        <option value="unlinked" selected="@(Model.AccountLink == "unlinked")">Unlinked</option>
-                        <option value="reported" selected="@(Model.AccountLink == "reported")">Needs review</option>
-                    </select>
-                    <label class="people-hidden-toggle"><input class="form-check-input" type="checkbox" name="IncludeHidden" value="true" checked="@Model.IncludeHidden" data-auto-submit /><span>Hidden</span></label>
-                }
-            </form>
-        </section>
 
         @if (Model.Result.People.Count == 0)
         {

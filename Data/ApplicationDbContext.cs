@@ -374,6 +374,10 @@ namespace ProjectManagement.Data
             builder.Entity<ItProject>(e =>
             {
                 e.ToTable("ItProjects");
+                e.Property(x => x.Module).IsRequired().HasMaxLength(ItProjectModules.CodeMaxLength).HasDefaultValue(ItProjectModules.It);
+                e.Property(x => x.ProjectOfficerUserId).HasMaxLength(450);
+                e.HasIndex(x => new { x.Module, x.FinancialYearStart });
+                e.HasIndex(x => x.ProjectOfficerUserId);
                 e.Property(x => x.Title).IsRequired().HasMaxLength(200);
                 e.Property(x => x.PppReferenceNumber).IsRequired().HasMaxLength(100);
                 e.Property(x => x.Description).IsRequired();

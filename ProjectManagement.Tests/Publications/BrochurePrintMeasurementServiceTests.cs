@@ -258,6 +258,7 @@ public sealed class BrochurePrintMeasurementServiceTests
         {
             _root = Path.Combine(Path.GetTempPath(), $"prism-print-measure-{Guid.NewGuid():N}");
             Directory.CreateDirectory(_root);
+            PublicationTestFonts.CopyDmSans(_root);
             var environment = new TestWebHostEnvironment(_root);
             Service = new BrochurePrintMeasurementService(
                 environment,
@@ -274,18 +275,11 @@ public sealed class BrochurePrintMeasurementServiceTests
         }
     }
 
+    /// <summary>The bundled DM Sans, as a deployment has it (see <see cref="PublicationTestFonts"/>).</summary>
     private sealed class FixedFontService : IPublicationFontService
     {
-        private static readonly PublicationFontStatus Status = new(
-            PublicationFontService.FallbackFamilyName,
-            PublicationFontService.FallbackFamilyName,
-            DmSansAvailable: false,
-            AlatsiAvailable: false,
-            MissingDmSansFiles: Array.Empty<string>(),
-            SourceDescription: "Test fallback");
-
-        public PublicationFontStatus EnsureRegistered() => Status;
-        public PublicationFontStatus CurrentStatus => Status;
+        public PublicationFontStatus EnsureRegistered() => PublicationTestFonts.RegisterDmSans();
+        public PublicationFontStatus CurrentStatus => PublicationTestFonts.RegisterDmSans();
     }
 
     private sealed class TestWebHostEnvironment : IWebHostEnvironment

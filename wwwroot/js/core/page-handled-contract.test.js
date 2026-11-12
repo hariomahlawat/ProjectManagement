@@ -21,10 +21,11 @@ const registry = {
     selector: '[data-auto-submit="change"]',
     hosts: ['Pages/Analytics/Index.cshtml'],
   },
-  'Pages/ItProjects/Details.cshtml': {
+  // Shared by the IT, MOLTI and SRE project pages; each of them loads the script.
+  'Pages/ItProjects/_ModuleProject.cshtml': {
     script: 'wwwroot/js/pages/it-projects-details.js',
     selector: '[data-itp-stage-editor]',
-    hosts: ['Pages/ItProjects/Details.cshtml'],
+    hosts: ['Pages/ItProjects/Details.cshtml', 'Pages/MoltiProjects/Details.cshtml', 'Pages/SreProjects/Details.cshtml'],
   },
   'Pages/Workspace/BriefingDecks/_DeckLibrary.cshtml': {
     script: 'wwwroot/js/pages/project-briefing-library.js',

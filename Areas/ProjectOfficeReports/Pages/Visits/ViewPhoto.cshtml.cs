@@ -49,9 +49,12 @@ public class ViewPhotoModel : PageModel
         }
 
         var headers = Response.GetTypedHeaders();
+        // Visit photos need an authenticated user. "public" would let a shared LAN proxy
+        // cache them and serve them to anyone; "private" keeps them in the user's browser,
+        // as the project, event and Photos media endpoints already do.
         headers.CacheControl = new CacheControlHeaderValue
         {
-            Public = true,
+            Private = true,
             MaxAge = TimeSpan.FromDays(7)
         };
         headers.LastModified = asset.LastModifiedUtc.UtcDateTime;

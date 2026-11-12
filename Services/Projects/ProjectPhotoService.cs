@@ -359,11 +359,32 @@ namespace ProjectManagement.Services.Projects
 
             await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
+            var photosById = photos.ToDictionary(p => p.Id);
+            var moved = orderedPhotoIds
+                .Select((id, index) => (Photo: photosById[id], Ordinal: index + 1))
+                .Where(entry => entry.Photo.Ordinal != entry.Ordinal)
+                .ToList();
+
+            if (moved.Count > 0)
+            {
+                // (ProjectId, Ordinal) is unique and not deferrable. Swapping positions in a
+                // single save forms a cycle that EF Core refuses to order, so first park every
+                // moved photo on a temporary negative ordinal that no live row can hold, then
+                // assign the final positions. Both saves share the transaction above.
+                foreach (var entry in moved)
+                {
+                    entry.Photo.Ordinal = -entry.Ordinal;
+                }
+
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            var updatedUtc = _clock.UtcNow.UtcDateTime;
             for (var i = 0; i < orderedPhotoIds.Count; i++)
             {
-                var photo = photos.Single(p => p.Id == orderedPhotoIds[i]);
+                var photo = photosById[orderedPhotoIds[i]];
                 photo.Ordinal = i + 1;
-                photo.UpdatedUtc = _clock.UtcNow.UtcDateTime;
+                photo.UpdatedUtc = updatedUtc;
             }
 
             await _db.SaveChangesAsync(cancellationToken);
@@ -663,13 +684,6 @@ namespace ProjectManagement.Services.Projects
             var sanitizedName = SanitizeFileName(originalFileName);
             var captionValue = string.IsNullOrWhiteSpace(caption) ? null : caption.Trim();
 
-            var ordinal = await _db.ProjectPhotos
-                .Where(p => p.ProjectId == projectId)
-                .Select(p => (int?)p.Ordinal)
-                .MaxAsync(cancellationToken) ?? 0;
-
-            var shouldSetCover = setAsCover || project.CoverPhotoId == null;
-
             var photo = new ProjectPhoto
             {
                 ProjectId = projectId,
@@ -678,7 +692,6 @@ namespace ProjectManagement.Services.Projects
                 ContentType = validation.FallbackContentType,
                 Width = validation.CroppedWidth,
                 Height = validation.CroppedHeight,
-                Ordinal = ordinal + 1,
                 Caption = captionValue,
                 TotId = null,
                 IsCover = false,
@@ -692,6 +705,19 @@ namespace ProjectManagement.Services.Projects
             try
             {
                 await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+
+                // Two uploads to the same project used to read MAX(Ordinal) and the cover
+                // before either saved, then collide on the unique ordinal (or cover) index,
+                // and one failed. Serialise uploads per project and decide both under the lock.
+                await LockProjectForPhotoChangeAsync(projectId, cancellationToken);
+                await _db.Entry(project).ReloadAsync(cancellationToken);
+                var ordinal = await _db.ProjectPhotos
+                    .Where(p => p.ProjectId == projectId)
+                    .Select(p => (int?)p.Ordinal)
+                    .MaxAsync(cancellationToken) ?? 0;
+                photo.Ordinal = ordinal + 1;
+                var shouldSetCover = setAsCover || project.CoverPhotoId == null;
+
                 PromoteStagedFiles(projectId, stagedDirectory);
 
                 _db.ProjectPhotos.Add(photo);
@@ -1211,6 +1237,21 @@ namespace ProjectManagement.Services.Projects
             return ms;
         }
 
+
+        /// <summary>
+        /// Locks the project row for the rest of the caller's transaction (PostgreSQL FOR
+        /// UPDATE), so photo uploads to one project are serialised. SQLite (tests) already
+        /// serialises writers.
+        /// </summary>
+        private async Task LockProjectForPhotoChangeAsync(int projectId, CancellationToken cancellationToken)
+        {
+            if (_db.Database.IsNpgsql())
+            {
+                await _db.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT 1 FROM \"Projects\" WHERE \"Id\" = {projectId} FOR UPDATE",
+                    cancellationToken);
+            }
+        }
 
         private async Task TryWriteAuditAsync(Func<Task> writeAudit, string operation, int projectId, int? photoId = null)
         {

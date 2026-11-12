@@ -4,6 +4,22 @@
     const workspace = document.querySelector('[data-people-directory]');
     if (!workspace) return;
 
+    // The slim bar sticks just below the application's top bar, whatever its height.
+    const topbar = document.querySelector('.pm-topbar');
+    if (topbar && workspace.querySelector('[data-photos-bar]')) {
+        const syncBarOffset = () => workspace.style.setProperty('--photos-bar-top', `${topbar.offsetHeight}px`);
+        syncBarOffset();
+        if ('ResizeObserver' in window) new ResizeObserver(syncBarOffset).observe(topbar);
+    }
+
+    // Sort and filter menu: Bootstrap's dropdown takes the arrow keys of anything inside a menu
+    // that is not a text field, which would stop a select from changing its choice by keyboard.
+    // Arrow keys pressed on a select stay with the select.
+    workspace.querySelector('.people-filter__menu')?.addEventListener('keydown', (event) => {
+        const onSelect = event.target?.matches?.('select');
+        if (onSelect && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) event.stopPropagation();
+    });
+
     const searchForm = workspace.querySelector('[data-people-search-form]');
     const searchInput = workspace.querySelector('[data-people-search-input]');
     if (searchForm && searchInput) {
@@ -33,6 +49,51 @@
 
     const selected = () => selections.filter(input => input.checked);
     const selectedCount = () => selected().length + persistedSelections.length;
+
+    // SECTION: Keep the selection across search, sort and paging
+    // Ticked people live only in this page's checkboxes. Searching, sorting or changing
+    // page reloads the directory, so write the current selection into those forms and
+    // links; the server renders it back (off-page selections as persisted inputs).
+    const navigationForms = [searchForm, workspace.querySelector('.people-sort, .people-filter__form')].filter(Boolean);
+    const pageLinks = [...workspace.querySelectorAll('.people-pagination a[href]')];
+
+    function selectedIds() {
+        return [...selected(), ...persistedSelections].map(input => input.value);
+    }
+
+    function syncSelectionIntoNavigation() {
+        const ids = selectedIds();
+        const match = ids.length > 1 ? (matchValue?.value === 'any' ? 'any' : 'all') : null;
+
+        navigationForms.forEach(form => {
+            form.querySelectorAll('input[type="hidden"][name="SelectedIds"], input[type="hidden"][name="PeopleMatch"]')
+                .forEach(input => input.remove());
+            ids.forEach(id => {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'SelectedIds';
+                hidden.value = id;
+                form.appendChild(hidden);
+            });
+            if (match) {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'PeopleMatch';
+                hidden.value = match;
+                form.appendChild(hidden);
+            }
+        });
+
+        pageLinks.forEach(link => {
+            const url = new URL(link.getAttribute('href'), window.location.href);
+            [...url.searchParams.keys()]
+                .filter(key => key === 'SelectedIds' || /^SelectedIds\[\d+\]$/.test(key) || key === 'PeopleMatch')
+                .forEach(key => url.searchParams.delete(key));
+            ids.forEach(id => url.searchParams.append('SelectedIds', id));
+            if (match) url.searchParams.set('PeopleMatch', match);
+            link.setAttribute('href', `${url.pathname}${url.search}${url.hash}`);
+        });
+    }
 
     function setCardState(input) {
         const card = input.closest('[data-person-card]');
@@ -66,6 +127,8 @@
         matchButtons.forEach(button => {
             button.disabled = totalChosen < 2;
         });
+
+        syncSelectionIntoNavigation();
     }
 
     function enterSelectionMode() {

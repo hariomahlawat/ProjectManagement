@@ -17,7 +17,7 @@ public class ItProjectStageRulesTests
             ItProjectStages.Codes);
         Assert.Equal(Enumerable.Range(1, 9), ItProjectStages.All.Select(stage => stage.SortOrder));
         Assert.Equal(new[] { "BM", "PNC" }, ItProjectStages.All.Where(stage => stage.IsOptional).Select(stage => stage.Code));
-        Assert.Equal(new[] { "SO" }, ItProjectStages.All.Where(stage => stage.CarriesCost).Select(stage => stage.Code));
+        Assert.Equal(new[] { "PPP", "SO" }, ItProjectStages.All.Where(stage => stage.CarriesCost).Select(stage => stage.Code));
         Assert.Equal("Delivery and ATP", ItProjectStages.LabelOf("DLV"));
         Assert.Equal("IT ARPPP / IPA", ItProjectStages.LabelOf("PPP"));
     }
@@ -140,11 +140,17 @@ public class ItProjectStageRulesTests
         Assert.False(so.IsCompleted);
         Assert.Equal(46.81m, so.CostLakhs);
 
+        // The IPA cost sits on the first stage, kept whether or not that stage is complete.
+        var ipa = ItProjectStageRules.Apply(Input(S("PPP", cost: 92.555m)));
+        Assert.True(ipa.IsValid);
+        Assert.Equal(92.56m, ipa.Stages.Single(stage => stage.StageCode == "PPP").CostLakhs);
+        Assert.Contains("The IT ARPPP / IPA cost cannot be negative.", ItProjectStageRules.Apply(Input(S("PPP", true, cost: -1m))).Errors);
+
         var negative = ItProjectStageRules.Apply(Input(S("SO", true, cost: -1m)));
-        Assert.Contains("The SO cost cannot be negative.", negative.Errors);
+        Assert.Contains("The EAS & SO cost cannot be negative.", negative.Errors);
 
         var elsewhere = ItProjectStageRules.Apply(Input(S("BID", true, cost: 5m)));
-        Assert.Contains("Only the SO stage carries a cost (Bid).", elsewhere.Errors);
+        Assert.Contains("Only the IT ARPPP / IPA and EAS & SO stages carry a cost (Bid).", elsewhere.Errors);
     }
 
     [Fact]

@@ -149,6 +149,19 @@ public interface IFaceCandidateSearchService
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
         IReadOnlyCollection<FaceCandidateSearchInput> inputs,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Batch search where the caller decides which people to exclude for each input face,
+    /// instead of the rejections recorded on that face. Identity grouping searches with a
+    /// group centroid on behalf of every member: a rejection on the representative alone
+    /// must not remove a person for the whole group, while a person rejected for every
+    /// member must be excluded before results are ranked and limited.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
+        IReadOnlyCollection<FaceCandidateSearchInput> inputs,
+        IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> excludedPeopleByInputFace,
+        CancellationToken cancellationToken)
+        => SearchBatchAsync(inputs, cancellationToken);
 }
 
 public interface IFaceCandidateSuggestionService
@@ -406,6 +419,31 @@ public interface IFaceReviewService
         IReadOnlyCollection<Guid> faceIds,
         string userId,
         string reason,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The faces among <paramref name="faceIds"/> whose active assignment to the person was made
+    /// by this user at or after <paramref name="sinceUtc"/>. Naming a face someone else has
+    /// already given to the same person succeeds without assigning anything; this tells the two
+    /// apart, so that only what a request itself assigned can be taken back.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetFacesAssignedByAsync(
+        Guid personId,
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The faces among <paramref name="faceIds"/> that this user left unnamed at or after
+    /// <paramref name="sinceUtc"/>. Leaving unnamed a face someone else has already left unnamed
+    /// succeeds without recording anything new; this tells the two apart, so that only what a
+    /// request itself closed can be reopened by its Undo.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetFacesLeftUnnamedByAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        DateTimeOffset sinceUtc,
         CancellationToken cancellationToken);
 
     Task MergePeopleAsync(

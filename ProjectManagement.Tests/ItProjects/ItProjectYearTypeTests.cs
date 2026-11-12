@@ -213,15 +213,44 @@ public class ItProjectYearTypeTests
     }
 
     [Fact]
-    public async Task SaveYear_OwnYearNumberIsChangedWithEditOnly()
+    public async Task SaveYear_OwnYearNumberReplacesTheProjectsNumber_WithoutAYearRow()
     {
         await using var db = await ItProjectTestDb.CreateAsync();
         var (id, rowVersion) = await db.SeedAsync(fy: 2026);
+        var numberBefore = (await db.Reads().GetAsync(id))!.PppReferenceNumber;
 
-        var result = await db.Commands().SaveYearAsync(id, 2026, Year(null, "IT PPP 99/2026"), rowVersion, ItProjectTestDb.Actor());
+        var result = await db.Commands().SaveYearAsync(id, 2026, Year(null, "  IT PPP 99/2026 "), rowVersion, ItProjectTestDb.Actor());
 
-        Assert.False(result.Succeeded);
-        Assert.Contains("Edit", result.Errors.Single());
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        Assert.Equal("IT PPP 99/2026", (await db.Reads().GetAsync(id))!.PppReferenceNumber);
+        await using (var context = db.NewContext())
+        {
+            Assert.False(await context.ItProjectFinancialYears.AnyAsync());
+        }
+
+        var audit = db.Audit.Entries.Last();
+        Assert.Equal("ItProjects.YearChanged", audit.Action);
+        Assert.Equal(numberBefore, audit.Data!["ReferenceBefore"]);
+        Assert.Equal("IT PPP 99/2026", audit.Data["ReferenceAfter"]);
+        Assert.Equal("New (automatic)", audit.Data["TypeAfter"]);
+    }
+
+    [Fact]
+    public async Task SaveYear_OwnYearWithoutANumber_KeepsTheProjectsNumber()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync(fy: 2026);
+        var numberBefore = (await db.Reads().GetAsync(id))!.PppReferenceNumber;
+
+        // A type set by hand on the first year, with the number box left empty.
+        var result = await db.Commands().SaveYearAsync(id, 2026, Year(ItProjectYearType.CarriedForward, " "), rowVersion, ItProjectTestDb.Actor());
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        var project = (await db.Reads().GetAsync(id))!;
+        Assert.Equal(numberBefore, project.PppReferenceNumber);
+        var year = db.Reads().GetYearTypes(project).Single();
+        Assert.Equal("CF", year.Code);
+        Assert.True(year.IsManual);
     }
 
     [Fact]
@@ -271,5 +300,39 @@ public class ItProjectYearTypeTests
         var board = await db.Reads().GetBoardAsync(new ItProjectBoardQuery(ItProjectBoardScope.All, Search: "03/2026"));
 
         Assert.Equal(id, Assert.Single(board.Rows).Id);
+    }
+
+    [Fact]
+    public async Task SaveYear_ATypeChosenByHand_StaysWhenTheAutomaticTypeLaterChanges()
+    {
+        await using var db = await ItProjectTestDb.CreateAsync();
+        var (id, rowVersion) = await db.SeedAsync(fy: 2025);
+
+        // CF is today's automatic type for 2026-27; choosing it by hand pins it.
+        var pinned = await db.Commands().SaveYearAsync(id, 2026, Year(ItProjectYearType.CarriedForward), rowVersion, ItProjectTestDb.Actor());
+        Assert.True(pinned.Succeeded, string.Join("; ", pinned.Errors));
+
+        // An SO dated before 2026-27 began would make the automatic type CL.
+        var so = await db.Commands().SaveStagesAsync(id, Input(S("SO", true, D(2026, 2, 1))), await db.RowVersionAsync(id), ItProjectTestDb.Actor());
+        Assert.True(so.Result.Succeeded, string.Join("; ", so.Result.Errors));
+
+        var reads = db.Reads();
+        var year = reads.GetYearTypes((await reads.GetAsync(id))!).Single(type => type.FinancialYearStart == 2026);
+        Assert.Equal(ItProjectYearType.CarriedForward, year.Type);
+        Assert.True(year.IsManual);
+        Assert.Equal(ItProjectYearType.CommittedLiability, year.AutomaticType);
+
+        // "Automatic" lets it follow the rule again.
+        Assert.True((await db.Commands().SaveYearAsync(id, 2026, Year(null), await db.RowVersionAsync(id), ItProjectTestDb.Actor())).Succeeded);
+        var back = reads.GetYearTypes((await db.Reads().GetAsync(id))!).Single(type => type.FinancialYearStart == 2026);
+        Assert.Equal(ItProjectYearType.CommittedLiability, back.Type);
+        Assert.False(back.IsManual);
+    }
+
+    [Fact]
+    public void ToIstDate_IsTheIndianCalendarDay()
+    {
+        Assert.Equal(D(2026, 11, 8), ItProjectYearTypes.ToIstDate(new DateTime(2026, 11, 7, 18, 30, 0, DateTimeKind.Utc)));
+        Assert.Equal(D(2026, 11, 7), ItProjectYearTypes.ToIstDate(new DateTime(2026, 11, 7, 18, 29, 0, DateTimeKind.Unspecified)));
     }
 }

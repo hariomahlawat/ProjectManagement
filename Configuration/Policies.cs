@@ -276,6 +276,54 @@ public static class Policies
         };
     }
 
+    /// <summary>
+    /// MOLTI projects (docs/ux/molti-sre-projects.md), on the IT projects engine. View is
+    /// registered as RequireAuthenticatedUser. Manage is creating, assigning the officer and
+    /// deleting. The Project Officer assigned to a project also works on it and remarks on it;
+    /// that is a per-project check in <c>ItProjectAccess</c>, not a role in these lists.
+    /// </summary>
+    public static class MoltiProjects
+    {
+        public const string View = "MoltiProjects.View";
+        public const string Manage = "MoltiProjects.Manage";
+        public const string Remark = "MoltiProjects.Remark";
+
+        public static readonly string[] ManageRoles = AssignedOfficerModules.ManageRoles;
+
+        /// <summary>In seniority order: the first role a user holds is the role a remark is written as.</summary>
+        public static readonly string[] RemarkRoles = AssignedOfficerModules.RemarkRoles;
+    }
+
+    /// <summary>SRE projects: the same rules as <see cref="MoltiProjects"/>, as a separate module.</summary>
+    public static class SreProjects
+    {
+        public const string View = "SreProjects.View";
+        public const string Manage = "SreProjects.Manage";
+        public const string Remark = "SreProjects.Remark";
+
+        public static readonly string[] ManageRoles = AssignedOfficerModules.ManageRoles;
+
+        /// <summary>In seniority order: the first role a user holds is the role a remark is written as.</summary>
+        public static readonly string[] RemarkRoles = AssignedOfficerModules.RemarkRoles;
+    }
+
+    /// <summary>The role lists the modules with an assigned Project Officer share (owner, 11 Nov 2026).</summary>
+    private static class AssignedOfficerModules
+    {
+        public static readonly string[] ManageRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD
+        };
+
+        public static readonly string[] RemarkRoles =
+        {
+            RoleNames.Comdt,
+            RoleNames.HoD,
+            RoleNames.Mco
+        };
+    }
+
     public static class Ipr
     {
         public const string View = "Ipr.View";

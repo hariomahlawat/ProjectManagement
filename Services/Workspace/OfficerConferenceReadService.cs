@@ -514,13 +514,15 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
         // their "Add idea" / "Add task" forms, do not apply to them.
         if (selected.ItProjects.Count > 0 || selected.ItProjectsOnly)
         {
-            var itSection = await BuildItProjectSectionAsync(selected, cancellationToken);
+            // One section per module: IT projects for an ITO, MOLTI and SRE projects for the
+            // officer they are assigned to.
+            var engineSections = await BuildItProjectSectionsAsync(selected, cancellationToken);
             if (selected.ItProjectsOnly)
             {
                 sections.Clear();
             }
 
-            sections.Add(itSection);
+            sections.AddRange(engineSections);
         }
 
         return new OfficerConferenceVm
@@ -535,6 +537,7 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
             IdeaCount = ideaItems.Count,
             OtherTaskCount = taskItems.Count,
             ItProjectCount = selected.ItProjects.Count,
+            ModuleProjectCounts = ModuleCounts(selected.ItProjects),
             CompletedProjectRetentionDays = _projectScope?.CompletedProjectRetentionDays ?? 0,
             PreviousOfficerUserId = includeOfficerNavigation && selectedIndex > 0
                 ? orderedOfficers[selectedIndex - 1].UserId
@@ -587,8 +590,8 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
                 => await BuildIdeaDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
             ConferenceItemKind.ActionTask when selected.OtherTasks.Any(item => item.TaskId == itemId)
                 => await BuildTaskDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
-            ConferenceItemKind.ItProject when selected.ItProjects.Any(item => item.Id == itemId)
-                => await BuildItProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
+            ConferenceItemKind.ItProject when selected.ItProjects.FirstOrDefault(item => item.Id == itemId) is { } engineProject
+                => await BuildItProjectDirectionHistoryAsync(selected.UserId, itemId, engineProject.Module, cancellationToken),
             _ => null
         };
     }
@@ -617,8 +620,8 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
         if (kind == ConferenceItemKind.ItProject)
         {
             selected = await WithOwnItProjectsAsync(selected, cancellationToken);
-            return selected.ItProjects.Any(item => item.Id == itemId)
-                ? await BuildItProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken)
+            return selected.ItProjects.FirstOrDefault(item => item.Id == itemId) is { } engineProject
+                ? await BuildItProjectDirectionHistoryAsync(selected.UserId, itemId, engineProject.Module, cancellationToken)
                 : null;
         }
 
@@ -1208,7 +1211,12 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
                 officer.OtherTasks.Count,
                 officer.ActiveProjects.Count,
                 officer.RecentlyCompletedProjects.Count,
-                officer.ItProjects.Count))
+                officer.ItProjects.Count)
+            {
+                Rank = officer.Rank?.Trim() ?? string.Empty,
+                Name = officer.OfficerName?.Trim() ?? string.Empty,
+                ModuleProjectCounts = ModuleCounts(officer.ItProjects)
+            })
             .ToArray();
 
     private async Task<List<ProjectRow>> LoadProjectsAsync(
@@ -2124,7 +2132,7 @@ public sealed partial class OfficerConferenceReadService : IOfficerConferenceRea
     {
         public int ProjectCount => ActiveProjects.Count + RecentlyCompletedProjects.Count;
 
-        /// <summary>Live IT projects, for an officer who holds the ITO role on the command review.</summary>
+        /// <summary>Live projects of the IT projects engine under this officer: IT projects for an ITO, MOLTI and SRE projects for their assigned officer.</summary>
         public IReadOnlyList<LiveItProjectRow> ItProjects => ItProjectsInput ?? Array.Empty<LiveItProjectRow>();
     }
 

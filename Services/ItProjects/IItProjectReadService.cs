@@ -24,12 +24,30 @@ public enum ItProjectBoardSort
     LongestWait = 1
 }
 
+/// <summary>Which projects a board shows by their assigned Project Officer (modules that assign one).</summary>
+public enum ItProjectOfficerFilter
+{
+    Any = 0,
+
+    /// <summary>Projects with no officer: the ones waiting to be assigned.</summary>
+    Unassigned = 1,
+
+    /// <summary>Projects assigned to the viewer.</summary>
+    Mine = 2
+}
+
 public sealed record ItProjectBoardQuery(
     ItProjectBoardScope Scope = ItProjectBoardScope.Active,
     /// <summary>Show the cases that count in this year (New ones and those carried into it); null for all years.</summary>
     int? FinancialYearStart = null,
     string? Search = null,
-    ItProjectBoardSort Sort = ItProjectBoardSort.StageOrder);
+    ItProjectBoardSort Sort = ItProjectBoardSort.StageOrder,
+    /// <summary>The module whose board this is; a board never shows the projects of another module.</summary>
+    string Module = ItProjectModules.It,
+    /// <summary>Narrows the board by assigned officer. Like the year and search, the counts follow it.</summary>
+    ItProjectOfficerFilter Officer = ItProjectOfficerFilter.Any,
+    /// <summary>The signed-in user, for <see cref="ItProjectOfficerFilter.Mine"/> and the "mine" count.</summary>
+    string? ViewerUserId = null);
 
 public sealed record ItProjectBoardStageCell(
     string StageCode,
@@ -52,7 +70,11 @@ public sealed record ItProjectBoardRow(
     IReadOnlyList<ItProjectBoardStageCell> Stages,
     ItProjectTiming Timing,
     ItProjectYearTypeInfo? YearType,
-    IReadOnlyList<string> LaterYearReferences)
+    IReadOnlyList<string> LaterYearReferences,
+    /// <summary>The assigned Project Officer, in a module that assigns one; null when unassigned.</summary>
+    string? ProjectOfficerUserId = null,
+    /// <summary>The officer's display name; null when unassigned or the user no longer exists.</summary>
+    string? ProjectOfficerName = null)
 {
     /// <summary>The IT ARPPP number to show for the board's year: that year's number when entered, else the first one.</summary>
     public string DisplayReference => YearType?.PppReferenceNumber ?? PppReferenceNumber;
@@ -97,7 +119,14 @@ public sealed record ItProjectBoard(
     int CompletedCount,
     int DroppedCount,
     IReadOnlyList<int> FinancialYears,
-    ItProjectBoardFigures Figures);
+    ItProjectBoardFigures Figures,
+    /// <summary>Live projects with no officer, in the board's year and search but before the officer filter.</summary>
+    int UnassignedActiveCount = 0,
+    /// <summary>Live projects assigned to the viewer, counted the same way.</summary>
+    int MineActiveCount = 0);
+
+/// <summary>A user who can be a project's officer.</summary>
+public sealed record ItProjectOfficerOption(string UserId, string Name);
 
 public interface IItProjectReadService
 {
@@ -109,14 +138,20 @@ public interface IItProjectReadService
     /// </summary>
     Task<ItProjectBoard> GetBoardAsync(ItProjectBoardQuery query, CancellationToken cancellationToken = default);
 
-    /// <summary>The project with its nine stage rows in order, or null when it does not exist or is deleted.</summary>
+    /// <summary>The IT project with its nine stage rows in order, or null when it does not exist or is deleted.</summary>
     Task<ItProject?> GetAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>The same for a project of the given module; a project of another module is null.</summary>
+    Task<ItProject?> GetAsync(int id, string module, CancellationToken cancellationToken = default);
 
     /// <summary>The time facts of a project loaded by <see cref="GetAsync"/>, against today in IST.</summary>
     ItProjectTiming GetTiming(ItProject project);
 
     /// <summary>New / CL / CF in every financial year the project counts in, oldest first.</summary>
     IReadOnlyList<ItProjectYearTypeInfo> GetYearTypes(ItProject project);
+
+    /// <summary>The active users who hold the Project Officer role, by name: the people a project can be assigned to.</summary>
+    Task<IReadOnlyList<ItProjectOfficerOption>> GetAssignableOfficersAsync(CancellationToken cancellationToken = default);
 
     /// <summary>A user's display name (full name, else user name) for "updated by", or null when unknown.</summary>
     Task<string?> GetUserDisplayNameAsync(string userId, CancellationToken cancellationToken = default);

@@ -173,6 +173,24 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 ActivePagePrefix = "/ItProjects/",
                 AuthorizationPolicy = Policies.ItProjects.View,
                 Icon = "bi-pc-display"
+            },
+            // MOLTI projects and SRE projects: modules of their own on the IT projects engine
+            // (docs/ux/molti-sre-projects.md).
+            new()
+            {
+                Text = "MOLTI projects",
+                Page = "/MoltiProjects/Index",
+                ActivePagePrefix = "/MoltiProjects/",
+                AuthorizationPolicy = Policies.MoltiProjects.View,
+                Icon = "bi-clipboard-check"
+            },
+            new()
+            {
+                Text = "SRE projects",
+                Page = "/SreProjects/Index",
+                ActivePagePrefix = "/SreProjects/",
+                AuthorizationPolicy = Policies.SreProjects.View,
+                Icon = "bi-clipboard-pulse"
             }
         };
 
@@ -299,6 +317,14 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Text = "PDF Tools",
             Page = "/Tools/Pdf/Index",
             Icon = "bi-file-earmark-pdf",
+            OpensInNewTab = true
+        },
+        // Standalone tool: users change their own photos in the browser; nothing is stored in PRISM.
+        new()
+        {
+            Text = "Photo Tools",
+            Page = "/Tools/Photo/Index",
+            Icon = "bi-image",
             OpensInNewTab = true
         }
     };

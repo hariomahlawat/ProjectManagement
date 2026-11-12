@@ -578,21 +578,24 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
             analyseIds,
             MediaProcessingJobType.AnalyseAsset,
             analyseForceSet,
+            contentChangedAssetIds,
             now,
             cancellationToken);
         await QueueJobsAsync(
             classifyIds,
             MediaProcessingJobType.ClassifyMedia,
             staleSet,
+            contentChangedAssetIds,
             now,
             cancellationToken);
         await _mediaDb.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task QueueJobsAsync(
+    internal async Task QueueJobsAsync(
         IReadOnlyCollection<long> assetIds,
         MediaProcessingJobType jobType,
         IReadOnlySet<long> forceRequeueAssetIds,
+        IReadOnlySet<long> contentChangedAssetIds,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -629,6 +632,16 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
             {
                 // Changed/stale assets have a new classification concurrency token. An in-flight
                 // processor will yield and its worker will retry the same job safely.
+                continue;
+            }
+
+            // A job that repeatedly took its worker down stays dead-lettered until an
+            // administrator retries it, including when its classifier version is stale
+            // (which a crashing classification never gets to update). New content is a
+            // different file and may be processed again.
+            if (MediaProcessingFailurePolicy.IsHeldForAdministrator(job)
+                && !contentChangedAssetIds.Contains(assetId))
+            {
                 continue;
             }
 

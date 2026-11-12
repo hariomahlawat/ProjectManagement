@@ -105,7 +105,7 @@ public class RoleBasedNavigationProviderTests
         // of their own added before the Pending approvals queue.
         Assert.Equal(
             subNavDestinations.Take(subNavDestinations.Count - 1)
-                .Concat(new[] { "Proliferation compendium", "Project ideas", "IT projects" })
+                .Concat(new[] { "Proliferation compendium", "Project ideas", "IT projects", "MOLTI projects", "SRE projects" })
                 .Append("Pending approvals"),
             texts);
         Assert.DoesNotContain("Create project", texts);
@@ -215,16 +215,24 @@ public class RoleBasedNavigationProviderTests
     }
 
     [Fact]
-    public async Task Navigation_OffersPdfToolsToEverySignedInUserInANewTab()
+    public async Task Navigation_OffersTheToolsToEverySignedInUserInANewTab()
     {
         var tools = Section(await NavigateAsAsync(Array.Empty<string>()), NavigationSectionKeys.Tools);
 
-        var pdfTools = Assert.Single(tools.Children);
+        Assert.Equal(2, tools.Children.Count);
+        var pdfTools = tools.Children[0];
         Assert.Equal("PDF Tools", pdfTools.Text);
         Assert.Equal("/Tools/Pdf/Index", pdfTools.Page);
         Assert.True(pdfTools.OpensInNewTab);
         Assert.Null(pdfTools.AuthorizationPolicy);
         Assert.Null(pdfTools.RequiredRoles);
+
+        var photoTools = tools.Children[1];
+        Assert.Equal("Photo Tools", photoTools.Text);
+        Assert.Equal("/Tools/Photo/Index", photoTools.Page);
+        Assert.True(photoTools.OpensInNewTab);
+        Assert.Null(photoTools.AuthorizationPolicy);
+        Assert.Null(photoTools.RequiredRoles);
     }
 
     [Fact]

@@ -105,11 +105,28 @@ psql -v ON_ERROR_STOP=1 -d <dev-database> -f tools/dev-data/command-desk-demo-re
 
 To bring the dates up to date, run the remove script and then the seed script. The demo projects get new ids each time.
 
+- `molti-sre-demo-seed.sql` adds twelve MOLTI projects and SRE projects named `Demo · …` (docs/ux/molti-sre-projects.md): cases at different stages with dated stages and costs, most assigned to Project Officers by user name (`ankur`, `arpan`, `chinmay`, `nishant`, `claude_review_po`; a name the database does not have leaves the project unassigned), two with no officer, one dropped, two delivered. They are created as the first active HoD (else Admin). Safe to run twice: a title that already exists in its module is skipped.
+- `molti-sre-demo-remove.sql` deletes every MOLTI or SRE project whose title starts with `Demo · `, with its stages, years, remarks and attachment records.
+
+```bash
+psql -v ON_ERROR_STOP=1 -d <dev-database> -f tools/dev-data/molti-sre-demo-seed.sql
+psql -v ON_ERROR_STOP=1 -d <dev-database> -f tools/dev-data/molti-sre-demo-remove.sql
+```
+
 - `returned-plans-demo-seed.sql` adds eight projects named `Demo · Return N · …`, each with a timeline plan the HoD returned, shaped as `PlanApprovalService` leaves the rows: returned with nothing to fix, correction draft discarded, resubmitted then withdrawn, project handed to another PO, project completed, the older return shape, and two that were resubmitted (pending, and approved). It needs a Project Officer, a HoD and a second Project Officer (`-v other_po_user=…`). `returned-plans-demo-remove.sql` deletes only those projects. Because their names also start with `Demo · `, the Command desk remove script deletes them too, and the Command desk seed script does nothing while they exist.
+
+- `photos-bulk-demo-seed.sql` builds a large photo library for scroll and speed checks of the Photos page: 6,000 catalogue rows by default (`-v items=20000` for another size), titled `Demo bulk …`, spread over 30 months with quiet days, ordinary days of 1 to 5 pictures and a few days of 40 or more, shown under the existing projects, about 3 in 100 of them videos, with mixed tile shapes. It copies the project photos and videos the Photos page already shows, so no image files are added and thumbnails still load; the copies sit under their own catalogue source (key `demo-bulk`) so the catalogue synchroniser leaves them alone. **It only runs in a throwaway database whose name starts with `prism_review_`** and stops anywhere else. Safe to run twice: it rebuilds the set. `photos-bulk-demo-remove.sql` deletes that source and its rows, under the same name check.
+
+```bash
+psql -v ON_ERROR_STOP=1 -d prism_review_<name> -f tools/dev-data/photos-bulk-demo-seed.sql
+psql -v ON_ERROR_STOP=1 -d prism_review_<name> -f tools/dev-data/photos-bulk-demo-remove.sql
+```
 
 ## CI note
 
 `.github/workflows/notebook.yml` provides the broadest normal build/test path currently committed. The repository does not yet have one single workflow that expresses every required validation for every change type; use the affected-area tests plus the checks above.
+
+Both .NET workflows write a `global.json` for the job that selects the .NET 8 SDK (`8.0.100`, `rollForward: latestFeature`) and fail if another SDK is chosen. GitHub runner images also carry newer SDKs and, without a `global.json`, `dotnet` builds with the newest one installed; when image `20261111` added .NET SDK 11, its Razor compiler failed on `Pages/Analytics/Index.cshtml` and builds passed or failed depending on the image a job landed on. The file is not committed, so a local build still uses the newest SDK on that machine. Moving to a newer SDK is a deliberate change: fix what it rejects first, then change the pin.
 
 ## Test parallelism
 

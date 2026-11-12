@@ -5,7 +5,15 @@
     const viewer = document.querySelector('[data-photos-viewer]');
     if (!root || !viewer) return;
 
-    const tiles = Array.from(root.querySelectorAll('[data-media-item]'));
+    let tiles = Array.from(root.querySelectorAll('[data-media-item]'));
+
+    // The slim bar sticks just below the application's top bar, whatever its height.
+    const topbar = document.querySelector('.pm-topbar');
+    if (topbar && root.querySelector('[data-photos-bar]')) {
+        const syncBarOffset = () => root.style.setProperty('--photos-bar-top', `${topbar.offsetHeight}px`);
+        syncBarOffset();
+        if ('ResizeObserver' in window) new ResizeObserver(syncBarOffset).observe(topbar);
+    }
 
     // Keep an open Photos page current without making catalogue discovery depend on
     // navigation. The background worker discovers PRISM-owned media; this lightweight
@@ -85,7 +93,7 @@
     // its information panel (collection, people, albums, caption, file details).
     const value = (tile, name) => tile.dataset[name] || '';
     const mediaKey = tile => tile.dataset.mediaKey || tile.dataset.assetId || String(tiles.indexOf(tile) + 1);
-    const items = tiles.map(tile => ({
+    const buildItems = () => tiles.map(tile => ({
         key: mediaKey(tile),
         kind: value(tile, 'kind') === 'video' ? 'video' : 'photo',
         displayUrl: value(tile, 'displayUrl'),
@@ -94,8 +102,13 @@
         date: value(tile, 'date'),
         originalUrl: value(tile, 'originalUrl'),
         downloadUrl: value(tile, 'downloadUrl') || value(tile, 'originalUrl'),
+        // Read when the strip is drawn, so a tile that fell back to its larger thumbnail
+        // gives the strip the picture that actually loaded.
+        get thumbUrl() { return tile.querySelector('[data-media-image]')?.getAttribute('src') || ''; },
+        get thumbFallbackUrl() { return tile.querySelector('[data-media-image]')?.dataset.fallbackSrc || ''; },
         tile
     }));
+    let items = buildItems();
 
     const parseLinks = (raw) => {
         try {
@@ -139,7 +152,10 @@
         setText('[data-info-context]', value(tile, 'context'));
         setText('[data-info-date]', value(tile, 'date'));
         setText('[data-info-source]', `${value(tile, 'sourceLabel')} · ${value(tile, 'subtitle')}`);
-        setText('[data-info-classification]', value(tile, 'classification') || 'Not classified');
+        // A picture PRISM has not sorted into a kind shows no "Kind of picture" row at all.
+        const kind = value(tile, 'classification');
+        setRow('[data-info-classification-row]', Boolean(kind) && kind !== 'Not classified');
+        setText('[data-info-classification]', kind);
 
         const caption = value(tile, 'caption');
         setText('[data-info-caption]', caption);
@@ -148,13 +164,16 @@
         fillLinks(viewer.querySelector('[data-info-albums]'), viewer.querySelector('[data-info-albums-row]'), parseLinks(value(tile, 'albums')));
         fillLinks(viewer.querySelector('[data-info-people]'), viewer.querySelector('[data-info-people-row]'), parseLinks(value(tile, 'people')));
 
-        const filename = value(tile, 'filename');
-        setRow('[data-info-filename-row]', Boolean(filename));
-        setText('[data-info-filename]', filename);
-
-        const fileSize = value(tile, 'fileSize');
-        setRow('[data-info-file-size-row]', Boolean(fileSize));
-        setText('[data-info-file-size]', fileSize);
+        // One line for the file: name, size and pixel size, whichever are known.
+        const width = value(tile, 'width');
+        const height = value(tile, 'height');
+        const fileFacts = [
+            value(tile, 'filename'),
+            value(tile, 'fileSize'),
+            width && height ? `${width} × ${height} px` : ''
+        ].filter(Boolean);
+        setRow('[data-info-file-row]', fileFacts.length > 0);
+        setText('[data-info-file]', fileFacts.join(' · '));
 
         const editCaptionButton = viewer.querySelector('[data-info-edit-caption]');
         if (editCaptionButton) {
@@ -169,11 +188,6 @@
         setRow('[data-info-unidentified-row]', unidentified > 0);
         setText('[data-info-unidentified]', unidentified === 1 ? '1 face awaiting review' : `${unidentified} faces awaiting review`);
 
-        const width = value(tile, 'width');
-        const height = value(tile, 'height');
-        setRow('[data-info-dimensions-row]', Boolean(width && height));
-        setText('[data-info-dimensions]', width && height ? `${width} × ${height} px` : '');
-
         const duration = value(tile, 'duration');
         setRow('[data-info-duration-row]', Boolean(duration));
         setText('[data-info-duration]', duration);
@@ -182,11 +196,21 @@
     const mediaViewer = window.PMMediaViewer.attach(viewer, {
         items,
         hashPrefix: '#media=',
-        onRender: renderInfo
+        onRender: renderInfo,
+        // Near the end of what is loaded, fetch the next part so the viewer can carry on.
+        onNearEnd: () => { void loadNextPart(); },
+        // While parts remain, the viewer neither wraps round nor shows a final total.
+        hasMore: () => Boolean(nextPartUrl)
     });
 
+    // One listener for every tile, including tiles added later as the user scrolls.
     if (root.dataset.organizeAlbum !== 'true') {
-        tiles.forEach((tile, index) => tile.addEventListener('click', () => mediaViewer.open(index, tile)));
+        root.addEventListener('click', (event) => {
+            const tile = event.target?.closest?.('[data-media-item]') ?? null;
+            if (!tile || tile.matches(':disabled')) return;
+            const index = tiles.indexOf(tile);
+            if (index >= 0) mediaViewer.open(index, tile);
+        });
     }
 
     const markUnavailable = (image) => {
@@ -198,12 +222,25 @@
         tile.disabled = true;
     };
 
-    document.querySelectorAll('[data-media-image]').forEach((image) => {
-        image.addEventListener('error', () => markUnavailable(image), { once: true });
-        if (image.complete && image.naturalWidth === 0) {
-            markUnavailable(image);
+    // Tiles ask for a small picture. A library that does not have that size falls back once
+    // to the larger thumbnail before the tile is shown as unavailable.
+    const handleImageFailure = (image) => {
+        const fallback = image.dataset.fallbackSrc;
+        if (fallback && image.dataset.fallbackTried !== 'true') {
+            image.dataset.fallbackTried = 'true';
+            image.src = fallback;
+            return;
         }
-    });
+        markUnavailable(image);
+    };
+
+    const watchImageFailure = (image) => {
+        image.addEventListener('error', () => handleImageFailure(image));
+        if (image.complete && image.naturalWidth === 0) {
+            handleImageFailure(image);
+        }
+    };
+    document.querySelectorAll('[data-media-image]').forEach(watchImageFailure);
 
 
     const parseRatio = (tile) => {
@@ -213,7 +250,8 @@
     };
 
     const gridTargetHeight = () => {
-        if (window.matchMedia('(max-width: 575.98px)').matches) return 145;
+        // Phones: three pictures to a row, as a photo library is expected to show.
+        if (window.matchMedia('(max-width: 575.98px)').matches) return 96;
         if (window.matchMedia('(max-width: 991.98px)').matches) return 180;
         return 215;
     };
@@ -226,7 +264,9 @@
         const containerWidth = grid.clientWidth;
         const target = gridTargetHeight();
         const sparseLastRow = root.dataset.sparseLastRow === 'true';
-        const minHeight = Math.max(120, target * 0.72);
+        const compact = target < 120;
+        const minHeight = Math.max(compact ? 72 : 120, target * 0.72);
+        const minWidth = compact ? 64 : 96;
         const maxHeight = target * 1.26;
 
         if (items.length === 1) {
@@ -287,7 +327,7 @@
             height = Math.max(minHeight, Math.min(maxHeight, height));
 
             entries.forEach(({ tile, ratio }) => {
-                tile.style.width = `${Math.max(96, Math.round(height * ratio))}px`;
+                tile.style.width = `${Math.max(minWidth, Math.round(height * ratio))}px`;
                 tile.style.height = `${Math.round(height)}px`;
             });
         });
@@ -295,31 +335,275 @@
         grid.classList.add('is-layout-ready');
     }
 
-    const grids = Array.from(root.querySelectorAll('.photos-grid'));
-    const layoutAll = () => grids.forEach(layoutGrid);
+    // The width the grids were last laid out for. Every grid is as wide as the library, so a
+    // change of height alone (a part added while scrolling) needs no new layout.
+    let laidOutWidth = -1;
+    const layoutAll = () => {
+        laidOutWidth = root.clientWidth;
+        root.querySelectorAll('.photos-grid').forEach(layoutGrid);
+    };
     let layoutFrame = 0;
     const queueLayout = () => {
+        if (root.clientWidth === laidOutWidth) return;
         cancelAnimationFrame(layoutFrame);
         layoutFrame = requestAnimationFrame(layoutAll);
     };
 
+    // Every grid is as wide as the library, so watching the library covers grids added later.
     if ('ResizeObserver' in window) {
-        const observer = new ResizeObserver(queueLayout);
-        grids.forEach(grid => observer.observe(grid));
+        new ResizeObserver(queueLayout).observe(root);
     } else {
         window.addEventListener('resize', queueLayout, { passive: true });
     }
 
-    document.querySelectorAll('[data-media-image]').forEach((image) => {
+    const watchImageLoad = (image) => {
         const markLoaded = () => {
             image.closest('[data-media-item]')?.classList.add('is-loaded');
-            queueLayout();
         };
-        image.addEventListener('load', markLoaded, { once: true });
+        image.addEventListener('load', markLoaded);
         if (image.complete && image.naturalWidth > 0) markLoaded();
-    });
+    };
+    document.querySelectorAll('[data-media-image]').forEach(watchImageLoad);
 
     layoutAll();
+
+    // Continuous scroll: when the user nears the end, the next part of the timeline is fetched
+    // from the same page (same filters, same access rules) and added below. Without script,
+    // or if a part fails to load, the Previous / Next links still work.
+    const timeline = root.querySelector('[data-photos-timeline]');
+    const more = root.querySelector('[data-photos-more]');
+    const pagination = root.querySelector('[data-photos-pagination]');
+    let nextPartUrl = timeline?.dataset.nextPartUrl || '';
+    let loadingPart = false;
+    let moreObserver = null;
+
+    const itemLabel = (count) => `${count} item${count === 1 ? '' : 's'}`;
+
+    // What the day's pictures came from: up to two names, then "and N more". The same rule as
+    // the page (IndexModel.DaySourceSummary), for a day that grew while scrolling.
+    const daySourceSummary = (grid) => {
+        const names = [];
+        const seen = new Set();
+        grid.querySelectorAll('[data-media-item]').forEach((tile) => {
+            const name = (tile.dataset.context || '').trim();
+            const key = name.toLowerCase();
+            if (!name || seen.has(key)) return;
+            seen.add(key);
+            names.push(name);
+        });
+        if (names.length === 0) return 'Photos';
+        if (names.length <= 2) return names.join(' · ');
+        return `${names[0]} · ${names[1]} and ${names.length - 2} more`;
+    };
+
+    function appendTimelinePart(html) {
+        const holder = document.createElement('template');
+        holder.innerHTML = html;
+        const added = [];
+        const changedGrids = new Set();
+
+        // Pages are counted from the newest picture, so pictures catalogued while the user
+        // scrolls push older ones onto the next part again. A picture already on the page is
+        // not added twice (it would also be selected and sent twice).
+        const onPage = new Set(tiles.map(tile => tile.dataset.mediaKey).filter(Boolean));
+        holder.content.querySelectorAll('[data-media-item]').forEach((tile) => {
+            const key = tile.dataset.mediaKey;
+            if (!key) return;
+            if (onPage.has(key)) tile.remove();
+            else onPage.add(key);
+        });
+
+        Array.from(holder.content.children).forEach((node) => {
+            if (node.classList.contains('photos-month')) {
+                if (!node.id || !document.getElementById(node.id)) timeline.append(node);
+                return;
+            }
+            if (!node.classList.contains('photos-day')) return;
+
+            // A day split across two parts continues in the day already on the page.
+            const headingId = node.getAttribute('aria-labelledby');
+            const existingHeading = headingId ? document.getElementById(headingId) : null;
+            const existingDay = existingHeading?.closest('.photos-day');
+            const existingGrid = existingDay?.querySelector('.photos-grid');
+            const incoming = Array.from(node.querySelectorAll('[data-media-item]'));
+            if (incoming.length === 0) return;
+            if (existingGrid) {
+                incoming.forEach(tile => existingGrid.append(tile));
+                added.push(...incoming);
+                changedGrids.add(existingGrid);
+                const count = existingDay.querySelector('[data-day-count]');
+                if (count) {
+                    const total = existingGrid.querySelectorAll('[data-media-item]').length;
+                    count.dataset.dayCount = String(total);
+                    count.textContent = itemLabel(total);
+                }
+                const sources = existingDay.querySelector('[data-day-sources]');
+                if (sources) sources.textContent = daySourceSummary(existingGrid);
+                return;
+            }
+
+            timeline.append(node);
+            added.push(...incoming);
+            node.querySelectorAll('.photos-grid').forEach(grid => changedGrids.add(grid));
+        });
+
+        // A month whose every picture was already on the page is left with no day under it.
+        const lastNode = timeline.lastElementChild;
+        if (lastNode?.classList.contains('photos-month')) lastNode.remove();
+
+        if (added.length === 0) return;
+        added.forEach((tile) => {
+            const image = tile.querySelector('[data-media-image]');
+            if (image) {
+                watchImageFailure(image);
+                watchImageLoad(image);
+            }
+        });
+        tiles = Array.from(root.querySelectorAll('[data-media-item]'));
+        items = buildItems();
+        mediaViewer.setItems(items);
+        // Only the grids that gained pictures are laid out; the rest have not changed.
+        if (root.clientWidth === laidOutWidth) changedGrids.forEach(layoutGrid);
+        else layoutAll();
+        root.dispatchEvent(new CustomEvent('photos:tiles-changed'));
+    }
+
+    // The page links come back when a part cannot be loaded. By then earlier parts may have
+    // been added, so Next must open the part that failed, not the page after the first one.
+    function showPaginationFallback() {
+        if (!pagination) return;
+        const nextLink = pagination.querySelector('[data-photos-next-page]');
+        if (nextLink && nextPartUrl) {
+            try {
+                const url = new URL(nextPartUrl, window.location.href);
+                url.searchParams.delete('handler');
+                nextLink.setAttribute('href', `${url.pathname}${url.search}`);
+                // The timeline now spans several pages, so "Page 1" would mislead.
+                pagination.querySelector('[data-photos-page-label]')?.setAttribute('hidden', '');
+            } catch {
+                // Keep the link the page was rendered with.
+            }
+        }
+        pagination.hidden = false;
+    }
+
+    async function loadNextPart() {
+        if (!timeline || !nextPartUrl || loadingPart) return;
+        loadingPart = true;
+        more?.querySelector('[data-photos-more-loading]')?.removeAttribute('hidden');
+        more?.querySelector('[data-photos-more-error]')?.setAttribute('hidden', '');
+        try {
+            const response = await fetch(nextPartUrl, {
+                headers: { 'X-Requested-With': 'PhotosTimelinePart' },
+                cache: 'no-store',
+                credentials: 'same-origin'
+            });
+            // A real part always carries the next-part header, even when empty. A redirect (an
+            // expired sign-in lands on the login page) or any other page does not, and must not
+            // be taken for "no more pictures".
+            const nextHeader = response.headers.get('X-Photos-Next-Part');
+            if (!response.ok || response.redirected || nextHeader === null) {
+                throw new Error(`Timeline part failed: ${response.status}`);
+            }
+            const html = await response.text();
+            nextPartUrl = nextHeader;
+            appendTimelinePart(html);
+            if (!nextPartUrl && more) {
+                more.hidden = true;
+                root.querySelector('[data-photos-end]')?.removeAttribute('hidden');
+            } else if (moreObserver && more) {
+                // An observer reports changes only. Watching again asks "still near the end?",
+                // so a short part on a tall screen is followed by the next one.
+                moreObserver.unobserve(more);
+                moreObserver.observe(more);
+            }
+        } catch {
+            more?.querySelector('[data-photos-more-loading]')?.setAttribute('hidden', '');
+            more?.querySelector('[data-photos-more-error]')?.removeAttribute('hidden');
+            showPaginationFallback();
+        } finally {
+            loadingPart = false;
+        }
+    }
+
+    if (timeline && more && nextPartUrl && 'IntersectionObserver' in window) {
+        more.hidden = false;
+        if (pagination) pagination.hidden = true;
+        moreObserver = new IntersectionObserver((entries) => {
+            if (entries.some(entry => entry.isIntersecting)) void loadNextPart();
+        }, { rootMargin: '1200px 0px' });
+        moreObserver.observe(more);
+        more.querySelector('[data-photos-more-retry]')?.addEventListener('click', () => void loadNextPart());
+    }
+
+    // The month list on the right edge. A month already on the page is scrolled to; any other
+    // month is opened by its own link, which starts the timeline at that month.
+    const scrubber = root.querySelector('[data-photos-scrubber]');
+    // On screens too narrow for the list, a picker in the chip row does the same job.
+    const monthJump = root.querySelector('[data-photos-month-jump]');
+    if ((scrubber || monthJump) && timeline) {
+        // What covers the top of the page: the sticky bar, or on a phone, where the bar does
+        // not stick, only the application's top bar.
+        const barHeight = () => {
+            const bar = root.querySelector('[data-photos-bar]');
+            const sticky = bar && getComputedStyle(bar).position === 'sticky';
+            // Where the sticky bar ends once it is stuck: its own offset plus its height now,
+            // which is two rows when the bar has wrapped.
+            if (sticky) return (Number.parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight + 12;
+            return Math.max(0, document.querySelector('.pm-topbar')?.getBoundingClientRect().bottom || 0) + 12;
+        };
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        // The heading is given the measured height as its scroll margin, so it clears the bar
+        // whatever the bar's height; the stylesheet's margin covers links followed without script.
+        const scrollToMonth = (heading) => {
+            heading.style.scrollMarginTop = `${barHeight()}px`;
+            heading.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+        };
+        scrubber?.addEventListener('click', (event) => {
+            const link = event.target?.closest?.('a[data-month]') ?? null;
+            const heading = link ? document.getElementById(`month-${link.dataset.month}`) : null;
+            if (!heading) return;
+            event.preventDefault();
+            scrollToMonth(heading);
+        });
+        monthJump?.addEventListener('change', () => {
+            const option = monthJump.selectedOptions[0];
+            if (!option) return;
+            const heading = document.getElementById(`month-${option.dataset.month}`);
+            if (heading) scrollToMonth(heading);
+            else window.location.assign(option.value);
+        });
+
+        let scrubberFrame = 0;
+        const markCurrentMonth = () => {
+            const limit = barHeight() + 40;
+            let current = '';
+            timeline.querySelectorAll('.photos-month').forEach((heading) => {
+                if (!current || heading.getBoundingClientRect().top < limit) current = heading.id.replace('month-', '');
+            });
+            scrubber?.querySelectorAll('a[data-month]').forEach((link) => {
+                const isCurrent = link.dataset.month === current;
+                const wasCurrent = link.classList.contains('is-current');
+                link.classList.toggle('is-current', isCurrent);
+                if (isCurrent) link.setAttribute('aria-current', 'true');
+                else link.removeAttribute('aria-current');
+                // In a long list the current month is kept in sight inside the list itself.
+                if (isCurrent && !wasCurrent && scrubber.scrollHeight > scrubber.clientHeight) {
+                    scrubber.scrollTop = link.offsetTop - scrubber.clientHeight / 2;
+                }
+            });
+            if (monthJump && current) {
+                const option = [...monthJump.options].find(candidate => candidate.dataset.month === current);
+                if (option) monthJump.value = option.value;
+            }
+        };
+        window.addEventListener('scroll', () => {
+            cancelAnimationFrame(scrubberFrame);
+            scrubberFrame = requestAnimationFrame(markCurrentMonth);
+        }, { passive: true });
+        root.addEventListener('photos:tiles-changed', markCurrentMonth);
+        markCurrentMonth();
+    }
 
     if (root.dataset.organizeAlbum !== 'true') {
         window.addEventListener('hashchange', () => mediaViewer.syncWithHash());
@@ -343,7 +627,7 @@
     const cancelUrl = library.dataset.selectionCancelUrl || '';
     const targetedCuration = autoStart && cancelUrl.length > 0;
 
-    const tiles = Array.from(library.querySelectorAll('[data-media-item]'));
+    let tiles = Array.from(library.querySelectorAll('[data-media-item]'));
     const actionBar = library.querySelector('[data-photos-selection-bar]');
     const countLabel = actionBar?.querySelector('[data-selection-count]');
     const noteLabel = actionBar?.querySelector('[data-selection-note]');
@@ -359,8 +643,12 @@
     const coverForm = actionBar?.querySelector('[data-selection-cover-form]');
     const coverButton = actionBar?.querySelector('[data-selection-set-cover]');
     const label = toggle.querySelector('span');
+    const cancelButton = actionBar?.querySelector('[data-selection-cancel]');
 
     let selecting = autoStart;
+    // Pressing Select keeps the mode on with nothing chosen. A mode started by ticking a
+    // picture ends by itself when the last tick is removed.
+    let startedByButton = autoStart;
     let lastSelectedIndex = -1;
     let suppressNextClick = false;
     const selected = new Set();
@@ -372,6 +660,8 @@
     };
 
     const selectedTiles = () => tiles.filter((tile, index) => selected.has(keyFor(tile, index)));
+    const isSelectable = tile => !tile.disabled && !tile.classList.contains('photos-tile--unavailable');
+    const selectableIn = scope => (scope ? Array.from(scope.querySelectorAll('[data-media-item]')).filter(isSelectable) : []);
 
     const setTileSelected = (tile, index, value) => {
         const key = keyFor(tile, index);
@@ -390,32 +680,10 @@
             .map(assetIdFor)
             .filter(id => id !== null);
 
-        const syncAssetInputs = (form, name = 'assetIds') => {
-            if (!form) return;
-            form.querySelectorAll(`input[name="${name}"]`).forEach(input => input.remove());
-            assetIds.forEach(assetId => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = name;
-                input.value = String(assetId);
-                form.appendChild(input);
-            });
-        };
-
-        if (downloadForm) {
-            downloadForm.querySelectorAll('input[name="assetIds"]').forEach(input => input.remove());
-            assetIds.forEach(assetId => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'assetIds';
-                input.value = String(assetId);
-                downloadForm.appendChild(input);
-            });
-        }
-
+        // The forms and the review link are filled when they are used (see below): writing
+        // a hidden field per picture into three forms on every tick made a large selection,
+        // and every movement of a drag-select, slow.
         if (downloadButton) downloadButton.disabled = assetIds.length === 0;
-        syncAssetInputs(albumForm);
-        syncAssetInputs(removeAlbumForm);
         if (addAlbumButton) addAlbumButton.disabled = assetIds.length === 0;
         if (removeAlbumButton) removeAlbumButton.disabled = assetIds.length === 0;
 
@@ -438,21 +706,19 @@
         }
 
         if (reviewPeopleLink) {
-            const base = reviewPeopleLink.dataset.baseUrl || reviewPeopleLink.getAttribute('href') || '';
-            if (assetIds.length > 0 && base) {
-                const url = new URL(base, window.location.origin);
-                url.searchParams.delete('AssetIds');
-                assetIds.forEach(assetId => url.searchParams.append('AssetIds', String(assetId)));
-                reviewPeopleLink.href = `${url.pathname}${url.search}${url.hash}`;
-                reviewPeopleLink.classList.remove('disabled');
-                reviewPeopleLink.setAttribute('aria-disabled', 'false');
-            } else {
-                reviewPeopleLink.classList.add('disabled');
-                reviewPeopleLink.setAttribute('aria-disabled', 'true');
-            }
+            const usable = assetIds.length > 0 && Boolean(reviewPeopleBase());
+            reviewPeopleLink.classList.toggle('disabled', !usable);
+            reviewPeopleLink.setAttribute('aria-disabled', String(!usable));
         }
 
-        if (countLabel) countLabel.textContent = `${chosen.length} selected`;
+        library.querySelectorAll('[data-day-select]').forEach(button => {
+            const dayTiles = selectableIn(button.closest('.photos-day'));
+            const allChosen = dayTiles.length > 0 && dayTiles.every(tile => tile.classList.contains('is-selected'));
+            button.classList.toggle('is-selected', allChosen);
+            button.setAttribute('aria-pressed', String(allChosen));
+        });
+
+        if (countLabel) countLabel.textContent = chosen.length === 0 ? 'Choose pictures' : `${chosen.length} selected`;
         if (noteLabel) {
             const unsupported = chosen.length - assetIds.length;
             noteLabel.textContent = unsupported > 0
@@ -460,6 +726,39 @@
                 : '';
         }
     };
+
+    // SECTION: Hand the selection to an action when it is used
+    const selectedAssetIds = () => selectedTiles().map(assetIdFor).filter(id => id !== null);
+    const writeAssetInputs = (form) => {
+        if (!form) return;
+        form.querySelectorAll('input[name="assetIds"]').forEach(input => input.remove());
+        const fields = document.createDocumentFragment();
+        selectedAssetIds().forEach(assetId => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'assetIds';
+            input.value = String(assetId);
+            fields.appendChild(input);
+        });
+        form.appendChild(fields);
+    };
+    // Heard first on the form itself, so the fields are in place before anything else reads it.
+    [downloadForm, albumForm, removeAlbumForm].forEach(form => form?.addEventListener('submit', () => writeAssetInputs(form), true));
+
+    const reviewPeopleBase = () => (reviewPeopleLink
+        ? reviewPeopleLink.dataset.baseUrl || (reviewPeopleLink.dataset.baseUrl = reviewPeopleLink.getAttribute('href') || '')
+        : '');
+    const writeReviewPeopleLink = () => {
+        const base = reviewPeopleBase();
+        const assetIds = selectedAssetIds();
+        if (!base || assetIds.length === 0) return;
+        const url = new URL(base, window.location.origin);
+        url.searchParams.delete('AssetIds');
+        assetIds.forEach(assetId => url.searchParams.append('AssetIds', String(assetId)));
+        reviewPeopleLink.href = `${url.pathname}${url.search}${url.hash}`;
+    };
+    // Before a click, a middle click, the context menu or Enter can follow the link.
+    ['pointerdown', 'focus', 'click'].forEach(name => reviewPeopleLink?.addEventListener(name, writeReviewPeopleLink, true));
 
     const render = () => {
         library.classList.toggle('is-selecting', selecting);
@@ -488,7 +787,14 @@
             return;
         }
         selecting = false;
+        startedByButton = false;
         clearSelection();
+        render();
+    };
+
+    const enterSelectionMode = () => {
+        if (selecting) return;
+        selecting = true;
         render();
     };
 
@@ -498,9 +804,12 @@
             return;
         }
         selecting = !selecting;
+        startedByButton = selecting;
         if (!selecting) clearSelection();
         render();
     });
+
+    cancelButton?.addEventListener('click', leaveSelectionMode);
 
     clearButton?.addEventListener('click', clearSelection);
     selectAllButton?.addEventListener('click', () => {
@@ -518,9 +827,24 @@
     });
 
     library.addEventListener('click', event => {
-        if (!selecting) return;
-        const tile = event.target.closest('[data-media-item]');
+        // The tick beside a day heading takes, or releases, the whole day.
+        const dayButton = event.target?.closest?.('[data-day-select]') ?? null;
+        if (dayButton) {
+            const dayTiles = selectableIn(dayButton.closest('.photos-day'));
+            const release = dayTiles.length > 0 && dayTiles.every(tile => tile.classList.contains('is-selected'));
+            enterSelectionMode();
+            dayTiles.forEach(tile => setTileSelected(tile, tiles.indexOf(tile), !release));
+            rebuildActionTargets();
+            if (selected.size === 0 && !startedByButton && !targetedCuration) leaveSelectionMode();
+            return;
+        }
+
+        const tile = event.target?.closest?.('[data-media-item]') ?? null;
         if (!tile) return;
+        // Outside the mode, only the tick on a picture selects; the picture itself opens.
+        const onTick = Boolean(event.target.closest('.photos-tile__select'));
+        if (!selecting && (!onTick || !isSelectable(tile))) return;
+        enterSelectionMode();
 
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -544,6 +868,7 @@
 
         lastSelectedIndex = index;
         rebuildActionTargets();
+        if (selected.size === 0 && !startedByButton && !targetedCuration) leaveSelectionMode();
     }, true);
 
     // Desktop lasso selection. It is deliberately available only in explicit Select mode
@@ -562,12 +887,12 @@
 
     const intersect = (a, b) => !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
 
-    library.querySelectorAll('.photos-grid').forEach(grid => {
-        grid.addEventListener('pointerdown', event => {
-            if (!selecting || event.pointerType !== 'mouse' || event.button !== 0) return;
-            dragStart = { x: event.clientX, y: event.clientY };
-            dragGrid = grid;
-        });
+    library.addEventListener('pointerdown', event => {
+        if (!selecting || event.pointerType !== 'mouse' || event.button !== 0) return;
+        const grid = event.target?.closest?.('.photos-grid') ?? null;
+        if (!grid) return;
+        dragStart = { x: event.clientX, y: event.clientY };
+        dragGrid = grid;
     });
 
     document.addEventListener('pointermove', event => {
@@ -607,8 +932,23 @@
         removeLasso();
     });
     document.addEventListener('pointercancel', removeLasso);
+    // A drag that ended away from a picture is followed by no click on one; a new press
+    // starts afresh, so the click after it is not swallowed.
+    document.addEventListener('pointerdown', () => { suppressNextClick = false; }, true);
+    // Escape ends selecting, but not when it was pressed to close something lying over the
+    // page. Heard before those close themselves, so what was open can still be seen.
     document.addEventListener('keydown', event => {
-        if (selecting && event.key === 'Escape') leaveSelectionMode();
+        if (!selecting || event.key !== 'Escape') return;
+        const lyingOver = [...document.querySelectorAll('.modal, .offcanvas, .dropdown-menu')].some(layer => layer.classList.contains('show'))
+            || [...document.querySelectorAll('[data-photos-viewer], [data-photos-suggest]')].some(layer => !layer.hidden);
+        if (lyingOver) return;
+        leaveSelectionMode();
+    }, true);
+
+    // Tiles added while scrolling join the selection mode that is already active.
+    library.addEventListener('photos:tiles-changed', () => {
+        tiles = Array.from(library.querySelectorAll('[data-media-item]'));
+        render();
     });
 
     render();

@@ -5,7 +5,6 @@
     --itp-done: var(--pm-success);
     --itp-done-ink: var(--pm-text-inverted);
     --itp-cur: var(--pm-primary);
-    --itp-cur-ring: var(--pm-primary-soft);
     --itp-pend: var(--pm-border-strong);
     --itp-skip: var(--pm-surface-muted);
     --itp-skip-ink: var(--pm-text-muted);
@@ -27,19 +26,9 @@
     min-width: 0;
 }
 
+/* The app's standard breadcrumb (Dashboard / module / page), as on Tasks and ToT. */
 .itp-crumb {
-    font-size: var(--pm-font-size-xs);
-    color: var(--pm-text-muted);
     margin-bottom: .45rem;
-}
-
-.itp-crumb a {
-    color: inherit;
-    text-decoration: none;
-}
-
-.itp-crumb a:hover {
-    color: var(--pm-primary);
 }
 
 .itp-title {
@@ -55,10 +44,12 @@
     color: var(--pm-text-secondary);
 }
 
+/* The one place the whole spectrum appears on the board and on New IT project: a short rule
+   under the title, the Dashboard's size (owner, 11 Nov 2026). */
 .itp-rule {
     height: 3px;
-    width: 7.5rem;
-    border-radius: 3px;
+    width: 168px;
+    border-radius: 999px;
     margin-top: .65rem;
     background: linear-gradient(90deg, var(--pm-spec-1), var(--pm-spec-2), var(--pm-spec-3), var(--pm-spec-4), var(--pm-spec-5), var(--pm-spec-6));
 }
@@ -192,10 +183,6 @@
     transform: translateX(12px);
 }
 
-@keyframes itp-pulse {
-    0%, 100% { box-shadow: 0 0 0 4px var(--itp-cur-ring); }
-    50% { box-shadow: 0 0 0 7px var(--itp-cur-ring); }
-}
 .itp-no-match {
     margin: 0;
     padding: 1.25rem 1rem;
@@ -427,28 +414,31 @@
     color: var(--pm-text-muted);
 }
 
-.itp-remark__delete {
-    display: inline;
-    margin: 0;
-}
-
-.itp-remark__action {
-    padding: 0;
+/* Edit and Delete of a remark: one quiet menu at the end of its header line. */
+.itp-remark__menu {
+    padding: 0 .3rem;
     border: 0;
+    border-radius: 6px;
     background: none;
-    font: inherit;
-    font-weight: 600;
-    color: var(--pm-primary);
-    text-decoration: none;
+    color: var(--pm-text-muted);
+    line-height: 1.2;
     cursor: pointer;
 }
 
-.itp-remark__action:hover {
-    text-decoration: underline;
+.itp-remark__menu:hover,
+.itp-remark__menu:focus-visible,
+.itp-remark__menu[aria-expanded="true"] {
+    background: var(--pm-surface);
+    color: var(--pm-text-strong);
 }
 
-.itp-remark__action--danger {
-    color: var(--pm-danger);
+.itp-hero__more .dropdown-item,
+.itp-remark__more .dropdown-item {
+    font-size: var(--pm-font-size-sm);
+}
+
+.itp-hero__more .dropdown-item .bi {
+    margin-right: .35rem;
 }
 
 .itp-remark__editor {
@@ -512,6 +502,19 @@
 
 .itp-composer__text {
     resize: vertical;
+}
+
+/* The new-remark composer is one line until it is used; focus opens it (owner, 11 Nov 2026). */
+.itp-composer--closed:not(:focus-within) .itp-composer__text {
+    height: 2.4rem;
+    min-height: 0;
+    overflow: hidden;
+    resize: none;
+}
+
+.itp-composer--closed:not(:focus-within) .itp-kind,
+.itp-composer--closed:not(:focus-within) .itp-composer__row {
+    display: none;
 }
 
 .itp-composer__row {
@@ -785,11 +788,25 @@
     color: var(--pm-text-muted);
     line-height: 1;
     cursor: pointer;
+    opacity: 0;
 }
 
-.itp-file__remove:hover {
+/* The bin shows on the row being pointed at or tabbed into; always on touch screens. */
+.itp-file:hover .itp-file__remove,
+.itp-file:focus-within .itp-file__remove {
+    opacity: 1;
+}
+
+.itp-file__remove:hover,
+.itp-file__remove:focus-visible {
     background: var(--pm-danger-soft-bg);
     color: var(--pm-danger);
+}
+
+@media (hover: none) {
+    .itp-file .itp-file__remove {
+        opacity: 1;
+    }
 }
 
 .itp-files__upload {
@@ -859,7 +876,7 @@
 
 .itp-years__row {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
     align-items: center;
     gap: .35rem .45rem;
     padding: .45rem 0;
@@ -918,23 +935,97 @@
     font-style: italic;
 }
 
-.itp-years__form {
+.itp-years__hand {
+    margin-left: .45rem;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 400;
+    color: var(--pm-text-muted);
+}
+
+/* A year reads as plain text; Edit opens that one row (owner, 11 Nov 2026). */
+.itp-years__edit {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .15rem .4rem;
+    border-radius: 6px;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    color: var(--pm-text-muted);
+    text-decoration: none;
+}
+
+.itp-years__edit:hover,
+.itp-years__edit:focus-visible {
+    background: var(--pm-surface);
+    color: var(--pm-primary);
+}
+
+.itp-years__editor {
     grid-column: 1 / -1;
+}
+
+.itp-years__editor:not([open]) {
+    display: none;
+}
+
+.itp-years__editor:target {
+    display: block;
+}
+
+.itp-years__editor:target > summary ~ * {
+    display: block;
+}
+
+.itp-years__row:has(.itp-years__editor[open]) .itp-years__edit,
+.itp-years__row:has(.itp-years__editor:target) .itp-years__edit {
+    visibility: hidden;
+}
+
+.itp-years__form {
     display: flex;
-    flex-wrap: wrap;
-    gap: .35rem;
+    flex-direction: column;
+    gap: .5rem;
+    margin-top: .25rem;
+    padding: .7rem .75rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 10px;
+    background: var(--pm-surface-subtle);
 }
 
-.itp-years__form .form-control {
-    flex: 1 1 9rem;
-    min-width: 0;
-    border-radius: 8px;
+.itp-years__field {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    margin: 0;
 }
 
+.itp-years__field > span {
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    color: var(--pm-text-secondary);
+}
+
+.itp-years__form .form-control,
 .itp-years__form .form-select {
-    flex: 0 1 auto;
-    width: auto;
     border-radius: 8px;
+}
+
+.itp-years__hint {
+    margin: 0;
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-muted);
+}
+
+.itp-years__buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: .4rem;
+}
+
+.itp-hero__since {
+    font-size: var(--pm-font-size-sm);
+    color: var(--pm-text-muted);
 }
 
 /* ---- board header, year control and summary figures (redesign PR 3) ----------------------- */
@@ -957,11 +1048,6 @@
     letter-spacing: -.02em;
     line-height: 1.15;
     color: var(--pm-text-strong);
-}
-
-.itp-board-head__lead {
-    margin: .3rem 0 0;
-    color: var(--pm-text-secondary);
 }
 
 .itp-board-head__actions {
@@ -1028,7 +1114,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: .4rem;
-    margin: -.5rem 0 1.25rem;
+    margin: -.25rem 0 1.25rem;
     font-size: var(--pm-font-size-sm);
     color: var(--pm-text-secondary);
 }
@@ -1109,14 +1195,6 @@
     overflow: hidden;
 }
 
-.itp-pipe::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--pm-spec-1), var(--pm-spec-2), var(--pm-spec-3), var(--pm-spec-4), var(--pm-spec-5), var(--pm-spec-6));
-}
-
 .itp-pipe__top {
     display: flex;
     flex-wrap: wrap;
@@ -1145,11 +1223,26 @@
 
 .itp-pipe__cols {
     display: grid;
-    grid-template-columns: repeat(5, minmax(7.5rem, 1fr)) repeat(2, minmax(4.5rem, .62fr)) repeat(2, minmax(7.5rem, 1fr));
+    grid-template-columns:
+        repeat(5, minmax(7.5rem, 1fr))
+        minmax(var(--itp-bm-min, 4.5rem), var(--itp-bm, .62fr))
+        minmax(var(--itp-pnc-min, 4.5rem), var(--itp-pnc, .62fr))
+        repeat(2, minmax(7.5rem, 1fr));
     gap: 6px;
     margin: 0;
     padding: 0;
     list-style: none;
+}
+
+/* BM and PNC are optional and narrow; one that holds a case gets a full column so its card reads. */
+.itp-pipe__cols:has(> .itp-pcol--has:nth-child(6)) {
+    --itp-bm: 1fr;
+    --itp-bm-min: 7.5rem;
+}
+
+.itp-pipe__cols:has(> .itp-pcol--has:nth-child(7)) {
+    --itp-pnc: 1fr;
+    --itp-pnc-min: 7.5rem;
 }
 
 .itp-pcol {
@@ -1165,9 +1258,9 @@
     margin: 0;
     padding: 0 .8rem 0 .9rem;
     background: var(--pm-surface);
-    color: var(--pm-text-secondary);
+    color: var(--pm-text-muted);
     font-size: var(--pm-font-size-xs);
-    font-weight: 700;
+    font-weight: 600;
     clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%);
 }
 
@@ -1191,27 +1284,19 @@
 .itp-pcol__n {
     font-size: var(--pm-font-size-comfortable);
     font-weight: 700;
-    color: var(--pm-text-strong);
+    color: var(--pm-text-muted);
     font-variant-numeric: tabular-nums;
 }
 
+/* A stage with no live case is muted the same plain way, optional or not; one that holds a case is tinted. */
 .itp-pcol--has .itp-pcol__h {
     background: var(--pm-primary-soft);
     color: var(--pm-primary-strong);
+    font-weight: 700;
 }
 
 .itp-pcol--has .itp-pcol__n {
     color: var(--pm-primary-strong);
-}
-
-.itp-pcol--opt:not(.itp-pcol--has) .itp-pcol__h {
-    background: repeating-linear-gradient(135deg, var(--pm-surface) 0 6px, transparent 6px 12px);
-    color: var(--pm-text-muted);
-    font-weight: 600;
-}
-
-.itp-pcol--opt:not(.itp-pcol--has) .itp-pcol__n {
-    color: var(--pm-text-muted);
 }
 
 .itp-pcol__list {
@@ -1306,11 +1391,6 @@
     border: 1px dashed var(--pm-text-muted);
 }
 
-/* an SO value with no time: no dot */
-.itp-tok__s--plain::before {
-    display: none;
-}
-
 .itp-pcol__more {
     display: block;
     margin-top: 5px;
@@ -1378,24 +1458,29 @@
     align-items: center;
     gap: .35rem;
     height: 1.9rem;
-    padding: 0 .65rem;
+    padding: 0 .15rem;
     border-radius: 8px;
-    background: var(--pm-warning-soft-bg);
-    color: var(--pm-warning-strong);
-    font-size: var(--pm-font-size-xs);
-    font-weight: 600;
-    text-decoration: none;
+    color: var(--pm-text-secondary);
+    font-size: var(--pm-font-size-sm);
+    text-decoration: underline;
+    text-decoration-color: var(--pm-border-strong);
+    text-underline-offset: 3px;
     white-space: nowrap;
 }
 
 .itp-datenote:hover {
-    color: var(--pm-warning-strong);
-    text-decoration: underline;
+    color: var(--pm-primary);
+    text-decoration-color: currentColor;
 }
 
-.itp-datenote--on {
-    outline: 2px solid var(--pm-warning);
-    outline-offset: -2px;
+/* While the filter is on it is a filled chip with the X that clears it. */
+.itp-datenote--on,
+.itp-datenote--on:hover {
+    padding: 0 .65rem;
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+    font-weight: 600;
+    text-decoration: none;
 }
 
 .itp-reg {
@@ -1403,7 +1488,8 @@
     border-radius: var(--itp-radius);
     background: var(--pm-card);
     box-shadow: var(--pm-shadow-card);
-    overflow: hidden;
+    /* clip, not hidden: hidden would make this the scroll box and the header could not stick to the page */
+    overflow: clip;
 }
 
 .itp-reg__table {
@@ -1412,10 +1498,15 @@
     table-layout: fixed;
 }
 
+/* The stage names stay in view under the top navigation while a long register scrolls. The line
+   under them is a shadow: a collapsed border does not travel with a sticky cell. */
 .itp-reg__table thead th {
+    position: sticky;
+    top: 53px; /* the top navigation: 52px and its border */
+    z-index: 3;
     padding: .6rem 1.1rem;
     background: var(--pm-surface-subtle);
-    border-bottom: 1px solid var(--pm-border);
+    box-shadow: inset 0 -1px 0 var(--pm-border);
     font-size: var(--pm-font-size-xxs);
     font-weight: 700;
     letter-spacing: .06em;
@@ -1559,15 +1650,24 @@
     height: 1.75rem;
 }
 
+/* The register track is the project page's Journey at about 80%: big circles, thin lines, and a
+   ring in the row colour around each circle so the line stops just short of it (owner, 10 Nov 2026). */
+.itp-track {
+    --itp-halo: var(--pm-card);
+}
+
+.itp-reg__row:hover .itp-track {
+    --itp-halo: var(--pm-surface-subtle);
+}
+
 .itp-track__s::before,
 .itp-track__s::after {
     content: "";
     position: absolute;
     top: 50%;
-    height: 3px;
-    margin-top: -1.5px;
+    height: 2px;
+    margin-top: -1px;
     width: 50%;
-    border-radius: 2px;
     background: var(--pm-border-strong);
 }
 
@@ -1586,9 +1686,22 @@
 
 .itp-track__s--in::before,
 .itp-track__s--out::after {
-    height: 5px;
-    margin-top: -2.5px;
+    height: 3px;
+    margin-top: -1.5px;
     background: var(--pm-success);
+}
+
+/* into the current stage the line turns to the stage's colour, as on the Journey */
+.itp-track__s--cur.itp-track__s--in::before {
+    background: linear-gradient(90deg, var(--pm-success), var(--pm-primary));
+}
+
+.itp-track__s--cur.itp-track__s--warn.itp-track__s--in::before {
+    background: linear-gradient(90deg, var(--pm-success), var(--pm-warning));
+}
+
+.itp-track__s--cur.itp-track__s--late.itp-track__s--in::before {
+    background: linear-gradient(90deg, var(--pm-success), var(--pm-danger));
 }
 
 .itp-track__s i {
@@ -1596,11 +1709,12 @@
     z-index: 1;
     display: block;
     box-sizing: border-box;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    border: 2.5px solid var(--pm-border-strong);
+    border: 2px solid var(--pm-border-strong);
     background: var(--pm-card);
+    box-shadow: 0 0 0 3px var(--itp-halo);
 }
 
 .itp-track__s--done i {
@@ -1614,10 +1728,10 @@
     position: absolute;
     left: 50%;
     top: 45%;
-    width: 5px;
-    height: 9px;
+    width: 6px;
+    height: 10px;
     border: solid var(--pm-card);
-    border-width: 0 2.5px 2.5px 0;
+    border-width: 0 2.25px 2.25px 0;
     transform: translate(-50%, -50%) rotate(45deg);
 }
 
@@ -1629,40 +1743,42 @@
     border-color: var(--pm-success);
 }
 
+/* skipped: a small dashed ring, as on the Journey */
 .itp-track__s--skip i {
-    width: 8px;
-    height: 8px;
-    border: 0;
-    background: var(--pm-border-strong);
+    width: 11px;
+    height: 11px;
+    border-style: dashed;
 }
 
+/* current: the stage colour with a white centre and a soft halo */
 .itp-track__s--cur i {
-    width: 24px;
-    height: 24px;
-    border: 4px solid var(--pm-card);
+    border-color: var(--pm-primary);
     background: var(--pm-primary);
-    box-shadow: 0 0 0 2px var(--pm-primary), 0 0 0 6px var(--pm-primary-soft);
-    animation: itp-pulse 2.4s ease-in-out infinite;
+    box-shadow: 0 0 0 3px var(--itp-halo), 0 0 0 6px var(--pm-primary-soft);
+}
+
+.itp-track__s--cur i::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--pm-card);
+    transform: translate(-50%, -50%);
 }
 
 .itp-track__s--cur.itp-track__s--warn i {
+    border-color: var(--pm-warning);
     background: var(--pm-warning);
-    box-shadow: 0 0 0 2px var(--pm-warning), 0 0 0 6px var(--pm-warning-soft-bg);
+    box-shadow: 0 0 0 3px var(--itp-halo), 0 0 0 6px var(--pm-warning-soft-bg);
 }
 
 .itp-track__s--cur.itp-track__s--late i {
+    border-color: var(--pm-danger);
     background: var(--pm-danger);
-    box-shadow: 0 0 0 2px var(--pm-danger), 0 0 0 6px var(--pm-danger-soft-bg);
-}
-
-.itp-track__s--still i {
-    animation: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .itp-track__s--cur i {
-        animation: none;
-    }
+    box-shadow: 0 0 0 3px var(--itp-halo), 0 0 0 6px var(--pm-danger-soft-bg);
 }
 
 .itp-track__s--stop i {
@@ -1675,9 +1791,8 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 11px;
-    height: 2.5px;
-    border-radius: 1px;
+    width: 10px;
+    height: 2px;
     background: var(--pm-text-muted);
     transform: translate(-50%, -50%) rotate(45deg);
 }
@@ -1688,7 +1803,7 @@
 
 .itp-track__s em {
     position: absolute;
-    top: 1.95rem;
+    top: 2.05rem;
     font-style: normal;
     font-size: var(--pm-font-size-xs);
     font-weight: 600;
@@ -1700,6 +1815,7 @@
 }
 
 .itp-reg__row:hover .itp-track__s em,
+.itp-reg__row:focus-within .itp-track__s em,
 .itp-track__s--cur em,
 .itp-track__s--stop em {
     opacity: 1;
@@ -1818,6 +1934,10 @@
     gap: .4rem;
 }
 
+.itp-key {
+    --itp-halo: transparent;
+}
+
 .itp-key .itp-track__s {
     width: 1.9rem;
 }
@@ -1829,6 +1949,21 @@
 
 .itp-key .itp-age {
     margin-top: 0;
+}
+
+/* Wide screens: the title column stops growing, so the spare width goes to the track and not to
+   a blank band beside a short title; and the track (with the names above it) reaches into the
+   empty half-step at each end, so the first and last circles sit near the neighbouring columns. */
+@media (min-width: 1400px) {
+    .itp-reg__table th.itp-reg__case,
+    .itp-reg__table td.itp-reg__case {
+        width: 28rem;
+    }
+
+    .itp-trackhead,
+    .itp-track {
+        margin-inline: -4%;
+    }
 }
 
 @media (max-width: 991.98px) {
@@ -2022,35 +2157,6 @@
     display: flex;
     gap: .5rem;
     flex: none;
-}
-
-.itp-record__actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: .4rem;
-    margin-top: 1rem;
-    padding-top: .8rem;
-    border-top: 1px solid var(--pm-border);
-}
-
-.itp-record__actions form {
-    margin: 0;
-}
-
-.itp-record__delete {
-    margin-left: auto;
-    color: var(--pm-danger);
-    text-decoration: none;
-}
-
-.itp-record__actions form:last-child {
-    margin-left: auto;
-}
-
-.itp-record__delete:hover {
-    color: var(--pm-danger);
-    text-decoration: underline;
 }
 
 @media (max-width: 767.98px) {
@@ -2455,6 +2561,12 @@
     color: var(--pm-text-strong);
 }
 
+/* The note after the status. Its separator is drawn here, so that on a phone, where the note
+   takes its own line, the line does not start with a stray dot. */
+.itp-hero__note::before {
+    content: "\00B7\00A0";
+}
+
 .itp-hero__status--late {
     background: var(--pm-danger-soft-bg);
 }
@@ -2706,8 +2818,57 @@
 }
 
 @media (max-width: 767.98px) {
+    /* A wrapped line must not end or start with a lone separator dot. */
+    .itp-summary__sep {
+        display: none;
+    }
+
+    .itp-hero__note {
+        flex-basis: 100%;
+    }
+
+    .itp-hero__note::before {
+        content: none;
+    }
+
     /* Phones show the nine-segment bar, not the dots: the dot part of the key does not apply. */
     .itp-key__i--track {
         display: none;
     }
+}
+
+/* ---- assigned Project Officer (MOLTI and SRE projects; docs/ux/molti-sre-projects.md) ---- */
+
+.itp-officer {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .3rem;
+    /* A long name wraps inside its chip instead of pushing the row wider. */
+    min-width: 0;
+    color: var(--pm-text-secondary);
+}
+
+/* Waiting for an officer: said plainly, not as an alarm. */
+.itp-officer--none {
+    color: var(--pm-text-muted);
+    font-style: italic;
+}
+
+.itp-hero__officer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .6rem;
+    margin: .6rem 0 0;
+    font-size: var(--pm-font-size-sm);
+}
+
+.itp-hero__officer b {
+    color: var(--pm-text);
+    font-weight: 600;
+}
+
+.itp-hero__officer-edit {
+    padding: 0;
+    font-size: inherit;
 }

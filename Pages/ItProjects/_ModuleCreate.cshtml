@@ -1,0 +1,116 @@
+@* Shared by the IT, MOLTI and SRE project pages (docs/ux/molti-sre-projects.md). Each module has its
+   own page in its own folder, which sets the title and loads the styles and script; links here are
+   relative ("./Index"), so they stay inside the module that is being shown. *@
+@using ProjectManagement.Pages.ItProjects
+@using ProjectManagement.Services.ItProjects
+@model ProjectManagement.Pages.ItProjects.ItProjectCreatePageModel
+@{
+    // The module whose page this is: its names stand where the IT pages said "IT".
+    var m = Model.Module;
+}
+
+<div class="itp-page itp-page--form">
+    <header class="itp-head">
+        <div class="itp-head__identity">
+            <nav aria-label="Breadcrumb" class="itp-crumb">
+                <ol class="breadcrumb small mb-0">
+                    <li class="breadcrumb-item"><a asp-page="/Dashboard/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a asp-page="./Index">@(m.Name)</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">New</li>
+                </ol>
+            </nav>
+            <h1 class="itp-title">New @(m.Singular)</h1>
+            <p class="itp-subtitle">A few things to start with. The stages come next, on the project's page.</p>
+            <div class="itp-rule" aria-hidden="true"></div>
+        </div>
+    </header>
+
+    <form method="post" class="itp-form" novalidate>
+        <div asp-validation-summary="ModelOnly" class="text-danger itp-form__summary" role="alert"></div>
+
+        <div class="itp-form__field">
+            <label asp-for="Input.Title" class="form-label"></label>
+            <input asp-for="Input.Title" class="form-control" maxlength="200" autofocus placeholder="@m.TitleExample" />
+            <span asp-validation-for="Input.Title" class="text-danger"></span>
+        </div>
+
+        @{
+            var currentFy = ProjectManagement.Utilities.FinancialYearHelper.Format(Model.CurrentFinancialYear);
+            var kind = Model.IsCarriedOver ? Model.Input.Kind.ToUpperInvariant() : CreateModel.KindNew;
+        }
+        @* Without script every field shows; the script shows only the ones the chosen kind uses. *@
+        <fieldset class="itp-form__field" data-itp-kind>
+            <legend class="form-label fs-6">In the @(m.ListName)</legend>
+            @* The same radio pills as the remark composer's Remark / Conference choice. *@
+            <div class="itp-kind" role="radiogroup" aria-label="In the @(m.ListName)">
+                <label class="itp-kind__opt">
+                    <input type="radio" name="Input.Kind" id="itpKindNew" value="@CreateModel.KindNew" checked="@(kind == CreateModel.KindNew)" data-itp-kind-option />
+                    <span>New</span>
+                </label>
+                <label class="itp-kind__opt">
+                    <input type="radio" name="Input.Kind" id="itpKindCl" value="@CreateModel.KindCommittedLiability" checked="@(kind == CreateModel.KindCommittedLiability)" data-itp-kind-option />
+                    <span>CL · committed liability</span>
+                </label>
+                <label class="itp-kind__opt">
+                    <input type="radio" name="Input.Kind" id="itpKindCf" value="@CreateModel.KindCarriedForward" checked="@(kind == CreateModel.KindCarriedForward)" data-itp-kind-option />
+                    <span>CF · carried forward</span>
+                </label>
+            </div>
+            <div class="form-text" data-itp-kind-show="new">New: first listed in the @(m.ListName) of the financial year chosen below.</div>
+            <div class="form-text" data-itp-kind-show="carried">
+                CL or CF: a case carried over into FY @currentFy from an earlier year. CL when the SO was placed before FY @currentFy began, CF when it was not.
+            </div>
+        </fieldset>
+
+        <div class="itp-form__row">
+            <div class="itp-form__field">
+                <label asp-for="Input.PppReferenceNumber" class="form-label">@(m.ListName) reference number</label>
+                <input asp-for="Input.PppReferenceNumber" class="form-control" maxlength="100" placeholder="@m.ReferenceExample" />
+                <div class="form-text" data-itp-kind-show="new">As written on the @(m.ListName). It need not be unique.</div>
+                <div class="form-text" data-itp-kind-show="carried">For CL or CF: the number in the FY @currentFy @(m.ListName).</div>
+                <span asp-validation-for="Input.PppReferenceNumber" class="text-danger"></span>
+            </div>
+            <div class="itp-form__field itp-form__field--narrow" data-itp-kind-show="new">
+                <label asp-for="Input.FinancialYearStart" class="form-label"></label>
+                <select asp-for="Input.FinancialYearStart" asp-items="Model.FinancialYearOptions" class="form-select"></select>
+                <div class="form-text">April to March.</div>
+                <span asp-validation-for="Input.FinancialYearStart" class="text-danger"></span>
+            </div>
+        </div>
+
+        <div class="itp-form__row" data-itp-kind-show="carried">
+            <div class="itp-form__field">
+                <label asp-for="Input.FirstPppReferenceNumber" class="form-label">First @(m.ListName) reference number</label>
+                <input asp-for="Input.FirstPppReferenceNumber" class="form-control" maxlength="100" placeholder="If known" />
+                <div class="form-text">For CL or CF: the number in the year it was first listed. Leave it empty if it is not known; it shows as "@ItProjectCommandService.ReferenceNotRecorded" and can be added later with Edit.</div>
+                <span asp-validation-for="Input.FirstPppReferenceNumber" class="text-danger"></span>
+            </div>
+            <div class="itp-form__field itp-form__field--narrow">
+                <label asp-for="Input.FirstFinancialYearStart" class="form-label"></label>
+                <select asp-for="Input.FirstFinancialYearStart" asp-items="Model.FirstYearOptions" class="form-select"></select>
+                <div class="form-text">For CL or CF.</div>
+                <span asp-validation-for="Input.FirstFinancialYearStart" class="text-danger"></span>
+            </div>
+        </div>
+
+        @if (m.HasAssignedOfficer)
+        {
+            <div class="itp-form__field itp-form__field--narrow">
+                <label asp-for="Input.ProjectOfficerUserId" class="form-label">Project Officer</label>
+                <select asp-for="Input.ProjectOfficerUserId" asp-items="Model.OfficerOptions" class="form-select"></select>
+                <div class="form-text">Optional. The officer runs the project; it can be assigned or changed later.</div>
+            </div>
+        }
+
+        <div class="itp-form__field">
+            <label asp-for="Input.Description" class="form-label"></label>
+            <textarea asp-for="Input.Description" class="form-control" rows="6" maxlength="@ItProjectCommandService.DescriptionMaxLength" placeholder="What is being procured, for whom, and what it covers."></textarea>
+            <span asp-validation-for="Input.Description" class="text-danger"></span>
+        </div>
+
+        <div class="itp-form__actions">
+            <a class="btn btn-outline-secondary" asp-page="./Index">Cancel</a>
+            <button type="submit" class="btn btn-primary itp-btn-primary">Create @(m.Singular)</button>
+        </div>
+    </form>
+</div>

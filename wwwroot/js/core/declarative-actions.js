@@ -192,7 +192,9 @@
                 commit(element);
             }
         }
-    });
+    // Heard on the way down: a page may keep an arrow key for the select itself (inside a
+    // dropdown menu, Bootstrap would otherwise take it), and the browsing must still be seen.
+    }, true);
 
     // A pointer pick is a deliberate choice, even after some arrow-key browsing.
     document.addEventListener("pointerdown", event => {

@@ -39,11 +39,21 @@ public sealed record ItProjectStageRulesResult(
 /// 2. A completion date implies completion (a dated stage counts as ticked).
 /// 3. Dates are optional. Where present they must not go backwards in stage order.
 /// 4. Only Benchmarking and PNC may be skipped. A skipped stage is neither complete nor dated.
-/// 5. The SO cost is optional, in lakhs, never negative, and kept whether or not SO is complete.
+/// 5. The IPA cost (on IT ARPPP / IPA) and the SO cost are optional, in lakhs, never negative, and
+///    kept whether or not their stage is complete.
 /// </summary>
 public static class ItProjectStageRules
 {
     public const decimal MaxCostLakhs = 99_999_999.99m;
+
+    /// <summary>The same, with the messages in a module's words (the first stage is "MOLTI ARPPP / IPA" for MOLTI projects).</summary>
+    public static ItProjectStageRulesResult Apply(IReadOnlyCollection<ItProjectStageInput> input, string module)
+    {
+        var result = Apply(input);
+        return result.Errors.Count == 0 || module == ItProjectModules.It
+            ? result
+            : result with { Errors = result.Errors.Select(error => ItProjectModules.Reword(error, module)).ToList() };
+    }
 
     public static ItProjectStageRulesResult Apply(IReadOnlyCollection<ItProjectStageInput> input)
     {
@@ -109,7 +119,7 @@ public static class ItProjectStageRules
             }
             else if (item.CostLakhs.HasValue)
             {
-                errors.Add($"Only the SO stage carries a cost ({definition.Label}).");
+                errors.Add($"Only the IT ARPPP / IPA and EAS & SO stages carry a cost ({definition.Label}).");
             }
 
             // Rule 2: a date means done.
