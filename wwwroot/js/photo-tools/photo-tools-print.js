@@ -130,7 +130,19 @@
   // Screen
   // ---------------------------------------------------------------------------
 
+  /**
+   * A group of choice buttons. The buttons are built once for a list of options and only their
+   * pressed state changes after that, so the button just pressed keeps the keyboard focus.
+   */
   function choices(host, options, current, pick) {
+    const list = options.map(option => `${option.key}:${option.width}x${option.height}`).join('|');
+    if (host.dataset.options === list) {
+      Array.from(host.children).forEach((button, index) => {
+        button.setAttribute('aria-pressed', String(options[index] === current));
+      });
+      return;
+    }
+    host.dataset.options = list;
     host.replaceChildren();
     for (const option of options) {
       const button = document.createElement('button');
