@@ -5,6 +5,9 @@
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "focused";
     ViewData["PublicHeaderMode"] = "Auth";
+    // The opening sequence plays on arrival only. A sign-in that comes back with an error is a
+    // POST, and replaying it on every retry would be tiresome.
+    var playIntro = HttpMethods.IsGet(Request.Method);
 }
 
 @section Styles {
@@ -12,7 +15,7 @@
     <link rel="stylesheet" href="~/css/auth-login.css" asp-append-version="true" />
 }
 
-<div class="lp auth">
+<div class="lp auth @(playIntro ? "auth--intro" : null)" data-auth-scene>
     <div class="lp-aurora lp-aurora--auth" aria-hidden="true"></div>
     <div class="auth__grid-dots" aria-hidden="true"></div>
 
@@ -28,7 +31,7 @@
             </div>
 
             <div class="auth__brand">
-                <p class="auth__wordmark">PRISM <span>ERP</span></p>
+                <p class="auth__wordmark" data-auth-wordmark><span class="auth__wordmark-text">PRISM <span>ERP</span></span></p>
                 <p class="auth__tagline">Plan. Track. <span class="lp-spectrum-text">Deliver.</span></p>
                 <p class="auth__strap">Project Reporting, Intelligence and Systems Management</p>
             </div>
@@ -36,8 +39,9 @@
 
         <section class="auth__card" data-glass-light aria-labelledby="auth-title">
             <header class="auth__head">
-                <p class="lp-eyebrow">Welcome back</p>
-                <h1 id="auth-title">Sign in to PRISM</h1>
+                @* auth-login.js replaces this with a greeting for the time of day. *@
+                <h1 id="auth-title" data-auth-greeting>Welcome back</h1>
+                <p>Sign in to PRISM.</p>
             </header>
 
             <form method="post" class="auth__form" novalidate data-auth-form>
