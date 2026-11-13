@@ -496,6 +496,9 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
         ihdr[9] = 2;
 
         WritePngChunk(stream, "IHDR", ihdr);
+        // An empty but valid compressed stream. A PNG with no image data chunk at all is not
+        // a PNG to the decoder; this one is, and declares far more pixels than it carries.
+        WritePngChunk(stream, "IDAT", new byte[] { 0x78, 0x9C, 0x03, 0x00, 0x00, 0x00, 0x00, 0x01 });
         WritePngChunk(stream, "IEND", Array.Empty<byte>());
         stream.Position = 0;
         return stream;

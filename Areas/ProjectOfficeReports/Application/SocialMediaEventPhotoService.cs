@@ -12,11 +12,8 @@ using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Storage;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using ProjectManagement.Services.Imaging;
+using SkiaSharp;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
@@ -155,22 +152,33 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
         }
 
         // SECTION: Detect type
-        buffer.Position = 0;
-        IImageFormat? detectedFormat = await Image.DetectFormatAsync(buffer, cancellationToken);
-        if (detectedFormat == null)
+        // The stored content type comes from the file itself, never from what the browser reported.
+        _ = contentType;
+        var imageBytes = new ReadOnlyMemory<byte>(buffer.GetBuffer(), 0, checked((int)buffer.Length));
+        var imageInfo = PrismImageCodec.Identify(imageBytes);
+        if (imageInfo == null)
         {
             return SocialMediaEventPhotoUploadResult.Invalid("Unsupported image format.");
         }
 
-        var normalizedContentType = NormalizeContentType(contentType, detectedFormat);
+        var normalizedContentType = imageInfo.MimeType;
         if (!_options.AllowedContentTypes.Contains(normalizedContentType))
         {
             return SocialMediaEventPhotoUploadResult.Invalid("Only JPEG, PNG, or WebP images are supported.");
         }
 
-        buffer.Position = 0;
-        using var sourceImage = await Image.LoadAsync<Rgba32>(buffer, cancellationToken);
-        sourceImage.Mutate(x => x.AutoOrient());
+        SKBitmap sourceImage;
+        try
+        {
+            sourceImage = PrismImageCodec.DecodeOriented(imageBytes);
+        }
+        catch (PrismImageException ex)
+        {
+            _logger.LogInformation(ex, "Social media event photo for {EventId} could not be decoded.", eventId);
+            return SocialMediaEventPhotoUploadResult.Invalid("Unsupported image format.");
+        }
+
+        using var sourceImageOwner = sourceImage;
 
         var minWidth = _options.MinWidth;
         var minHeight = _options.MinHeight;
@@ -188,7 +196,7 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
         Directory.CreateDirectory(photoFolder);
 
         buffer.Position = 0;
-        var originalExtension = GetExtension(detectedFormat);
+        var originalExtension = imageInfo.FileExtension;
         var storedOriginalFileName = $"original{originalExtension}";
         var originalPath = Path.Combine(photoFolder, storedOriginalFileName);
 
@@ -203,20 +211,12 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
             var derivativeFileName = $"{NormalizeDerivativeKey(derivative.Key)}.jpg";
             var derivativePath = Path.Combine(photoFolder, derivativeFileName);
 
-            using var clone = sourceImage.Clone(ctx =>
-            {
-                ctx.Resize(new ResizeOptions
-                {
-                    Mode = ResizeMode.Max,
-                    Size = new Size(derivative.Value.Width, derivative.Value.Height)
-                });
-            });
-
-            await using var derivativeStream = File.Create(derivativePath);
-            await clone.SaveAsJpegAsync(
-                derivativeStream,
-                new JpegEncoder { Quality = derivative.Value.Quality },
-                cancellationToken);
+            using var resized = PrismImageCodec.ResizeToFit(
+                sourceImage,
+                derivative.Value.Width,
+                derivative.Value.Height);
+            var jpeg = PrismImageCodec.EncodeJpeg(resized, derivative.Value.Quality);
+            await File.WriteAllBytesAsync(derivativePath, jpeg, cancellationToken);
         }
 
         var trimmedCaption = string.IsNullOrWhiteSpace(caption) ? null : caption.Trim();
@@ -645,38 +645,6 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
         var trimmed = storageKey.Trim('/', '\\');
         var relative = trimmed.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
         return Path.Combine(_uploadRootProvider.RootPath, relative);
-    }
-
-    private static string NormalizeContentType(string? contentType, IImageFormat format)
-    {
-        if (!string.IsNullOrWhiteSpace(format?.DefaultMimeType))
-        {
-            return format.DefaultMimeType;
-        }
-
-        var firstMime = format?.MimeTypes?.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
-        if (!string.IsNullOrWhiteSpace(firstMime))
-        {
-            return firstMime!;
-        }
-
-        if (!string.IsNullOrWhiteSpace(contentType))
-        {
-            return contentType.Trim();
-        }
-
-        return "application/octet-stream";
-    }
-
-    private static string GetExtension(IImageFormat format)
-    {
-        var extension = format.FileExtensions.FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(extension))
-        {
-            return $".{extension}";
-        }
-
-        return ".bin";
     }
 }
 

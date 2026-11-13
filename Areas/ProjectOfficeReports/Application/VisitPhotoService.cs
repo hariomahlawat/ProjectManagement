@@ -12,11 +12,8 @@ using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Storage;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using ProjectManagement.Services.Imaging;
+using SkiaSharp;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
@@ -141,36 +138,40 @@ public sealed class VisitPhotoService : IVisitPhotoService
         }
 
         // SECTION: Detect type
-        buffer.Position = 0;
-        IImageFormat? detectedFormat = await Image.DetectFormatAsync(buffer, cancellationToken);
-        if (detectedFormat == null)
+        // The stored content type comes from the file itself, never from what the browser reported.
+        _ = contentType;
+        var imageBytes = new ReadOnlyMemory<byte>(buffer.GetBuffer(), 0, checked((int)buffer.Length));
+        var imageInfo = PrismImageCodec.Identify(imageBytes);
+        if (imageInfo == null)
         {
             return VisitPhotoUploadResult.Invalid("Unsupported image format.");
         }
 
-        var normalizedContentType = NormalizeContentType(contentType, detectedFormat);
+        var normalizedContentType = imageInfo.MimeType;
         if (!_options.AllowedContentTypes.Contains(normalizedContentType))
         {
             return VisitPhotoUploadResult.Invalid("Only JPEG, PNG, or WebP images are supported.");
         }
 
         // SECTION: Metadata dimension safety
-        buffer.Position = 0;
-        var imageInfo = await Image.IdentifyAsync(buffer, cancellationToken);
-        if (imageInfo == null)
-        {
-            return VisitPhotoUploadResult.Invalid("Unsupported image format.");
-        }
-
         if (ExceedsPreDecodeDimensionLimits(imageInfo.Width, imageInfo.Height))
         {
             return VisitPhotoUploadResult.Invalid(GetDimensionLimitMessage());
         }
 
         // SECTION: Decode and orientation normalization
-        buffer.Position = 0;
-        using var sourceImage = await Image.LoadAsync<Rgba32>(buffer, cancellationToken);
-        sourceImage.Mutate(x => x.AutoOrient());
+        SKBitmap sourceImage;
+        try
+        {
+            sourceImage = PrismImageCodec.DecodeOriented(imageBytes, (long)_options.MaxMegapixels * 1_000_000);
+        }
+        catch (PrismImageException ex)
+        {
+            _logger.LogInformation(ex, "Visit photo for {VisitId} could not be decoded.", visitId);
+            return VisitPhotoUploadResult.Invalid("Unsupported image format.");
+        }
+
+        using var sourceImageOwner = sourceImage;
 
         // SECTION: Oriented pixel dimension safety
         if (ExceedsDimensionLimits(sourceImage.Width, sourceImage.Height))
@@ -199,7 +200,7 @@ public sealed class VisitPhotoService : IVisitPhotoService
 
         // save original
         buffer.Position = 0;
-        var originalExtension = GetExtension(detectedFormat);
+        var originalExtension = imageInfo.FileExtension;
         var originalPath = Path.Combine(physicalFolder, $"original{originalExtension}");
         await using (var fileStream = File.Create(originalPath))
         {
@@ -211,20 +212,12 @@ public sealed class VisitPhotoService : IVisitPhotoService
         foreach (var derivative in _options.Derivatives)
         {
             var derivativePath = Path.Combine(physicalFolder, $"{derivative.Key}.jpg");
-            using var clone = sourceImage.Clone(ctx =>
-            {
-                ctx.Resize(new ResizeOptions
-                {
-                    Mode = ResizeMode.Max,
-                    Size = new Size(derivative.Value.Width, derivative.Value.Height)
-                });
-            });
-
-            await using var derivativeStream = File.Create(derivativePath);
-            await clone.SaveAsJpegAsync(
-                derivativeStream,
-                new JpegEncoder { Quality = derivative.Value.Quality },
-                cancellationToken);
+            using var resized = PrismImageCodec.ResizeToFit(
+                sourceImage,
+                derivative.Value.Width,
+                derivative.Value.Height);
+            var jpeg = PrismImageCodec.EncodeJpeg(resized, derivative.Value.Quality);
+            await File.WriteAllBytesAsync(derivativePath, jpeg, cancellationToken);
         }
 
         var photo = new VisitPhoto
@@ -504,38 +497,6 @@ public sealed class VisitPhotoService : IVisitPhotoService
         return Path.Combine(folder, $"{size}.jpg");
     }
 
-
-    private static string NormalizeContentType(string? contentType, IImageFormat format)
-    {
-        if (!string.IsNullOrWhiteSpace(format?.DefaultMimeType))
-        {
-            return format.DefaultMimeType;
-        }
-
-        var firstMime = format?.MimeTypes?.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
-        if (!string.IsNullOrWhiteSpace(firstMime))
-        {
-            return firstMime!;
-        }
-
-        if (!string.IsNullOrWhiteSpace(contentType))
-        {
-            return contentType.Trim();
-        }
-
-        return "application/octet-stream";
-    }
-
-    private static string GetExtension(IImageFormat format)
-    {
-        var extension = format.FileExtensions.FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(extension))
-        {
-            return $".{extension}";
-        }
-
-        return ".bin";
-    }
 }
 
 public sealed record VisitPhotoUploadResult(VisitPhotoUploadOutcome Outcome, VisitPhoto? Photo, IReadOnlyList<string> Errors)
