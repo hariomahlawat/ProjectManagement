@@ -99,6 +99,7 @@
   // The cut-out's colours, kept so a stroke remakes only the part it changed.
   let colours = null;
   let openRun = 0;
+  let pickRun = 0;
   let display = { width: 0, height: 0 };
 
   // ---------------------------------------------------------------------------
@@ -220,18 +221,22 @@
       shared.showError('Only JPG, PNG and WEBP photos can be used here. iPhone HEIC photos are not supported.');
       return;
     }
-    const mine = ++openRun;
+    // Only the photo picked last is used. A photo that cannot be opened leaves the one already
+    // being worked on alone: only a photo that opens takes over (openRun), so a mask still on its
+    // way for the earlier photo finishes, or is dropped, and its busy state is always cleared.
+    const pick = ++pickRun;
     let source;
     try {
       source = await shared.openPhoto(file);
     } catch (error) {
-      if (mine === openRun) shared.showError(error instanceof core.PhotoToolError ? error.message : 'This photo could not be opened.');
+      if (pick === pickRun) shared.showError(error instanceof core.PhotoToolError ? error.message : 'This photo could not be opened.');
       return;
     }
-    if (mine !== openRun) {
+    if (pick !== pickRun) {
       if (typeof source.close === 'function') source.close();
       return;
     }
+    const mine = ++openRun;
     if (full && full !== source && typeof full.close === 'function') full.close();
     full = source;
     fileName = file.name;
