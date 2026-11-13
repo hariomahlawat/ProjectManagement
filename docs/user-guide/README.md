@@ -15,6 +15,8 @@ This guide walks each persona through the major areas of the suite. Every sectio
 | **Teaching Assistants (TA)** | Maintain celebrations and shared calendar logistics | Celebrations, Calendar, Tasks | Projects (read), Notifications |
 | **Staff** | Manage personal tasks, follow announcements | Tasks, Dashboard widgets | Calendar (read), Celebrations (read), Notifications |
 
+Every person can also add or link their own birthday and anniversary from **My account**, whatever their role (see section 5).
+
 Role membership is managed under **Admin → Users** with guardrails that prevent disabling or demoting the last active Administrator. (see Areas/Admin/Pages/Users/Index.cshtml.cs lines 14-87) (see Services/UserManagementService.cs lines 20-210)
 
 ## 2. Dashboard
@@ -48,9 +50,22 @@ Open **Calendar** for shared scheduling.
 
 **Celebrations** keeps birthdays and anniversaries visible to the team.
 
-- **Filtering** – Filter pills (`all`, `birthday`, `anniversary`) and window presets (`today`, `7`, `15`, `30`, `all`) trim the list. Search spans names and spouse names for joint entries. (see Pages/Celebrations/Index.cshtml.cs lines 22-48)
-- **Next occurrence** – Dates are calculated in IST with leap-day handling (Feb 29 shifts to Feb 28 on non-leap years). Each row shows days away to help plan logistics. (see Pages/Celebrations/Index.cshtml.cs lines 49-70) (see Helpers/CelebrationHelpers.cs lines 10-33)
-- **Permissions** – Admin and TA roles can soft-delete entries; everyone else has read-only access. (see Pages/Celebrations/Index.cshtml.cs lines 19-22)
+- **Filtering** – Filter by type (`all`, `birthday`, `anniversary`), by how soon it falls (`today`, `7`, `15`, `30`, `all`) and by account (`Any`, `Not linked`). Search covers the name written on the entry, the spouse name, and the rank and name of the linked account. (see Pages/Celebrations/Index.cshtml.cs) (see Services/Admin/MasterData/CelebrationAdministrationService.cs)
+- **Next occurrence** – Dates are calculated in IST with leap-day handling (Feb 29 shifts to Feb 28 on non-leap years). Each row shows days away to help plan logistics. (see Helpers/CelebrationHelpers.cs)
+- **Permissions** – The celebration managers (Admin, TA and the main office roles) can add, change and delete entries; deletion is a soft delete. Everyone else sees celebrations on the Calendar only. (see Configuration/Policies.cs)
+
+### Birthday and anniversary wishes
+
+On a person's birthday or wedding anniversary PRISM wishes them when they sign in. Full behaviour: [docs/ux/celebration-wish.md](../ux/celebration-wish.md).
+
+- **What the person sees** – Balloons and confetti rise over the page and a card in the middle reads "Happy Birthday, Col R Sharma". An anniversary uses heart balloons in gold and rose and names the couple, with the years when the wedding year is on record ("Happy 25th Anniversary, Col R Sharma & Anita"). A birthday never states the age. Only the person sees their own wish; everyone else sees the day on the Calendar as before.
+- **When it plays** – On the first page after every sign-in on the day, then at most once an hour, and only as a page opens, so it never interrupts typing. It closes by itself after about seven seconds, or at once on any click or Esc. A small balloon beside the person's name (top right) stays all day and plays it again. There is no sound, and it does not show over a briefing being presented or on a printed page.
+- **On the Dashboard** – The header reads "Happy Birthday, Col R Sharma" beside the date all day.
+- **Who is wished** – Only a person whose birthday or anniversary on **Celebrations** is linked to their PRISM account. Entries that are not linked stay on the Calendar but wish no one.
+- **Linking, for celebration managers** – The celebration form has an optional **PRISM account** picker. On the Celebrations list, the **Not linked** filter shows what is left to do, and an entry whose name fits exactly one account shows a one-click **Link to ...** button. An account can have one birthday and one anniversary.
+- **Linking, for each person** – **My account** (user menu, top right) has a **Birthday and anniversary** section. If the Calendar already has an entry that fits the person's name, it asks "Is this you?" and **Yes, that's me** links it. Otherwise **Add my birthday** or **Add my anniversary** creates the entry. If an entry on the same date already looks like theirs, PRISM asks before adding a second one. **Change** edits the date; **Unlink** stops the wishes and leaves the entry on the Calendar for the managers.
+- **One record of the date** – My account and the Celebrations list show the same entry, so they cannot disagree. A linked entry appears everywhere under the account's current rank and name, so a promotion shows at once without editing the entry.
+- **Reduced motion** – With the system's Reduce Motion setting on, the card shows without the balloons.
 
 ## 6. Projects workspace
 
