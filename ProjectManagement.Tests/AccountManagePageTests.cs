@@ -19,6 +19,7 @@ using ProjectManagement.Areas.Identity.Pages.Account.Manage;
 using ProjectManagement.Data;
 using ProjectManagement.Features.MediaLibrary.Services;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Accounts;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -78,6 +79,33 @@ public sealed class AccountManagePageTests
         Assert.Equal("Lt Col User One", page.DisplayName);
         Assert.Equal("user.one@example.com", page.UserName);
         Assert.Equal("12 Nov 2026, 05:40", page.LastSignInText);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_ListsTheUsersOwnRecentSignIns_AndMarksThisAddress()
+    {
+        await using var context = CreateApplicationContext();
+        using var services = new ServiceCollection().AddLogging().BuildServiceProvider();
+        using var userManager = CreateUserManager(context, services);
+        var user = await CreateUserAsync(userManager);
+        var history = new FixedSignInHistory(
+            new AccountSignIn(new DateTimeOffset(2026, 11, 12, 0, 10, 0, TimeSpan.Zero), "10.1.2.3", "Chrome 142 on Windows"),
+            new AccountSignIn(new DateTimeOffset(2026, 11, 11, 12, 0, 0, TimeSpan.Zero), "10.1.2.9", "Edge 141 on Windows"),
+            new AccountSignIn(new DateTimeOffset(2026, 11, 10, 12, 0, 0, TimeSpan.Zero), null, "Unknown browser"));
+
+        var page = CreatePage(userManager, new NullMediaPersonUserLinkService(), user, history, remoteAddress: "10.1.2.3");
+        await page.OnGetAsync();
+
+        Assert.Equal("user-1", history.RequestedUserId);
+        Assert.Equal(IndexModel.RecentSignInCount, history.RequestedCount);
+        Assert.Equal(3, page.RecentSignIns.Count);
+        // 00:10 UTC is 05:40 in India.
+        Assert.Equal("12 Nov 2026, 05:40", page.RecentSignIns[0].When);
+        Assert.Equal("Chrome 142 on Windows", page.RecentSignIns[0].Client);
+        Assert.True(page.RecentSignIns[0].FromThisAddress);
+        Assert.False(page.RecentSignIns[1].FromThisAddress);
+        Assert.Null(page.RecentSignIns[2].Ip);
+        Assert.False(page.RecentSignIns[2].FromThisAddress);
     }
 
     [Fact]
@@ -160,6 +188,24 @@ public sealed class AccountManagePageTests
         Assert.Null(page.ErrorMessage);
     }
 
+    private sealed class FixedSignInHistory : IAccountSignInHistoryService
+    {
+        private readonly IReadOnlyList<AccountSignIn> _signIns;
+
+        public FixedSignInHistory(params AccountSignIn[] signIns) => _signIns = signIns;
+
+        public string? RequestedUserId { get; private set; }
+
+        public int RequestedCount { get; private set; }
+
+        public Task<IReadOnlyList<AccountSignIn>> GetRecentAsync(string userId, int count, CancellationToken cancellationToken)
+        {
+            RequestedUserId = userId;
+            RequestedCount = count;
+            return Task.FromResult(_signIns);
+        }
+    }
+
     private static ApplicationDbContext CreateApplicationContext()
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -195,7 +241,9 @@ public sealed class AccountManagePageTests
     private static IndexModel CreatePage(
         UserManager<ApplicationUser> userManager,
         IMediaPersonUserLinkService links,
-        ApplicationUser user)
+        ApplicationUser user,
+        IAccountSignInHistoryService? signIns = null,
+        string? remoteAddress = null)
     {
         var httpContext = new DefaultHttpContext
         {
@@ -206,7 +254,12 @@ public sealed class AccountManagePageTests
             }, "TestAuth"))
         };
 
-        return new IndexModel(userManager, links)
+        if (remoteAddress is not null)
+        {
+            httpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(remoteAddress);
+        }
+
+        return new IndexModel(userManager, links, signIns ?? new FixedSignInHistory())
         {
             PageContext = new PageContext(new ActionContext(
                 httpContext,

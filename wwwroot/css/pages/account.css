@@ -309,6 +309,56 @@
   justify-self: start;
 }
 
+/* ---------- Recent sign-ins ---------- */
+
+.account__signins {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.account__signin {
+  align-items: center;
+  border-top: 1px solid var(--pm-border);
+  color: var(--pm-muted);
+  display: grid;
+  font-size: .86rem;
+  gap: .25rem 1rem;
+  grid-template-columns: 10.5rem minmax(0, 1fr) auto;
+  padding: .6rem 1.4rem;
+}
+
+.account__signin-when {
+  color: var(--pm-text-strong);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.account__signin-client {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.account__signin-where {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  justify-content: flex-end;
+}
+
+.account__signin-ip {
+  font-variant-numeric: tabular-nums;
+}
+
+.account__signins-empty {
+  border-top: 1px solid var(--pm-border);
+  color: var(--pm-muted);
+  font-size: .86rem;
+  margin: 0;
+  padding: .8rem 1.4rem;
+}
+
 .account__signout {
   justify-self: start;
 }
@@ -369,6 +419,21 @@
   }
 
   .account__report {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .account__signin {
+    grid-template-columns: minmax(0, 1fr);
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .account__signin-where {
+    justify-content: flex-start;
+  }
+
+  .account__signins-empty {
     padding-left: 1rem;
     padding-right: 1rem;
   }

@@ -648,6 +648,7 @@ builder.Services.AddSingleton<IAdminRoleDescriptorCatalog, AdminRoleDescriptorCa
 builder.Services.AddSingleton<IAdminRoleAccessCatalog, AdminRoleAccessCatalog>();
 builder.Services.AddSingleton<IAuditActionPresentationCatalog, AuditActionPresentationCatalog>();
 builder.Services.AddSingleton<IAdminClientDescriptorService, AdminClientDescriptorService>();
+builder.Services.AddScoped<ProjectManagement.Services.Accounts.IAccountSignInHistoryService, ProjectManagement.Services.Accounts.AccountSignInHistoryService>();
 builder.Services.AddSingleton<IAdminCapabilityCatalog, AdminCapabilityCatalog>();
 builder.Services.AddSingleton<IAdminAuditPayloadParser, AdminAuditPayloadParser>();
 builder.Services.AddSingleton<IAdminAuditEntityLinkResolver, AdminAuditEntityLinkResolver>();
