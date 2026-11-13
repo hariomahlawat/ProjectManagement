@@ -437,20 +437,20 @@
             <dialog class="pdft-dialog" data-signature-dialog aria-labelledby="pdftSignatureTitle">
                 <form method="dialog" class="pdft-dialog__body">
                     <h2 class="h5" id="pdftSignatureTitle">Create your signature</h2>
-                    <div class="pdft-tabs" role="tablist">
-                        <button type="button" role="tab" class="pdft-tab" aria-selected="true" data-signature-tab="draw">Draw</button>
-                        <button type="button" role="tab" class="pdft-tab" aria-selected="false" data-signature-tab="type">Type</button>
-                        <button type="button" role="tab" class="pdft-tab" aria-selected="false" data-signature-tab="upload">Upload</button>
+                    <div class="pdft-tabs" role="tablist" aria-label="How to make your signature">
+                        <button type="button" role="tab" class="pdft-tab" id="pdftSignatureTabDraw" aria-controls="pdftSignaturePanelDraw" aria-selected="true" tabindex="0" data-signature-tab="draw">Draw</button>
+                        <button type="button" role="tab" class="pdft-tab" id="pdftSignatureTabType" aria-controls="pdftSignaturePanelType" aria-selected="false" tabindex="-1" data-signature-tab="type">Type</button>
+                        <button type="button" role="tab" class="pdft-tab" id="pdftSignatureTabUpload" aria-controls="pdftSignaturePanelUpload" aria-selected="false" tabindex="-1" data-signature-tab="upload">Upload</button>
                     </div>
-                    <div data-signature-panel="draw">
+                    <div data-signature-panel="draw" role="tabpanel" id="pdftSignaturePanelDraw" aria-labelledby="pdftSignatureTabDraw">
                         <canvas class="pdft-signature-pad" width="560" height="200" data-signature-pad aria-label="Signature drawing area"></canvas>
                         <button type="button" class="btn btn-link btn-sm px-0" data-signature-clear>Clear</button>
                     </div>
-                    <div data-signature-panel="type" hidden>
+                    <div data-signature-panel="type" role="tabpanel" id="pdftSignaturePanelType" aria-labelledby="pdftSignatureTabType" hidden>
                         <label class="form-label" for="pdftSignatureName">Your name</label>
                         <input class="form-control form-control-lg pdft-signature-typed" id="pdftSignatureName" data-signature-name maxlength="60" autocomplete="name" />
                     </div>
-                    <div data-signature-panel="upload" hidden>
+                    <div data-signature-panel="upload" role="tabpanel" id="pdftSignaturePanelUpload" aria-labelledby="pdftSignatureTabUpload" hidden>
                         <label class="form-label" for="pdftSignatureFile">Picture of your signature (PNG with a transparent background works best)</label>
                         <input class="form-control" type="file" id="pdftSignatureFile" accept="image/png,image/jpeg,image/webp" data-signature-file />
                     </div>
