@@ -281,9 +281,11 @@
   compare.innerHTML = `
     <p class="pdft-compare__title" data-compare-title></p>
     <div class="pdft-compare__frame" data-compare-frame>
-      <canvas data-compare-before aria-hidden="true"></canvas>
-      <canvas class="pdft-compare__after" data-compare-after aria-hidden="true"></canvas>
-      <span class="pdft-compare__line" data-compare-line aria-hidden="true"></span>
+      <div class="pdft-compare__page">
+        <canvas data-compare-before aria-hidden="true"></canvas>
+        <canvas class="pdft-compare__after" data-compare-after aria-hidden="true"></canvas>
+        <span class="pdft-compare__line" data-compare-line aria-hidden="true"></span>
+      </div>
     </div>
     <div class="pdft-compare__labels" aria-hidden="true"><span>Original</span><span>Smaller</span></div>
     <label class="pdft-compare__slider">Move the line to compare
@@ -295,7 +297,6 @@
     </div>`;
   resultBox.insertBefore(compare, $('.pdft-result__actions', resultBox));
   const compareTitle = $('[data-compare-title]', compare);
-  const compareFrame = $('[data-compare-frame]', compare);
   const beforeCanvas = $('[data-compare-before]', compare);
   const afterCanvas = $('[data-compare-after]', compare);
   const compareLine = $('[data-compare-line]', compare);
@@ -322,7 +323,8 @@
     if (!compared) return;
     const mine = ++compareRun;
     const { before, after, page } = compared;
-    const width = Math.max(200, Math.min(560, resultBox.clientWidth - 48)) * (compareZoom.checked ? 2 : 1);
+    // The result box's padding and the frame's 1px border each side, so the page fits the frame.
+    const width = Math.max(200, Math.min(560, resultBox.clientWidth - 50)) * (compareZoom.checked ? 2 : 1);
     const opened = [];
     try {
       for (const [bytes, canvas] of [[before, beforeCanvas], [after, afterCanvas]]) {
@@ -332,7 +334,6 @@
         await ui.renderPage(await rendered.getPage(page + 1), canvas, { width });
       }
       if (mine !== compareRun) return;
-      compareFrame.style.height = beforeCanvas.style.height;
       compareTitle.textContent = `Page ${page + 1}, where the largest picture is, before and after`;
       compare.hidden = false;
       placeLine();

@@ -606,7 +606,6 @@
 }
 
 .pdft-compare__frame {
-    position: relative;
     overflow: auto;
     max-height: 70vh;
     border: 1px solid var(--pdft-border);
@@ -616,6 +615,13 @@
 
 .pdft-compare__frame canvas {
     display: block;
+}
+
+/* The canvases and the line share this box, the size of the page drawn, so the line and the cut
+   between before and after are measured from the same width, zoomed in or not. */
+.pdft-compare__page {
+    position: relative;
+    width: max-content;
 }
 
 .pdft-compare__after {
