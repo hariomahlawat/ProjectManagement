@@ -42,5 +42,19 @@ namespace ProjectManagement.Tests
             var diff = CelebrationHelpers.DaysAway(today, next);
             Assert.Equal(2, diff);
         }
+
+        [Fact]
+        public void DisplayName_UsesTheAccountNameForALinkedEntry_AndTheWrittenNameOtherwise()
+        {
+            var names = new System.Collections.Generic.Dictionary<string, string> { ["u1"] = "Col R Sharma" };
+            var linked = new Celebration { EventType = CelebrationType.Anniversary, Name = "Maj Sharma", SpouseName = "Anita", UserId = "u1" };
+            var gone = new Celebration { EventType = CelebrationType.Birthday, Name = "Maj Rao", UserId = "u-gone" };
+            var unlinked = new Celebration { EventType = CelebrationType.Birthday, Name = "Mrs Verma" };
+
+            Assert.Equal("Col R Sharma & Anita", CelebrationHelpers.DisplayName(linked, names));
+            Assert.Equal("Maj Sharma & Anita", CelebrationHelpers.DisplayName(linked));
+            Assert.Equal("Maj Rao", CelebrationHelpers.DisplayName(gone, names));
+            Assert.Equal("Mrs Verma", CelebrationHelpers.DisplayName(unlinked, names));
+        }
     }
 }

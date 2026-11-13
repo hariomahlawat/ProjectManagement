@@ -1,4 +1,6 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
@@ -78,8 +80,38 @@ public interface ICelebrationAdministrationService
     /// <summary>The accounts a celebration can be linked to: people who can sign in today.</summary>
     Task<IReadOnlyList<CelebrationUserOption>> ListLinkableUsersAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Links one celebration to an account without changing anything else about it.</summary>
-    Task<AdminOperationResult> LinkAsync(Guid id, string userId, string actorUserId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Links one celebration to an account without changing anything else about it. With
+    /// <paramref name="onlyIfNotLinked"/> the link is refused when the entry already belongs to an
+    /// account, and that is decided in the same statement as the write, so a person claiming an
+    /// entry from My account can never take one that was linked to someone else a moment before.
+    /// </summary>
+    Task<AdminOperationResult> LinkAsync(
+        Guid id,
+        string userId,
+        string actorUserId,
+        CancellationToken cancellationToken = default,
+        bool onlyIfNotLinked = false);
+
+    /// <summary>
+    /// A person changes the date (and spouse name) of the entry linked to their own account.
+    /// Nothing is written unless the entry still belongs to <paramref name="ownerUserId"/> at the
+    /// moment of the write; the name on the entry and its link are never touched.
+    /// </summary>
+    Task<AdminOperationResult> ChangeOwnAsync(
+        Guid id,
+        string ownerUserId,
+        byte day,
+        byte month,
+        short? year,
+        string? spouseName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// A person unlinks the entry linked to their own account; the entry itself stays. Nothing is
+    /// written unless it still belongs to <paramref name="ownerUserId"/> at the moment of the write.
+    /// </summary>
+    Task<AdminOperationResult> UnlinkOwnAsync(Guid id, string ownerUserId, CancellationToken cancellationToken = default);
 }
 
 public sealed class CelebrationAdministrationService : ICelebrationAdministrationService
@@ -126,7 +158,14 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
             var pattern = SearchLikePattern.Contains(search);
             source = source.Where(item =>
                 EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter)
-                || (item.SpouseName != null && EF.Functions.ILike(item.SpouseName, pattern, SearchLikePattern.EscapeCharacter)));
+                || (item.SpouseName != null && EF.Functions.ILike(item.SpouseName, pattern, SearchLikePattern.EscapeCharacter))
+                // A linked entry is listed under the account's rank and name, so it is found by them too.
+                || (item.UserId != null && _db.Users.Any(user =>
+                    user.Id == item.UserId
+                    && user.AccountKind == UserAccountKind.Human
+                    && !user.IsDisabled
+                    && !user.PendingDeletion
+                    && EF.Functions.ILike(user.Rank + " " + user.FullName, pattern, SearchLikePattern.EscapeCharacter))));
         }
 
         var entities = await source
@@ -168,7 +207,8 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
                 SpouseName = item.SpouseName,
                 Day = item.Day,
                 Month = item.Month,
-                Year = item.Year
+                Year = item.Year,
+                UserId = item.UserId
             };
             var next = CelebrationHelpers.NextOccurrenceLocal(model, today);
             var linkedLabel = item.UserId != null && userLabels.TryGetValue(item.UserId, out var label) ? label : null;
@@ -178,7 +218,7 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
             return new CelebrationAdminRow(
                 item.Id,
                 item.EventType,
-                CelebrationHelpers.DisplayName(model),
+                CelebrationHelpers.DisplayName(model, userLabels),
                 item.Name,
                 item.SpouseName,
                 item.Day,
@@ -240,13 +280,9 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
 
     public async Task<IReadOnlyList<CelebrationUserOption>> ListLinkableUsersAsync(CancellationToken cancellationToken = default)
     {
-        var users = await _db.Users.AsNoTracking()
-            .Where(user => user.AccountKind == UserAccountKind.Human && !user.IsDisabled && !user.PendingDeletion)
-            .Select(user => new { user.Id, user.Rank, user.FullName, user.UserName })
-            .ToListAsync(cancellationToken);
-
-        return users
-            .Select(user => new CelebrationUserOption(user.Id, CelebrationUserMatcher.Label(user.Rank, user.FullName, user.UserName)))
+        var names = await ProjectManagement.Services.Celebrations.CelebrationAccountNames.LoadAsync(_db, cancellationToken);
+        return names
+            .Select(user => new CelebrationUserOption(user.Key, user.Value))
             .OrderBy(user => user.Label, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -255,7 +291,8 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         Guid id,
         string userId,
         string actorUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool onlyIfNotLinked = false)
     {
         // Only the account changes: the entry is read and written here, so a correction someone
         // else saved a moment ago to its name or date is never written back over.
@@ -274,16 +311,50 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
             return AdminOperationResult.Failure(refusal.Value.Message, refusal.Value.Code);
         }
 
+        const string alreadyLinked = "That entry is already linked to an account.";
+        if (onlyIfNotLinked && entity.UserId != null && await CanSignInAsync(entity.UserId, cancellationToken))
+        {
+            return AdminOperationResult.Failure(alreadyLinked, "CelebrationAlreadyLinked");
+        }
+
         var before = Snapshot(entity);
+        var now = _time.UtcNow;
         entity.UserId = linkedUserId;
-        entity.UpdatedUtc = _time.UtcNow;
+        entity.UpdatedUtc = now;
 
         try
         {
             await using var transaction = _db.Database.IsRelational()
                 ? await _db.Database.BeginTransactionAsync(cancellationToken)
                 : null;
-            await _db.SaveChangesAsync(cancellationToken);
+            if (onlyIfNotLinked && transaction is not null)
+            {
+                // One UPDATE that only matches while the entry still has no owner who can sign in:
+                // if someone linked it between the read above and now, nothing is written.
+                _db.Entry(entity).State = EntityState.Detached;
+                var written = await _db.Celebrations
+                    .Where(item => item.Id == id
+                                   && item.DeletedUtc == null
+                                   && (item.UserId == null
+                                       || !_db.Users.Any(user => user.Id == item.UserId
+                                                                 && user.AccountKind == UserAccountKind.Human
+                                                                 && !user.IsDisabled
+                                                                 && !user.PendingDeletion)))
+                    .ExecuteUpdateAsync(
+                        update => update
+                            .SetProperty(item => item.UserId, linkedUserId)
+                            .SetProperty(item => item.UpdatedUtc, now),
+                        cancellationToken);
+                if (written == 0)
+                {
+                    return AdminOperationResult.Failure(alreadyLinked, "CelebrationAlreadyLinked");
+                }
+            }
+            else
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
             await _audit.RecordAsync(new AdminAuditEntry(
                 "CelebrationUpdated",
                 nameof(Celebration),
@@ -307,6 +378,159 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         }
     }
 
+    public Task<AdminOperationResult> ChangeOwnAsync(
+        Guid id,
+        string ownerUserId,
+        byte day,
+        byte month,
+        short? year,
+        string? spouseName,
+        CancellationToken cancellationToken = default)
+    {
+        var spouse = string.IsNullOrWhiteSpace(spouseName) ? null : spouseName.Trim();
+        var refusal = CheckDateAndSpouse(day, month, year, spouse);
+        if (refusal is not null)
+        {
+            return Task.FromResult(AdminOperationResult.Failure(refusal.Value.Message, refusal.Value.Code));
+        }
+
+        var now = _time.UtcNow;
+        return WriteOwnedAsync(
+            id,
+            ownerUserId,
+            entity =>
+            {
+                entity.Day = day;
+                entity.Month = month;
+                entity.Year = year;
+                // A birthday has no spouse name, whatever was sent.
+                entity.SpouseName = entity.EventType == CelebrationType.Anniversary ? spouse : null;
+                entity.UpdatedUtc = now;
+            },
+            update => update
+                .SetProperty(item => item.Day, day)
+                .SetProperty(item => item.Month, month)
+                .SetProperty(item => item.Year, year)
+                .SetProperty(item => item.SpouseName, item => item.EventType == CelebrationType.Anniversary ? spouse : null)
+                .SetProperty(item => item.UpdatedUtc, now),
+            "Changed the date of",
+            cancellationToken);
+    }
+
+    public Task<AdminOperationResult> UnlinkOwnAsync(Guid id, string ownerUserId, CancellationToken cancellationToken = default)
+    {
+        var now = _time.UtcNow;
+        return WriteOwnedAsync(
+            id,
+            ownerUserId,
+            entity =>
+            {
+                entity.UserId = null;
+                entity.UpdatedUtc = now;
+            },
+            update => update
+                .SetProperty(item => item.UserId, (string?)null)
+                .SetProperty(item => item.UpdatedUtc, now),
+            "Unlinked",
+            cancellationToken);
+    }
+
+    // A write by the person an entry belongs to. On a relational database it is one UPDATE that
+    // only matches while the entry is still linked to that person, so if a manager moved or
+    // deleted it between the read and the write, nothing is written and the person is told.
+    private async Task<AdminOperationResult> WriteOwnedAsync(
+        Guid id,
+        string ownerUserId,
+        Action<Celebration> change,
+        Expression<Func<SetPropertyCalls<Celebration>, SetPropertyCalls<Celebration>>> update,
+        string verb,
+        CancellationToken cancellationToken)
+    {
+        const string notYours = "That entry is no longer linked to your account.";
+        var entity = string.IsNullOrWhiteSpace(ownerUserId)
+            ? null
+            : await _db.Celebrations.SingleOrDefaultAsync(
+                item => item.Id == id && item.DeletedUtc == null && item.UserId == ownerUserId,
+                cancellationToken);
+        if (entity is null)
+        {
+            return AdminOperationResult.Failure(notYours, "CelebrationNotYours");
+        }
+
+        var before = Snapshot(entity);
+        change(entity);
+
+        try
+        {
+            await using var transaction = _db.Database.IsRelational()
+                ? await _db.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+            if (transaction is not null)
+            {
+                _db.Entry(entity).State = EntityState.Detached;
+                var written = await _db.Celebrations
+                    .Where(item => item.Id == id && item.DeletedUtc == null && item.UserId == ownerUserId)
+                    .ExecuteUpdateAsync(update, cancellationToken);
+                if (written == 0)
+                {
+                    return AdminOperationResult.Failure(notYours, "CelebrationNotYours");
+                }
+            }
+            else
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            await _audit.RecordAsync(new AdminAuditEntry(
+                "CelebrationUpdated",
+                nameof(Celebration),
+                entity.Id.ToString(),
+                Before: before,
+                After: Snapshot(entity),
+                ActorUserId: ownerUserId,
+                Origin: "Account.MyCelebrations",
+                Message: $"{verb} own {Label(entity.EventType).ToLowerInvariant()} entry '{CelebrationHelpers.DisplayName(entity)}'."), cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            return AdminOperationResult.Success();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Own celebration change failed for {CelebrationId}.", id);
+            return AdminOperationResult.Failure("It could not be saved.", "CelebrationSaveFailed");
+        }
+    }
+
+    // The one rule for a celebration's date and spouse name, for the managers' form and My account.
+    private static (string Message, string Code)? CheckDateAndSpouse(byte day, byte month, short? year, string? spouseName)
+    {
+        if (month is < 1 or > 12 || day < 1)
+        {
+            return ("Select a valid annual date.", "InvalidCelebrationDate");
+        }
+
+        var calendarYear = year ?? 2000;
+        if (calendarYear is < 1 or > 9999 || day > DateTime.DaysInMonth(calendarYear, month))
+        {
+            return ("The selected date is invalid for this month.", "InvalidCelebrationDate");
+        }
+
+        return spouseName?.Length > 120
+            ? ("Spouse name must be 120 characters or fewer.", "CelebrationSpouseNameTooLong")
+            : null;
+    }
+
+    private Task<bool> CanSignInAsync(string userId, CancellationToken cancellationToken) =>
+        _db.Users.AsNoTracking().AnyAsync(
+            user => user.Id == userId
+                    && user.AccountKind == UserAccountKind.Human
+                    && !user.IsDisabled
+                    && !user.PendingDeletion,
+            cancellationToken);
+
     // Null when the account can be linked to a celebration of this type; otherwise why not.
     private async Task<(string Message, string Code)?> CheckLinkAsync(
         string userId,
@@ -314,13 +538,7 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         Guid? celebrationId,
         CancellationToken cancellationToken)
     {
-        var canLink = await _db.Users.AsNoTracking().AnyAsync(
-            user => user.Id == userId
-                    && user.AccountKind == UserAccountKind.Human
-                    && !user.IsDisabled
-                    && !user.PendingDeletion,
-            cancellationToken);
-        if (!canLink)
+        if (!await CanSignInAsync(userId, cancellationToken))
         {
             return ("Choose an account from the list.", "CelebrationUserNotFound");
         }
@@ -354,21 +572,11 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         {
             return AdminOperationResult<Guid>.Failure("Name must be 120 characters or fewer.", "CelebrationNameTooLong");
         }
-        if (command.Month is < 1 or > 12 || command.Day < 1)
-        {
-            return AdminOperationResult<Guid>.Failure("Select a valid annual date.", "InvalidCelebrationDate");
-        }
-
-        var calendarYear = command.Year ?? 2000;
-        if (calendarYear is < 1 or > 9999 || command.Day > DateTime.DaysInMonth(calendarYear, command.Month))
-        {
-            return AdminOperationResult<Guid>.Failure("The selected date is invalid for this month.", "InvalidCelebrationDate");
-        }
-
         var spouseName = string.IsNullOrWhiteSpace(command.SpouseName) ? null : command.SpouseName.Trim();
-        if (spouseName?.Length > 120)
+        var dateRefusal = CheckDateAndSpouse(command.Day, command.Month, command.Year, spouseName);
+        if (dateRefusal is not null)
         {
-            return AdminOperationResult<Guid>.Failure("Spouse name must be 120 characters or fewer.", "CelebrationSpouseNameTooLong");
+            return AdminOperationResult<Guid>.Failure(dateRefusal.Value.Message, dateRefusal.Value.Code);
         }
 
         var linkedUserId = string.IsNullOrWhiteSpace(command.UserId) ? null : command.UserId.Trim();

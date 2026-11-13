@@ -173,6 +173,91 @@
     }
   </section>
 
+  @if (Model.MyCelebrations.Count > 0)
+  {
+    @* The person's own entries on Celebrations: one record of the date, shared with the Calendar. *@
+    <section class="pm-card pm-shadow account__panel" id="celebrations" aria-label="Birthday and anniversary">
+      @foreach (var line in Model.MyCelebrations)
+      {
+        var isAnniversary = line.Type == ProjectManagement.Models.CelebrationType.Anniversary;
+        var word = isAnniversary ? "anniversary" : "birthday";
+        var fieldId = isAnniversary ? "myAnniversary" : "myBirthday";
+        <div class="account__row">
+          <div class="account__row-copy">
+            <h3>@(isAnniversary ? "Anniversary" : "Birthday")</h3>
+            @if (line.IsLinked)
+            {
+              <p><strong>@line.Day @System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(line.Month).</strong> PRISM wishes you on the day, and everyone sees it on the shared Calendar.</p>
+            }
+            else if (line.Suggestion is not null)
+            {
+              <p>The Calendar has <strong>@line.Suggestion.Name</strong> on @line.Suggestion.Day @System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(line.Suggestion.Month). Is this you?</p>
+            }
+            else
+            {
+              <p>Not added yet. Add it and PRISM wishes you on the day.</p>
+            }
+          </div>
+          @if (!line.IsLinked && line.Suggestion is not null)
+          {
+            <div class="account__row-action">
+              <form method="post" asp-page-handler="ClaimCelebration">
+                <input type="hidden" name="id" value="@line.Suggestion.Id" />
+                <button type="submit" class="btn btn-sm btn-outline-primary">Yes, that's me</button>
+              </form>
+            </div>
+          }
+        </div>
+        <details class="account__report">
+          <summary>
+            <span>@(line.IsLinked ? $"Change my {word}" : line.Suggestion is not null ? $"No, add my own {word}" : $"Add my {word}")</span>
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+          </summary>
+          <form method="post" asp-page-handler="SaveCelebration" class="account__report-form">
+            <input type="hidden" name="type" value="@line.Type" />
+            <p>Shown on the shared Calendar every year, where everyone can see the day. PRISM wishes you when you sign in on it.</p>
+            <div class="account__celebration-fields">
+              <div>
+                <label for="@(fieldId)Day" class="form-label">Day</label>
+                <input id="@(fieldId)Day" name="day" class="form-control" type="number" min="1" max="31" required value="@(line.IsLinked ? line.Day : null)" />
+              </div>
+              <div>
+                <label for="@(fieldId)Month" class="form-label">Month</label>
+                <select id="@(fieldId)Month" name="month" class="form-select" required>
+                  <option value="">Select</option>
+                  @for (var month = 1; month <= 12; month++)
+                  {
+                    <option value="@month" selected="@(line.IsLinked && line.Month == month ? "selected" : null)">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month)</option>
+                  }
+                </select>
+              </div>
+              <div>
+                <label for="@(fieldId)Year" class="form-label">Year (optional)</label>
+                <input id="@(fieldId)Year" name="year" class="form-control" type="number" min="1900" max="2100" value="@line.Year" />
+              </div>
+              @if (isAnniversary)
+              {
+                <div>
+                  <label for="@(fieldId)Spouse" class="form-label">Spouse name</label>
+                  <input id="@(fieldId)Spouse" name="spouseName" class="form-control" maxlength="120" autocomplete="off" value="@line.SpouseName" />
+                </div>
+              }
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Save my @word</button>
+          </form>
+          @if (line.IsLinked)
+          {
+            <form method="post" asp-page-handler="UnlinkCelebration" class="account__report-form">
+              <input type="hidden" name="type" value="@line.Type" />
+              <p>Unlinking stops the wishes. The entry stays on the shared Calendar; ask the main office to take it off.</p>
+              <button type="submit" class="btn btn-sm btn-outline-secondary">Unlink my @word</button>
+            </form>
+          }
+        </details>
+      }
+    </section>
+  }
+
   <section class="pm-card pm-shadow account__panel" aria-label="Settings">
     <div class="account__row">
       <div class="account__row-copy">

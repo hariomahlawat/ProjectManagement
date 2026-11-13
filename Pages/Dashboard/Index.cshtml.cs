@@ -228,6 +228,7 @@ namespace ProjectManagement.Pages.Dashboard
                 var celebrations = await _db.Celebrations.AsNoTracking()
                     .Where(c => c.DeletedUtc == null)
                     .ToListAsync();
+                var accountNames = await ProjectManagement.Services.Celebrations.CelebrationAccountNames.LoadAsync(_db, cancellationToken);
 
                 foreach (var celebration in celebrations)
                 {
@@ -245,7 +246,7 @@ namespace ProjectManagement.Pages.Dashboard
                                 CelebrationType.Anniversary => "Anniversary",
                                 _ => celebration.EventType.ToString()
                             };
-                            var title = $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}";
+                            var title = $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration, accountNames)}";
                             var endUtc = CelebrationHelpers.ToLocalDateTime(nextOccurrence.AddDays(1)).UtcDateTime;
                             upcoming.Add((celebration.Id, title, startUtc, endUtc, true, false, false));
                         }

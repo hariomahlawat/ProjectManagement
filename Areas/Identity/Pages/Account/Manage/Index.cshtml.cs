@@ -11,6 +11,8 @@ using ProjectManagement.Features.MediaLibrary.Services;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Accounts;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Celebrations;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
 {
@@ -21,6 +23,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IMediaPersonUserLinkService _mediaPersonUserLinks;
         private readonly IAccountSignInHistoryService _signInHistory;
+        private readonly IMyCelebrationService? _myCelebrations;
 
         /// <summary>How many recent sign-ins the page lists.</summary>
         public const int RecentSignInCount = 5;
@@ -28,8 +31,10 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
         public IndexModel(
             UserManager<ApplicationUser> userManager,
             IMediaPersonUserLinkService mediaPersonUserLinks,
-            IAccountSignInHistoryService signInHistory)
+            IAccountSignInHistoryService signInHistory,
+            IMyCelebrationService? myCelebrations = null)
         {
+            _myCelebrations = myCelebrations;
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _mediaPersonUserLinks = mediaPersonUserLinks ?? throw new ArgumentNullException(nameof(mediaPersonUserLinks));
             _signInHistory = signInHistory ?? throw new ArgumentNullException(nameof(signInHistory));
@@ -46,6 +51,12 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
         public IReadOnlyList<SignInRow> RecentSignIns { get; private set; } = Array.Empty<SignInRow>();
 
         public int SignInLookbackDays => AccountSignInHistoryService.LookbackDays;
+
+        /// <summary>
+        /// The person's own birthday and anniversary: the Celebrations entries linked to this
+        /// account (docs/ux/celebration-wish.md). Empty for an account that is not a person's.
+        /// </summary>
+        public IReadOnlyList<MyCelebrationLine> MyCelebrations { get; private set; } = Array.Empty<MyCelebrationLine>();
 
         public IReadOnlyList<string> Roles { get; private set; } = Array.Empty<string>();
         public MediaUserPhotoIdentityLink? PhotoIdentity { get; private set; }
@@ -79,6 +90,11 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
                 user.Id,
                 HttpContext.RequestAborted);
 
+            if (_myCelebrations is not null)
+            {
+                MyCelebrations = await _myCelebrations.GetAsync(user.Id, HttpContext.RequestAborted);
+            }
+
             // Only ever the signed-in user's own events: the id comes from the session.
             var currentAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
             var signIns = await _signInHistory.GetRecentAsync(user.Id, RecentSignInCount, HttpContext.RequestAborted);
@@ -100,6 +116,38 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
                 .ToArray();
 
             return Page();
+        }
+
+        // Birthday and anniversary: always the signed-in person's own entry; the id comes from the session.
+        public Task<IActionResult> OnPostSaveCelebrationAsync(CelebrationType type, byte day, byte month, short? year, string? spouseName)
+            => ChangeMyCelebrationAsync((service, userId) =>
+                Enum.IsDefined(type)
+                    ? service.SaveAsync(userId, type, day, month, year, spouseName, HttpContext.RequestAborted)
+                    : Task.FromResult(AdminOperationResult.Failure("Choose Birthday or Anniversary.")));
+
+        public Task<IActionResult> OnPostClaimCelebrationAsync(Guid id)
+            => ChangeMyCelebrationAsync((service, userId) => service.ClaimAsync(userId, id, HttpContext.RequestAborted));
+
+        public Task<IActionResult> OnPostUnlinkCelebrationAsync(CelebrationType type)
+            => ChangeMyCelebrationAsync((service, userId) => service.UnlinkAsync(userId, type, HttpContext.RequestAborted));
+
+        private async Task<IActionResult> ChangeMyCelebrationAsync(Func<IMyCelebrationService, string, Task<AdminOperationResult>> change)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user is null) return Challenge();
+            if (_myCelebrations is null) return RedirectToPage();
+
+            var result = await change(_myCelebrations, user.Id);
+            if (result.Succeeded)
+            {
+                StatusMessage = result.UserMessage;
+            }
+            else
+            {
+                ErrorMessage = result.UserMessage ?? "It could not be saved.";
+            }
+
+            return RedirectToPage();
         }
 
         public Task<IActionResult> OnPostUsePhotosPortraitAsync()
