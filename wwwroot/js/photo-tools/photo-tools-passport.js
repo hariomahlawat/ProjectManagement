@@ -321,6 +321,10 @@
     fixing = false;
     stroke = null;
     ring = null;
+    // The old photo's background result does not hold for this one: hide its brush, note and
+    // compare button now, not only when the new background has been worked out.
+    bgStatus = null;
+    renderBackground();
     const fullSize = shared.sizeOf(full);
     const small = core.resizeDimensions(fullSize.width, fullSize.height, { type: 'longest', value: PREVIEW_SIDE });
     base = shared.drawPhoto(full, small.width, small.height, {});
@@ -377,12 +381,22 @@
 
   function rotateQuarter() {
     if (!full) return;
+    shared.clearError();
     const fullSize = shared.sizeOf(full);
-    const turned = shared.newCanvas(fullSize.height, fullSize.width);
-    const context = turned.getContext('2d');
-    context.translate(turned.width / 2, turned.height / 2);
-    context.rotate(Math.PI / 2);
-    context.drawImage(full, -fullSize.width / 2, -fullSize.height / 2);
+    let turned;
+    try {
+      turned = shared.newCanvas(fullSize.height, fullSize.width);
+      const context = turned.getContext('2d');
+      if (!context) throw new Error('No canvas');
+      context.translate(turned.width / 2, turned.height / 2);
+      context.rotate(Math.PI / 2);
+      context.drawImage(full, -fullSize.width / 2, -fullSize.height / 2);
+    } catch (error) {
+      // A phone may not make a canvas as large as the photo. The photo stays as it was.
+      console.error(error);
+      shared.showError('This photo is too large for this browser to turn. Choose a smaller photo.');
+      return;
+    }
     if (typeof full.close === 'function') full.close();
     usePhoto(turned);
   }
@@ -972,7 +986,7 @@
     if (!base) return;
     if (fixing) {
       // One pointer paints; a second finger does nothing.
-      if (stroke || !event.isPrimary) return;
+      if (stroke || !shared.isMainPointer(event)) return;
       event.preventDefault();
       ring = stagePoint(event);
       startStroke(ring);
@@ -1190,8 +1204,8 @@
   }
   outLimit.addEventListener('input', queueSave);
 
-  downloadButton.addEventListener('click', () => {
-    if (!saved) return;
+  downloadButton.addEventListener('click', (event) => {
+    if (!saved || shared.isRepeatClick(event)) return;
     shared.saveBlob(new Blob([saved.bytes], { type: JPEG.mime }), `${core.baseName(fileName)}-${MODES[mode].suffix}.jpg`);
   });
 

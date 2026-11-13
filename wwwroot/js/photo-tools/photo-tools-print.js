@@ -73,6 +73,8 @@
   let copies = null;
   let format = PDFLib ? 'pdf' : 'jpg';
   let openRun = 0;
+  // True while a sheet is being made, so Download cannot be pressed again until it is saved.
+  let downloading = false;
 
   function sizeOptions() {
     const options = [...core.PASSPORT_SIZES];
@@ -147,8 +149,13 @@
   // Drawing
   // ---------------------------------------------------------------------------
 
+  /** What a sheet is made of, taken at once so later changes on the screen cannot mix in. */
+  function sheetParts() {
+    return { copy, width: size.width, height: size.height, cuts: cutLines.checked };
+  }
+
   /** Draws a sheet: white paper, the copies, and a thin line to cut along around each. */
-  function drawSheet(context, layout, scale) {
+  function drawSheet(context, layout, scale, parts = sheetParts()) {
     context.fillStyle = PAPER_COLOUR;
     context.fillRect(0, 0, layout.width * scale, layout.height * scale);
     context.imageSmoothingQuality = 'high';
@@ -156,11 +163,11 @@
     const line = Math.max(1, 2 * scale);
     context.lineWidth = line;
     for (const { x, y } of layout.positions) {
-      context.drawImage(copy, x * scale, y * scale, size.width * scale, size.height * scale);
-      if (cutLines.checked) {
+      context.drawImage(parts.copy, x * scale, y * scale, parts.width * scale, parts.height * scale);
+      if (parts.cuts) {
         context.strokeRect(
           x * scale - line / 2, y * scale - line / 2,
-          size.width * scale + line, size.height * scale + line);
+          parts.width * scale + line, parts.height * scale + line);
       }
     }
   }
@@ -239,7 +246,7 @@
     fewerButton.disabled = placed <= 1;
     moreButton.disabled = placed >= layout.count;
     fillButton.disabled = placed >= layout.count;
-    downloadButton.disabled = !copy || placed === 0;
+    downloadButton.disabled = downloading || !copy || placed === 0;
     for (const button of formatButtons) {
       button.setAttribute('aria-pressed', String(button.dataset.sheetFormat === format));
     }
@@ -313,9 +320,9 @@
   }
 
   /** One picture of the whole sheet at 300 dpi. */
-  async function sheetJpg(layout) {
+  async function sheetJpg(layout, parts) {
     const page = shared.newCanvas(layout.width, layout.height);
-    drawSheet(page.getContext('2d'), layout, 1);
+    drawSheet(page.getContext('2d'), layout, 1, parts);
     return core.setJpegDpi(await shared.canvasToBytes(page, JPEG, core.BEST_QUALITY), core.PRINT_DPI);
   }
 
@@ -323,15 +330,15 @@
    * One PDF page the size of the paper. The photo is stored once and placed at each position at
    * its true size, and the cut lines are drawn as lines, so the file is small and stays sharp.
    */
-  async function sheetPdf(layout) {
-    const pdf = core.sheetPdfPlan(layout, size.width, size.height);
+  async function sheetPdf(layout, parts) {
+    const pdf = core.sheetPdfPlan(layout, parts.width, parts.height);
     const file = await PDFLib.PDFDocument.create();
     file.setTitle('Print sheet');
-    const photo = await file.embedJpg(await shared.canvasToBytes(copy, JPEG, core.BEST_QUALITY));
+    const photo = await file.embedJpg(await shared.canvasToBytes(parts.copy, JPEG, core.BEST_QUALITY));
     const page = file.addPage([pdf.pageWidth, pdf.pageHeight]);
     pdf.photos.forEach((box, index) => {
       page.drawImage(photo, box);
-      if (cutLines.checked) {
+      if (parts.cuts) {
         page.drawRectangle({
           ...pdf.cuts[index],
           borderColor: PDFLib.rgb(CUT_GREY, CUT_GREY, CUT_GREY),
@@ -343,20 +350,24 @@
   }
 
   async function download() {
+    if (downloading) return;
     const layout = plan();
     if (!copy || !layout.positions.length) return;
     shared.clearError();
+    downloading = true;
     downloadButton.disabled = true;
+    // Everything the file needs is taken now: the settings may change while it is being made.
+    const parts = sheetParts();
     const asPdf = format === 'pdf' && PDFLib;
+    const name = `${core.baseName(fileName)}-print-${sheet.key}.${asPdf ? 'pdf' : 'jpg'}`;
     try {
-      const bytes = asPdf ? await sheetPdf(layout) : await sheetJpg(layout);
-      shared.saveBlob(
-        new Blob([bytes], { type: asPdf ? 'application/pdf' : JPEG.mime }),
-        `${core.baseName(fileName)}-print-${sheet.key}.${asPdf ? 'pdf' : 'jpg'}`);
+      const bytes = asPdf ? await sheetPdf(layout, parts) : await sheetJpg(layout, parts);
+      shared.saveBlob(new Blob([bytes], { type: asPdf ? 'application/pdf' : JPEG.mime }), name);
     } catch (error) {
       if (!(error instanceof core.PhotoToolError)) console.error(error);
       shared.showError(error instanceof core.PhotoToolError ? error.message : 'The print sheet could not be made.');
     } finally {
+      downloading = false;
       render();
     }
   }
@@ -414,26 +425,27 @@
   cutLines.addEventListener('change', render);
 
   // The small picture of the copy is dragged to choose which part of the photo is printed.
+  // Only one pointer drags: a second finger or a right-click is ignored.
   let dragFrom = null;
   thumb.addEventListener('pointerdown', (event) => {
-    if (!movable) return;
+    if (!movable || dragFrom || !shared.isMainPointer(event)) return;
     event.preventDefault();
     thumb.setPointerCapture(event.pointerId);
-    dragFrom = { x: event.clientX, y: event.clientY };
+    dragFrom = { id: event.pointerId, x: event.clientX, y: event.clientY };
   });
   thumb.addEventListener('pointermove', (event) => {
-    if (!dragFrom || !movable) return;
+    if (!dragFrom || !movable || event.pointerId !== dragFrom.id) return;
     const box = thumb.getBoundingClientRect();
     const from = shared.sizeOf(source);
     const next = core.dragCover(
       from.width, from.height, size.width, size.height, place,
       (event.clientX - dragFrom.x) / box.width, (event.clientY - dragFrom.y) / box.height);
-    dragFrom = { x: event.clientX, y: event.clientY };
+    dragFrom = { id: dragFrom.id, x: event.clientX, y: event.clientY };
     placeChanged(next);
   });
   for (const type of ['pointerup', 'pointercancel']) {
-    thumb.addEventListener(type, () => {
-      dragFrom = null;
+    thumb.addEventListener(type, (event) => {
+      if (dragFrom && event.pointerId === dragFrom.id) dragFrom = null;
     });
   }
   thumb.addEventListener('keydown', (event) => {
