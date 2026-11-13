@@ -16,8 +16,12 @@ navigation drawer (**PDF Tools**) at `/Tools/Pdf`.
   never file names or contents.
 
 `ProjectManagement.Tests/Tools/PdfToolsPageContractTests.cs` guards these points: sign-in
-required, no handler other than `OnGet`, no network calls in the tool scripts, and all
-assets local.
+required, no handler other than `OnGet`, and all assets local. Every file of the tool (each
+script in `wwwroot/js/pdf-tools`, so a new one is covered without editing the test, the shared
+ZIP writer, `pdf-tools.css`, and the page and its partials) is checked for addresses on another
+site, network channels (`fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource`,
+CSS `@import` and remote `url(...)`), and code loaded from a literal address: `import()`, the
+worker and `importScripts` take only the addresses the page gives, which are this application's.
 
 ## Offline deployment
 
