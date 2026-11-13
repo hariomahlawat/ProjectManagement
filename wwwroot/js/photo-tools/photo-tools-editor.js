@@ -114,7 +114,7 @@
   let saved = null;
   let saveRun = 0;
   let saveTimer = null;
-  let openRun = 0;
+  const opener = shared.latestPhotoOpener();
   let working = false;
   // Counts the photos opened. A step waiting to start is dropped if another photo is opened meanwhile.
   let photoGeneration = 0;
@@ -304,17 +304,23 @@
     }
   }
 
+  /** Applies one step to the photo as it is now. False, with a message, when it cannot be made. */
+  function applyOne(step) {
+    shared.clearError();
+    try {
+      current = applyStep(current, step);
+    } catch (error) {
+      console.error(error);
+      shared.showError('This change could not be made. The photo may be too large for this browser.');
+      return false;
+    }
+    steps.push(step);
+    return true;
+  }
+
   function addStep(step) {
     return runStep(() => {
-      shared.clearError();
-      try {
-        current = applyStep(current, step);
-      } catch (error) {
-        console.error(error);
-        shared.showError('This change could not be made. The photo may be too large for this browser.');
-        return false;
-      }
-      steps.push(step);
+      if (!applyOne(step)) return false;
       undone = [];
       changed();
       return true;
@@ -352,15 +358,16 @@
     }, Math.max(1, steps.length - 1));
   }
 
+  // Redo applies the one step again to the photo as it is, which is quick; only undo has to make
+  // the photo again from the original.
   function redo() {
     if (!undone.length) return;
     runStep(() => {
-      const step = undone[undone.length - 1];
-      if (!replay([...steps, step])) return false;
+      if (!applyOne(undone[undone.length - 1])) return false;
       undone.pop();
       changed();
       return true;
-    }, steps.length + 1);
+    }, 1);
   }
 
   // ---------------------------------------------------------------------------
@@ -888,27 +895,9 @@
   // ---------------------------------------------------------------------------
 
   async function openFile(file) {
-    shared.clearError();
-    if (!file) return;
-    if (!core.isSupportedPhoto(file.type, file.name)) {
-      shared.showError('Only JPG, PNG and WEBP photos can be used here. iPhone HEIC photos are not supported.');
-      return;
-    }
     // Only the photo chosen last is used: an earlier one that opens late is thrown away.
-    const mine = ++openRun;
-    let source;
-    try {
-      source = await shared.openPhoto(file);
-    } catch (error) {
-      if (mine === openRun) {
-        shared.showError(error instanceof core.PhotoToolError ? error.message : 'This photo could not be opened.');
-      }
-      return;
-    }
-    if (mine !== openRun) {
-      if (typeof source.close === 'function') source.close();
-      return;
-    }
+    const source = await opener.open(file);
+    if (!source) return;
     if (original && typeof original.close === 'function') original.close();
     photoGeneration += 1;
     fileName = file.name;
@@ -940,18 +929,7 @@
     input.value = '';
   });
 
-  for (const zone of $$('[data-drop]')) {
-    zone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      zone.classList.add('is-dragging');
-    });
-    zone.addEventListener('dragleave', () => zone.classList.remove('is-dragging'));
-    zone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      zone.classList.remove('is-dragging');
-      openFile(event.dataTransfer?.files?.[0]);
-    });
-  }
+  shared.wireDropZones($$('[data-drop]'), files => openFile(files[0]));
 
   for (const button of $$('[data-tool]')) {
     button.addEventListener('click', () => setTool(button.dataset.tool));
@@ -981,14 +959,7 @@
     layout();
   }
 
-  originalButton.addEventListener('pointerdown', () => holdOriginal(true));
-  for (const type of ['pointerup', 'pointerleave', 'pointercancel', 'blur']) {
-    originalButton.addEventListener(type, () => holdOriginal(false));
-  }
-  originalButton.addEventListener('keydown', (event) => {
-    if (event.key === ' ' || event.key === 'Enter') holdOriginal(true);
-  });
-  originalButton.addEventListener('keyup', () => holdOriginal(false));
+  shared.wireHoldButton(originalButton, holdOriginal);
 
   for (const item of core.CLEAN_UPS) {
     const row = document.createElement('div');
