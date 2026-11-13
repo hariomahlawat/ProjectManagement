@@ -235,25 +235,39 @@
   /**
    * Reads the EXIF orientation of a JPEG and returns the clockwise rotation, in degrees,
    * needed to show it upright (0, 90, 180 or 270). Mirrored orientations are treated as
-   * their rotation component; returns 0 when there is no EXIF orientation.
+   * their rotation component (see jpegMirrored); returns 0 when there is no EXIF orientation.
    */
   function jpegRotation(bytes) {
+    const orientation = jpegOrientation(bytes);
+    if (orientation === 3 || orientation === 4) return 180;
+    if (orientation === 5 || orientation === 6) return 90;
+    if (orientation === 7 || orientation === 8) return 270;
+    return 0;
+  }
+
+  /** True when a JPEG's EXIF orientation also mirrors it (2, 4, 5 or 7; some front cameras). */
+  function jpegMirrored(bytes) {
+    return [2, 4, 5, 7].includes(jpegOrientation(bytes));
+  }
+
+  /** The EXIF orientation of a JPEG, 1 to 8, or 1 when there is none. */
+  function jpegOrientation(bytes) {
     const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) {
-      return 0;
+      return 1;
     }
     let offset = 2;
     while (offset + 4 <= data.length) {
       if (data[offset] !== 0xff) {
-        return 0;
+        return 1;
       }
       const marker = data[offset + 1];
       if (marker === 0xda || marker === 0xd9) {
-        return 0;
+        return 1;
       }
       const length = (data[offset + 2] << 8) | data[offset + 3];
       if (length < 2) {
-        return 0;
+        return 1;
       }
       if (marker === 0xe1 && offset + 10 <= data.length &&
           data[offset + 4] === 0x45 && data[offset + 5] === 0x78 && data[offset + 6] === 0x69 &&
@@ -262,17 +276,17 @@
       }
       offset += 2 + length;
     }
-    return 0;
+    return 1;
   }
 
   function orientationFromTiff(data, start, end) {
     if (start + 8 > end) {
-      return 0;
+      return 1;
     }
     const little = data[start] === 0x49 && data[start + 1] === 0x49;
     const big = data[start] === 0x4d && data[start + 1] === 0x4d;
     if (!little && !big) {
-      return 0;
+      return 1;
     }
     const u16 = (at) => (little ? data[at] | (data[at + 1] << 8) : (data[at] << 8) | data[at + 1]);
     const u32 = (at) => (little
@@ -280,23 +294,20 @@
       : ((data[at] << 24) | (data[at + 1] << 16) | (data[at + 2] << 8) | data[at + 3]) >>> 0);
     const ifd = start + u32(start + 4);
     if (ifd + 2 > end) {
-      return 0;
+      return 1;
     }
     const count = u16(ifd);
     for (let i = 0; i < count; i += 1) {
       const entry = ifd + 2 + i * 12;
       if (entry + 12 > end) {
-        return 0;
+        return 1;
       }
       if (u16(entry) === 0x0112) {
         const orientation = u16(entry + 8);
-        if (orientation === 3 || orientation === 4) return 180;
-        if (orientation === 5 || orientation === 6) return 90;
-        if (orientation === 7 || orientation === 8) return 270;
-        return 0;
+        return orientation >= 1 && orientation <= 8 ? orientation : 1;
       }
     }
-    return 0;
+    return 1;
   }
 
   /**
@@ -334,6 +345,10 @@
   }
 
   function clamp(value, min, max, fallback) {
+    // A field left blank means "use the default", not 0 (Number('') is 0).
+    if (value === null || value === undefined || String(value).trim() === '') {
+      return fallback;
+    }
     const number = Number(value);
     if (!Number.isFinite(number)) {
       return fallback;
@@ -349,15 +364,31 @@
   }
 
   // Standard PDF fonts only cover WinAnsi (Latin) characters. Report unsupported text
-  // clearly instead of letting pdf-lib fail with an encoding stack trace.
-  function ensureEncodable(font, text) {
+  // clearly instead of letting pdf-lib fail with an encoding stack trace: which character,
+  // in which text, and where, so the user knows what to change.
+  function ensureEncodable(font, text, where) {
     try {
       font.encodeText(text);
+      return;
     } catch {
-      throw new PdfToolError(
-        'text-unsupported',
-        'This text contains characters that the built-in PDF fonts cannot show. Use Latin letters, digits and common punctuation.');
+      // Find the first character the font cannot show.
     }
+    let bad = '';
+    for (const character of String(text)) {
+      try {
+        font.encodeText(character);
+      } catch {
+        bad = character;
+        break;
+      }
+    }
+    const shown = String(text).length > 40 ? `${String(text).slice(0, 40)}…` : String(text);
+    const place = where ? ` ${where}` : '';
+    const rupee = bad === '\u20b9' ? ' For the rupee sign, write Rs. instead.' : '';
+    throw new PdfToolError(
+      'text-unsupported',
+      `The text "${shown}"${place} has a character the built-in PDF font cannot show${bad ? ` (${bad})` : ''}. ` +
+      `Use Latin letters, digits and common punctuation.${rupee}`);
   }
 
   // ---------------------------------------------------------------------------
@@ -400,7 +431,19 @@
     for (const bytes of sources) {
       loaded.push(bytes ? await loadPdf(PDFLib, bytes) : null);
     }
+    return assembleLoaded(PDFLib, loaded, pages);
+  }
 
+  /**
+   * assemblePages for documents that are already loaded. A loaded source can be used for
+   * several outputs (Split reads its file once): the only change made to a source is tagging
+   * the page references in its annotations, and a tag names a page of the source, not of any
+   * one output, so it is resolved afresh against each output.
+   */
+  async function assembleLoaded(PDFLib, loaded, pages) {
+    if (!Array.isArray(pages) || pages.length === 0) {
+      throw new PdfToolError('no-pages', 'There are no pages to save.');
+    }
     const output = await PDFLib.PDFDocument.create();
     // copyPages per source keeps shared resources (fonts, images) de-duplicated.
     const copies = new Map();
@@ -426,6 +469,7 @@
 
     const used = new Set();
     const outputPages = new Map();
+    const pageSources = new Map();
     for (const page of pages) {
       const key = `${page.source}:${page.index}`;
       let copy = copies.get(key);
@@ -437,11 +481,12 @@
       const current = copy.getRotation().angle;
       copy.setRotation(PDFLib.degrees(normalizeRotation(current + (Number(page.rotate) || 0))));
       output.addPage(copy);
+      pageSources.set(String(copy.ref), page.source);
       if (!outputPages.has(key)) {
         outputPages.set(key, copy.ref);
       }
     }
-    carryFormFields(PDFLib, output, loaded);
+    carryFormFields(PDFLib, output, loaded, pageSources);
     resolvePageTags(PDFLib, output, outputPages);
     removeUnreachableObjects(PDFLib, output);
     assertOnlyOutputPages(PDFLib, output);
@@ -453,14 +498,19 @@
    * but not the document-level /AcroForm that lists the fields, so viewers stop treating them
    * as a form. Rebuild it from the widgets on the output pages only: shared parent fields keep
    * just the kids that lead to a kept widget, so fields on dropped pages are not carried over.
-   * Fields with the same name in different sources merge, as they would in any PDF form.
+   *
+   * A field keeps its own answer. PDF viewers treat fields with the same name as one field, so
+   * two filled copies of the same form, merged, would show or overwrite each other's answers.
+   * A top-level field whose name an earlier file already uses is renamed "name (2)", "name (3)".
+   * Fields of the same file keep their names, so a page used twice still shares its fields.
    */
-  function carryFormFields(PDFLib, output, sources) {
-    const { PDFName, PDFDict, PDFArray, PDFRef } = PDFLib;
+  function carryFormFields(PDFLib, output, sources, pageSources) {
+    const { PDFName, PDFDict, PDFArray, PDFRef, PDFHexString } = PDFLib;
     const PARENT = PDFName.of('Parent');
     const KIDS = PDFName.of('Kids');
     const kept = new Set();
     const roots = new Map();
+    const rootSources = new Map();
 
     for (const page of output.getPages()) {
       const annots = page.node.Annots();
@@ -480,6 +530,7 @@
           const parent = node.get(PARENT);
           if (!(parent instanceof PDFRef)) {
             roots.set(String(nodeRef), nodeRef);
+            rootSources.set(String(nodeRef), pageSources ? pageSources.get(String(page.ref)) : 0);
             break;
           }
           nodeRef = parent;
@@ -500,6 +551,39 @@
         const remaining = kids.asArray().filter((kid) => kid instanceof PDFRef && kept.has(String(kid)));
         node.set(KIDS, output.context.obj(remaining));
       }
+    }
+
+    // Names are taken in page order, so the first file keeps its field names. Every name that is
+    // already in use is reserved first, so a new name never repeats one that a later file has
+    // (a file with both "name" and "name (2)").
+    const entries = [];
+    for (const [key, ref] of roots) {
+      const node = output.context.lookup(ref);
+      const title = node instanceof PDFDict ? node.lookup(PDFName.of('T')) : undefined;
+      const name = title && typeof title.decodeText === 'function' ? title.decodeText() : undefined;
+      if (name !== undefined) entries.push({ node, name, source: rootSources.get(key) });
+    }
+    const taken = new Set(entries.map((entry) => entry.name));
+    const firstSource = new Map();
+    // A field of one file seen again (its page used twice) gets the same new name, so it still
+    // shares its answer, as it does in that file.
+    const renamed = new Map();
+    for (const { node, name, source } of entries) {
+      if (!firstSource.has(name)) {
+        firstSource.set(name, source);
+        continue;
+      }
+      if (firstSource.get(name) === source) continue;
+      const key = `${source}\u0000${name}`;
+      let next = renamed.get(key);
+      if (!next) {
+        let number = 2;
+        while (taken.has(`${name} (${number})`)) number += 1;
+        next = `${name} (${number})`;
+        taken.add(next);
+        renamed.set(key, next);
+      }
+      node.set(PDFName.of('T'), PDFHexString.fromText(next));
     }
 
     const acroForm = output.context.obj({});
@@ -765,9 +849,11 @@
     if (!Array.isArray(groups) || groups.length === 0) {
       throw new PdfToolError('no-pages', 'There are no pages to split.');
     }
+    // Read once: a large file read again for every part made "every page" slow.
+    const document = await loadPdf(PDFLib, bytes);
     const results = [];
     for (const group of groups) {
-      results.push(await assemblePages(PDFLib, [bytes], group.map((index) => ({ source: 0, index }))));
+      results.push(await assembleLoaded(PDFLib, [document], group.map((index) => ({ source: 0, index }))));
     }
     return results;
   }
@@ -844,7 +930,7 @@
     }
     const document = await loadPdf(PDFLib, bytes);
     const font = await document.embedFont(PDFLib.StandardFonts.HelveticaBold);
-    ensureEncodable(font, text);
+    ensureEncodable(font, text, 'in the watermark');
 
     const fontSize = clamp(settings.fontSize, 6, 300, 60);
     const opacity = clamp(settings.opacity, 0.02, 1, 0.25);
@@ -893,7 +979,8 @@
    *   stamps: [{ template, position }], // e.g. { template: 'Page {n} of {total}', position: 'bottom-center' }
    *   fontSize, margin, color, startAt, skipFirst, pages, date
    * }
-   * {n} counts only the stamped pages, starting at startAt; {total} is the number of stamped pages.
+   * {n} counts only the stamped pages, starting at startAt; {total} is the last number used, so
+   * "Page {n} of {total}" reads "Page 5 of 7" for three pages starting at 5.
    */
   async function addTextStamps(PDFLib, bytes, options) {
     const settings = options || {};
@@ -925,7 +1012,7 @@
 
       for (const stamp of stamps) {
         const text = formatStamp(stamp.template, { n: startAt + ordinal, total, date: settings.date || '' });
-        ensureEncodable(font, text);
+        ensureEncodable(font, text, `for page ${index + 1}`);
         const width = font.widthOfTextAtSize(text, fontSize);
         const block = positionBlock(stamp.position, view, { width, height: ascent + descent }, margin);
         const anchor = placeText(box, rotation, block.left, block.top + ascent, 0);
@@ -991,7 +1078,7 @@
           if (!line) {
             return;
           }
-          ensureEncodable(font, line);
+          ensureEncodable(font, line, `on page ${item.page + 1}`);
           const anchor = placeText(box, rotation, rect.left, rect.top + firstBaseline + lineIndex * lineHeight, 0);
           page.drawText(line, {
             x: anchor.x,
@@ -1073,6 +1160,8 @@
     positionBlock,
     fitImage,
     jpegRotation,
+    jpegOrientation,
+    jpegMirrored,
     orientedImageDraw,
     formatStamp,
     hexToRgb,

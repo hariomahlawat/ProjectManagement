@@ -168,6 +168,15 @@ test('jpegRotation reads the EXIF orientation tag', () => {
   assert.equal(tools.jpegRotation(jpeg(1, true)), 0);
   assert.equal(tools.jpegRotation(PNG_1X1), 0);
   assert.equal(tools.jpegRotation(Uint8Array.from([0xff, 0xd8, 0xff])), 0);
+
+  // Mirrored orientations (some front cameras) are recognised, so they can be re-drawn upright.
+  for (const orientation of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    assert.equal(tools.jpegOrientation(jpeg(orientation, orientation % 2 === 0)), orientation);
+    assert.equal(tools.jpegMirrored(jpeg(orientation, true)), [2, 4, 5, 7].includes(orientation), `orientation ${orientation}`);
+  }
+  assert.equal(tools.jpegRotation(jpeg(5, true)), 90, 'a mirrored orientation still reports its turn');
+  assert.equal(tools.jpegOrientation(PNG_1X1), 1);
+  assert.equal(tools.jpegMirrored(PNG_1X1), false);
 });
 
 // -----------------------------------------------------------------------------
@@ -268,6 +277,111 @@ async function allObjectText(bytes) {
     return object.toString();
   }).join('\n');
 }
+
+test('merging two filled copies of a form keeps each copy\'s answers apart', async () => {
+  const filled = async (value, also) => {
+    const document = await PDFLib.PDFDocument.create();
+    const page = document.addPage([300, 300]);
+    const form = document.getForm();
+    const name = form.createTextField('applicant.name');
+    name.setText(value);
+    name.addToPage(page, { x: 10, y: 10 });
+    if (also) {
+      const extra = form.createTextField(also);
+      extra.setText('Only here');
+      extra.addToPage(page, { x: 10, y: 60 });
+    }
+    return document.save();
+  };
+  const first = await filled('Asha');
+  const second = await filled('Bala', 'remarks');
+  const third = await filled('Chitra');
+
+  const output = await tools.assemblePages(PDFLib, [first, second, third], [
+    { source: 0, index: 0 }, { source: 1, index: 0 }, { source: 2, index: 0 }
+  ]);
+  const form = (await PDFLib.PDFDocument.load(output)).getForm();
+  const values = Object.fromEntries(form.getFields().map((field) => [field.getName(), field.getText()]));
+  assert.deepEqual(values, {
+    'applicant.name': 'Asha',
+    'applicant (2).name': 'Bala',
+    remarks: 'Only here',
+    'applicant (3).name': 'Chitra'
+  });
+
+  // A page used twice from the same file still shares its field, as it did before.
+  const twice = await tools.assemblePages(PDFLib, [first], [{ source: 0, index: 0 }, { source: 0, index: 0 }]);
+  const names = (await PDFLib.PDFDocument.load(twice)).getForm().getFields().map((field) => field.getName());
+  assert.ok(names.every((fieldName) => fieldName === 'applicant.name'), names.join(', '));
+
+  // A new name never repeats one a later file already has: the second file has both "name" and
+  // "name (2)", so its "name" becomes "name (3)" and all three answers stay apart.
+  const own = async (fields) => {
+    const document = await PDFLib.PDFDocument.create();
+    const page = document.addPage([300, 300]);
+    fields.forEach(([fieldName, value], index) => {
+      const field = document.getForm().createTextField(fieldName);
+      field.setText(value);
+      field.addToPage(page, { x: 10, y: 10 + index * 40 });
+    });
+    return document.save();
+  };
+  const plain = await own([['name', 'A']]);
+  const both = await own([['name', 'B1'], ['name (2)', 'B2']]);
+  const clash = await tools.assemblePages(PDFLib, [plain, both], [{ source: 0, index: 0 }, { source: 1, index: 0 }]);
+  const clashed = (await PDFLib.PDFDocument.load(clash)).getForm().getFields().map((field) => `${field.getName()}=${field.getText()}`);
+  assert.deepEqual(clashed.sort(), ['name (2)=B2', 'name (3)=B1', 'name=A']);
+
+  // The second file's page used twice: both copies of its renamed field share the one new name.
+  const repeated = await tools.assemblePages(PDFLib, [plain, both], [
+    { source: 0, index: 0 }, { source: 1, index: 0 }, { source: 1, index: 0 }
+  ]);
+  const repeatedNames = (await PDFLib.PDFDocument.load(repeated)).getForm().getFields().map((field) => field.getName()).sort();
+  assert.deepEqual(repeatedNames, ['name', 'name (2)', 'name (2)', 'name (3)', 'name (3)']);
+});
+
+test('splitPdf reads the file once and still keeps every part to its own pages', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const pages = [0, 1, 2, 3].map(() => document.addPage([300, 300]));
+  const font = await document.embedFont(PDFLib.StandardFonts.Helvetica);
+  pages.forEach((page, index) => page.drawText(`PAGEMARK${index}`, { x: 20, y: 150, size: 12, font }));
+  // Page 1 links to page 3, and page 3 to page 1, across the parts.
+  const link = (from, to) => {
+    const annotation = document.context.register(document.context.obj({
+      Type: 'Annot', Subtype: 'Link', Rect: [0, 0, 50, 50], Border: [0, 0, 0],
+      Dest: [pages[to].ref, 'Fit']
+    }));
+    from.node.set(PDFLib.PDFName.of('Annots'), document.context.obj([annotation]));
+  };
+  link(pages[0], 2);
+  link(pages[2], 0);
+  const pdf = await document.save();
+
+  const original = PDFLib.PDFDocument.load;
+  let loads = 0;
+  PDFLib.PDFDocument.load = (...args) => { loads += 1; return original.apply(PDFLib.PDFDocument, args); };
+  let parts;
+  try {
+    parts = await tools.splitPdf(PDFLib, pdf, [[0, 1], [2, 3], [0, 2]]);
+  } finally {
+    PDFLib.PDFDocument.load = original;
+  }
+  assert.equal(loads, 1, 'the file is read once for all parts');
+
+  const hex = (text) => Buffer.from(text, 'latin1').toString('hex').toUpperCase();
+  const expect = [[0, 1], [2, 3], [0, 2]];
+  for (const [index, part] of parts.entries()) {
+    const text = await allObjectText(part);
+    for (let page = 0; page < 4; page += 1) {
+      const present = new RegExp(hex(`PAGEMARK${page}`)).test(text);
+      assert.equal(present, expect[index].includes(page), `part ${index + 1}, page ${page + 1}`);
+    }
+    const links = (await PDFLib.PDFDocument.load(part)).getPages()
+      .map((page) => page.node.Annots()?.size() ?? 0);
+    // A link survives only when the page it points to is in the same part.
+    assert.deepEqual(links, index === 2 ? [1, 1] : [0, 0], `part ${index + 1} links`);
+  }
+});
 
 test('dropping pages also drops their form fields and content from the saved file', async () => {
   const document = await PDFLib.PDFDocument.create();
@@ -498,6 +612,31 @@ test('addTextStamps numbers stamped pages and keeps text upright on rotated page
 
   const content = await contentOf(output, 2);
   assert.match(content, /<506167652032206F662032>/, 'third page is "Page 2 of 2"');
+
+  // A start number or size left blank means the default, not 0.
+  const blank = await tools.addTextStamps(PDFLib, pdf, {
+    stamps: [{ template: 'Page {n} of {total}', position: 'bottom-center' }],
+    startAt: '',
+    fontSize: ''
+  });
+  const first = await contentOf(blank, 0);
+  assert.match(first, /<506167652031206F662033>/, 'blank start number is "Page 1 of 3"');
+  assert.match(first, /^\/\S+ 10 Tf$/m, 'blank size is the default 10 pt');
+});
+
+test('text a PDF font cannot show is named, with where it is', async () => {
+  const pdf = await makePdf([[300, 300], [300, 300]]);
+  await assert.rejects(
+    tools.applyAnnotations(PDFLib, pdf, [{ page: 1, type: 'text', left: 10, top: 10, text: 'Fee \u20b9 500', fontSize: 12 }]),
+    (error) => error.code === 'text-unsupported'
+      && /"Fee \u20b9 500" on page 2/.test(error.message)
+      && /\(\u20b9\)/.test(error.message)
+      && /write Rs\. instead/.test(error.message));
+  await assert.rejects(
+    tools.addWatermark(PDFLib, pdf, { text: 'गोपनीय' }),
+    (error) => error.code === 'text-unsupported' && /in the watermark/.test(error.message) && !/Rs\./.test(error.message));
+  // Plain Latin text still saves.
+  await tools.applyAnnotations(PDFLib, pdf, [{ page: 0, type: 'text', left: 10, top: 10, text: 'Fee Rs. 500', fontSize: 12 }]);
 });
 
 test('applyAnnotations flattens text, shapes and images', async () => {
