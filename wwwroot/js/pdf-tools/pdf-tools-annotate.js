@@ -880,6 +880,10 @@
       page.scale = available / page.width;
       page.sheet.style.width = `${page.width * page.scale}px`;
       page.sheet.style.height = `${page.height * page.scale}px`;
+      // renderPage sizes the canvas in pixels; let it fill the new sheet until it is redrawn,
+      // so the picture and the items on it stay lined up.
+      page.canvas.style.width = '100%';
+      page.canvas.style.height = '100%';
       if (page.drawn) {
         // Draw it again at the new size; the old picture stays, stretched, until then.
         page.drawn = false;
