@@ -790,11 +790,16 @@
     const width = readSide(resizeWidth);
     const height = readSide(resizeHeight);
     const same = width === size.width && height === size.height;
-    resizeApply.disabled = !width || !height || same;
+    const tooBig = Boolean(width && height) && width * height > core.EDIT_MAX_AREA;
+    resizeApply.disabled = !width || !height || same || tooBig;
     resizeNote.className = 'phot-hint';
     if (!width || !height) {
       resizeNote.className = 'phot-hint phot-hint--warning';
       resizeNote.textContent = `Enter a width and height between ${core.EDIT_MIN_SIDE} and ${core.EDIT_MAX_SIDE} pixels.`;
+    } else if (tooBig) {
+      // Phones and iPads cannot draw a larger picture; the edit would fail there.
+      resizeNote.className = 'phot-hint phot-hint--warning';
+      resizeNote.textContent = 'That is too many pixels for some browsers. Keep width × height under 16.7 million, for example 4096 × 4096.';
     } else if (width > size.width || height > size.height) {
       resizeNote.textContent = 'Making a photo bigger does not add detail; it will look softer.';
     } else if (Math.abs(width / height - size.width / size.height) > 0.01) {

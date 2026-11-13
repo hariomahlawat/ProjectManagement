@@ -12,24 +12,38 @@ function fakeEncoder(bytesPerPixel) {
   return { encode, calls };
 }
 
-test('formatBytes uses B, KB and MB', () => {
+test('formatBytes uses B, KB and MB of 1,000 and rounds up', () => {
   assert.equal(tools.formatBytes(512), '512 B');
-  assert.equal(tools.formatBytes(98 * 1024), '98 KB');
-  assert.equal(tools.formatBytes(3.2 * 1024 * 1024), '3.2 MB');
+  assert.equal(tools.formatBytes(98000), '98 KB');
+  assert.equal(tools.formatBytes(3200000), '3.2 MB');
+  // Rounded up, so a file just over a limit never reads as fitting it.
+  assert.equal(tools.formatBytes(50000), '50 KB');
+  assert.equal(tools.formatBytes(50001), '51 KB');
+  assert.equal(tools.formatBytes(51300), '52 KB');
+  assert.equal(tools.formatBytes(999999), '1.0 MB');
+  assert.equal(tools.formatBytes(1000001), '1.1 MB');
 });
 
-test('parseTargetBytes reads KB and MB and rejects nonsense', () => {
-  assert.equal(tools.parseTargetBytes('100', 'KB'), 102400);
-  assert.equal(tools.parseTargetBytes('1.5', 'MB'), 1572864);
-  assert.equal(tools.parseTargetBytes('1,5', 'MB'), 1572864);
+test('parseTargetBytes reads KB and MB of 1,000 and rejects nonsense', () => {
+  assert.equal(tools.parseTargetBytes('100', 'KB'), 100000);
+  assert.equal(tools.parseTargetBytes('1.5', 'MB'), 1500000);
+  assert.equal(tools.parseTargetBytes('1,5', 'MB'), 1500000);
   assert.equal(tools.parseTargetBytes('', 'KB'), null);
   assert.equal(tools.parseTargetBytes('0', 'KB'), null);
   assert.equal(tools.parseTargetBytes('abc', 'KB'), null);
-  // A number written with thousands is not read as a decimal: "1,000 KB" is not 1 KB.
-  assert.equal(tools.parseTargetBytes('1,000', 'KB'), 1024000);
-  assert.equal(tools.parseTargetBytes('1,500,000', 'KB'), 1536000000);
-  assert.equal(tools.parseTargetBytes('1,50', 'MB'), 1572864);
+  // A KB number written with thousands is not read as a decimal: "1,000 KB" is not 1 KB.
+  assert.equal(tools.parseTargetBytes('1,000', 'KB'), 1000000);
+  assert.equal(tools.parseTargetBytes('1,500,000', 'KB'), 1500000000);
+  assert.equal(tools.parseTargetBytes('1,00,000', 'KB'), 100000000, 'Indian grouping');
+  assert.equal(tools.parseTargetBytes('1,50', 'MB'), 1500000);
+  // An MB number with a comma is a decimal: nobody means 1,500 MB.
+  assert.equal(tools.parseTargetBytes('1,500', 'MB'), 1500000);
   assert.equal(tools.parseTargetBytes('1,0,0', 'KB'), null);
+});
+
+test('a target of 50 KB passes upload forms that count 1,000 or 1,024 bytes to a KB', () => {
+  const target = tools.parseTargetBytes('50', 'KB');
+  assert.ok(target <= 50 * 1000 && target <= 50 * 1024);
 });
 
 test('resizeDimensions keeps the shape and never enlarges', () => {
@@ -57,6 +71,16 @@ test('outputNames adds a suffix and keeps names unique', () => {
     { name: '', extension: 'jpg' }
   ], '-small');
   assert.deepEqual(names, ['Site-small.jpg', 'site-small (2).jpg', 'plan.final-small.png', 'photo-small.jpg']);
+});
+
+test('outputNames never repeats a name, even one that already looks numbered', () => {
+  const names = tools.outputNames([
+    { name: 'a.jpg', extension: 'jpg' },
+    { name: 'a.jpg', extension: 'jpg' },
+    { name: 'a (2).jpg', extension: 'jpg' }
+  ]);
+  assert.deepEqual(names, ['a.jpg', 'a (2).jpg', 'a (2) (2).jpg']);
+  assert.equal(new Set(names.map(name => name.toLowerCase())).size, names.length);
 });
 
 test('toGreyscale makes every pixel grey and leaves transparency alone', () => {
@@ -1465,4 +1489,42 @@ test('a soft Erase makes the subject see-through without changing its colour', (
   tools.cutoutColours(colours, colourAlpha, 2, flatWall([255, 255, 255]), null, alpha);
   assert.deepEqual(rgbAt(colours, 2, 1, 0), grey, 'the colour is kept');
   assert.ok(Math.abs(colours[7] - 127) <= 1, 'and the pixel is half see-through');
+});
+
+// ----- Review fixes (PR 4 of docs/ux/photo-tools-review-fixes.md) -----
+
+test('measuring weighs a pixel by how visible it is', () => {
+  // A nearly invisible yellow fringe beside solid grey: the grey decides, not the fringe.
+  const fringe = new Uint8ClampedArray([255, 255, 0, 1, 100, 100, 100, 255]);
+  const lighting = tools.measureLighting(fringe);
+  for (const gain of lighting.gains) assert.ok(Math.abs(gain - 1) < 0.01, `gain ${gain} should be about 1`);
+  assert.deepEqual([lighting.low, lighting.high], [0, 255], 'no stretch from one grey level');
+
+  // Paper and ink: dark ink drawn only in see-through pixels is not ink.
+  const page = [];
+  for (let i = 0; i < 400; i += 1) page.push(230, 230, 230, 255);
+  for (let i = 0; i < 400; i += 1) page.push(0, 0, 0, 1);
+  assert.equal(tools.measurePaper(new Uint8ClampedArray(page)), null);
+});
+
+test('encodeToTarget never makes the short side smaller than 16 px', async () => {
+  const { encode, calls } = fakeEncoder(4);
+  const result = await tools.encodeToTarget({ encode, lossy: true, width: 20, height: 3000, targetBytes: 10 });
+  assert.equal(result.reached, false);
+  for (const call of calls) assert.ok(Math.min(call.width, call.height) >= 16, `${call.width} × ${call.height}`);
+});
+
+test('a fixed-shape crop works out its height from the whole-pixel width', () => {
+  const bounds = { width: 100, height: 120 };
+  const ratio = 9 / 16;
+  // 120 high would need 67.5 wide: 67 × 119 is closer to 9 : 16 than 68 × 120.
+  const crop = tools.defaultCrop(bounds, ratio);
+  assert.deepEqual(crop, { x: 16, y: 0, width: 67, height: 119 });
+  const moved = tools.resizeCrop({ x: 0, y: 0, width: 45, height: 80 }, 'se', { x: 54, y: 96 }, ratio, bounds);
+  assert.equal(moved.height, Math.round(moved.width / ratio));
+  assert.ok(moved.y + moved.height <= bounds.height);
+});
+
+test('Edit photo caps the picture area at what every browser can draw', () => {
+  assert.equal(tools.EDIT_MAX_AREA, 4096 * 4096);
 });
