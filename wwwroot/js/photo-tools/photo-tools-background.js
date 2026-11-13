@@ -109,9 +109,14 @@
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   }
 
-  /** Whether Remove background is set up on the server. Asked once, when the screen opens. */
+  /**
+   * Whether Remove background is set up on the server. Only a "ready" answer is kept: a failed
+   * request, or "not set up", is asked again the next time the screen opens or a photo is chosen,
+   * so a server that is back, or a model an administrator has just installed, is found without
+   * reloading the page.
+   */
   function loadStatus() {
-    if (status) return Promise.resolve(status);
+    if (status && status.available) return Promise.resolve(status);
     if (!statusLoading) {
       statusLoading = fetch(STATUS_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
         .then(response => (response.ok ? response.json() : null))
@@ -121,7 +126,7 @@
             available: false,
             message: 'The PRISM server could not be reached. Check the connection and open this screen again.'
           };
-          if (!answer) statusLoading = null;
+          statusLoading = null;
           renderStatus();
           return status;
         });
