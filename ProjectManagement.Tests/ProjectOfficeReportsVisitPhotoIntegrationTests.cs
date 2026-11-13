@@ -27,10 +27,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Tests.Fakes;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -593,25 +590,15 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
     // SECTION: Image fixture helpers
     private static async Task<MemoryStream> CreateExifRotatedImageStreamAsync(int width, int height)
     {
-        var stream = new MemoryStream();
-        using var image = new Image<Rgba32>(width, height, new Rgba32(80, 140, 220));
-
-        var exif = new ExifProfile();
-        exif.SetValue(ExifTag.Orientation, (ushort)6);
-        image.Metadata.ExifProfile = exif;
-
-        await image.SaveAsync(stream, new JpegEncoder { Quality = 85 });
-        stream.Position = 0;
-        return stream;
+        await Task.CompletedTask;
+        var jpeg = TestImageFactory.SolidJpeg(width, height, new SKColor(80, 140, 220), quality: 85);
+        return new MemoryStream(TestImageFactory.WithExifOrientation(jpeg, 6));
     }
 
     private static async Task<MemoryStream> CreateImageStreamAsync(int width, int height)
     {
-        var stream = new MemoryStream();
-        using var image = new Image<Rgba32>(width, height, new Rgba32(80, 140, 220));
-        await image.SaveAsync(stream, new JpegEncoder { Quality = 90 });
-        stream.Position = 0;
-        return stream;
+        await Task.CompletedTask;
+        return TestImageFactory.SolidJpegStream(width, height, new SKColor(80, 140, 220));
     }
 
     private sealed class RecordingAudit : IAuditService

@@ -2,8 +2,8 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using ProjectManagement.Services.Imaging;
+using SkiaSharp;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -13,7 +13,7 @@ public sealed class MediaClassifierTests
     [Fact]
     public async Task ClassifyAsync_RecognisesStrongScreenshotFilename()
     {
-        var path = await CreateImageAsync("screenshot", 640, 360, new Rgba32(240, 240, 240));
+        var path = await CreateImageAsync("screenshot", 640, 360, new SKColor(240, 240, 240));
         try
         {
             var result = await CreateClassifier().ClassifyAsync(path, Metadata(path, "image/png", 640, 360), CancellationToken.None);
@@ -97,7 +97,7 @@ public sealed class MediaClassifierTests
     [Fact]
     public async Task ClassifyAsync_HonoursDisabledDiagramDetector()
     {
-        var path = await CreateImageAsync("diagram", 1000, 600, new Rgba32(255, 255, 255));
+        var path = await CreateImageAsync("diagram", 1000, 600, new SKColor(255, 255, 255));
         try
         {
             var optionsValue = new MediaLibraryOptions
@@ -133,7 +133,7 @@ public sealed class MediaClassifierTests
     [Fact]
     public async Task ClassifyAsync_DoesNotMatchDocumentKeywordInsideUniform()
     {
-        var path = await CreateImageAsync("uniform", 480, 640, new Rgba32(110, 125, 105));
+        var path = await CreateImageAsync("uniform", 480, 640, new SKColor(110, 125, 105));
         try
         {
             var classifier = CreateClassifier(new StubFacePresenceProbe(false));
@@ -196,7 +196,7 @@ public sealed class MediaClassifierTests
 
     private static MediaFileMetadata MetadataFromImage(string path, string type)
     {
-        var dimensions = Image.Identify(path)
+        var dimensions = PrismImageCodec.Identify(File.ReadAllBytes(path))
                          ?? throw new InvalidOperationException($"Unable to identify test image '{path}'.");
         return Metadata(path, type, dimensions.Width, dimensions.Height);
     }
@@ -218,32 +218,31 @@ public sealed class MediaClassifierTests
     private static string Fixture(string name)
         => Path.Combine(AppContext.BaseDirectory, "TestData", "MediaClassification", name);
 
-    private static async Task<string> CreateImageAsync(string prefix, int width, int height, Rgba32 colour)
+    private static async Task<string> CreateImageAsync(string prefix, int width, int height, SKColor colour)
     {
         var path = Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}.png");
-        using var image = new Image<Rgba32>(width, height, colour);
-        await image.SaveAsPngAsync(path);
+        await File.WriteAllBytesAsync(path, TestImageFactory.SolidPng(width, height, colour));
         return path;
     }
 
     private static async Task<string> CreateTexturedPortraitImageAsync(int width, int height)
     {
         var path = Path.Combine(Path.GetTempPath(), $"portrait-{Guid.NewGuid():N}.jpg");
-        using var image = new Image<Rgba32>(width, height);
+        var image = new SKColor[width * height];
         var random = new Random(4319);
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
             {
                 var shade = Math.Clamp(95 + (int)(75d * y / height) + random.Next(-18, 19), 0, 255);
-                image[x, y] = new Rgba32(
+                image[(y * width) + x] = new SKColor(
                     (byte)Math.Clamp(shade + 22, 0, 255),
                     (byte)Math.Clamp(shade + 4, 0, 255),
                     (byte)Math.Clamp(shade - 10, 0, 255));
             }
         }
 
-        await image.SaveAsJpegAsync(path);
+        await File.WriteAllBytesAsync(path, TestImageFactory.JpegFromPixels(width, height, image));
         return path;
     }
 

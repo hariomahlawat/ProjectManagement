@@ -4,8 +4,6 @@ using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using SkiaSharp;
 
 namespace ProjectManagement.Tests.MediaLibrary;
@@ -80,18 +78,10 @@ public sealed class MediaImageDecodeLimitTests : IDisposable
 
     private static byte[] Encode(int width, int height, bool jpeg)
     {
-        using var image = new Image<Rgba32>(width, height, new Rgba32(40, 90, 160));
-        using var stream = new MemoryStream();
-        if (jpeg)
-        {
-            image.SaveAsJpeg(stream);
-        }
-        else
-        {
-            image.SaveAsPng(stream);
-        }
-
-        return stream.ToArray();
+        var colour = new SkiaSharp.SKColor(40, 90, 160);
+        return jpeg
+            ? TestImageFactory.SolidJpeg(width, height, colour, quality: 75)
+            : TestImageFactory.SolidPng(width, height, colour);
     }
 
     private MediaDerivativeService CreateService(MediaLibraryDbContext db, byte[] content, long maxImagePixels)

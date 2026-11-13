@@ -341,31 +341,6 @@ public sealed class PrismImageCodecTests
         }
     }
 
-    /// <summary>Inserts a minimal EXIF block, carrying only the orientation tag, after the JPEG start marker.</summary>
     private static byte[] WithExifOrientation(byte[] jpeg, ushort orientation)
-    {
-        Assert.True(jpeg.Length > 2 && jpeg[0] == 0xFF && jpeg[1] == 0xD8, "Expected a JPEG.");
-
-        byte[] tiff =
-        {
-            0x49, 0x49, 0x2A, 0x00,             // little-endian TIFF header
-            0x08, 0x00, 0x00, 0x00,             // first directory at offset 8
-            0x01, 0x00,                         // one entry
-            0x12, 0x01,                         // tag 0x0112: orientation
-            0x03, 0x00,                         // type SHORT
-            0x01, 0x00, 0x00, 0x00,             // one value
-            (byte)(orientation & 0xFF), (byte)(orientation >> 8), 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00              // no further directory
-        };
-        byte[] exifHeader = { 0x45, 0x78, 0x69, 0x66, 0x00, 0x00 };
-        var length = 2 + exifHeader.Length + tiff.Length;
-        byte[] marker = { 0xFF, 0xE1, (byte)(length >> 8), (byte)(length & 0xFF) };
-
-        return jpeg.Take(2)
-            .Concat(marker)
-            .Concat(exifHeader)
-            .Concat(tiff)
-            .Concat(jpeg.Skip(2))
-            .ToArray();
-    }
+        => TestImageFactory.WithExifOrientation(jpeg, orientation);
 }

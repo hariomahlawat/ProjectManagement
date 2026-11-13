@@ -16,9 +16,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Tests.Fakes;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -164,10 +162,8 @@ public sealed class ProjectPhotoConcurrentUploadPostgresTests
 
     private static async Task<byte[]> CreatePngAsync()
     {
-        using var image = new Image<Rgba32>(1200, 900, new Rgba32(200, 80, 60, 255));
-        using var stream = new MemoryStream();
-        await image.SaveAsync(stream, new PngEncoder());
-        return stream.ToArray();
+        await Task.CompletedTask;
+        return TestImageFactory.SolidPng(1200, 900, new SKColor(200, 80, 60, 255));
     }
 
     private static async Task ExecuteAsync(string connectionString, string sql)

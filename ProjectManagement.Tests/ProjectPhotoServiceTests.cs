@@ -15,13 +15,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Tests.Fakes;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Bmp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
+using SkiaSharp;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -492,12 +486,10 @@ public sealed class ProjectPhotoServiceTests : IDisposable
                 var derivativePath = service.GetDerivativePath(photo, key, preferWebp: false);
                 Assert.True(File.Exists(derivativePath));
 
-                await using var derivativeStream = new FileStream(derivativePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                using var derivativeImage = await Image.LoadAsync<Rgba32>(derivativeStream);
-
-                Assert.Null(derivativeImage.Metadata.ExifProfile);
-                Assert.Null(derivativeImage.Metadata.IptcProfile);
-                Assert.Null(derivativeImage.Metadata.XmpProfile);
+                // No EXIF, XMP or IPTC segment, and the description text is nowhere in the file.
+                var derivative = await File.ReadAllBytesAsync(derivativePath);
+                Assert.Empty(TestImageFactory.JpegMetadataSegments(derivative));
+                Assert.DoesNotContain("Test Image", System.Text.Encoding.Latin1.GetString(derivative), StringComparison.Ordinal);
             }
         }
         finally
@@ -714,43 +706,29 @@ public sealed class ProjectPhotoServiceTests : IDisposable
 
     private static async Task<MemoryStream> CreateImageStreamAsync(int width, int height, bool saveAsBmp = false)
     {
-        var stream = new MemoryStream();
-        using var image = new Image<Rgba32>(width, height, new Rgba32(200, 80, 60, 255));
-
-        if (saveAsBmp)
-        {
-            await image.SaveAsync(stream, new BmpEncoder());
-        }
-        else
-        {
-            await image.SaveAsync(stream, new PngEncoder());
-        }
-
-        stream.Position = 0;
-        return stream;
+        await Task.CompletedTask;
+        var colour = new SKColor(200, 80, 60, 255);
+        return saveAsBmp
+            ? new MemoryStream(TestImageFactory.SolidBmp(width, height, colour))
+            : TestImageFactory.SolidPngStream(width, height, colour);
     }
 
     private static async Task<MemoryStream> CreateTransparentImageStreamAsync(int width, int height)
     {
-        var stream = new MemoryStream();
-        using var image = new Image<Rgba32>(width, height, new Rgba32(50, 120, 200, 120));
-        await image.SaveAsync(stream, new PngEncoder());
-        stream.Position = 0;
-        return stream;
+        await Task.CompletedTask;
+        return TestImageFactory.SolidPngStream(width, height, new SKColor(50, 120, 200, 120));
     }
 
     private static async Task<MemoryStream> CreateImageStreamWithExifAsync(int width, int height)
     {
-        var stream = new MemoryStream();
-        using var image = new Image<Rgba32>(width, height, new Rgba32(30, 60, 90, 255));
+        await Task.CompletedTask;
+        var jpeg = TestImageFactory.WithExifDescription(
+            TestImageFactory.SolidJpeg(width, height, new SKColor(30, 60, 90, 255), quality: 75),
+            "Test Image");
 
-        var exif = new ExifProfile();
-        exif.SetValue(ExifTag.ImageDescription, "Test Image");
-        image.Metadata.ExifProfile = exif;
-
-        await image.SaveAsync(stream, new JpegEncoder());
-        stream.Position = 0;
-        return stream;
+        // The fixture must really carry the metadata, or the test would prove nothing.
+        Assert.Contains("APP1", TestImageFactory.JpegMetadataSegments(jpeg));
+        return new MemoryStream(jpeg);
     }
 
     private static string CreateTempRoot()
