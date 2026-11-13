@@ -75,22 +75,63 @@ body:has(.auth) .public-brand__name {
     margin-left: 0.15rem;
 }
 
+/* The artwork gives way on short screens, so the name and tagline under it stay on the
+   first screen: 27.5rem is everything else in the column (top bar, badge, name, footer). */
 .auth__prism {
-    width: min(100%, 520px);
+    width: min(100%, 520px, max(220px, (100vh - 27.5rem) * 1.04));
+    width: min(100%, 520px, max(220px, (100dvh - 27.5rem) * 1.04));
 }
 
+/* The name: "Prism" as a written signature (Pages/Shared/_PrismSignature.cshtml) with ERP
+   beside it in the regular type. The font size is the height of the signature. */
 .auth__wordmark {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.16em;
     margin: 0;
     color: var(--lp-text);
-    font-size: clamp(2.6rem, 5vw, 4.2rem);
-    font-weight: 700;
+    font-size: clamp(4rem, 7.5vw, 6.25rem);
     line-height: 1;
-    letter-spacing: -0.035em;
 }
 
-.auth__wordmark span {
+.auth__sig {
+    display: block;
+    flex: none;
+    width: auto;
+    height: 1em;
+    aspect-ratio: 228 / 92;
+    margin-left: -0.05em;
+    overflow: visible;
+}
+
+.auth__sig-solid {
+    fill: currentColor;
+}
+
+/* The spectrum-filled word under the mask, and the pen, belong to the opening sequence. */
+.auth__sig-written {
+    display: none;
+}
+
+.auth__sig-stroke {
+    fill: none;
+    stroke-width: 11;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.auth__sig-pen {
+    fill: var(--lp-beam);
+    opacity: 0;
+    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--lp-spec-5) 80%, transparent));
+}
+
+.auth__wordmark-erp {
+    margin-bottom: 0.13em;
     color: var(--lp-muted);
-    font-weight: 600;
+    font-size: 0.26em;
+    font-weight: 700;
+    letter-spacing: 0.16em;
 }
 
 .auth__tagline {
@@ -108,6 +149,123 @@ body:has(.auth) .public-brand__name {
     font-weight: 700;
     letter-spacing: 0.16em;
     text-transform: uppercase;
+}
+
+/* ---------- Sending ----------
+   When the form is sent the rays brighten and one pulse runs down the beam. */
+
+.auth .lp-prism__rays-glow {
+    transition: opacity 0.35s ease;
+}
+
+.auth--sending .lp-prism__rays-glow {
+    opacity: calc(var(--lp-ray-glow-alpha) + (1 - var(--lp-ray-glow-alpha)) * 0.8);
+}
+
+/* ---------- Opening sequence ----------
+   Plays once on arrival (.auth--intro, a GET), on the wide layout, when motion is allowed:
+   the beam enters, the rays leave, and the name is written stroke by stroke in the colours
+   of the spectrum, then settles to the text colour and stays. Everything here only delays
+   or reveals; without it the page is simply at rest. It needs no script: auth-login.js
+   only keeps a point of light on the pen tip.
+   Each pen path has pathLength 1, so a dash of 1 is the whole stroke. The offset starts a
+   little past 1 so the round cap of an undrawn stroke does not show as a dot. Durations
+   follow the length of each stroke (78, 102, 282, 231 and 5 units), 1.7s of writing in all. */
+
+@media (min-width: 961px) and (prefers-reduced-motion: no-preference) {
+    .auth--intro .lp-prism__beam,
+    .auth--intro .lp-prism__beam-core {
+        stroke-dasharray: 250;
+        animation: auth-beam 0.4s ease-out both;
+    }
+
+    .auth--intro .lp-prism__beam-glow {
+        animation: auth-fade-in 0.4s ease 0.15s both;
+    }
+
+    .auth--intro .lp-prism__fan,
+    .auth--intro .lp-prism__split {
+        animation: auth-fade-in 0.35s ease 0.3s both;
+    }
+
+    .auth--intro .lp-prism__rays-glow {
+        animation: auth-fade-in 0.6s ease 0.4s both;
+    }
+
+    .auth--intro .lp-prism__ray {
+        animation: auth-ray 0.6s cubic-bezier(0.3, 0.7, 0.3, 1) both, lp-ray 6s ease-in-out infinite;
+    }
+
+    .auth--intro .lp-prism__ray--1 { animation-delay: 0.35s, 0s; }
+    .auth--intro .lp-prism__ray--2 { animation-delay: 0.38s, -1s; }
+    .auth--intro .lp-prism__ray--3 { animation-delay: 0.41s, -2s; }
+    .auth--intro .lp-prism__ray--4 { animation-delay: 0.44s, -3s; }
+    .auth--intro .lp-prism__ray--5 { animation-delay: 0.47s, -4s; }
+    .auth--intro .lp-prism__ray--6 { animation-delay: 0.5s, -5s; }
+
+    .auth--intro .lp-prism__pulse {
+        animation-delay: 3.4s;
+    }
+
+    .auth--intro .auth__sig-written {
+        display: inline;
+    }
+
+    .auth--intro .auth__sig-stroke {
+        stroke-dasharray: 1 2;
+        stroke-dashoffset: 1.03;
+        animation: auth-write var(--auth-stroke-time) linear var(--auth-stroke-start) both;
+    }
+
+    .auth--intro .auth__sig-stroke:nth-of-type(1) { --auth-stroke-start: 0.6s; --auth-stroke-time: 0.19s; }
+    .auth--intro .auth__sig-stroke:nth-of-type(2) { --auth-stroke-start: 0.85s; --auth-stroke-time: 0.25s; }
+    .auth--intro .auth__sig-stroke:nth-of-type(3) { --auth-stroke-start: 1.16s; --auth-stroke-time: 0.69s; }
+    .auth--intro .auth__sig-stroke:nth-of-type(4) { --auth-stroke-start: 1.91s; --auth-stroke-time: 0.56s; }
+    .auth--intro .auth__sig-stroke:nth-of-type(5) { --auth-stroke-start: 2.53s; --auth-stroke-time: 0.09s; }
+
+    .auth--intro .auth__sig-solid {
+        animation: auth-fade-in 0.6s ease 2.8s both;
+    }
+
+    .auth--intro .auth__wordmark-erp {
+        animation: auth-rise 0.45s ease 2.6s both;
+    }
+
+    .auth--intro .auth__tagline {
+        animation: auth-rise 0.45s ease 2.85s both;
+    }
+
+    .auth--intro .auth__strap {
+        animation: auth-rise 0.45s ease 3s both;
+    }
+
+    .auth--sending .lp-prism__pulse {
+        animation: lp-pulse 0.9s var(--lp-ease) 1;
+    }
+}
+
+@keyframes auth-beam {
+    from { stroke-dashoffset: 250; }
+    to { stroke-dashoffset: 0; }
+}
+
+@keyframes auth-fade-in {
+    from { opacity: 0; }
+}
+
+@keyframes auth-write {
+    from { stroke-dashoffset: 1.03; }
+    to { stroke-dashoffset: 0; }
+}
+
+@keyframes auth-ray {
+    from { clip-path: inset(-10% 100% -10% 0); }
+    to { clip-path: inset(-10% -1% -10% 0); }
+}
+
+@keyframes auth-rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
 }
 
 /* ---------- Glass card ---------- */
@@ -381,7 +539,7 @@ body:has(.auth) .public-brand__name {
     }
 
     .auth__wordmark {
-        font-size: 1.7rem;
+        font-size: 2.9rem;
     }
 
     .auth__tagline {
