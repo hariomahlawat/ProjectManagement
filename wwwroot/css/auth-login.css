@@ -58,7 +58,7 @@ body:has(.auth) main > .pm-page-shell {
 .auth__art {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
     min-width: 0;
 }
 
@@ -75,11 +75,19 @@ body:has(.auth) .public-brand__name {
     margin-left: 0.15rem;
 }
 
-/* The artwork gives way on short screens, so the name and tagline under it stay on the
-   first screen: 27.5rem is everything else in the column (top bar, badge, name, footer). */
+/* The artwork is as large as the screen allows while the name and tagline under it stay
+   on the first screen: 25.5rem is everything else in the column (top bar, badge, name,
+   footer). The drawing has blank margins above the apex and below the base (about a
+   quarter of its height); the negative margins hand that room back to the glass, so the
+   visible part is 0.72 of the width tall and the width can be 1.38 times the free height. */
 .auth__prism {
-    width: min(100%, 520px, max(220px, (100vh - 27.5rem) * 1.04));
-    width: min(100%, 520px, max(220px, (100dvh - 27.5rem) * 1.04));
+    width: min(100%, 520px, max(240px, (100vh - 25.5rem) * 1.38));
+    width: min(100%, 520px, max(240px, (100dvh - 25.5rem) * 1.38));
+}
+
+.auth__prism .lp-prism {
+    margin-top: -13%;
+    margin-bottom: -11%;
 }
 
 /* The name: "Prism" as a written signature (Pages/Shared/_PrismSignature.cshtml) with ERP
@@ -90,7 +98,7 @@ body:has(.auth) .public-brand__name {
     gap: 0.16em;
     margin: 0;
     color: var(--lp-text);
-    font-size: clamp(4rem, 7.5vw, 6.25rem);
+    font-size: clamp(3.5rem, 6.4vw, 5.25rem);
     line-height: 1;
 }
 
@@ -184,7 +192,9 @@ body:has(.auth) .public-brand__name {
     }
 
     .auth--intro .lp-prism__fan,
-    .auth--intro .lp-prism__split {
+    .auth--intro .lp-prism__split,
+    .auth--intro .lp-prism__bloom,
+    .auth--intro .lp-prism__spill {
         animation: auth-fade-in 0.35s ease 0.3s both;
     }
 

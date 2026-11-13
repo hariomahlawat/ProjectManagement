@@ -307,6 +307,13 @@ body:has(.about) main {
     --lp-beam-core-alpha: 0.85;
     --lp-ray-glow-alpha: 0.8;
     --lp-ray-core-alpha: 0.5;
+    --lp-prism-bevel-alpha: 0.16;
+    --lp-prism-inner-hi-alpha: 0.08;
+    --lp-prism-inner-lo-alpha: 0.02;
+    --lp-prism-sheen-alpha: 0.18;
+    --lp-prism-mirror-alpha: 0;
+    --lp-prism-spill-alpha: 0;
+    --lp-prism-bloom-alpha: 0.5;
     position: relative;
     isolation: isolate;
     width: var(--about-icon);
