@@ -1,0 +1,400 @@
+/* =============================================================
+   MY ACCOUNT (Areas/Identity/Pages/Account/Manage)
+   One narrow column: who you are, your picture, appearance,
+   password, sign out. Also the Change password page.
+   Site tokens only, so Light and Dark follow without overrides.
+   ============================================================= */
+
+.account {
+  display: grid;
+  gap: 1rem;
+  margin: 0 auto;
+  max-width: 47.5rem;
+  padding: .5rem 0 2.5rem;
+}
+
+.account--narrow {
+  max-width: 30rem;
+}
+
+.account__title {
+  color: var(--pm-text-strong);
+  font-size: clamp(1.5rem, 2.2vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.account__back {
+  align-items: center;
+  color: var(--pm-muted);
+  display: inline-flex;
+  font-size: .85rem;
+  font-weight: 600;
+  gap: .35rem;
+  justify-self: start;
+  text-decoration: none;
+}
+
+.account__back:hover {
+  color: var(--pm-link);
+}
+
+.account__alert {
+  align-items: center;
+  display: flex;
+  font-size: .9rem;
+  gap: .55rem;
+  margin: 0;
+  padding: .7rem .9rem;
+}
+
+.account__alert--summary.validation-summary-valid {
+  display: none;
+}
+
+.account__alert--summary ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.account__panel {
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ---------- Who you are ---------- */
+
+.account__who {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.1rem;
+  padding: 1.35rem 1.4rem;
+}
+
+.account__avatar {
+  align-items: center;
+  background: var(--pm-primary);
+  border-radius: 50%;
+  color: var(--pm-text-inverted);
+  display: inline-flex;
+  flex: none;
+  font-size: 1.45rem;
+  font-weight: 700;
+  height: 4.5rem;
+  justify-content: center;
+  letter-spacing: .02em;
+  overflow: hidden;
+  text-transform: uppercase;
+  width: 4.5rem;
+}
+
+.account__avatar img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.account__who-copy {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.account__who-copy h2 {
+  color: var(--pm-text-strong);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  line-height: 1.25;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.account__who-copy p {
+  color: var(--pm-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: .9rem;
+  gap: .1rem .4rem;
+  margin: .15rem 0 0;
+}
+
+.account__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  list-style: none;
+  margin: .6rem 0 0;
+  padding: 0;
+}
+
+.account__chip {
+  background: var(--pm-chip-bg);
+  border: 1px solid var(--pm-chip-border);
+  border-radius: 999px;
+  color: var(--pm-chip-text);
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: .22rem .65rem;
+}
+
+/* ---------- Rows ---------- */
+
+.account__row {
+  align-items: center;
+  border-top: 1px solid var(--pm-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 1rem;
+  padding: 1rem 1.4rem;
+}
+
+.account__panel > .account__row:first-child {
+  border-top: 0;
+}
+
+.account__row-copy {
+  flex: 1 1 15rem;
+  min-width: 0;
+}
+
+.account__row-copy h3 {
+  color: var(--pm-text-strong);
+  font-size: .95rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.account__row-copy p {
+  color: var(--pm-muted);
+  font-size: .86rem;
+  line-height: 1.45;
+  margin: .15rem 0 0;
+}
+
+.account__row-copy p strong {
+  color: var(--pm-text-strong);
+  font-weight: 600;
+}
+
+.account__row-action .btn {
+  align-items: center;
+  display: inline-flex;
+  gap: .45rem;
+  white-space: nowrap;
+}
+
+.account__portrait-thumb {
+  border-radius: 50%;
+  height: 1.35rem;
+  object-fit: cover;
+  width: 1.35rem;
+}
+
+.account__note {
+  color: var(--pm-muted);
+  font-size: .84rem;
+}
+
+/* An active choice, not a disabled-looking control. */
+.account-photo-avatar-setting__use-initials {
+  --bs-btn-border-color: var(--pm-border-strong);
+  --bs-btn-color: var(--pm-text-strong);
+}
+
+.account__theme {
+  flex: none;
+}
+
+/* ---------- Photos identity ---------- */
+
+.account__concern {
+  align-items: flex-start;
+  background: var(--pm-status-warning-bg);
+  border-top: 1px solid var(--pm-border);
+  color: var(--pm-status-warning-text);
+  display: flex;
+  gap: .7rem;
+  padding: 1rem 1.4rem;
+}
+
+.account__concern > i {
+  margin-top: .15rem;
+}
+
+.account__concern strong {
+  display: block;
+  font-size: .92rem;
+}
+
+.account__concern p {
+  font-size: .86rem;
+  line-height: 1.45;
+  margin: .15rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.account__concern small {
+  display: block;
+  font-size: .8rem;
+  margin-top: .3rem;
+}
+
+.account__report {
+  border-top: 1px solid var(--pm-border);
+  padding: .55rem 1.4rem;
+}
+
+.account__report > summary {
+  align-items: center;
+  color: var(--pm-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: .84rem;
+  font-weight: 600;
+  gap: .4rem;
+  list-style: none;
+  padding: .2rem 0;
+}
+
+.account__report > summary::-webkit-details-marker {
+  display: none;
+}
+
+.account__report > summary:hover {
+  color: var(--pm-danger-accent);
+}
+
+.account__report > summary:focus-visible {
+  border-radius: .3rem;
+  outline: 2px solid var(--pm-focus-ring);
+  outline-offset: 2px;
+}
+
+.account__report > summary .bi {
+  font-size: .7rem;
+  transition: transform .16s ease;
+}
+
+.account__report[open] > summary .bi {
+  transform: rotate(180deg);
+}
+
+.account__report-form {
+  display: grid;
+  gap: .7rem;
+  max-width: 36rem;
+  padding: .6rem 0 .6rem;
+}
+
+.account__report-form p {
+  color: var(--pm-muted);
+  font-size: .86rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.account__report-form .form-label {
+  font-size: .86rem;
+  font-weight: 700;
+  margin-bottom: .3rem;
+}
+
+.account__report-form .btn {
+  justify-self: start;
+}
+
+.account__signout {
+  justify-self: start;
+}
+
+.account__signout .btn {
+  align-items: center;
+  display: inline-flex;
+  gap: .45rem;
+}
+
+/* ---------- Change password ---------- */
+
+.account__form {
+  display: grid;
+  gap: 1rem;
+  padding: 1.4rem;
+}
+
+.account__form .form-label {
+  font-size: .9rem;
+  font-weight: 700;
+  margin-bottom: .35rem;
+}
+
+.account__hint {
+  color: var(--pm-muted);
+  font-size: .84rem;
+  margin: .35rem 0 0;
+}
+
+.account__caps {
+  align-items: center;
+  color: var(--pm-status-warning-text);
+  display: flex;
+  font-size: .84rem;
+  font-weight: 700;
+  gap: .4rem;
+  margin: 0;
+}
+
+.account__caps[hidden] {
+  display: none;
+}
+
+.account__form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+}
+
+@media (max-width: 575.98px) {
+  .account__who,
+  .account__row,
+  .account__concern,
+  .account__form {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .account__report {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .account__row-action,
+  .account__row-action form,
+  .account__row-action .btn {
+    width: 100%;
+  }
+
+  .account__row-action .btn {
+    justify-content: center;
+  }
+
+  .account__theme {
+    width: 100%;
+  }
+
+  .account__theme .pm-theme-choice__option {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account__report > summary .bi {
+    transition: none;
+  }
+}

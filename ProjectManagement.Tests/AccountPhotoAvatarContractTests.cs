@@ -44,7 +44,7 @@ public sealed class AccountPhotoAvatarContractTests
         var accountModel = File.ReadAllText(Path.Combine(root, "Areas", "Identity", "Pages", "Account", "Manage", "Index.cshtml.cs"));
         var details = File.ReadAllText(Path.Combine(root, "Pages", "Photos", "People", "Details.cshtml"));
         var service = File.ReadAllText(Path.Combine(root, "Features", "MediaLibrary", "Services", "MediaPersonUserLinkService.cs"));
-        var siteCss = File.ReadAllText(Path.Combine(root, "wwwroot", "css", "site.css"));
+        var accountCss = File.ReadAllText(Path.Combine(root, "wwwroot", "css", "pages", "account.css"));
         var peopleCss = File.ReadAllText(Path.Combine(root, "wwwroot", "css", "pages", "photos-reference-readiness.css"));
 
         Assert.Contains("PRISM profile image", account, StringComparison.Ordinal);
@@ -62,9 +62,9 @@ public sealed class AccountPhotoAvatarContractTests
         Assert.Contains("PRISM cannot look for more pictures of this person yet.", details, StringComparison.Ordinal);
 
         Assert.Contains("account-photo-avatar-setting__use-initials", account, StringComparison.Ordinal);
-        Assert.Contains(".account-photo-avatar-setting__use-initials", siteCss, StringComparison.Ordinal);
-        Assert.Contains("height: 36px;", siteCss, StringComparison.Ordinal);
-        Assert.Contains("width: 36px;", siteCss, StringComparison.Ordinal);
+        // The account page's styles live in their own stylesheet, which the page loads.
+        Assert.Contains("~/css/pages/account.css", account, StringComparison.Ordinal);
+        Assert.Contains(".account-photo-avatar-setting__use-initials", accountCss, StringComparison.Ordinal);
     }
 
     private static string FindProjectRoot()
