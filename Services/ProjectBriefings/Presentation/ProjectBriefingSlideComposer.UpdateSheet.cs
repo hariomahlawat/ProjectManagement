@@ -1,9 +1,7 @@
 using System.Globalization;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Services.ProjectBriefings;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.Processing;
+using ProjectManagement.Services.Imaging;
 
 namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
@@ -147,15 +145,15 @@ public sealed partial class ProjectBriefingSlideComposer
     {
         try
         {
-            using var image = Image.Load(content);
+            using var image = PrismImageCodec.DecodeOriented(content);
             var targetAspect = Math.Max(.1d, targetWidth / Math.Max(.1d, targetHeight));
             var sourceAspect = image.Width / (double)Math.Max(1, image.Height);
 
-            SixLabors.ImageSharp.Rectangle crop;
+            PrismImageRect crop;
             if (sourceAspect > targetAspect)
             {
                 var cropWidth = Math.Max(1, (int)Math.Round(image.Height * targetAspect));
-                crop = new SixLabors.ImageSharp.Rectangle(
+                crop = new PrismImageRect(
                     Math.Max(0, (image.Width - cropWidth) / 2),
                     0,
                     Math.Min(cropWidth, image.Width),
@@ -164,7 +162,7 @@ public sealed partial class ProjectBriefingSlideComposer
             else
             {
                 var cropHeight = Math.Max(1, (int)Math.Round(image.Width / targetAspect));
-                crop = new SixLabors.ImageSharp.Rectangle(
+                crop = new PrismImageRect(
                     0,
                     Math.Max(0, (image.Height - cropHeight) / 2),
                     image.Width,
@@ -181,13 +179,9 @@ public sealed partial class ProjectBriefingSlideComposer
                 outputWidth = Math.Max(1, (int)Math.Round(outputHeight * targetAspect));
             }
 
-            image.Mutate(context => context
-                .Crop(crop)
-                .Resize(outputWidth, outputHeight));
-
-            using var stream = new MemoryStream();
-            image.Save(stream, new PngEncoder());
-            return new UpdateSheetPreparedPhoto(stream.ToArray(), "image/png");
+            using var cropped = PrismImageCodec.Crop(image, crop);
+            using var resized = PrismImageCodec.ResizeExact(cropped, outputWidth, outputHeight);
+            return new UpdateSheetPreparedPhoto(PrismImageCodec.EncodePng(resized), "image/png");
         }
         catch
         {

@@ -49,6 +49,9 @@ public sealed record PrismImageInfo(
     };
 }
 
+/// <summary>A rectangle of pixels inside an image: its top-left corner and its size.</summary>
+public readonly record struct PrismImageRect(int X, int Y, int Width, int Height);
+
 /// <summary>The bytes are not an image PRISM can decode, or decoding it would be unsafe.</summary>
 public sealed class PrismImageException : Exception
 {
@@ -230,6 +233,101 @@ public static class PrismImageCodec
         return source.Resize(new SKImageInfo(width, height, source.ColorType, source.AlphaType), SKFilterQuality.High)
                ?? throw new PrismImageException("The image could not be resized.");
     }
+
+    /// <summary>
+    /// Scales the image to exactly the given size. The caller chooses a size with the right
+    /// proportions; this does not preserve them. The caller owns the returned bitmap.
+    /// </summary>
+    public static SKBitmap ResizeExact(SKBitmap source, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (width <= 0 || height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), "The target size must have a positive width and height.");
+        }
+
+        if (width == source.Width && height == source.Height)
+        {
+            return source.Copy()
+                   ?? throw new PrismImageException("The image could not be copied.");
+        }
+
+        return source.Resize(new SKImageInfo(width, height, source.ColorType, source.AlphaType), SKFilterQuality.High)
+               ?? throw new PrismImageException("The image could not be resized.");
+    }
+
+    /// <summary>
+    /// Fills the given size completely: the largest centred rectangle of the right
+    /// proportions is cut from the image and scaled to the size. The caller owns the
+    /// returned bitmap.
+    /// </summary>
+    public static SKBitmap ResizeToCover(SKBitmap source, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (width <= 0 || height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), "The target size must have a positive width and height.");
+        }
+
+        var targetAspect = width / (double)height;
+        var sourceAspect = source.Width / (double)source.Height;
+        int cropWidth;
+        int cropHeight;
+        if (sourceAspect > targetAspect)
+        {
+            cropHeight = source.Height;
+            cropWidth = Math.Clamp((int)Math.Round(cropHeight * targetAspect), 1, source.Width);
+        }
+        else
+        {
+            cropWidth = source.Width;
+            cropHeight = Math.Clamp((int)Math.Round(cropWidth / targetAspect), 1, source.Height);
+        }
+
+        using var cropped = Crop(
+            source,
+            (source.Width - cropWidth) / 2,
+            (source.Height - cropHeight) / 2,
+            cropWidth,
+            cropHeight);
+        return ResizeExact(cropped, width, height);
+    }
+
+    /// <summary>
+    /// Draws the image at the given position on a white canvas of the given size. The
+    /// caller owns the returned bitmap, which is opaque.
+    /// </summary>
+    public static SKBitmap PlaceOnWhite(SKBitmap source, int canvasWidth, int canvasHeight, int x, int y)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (canvasWidth <= 0 || canvasHeight <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(canvasWidth), "The canvas must have a positive width and height.");
+        }
+
+        var destination = new SKBitmap(new SKImageInfo(
+            canvasWidth,
+            canvasHeight,
+            SKImageInfo.PlatformColorType,
+            SKAlphaType.Opaque));
+        try
+        {
+            using var canvas = new SKCanvas(destination);
+            canvas.Clear(SKColors.White);
+            canvas.DrawBitmap(source, x, y);
+            canvas.Flush();
+            return destination;
+        }
+        catch
+        {
+            destination.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>Copies the given rectangle out of the image. See the overload taking coordinates.</summary>
+    public static SKBitmap Crop(SKBitmap source, PrismImageRect rectangle)
+        => Crop(source, rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
 
     /// <summary>
     /// Copies the given rectangle out of the image. The rectangle must lie inside the image.

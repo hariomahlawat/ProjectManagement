@@ -169,6 +169,48 @@ public sealed class PrismImageCodecTests
     }
 
     [Fact]
+    public void ResizeExact_gives_exactly_the_size_asked_for()
+    {
+        using var source = TwoHalves(60, 40, SKColors.Red, SKColors.Blue);
+
+        using var resized = PrismImageCodec.ResizeExact(source, 30, 50);
+
+        Assert.Equal((30, 50), (resized.Width, resized.Height));
+        AssertMostly(resized.GetPixel(4, 25), red: true);
+        AssertMostly(resized.GetPixel(26, 25), red: false);
+    }
+
+    [Theory]
+    [InlineData(400, 100)]
+    [InlineData(100, 400)]
+    [InlineData(40, 30)]
+    public void ResizeToCover_fills_the_size_from_the_centre(int width, int height)
+    {
+        // Red on the left, blue on the right: a centred crop keeps the join in the middle.
+        using var source = TwoHalves(width, height, SKColors.Red, SKColors.Blue);
+
+        using var covered = PrismImageCodec.ResizeToCover(source, 160, 90);
+
+        Assert.Equal((160, 90), (covered.Width, covered.Height));
+        AssertMostly(covered.GetPixel(20, 45), red: true);
+        AssertMostly(covered.GetPixel(140, 45), red: false);
+    }
+
+    [Fact]
+    public void PlaceOnWhite_draws_the_image_on_a_white_canvas()
+    {
+        using var source = TwoHalves(20, 20, SKColors.Red, SKColors.Red);
+
+        using var canvas = PrismImageCodec.PlaceOnWhite(source, 60, 40, 20, 10);
+
+        Assert.Equal((60, 40), (canvas.Width, canvas.Height));
+        Assert.Equal(SKAlphaType.Opaque, canvas.AlphaType);
+        Assert.Equal(SKColors.White, canvas.GetPixel(5, 5));
+        Assert.Equal(SKColors.White, canvas.GetPixel(55, 35));
+        AssertMostly(canvas.GetPixel(30, 20), red: true);
+    }
+
+    [Fact]
     public void Crop_copies_the_rectangle_and_outlives_the_source()
     {
         SKBitmap cropped;

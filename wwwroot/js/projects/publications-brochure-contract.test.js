@@ -974,12 +974,12 @@ test('phase 20.2 digital structural settings trigger fresh preflight and Digital
   assert.doesNotMatch(verification, /isPrintCompactProfile\(\)/);
 });
 
-test('phase 20.2 publication photo rendering treats ImageSharp processing failures as a single-photo failure instead of a request crash', () => {
+test('phase 20.2 publication photo rendering treats image processing failures as a single-photo failure instead of a request crash', () => {
   const photoService = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePhotoService.cs'), 'utf8');
   assert.match(photoService, /IsRecoverableImageException/);
   assert.match(photoService, /ArgumentException/);
   assert.match(photoService, /NotSupportedException/);
-  assert.match(photoService, /StartsWith\("SixLabors\.ImageSharp\."/);
+  assert.match(photoService, /PrismImageException/);
 });
 
 

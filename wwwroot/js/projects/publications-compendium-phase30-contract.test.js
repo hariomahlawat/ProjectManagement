@@ -76,7 +76,7 @@ test('phase 30 supports single and multi image covers with independent fit and c
   assert.match(coverJs, /focalX/);
   assert.match(coverJs, /focalY/);
   assert.match(photoService, /BrochurePhotoFitMode\.Fit/);
-  assert.match(photoService, /DrawImage/);
+  assert.match(photoService, /PlaceOnWhite/);
   assert.match(exportService, /CompendiumCoverTemplatePolicy\.ResolveGeometry/);
 });
 

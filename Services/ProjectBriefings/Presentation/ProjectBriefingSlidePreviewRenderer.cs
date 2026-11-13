@@ -5,10 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DocumentFormat.OpenXml.Packaging;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.Processing;
+using ProjectManagement.Services.Imaging;
 
 namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
@@ -491,24 +488,24 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
         {
             try
             {
-                using var image = Image.Load(content);
-                var isPng = image.Metadata.DecodedImageFormat?.Name == "PNG";
-                if (image.Width > MaximumImageWidth)
-                {
-                    image.Mutate(context => context.Resize(MaximumImageWidth, 0));
-                }
+                var isPng = PrismImageCodec.Identify(content)?.Format == PrismImageFormat.Png;
+                using var decoded = PrismImageCodec.DecodeOriented(content);
+                var height = decoded.Width > MaximumImageWidth
+                    ? Math.Max(1, (int)Math.Round(decoded.Height * (MaximumImageWidth / (double)decoded.Width)))
+                    : decoded.Height;
+                using var image = PrismImageCodec.ResizeExact(
+                    decoded,
+                    Math.Min(decoded.Width, MaximumImageWidth),
+                    height);
 
-                using var output = new MemoryStream();
                 if (isPng)
                 {
-                    image.Save(output, new PngEncoder { CompressionLevel = PngCompressionLevel.BestCompression });
-                    return "data:image/png;base64," + Convert.ToBase64String(output.ToArray());
+                    return "data:image/png;base64," + Convert.ToBase64String(PrismImageCodec.EncodePng(image));
                 }
 
-                image.Save(output, new JpegEncoder { Quality = 74 });
-                return "data:image/jpeg;base64," + Convert.ToBase64String(output.ToArray());
+                return "data:image/jpeg;base64," + Convert.ToBase64String(PrismImageCodec.EncodeJpeg(image, 74));
             }
-            catch (Exception exception) when (exception is UnknownImageFormatException or InvalidImageContentException)
+            catch (PrismImageException)
             {
                 return null;
             }

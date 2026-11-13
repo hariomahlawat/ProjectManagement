@@ -5,11 +5,8 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Storage;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using ProjectManagement.Services.Imaging;
+using SkiaSharp;
 
 namespace ProjectManagement.Services.Publications;
 
@@ -214,11 +211,11 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
         try
         {
             var bytes = await File.ReadAllBytesAsync(source.Path, cancellationToken);
-            using var image = Image.Load(bytes);
-            image.Mutate(context => context.AutoOrient());
+            using var image = PrismImageCodec.DecodeOriented(bytes);
 
             var sourceWidth = image.Width;
             var sourceHeight = image.Height;
+            SKBitmap rendered;
             if (kind == BrochurePhotoPreviewKind.Thumbnail)
             {
                 var crop = CalculateCropRectangle(
@@ -228,20 +225,21 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
                     ThumbnailHeight,
                     .5d,
                     .5d);
-                image.Mutate(context => context
-                    .Crop(crop)
-                    .Resize(ThumbnailWidth, ThumbnailHeight));
+                using var cropped = PrismImageCodec.Crop(image, crop);
+                rendered = PrismImageCodec.ResizeExact(cropped, ThumbnailWidth, ThumbnailHeight);
             }
             else
             {
-                ResizeWithinBounds(image, SourcePreviewMaxWidth, SourcePreviewMaxHeight);
+                rendered = ResizeWithinBounds(image, SourcePreviewMaxWidth, SourcePreviewMaxHeight);
             }
 
-            using var output = new MemoryStream();
-            image.Save(output, new JpegEncoder { Quality = kind == BrochurePhotoPreviewKind.Thumbnail ? 82 : 88 });
+            using var renderedOwner = rendered;
+            var previewBytes = PrismImageCodec.EncodeJpeg(
+                rendered,
+                kind == BrochurePhotoPreviewKind.Thumbnail ? 82 : 88);
 
             return new BrochurePhotoPreview(
-                output.ToArray(),
+                previewBytes,
                 "image/jpeg",
                 sourceWidth,
                 sourceHeight,
@@ -306,8 +304,7 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
         try
         {
             var bytes = await File.ReadAllBytesAsync(source.Path, cancellationToken);
-            using var image = Image.Load(bytes);
-            image.Mutate(context => context.AutoOrient());
+            using var image = PrismImageCodec.DecodeOriented(bytes);
 
             var sourceWidth = image.Width;
             var sourceHeight = image.Height;
@@ -318,26 +315,30 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
                     request.TargetHeight / (double)Math.Max(1, sourceHeight));
                 var width = Math.Max(1, (int)Math.Round(sourceWidth * scale));
                 var height = Math.Max(1, (int)Math.Round(sourceHeight * scale));
-                image.Mutate(context => context.Resize(width, height));
+                using var fitted = PrismImageCodec.ResizeExact(image, width, height);
 
-                using var fitOutput = new MemoryStream();
+                byte[] fitBytes;
                 if (request.PadFitToTarget)
                 {
-                    using var canvas = new Image<Rgba32>(request.TargetWidth, request.TargetHeight, Color.White);
                     var x = (request.TargetWidth - width) / 2;
                     var y = (request.TargetHeight - height) / 2;
-                    canvas.Mutate(context => context.DrawImage(image, new Point(x, y), 1f));
-                    canvas.Save(fitOutput, new JpegEncoder { Quality = 91 });
+                    using var canvas = PrismImageCodec.PlaceOnWhite(
+                        fitted,
+                        request.TargetWidth,
+                        request.TargetHeight,
+                        x,
+                        y);
+                    fitBytes = PrismImageCodec.EncodeJpeg(canvas, 91);
                 }
                 else
                 {
-                    image.Save(fitOutput, new JpegEncoder { Quality = 91 });
+                    fitBytes = PrismImageCodec.EncodeJpeg(fitted, 91);
                 }
 
                 var fitQuality = DetermineQuality(sourceWidth, sourceHeight);
                 return new BrochurePublicationImage(
                     photo.Id,
-                    fitOutput.ToArray(),
+                    fitBytes,
                     sourceWidth,
                     sourceHeight,
                     fitQuality >= BrochurePhotoQuality.PrintReady,
@@ -353,18 +354,15 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
                 ClampFocal(request.FocalX),
                 ClampFocal(request.FocalY));
 
-            image.Mutate(context => context
-                .Crop(crop)
-                .Resize(request.TargetWidth, request.TargetHeight)
-                .BackgroundColor(Color.White));
-
-            using var output = new MemoryStream();
-            image.Save(output, new JpegEncoder { Quality = 91 });
+            // JPEG encoding lays any transparency on white.
+            using var cropped = PrismImageCodec.Crop(image, crop);
+            using var filled = PrismImageCodec.ResizeExact(cropped, request.TargetWidth, request.TargetHeight);
+            var filledBytes = PrismImageCodec.EncodeJpeg(filled, 91);
 
             var quality = DetermineQuality(sourceWidth, sourceHeight);
             return new BrochurePublicationImage(
                 photo.Id,
-                output.ToArray(),
+                filledBytes,
                 sourceWidth,
                 sourceHeight,
                 quality >= BrochurePhotoQuality.PrintReady,
@@ -415,13 +413,9 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
             CandidateProbe probe;
             try
             {
-                using var stream = new FileStream(
-                    candidate.Path,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.ReadWrite | FileShare.Delete);
-                using var image = Image.Load(stream);
-                image.Mutate(context => context.AutoOrient());
+                // Decoded in full, not just identified: a candidate is only ready when its
+                // pixels can actually be read. The result is cached per file version.
+                using var image = PrismImageCodec.DecodeOriented(ReadShared(candidate.Path));
                 var quality = DetermineQuality(image.Width, image.Height);
                 probe = new CandidateProbe(true, image.Width, image.Height, quality);
             }
@@ -459,7 +453,7 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
         return null;
     }
 
-    internal static Rectangle CalculateCropRectangle(
+    internal static PrismImageRect CalculateCropRectangle(
         int sourceWidth,
         int sourceHeight,
         int targetWidth,
@@ -501,7 +495,7 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
         x = Math.Clamp(x, 0, sourceWidth - cropWidth);
         y = Math.Clamp(y, 0, sourceHeight - cropHeight);
 
-        return new Rectangle(x, y, cropWidth, cropHeight);
+        return new PrismImageRect(x, y, cropWidth, cropHeight);
     }
 
     internal static BrochurePhotoQuality DetermineQuality(int width, int height)
@@ -593,39 +587,39 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
             .Select(group => group.First())
             .ToArray() ?? Array.Empty<BrochurePhotoReference>();
 
-    private static void ResizeWithinBounds(Image image, int maxWidth, int maxHeight)
+    private static SKBitmap ResizeWithinBounds(SKBitmap image, int maxWidth, int maxHeight)
     {
         if (image.Width <= maxWidth && image.Height <= maxHeight)
         {
-            return;
+            return PrismImageCodec.ResizeExact(image, image.Width, image.Height);
         }
 
         var ratio = Math.Min(maxWidth / (double)image.Width, maxHeight / (double)image.Height);
         var width = Math.Max(1, (int)Math.Round(image.Width * ratio));
         var height = Math.Max(1, (int)Math.Round(image.Height * ratio));
-        image.Mutate(context => context.Resize(width, height));
+        return PrismImageCodec.ResizeExact(image, width, height);
     }
 
-    private static bool IsRecoverableImageException(Exception exception)
+    private static byte[] ReadShared(string path)
     {
-        if (exception is IOException
-            or UnauthorizedAccessException
-            or UnknownImageFormatException
-            or InvalidImageContentException
-            or ArgumentException
-            or NotSupportedException)
-        {
-            return true;
-        }
-
-        // ImageSharp can surface format/processing-specific exception types that vary between
-        // library versions. At this single-photo boundary those failures mean "this source is not
-        // renderable", not "crash the entire publication request". Limit the fallback strictly to
-        // ImageSharp exception namespaces so process-level/runtime failures still propagate.
-        var exceptionNamespace = exception.GetType().Namespace;
-        return string.Equals(exceptionNamespace, "SixLabors.ImageSharp", StringComparison.Ordinal)
-            || (exceptionNamespace?.StartsWith("SixLabors.ImageSharp.", StringComparison.Ordinal) ?? false);
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        return buffer.ToArray();
     }
+
+    // At this single-photo boundary these failures mean "this source is not renderable",
+    // not "crash the entire publication request". Anything else still propagates.
+    private static bool IsRecoverableImageException(Exception exception)
+        => exception is IOException
+            or UnauthorizedAccessException
+            or PrismImageException
+            or ArgumentException
+            or NotSupportedException;
 
     private static double ClampFocal(double value)
         => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;
