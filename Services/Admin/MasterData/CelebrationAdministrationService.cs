@@ -78,8 +78,18 @@ public interface ICelebrationAdministrationService
     /// <summary>The accounts a celebration can be linked to: people who can sign in today.</summary>
     Task<IReadOnlyList<CelebrationUserOption>> ListLinkableUsersAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Links one celebration to an account without changing anything else about it.</summary>
-    Task<AdminOperationResult> LinkAsync(Guid id, string userId, string actorUserId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Links one celebration to an account without changing anything else about it. With
+    /// <paramref name="onlyIfNotLinked"/> the link is refused when the entry already belongs to an
+    /// account, and that is decided in the same statement as the write, so a person claiming an
+    /// entry from My account can never take one that was linked to someone else a moment before.
+    /// </summary>
+    Task<AdminOperationResult> LinkAsync(
+        Guid id,
+        string userId,
+        string actorUserId,
+        CancellationToken cancellationToken = default,
+        bool onlyIfNotLinked = false);
 }
 
 public sealed class CelebrationAdministrationService : ICelebrationAdministrationService
@@ -126,7 +136,14 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
             var pattern = SearchLikePattern.Contains(search);
             source = source.Where(item =>
                 EF.Functions.ILike(item.Name, pattern, SearchLikePattern.EscapeCharacter)
-                || (item.SpouseName != null && EF.Functions.ILike(item.SpouseName, pattern, SearchLikePattern.EscapeCharacter)));
+                || (item.SpouseName != null && EF.Functions.ILike(item.SpouseName, pattern, SearchLikePattern.EscapeCharacter))
+                // A linked entry is listed under the account's rank and name, so it is found by them too.
+                || (item.UserId != null && _db.Users.Any(user =>
+                    user.Id == item.UserId
+                    && user.AccountKind == UserAccountKind.Human
+                    && !user.IsDisabled
+                    && !user.PendingDeletion
+                    && EF.Functions.ILike(user.Rank + " " + user.FullName, pattern, SearchLikePattern.EscapeCharacter))));
         }
 
         var entities = await source
@@ -252,7 +269,8 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         Guid id,
         string userId,
         string actorUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool onlyIfNotLinked = false)
     {
         // Only the account changes: the entry is read and written here, so a correction someone
         // else saved a moment ago to its name or date is never written back over.
@@ -271,16 +289,50 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
             return AdminOperationResult.Failure(refusal.Value.Message, refusal.Value.Code);
         }
 
+        const string alreadyLinked = "That entry is already linked to an account.";
+        if (onlyIfNotLinked && entity.UserId != null && await CanSignInAsync(entity.UserId, cancellationToken))
+        {
+            return AdminOperationResult.Failure(alreadyLinked, "CelebrationAlreadyLinked");
+        }
+
         var before = Snapshot(entity);
+        var now = _time.UtcNow;
         entity.UserId = linkedUserId;
-        entity.UpdatedUtc = _time.UtcNow;
+        entity.UpdatedUtc = now;
 
         try
         {
             await using var transaction = _db.Database.IsRelational()
                 ? await _db.Database.BeginTransactionAsync(cancellationToken)
                 : null;
-            await _db.SaveChangesAsync(cancellationToken);
+            if (onlyIfNotLinked && transaction is not null)
+            {
+                // One UPDATE that only matches while the entry still has no owner who can sign in:
+                // if someone linked it between the read above and now, nothing is written.
+                _db.Entry(entity).State = EntityState.Detached;
+                var written = await _db.Celebrations
+                    .Where(item => item.Id == id
+                                   && item.DeletedUtc == null
+                                   && (item.UserId == null
+                                       || !_db.Users.Any(user => user.Id == item.UserId
+                                                                 && user.AccountKind == UserAccountKind.Human
+                                                                 && !user.IsDisabled
+                                                                 && !user.PendingDeletion)))
+                    .ExecuteUpdateAsync(
+                        update => update
+                            .SetProperty(item => item.UserId, linkedUserId)
+                            .SetProperty(item => item.UpdatedUtc, now),
+                        cancellationToken);
+                if (written == 0)
+                {
+                    return AdminOperationResult.Failure(alreadyLinked, "CelebrationAlreadyLinked");
+                }
+            }
+            else
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
             await _audit.RecordAsync(new AdminAuditEntry(
                 "CelebrationUpdated",
                 nameof(Celebration),
@@ -304,6 +356,14 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         }
     }
 
+    private Task<bool> CanSignInAsync(string userId, CancellationToken cancellationToken) =>
+        _db.Users.AsNoTracking().AnyAsync(
+            user => user.Id == userId
+                    && user.AccountKind == UserAccountKind.Human
+                    && !user.IsDisabled
+                    && !user.PendingDeletion,
+            cancellationToken);
+
     // Null when the account can be linked to a celebration of this type; otherwise why not.
     private async Task<(string Message, string Code)?> CheckLinkAsync(
         string userId,
@@ -311,13 +371,7 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         Guid? celebrationId,
         CancellationToken cancellationToken)
     {
-        var canLink = await _db.Users.AsNoTracking().AnyAsync(
-            user => user.Id == userId
-                    && user.AccountKind == UserAccountKind.Human
-                    && !user.IsDisabled
-                    && !user.PendingDeletion,
-            cancellationToken);
-        if (!canLink)
+        if (!await CanSignInAsync(userId, cancellationToken))
         {
             return ("Choose an account from the list.", "CelebrationUserNotFound");
         }

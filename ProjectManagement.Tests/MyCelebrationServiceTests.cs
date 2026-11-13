@@ -118,6 +118,28 @@ public sealed class MyCelebrationServiceTests
         Assert.Null((await admin.GetAsync(vermaEntry.Value))!.UserId);
     }
 
+    // The write itself refuses an entry that already has an owner, whatever was offered earlier.
+    [Fact]
+    public async Task LinkOnlyIfNotLinked_RefusesAnEntryThatAlreadyBelongsToSomeone_ButNotOneWhoseAccountIsGone()
+    {
+        await using var db = CreateDb();
+        var (_, admin) = Create(db);
+        var vermas = await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "S Verma", null, 14, 11, null, "admin", Verma));
+        var orphan = await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Anniversary, "Sharma", null, 2, 12, null, "admin"));
+        (await db.Celebrations.SingleAsync(item => item.Id == orphan.Value)).UserId = "account-that-was-deleted";
+        await db.SaveChangesAsync();
+
+        var taken = await admin.LinkAsync(vermas.Value, Sharma, Sharma, onlyIfNotLinked: true);
+        var free = await admin.LinkAsync(orphan.Value, Sharma, Sharma, onlyIfNotLinked: true);
+        // A manager may still move a link deliberately.
+        var managerMove = await admin.LinkAsync(vermas.Value, Sharma, "admin");
+
+        Assert.Equal("CelebrationAlreadyLinked", taken.ErrorCode);
+        Assert.True(free.Succeeded);
+        Assert.True(managerMove.Succeeded);
+        Assert.Equal(Sharma, (await admin.GetAsync(vermas.Value))!.UserId);
+    }
+
     [Fact]
     public async Task ICannotHaveTwoBirthdays_AndSavingNeverTouchesAnotherPersonsEntry()
     {

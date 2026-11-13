@@ -159,7 +159,9 @@ public sealed class MyCelebrationService : IMyCelebrationService
             return AdminOperationResult.Failure("That entry can no longer be linked from here. Add your own instead.", "CelebrationNotSuggested");
         }
 
-        var result = await _celebrations.LinkAsync(celebrationId, userId, userId, cancellationToken);
+        // The offer above is only a first look. The write itself refuses an entry that has been
+        // linked to anyone since, so overlapping requests cannot take another person's entry.
+        var result = await _celebrations.LinkAsync(celebrationId, userId, userId, cancellationToken, onlyIfNotLinked: true);
         return result.Succeeded ? AdminOperationResult.Success("Linked. PRISM will wish you on the day.") : result;
     }
 
