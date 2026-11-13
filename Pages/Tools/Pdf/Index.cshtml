@@ -109,7 +109,7 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-action="delete-selected"><i class="bi bi-trash3" aria-hidden="true"></i> Delete</button>
                     <span class="pdft-toolbar__hint" data-summary></span>
                 </div>
-                <div class="pdft-pages" data-pages aria-label="Pages. Drag to reorder."></div>
+                <div class="pdft-pages" data-pages role="list" aria-label="Pages. Drag to reorder."></div>
                 <div class="pdft-actions">
                     <button type="button" class="btn btn-outline-primary" data-action="extract"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Save selected pages only</button>
                     <button type="button" class="btn btn-primary btn-lg" data-action="run"><i class="bi bi-download" aria-hidden="true"></i> Save PDF</button>
@@ -202,7 +202,7 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-action="add-files"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add images</button>
                     <span class="pdft-toolbar__hint" data-summary></span>
                 </div>
-                <div class="pdft-pages" data-pages aria-label="Images. Drag to reorder."></div>
+                <div class="pdft-pages" data-pages role="list" aria-label="Images. Drag to reorder."></div>
                 <fieldset class="pdft-options pdft-options--row">
                     <legend class="visually-hidden">Page settings</legend>
                     <div>
@@ -512,8 +512,9 @@
         <div class="alert alert-danger pdft-error" role="alert" data-error hidden></div>
     </main>
 
+    <div class="visually-hidden" role="status" aria-live="polite" data-busy-announce></div>
     <div class="pdft-busy" data-busy hidden>
-        <div class="pdft-busy__panel" role="status" aria-live="polite">
+        <div class="pdft-busy__panel">
             <div class="spinner-border text-primary" aria-hidden="true"></div>
             <span data-busy-text>Working…</span>
             <button type="button" class="btn btn-outline-secondary btn-sm" data-busy-stop hidden>Stop</button>
