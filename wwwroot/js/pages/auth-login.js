@@ -4,8 +4,8 @@
 //  - a greeting for the time of day;
 //  - the opening sequence's traced wordmark (light writes PRISM ERP);
 //  - a Caps Lock hint under the password field;
-//  - rays that brighten as the password is typed, and a pulse when the form is sent;
-//  - a busy state on the submit button so a slow sign-in is not submitted twice.
+//  - a busy state on the submit button so a slow sign-in is not submitted twice (the scene
+//    gets auth--sending with it, which sends a pulse down the beam).
 // The form works without this script; it only adds feedback.
 // =============================
 (function () {
@@ -22,7 +22,7 @@
   }
 
   // SECTION: Traced wordmark. One outlined SVG letter is laid exactly over each letter of
-  // the real text; auth-login.css draws the outlines in turn, fills them and fades them out
+  // the real text; auth-login.css draws the outlines in turn, tints them and fades them out
   // as the real text fades in. Skipped on the narrow layout, under Reduce Motion, and when
   // the page was slow enough that the rest of the sequence has already moved on.
   function traceWordmark() {
@@ -32,7 +32,7 @@
     var text = wordmark && wordmark.querySelector('.auth__wordmark-text');
     if (!text || !window.matchMedia || !document.createRange ||
         !window.matchMedia('(min-width: 961px) and (prefers-reduced-motion: no-preference)').matches ||
-        window.performance.now() > 1800) {
+        window.performance.now() > 1300) {
       return;
     }
 
@@ -148,14 +148,6 @@
     password.addEventListener('keyup', updateCaps);
     password.addEventListener('blur', function () {
       capsHint.hidden = true;
-    });
-  }
-
-  // SECTION: Living prism. The rays brighten as the password is typed (full by 8 characters,
-  // the minimum length, so the glow says nothing the dots do not).
-  if (password && scene) {
-    password.addEventListener('input', function () {
-      scene.style.setProperty('--auth-energy', String(Math.min(1, password.value.length / 8)));
     });
   }
 

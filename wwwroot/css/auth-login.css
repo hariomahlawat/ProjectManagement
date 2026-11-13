@@ -114,32 +114,30 @@ body:has(.auth) .public-brand__name {
     text-transform: uppercase;
 }
 
-/* ---------- Living prism ----------
-   The rays brighten as the password is typed (--auth-energy, 0 to 1, set by auth-login.js)
-   and a pulse runs down the beam when the form is sent. */
-
-.auth {
-    --auth-energy: 0;
-}
-
-.auth--sending {
-    --auth-energy: 1;
-}
+/* ---------- Sending ----------
+   When the form is sent the rays brighten and one pulse runs down the beam. */
 
 .auth .lp-prism__rays-glow {
-    opacity: calc(var(--lp-ray-glow-alpha) + (1 - var(--lp-ray-glow-alpha)) * 0.8 * var(--auth-energy));
     transition: opacity 0.35s ease;
 }
 
-.auth .lp-prism__ray-core {
-    opacity: calc(var(--lp-ray-core-alpha) + (1 - var(--lp-ray-core-alpha)) * 0.6 * var(--auth-energy));
-    transition: opacity 0.35s ease;
+.auth--sending .lp-prism__rays-glow {
+    opacity: calc(var(--lp-ray-glow-alpha) + (1 - var(--lp-ray-glow-alpha)) * 0.8);
+}
+
+/* The traced letters glow on the dark scene only; on a pale ground a glow just blurs them. */
+.auth {
+    --auth-trace-glow: 0%;
+}
+
+:root[data-bs-theme="dark"] .auth {
+    --auth-trace-glow: 55%;
 }
 
 /* ---------- Opening sequence ----------
    Plays once on arrival (.auth--intro, a GET), on the wide layout, when motion is allowed:
    the beam enters, the rays leave one by one, light traces the wordmark letter by letter,
-   the outline fills with the spectrum and settles to the solid name. Everything here only
+   the outline takes a tint of the spectrum and gives way to the solid name. Everything here only
    delays or reveals; without it, or without the script, the page is simply at rest.
    The traced letters are built by auth-login.js (.auth__trace) over the real text. */
 
@@ -150,18 +148,18 @@ body:has(.auth) .public-brand__name {
     height: 100%;
     overflow: visible;
     pointer-events: none;
-    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--lp-spec-5) 55%, transparent));
-    animation: auth-fade-out 0.5s ease 2.05s forwards;
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--lp-spec-5) var(--auth-trace-glow), transparent));
+    animation: auth-fade-out 0.45s ease 1.5s forwards;
 }
 
 .auth__trace-letter {
     fill-opacity: 0;
-    stroke-width: 1.5;
+    stroke-width: 1.25;
     stroke-dasharray: var(--auth-dash);
     stroke-dashoffset: var(--auth-dash);
     animation:
-        auth-trace 0.75s linear calc(0.55s + var(--auth-i) * 0.09s) forwards,
-        auth-trace-fill 0.4s ease 1.55s forwards;
+        auth-trace 0.6s linear calc(0.5s + var(--auth-i) * 0.06s) forwards,
+        auth-trace-fill 0.35s ease 1.2s forwards;
 }
 
 /* The point of light that does the writing. */
@@ -178,49 +176,49 @@ body:has(.auth) .public-brand__name {
         0 0 0.5em 0.2em color-mix(in srgb, var(--lp-spec-5) 55%, transparent);
     opacity: 0;
     pointer-events: none;
-    animation: auth-pen 1.45s linear 0.55s forwards;
+    animation: auth-pen 1.05s linear 0.5s forwards;
 }
 
 @media (min-width: 961px) and (prefers-reduced-motion: no-preference) {
     .auth--intro .lp-prism__beam,
     .auth--intro .lp-prism__beam-core {
         stroke-dasharray: 250;
-        animation: auth-beam 0.5s ease-out both;
+        animation: auth-beam 0.4s ease-out both;
     }
 
     .auth--intro .lp-prism__beam-glow {
-        animation: auth-fade-in 0.5s ease 0.2s both;
+        animation: auth-fade-in 0.4s ease 0.15s both;
     }
 
     .auth--intro .lp-prism__fan,
     .auth--intro .lp-prism__split {
-        animation: auth-fade-in 0.4s ease 0.4s both;
+        animation: auth-fade-in 0.35s ease 0.3s both;
     }
 
     .auth--intro .lp-prism__rays-glow {
-        animation: auth-fade-in 0.7s ease 0.55s both;
+        animation: auth-fade-in 0.6s ease 0.4s both;
     }
 
     .auth--intro .lp-prism__ray {
-        animation: auth-ray 0.7s cubic-bezier(0.3, 0.7, 0.3, 1) both, lp-ray 6s ease-in-out infinite;
+        animation: auth-ray 0.6s cubic-bezier(0.3, 0.7, 0.3, 1) both, lp-ray 6s ease-in-out infinite;
     }
 
-    .auth--intro .lp-prism__ray--1 { animation-delay: 0.45s, 0s; }
-    .auth--intro .lp-prism__ray--2 { animation-delay: 0.5s, -1s; }
-    .auth--intro .lp-prism__ray--3 { animation-delay: 0.55s, -2s; }
-    .auth--intro .lp-prism__ray--4 { animation-delay: 0.6s, -3s; }
-    .auth--intro .lp-prism__ray--5 { animation-delay: 0.65s, -4s; }
-    .auth--intro .lp-prism__ray--6 { animation-delay: 0.7s, -5s; }
+    .auth--intro .lp-prism__ray--1 { animation-delay: 0.35s, 0s; }
+    .auth--intro .lp-prism__ray--2 { animation-delay: 0.38s, -1s; }
+    .auth--intro .lp-prism__ray--3 { animation-delay: 0.41s, -2s; }
+    .auth--intro .lp-prism__ray--4 { animation-delay: 0.44s, -3s; }
+    .auth--intro .lp-prism__ray--5 { animation-delay: 0.47s, -4s; }
+    .auth--intro .lp-prism__ray--6 { animation-delay: 0.5s, -5s; }
 
     .auth--intro .lp-prism__pulse {
-        animation-delay: 2.6s;
+        animation-delay: 2.2s;
     }
 
     /* The solid name waits for the tracing. The script renames the animation when it starts
        tracing, which restarts the wait from that moment, so the two stay in step; if the
        script never runs, the name still fades in on its own. */
     .auth--intro .auth__wordmark-text {
-        animation: auth-name 0.5s ease 2s both;
+        animation: auth-name 0.45s ease 1.45s both;
     }
 
     .auth--intro .auth__wordmark.is-tracing .auth__wordmark-text {
@@ -228,11 +226,11 @@ body:has(.auth) .public-brand__name {
     }
 
     .auth--intro .auth__tagline {
-        animation: auth-rise 0.5s ease 2.3s both;
+        animation: auth-rise 0.45s ease 1.7s both;
     }
 
     .auth--intro .auth__strap {
-        animation: auth-rise 0.5s ease 2.5s both;
+        animation: auth-rise 0.45s ease 1.85s both;
     }
 
     /* The same renaming keeps the two lines under the name in step with it. */
@@ -269,7 +267,7 @@ body:has(.auth) .public-brand__name {
 }
 
 @keyframes auth-trace-fill {
-    to { fill-opacity: 1; }
+    to { fill-opacity: 0.3; }
 }
 
 @keyframes auth-pen {

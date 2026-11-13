@@ -34,10 +34,12 @@ than rods or ribbons. All of it is tokens in `landing.css` (`--lp-fan-alpha`,
 
 ## Sign-in: light writes the name
 
-Added 2026-11-13. On arrival the sign-in page plays one opening sequence, about two and a
-half seconds: the beam enters the prism, the six rays leave one by one, a point of light
-traces PRISM ERP letter by letter as a spectrum outline, the outline fills and settles into
-the solid wordmark, then the tagline and strap line rise in.
+Added 2026-11-13. On arrival the sign-in page plays one opening sequence, about two
+seconds: the beam enters the prism, the six rays leave, a point of light traces PRISM ERP
+letter by letter as a fine spectrum outline, the outline takes a faint tint and gives way
+to the solid wordmark, then the tagline and strap line rise in. It is kept quiet on
+purpose: one outline pass, no flashing fill, and a glow on the dark scene only (on a pale
+ground a glow just blurs the letters).
 
 - **When it plays.** Only on a GET (`auth--intro` on the scene; a failed sign-in comes back
   as a POST and shows the page at rest), only on the wide layout (above 960px) and only when
@@ -46,11 +48,11 @@ the solid wordmark, then the tagline and strap line rise in.
 - **How the letters are traced.** `auth-login.js` lays one outlined SVG letter exactly over
   each letter of the real wordmark text (positions measured from the text itself once Mulish
   has loaded) and `auth-login.css` animates them. The solid name is plain HTML text. If the
-  script does not run, or the page took longer than 1.8 s to get there, the name simply fades
+  script does not run, or the page took longer than 1.3 s to get there, the name simply fades
   in by CSS. The script starts the name's wait by renaming its animation
   (`auth-name` to `auth-name-traced`), which keeps the two in step without inline styles.
-- **Living prism.** The rays brighten as the password is typed (`--auth-energy`, full at 8
-  characters, the minimum length) and a pulse runs down the beam when the form is sent.
+- **Sending.** The rays brighten and one pulse runs down the beam when the form is sent
+  (`auth--sending`). Nothing reacts to typing.
 - **Greeting.** The card heading is "Good morning / afternoon / evening" by the computer's
   clock ("Welcome back" without the script), with "Sign in to PRISM." under it.
 - **One screen.** The artwork shrinks on short screens so the wordmark and tagline stay on
@@ -125,7 +127,7 @@ Keep the copy true to the current application; update it when a module is added 
 | Sign-in styles | `wwwroot/css/auth-login.css` (landing tokens only; no colour literals) |
 | Status pages markup | `Areas/Identity/Pages/Account/Logout.cshtml`, `Areas/Identity/Pages/Account/AccessDenied.cshtml`, `Pages/Error.cshtml` |
 | Status page styles | `wwwroot/css/status-page.css` (loaded after `landing.css`; landing tokens only; no colour literals) |
-| Greeting, traced wordmark, living prism, Caps Lock hint and busy submit button | `wwwroot/js/pages/auth-login.js` (the form works without it) |
+| Greeting, traced wordmark, Caps Lock hint and busy submit button | `wwwroot/js/pages/auth-login.js` (the form works without it) |
 | Pointer-following glass highlight | `wwwroot/js/pages/glass-light.js` (decorative; skipped for touch and Reduce Motion) |
 
 ## Theme
