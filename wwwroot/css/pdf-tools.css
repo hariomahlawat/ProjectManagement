@@ -192,6 +192,13 @@
     font-weight: 600;
 }
 
+/* Headings take the focus when their screen opens (for keyboard and screen reader users); they
+   are not controls, so no ring is drawn around them. */
+.pdft-view h1:focus,
+.pdft-result h2:focus {
+    outline: none;
+}
+
 .pdft-tool-head h1 {
     font-size: clamp(1.5rem, 3vw, 2.1rem);
     font-weight: 800;

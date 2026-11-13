@@ -31,14 +31,47 @@
   const busyLayer = $('[data-busy]');
   const busyText = $('[data-busy-text]');
   const errorBox = $('[data-error]');
+  const main = $('#pdftMain');
+
+  // While a file is being made, the page behind "Working…" is out of reach of the keyboard as well
+  // as the mouse (`inert`), and a second run is ignored, so pressing Enter again on Run cannot
+  // start the same work twice. Focus asked for meanwhile is given when the page is back.
+  let busy = false;
+  let focusAfterBusy = null;
 
   function setBusy(message) {
     if (message) {
       busyText.textContent = message;
       busyLayer.hidden = false;
+      if (main) main.inert = true;
     } else {
       busyLayer.hidden = true;
+      if (main) main.inert = false;
     }
+  }
+
+  /** True for an element the keyboard can be put on now (shown, not in a hidden part). */
+  function canFocus(element) {
+    return Boolean(element && element.isConnected && !element.closest('[hidden]') && element.getClientRects().length);
+  }
+
+  /**
+   * Puts the keyboard focus on an element, so a keyboard or screen reader user is not left at the
+   * top of the page when the screen changes under them. During work, it waits until the work ends.
+   */
+  function moveFocus(element) {
+    if (!element) return;
+    if (busy) {
+      focusAfterBusy = element;
+      return;
+    }
+    element.focus({ preventScroll: true });
+  }
+
+  /** The first control in a part of the page that the keyboard can reach. */
+  function firstControl(scope) {
+    return $$('button, input, select, textarea, a[href], [tabindex="0"]', scope)
+      .find((element) => !element.disabled && element.tabIndex >= 0 && canFocus(element));
   }
 
   function showError(error) {
@@ -58,17 +91,34 @@
     errorBox.textContent = '';
   }
 
-  /** Runs an async task behind the busy overlay and reports failures to the user. */
+  /**
+   * Runs an async task behind the busy overlay and reports failures to the user. A task asked for
+   * while another runs is ignored (a second Enter on Run, a file dropped meanwhile).
+   */
   async function withBusy(message, task) {
+    if (busy) return undefined;
+    busy = true;
+    focusAfterBusy = null;
+    const before = document.activeElement;
+    let failure = null;
     clearError();
     setBusy(message);
     try {
       return await task((text) => setBusy(text));
     } catch (error) {
-      showError(error);
+      failure = error;
       return undefined;
     } finally {
       setBusy(null);
+      busy = false;
+      // Shown once the page is back: an alert written inside the inert page may not be read out.
+      if (failure) showError(failure);
+      // The page was inert, which takes the focus away; give it where it was asked for, or back.
+      const target = focusAfterBusy || (canFocus(before) ? before : null);
+      focusAfterBusy = null;
+      if (target && (document.activeElement === document.body || !canFocus(document.activeElement))) {
+        target.focus({ preventScroll: true });
+      }
     }
   }
 
@@ -270,15 +320,20 @@
     const resultName = $('[data-result-name]', result);
     const resultPreview = $('[data-result-preview]', result);
     const resultWarning = $('[data-result-warning]', result);
+    const resultHeading = $('h2', result);
+    if (resultHeading) resultHeading.tabIndex = -1;
     let output = null;
 
     const state = {
       section,
       workspace,
-      showWorkspace() {
+      /** `focus`: 'first' puts the keyboard on the first control, 'run' on the Run button. */
+      showWorkspace({ focus = 'first' } = {}) {
         drop.hidden = true;
         result.hidden = true;
         workspace.hidden = false;
+        const run = $('[data-action="run"]', workspace);
+        moveFocus(focus === 'run' && canFocus(run) ? run : firstControl(workspace));
       },
       reset() {
         output = null;
@@ -288,6 +343,7 @@
         result.hidden = true;
         clearError();
         onReset?.();
+        moveFocus($('[data-action="choose-files"]', drop));
       },
       /** Shows the finished file and downloads it. `warning` is something the user should know about it. */
       async finish(bytesOrBlob, fileName, mime, { warning } = {}) {
@@ -300,17 +356,28 @@
           resultWarning.textContent = warning || '';
           resultWarning.hidden = !warning;
         }
+        // "Your file is ready" is read out, and the next Tab reaches Download.
+        moveFocus(resultHeading);
         resultPreview.hidden = true;
         saveBlob(blob, fileName);
         if (mime === 'application/pdf') {
-          try {
-            const rendered = await openForRender(bytesOrBlob instanceof Blob ? new Uint8Array(await blob.arrayBuffer()) : bytesOrBlob);
-            await renderPage(await rendered.getPage(1), resultPreview, { width: 220 });
-            resultPreview.hidden = false;
-            rendered.destroy();
-          } catch {
-            // A preview is a convenience only.
-          }
+          // Drawn after the work is over, not as part of it: the page must not stay busy (and
+          // ignore the next file chosen) while a convenience picture is made.
+          const shown = output;
+          (async () => {
+            try {
+              const rendered = await openForRender(bytesOrBlob instanceof Blob ? new Uint8Array(await blob.arrayBuffer()) : bytesOrBlob);
+              try {
+                if (output !== shown) return;
+                await renderPage(await rendered.getPage(1), resultPreview, { width: 220 });
+                resultPreview.hidden = output !== shown;
+              } finally {
+                rendered.destroy();
+              }
+            } catch {
+              // A preview is a convenience only.
+            }
+          })();
         }
         result.scrollIntoView({ block: 'start', behavior: 'smooth' });
       },
@@ -365,7 +432,7 @@
     $$('[data-action="add-files"]', section).forEach((button) => button.addEventListener('click', () => input.click()));
     $$('[data-action="run"]', section).forEach((button) => button.addEventListener('click', () => onRun(readOptions(section), state)));
     $('[data-action="download"]', result).addEventListener('click', () => output && saveBlob(output.blob, output.fileName));
-    $('[data-action="back-to-edit"]', result).addEventListener('click', () => state.showWorkspace());
+    $('[data-action="back-to-edit"]', result).addEventListener('click', () => state.showWorkspace({ focus: 'run' }));
     $('[data-action="start-over"]', result).addEventListener('click', () => state.reset());
 
     return state;
@@ -376,11 +443,11 @@
    * picks it up, the arrow keys move it, Space or Enter puts it down, Escape puts it back.
    * Each step is announced. `onMove` runs after a card is put down in a new place.
    */
-  function keyboardReorder(grid, { noun, describe, onMove }) {
+  function keyboardReorder(grid, { noun, describe, onMove, shortcuts = {}, shortcutHelp = '' }) {
     const instructions = document.createElement('p');
     instructions.className = 'visually-hidden';
     instructions.id = `${grid.id || `pdft-grid-${Math.random().toString(36).slice(2)}`}-keys`;
-    instructions.textContent = `To move a ${noun} with the keyboard, press Space to pick it up, the arrow keys to move it, and Space again to put it down. Escape puts it back.`;
+    instructions.textContent = `To move a ${noun} with the keyboard, press Space to pick it up, the arrow keys to move it, and Space again to put it down. Escape puts it back.${shortcutHelp ? ` ${shortcutHelp}` : ''}`;
     const live = document.createElement('p');
     live.className = 'visually-hidden';
     live.setAttribute('aria-live', 'assertive');
@@ -408,15 +475,28 @@
     }
 
     return {
-      /** Makes a new card reachable with the Tab key. */
+      say,
+      /**
+       * Makes a new card one stop for the Tab key: its own buttons and checkbox are left to the
+       * mouse and to the card's shortcut keys, so a long document is not hundreds of Tab presses.
+       */
       prepare(card) {
         card.tabIndex = 0;
         card.setAttribute('aria-describedby', instructions.id);
         card.addEventListener('blur', () => drop(card, false));
+        $$('button, input', card).forEach((control) => { control.tabIndex = -1; });
       },
       handle(event) {
         const card = event.target;
         if (!card.classList?.contains('pdft-page')) return;
+        const shortcut = !lifted && !event.ctrlKey && !event.metaKey && !event.altKey
+          ? shortcuts[event.key.length === 1 ? event.key.toLowerCase() : event.key]
+          : undefined;
+        if (shortcut) {
+          event.preventDefault();
+          shortcut(card, event);
+          return;
+        }
         if (event.key === ' ' || event.key === 'Enter') {
           event.preventDefault();
           if (lifted) {
@@ -612,12 +692,41 @@
         onEnd: syncOrderFromDom
       });
     }
+    const cardPage = (card) => pages.find((page) => String(page.id) === card.dataset.pageId);
     const keys = keyboardReorder(grid, {
       noun: 'page',
       describe: (card) => $('.pdft-page__label', card).title || 'Page',
-      onMove: syncOrderFromDom
+      onMove: syncOrderFromDom,
+      shortcutHelp: 'R turns it right and Shift with R left, X selects it, Delete removes it.',
+      shortcuts: {
+        r(card, event) {
+          const page = cardPage(card);
+          if (!page) return;
+          page.rotate = (page.rotate + (event.shiftKey ? 270 : 90)) % 360;
+          applyRotation(card, page);
+          keys.say(`Turned to ${page.rotate} degrees.`);
+        },
+        x(card) {
+          const select = $('.pdft-page__select', card);
+          select.checked = !select.checked;
+          select.dispatchEvent(new Event('change'));
+          keys.say(select.checked ? 'Selected.' : 'Not selected.');
+        },
+        Delete: (card) => removeCard(card),
+        Backspace: (card) => removeCard(card)
+      }
     });
     grid.addEventListener('keydown', keys.handle);
+
+    /** Removes a page from the keyboard; the focus goes to the card that takes its place. */
+    function removeCard(card) {
+      const next = card.nextElementSibling || card.previousElementSibling;
+      $('.pdft-page__actions [aria-label^="Delete"]', card)?.click();
+      if (next?.isConnected) {
+        next.focus();
+        keys.say(`Page removed. ${$('.pdft-page__label', next).title || ''}`);
+      }
+    }
 
     const tool = createTool(section, {
       accept: isPdf,
@@ -775,8 +884,22 @@
     const keys = keyboardReorder(grid, {
       noun: 'image',
       describe: (card) => $('.pdft-page__label', card).textContent || 'Image',
-      onMove: syncOrder
+      onMove: syncOrder,
+      shortcutHelp: 'Delete removes it.',
+      shortcuts: {
+        Delete: (card) => removeImageCard(card),
+        Backspace: (card) => removeImageCard(card)
+      }
     });
+
+    function removeImageCard(card) {
+      const next = card.nextElementSibling || card.previousElementSibling;
+      $('.pdft-page__actions button', card)?.click();
+      if (next?.isConnected) {
+        next.focus();
+        keys.say(`Image removed. ${$('.pdft-page__label', next).textContent || ''}`);
+      }
+    }
     grid.addEventListener('keydown', keys.handle);
 
     const tool = createTool(section, {
@@ -994,6 +1117,7 @@
     $,
     $$,
     askConfirm,
+    moveFocus,
     createTool,
     withBusy,
     showError,
@@ -1012,7 +1136,7 @@
 
   const views = $$('[data-view]');
 
-  function route() {
+  function route({ focus = true } = {}) {
     const name = (window.location.hash || '').replace(/^#/, '') || 'home';
     const target = views.find((view) => view.dataset.view === name) || views.find((view) => view.dataset.view === 'home');
     views.forEach((view) => { view.hidden = view !== target; });
@@ -1020,6 +1144,12 @@
     const heading = $('h1', target);
     document.title = target.dataset.view === 'home' ? 'PDF Tools | PRISM ERP' : `${heading?.textContent?.trim()} | PDF Tools`;
     window.scrollTo({ top: 0 });
+    // The screen changed under the keyboard: start on its heading, which is read out, so the
+    // next Tab is in the tool rather than back at the top of the page.
+    if (focus && heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
   }
 
   $$('[data-nav-home]').forEach((link) => link.addEventListener('click', (event) => {
@@ -1029,8 +1159,9 @@
     }
     route();
   }));
-  window.addEventListener('hashchange', route);
-  route();
+  window.addEventListener('hashchange', () => route());
+  // On first load the browser's own starting point is kept.
+  route({ focus: false });
 
   // Stop a stray drop outside a drop zone from navigating away and losing work.
   window.addEventListener('dragover', (event) => event.preventDefault());

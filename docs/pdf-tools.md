@@ -73,13 +73,30 @@ CropBox clipped to the MediaBox, as pdf.js renders it), not the raw CropBox.
 
 ### Keyboard
 
-- **Organise & merge, Images to PDF.** Each card can be reached with Tab. Space or Enter picks it
-  up, the arrow keys move it, Space or Enter puts it down, Escape puts it back. Each step is
-  announced to screen readers.
+- **Focus follows the screen.** Opening a tool puts the focus on its heading; a file that opens
+  puts it on the first control of the workspace; a finished file puts it on "Your file is ready"
+  (the next Tab is Download); Keep editing returns to the Run button; Start over to the choose
+  button. A keyboard or screen reader user is never sent back to the top of the page.
+- **One run at a time.** While a file is being made, the page behind "Working…" is `inert` (out
+  of reach of the keyboard as well as the mouse), and a second run is ignored, so pressing Enter
+  again on Run, or a double-click, cannot make the same file twice. Focus returns when the work
+  ends, and an error is shown only then, so it is read out. The small preview of a finished PDF
+  is drawn after the work, not as part of it.
+- **Organise & merge, Images to PDF.** Each card is one Tab stop; its own buttons and checkbox
+  are for the mouse. Space or Enter picks a card up, the arrow keys move it, Space or Enter puts
+  it down, Escape puts it back. In Organise, R turns a page right and Shift with R left, X
+  selects it, and Delete (or Backspace) removes it; in Images, Delete removes an image. The
+  focus moves to the next card, and each step is announced to screen readers.
 - **Sign & annotate.** With a tool chosen, a page can be reached with Tab; Enter or Space places
-  the item in the middle of the part of the page on the screen. An item has the focus once it is
-  placed (or with Tab): the arrow keys move it (Shift for bigger steps), Alt and the arrow keys
-  change its size, Enter edits text and Delete removes it.
+  the item in the middle of the part of the page on the screen. When a signature or image is
+  ready to place, the focus goes to the first page on the screen. An item has the focus once it
+  is placed (or with Tab): the arrow keys move it (Shift for bigger steps), Alt and the arrow
+  keys change its size, Enter edits text and Delete removes it. Delete, Backspace and Escape act
+  only on the item that has the focus, never on a selected item while the focus is elsewhere.
+  Escape ends typing and returns the focus to the text item.
+- **Signature dialog.** Draw, Type and Upload follow the tabs pattern: one Tab stop, the arrow
+  keys (and Home, End) move between them, and each is linked to its panel. Draw needs a pointer;
+  Type and Upload work from the keyboard.
 
 ### Memory in Sign & annotate
 

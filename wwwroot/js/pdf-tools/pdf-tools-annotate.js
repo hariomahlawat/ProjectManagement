@@ -105,6 +105,7 @@
     try {
       pendingPlacement = { type: 'image', image: await loadImage(file) };
       setTool('image');
+      focusPageInView();
     } catch (error) {
       ui.showError(error);
     }
@@ -127,9 +128,12 @@
 
   deleteButton.addEventListener('click', () => selected && removeItem(selected));
 
+  // Delete, Backspace and Escape act on the selected item only while it has the focus. With the
+  // focus on a toolbar button or anywhere else, they must not remove an item the user is not
+  // looking at (there is no undo).
   document.addEventListener('keydown', (event) => {
     if (section.hidden || !selected || selected.editing) return;
-    if (event.target.closest?.('input, select, textarea, [contenteditable="true"], [contenteditable="plaintext-only"], dialog')) return;
+    if (!selected.element.contains(event.target)) return;
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
       removeItem(selected);
@@ -229,11 +233,17 @@
     padDirty = false;
   }
 
-  function showSignatureTab(name) {
+  function showSignatureTab(name, { focusTab = false } = {}) {
     signatureTab = name;
-    $$('[data-signature-tab]', dialog).forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.signatureTab === name)));
+    // Tabs pattern: only the chosen tab is a Tab stop; the arrow keys move between tabs.
+    $$('[data-signature-tab]', dialog).forEach((tab) => {
+      const chosen = tab.dataset.signatureTab === name;
+      tab.setAttribute('aria-selected', String(chosen));
+      tab.tabIndex = chosen ? 0 : -1;
+      if (chosen && focusTab) tab.focus();
+    });
     $$('[data-signature-panel]', dialog).forEach((panel) => { panel.hidden = panel.dataset.signaturePanel !== name; });
-    if (name === 'type') nameInput.focus();
+    if (name === 'type' && !focusTab) nameInput.focus();
   }
 
   function openSignatureDialog() {
@@ -249,6 +259,19 @@
   }
 
   $$('[data-signature-tab]', dialog).forEach((tab) => tab.addEventListener('click', () => showSignatureTab(tab.dataset.signatureTab)));
+  $('[role="tablist"]', dialog).addEventListener('keydown', (event) => {
+    const tabs = $$('[data-signature-tab]', dialog);
+    const index = tabs.findIndex((tab) => tab.dataset.signatureTab === signatureTab);
+    const next = {
+      ArrowRight: (index + 1) % tabs.length,
+      ArrowLeft: (index - 1 + tabs.length) % tabs.length,
+      Home: 0,
+      End: tabs.length - 1
+    }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    showSignatureTab(tabs[next].dataset.signatureTab, { focusTab: true });
+  });
   $('[data-signature-clear]', dialog).addEventListener('click', clearPad);
 
   (function drawingPad() {
@@ -312,6 +335,20 @@
     dialog.close?.();
     dialog.removeAttribute('open');
     setTool('signature');
+    focusPageInView();
+  }
+
+  /**
+   * Puts the keyboard on the first page that is on the screen, where Enter places the waiting
+   * signature or image, instead of leaving it on the toolbar several Tab presses away.
+   */
+  function focusPageInView() {
+    const pages = current?.pages || [];
+    const inView = pages.find((page) => {
+      const box = page.overlay.getBoundingClientRect();
+      return box.bottom > 0 && box.top < window.innerHeight;
+    }) || pages[0];
+    if (inView) ui.moveFocus(inView.overlay);
   }
 
   reuseButton.addEventListener('click', () => signature && armSignature(signature));
@@ -450,7 +487,16 @@
       content.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
+          // Ends editing only: the item stays selected, which the page-wide Escape would undo.
+          event.stopPropagation();
+          // Back to the item (to move it with the arrow keys), or to its page if it was left empty.
+          const page = pageOf(item);
           content.blur();
+          if (items.includes(item)) {
+            item.element.focus({ preventScroll: true });
+          } else {
+            page.overlay.focus({ preventScroll: true });
+          }
         }
       });
       element.append(content);
