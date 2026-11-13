@@ -956,3 +956,26 @@ test('merging files with different default layer states keeps each layer as it w
   assert.deepEqual(config.lookup(PDFLib.PDFName.of('OFF')).asArray().map(name).sort(), ['A hidden', 'B hidden']);
   assert.equal(config.get(PDFLib.PDFName.of('ON')), undefined, 'every layer not listed as off is on');
 });
+
+test('a bookmark web link with "(" or "\\" in it is carried unchanged and the file stays readable', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const context = document.context;
+  document.addPage([200, 200]);
+  const root = context.nextRef();
+  const [hex, literal] = [context.nextRef(), context.nextRef()];
+  context.assign(hex, context.obj({ Title: PDFLib.PDFHexString.fromText('Hex'), Parent: root, Next: literal,
+    A: context.obj({ S: 'URI', URI: PDFLib.PDFHexString.of(Buffer.from('https://example.test/a(', 'latin1').toString('hex')) }) }));
+  context.assign(literal, context.obj({ Title: PDFLib.PDFHexString.fromText('Literal'), Parent: root, Prev: hex,
+    A: context.obj({ S: 'URI', URI: PDFLib.PDFString.of('https://example.test/b\\)c\\\\d') }) }));
+  context.assign(root, context.obj({ Type: 'Outlines', First: hex, Last: literal, Count: 2 }));
+  document.catalog.set(PDFLib.PDFName.of('Outlines'), root);
+  const pdf = await document.save();
+
+  const output = await PDFLib.PDFDocument.load(await tools.assemblePages(PDFLib, [pdf], [{ source: 0, index: 0 }]));
+  const first = output.catalog.lookup(PDFLib.PDFName.of('Outlines')).get(PDFLib.PDFName.of('First'));
+  const uris = [];
+  for (let ref = first; ref; ref = output.context.lookup(ref).get(PDFLib.PDFName.of('Next'))) {
+    uris.push(output.context.lookup(ref).lookup(PDFLib.PDFName.of('A')).lookup(PDFLib.PDFName.of('URI')).decodeText());
+  }
+  assert.deepEqual(uris, ['https://example.test/a(', 'https://example.test/b)c\\d']);
+});

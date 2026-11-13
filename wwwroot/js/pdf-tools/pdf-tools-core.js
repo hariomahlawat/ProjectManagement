@@ -907,7 +907,9 @@
             const type = action ? String(action.get(PDFName.of('S'))) : '';
             if (type === '/GoTo') item.destination = target(action.get(PDFName.of('D')));
             const uri = type === '/URI' ? action.lookup(PDFName.of('URI')) : undefined;
-            if (uri && typeof uri.decodeText === 'function') item.link = uri.decodeText();
+            // The address is kept as the very string object it was (literal or hex), so its bytes
+            // and escaping are written back unchanged: a "(" or "\" in it cannot break the file.
+            if (uri instanceof PDFLib.PDFString || uri instanceof PDFHexString) item.link = uri;
           }
           if (item.destination || item.link || item.children.length) list.push(item);
           ref = node.get(PDFName.of('Next'));
@@ -928,7 +930,11 @@
         if (index > 0) dict.set(PDFName.of('Prev'), refs[index - 1]);
         if (index < list.length - 1) dict.set(PDFName.of('Next'), refs[index + 1]);
         if (item.destination) dict.set(PDFName.of('Dest'), item.destination);
-        else if (item.link) dict.set(PDFName.of('A'), output.context.obj({ S: 'URI', URI: PDFLib.PDFString.of(item.link) }));
+        else if (item.link) {
+          const action = output.context.obj({ S: 'URI' });
+          action.set(PDFName.of('URI'), item.link);
+          dict.set(PDFName.of('A'), action);
+        }
         if (item.colour && item.colour.size() === 3 && item.colour.asArray().every((value) => value instanceof PDFNumber)) {
           dict.set(PDFName.of('C'), output.context.obj(item.colour.asArray().map((value) => value.asNumber())));
         }
