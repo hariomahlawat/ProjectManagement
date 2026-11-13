@@ -553,27 +553,37 @@
       }
     }
 
-    // Names are taken in page order, so the first file keeps its field names.
-    const owner = new Map();
-    const taken = new Set();
+    // Names are taken in page order, so the first file keeps its field names. Every name that is
+    // already in use is reserved first, so a new name never repeats one that a later file has
+    // (a file with both "name" and "name (2)").
+    const entries = [];
     for (const [key, ref] of roots) {
       const node = output.context.lookup(ref);
       const title = node instanceof PDFDict ? node.lookup(PDFName.of('T')) : undefined;
       const name = title && typeof title.decodeText === 'function' ? title.decodeText() : undefined;
-      if (name === undefined) continue;
-      const source = rootSources.get(key);
-      if (!owner.has(name)) {
-        owner.set(name, source);
-        taken.add(name);
+      if (name !== undefined) entries.push({ node, name, source: rootSources.get(key) });
+    }
+    const taken = new Set(entries.map((entry) => entry.name));
+    const firstSource = new Map();
+    // A field of one file seen again (its page used twice) gets the same new name, so it still
+    // shares its answer, as it does in that file.
+    const renamed = new Map();
+    for (const { node, name, source } of entries) {
+      if (!firstSource.has(name)) {
+        firstSource.set(name, source);
         continue;
       }
-      if (owner.get(name) === source) continue;
-      let number = 2;
-      while (taken.has(`${name} (${number})`)) number += 1;
-      const renamed = `${name} (${number})`;
-      taken.add(renamed);
-      owner.set(renamed, source);
-      node.set(PDFName.of('T'), PDFHexString.fromText(renamed));
+      if (firstSource.get(name) === source) continue;
+      const key = `${source}\u0000${name}`;
+      let next = renamed.get(key);
+      if (!next) {
+        let number = 2;
+        while (taken.has(`${name} (${number})`)) number += 1;
+        next = `${name} (${number})`;
+        taken.add(next);
+        renamed.set(key, next);
+      }
+      node.set(PDFName.of('T'), PDFHexString.fromText(next));
     }
 
     const acroForm = output.context.obj({});

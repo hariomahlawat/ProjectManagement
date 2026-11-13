@@ -313,6 +313,31 @@ test('merging two filled copies of a form keeps each copy\'s answers apart', asy
   const twice = await tools.assemblePages(PDFLib, [first], [{ source: 0, index: 0 }, { source: 0, index: 0 }]);
   const names = (await PDFLib.PDFDocument.load(twice)).getForm().getFields().map((field) => field.getName());
   assert.ok(names.every((fieldName) => fieldName === 'applicant.name'), names.join(', '));
+
+  // A new name never repeats one a later file already has: the second file has both "name" and
+  // "name (2)", so its "name" becomes "name (3)" and all three answers stay apart.
+  const own = async (fields) => {
+    const document = await PDFLib.PDFDocument.create();
+    const page = document.addPage([300, 300]);
+    fields.forEach(([fieldName, value], index) => {
+      const field = document.getForm().createTextField(fieldName);
+      field.setText(value);
+      field.addToPage(page, { x: 10, y: 10 + index * 40 });
+    });
+    return document.save();
+  };
+  const plain = await own([['name', 'A']]);
+  const both = await own([['name', 'B1'], ['name (2)', 'B2']]);
+  const clash = await tools.assemblePages(PDFLib, [plain, both], [{ source: 0, index: 0 }, { source: 1, index: 0 }]);
+  const clashed = (await PDFLib.PDFDocument.load(clash)).getForm().getFields().map((field) => `${field.getName()}=${field.getText()}`);
+  assert.deepEqual(clashed.sort(), ['name (2)=B2', 'name (3)=B1', 'name=A']);
+
+  // The second file's page used twice: both copies of its renamed field share the one new name.
+  const repeated = await tools.assemblePages(PDFLib, [plain, both], [
+    { source: 0, index: 0 }, { source: 1, index: 0 }, { source: 1, index: 0 }
+  ]);
+  const repeatedNames = (await PDFLib.PDFDocument.load(repeated)).getForm().getFields().map((field) => field.getName()).sort();
+  assert.deepEqual(repeatedNames, ['name', 'name (2)', 'name (2)', 'name (3)', 'name (3)']);
 });
 
 test('splitPdf reads the file once and still keeps every part to its own pages', async () => {
