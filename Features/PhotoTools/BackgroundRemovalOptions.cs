@@ -70,9 +70,23 @@ public sealed class BackgroundModelOptions
     public int InputWidth { get; set; } = 1024;
     public int InputHeight { get; set; } = 1024;
 
-    /// <summary>Per channel (R, G, B): value = (pixel / 255 - Mean) / Std.</summary>
-    public float[] Mean { get; set; } = { 0.485f, 0.456f, 0.406f };
-    public float[] Std { get; set; } = { 0.229f, 0.224f, 0.225f };
+    /// <summary>
+    /// Per channel (R, G, B): value = (pixel / 255 - Mean) / Std. Empty by default: the
+    /// configuration binder adds configured array items to any it finds, so a default here would
+    /// turn three configured values into six. Unset, the ImageNet values apply
+    /// (<see cref="ChannelMean"/>, <see cref="ChannelStd"/>).
+    /// </summary>
+    public float[] Mean { get; set; } = Array.Empty<float>();
+    public float[] Std { get; set; } = Array.Empty<float>();
+
+    private static readonly float[] ImageNetMean = { 0.485f, 0.456f, 0.406f };
+    private static readonly float[] ImageNetStd = { 0.229f, 0.224f, 0.225f };
+
+    /// <summary>The mean per channel: the configured three values, or ImageNet's when unset.</summary>
+    public float[] ChannelMean() => Mean is { Length: > 0 } ? Mean : ImageNetMean;
+
+    /// <summary>The standard deviation per channel: the configured three values, or ImageNet's when unset.</summary>
+    public float[] ChannelStd() => Std is { Length: > 0 } ? Std : ImageNetStd;
 
     /// <summary>
     /// "Auto" (the sigmoid is applied when the output holds values outside 0 to 1), "None" when the

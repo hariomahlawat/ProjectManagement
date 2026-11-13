@@ -1422,3 +1422,17 @@ test('cutoutColours leaves alone a pixel that cannot be a mix with the backgroun
   tools.cutoutColours(pixels, new Uint8ClampedArray([153]), 1, flatWall(WALL));
   assert.deepEqual(rgbAt(pixels, 1, 0, 0), shirt);
 });
+
+test('cutoutBackground with too little sure background for any square averages what there is', () => {
+  // One sure background pixel in a 60 x 60 photo, everything else unsure: no square of 20 px
+  // holds enough to be read on its own.
+  const [width, height] = [60, 60];
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let i = 0; i < width * height; i += 1) pixels.set([...SKIN, 255], i * 4);
+  pixels.set([...WALL, 255], 0);
+  const alpha = new Uint8ClampedArray(width * height).fill(128);
+  alpha[0] = 0;
+  const background = tools.cutoutBackground(pixels, alpha, width, height, 20);
+  assert.ok(Array.from(background.field).every(Number.isFinite), 'no square is left without a colour');
+  assert.deepEqual(Array.from(tools.wallColourAt(background, 50, 50, [0, 0, 0])).map(Math.round), WALL);
+});

@@ -1253,6 +1253,18 @@
         known[i] = 1;
       }
     }
+    // Too little sure background for any square to be read on its own: every square takes the
+    // average of all of it.
+    if (!known.some(value => value)) {
+      const average = [0, 0, 0];
+      for (let i = 0; i < columns * rows; i += 1) {
+        average[0] += sums[i * 4];
+        average[1] += sums[i * 4 + 1];
+        average[2] += sums[i * 4 + 2];
+      }
+      for (let i = 0; i < columns * rows; i += 1) field.set(average.map(value => value / any), i * 3);
+      known.fill(1);
+    }
     // Fill the squares inside the subject from their neighbours, ring by ring.
     for (let pass = 0; pass < columns + rows; pass += 1) {
       const filled = [];

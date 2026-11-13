@@ -15,9 +15,9 @@ using Xunit;
 namespace ProjectManagement.Tests.Tools;
 
 /// <summary>
-/// Remove background on the server. The model used here is red-channel-mask.onnx (see
-/// TestData/PhotoTools): it has a segmentation model's shape and returns the photo's red channel
-/// as the mask, so every result can be predicted exactly.
+/// Remove background on the server. The model used here is red-channel-mask.onnx (made by
+/// TestData/PhotoTools/make-channel-mask-models.py): it has a segmentation model's shape and
+/// returns the photo's red channel as the mask, so every result can be predicted exactly.
 /// </summary>
 public sealed class BackgroundRemovalTests : IDisposable
 {
@@ -119,6 +119,28 @@ public sealed class BackgroundRemovalTests : IDisposable
         Assert.Equal((64, 48), (mask.Width, mask.Height));
         Assert.Equal(255, mask.GetPixel(5, 24).Red);
         Assert.Equal(0, mask.GetPixel(58, 24).Red);
+    }
+
+    [Fact]
+    public async Task MaskAsync_UsesAReplacedModel_WithoutARestart()
+    {
+        var options = EnabledOptions();
+        var service = ServiceFor(options);
+        var photo = Png(32, 32, (_, _) => new SKColor(255, 0, 0));
+        using (var mask = SKBitmap.Decode((await service.MaskAsync(photo, CancellationToken.None)).MaskPng))
+        {
+            Assert.Equal(255, mask.GetPixel(16, 16).Red);
+        }
+
+        // The administrator puts another model at the same path and approves its checksum.
+        var target = Path.Combine(_folder, "red-channel-mask.onnx");
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "TestData", "PhotoTools", "green-channel-mask.onnx"), target, overwrite: true);
+        File.SetLastWriteTimeUtc(target, DateTime.UtcNow.AddMinutes(1));
+        options.Model.Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(target))).ToLowerInvariant();
+
+        // The green-channel model gives nothing for a red photo: the replacement is in use.
+        using var replaced = SKBitmap.Decode((await service.MaskAsync(photo, CancellationToken.None)).MaskPng);
+        Assert.Equal(0, replaced.GetPixel(16, 16).Red);
     }
 
     [Fact]

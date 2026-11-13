@@ -16,16 +16,15 @@ public interface IBackgroundSegmenter
 
 /// <summary>
 /// Runs the approved segmentation model with ONNX Runtime on the server's processor. The model is
-/// loaded on first use and kept; it is loaded again only when its file changes. One inference uses
-/// at most <see cref="BackgroundRemovalOptions.IntraOpThreads"/> threads.
+/// loaded on first use and kept; it is loaded again when its file or its settings change. One
+/// inference uses at most <see cref="BackgroundRemovalOptions.IntraOpThreads"/> threads.
 /// </summary>
 public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
 {
     private readonly IOptionsMonitor<BackgroundRemovalOptions> _options;
     private readonly ILogger<OnnxBackgroundSegmenter> _logger;
     private readonly object _gate = new();
-    private InferenceSession? _session;
-    private string? _sessionPath;
+    private LoadedModel? _loaded;
     private bool _disposed;
 
     public OnnxBackgroundSegmenter(
@@ -40,77 +39,136 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
     {
         ArgumentNullException.ThrowIfNull(photo);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var model = _options.CurrentValue.Model;
-        var session = SessionFor(modelPath);
-
-        var inputName = string.IsNullOrWhiteSpace(model.InputName)
-            ? session.InputMetadata.Keys.Single()
-            : model.InputName;
-        var outputName = string.IsNullOrWhiteSpace(model.OutputName)
-            ? session.OutputMetadata.Keys.First()
-            : model.OutputName;
-
-        var input = BackgroundMaskMath.ToInputTensor(photo, model);
-        using var runOptions = new RunOptions();
-        // A photo that takes too long, or whose request is gone, stops the inference itself.
-        using var stop = cancellationToken.Register(() => runOptions.Terminate = true);
-        using var results = session.Run(
-            new[] { NamedOnnxValue.CreateFromTensor(inputName, input) },
-            new[] { outputName },
-            runOptions);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var output = results.First().AsTensor<float>();
-        var values = output.ToArray();
-        if (values.Length != model.InputWidth * model.InputHeight)
+        var options = _options.CurrentValue;
+        var model = options.Model;
+        var loaded = Acquire(modelPath, options);
+        try
         {
-            throw new InvalidDataException(
-                $"The model returned {values.Length} values; a {model.InputWidth} x {model.InputHeight} mask was expected.");
-        }
+            var session = loaded.Session;
+            var inputName = string.IsNullOrWhiteSpace(model.InputName)
+                ? session.InputMetadata.Keys.Single()
+                : model.InputName;
+            var outputName = string.IsNullOrWhiteSpace(model.OutputName)
+                ? session.OutputMetadata.Keys.First()
+                : model.OutputName;
 
-        var small = BackgroundMaskMath.ToMask(values, model.OutputActivation, model.OutputNormalization);
-        var alpha = BackgroundMaskMath.Resize(small, model.InputWidth, model.InputHeight, photo.Width, photo.Height);
-        return new BackgroundMask(photo.Width, photo.Height, alpha);
+            var input = BackgroundMaskMath.ToInputTensor(photo, model);
+            using var runOptions = new RunOptions();
+            // A photo that takes too long, or whose request is gone, stops the inference itself.
+            using var stop = cancellationToken.Register(() => runOptions.Terminate = true);
+            using var results = session.Run(
+                new[] { NamedOnnxValue.CreateFromTensor(inputName, input) },
+                new[] { outputName },
+                runOptions);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var values = results.First().AsTensor<float>().ToArray();
+            if (values.Length != model.InputWidth * model.InputHeight)
+            {
+                throw new InvalidDataException(
+                    $"The model returned {values.Length} values; a {model.InputWidth} x {model.InputHeight} mask was expected.");
+            }
+
+            var small = BackgroundMaskMath.ToMask(values, model.OutputActivation, model.OutputNormalization);
+            var alpha = BackgroundMaskMath.Resize(small, model.InputWidth, model.InputHeight, photo.Width, photo.Height);
+            return new BackgroundMask(photo.Width, photo.Height, alpha);
+        }
+        finally
+        {
+            Release(loaded);
+        }
     }
 
-    private InferenceSession SessionFor(string path)
+    /// <summary>
+    /// The loaded model for this file and these settings, loading it when the file or the
+    /// settings changed (the model can be replaced without a restart). A model being replaced is
+    /// released only once no photo is using it.
+    /// </summary>
+    private LoadedModel Acquire(string path, BackgroundRemovalOptions options)
+    {
+        var key = KeyFor(path, options);
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_loaded is not null && _loaded.Key == key)
+            {
+                _loaded.Users += 1;
+                return _loaded;
+            }
+
+            var fresh = new LoadedModel(Load(path, options), key) { Users = 1 };
+            if (_loaded is not null)
+            {
+                _loaded.Retired = true;
+                if (_loaded.Users == 0)
+                {
+                    _loaded.Session.Dispose();
+                }
+            }
+
+            _loaded = fresh;
+            return fresh;
+        }
+    }
+
+    private void Release(LoadedModel loaded)
     {
         lock (_gate)
         {
-            if (_session is not null && _sessionPath == path)
+            loaded.Users -= 1;
+            if (loaded.Retired && loaded.Users == 0)
             {
-                return _session;
+                loaded.Session.Dispose();
             }
-
-            _session?.Dispose();
-            var options = _options.CurrentValue;
-            using var sessionOptions = new Microsoft.ML.OnnxRuntime.SessionOptions
-            {
-                GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
-                ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
-                InterOpNumThreads = 1,
-                IntraOpNumThreads = Math.Clamp(options.IntraOpThreads, 1, Math.Max(1, Environment.ProcessorCount))
-            };
-            _logger.LogInformation(
-                "Loading the background removal model {ModelKey} {ModelVersion} from {ModelPath}.",
-                options.Model.Key,
-                options.Model.Version,
-                path);
-            var session = new InferenceSession(path, sessionOptions);
-            try
-            {
-                BackgroundModelContract.Check(session, options.Model);
-            }
-            catch
-            {
-                session.Dispose();
-                throw;
-            }
-
-            _session = session;
-            _sessionPath = path;
-            return _session;
         }
+    }
+
+    /// <summary>What a loaded model stands for: the file (path, size, time, approved checksum) and the settings it was checked against.</summary>
+    private static string KeyFor(string path, BackgroundRemovalOptions options)
+    {
+        var file = new FileInfo(path);
+        var model = options.Model;
+        return string.Join(
+            '|',
+            path,
+            file.Exists ? file.Length : -1,
+            file.Exists ? file.LastWriteTimeUtc.Ticks : 0,
+            model.Sha256?.Trim().ToLowerInvariant(),
+            model.InputName,
+            model.OutputName,
+            model.InputWidth,
+            model.InputHeight,
+            string.Join(',', model.ChannelMean()),
+            string.Join(',', model.ChannelStd()),
+            options.IntraOpThreads);
+    }
+
+    private InferenceSession Load(string path, BackgroundRemovalOptions options)
+    {
+        using var sessionOptions = new Microsoft.ML.OnnxRuntime.SessionOptions
+        {
+            GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+            ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
+            InterOpNumThreads = 1,
+            IntraOpNumThreads = Math.Clamp(options.IntraOpThreads, 1, Math.Max(1, Environment.ProcessorCount))
+        };
+        _logger.LogInformation(
+            "Loading the background removal model {ModelKey} {ModelVersion} from {ModelPath}.",
+            options.Model.Key,
+            options.Model.Version,
+            path);
+        var session = new InferenceSession(path, sessionOptions);
+        try
+        {
+            BackgroundModelContract.Check(session, options.Model);
+        }
+        catch
+        {
+            session.Dispose();
+            throw;
+        }
+
+        return session;
     }
 
     public void Dispose()
@@ -118,9 +176,25 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
         lock (_gate)
         {
             _disposed = true;
-            _session?.Dispose();
-            _session = null;
+            if (_loaded is not null)
+            {
+                _loaded.Retired = true;
+                if (_loaded.Users == 0)
+                {
+                    _loaded.Session.Dispose();
+                }
+
+                _loaded = null;
+            }
         }
+    }
+
+    private sealed class LoadedModel(InferenceSession session, string key)
+    {
+        public InferenceSession Session { get; } = session;
+        public string Key { get; } = key;
+        public int Users { get; set; }
+        public bool Retired { get; set; }
     }
 }
 
@@ -132,6 +206,8 @@ public static class BackgroundModelContract
 {
     public static void Check(InferenceSession session, BackgroundModelOptions model)
     {
+        CheckChannels(model);
+
         if (!string.IsNullOrWhiteSpace(model.InputName) && !session.InputMetadata.ContainsKey(model.InputName))
         {
             throw new InvalidDataException(
@@ -167,6 +243,23 @@ public static class BackgroundModelContract
                 $"The background removal model takes {dimensions[3]} x {dimensions[2]} images, but Model:InputWidth and Model:InputHeight are {model.InputWidth} x {model.InputHeight}.");
         }
     }
+
+    /// <summary>Mean and Std must be three values each (R, G, B), and every Std above zero.</summary>
+    public static void CheckChannels(BackgroundModelOptions model)
+    {
+        var mean = model.ChannelMean();
+        var std = model.ChannelStd();
+        if (mean.Length != 3 || std.Length != 3)
+        {
+            throw new InvalidDataException(
+                $"Model:Mean and Model:Std must have three values each (R, G, B); they have {mean.Length} and {std.Length}.");
+        }
+
+        if (mean.Any(value => !float.IsFinite(value)) || std.Any(value => !float.IsFinite(value) || value <= 0f))
+        {
+            throw new InvalidDataException("Model:Mean must be numbers and Model:Std must be numbers above zero.");
+        }
+    }
 }
 
 /// <summary>The arithmetic around the model: preparing its input and turning its output into a mask.</summary>
@@ -188,8 +281,8 @@ public static class BackgroundMaskMath
             canvas.DrawBitmap(photo, new SKRect(0, 0, width, height), paint);
         }
 
-        var mean = Channels(model.Mean, 0f);
-        var std = Channels(model.Std, 1f);
+        var mean = model.ChannelMean();
+        var std = model.ChannelStd();
         var tensor = new DenseTensor<float>(new[] { 1, 3, height, width });
         var pixels = scaled.GetPixelSpan();
         var plane = width * height;
@@ -270,15 +363,5 @@ public static class BackgroundMaskMath
         }
 
         return result;
-    }
-
-    private static float[] Channels(float[]? values, float fallback)
-    {
-        if (values is { Length: 3 } && values.All(value => float.IsFinite(value) && (fallback == 0f || value > 0f)))
-        {
-            return values;
-        }
-
-        return new[] { fallback, fallback, fallback };
     }
 }
