@@ -1286,6 +1286,12 @@
         checked += 1;
         continue;
       }
+      if (c === 47) { // /Name, whose bytes may be any but white space and delimiters ("/Imé")
+        at += 1;
+        while (at < bytes.length && !isWhiteByte(bytes[at]) && !isDelimiterByte(bytes[at])) at += 1;
+        checked += 1;
+        continue;
+      }
       if (c === 60 && bytes[at + 1] === 60) { // << a dictionary, as in "/Span << /MCID 0 >> BDC"
         at += 2;
         checked += 2;
@@ -1311,11 +1317,55 @@
   }
 
   /**
+   * The /L (or /Length) entry of an inline image's dictionary, read from bytes[from, to) as
+   * tokens, so a "/L 1000" inside a comment or a string does not count. null when absent.
+   */
+  function inlineImageLength(bytes, from, to) {
+    let at = from;
+    let previous = null;
+    while (at < to) {
+      const c = bytes[at];
+      if (isWhiteByte(c)) { at += 1; continue; }
+      if (c === 37) { // % comment
+        while (at < to && bytes[at] !== 10 && bytes[at] !== 13) at += 1;
+        previous = null;
+        continue;
+      }
+      if (c === 40) { // ( string )
+        let depth = 1;
+        at += 1;
+        while (at < to && depth > 0) {
+          if (bytes[at] === 92) { at += 2; continue; }
+          if (bytes[at] === 40) depth += 1;
+          else if (bytes[at] === 41) depth -= 1;
+          at += 1;
+        }
+        previous = null;
+        continue;
+      }
+      if (isDelimiterByte(c) && c !== 47) { at += 1; previous = null; continue; }
+      const start = at;
+      at += 1;
+      while (at < to && !isWhiteByte(bytes[at]) && !isDelimiterByte(bytes[at])) at += 1;
+      const token = String.fromCharCode(...bytes.subarray(start, at));
+      if ((previous === '/L' || previous === '/Length') && /^\d+$/.test(token)) return Number(token);
+      previous = token;
+    }
+    return null;
+  }
+
+  /**
    * Reads the operators of a content stream and calls `onOperator(name, operands)` for each.
    * Operands are numbers, names ("/Im1") or null for anything else (strings, arrays, dictionaries).
    * Inline images (BI ... ID ... EI) are skipped whole. Only what measuring images needs is kept.
+   *
+   * Returns { inlineGuessed }: true when an inline image's end had to be guessed (no /L, or an
+   * /L that does not end at EI). The operators after it may then be wrong, so the caller treats
+   * every image the stream can draw as unmeasured: a wrong guess keeps pictures at their size,
+   * never shrinks them.
    */
   function contentOperators(bytes, onOperator) {
+    let inlineGuessed = false;
     const length = bytes.length;
     let operands = [];
     let nest = 0;
@@ -1388,10 +1438,19 @@
           i += 1;
         }
         // The data can hold the bytes "EI" itself. When the dictionary gives its length (/L or
-        // /Length), start looking for EI after the data.
-        const header = String.fromCharCode(...bytes.subarray(dictStart, Math.max(dictStart, i - 3)));
-        const stated = /\/L(?:ength)?\s+(\d+)(?![\d.])/.exec(header);
-        if (stated) i = Math.min(length, i + Number(stated[1]));
+        // /Length) and EI follows the data, the end is known; otherwise it is guessed.
+        const stated = inlineImageLength(bytes, dictStart, Math.max(dictStart, i - 3));
+        if (stated !== null) {
+          let end = i + stated;
+          while (end < length && isWhiteByte(bytes[end])) end += 1;
+          if (bytes[end] === 69 && bytes[end + 1] === 73
+              && (end + 2 >= length || isWhiteByte(bytes[end + 2]) || isDelimiterByte(bytes[end + 2]))) {
+            i = end + 2;
+            operands = [];
+            continue;
+          }
+        }
+        inlineGuessed = true;
         while (i < length) {
           if (bytes[i] === 69 && bytes[i + 1] === 73 && isWhiteByte(bytes[i - 1])
               && (i + 2 >= length || isWhiteByte(bytes[i + 2]) || isDelimiterByte(bytes[i + 2]))
@@ -1408,6 +1467,7 @@
       onOperator(word, operands);
       operands = [];
     }
+    return { inlineGuessed };
   }
 
   /** The decoded bytes of a stream, or null when pdf-lib cannot decode it. */
@@ -1532,7 +1592,7 @@
           markAll(resources, depth + 1, seen);
           continue;
         }
-        contentOperators(bytes, (operator, operands) => {
+        const read = contentOperators(bytes, (operator, operands) => {
           if (operator !== 'Do' || typeof operands[operands.length - 1] !== 'string') return;
           const ref = names.get(operands[operands.length - 1]);
           if (!(ref instanceof PDFRef)) return;
@@ -1540,6 +1600,7 @@
           if (subtype === '/Image') unmeasured.add(String(ref));
           else if (subtype === '/Form') markForm(ref, resources, depth + 1, seen);
         });
+        if (read.inlineGuessed) markAll(resources, depth + 1, seen);
       }
     };
 
@@ -1577,7 +1638,7 @@
       const names = xobjectNames(resources);
       const states = [];
       let current = ctm;
-      contentOperators(joined, (operator, operands) => {
+      const read = contentOperators(joined, (operator, operands) => {
         if (operator === 'q') {
           states.push(current);
         } else if (operator === 'Q') {
@@ -1617,6 +1678,8 @@
           }
         }
       });
+      // Where an inline image's end was guessed, what was measured after it may be wrong.
+      if (read.inlineGuessed) markAll(resources, depth, new Map());
     };
 
     let currentPage = 0;

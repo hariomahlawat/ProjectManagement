@@ -139,8 +139,10 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
   enclosing ones, as viewers do. Each is read once per set of resources it is used with (one glyph
   shared by two Type 3 fonts can draw a different picture in each), so resources that lead back
   to themselves end. Names are matched decoded (`/Big#20Pic` is the picture named "Big Pic").
-  An inline picture's data is skipped by its `/L` length when it has one, and otherwise ends only
-  at an `EI` followed by text, so data that holds the bytes "EI Q" cannot end it early. Forms and
+  An inline picture's data is skipped by its `/L` length when its dictionary has one and `EI`
+  follows the data. Otherwise its end is guessed (an `EI` followed by text, not more binary data),
+  and because a wrong guess could misread what follows, every picture that content can draw is
+  then not measured: a wrong guess keeps pictures at their size and never shrinks them. Forms and
   patterns nested more than 12 deep are not followed; the pictures they can draw are not measured.
 - **Which pictures change** (`reduceImagePlan`). Re-saved: 8-bit RGB or grey pictures, stored as
   JPG or with Flate (and LZW, ASCII85, ASCIIHex, RunLength; PNG predictors are undone by
