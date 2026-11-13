@@ -61,6 +61,43 @@ public sealed class AccountManagePageTests
     }
 
     [Fact]
+    public async Task OnGetAsync_ShowsWhoTheAccountBelongsTo()
+    {
+        await using var context = CreateApplicationContext();
+        using var services = new ServiceCollection().AddLogging().BuildServiceProvider();
+        using var userManager = CreateUserManager(context, services);
+        var user = await CreateUserAsync(userManager);
+        user.Rank = "Lt Col";
+        // 00:10 UTC on 12 Nov is 05:40 the same day in India.
+        user.LastLoginUtc = new DateTime(2026, 11, 12, 0, 10, 0, DateTimeKind.Utc);
+        await userManager.UpdateAsync(user);
+
+        var page = CreatePage(userManager, new NullMediaPersonUserLinkService(), user);
+        await page.OnGetAsync();
+
+        Assert.Equal("Lt Col User One", page.DisplayName);
+        Assert.Equal("user.one@example.com", page.UserName);
+        Assert.Equal("12 Nov 2026, 05:40", page.LastSignInText);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_FallsBackToTheUserName_AndNoSignInTime()
+    {
+        await using var context = CreateApplicationContext();
+        using var services = new ServiceCollection().AddLogging().BuildServiceProvider();
+        using var userManager = CreateUserManager(context, services);
+        var user = await CreateUserAsync(userManager);
+        user.FullName = string.Empty;
+        await userManager.UpdateAsync(user);
+
+        var page = CreatePage(userManager, new NullMediaPersonUserLinkService(), user);
+        await page.OnGetAsync();
+
+        Assert.Equal("user.one@example.com", page.DisplayName);
+        Assert.Null(page.LastSignInText);
+    }
+
+    [Fact]
     public async Task UsePhotosPortrait_UsesExplicitEnableCommand_AndTrustsVerifiedServerState()
     {
         await using var context = CreateApplicationContext();

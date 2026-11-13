@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Features.MediaLibrary.Services;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
@@ -29,6 +31,14 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
         public IReadOnlyList<string> Roles { get; private set; } = Array.Empty<string>();
         public MediaUserPhotoIdentityLink? PhotoIdentity { get; private set; }
         public string UserInitials { get; private set; } = "U";
+
+        /// <summary>Rank and full name when the account has them, otherwise the user name.</summary>
+        public string DisplayName { get; private set; } = "User";
+
+        public string UserName { get; private set; } = string.Empty;
+
+        /// <summary>The latest recorded sign-in in IST, or null when none is recorded.</summary>
+        public string? LastSignInText { get; private set; }
 
         [TempData]
         public string? StatusMessage { get; set; }
@@ -135,6 +145,16 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
                     ? user.FullName.Trim()
                     : "User";
             UserInitials = BuildInitials(headerName);
+
+            UserName = headerName;
+            var fullName = user.FullName?.Trim() ?? string.Empty;
+            var rank = user.Rank?.Trim() ?? string.Empty;
+            DisplayName = fullName.Length == 0
+                ? headerName
+                : rank.Length == 0 ? fullName : $"{rank} {fullName}";
+            LastSignInText = user.LastLoginUtc.HasValue
+                ? IstClock.ToIst(user.LastLoginUtc.Value).ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture)
+                : null;
         }
 
         private static string BuildInitials(string value)

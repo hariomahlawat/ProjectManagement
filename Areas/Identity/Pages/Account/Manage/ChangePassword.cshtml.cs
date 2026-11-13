@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Navigation;
 
@@ -17,18 +19,31 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly ILogger<ChangePasswordModel> _logger;
         private readonly DefaultLandingPageResolver _landingPageResolver;
+        private readonly PasswordOptions _passwordOptions;
 
         public ChangePasswordModel(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             ILogger<ChangePasswordModel> logger,
-            DefaultLandingPageResolver landingPageResolver)
+            DefaultLandingPageResolver landingPageResolver,
+            IOptions<IdentityOptions> identityOptions)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _logger = logger;
             _landingPageResolver = landingPageResolver;
+            _passwordOptions = identityOptions.Value.Password;
         }
+
+        /// <summary>The configured password rules, in words, shown under the new password.</summary>
+        public string PasswordPolicyDescription => IdentityPasswordPolicy.Describe(_passwordOptions);
+
+        /// <summary>
+        /// True while the account must change its password before using PRISM
+        /// (EnforcePasswordChangeFilter sends every other page here). The page then
+        /// explains why and offers no way back.
+        /// </summary>
+        public bool MustChangePassword { get; private set; }
 
         [BindProperty]
         public InputModel Input { get; set; } = new();
@@ -52,16 +67,22 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
             public string ConfirmPassword { get; set; } = string.Empty;
         }
 
-        public void OnGet() { }
+        public async Task OnGetAsync()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            MustChangePassword = user?.MustChangePassword == true;
+        }
 
         public async Task<IActionResult> OnPostAsync()
         {
+            var user = await _userManager.GetUserAsync(User);
+            MustChangePassword = user?.MustChangePassword == true;
+
             if (!ModelState.IsValid)
             {
                 return Page();
             }
 
-            var user = await _userManager.GetUserAsync(User);
             if (user == null)
             {
                 return NotFound($"Unable to load user with ID '{_userManager.GetUserId(User)}'.");
