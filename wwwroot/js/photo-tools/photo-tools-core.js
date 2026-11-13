@@ -1334,16 +1334,19 @@
    * would fall outside black to white is no such mix (the model was unsure of solid subject) and
    * keeps its colour. With `region` ({ left, top,
    * right, bottom }) only that part is made; `pixels` must hold the photo's colours there.
+   * `opacity`, when given, is how see-through each pixel is shown (the mask after Erase), while
+   * `alpha` says how much of its colour is subject: Erase hides a pixel without changing its colour.
    */
-  function cutoutColours(pixels, alpha, width, background, region) {
+  function cutoutColours(pixels, alpha, width, background, region, opacity) {
     const was = [0, 0, 0];
     const height = alpha.length / width;
     const area = region || { left: 0, top: 0, right: width, bottom: height };
+    const shown = opacity || alpha;
     for (let y = area.top; y < area.bottom; y += 1) for (let x = area.left; x < area.right; x += 1) {
       const i = y * width + x;
       const at = i * 4;
       const share = alpha[i] / 255;
-      pixels[at + 3] = alpha[i];
+      pixels[at + 3] = shown[i];
       if (share >= CUTOUT_SURE || !background) continue;
       wallColourAt(background, x, y, was);
       const divide = Math.max(CUTOUT_LEAST_ALPHA, share);
@@ -1418,7 +1421,9 @@
    * background, and Refine Edge works out how much of it is subject from its colour: a mix of the
    * background colour there (`background`, from cutoutBackground) and the subject's colours near
    * it, as the passport brush does. options: width, cell (squares the subject's colours are read
-   * from), colours (cutoutPersonColours for this photo, so they are not read again on every
+   * from), colourAlpha (filled, when given, with how much of each pixel's colour is subject: the
+   * same as the mask but without Erase, which only hides; cutoutColours uses it to clean the edge),
+   * colours (cutoutPersonColours for this photo, so they are not read again on every
    * stroke), and region ({ left, top, right, bottom }): only that part is made again, and `mask` is
    * then the strokes in that part only. Every stroke is applied there afresh, so the result is the
    * same as a full rebuild; it is what keeps painting quick on a large photo.
@@ -1429,9 +1434,11 @@
     const region = options.region || { left: 0, top: 0, right: width, bottom: height };
     const regionWidth = region.right - region.left;
     const regionHeight = region.bottom - region.top;
+    const colourAlpha = options.colourAlpha || null;
     for (let y = region.top; y < region.bottom; y += 1) {
       const start = y * width + region.left;
       alpha.set(modelAlpha.subarray(start, start + regionWidth), start);
+      if (colourAlpha) colourAlpha.set(modelAlpha.subarray(start, start + regionWidth), start);
     }
     const strokes = strokePlanes(mask, regionWidth, regionHeight, 0);
     if (!strokes) return alpha;
@@ -1472,6 +1479,8 @@
           }
         }
         alpha[i] = Math.round(modelAlpha[i] * stay + 255 * restore + 255 * subject * refine);
+        // How much of the pixel's colour is subject: Erase only hides, so it leaves this as it was.
+        if (colourAlpha) colourAlpha[i] = Math.round(modelAlpha[i] * (stay + erase) + 255 * restore + 255 * subject * refine);
       }
     }
     return alpha;

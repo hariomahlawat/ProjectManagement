@@ -80,6 +80,9 @@
   // The model's mask, the mask after the touch-ups, and the old background's colours.
   let modelAlpha = null;
   let alpha = null;
+  // How much of each pixel's colour is subject: the mask without Erase, which only hides. The
+  // edge is cleaned with this, so an erased area keeps its colour as it fades.
+  let colourAlpha = null;
   let background = null;
   let subjectColours = null;
   // The cut-out (RGBA, see-through where the mask says) and the blurred background.
@@ -204,6 +207,7 @@
     pixels = null;
     modelAlpha = null;
     alpha = null;
+    colourAlpha = null;
     background = null;
     subjectColours = null;
     cutout = null;
@@ -274,6 +278,7 @@
       core.refineCutoutEdge(mask, pixels.data, work.width, background, cellSize(), subjectColours);
       modelAlpha = mask;
       alpha = new Uint8ClampedArray(mask);
+      colourAlpha = new Uint8ClampedArray(mask);
       blurred = makeBlur(work, pixels.data, modelAlpha, background);
       cutout = shared.newCanvas(work.width, work.height);
       rebuild();
@@ -385,11 +390,12 @@
     const area = region || { left: 0, top: 0, right: width, bottom: height };
     if (strokes.length) {
       core.applyCutoutStrokes(alpha, modelAlpha, pixels.data, strokeMask(area), background,
-        { width, cell: cellSize(), colours: subjectColours, region: area });
+        { width, cell: cellSize(), colours: subjectColours, region: area, colourAlpha });
     } else {
       for (let y = area.top; y < area.bottom; y += 1) {
         const start = y * width + area.left;
         alpha.set(modelAlpha.subarray(start, start + area.right - area.left), start);
+        colourAlpha.set(modelAlpha.subarray(start, start + area.right - area.left), start);
       }
     }
     if (!colours || colours.width !== width || colours.height !== height) {
@@ -399,7 +405,7 @@
       const start = (y * width + area.left) * 4;
       colours.data.set(pixels.data.subarray(start, start + (area.right - area.left) * 4), start);
     }
-    core.cutoutColours(colours.data, alpha, width, background, area);
+    core.cutoutColours(colours.data, colourAlpha, width, background, area, alpha);
     cutout.getContext('2d').putImageData(colours, 0, 0, area.left, area.top, area.right - area.left, area.bottom - area.top);
     render();
   }
@@ -557,14 +563,15 @@
   function fullCutout(size) {
     if (size.width === work.width && size.height === work.height) {
       const colours = new Uint8ClampedArray(pixels.data);
-      core.cutoutColours(colours, alpha, size.width, background);
+      core.cutoutColours(colours, colourAlpha, size.width, background, null, alpha);
       return { colours, data: pixels.data, alpha };
     }
     const photo = shared.drawPhoto(full, size.width, size.height, {});
     const data = photo.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, size.width, size.height).data;
     const maskSmall = shared.newCanvas(work.width, work.height);
     const grey = new Uint8ClampedArray(work.width * work.height * 4);
-    for (let i = 0; i < alpha.length; i += 1) grey.set([alpha[i], alpha[i], alpha[i], 255], i * 4);
+    // Both are enlarged together: red holds the mask after the touch-ups, green the colour share.
+    for (let i = 0; i < alpha.length; i += 1) grey.set([alpha[i], colourAlpha[i], 0, 255], i * 4);
     maskSmall.getContext('2d').putImageData(new ImageData(grey, work.width, work.height), 0, 0);
     const maskLarge = shared.newCanvas(size.width, size.height);
     const largeContext = maskLarge.getContext('2d', { willReadFrequently: true });
@@ -572,13 +579,17 @@
     largeContext.drawImage(maskSmall, 0, 0, size.width, size.height);
     const largeGrey = largeContext.getImageData(0, 0, size.width, size.height).data;
     const largeAlpha = new Uint8ClampedArray(size.width * size.height);
-    for (let i = 0; i < largeAlpha.length; i += 1) largeAlpha[i] = largeGrey[i * 4];
+    const largeColourAlpha = new Uint8ClampedArray(size.width * size.height);
+    for (let i = 0; i < largeAlpha.length; i += 1) {
+      largeAlpha[i] = largeGrey[i * 4];
+      largeColourAlpha[i] = largeGrey[i * 4 + 1];
+    }
     // The background estimate made from the model's own mask, at this size: the touch-ups must
     // not count as background (an erased bit of the subject is not old background), and the
     // saved edges then match what the screen showed.
     const field = core.scaleBackground(background, size.width / work.width);
     const colours = new Uint8ClampedArray(data);
-    core.cutoutColours(colours, largeAlpha, size.width, field);
+    core.cutoutColours(colours, largeColourAlpha, size.width, field, null, largeAlpha);
     return { colours, data, alpha: largeAlpha };
   }
 

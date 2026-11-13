@@ -1448,3 +1448,21 @@ test('scaleBackground gives the same colours at the same spot of a larger copy',
   }
   assert.equal(tools.scaleBackground(null, 2), null);
 });
+
+test('a soft Erase makes the subject see-through without changing its colour', () => {
+  // A solid grey subject pixel and a half-strength Erase over it.
+  const grey = [150, 150, 150];
+  const original = rowOf([WALL, grey]);
+  const modelAlpha = new Uint8ClampedArray([0, 255]);
+  const mask = new Uint8ClampedArray([0, 0, 0, 0, 0, 0, 255, 128]);
+  const alpha = new Uint8ClampedArray(2);
+  const colourAlpha = new Uint8ClampedArray(2);
+  tools.applyCutoutStrokes(alpha, modelAlpha, original, mask, flatWall([255, 255, 255]), { width: 2, colourAlpha });
+  assert.ok(Math.abs(alpha[1] - 127) <= 1, `half see-through (${alpha[1]})`);
+  assert.equal(colourAlpha[1], 255, 'its colour is still all subject');
+
+  const colours = new Uint8ClampedArray(original);
+  tools.cutoutColours(colours, colourAlpha, 2, flatWall([255, 255, 255]), null, alpha);
+  assert.deepEqual(rgbAt(colours, 2, 1, 0), grey, 'the colour is kept');
+  assert.ok(Math.abs(colours[7] - 127) <= 1, 'and the pixel is half see-through');
+});
