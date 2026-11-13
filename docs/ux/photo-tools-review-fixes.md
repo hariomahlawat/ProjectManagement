@@ -69,14 +69,16 @@ pointers and re-entry, accessibility, a few edge cases in the maths, and wording
   - A PDF Tools test lives in the Photo Tools file.
 - **Duplication:** opening a file, the drop zones, the debounced save, "hold to see the original" and the dark-under-light overlay are written three or four times.
 
-## For the owner
+## Owner decisions (13 Nov 2026)
 
-1. **Signature:** give it its own card on the home screen that opens Passport photo in Signature
-   mode (recommended), or only mention signatures in the Passport photo card?
-2. **What "50 KB" means:** many upload forms check 50,000 bytes, others 51,200. Aim under both
-   (recommended: the file is at most 1–2 KB smaller), or keep 1 KB = 1024 bytes?
-3. **Reduce size default:** photos shrink to 1,600 px on the longest side even when only a KB
-   target is typed. Keep it, or keep the pixels unless the target cannot be reached otherwise?
+The owner took the recommendations:
+
+1. **Signature** gets its own card on the home screen, which opens Passport photo in Signature
+   mode (PR 5).
+2. **A KB is 1,000 bytes** and an MB 1,000,000, so "50 KB" is at most 50,000 bytes and passes forms
+   that count either way. Sizes on the screen are rounded up, never down (PR 4).
+3. **Reduce size keeps the pixels** when only a file size is typed, and makes the photo smaller
+   only when the size cannot be reached otherwise (PR 8).
 
 ## Build plan
 
@@ -88,8 +90,8 @@ fixes.
 | 1 | This plan | — |
 | 2 | Built, #3187. Pointers and re-entry (also the brushes in Passport photo and Remove background ignore a right-click): primary pointer and left button only in Edit photo and Print sheet; Print sheet takes its settings before the first `await` and keeps Download off while working; one download at a time in every tool; Passport resets the brush screen on a new photo and catches Rotate failures | 1, 2, 4, 5, Low (double click) |
 | 3 | Built, #3189. Accessibility (the tab title also follows Signature mode): focus and title on each screen, home cards as a real list of links (PDF Tools too), 44 px crop handles on touch, `aria-label` that matches the text, reduced motion | 3, 7, Low (Page) |
-| 4 | Core edge cases: alpha-weighted measuring (one shared helper), KB rounding and parsing (after owner question 2), unique output names, 16 px floor, canvas area cap, exact crop shape | 6, Low (Core) |
-| 5 | Wording and Signature: owner question 1, one name for blurring, sentence case, plain hints for pixels and file types, copies counter | 8, Low (Wording) |
+| 4 | Built, #3190. Core edge cases: alpha-weighted measuring (one shared helper), KB of 1,000 bytes, rounding up and parsing (decision 2), unique output names, 16 px floor, canvas area cap, exact crop shape | 6, Low (Core) |
+| 5 | Wording and Signature: a Signature card (decision 1), one name for blurring, sentence case, plain hints for pixels and file types, copies counter | 8, Low (Wording) |
 | 6 | Docs and contract test: correct both docs, read scripts from the page, check the CSS, more patterns, move the PDF test | 9, Low (Docs, Contract test) |
 | 7 | Speed and shared code: coalesce brush moves, one-step Redo, cancel Reduce size between tries, shared open/drop/save/hold helpers in `photo-tools-canvas.js` | Low (Screens, Duplication) |
-| 8 | Reduce size default, if the owner changes it (question 3) | — |
+| 8 | Reduce size keeps the pixels unless the size cannot be reached otherwise (decision 3) | — |
