@@ -54,7 +54,7 @@ pdf.js is an ES module (`.mjs`), served by ASP.NET Core's default content types.
 | PDF to images | PNG or JPG at 72/150/300 dpi, optional page range; several pages download as a ZIP. A page over 24 million pixels at the chosen dpi (A2 and larger at 300 dpi) is made at the highest dpi that fits, and the result says which pages and at about what dpi. |
 | Watermark | Text, position, angle, size, colour, transparency, optional page range. |
 | Page numbers & header/footer | Number formats with `{n}`, `{total}` (the last number used: three pages starting at 5 read "Page 5 of 7"), `{date}`; position, first number, skip cover page, header/footer text. A number field left blank uses its default. |
-| Reduce size | Makes a PDF smaller in the browser: repeated fonts and pictures stored once, pictures re-saved at the size they are shown (Screen 100 dpi, Standard 150 dpi, Print 220 dpi), plain parts compressed, page thumbnails left out. Text, links, form fields and bookmarks keep working. Optionally **Keep under** a size (500 KB, 1 MB, 2 MB, 5 MB or typed), remembered in this browser. The work runs in a background worker and can be stopped. The result shows a page before and after. Signed PDFs are refused. A file that would not get smaller is never offered as a saving. See "How Reduce size works" below. |
+| Reduce size | Makes a PDF smaller in the browser: repeated fonts and pictures stored once, pictures re-saved at the size they are shown (Screen 100 dpi, Standard 150 dpi, Print 220 dpi), plain parts compressed, page thumbnails left out. Text, links, form fields and bookmarks keep working. Optionally **Keep under** a size (500 KB, 1 MB, 2 MB, 5 MB or typed), remembered in this browser. The work runs in a background worker and can be stopped. The result shows a page before and after. Signed PDFs are refused. A file that would not get smaller is never offered as a saving. **Scan mode** (a switch, never on by default) turns every page into one picture instead, for the smallest scans; the text can no longer be selected and links, form fields and bookmarks are removed, so saving asks first. See "How Reduce size works" below. |
 | Sign & annotate | Text, signature (draw, type or upload), image, highlight, box and white-out; drag to move, corner handle to resize, or use the keyboard. Items are flattened into the page on save. While White-out is chosen or used, the screen says that it does not remove the covered text, and saving asks first. On a phone, with Select a swipe on a page scrolls and two fingers zoom; a tool that places or draws keeps the touch. Pages refit when the window is resized or the phone turned, and text is kept on the page. Only the main button or first finger places an item. **Choose another file** asks first when items were added. A page that cannot be drawn says so. |
 
 When pages are dropped (Split, extract, delete), they are removed from the saved file, not just
@@ -242,6 +242,19 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
   picture is a JPG with its own EXIF orientation is not chosen, because pdf.js in the browser
   turns such a photo and the two would not match (see "Known limits"). The preview is drawn after
   the work, so the page is not kept busy for it.
+- **Scan mode** (`scanPdf`, owner direction: a separate choice with a plain warning, built last).
+  A switch below the presets, never on by default and not remembered, says what is lost before
+  it is turned on: selectable and searchable text, links, form fields, bookmarks and tags. Saving
+  asks once more in the PRISM dialog. Each page is drawn by pdf.js at the preset's resolution (as
+  it is seen: turned, cropped and at its `/UserUnit` size) and saved as a JPG at the preset's
+  quality; a page with no colour (a few stray pixels allowed) is also tried as grey pixels with
+  Flate, and the smaller is kept. A new PDF holds one picture per page at the page's true size;
+  the title, author and subject are kept. Keep under uses the same search as above, from the
+  preset down to 72 dpi, drawing every page again for each try. It runs on the page, not in the
+  worker, because pdf.js draws on the page's canvas; Stop ends it at once, even in the middle of
+  a large page. The result says how many pages became pictures, at what resolution, and warns
+  that the text is gone; the preview shows page 1 before and after. The file is named
+  `name-scanned.pdf`. A file that would not get smaller is not offered, as above.
 
 ## Code map
 

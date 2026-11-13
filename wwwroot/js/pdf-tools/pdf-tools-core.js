@@ -2710,6 +2710,153 @@
     return { bytes: output, unchanged: false, report };
   }
 
+  // Bytes a page adds to a Scan mode file besides its picture (page, content and picture
+  // dictionaries, and the file's tables), used to turn a size limit into the pictures' budget.
+  const SCAN_PAGE_OVERHEAD = 420;
+  const SCAN_FILE_OVERHEAD = 1200;
+
+  /**
+   * Scan mode: every page becomes one picture, in a new PDF at each page's true size. For
+   * scanned papers this gives the smallest and most even file, but the text can no longer be
+   * selected or searched, and links, form fields, bookmarks and tags are gone (the screen says so
+   * and asks first). The title, author and subject are kept.
+   *
+   * options:
+   *   preset       'screen' | 'standard' | 'print' (resolution and JPG quality)
+   *   targetBytes  optional size to keep the file under (the same search as reducePdf)
+   *   encodePage   (index, dpi, quality) → { widthPt, heightPt, pixelWidth, pixelHeight,
+   *                jpeg: Uint8Array (colour JPG), grey: Uint8Array | null (8-bit grey pixels, given
+   *                only when the page has no colour) }. The page draws it with pdf.js.
+   *   onProgress   ({ step, done, total }) for each page; `step` counts the tries
+   *   signal       an AbortSignal; stops between pages with a 'cancelled' error
+   *
+   * A grey page is stored as grey pixels with Flate when that is smaller than its JPG. Returns
+   * { bytes, unchanged, report } as reducePdf does: a file that is not smaller is never offered.
+   */
+  async function scanPdf(PDFLib, bytes, options) {
+    const settings = options || {};
+    const preset = PDF_SIZE_PRESETS.find((item) => item.key === settings.preset) || PDF_SIZE_PRESETS[1];
+    const targetBytes = settings.targetBytes > 0 ? settings.targetBytes : null;
+    const stopIfCancelled = () => {
+      if (settings.signal && settings.signal.aborted) throw new PdfToolError('cancelled', CANCELLED_MESSAGE);
+    };
+    const source = await loadPdf(PDFLib, bytes);
+    if (isSignedPdf(PDFLib, source)) throw new PdfToolError('signed', SIGNED_PDF_MESSAGE);
+    const total = source.getPageCount();
+    const scratch = await PDFLib.PDFDocument.create();
+    let step = 0;
+
+    /** Draws and saves every page at one setting. Nothing is put in a file yet. */
+    const drawAll = async (dpi, quality) => {
+      step += 1;
+      const pages = [];
+      let pictureBytes = 0;
+      for (let index = 0; index < total; index += 1) {
+        stopIfCancelled();
+        settings.onProgress?.({ step, done: index + 1, total });
+        const page = await settings.encodePage(index, dpi, quality);
+        stopIfCancelled();
+        if (!page || !page.jpeg || !(page.pixelWidth > 0) || !(page.pixelHeight > 0)) {
+          throw new PdfToolError('render', `Page ${index + 1} could not be drawn, so no file was made.`);
+        }
+        let kind = 'jpeg';
+        let data = page.jpeg;
+        if (page.grey && page.grey.length === page.pixelWidth * page.pixelHeight) {
+          const flate = scratch.context.flateStream(page.grey, {});
+          if (flate.getContentsSize() < page.jpeg.length) {
+            kind = 'grey';
+            data = flate.getContents();
+          }
+        }
+        pictureBytes += data.length;
+        pages.push({ kind, data, widthPt: page.widthPt, heightPt: page.heightPt, pixelWidth: page.pixelWidth, pixelHeight: page.pixelHeight });
+      }
+      return { dpi, quality, bytes: pictureBytes, pages };
+    };
+
+    const tries = new Map();
+    const attempt = async (dpi, quality) => {
+      const key = `${dpi}|${quality}`;
+      const cached = tries.get(key);
+      if (cached && cached.pages) return cached;
+      const made = await drawAll(dpi, quality);
+      tries.set(key, made);
+      return made;
+    };
+    const release = (item) => { item.pages = null; };
+
+    const build = async (pages) => {
+      const output = await PDFLib.PDFDocument.create();
+      const { PDFRawStream } = PDFLib;
+      for (const page of pages) {
+        const dict = output.context.obj({
+          Type: 'XObject',
+          Subtype: 'Image',
+          Width: page.pixelWidth,
+          Height: page.pixelHeight,
+          ColorSpace: page.kind === 'grey' ? 'DeviceGray' : 'DeviceRGB',
+          BitsPerComponent: 8,
+          Filter: page.kind === 'grey' ? 'FlateDecode' : 'DCTDecode'
+        });
+        const imageRef = output.context.register(PDFRawStream.of(dict, page.data));
+        const newPage = output.addPage([page.widthPt, page.heightPt]);
+        const name = newPage.node.newXObject('Page', imageRef);
+        newPage.pushOperators(
+          PDFLib.pushGraphicsState(),
+          PDFLib.concatTransformationMatrix(page.widthPt, 0, 0, page.heightPt, 0, 0),
+          PDFLib.drawObject(name),
+          PDFLib.popGraphicsState()
+        );
+      }
+      for (const [get, set] of [['getTitle', 'setTitle'], ['getAuthor', 'setAuthor'], ['getSubject', 'setSubject']]) {
+        const value = source[get]();
+        if (value) output[set](value);
+      }
+      return save(output);
+    };
+
+    let result;
+    let output;
+    if (targetBytes) {
+      let budget = targetBytes - SCAN_FILE_OVERHEAD - total * SCAN_PAGE_OVERHEAD;
+      for (let round = 0; round < 3; round += 1) {
+        result = await searchReduceSettings({ dpi: preset.dpi, quality: preset.quality, budget, measure: attempt, release });
+        stopIfCancelled();
+        output = await build(result.pages);
+        if (output.length <= targetBytes || !result.reached) break;
+        budget -= output.length - targetBytes + Math.max(256, Math.round(targetBytes * 0.002));
+      }
+    } else {
+      result = await attempt(preset.dpi, preset.quality);
+      stopIfCancelled();
+      output = await build(result.pages);
+    }
+    stopIfCancelled();
+
+    const report = {
+      scan: true,
+      preset: preset.key,
+      pages: total,
+      greyPages: result.pages.filter((page) => page.kind === 'grey').length,
+      dpi: result.dpi,
+      quality: result.quality,
+      previewPage: 0,
+      pdfA: claimsPdfA(PDFLib, source),
+      target: targetBytes ? {
+        bytes: targetBytes,
+        reached: output.length <= targetBytes,
+        dpi: result.dpi,
+        quality: result.quality,
+        atLowest: result.dpi <= REDUCE_MIN_DPI,
+        keptSize: 0
+      } : null
+    };
+    if (output.length >= bytes.length) {
+      return { bytes, unchanged: true, report };
+    }
+    return { bytes: output, unchanged: false, report };
+  }
+
   async function pageCount(PDFLib, bytes) {
     const document = await loadPdf(PDFLib, bytes);
     return document.getPageCount();
@@ -2764,6 +2911,7 @@
     deduplicateObjects,
     compressPlainStreams,
     describePdf,
-    reducePdf
+    reducePdf,
+    scanPdf
   });
 });

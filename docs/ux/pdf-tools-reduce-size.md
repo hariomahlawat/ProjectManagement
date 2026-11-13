@@ -242,7 +242,7 @@ Each PR is usable on its own and checked on phones, in the Dark theme and with t
 | 1 | This plan (done, #3178) | Nothing visible |
 | 2 | Built. Reduce size tool: lossless clean-up, re-saving images with the three presets, signed and encrypted PDFs refused, honest before and after sizes | Scans and photo-heavy PDFs made much smaller, with text and forms kept |
 | 3 | Built. Keep under a size, before and after preview of a page, background worker with Cancel | Files that fit a portal's limit, and large files without a frozen page |
-| 4 | Scan mode | The smallest scans, for files where selectable text does not matter |
+| 4 | Built. Scan mode | The smallest scans, for files where selectable text does not matter |
 
 ## Differences found while building PR 2
 
