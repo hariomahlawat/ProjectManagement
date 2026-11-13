@@ -37,24 +37,36 @@
   // Sizes and names
   // ---------------------------------------------------------------------------
 
+  // A KB is 1,000 bytes and an MB 1,000,000 (owner decision, 13 Nov 2026). Upload forms check
+  // either 1,000 or 1,024 bytes to a KB; a file under 50 × 1,000 bytes passes both checks.
+  const KB = 1000;
+  const MB = 1000 * 1000;
+
+  /**
+   * A file size for people. Rounded up, never down: a file shown as "50 KB" is at most 50 KB,
+   * so it is never shown as fitting a limit it is over.
+   */
   function formatBytes(bytes) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < KB) return `${bytes} B`;
+    const kilobytes = Math.ceil(bytes / KB);
+    if (kilobytes < KB) return `${kilobytes} KB`;
+    return `${(Math.ceil(bytes / (MB / 10)) / 10).toFixed(1)} MB`;
   }
 
   /**
-   * "100" + "KB" → 102400. Returns null when the value is not a positive number. A comma is a
-   * decimal point ("1,5" MB), except in a number written with thousands ("1,000" KB), which
-   * must not be read as 1 KB.
+   * "100" + "KB" → 100000. Returns null when the value is not a positive number. A comma is a
+   * decimal point ("1,5" MB), except in a KB number written with thousands ("1,000" or the
+   * Indian "1,00,000"), which must not be read as 1 KB. An MB number is never that large, so
+   * "1,500" MB is 1.5 MB.
    */
   function parseTargetBytes(value, unit) {
     const text = String(value ?? '').trim();
-    const plain = /^\d{1,3}(,\d{3})+$/.test(text) ? text.replace(/,/g, '') : text.replace(',', '.');
+    const inMb = String(unit).toUpperCase() === 'MB';
+    const grouped = /^\d{1,3}(,\d{3})+$/.test(text) || /^\d{1,2}(,\d{2})+,\d{3}$/.test(text);
+    const plain = !inMb && grouped ? text.replace(/,/g, '') : text.replace(',', '.');
     const number = Number(plain);
     if (!Number.isFinite(number) || number <= 0) return null;
-    const factor = String(unit).toUpperCase() === 'MB' ? 1024 * 1024 : 1024;
-    return Math.round(number * factor);
+    return Math.round(number * (inMb ? MB : KB));
   }
 
   /**
@@ -95,15 +107,20 @@
     return name || fallback || 'photo';
   }
 
-  /** Output file names for a batch; repeated names get " (2)", " (3)" so a ZIP has no clashes. */
+  /**
+   * Output file names for a batch; repeated names get " (2)", " (3)" so a ZIP has no clashes,
+   * also when a photo is already called "a (2).jpg".
+   */
   function outputNames(items, suffix) {
-    const used = new Map();
+    const used = new Set();
     return items.map(item => {
       const stem = `${baseName(item.name)}${suffix || ''}`;
-      const key = `${stem}.${item.extension}`.toLowerCase();
-      const count = (used.get(key) || 0) + 1;
-      used.set(key, count);
-      return count === 1 ? `${stem}.${item.extension}` : `${stem} (${count}).${item.extension}`;
+      let name = `${stem}.${item.extension}`;
+      for (let count = 2; used.has(name.toLowerCase()); count += 1) {
+        name = `${stem} (${count}).${item.extension}`;
+      }
+      used.add(name.toLowerCase());
+      return name;
     });
   }
 
@@ -122,6 +139,29 @@
     return pixels;
   }
 
+  /**
+   * How much a pixel counts when a photo is measured: by how visible it is. A nearly see-through
+   * pixel at the soft edge of a cut-out counts for almost nothing, a solid one fully.
+   */
+  function visibility(pixels, i) {
+    return pixels[i + 3] / 255;
+  }
+
+  /** The level at which `share` of the weight in a histogram has been passed (255 at most). */
+  function histogramLevel(histogram, total, share) {
+    let seen = 0;
+    for (let value = 0; value < 256; value += 1) {
+      seen += histogram[value];
+      if (seen > total * share) return value;
+    }
+    return 255;
+  }
+
+  /** Brightness of one RGBA pixel (Rec. 601 weights). */
+  function lightOf(pixels, i) {
+    return 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+  }
+
   // ---------------------------------------------------------------------------
   // Lighting
   // ---------------------------------------------------------------------------
@@ -133,17 +173,17 @@
    * whole photo, then applied to the preview and the saved photo alike.
    */
   function measureLighting(pixels) {
-    const histogram = new Uint32Array(256);
+    const histogram = new Float64Array(256);
     const sums = [0, 0, 0];
     let count = 0;
     for (let i = 0; i < pixels.length; i += 4) {
-      if (pixels[i + 3] === 0) continue;
-      const light = Math.round(0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2]);
-      histogram[light] += 1;
-      sums[0] += pixels[i];
-      sums[1] += pixels[i + 1];
-      sums[2] += pixels[i + 2];
-      count += 1;
+      const weight = visibility(pixels, i);
+      if (!weight) continue;
+      histogram[Math.round(lightOf(pixels, i))] += weight;
+      sums[0] += pixels[i] * weight;
+      sums[1] += pixels[i + 1] * weight;
+      sums[2] += pixels[i + 2] * weight;
+      count += weight;
     }
     if (!count) return { low: 0, high: 255, gains: [1, 1, 1] };
 
@@ -1491,24 +1531,18 @@
    * (most of the picture), the ink the darkest half percent. Null when there is no clear ink.
    */
   function measurePaper(pixels) {
-    const histogram = new Uint32Array(256);
+    // See-through pixels are neither paper nor ink; half see-through ones count half.
+    const histogram = new Float64Array(256);
     let count = 0;
     for (let i = 0; i < pixels.length; i += 4) {
-      if (pixels[i + 3] === 0) continue; // see-through pixels are neither paper nor ink
-      histogram[Math.round(0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2])] += 1;
-      count += 1;
+      const weight = visibility(pixels, i);
+      if (!weight) continue;
+      histogram[Math.round(lightOf(pixels, i))] += weight;
+      count += weight;
     }
     if (!count) return null;
-    const level = (share) => {
-      let seen = 0;
-      for (let value = 0; value < 256; value += 1) {
-        seen += histogram[value];
-        if (seen > count * share) return value;
-      }
-      return 255;
-    };
-    const ink = level(0.005);
-    const paper = level(0.5);
+    const ink = histogramLevel(histogram, count, 0.005);
+    const paper = histogramLevel(histogram, count, 0.5);
     return paper - ink >= 40 ? { ink, paper } : null;
   }
 
@@ -1606,6 +1640,9 @@
 
   const EDIT_MIN_SIDE = 16;
   const EDIT_MAX_SIDE = 10000;
+  // The largest picture every browser can draw: Safari on iPhones and iPads stops at 16.7
+  // million pixels (4096 × 4096), whatever the width and height are.
+  const EDIT_MAX_AREA = 4096 * 4096;
 
   /**
    * The size left after a photo is turned by a few degrees and trimmed to the largest upright
@@ -1631,14 +1668,27 @@
     return size;
   }
 
-  function tidyCrop(x, y, width, height, bounds) {
+  /**
+   * Whole pixels inside the photo. With a ratio the height is worked out from the rounded
+   * width, so a fixed shape is as close to exact as whole pixels allow.
+   */
+  function tidyCrop(x, y, width, height, bounds, ratio) {
     const left = Math.min(Math.max(0, Math.round(x)), bounds.width - 1);
     const top = Math.min(Math.max(0, Math.round(y)), bounds.height - 1);
+    let wide = Math.max(1, Math.min(Math.round(width), bounds.width - left));
+    let tall = ratio ? Math.round(wide / ratio) : Math.round(height);
+    const room = bounds.height - top;
+    if (ratio && tall > room) {
+      // Rounding the width up made the box one pixel too tall for the photo: narrow it instead
+      // of cutting the height, which would change the shape.
+      wide = Math.max(1, Math.floor(room * ratio));
+      tall = Math.round(wide / ratio);
+    }
     return {
       x: left,
       y: top,
-      width: Math.max(1, Math.min(Math.round(width), bounds.width - left)),
-      height: Math.max(1, Math.min(Math.round(height), bounds.height - top))
+      width: wide,
+      height: Math.max(1, Math.min(tall, bounds.height - top))
     };
   }
 
@@ -1647,7 +1697,7 @@
     if (!ratio) return { x: 0, y: 0, width: bounds.width, height: bounds.height };
     const width = Math.min(bounds.width, bounds.height * ratio);
     const height = width / ratio;
-    return tidyCrop((bounds.width - width) / 2, (bounds.height - height) / 2, width, height, bounds);
+    return tidyCrop((bounds.width - width) / 2, (bounds.height - height) / 2, width, height, bounds, ratio);
   }
 
   /** Slides the crop box without letting it leave the photo. */
@@ -1696,7 +1746,7 @@
     const height = width / ratio;
     const x = west ? anchorX - width : east ? anchorX : anchorX - width / 2;
     const y = north ? anchorY - height : south ? anchorY : anchorY - height / 2;
-    return tidyCrop(x, y, width, height, bounds);
+    return tidyCrop(x, y, width, height, bounds, ratio);
   }
 
   // ---------------------------------------------------------------------------
@@ -1925,18 +1975,15 @@
     const levels = measurePaper(pixels);
     if (!levels) return pixels;
     const tables = [0, 1, 2].map(channel => {
-      const histogram = new Uint32Array(256);
+      const histogram = new Float64Array(256);
       let visible = 0;
-      for (let i = channel; i < pixels.length; i += 4) {
-        if (pixels[i - channel + 3] === 0) continue;
-        histogram[pixels[i]] += 1;
-        visible += 1;
+      for (let i = 0; i < pixels.length; i += 4) {
+        const weight = visibility(pixels, i);
+        if (!weight) continue;
+        histogram[pixels[i + channel]] += weight;
+        visible += weight;
       }
-      let paper = 0;
-      for (let seen = 0; paper < 255; paper += 1) {
-        seen += histogram[paper];
-        if (seen > visible / 2) break;
-      }
+      const paper = histogramLevel(histogram, visible, 0.5);
       const range = Math.max(40, paper - levels.ink);
       const black = levels.ink + range * 0.1;
       const white = Math.max(black + 1, paper - range * 0.12);
@@ -2231,7 +2278,10 @@
       if (options.fixedSize || Math.min(width, height) <= SMALLEST_SIDE) break;
 
       // File size follows the pixel count, so aim a little under the target and try again.
-      const scale = Math.min(0.9, Math.max(0.5, Math.sqrt(target / floorBytes.length) * 0.95));
+      // Never below the smallest side: a long thin photo would otherwise be halved past it.
+      const scale = Math.max(
+        SMALLEST_SIDE / Math.min(width, height),
+        Math.min(0.9, Math.max(0.5, Math.sqrt(target / floorBytes.length) * 0.95)));
       const next = scaleDimensions(width, height, scale);
       if (next.width === width && next.height === height) break;
       width = next.width;
@@ -2293,6 +2343,7 @@
     CROP_SHAPES,
     EDIT_MIN_SIDE,
     EDIT_MAX_SIDE,
+    EDIT_MAX_AREA,
     straightenedSize,
     editedSize,
     defaultCrop,

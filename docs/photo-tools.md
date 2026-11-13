@@ -75,6 +75,9 @@ of 13 Nov 2026 are planned in [ux/photo-tools-review-fixes.md](ux/photo-tools-re
   header (`setJpegDpi`), so it prints at its true size.
 - The screen works on a copy no larger than 1600 px; the saved photo is drawn again from the
   full-size photo, so zooming in does not cost sharpness that the original has.
+- A KB is 1,000 bytes and an MB 1,000,000 (owner decision, 13 Nov 2026): upload forms count a KB as
+  1,000 or 1,024 bytes, and a file under 50,000 bytes passes both. Sizes on the screen are rounded
+  up (`formatBytes`), so a file just over a limit never reads as fitting it.
 - The dimensions are never changed to meet a KB limit, only the JPG quality (down to 0.2). If the
   limit still cannot be met, the page says what the smallest possible size is. A limit that is
   not a number stops only the file: the photo, its background and the checks are still shown.
