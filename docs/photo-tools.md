@@ -45,7 +45,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 
 | Tool | What it does |
 | --- | --- |
-| Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none), smaller dimensions, save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
+| Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none); the pixels are kept unless the size cannot be reached otherwise, or made fewer on request; save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. What the tool gets wrong is touched up with Refine Edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
@@ -372,6 +372,11 @@ step, so Undo takes it back.
   with the arrow keys and Enter; Ctrl+Z and Ctrl+Y undo and redo in the editor.
 
 ### How the target size is reached
+
+The pixels are kept as they are by default (owner decision, 13 Nov 2026): a photo is only made
+smaller in pixels when its file size cannot be reached any other way, or when the user picks a
+smaller size. Settings saved before then held the old default of 1600 px, which is not carried
+over; a size the user picks is remembered as before.
 
 For JPG and WEBP the tool first tries top quality (0.92). If that is over the target it searches
 the quality (down to 0.4) for the best one that fits. Only when the lowest quality is still too

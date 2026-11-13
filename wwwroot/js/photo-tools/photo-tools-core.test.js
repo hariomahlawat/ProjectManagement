@@ -1528,3 +1528,30 @@ test('a fixed-shape crop works out its height from the whole-pixel width', () =>
 test('Edit photo caps the picture area at what every browser can draw', () => {
   assert.equal(tools.EDIT_MAX_AREA, 4096 * 4096);
 });
+
+// ----- Reduce size keeps the pixels (PR 8 of docs/ux/photo-tools-review-fixes.md) -----
+
+test('Reduce size keeps the pixels by default and drops the old saved 1600 px default', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const page = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'Pages', 'Tools', 'Photo', 'Index.cshtml'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, 'photo-tools-app.js'), 'utf8');
+  assert.match(page, /<option value="keep" selected>/);
+  assert.doesNotMatch(page, /<option value="longest:1600" selected>/);
+  assert.match(app, /version: SETTINGS_VERSION/);
+  assert.match(app, /saved\.version !== SETTINGS_VERSION && saved\.dimensions === OLD_DEFAULT_DIMENSIONS/);
+});
+
+test('with the pixels kept, a size is reached by quality first and pixels only when needed', async () => {
+  // 4000 × 3000 at about 1 byte a pixel: 0.92 quality is too big for 6 MB, a lower one fits.
+  const { encode, calls } = fakeEncoder(1);
+  const fits = await tools.encodeToTarget({ encode, lossy: true, width: 4000, height: 3000, targetBytes: 6000000 });
+  assert.equal(fits.reached, true);
+  assert.deepEqual([fits.width, fits.height], [4000, 3000], 'the pixels are kept');
+  assert.ok(calls.every(call => call.width === 4000));
+
+  // 100 KB cannot be reached at 4000 × 3000 even at the lowest quality: the pixels are made fewer.
+  const small = await tools.encodeToTarget({ encode, lossy: true, width: 4000, height: 3000, targetBytes: 100000 });
+  assert.equal(small.reached, true);
+  assert.ok(small.width < 4000);
+});

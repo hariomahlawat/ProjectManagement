@@ -94,4 +94,4 @@ fixes.
 | 5 | Wording and Signature: a Signature card (decision 1), one name for blurring, sentence case, plain hints for pixels and file types, copies counter | 8, Low (Wording) |
 | 6 | Docs and contract test: correct both docs, read scripts from the page, check the CSS, more patterns, move the PDF test | 9, Low (Docs, Contract test) |
 | 7 | Speed and shared code: coalesce brush moves, one-step Redo, cancel Reduce size between tries, shared open/drop/save/hold helpers in `photo-tools-canvas.js` | Low (Screens, Duplication) |
-| 8 | Reduce size keeps the pixels unless the size cannot be reached otherwise (decision 3) | — |
+| 8 | Built. Reduce size keeps the pixels unless the size cannot be reached otherwise (decision 3); the old saved default of 1600 px is not carried over | — |
