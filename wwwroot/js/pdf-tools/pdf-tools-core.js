@@ -1257,13 +1257,45 @@
 
   /**
    * True when the bytes after a possible inline-image EI look like content again (printable
-   * text and white space), not more binary image data, as pdf.js also checks.
+   * text and white space), not more binary image data, as pdf.js also checks. A literal string
+   * may hold any byte ("(é) Tj"), so its contents are skipped rather than checked; a hex string
+   * must hold only hex digits and white space.
    */
   function followedByText(bytes, from) {
-    const end = Math.min(bytes.length, from + 16);
-    for (let at = from; at < end; at += 1) {
+    const LOOK = 16; // bytes outside strings to check
+    const STRING_LIMIT = 4096; // a literal string longer than this is taken as text
+    let checked = 0;
+    let at = from;
+    while (at < bytes.length && checked < LOOK) {
       const c = bytes[at];
+      if (c === 40) { // ( literal string )
+        let depth = 1;
+        const stop = Math.min(bytes.length, at + 1 + STRING_LIMIT);
+        at += 1;
+        while (at < stop && depth > 0) {
+          if (bytes[at] === 92) { at += 2; continue; }
+          if (bytes[at] === 40) depth += 1;
+          else if (bytes[at] === 41) depth -= 1;
+          at += 1;
+        }
+        checked += 1;
+        continue;
+      }
+      if (c === 60 && bytes[at + 1] !== 60) { // <hex string>
+        at += 1;
+        while (at < bytes.length && bytes[at] !== 62) {
+          const h = bytes[at];
+          const hex = (h >= 48 && h <= 57) || (h >= 65 && h <= 70) || (h >= 97 && h <= 102);
+          if (!hex && !isWhiteByte(h)) return false;
+          at += 1;
+        }
+        at += 1;
+        checked += 1;
+        continue;
+      }
       if (!isWhiteByte(c) && (c < 32 || c > 126)) return false;
+      at += 1;
+      checked += 1;
     }
     return true;
   }
