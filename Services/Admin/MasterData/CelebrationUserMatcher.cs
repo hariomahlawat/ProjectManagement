@@ -39,6 +39,18 @@ public static class CelebrationUserMatcher
         return match;
     }
 
+    /// <summary>
+    /// Whether the name written on an entry shares a word with a person's name, leaving their
+    /// rank out ("Rajesh Sharma (Retd)" and "R Sharma" share "Sharma"). Weaker than
+    /// <see cref="Suggest"/>: used only together with the same date, to spot a possible duplicate.
+    /// </summary>
+    public static bool SharesNameWord(string? celebrationName, string? fullName, string? rank)
+    {
+        var person = Words(fullName);
+        person.ExceptWith(Words(rank));
+        return person.Count > 0 && person.Overlaps(Words(celebrationName));
+    }
+
     private static HashSet<string> Words(string? text) =>
         (text ?? string.Empty)
             .Split(Separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

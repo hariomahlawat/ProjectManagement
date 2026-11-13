@@ -166,6 +166,66 @@ public sealed class MyCelebrationServiceTests
         Assert.Null(item.SpouseName);
     }
 
+    // Adding is held back when the Calendar already has an entry on that date that may be mine.
+    [Fact]
+    public async Task AddingOnADateThatAlreadyHasAnEntrySharingMyName_AsksFirst_AndAddsNothing()
+    {
+        await using var db = CreateDb();
+        var (mine, admin) = Create(db);
+        // "Rajesh Sharma (Retd)" does not fit "Col R Sharma" as a name, so it is not offered up front.
+        var old = await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "Rajesh Sharma (Retd)", null, 13, 11, null, "admin"));
+        Assert.Null((await mine.GetAsync(Sharma)).Single(item => item.Type == CelebrationType.Birthday).Suggestion);
+
+        var held = await mine.SaveAsync(Sharma, CelebrationType.Birthday, 13, 11, null, null);
+        var matches = await mine.FindPossibleDuplicatesAsync(Sharma, CelebrationType.Birthday, 13, 11);
+
+        Assert.Equal(MyCelebrationService.PossibleDuplicateCode, held.ErrorCode);
+        Assert.Equal(1, await db.Celebrations.CountAsync());
+        Assert.Equal(old.Value, Assert.Single(matches).Id);
+    }
+
+    [Fact]
+    public async Task YesThatsMe_LinksThePossibleDuplicate_AndNoAddMine_AddsASecondEntry()
+    {
+        await using var db = CreateDb();
+        var (mine, admin) = Create(db);
+        var old = await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "Rajesh Sharma (Retd)", null, 13, 11, null, "admin"));
+        var oldAnniversary = await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Anniversary, "Sharma family, Pune", null, 2, 12, null, "admin"));
+
+        var claimed = await mine.ClaimAsync(Sharma, old.Value);
+        var addedAnyway = await mine.SaveAsync(Sharma, CelebrationType.Anniversary, 2, 12, null, null, addAnyway: true);
+
+        Assert.True(claimed.Succeeded);
+        Assert.Equal(Sharma, (await admin.GetAsync(old.Value))!.UserId);
+        Assert.True(addedAnyway.Succeeded);
+        Assert.Null((await admin.GetAsync(oldAnniversary.Value))!.UserId);
+        Assert.Equal(2, await db.Celebrations.CountAsync(item => item.EventType == CelebrationType.Anniversary));
+        // Once I have a birthday there is nothing more to ask about.
+        Assert.Empty(await mine.FindPossibleDuplicatesAsync(Sharma, CelebrationType.Birthday, 13, 11));
+    }
+
+    [Fact]
+    public async Task NotAPossibleDuplicate_AnotherDate_AnotherName_AnotherKind_OrClearlySomeoneElses()
+    {
+        await using var db = CreateDb();
+        db.Users.Add(new ApplicationUser { Id = "u-asharma", UserName = "asharma", Rank = "Maj", FullName = "Anil Sharma" });
+        await db.SaveChangesAsync();
+        var (mine, admin) = Create(db);
+        var otherDate = await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "Rajesh Sharma (Retd)", null, 14, 11, null, "admin"));
+        await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "Mrs Iyer", null, 13, 11, null, "admin"));
+        await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Anniversary, "Rajesh Sharma (Retd)", null, 13, 11, null, "admin"));
+        // Fits Maj Anil Sharma's account and no other: his, not mine, though we share a surname and a date.
+        var namesake = await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "Maj Anil Sharma", null, 13, 11, null, "admin"));
+        // Sharing only the rank is not sharing a name.
+        await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "Col Mehta", null, 13, 11, null, "admin"));
+
+        Assert.Empty(await mine.FindPossibleDuplicatesAsync(Sharma, CelebrationType.Birthday, 13, 11));
+        Assert.Equal("CelebrationNotSuggested", (await mine.ClaimAsync(Sharma, namesake.Value)).ErrorCode);
+        Assert.Equal("CelebrationNotSuggested", (await mine.ClaimAsync(Verma, otherDate.Value)).ErrorCode);
+        // Two people who share a birthday are simply both on the Calendar.
+        Assert.True((await mine.SaveAsync(Sharma, CelebrationType.Birthday, 13, 11, null, null)).Succeeded);
+    }
+
     [Fact]
     public async Task ICannotHaveTwoBirthdays_AndSavingNeverTouchesAnotherPersonsEntry()
     {

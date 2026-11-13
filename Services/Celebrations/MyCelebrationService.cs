@@ -36,7 +36,12 @@ public interface IMyCelebrationService
     /// <summary>Birthday then anniversary. Empty for an account that cannot be linked (service, test, disabled).</summary>
     Task<IReadOnlyList<MyCelebrationLine>> GetAsync(string userId, CancellationToken cancellationToken = default);
 
-    /// <summary>Adds the person's own entry, or changes the date on the one already linked to them.</summary>
+    /// <summary>
+    /// Adds the person's own entry, or changes the date on the one already linked to them. Adding
+    /// is refused with <see cref="PossibleDuplicateCode"/> when the Calendar already has an entry
+    /// that may be this person's (<see cref="FindPossibleDuplicatesAsync"/>), until they say it
+    /// is not them with <paramref name="addAnyway"/>.
+    /// </summary>
     Task<AdminOperationResult> SaveAsync(
         string userId,
         CelebrationType type,
@@ -44,6 +49,19 @@ public interface IMyCelebrationService
         byte month,
         short? year,
         string? spouseName,
+        CancellationToken cancellationToken = default,
+        bool addAnyway = false);
+
+    /// <summary>
+    /// Entries that may already be this person's when they add one on this date: not linked to
+    /// anyone, the same kind and the same day and month, sharing a word of the person's name, and
+    /// not clearly someone else's. Empty when the person already has an entry of this kind.
+    /// </summary>
+    Task<IReadOnlyList<MyCelebrationSuggestion>> FindPossibleDuplicatesAsync(
+        string userId,
+        CelebrationType type,
+        byte day,
+        byte month,
         CancellationToken cancellationToken = default);
 
     /// <summary>"Yes, that's me": links the entry PRISM suggested. Refuses any other entry.</summary>
@@ -55,6 +73,9 @@ public interface IMyCelebrationService
 
 public sealed class MyCelebrationService : IMyCelebrationService
 {
+    /// <summary>The error code when adding is held back because an entry may already be the person's.</summary>
+    public const string PossibleDuplicateCode = "CelebrationPossibleDuplicate";
+
     private static readonly CelebrationType[] Types = { CelebrationType.Birthday, CelebrationType.Anniversary };
 
     private readonly ApplicationDbContext _db;
@@ -110,7 +131,8 @@ public sealed class MyCelebrationService : IMyCelebrationService
         byte month,
         short? year,
         string? spouseName,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool addAnyway = false)
     {
         var lines = await GetAsync(userId, cancellationToken);
         var line = lines.FirstOrDefault(item => item.Type == type);
@@ -130,6 +152,14 @@ public sealed class MyCelebrationService : IMyCelebrationService
             return changed.Succeeded ? AdminOperationResult.Success(saved) : changed;
         }
 
+        if (!addAnyway && (await FindPossibleDuplicatesAsync(userId, type, day, month, cancellationToken)).Count > 0)
+        {
+            // Nothing is added yet: the person is first asked whether the existing entry is theirs.
+            return AdminOperationResult.Failure(
+                "The Calendar already has an entry on that date that may be yours.",
+                PossibleDuplicateCode);
+        }
+
         var user = await _db.Users.AsNoTracking()
             .Where(item => item.Id == userId)
             .Select(item => new { item.Rank, item.FullName, item.UserName })
@@ -146,7 +176,8 @@ public sealed class MyCelebrationService : IMyCelebrationService
     public async Task<AdminOperationResult> ClaimAsync(string userId, Guid celebrationId, CancellationToken cancellationToken = default)
     {
         var lines = await GetAsync(userId, cancellationToken);
-        if (lines.All(line => line.Suggestion?.Id != celebrationId))
+        if (lines.All(line => line.Suggestion?.Id != celebrationId)
+            && !await IsPossibleDuplicateAsync(userId, celebrationId, cancellationToken))
         {
             // Not the entry PRISM offered this person: it may be someone else's, or already linked.
             return AdminOperationResult.Failure("That entry can no longer be linked from here. Add your own instead.", "CelebrationNotSuggested");
@@ -174,6 +205,60 @@ public sealed class MyCelebrationService : IMyCelebrationService
         return result.Succeeded
             ? AdminOperationResult.Success("Unlinked. PRISM will no longer wish you on that day; the entry stays on the Calendar.")
             : result;
+    }
+
+    public async Task<IReadOnlyList<MyCelebrationSuggestion>> FindPossibleDuplicatesAsync(
+        string userId,
+        CelebrationType type,
+        byte day,
+        byte month,
+        CancellationToken cancellationToken = default)
+    {
+        var users = await _celebrations.ListLinkableUsersAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(userId) || users.All(user => user.Id != userId))
+        {
+            return Array.Empty<MyCelebrationSuggestion>();
+        }
+
+        var person = await _db.Users.AsNoTracking()
+            .Where(item => item.Id == userId)
+            .Select(item => new { item.Rank, item.FullName, item.UserName })
+            .SingleAsync(cancellationToken);
+        var personName = string.IsNullOrWhiteSpace(person.FullName) ? person.UserName : person.FullName;
+
+        var live = await _db.Celebrations.AsNoTracking()
+            .Where(item => item.DeletedUtc == null && item.EventType == type)
+            .OrderBy(item => item.Name)
+            .ToListAsync(cancellationToken);
+        if (live.Any(item => item.UserId == userId))
+        {
+            return Array.Empty<MyCelebrationSuggestion>();
+        }
+
+        var taken = live.Where(item => item.UserId != null).Select(item => item.UserId!).ToHashSet();
+        var free = users.Where(user => !taken.Contains(user.Id)).ToArray();
+        return live
+            .Where(item => item.Day == day
+                           && item.Month == month
+                           && !IsLinkedToSomeone(item, users)
+                           && CelebrationUserMatcher.SharesNameWord(item.Name, personName, person.Rank))
+            // An entry whose name clearly fits one other account is that person's, not a duplicate of mine.
+            .Where(item => CelebrationUserMatcher.Suggest(item.Name, free) is not { } fit || fit.Id == userId)
+            .Select(item => new MyCelebrationSuggestion(item.Id, item.Name, item.Day, item.Month))
+            .ToArray();
+    }
+
+    // The entry is a possible duplicate of this person's on its own date: the server-side rule
+    // behind "Yes, that's me" when the page asked about an entry on the date they typed.
+    private async Task<bool> IsPossibleDuplicateAsync(string userId, Guid celebrationId, CancellationToken cancellationToken)
+    {
+        var entry = await _db.Celebrations.AsNoTracking()
+            .Where(item => item.Id == celebrationId && item.DeletedUtc == null)
+            .Select(item => new { item.EventType, item.Day, item.Month })
+            .SingleOrDefaultAsync(cancellationToken);
+        return entry is not null
+               && (await FindPossibleDuplicatesAsync(userId, entry.EventType, entry.Day, entry.Month, cancellationToken))
+               .Any(item => item.Id == celebrationId);
     }
 
     // An id whose account has gone, or can no longer sign in, reads as not linked.
