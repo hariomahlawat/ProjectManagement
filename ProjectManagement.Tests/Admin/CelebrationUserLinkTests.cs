@@ -144,6 +144,33 @@ public sealed class CelebrationUserLinkTests
         Assert.Equal((byte)9, item.Day);
     }
 
+    // Linking writes the account and nothing else, so it cannot undo a correction saved meanwhile.
+    [Fact]
+    public async Task Link_ChangesOnlyTheAccount_AndRefusesWhatSaveRefuses()
+    {
+        await using var db = CreateDb();
+        AddUser(db, "u-verma", "Maj", "S Verma");
+        AddUser(db, "u-disabled", "Maj", "A Rao").IsDisabled = true;
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+        var first = await service.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "Maj S Verma", null, 9, 2, null, Actor));
+        var second = await service.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "S Verma", null, 10, 2, null, Actor));
+
+        // Someone corrects the date after the list was shown; the link must not put the old date back.
+        await service.SaveAsync(new CelebrationSaveCommand(first.Value, CelebrationType.Birthday, "Maj S Verma", null, 19, 2, null, Actor));
+        var linked = await service.LinkAsync(first.Value, "u-verma", Actor);
+        var clash = await service.LinkAsync(second.Value, "u-verma", Actor);
+        var disabled = await service.LinkAsync(second.Value, "u-disabled", Actor);
+        var missing = await service.LinkAsync(Guid.NewGuid(), "u-verma", Actor);
+
+        Assert.True(linked.Succeeded);
+        Assert.Equal((byte)19, (await service.GetAsync(first.Value))!.Day);
+        Assert.Equal("CelebrationUserAlreadyLinked", clash.ErrorCode);
+        Assert.Equal("CelebrationUserNotFound", disabled.ErrorCode);
+        Assert.Equal("CelebrationNotFound", missing.ErrorCode);
+        Assert.Null((await service.GetAsync(second.Value))!.UserId);
+    }
+
     [Fact]
     public async Task AnAccountThatCanNoLongerSignIn_ReadsAsNotLinked()
     {

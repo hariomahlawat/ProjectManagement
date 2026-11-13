@@ -257,17 +257,83 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         string actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var item = await GetAsync(id, cancellationToken);
-        if (item is null || string.IsNullOrWhiteSpace(userId))
+        // Only the account changes: the entry is read and written here, so a correction someone
+        // else saved a moment ago to its name or date is never written back over.
+        var entity = await _db.Celebrations.SingleOrDefaultAsync(
+            item => item.Id == id && item.DeletedUtc == null,
+            cancellationToken);
+        var linkedUserId = string.IsNullOrWhiteSpace(userId) ? null : userId.Trim();
+        if (entity is null || linkedUserId is null)
         {
             return AdminOperationResult.Failure("The celebration could not be found.", "CelebrationNotFound");
         }
 
-        var result = await SaveAsync(new CelebrationSaveCommand(
-            item.Id, item.EventType, item.Name, item.SpouseName, item.Day, item.Month, item.Year, actorUserId, userId), cancellationToken);
-        return result.Succeeded
-            ? AdminOperationResult.Success("Linked to the account.")
-            : AdminOperationResult.Failure(result.UserMessage ?? "The celebration could not be linked.", result.ErrorCode);
+        var refusal = await CheckLinkAsync(linkedUserId, entity.EventType, entity.Id, cancellationToken);
+        if (refusal is not null)
+        {
+            return AdminOperationResult.Failure(refusal.Value.Message, refusal.Value.Code);
+        }
+
+        var before = Snapshot(entity);
+        entity.UserId = linkedUserId;
+        entity.UpdatedUtc = _time.UtcNow;
+
+        try
+        {
+            await using var transaction = _db.Database.IsRelational()
+                ? await _db.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+            await _db.SaveChangesAsync(cancellationToken);
+            await _audit.RecordAsync(new AdminAuditEntry(
+                "CelebrationUpdated",
+                nameof(Celebration),
+                entity.Id.ToString(),
+                Before: before,
+                After: Snapshot(entity),
+                ActorUserId: actorUserId,
+                Origin: "Admin.MasterData.Celebrations",
+                Message: $"Linked {Label(entity.EventType).ToLowerInvariant()} entry '{CelebrationHelpers.DisplayName(entity)}' to an account."), cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            return AdminOperationResult.Success("Linked to the account.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Celebration link failed for {CelebrationId}.", id);
+            return AdminOperationResult.Failure("The celebration could not be linked.", "CelebrationLinkFailed");
+        }
+    }
+
+    // Null when the account can be linked to a celebration of this type; otherwise why not.
+    private async Task<(string Message, string Code)?> CheckLinkAsync(
+        string userId,
+        CelebrationType eventType,
+        Guid? celebrationId,
+        CancellationToken cancellationToken)
+    {
+        var canLink = await _db.Users.AsNoTracking().AnyAsync(
+            user => user.Id == userId
+                    && user.AccountKind == UserAccountKind.Human
+                    && !user.IsDisabled
+                    && !user.PendingDeletion,
+            cancellationToken);
+        if (!canLink)
+        {
+            return ("Choose an account from the list.", "CelebrationUserNotFound");
+        }
+
+        var alreadyLinked = await _db.Celebrations.AsNoTracking().AnyAsync(
+            item => item.DeletedUtc == null
+                    && item.UserId == userId
+                    && item.EventType == eventType
+                    && (celebrationId == null || item.Id != celebrationId),
+            cancellationToken);
+        return alreadyLinked
+            ? ($"This account already has {(eventType == CelebrationType.Anniversary ? "an anniversary" : "a birthday")} linked to it.", "CelebrationUserAlreadyLinked")
+            : null;
     }
 
     public async Task<AdminOperationResult<Guid>> SaveAsync(
@@ -308,28 +374,10 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         var linkedUserId = string.IsNullOrWhiteSpace(command.UserId) ? null : command.UserId.Trim();
         if (linkedUserId is not null)
         {
-            var canLink = await _db.Users.AsNoTracking().AnyAsync(
-                user => user.Id == linkedUserId
-                        && user.AccountKind == UserAccountKind.Human
-                        && !user.IsDisabled
-                        && !user.PendingDeletion,
-                cancellationToken);
-            if (!canLink)
+            var refusal = await CheckLinkAsync(linkedUserId, command.EventType, command.Id, cancellationToken);
+            if (refusal is not null)
             {
-                return AdminOperationResult<Guid>.Failure("Choose an account from the list.", "CelebrationUserNotFound");
-            }
-
-            var alreadyLinked = await _db.Celebrations.AsNoTracking().AnyAsync(
-                item => item.DeletedUtc == null
-                        && item.UserId == linkedUserId
-                        && item.EventType == command.EventType
-                        && (command.Id == null || item.Id != command.Id),
-                cancellationToken);
-            if (alreadyLinked)
-            {
-                return AdminOperationResult<Guid>.Failure(
-                    $"This account already has {(command.EventType == CelebrationType.Anniversary ? "an anniversary" : "a birthday")} linked to it.",
-                    "CelebrationUserAlreadyLinked");
+                return AdminOperationResult<Guid>.Failure(refusal.Value.Message, refusal.Value.Code);
             }
         }
 
