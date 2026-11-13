@@ -148,8 +148,78 @@
     return Boolean(event) && event.detail > 1;
   }
 
+  const UNSUPPORTED = 'Only JPG, PNG and WEBP photos can be used here. iPhone HEIC photos are not supported.';
+
+  /**
+   * Opens photos for one tool, where only the photo chosen last counts. open(file) gives the
+   * photo, or null when the file is not a JPG, PNG or WEBP or could not be opened (the error is
+   * shown) or when a later choice took over while it opened (it is closed at once). cancel()
+   * is for a photo handed over another way, so one still opening does not replace it.
+   */
+  function latestPhotoOpener() {
+    let run = 0;
+    return Object.freeze({
+      async open(file) {
+        clearError();
+        if (!file) return null;
+        if (!core.isSupportedPhoto(file.type, file.name)) {
+          showError(UNSUPPORTED);
+          return null;
+        }
+        const mine = ++run;
+        let photo;
+        try {
+          photo = await openPhoto(file);
+        } catch (error) {
+          if (mine === run) {
+            showError(error instanceof core.PhotoToolError ? error.message : 'This photo could not be opened.');
+          }
+          return null;
+        }
+        if (mine !== run) {
+          if (typeof photo.close === 'function') photo.close();
+          return null;
+        }
+        return photo;
+      },
+      cancel() {
+        run += 1;
+      }
+    });
+  }
+
+  /** Drop areas: they light up while files are dragged over and hand the dropped files on. */
+  function wireDropZones(zones, onFiles) {
+    for (const zone of zones) {
+      zone.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        zone.classList.add('is-dragging');
+      });
+      zone.addEventListener('dragleave', () => zone.classList.remove('is-dragging'));
+      zone.addEventListener('drop', (event) => {
+        event.preventDefault();
+        zone.classList.remove('is-dragging');
+        onFiles(Array.from(event.dataTransfer?.files || []));
+      });
+    }
+  }
+
+  /**
+   * A "hold to see the original" button: onHold(true) while it is pressed with a pointer, Space
+   * or Enter, onHold(false) when it is let go, left or loses the focus.
+   */
+  function wireHoldButton(button, onHold) {
+    button.addEventListener('pointerdown', () => onHold(true));
+    button.addEventListener('keydown', (event) => {
+      if (event.key === ' ' || event.key === 'Enter') onHold(true);
+    });
+    for (const type of ['pointerup', 'pointerleave', 'pointercancel', 'blur', 'keyup']) {
+      button.addEventListener(type, () => onHold(false));
+    }
+  }
+
   window.PrismPhotoCanvas = Object.freeze({
     showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, canvasToBytes,
-    isMainPointer, isRepeatClick
+    isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton
   });
 })();
