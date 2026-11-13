@@ -80,6 +80,17 @@ public sealed class PdfToolsPageContractTests
         }
     }
 
+    [Fact]
+    public void PdfTools_LoadsTheSharedZipWriterBeforeItsCore()
+    {
+        var page = File.ReadAllText(Path.Combine(FindProjectRoot(), "Pages", "Tools", "Pdf", "Index.cshtml"));
+
+        var zip = page.IndexOf("~/js/tools-shared/zip-writer.js", StringComparison.Ordinal);
+        var core = page.IndexOf("~/js/pdf-tools/pdf-tools-core.js", StringComparison.Ordinal);
+
+        Assert.True(zip >= 0 && zip < core, "PDF Tools needs the shared ZIP writer loaded before pdf-tools-core.js.");
+    }
+
     private static string FindProjectRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

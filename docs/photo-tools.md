@@ -29,14 +29,17 @@ describes what is built.
   open it in place of the page and lose the work on every screen (as in PDF Tools).
 
 `ProjectManagement.Tests/Tools/PhotoToolsPageContractTests.cs` guards these points: sign-in
-required, no handler other than `OnGet`, no form, all assets local, no network calls in any
-script but `photo-tools-background.js`, and that one only to the two Remove background
-endpoints.
+required, no handler other than `OnGet`, no form, every asset the page names ships in `wwwroot`,
+no outside address in the page or its stylesheets (no `@import`, no outside `url()`), and no
+network call (`fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource`, `import()`,
+`importScripts`, `new Worker`) in any script the page loads, read from the page itself, but
+`photo-tools-background.js`, and that one only to the two Remove background endpoints.
 
 ## Offline deployment
 
-No third-party library is used. The page loads Bootstrap, Bootstrap Icons and the Mulish font
-that already ship in `wwwroot`, and its own scripts. No CDN or Internet access is needed.
+The one third-party library is pdf-lib 1.17.1, for the Print sheet PDF; it is the copy PDF Tools
+already ships in `wwwroot/lib/pdf-lib`. The page also loads Bootstrap, Bootstrap Icons and the
+Mulish font that ship in `wwwroot`, and its own scripts. No CDN or Internet access is needed.
 
 The site's Content-Security-Policy already allows what the page needs: `script-src 'self'` for
 its scripts and `img-src 'self' data: blob:` for the photo previews.
@@ -53,10 +56,10 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Cover, Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
 
 Every step of the first build plan ([ux/photo-tools.md](ux/photo-tools.md)) is done, including
-the review of phones, the Dark theme and the keyboard across all screens. A follow-up plan
-([ux/photo-tools-print-background.md](ux/photo-tools-print-background.md)) is being built: the
-Print sheet tool, its PDF download and the background colour change for passport photos. It is
-done too.
+the review of phones, the Dark theme and the keyboard across all screens. So is the follow-up plan
+([ux/photo-tools-print-background.md](ux/photo-tools-print-background.md)): the Print sheet tool,
+its PDF download and the background colour change for passport photos. The fixes from the review
+of 13 Nov 2026 are planned in [ux/photo-tools-review-fixes.md](ux/photo-tools-review-fixes.md).
 
 ### How a passport photo is made
 

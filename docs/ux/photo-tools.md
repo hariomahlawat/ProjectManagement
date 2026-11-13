@@ -6,7 +6,10 @@ from or saves to a PRISM record. The user opens a photo from their computer, cha
 downloads the result.
 
 This document records the owner direction of 11 Nov 2026 and the build plan, which is complete.
-What is built is described in [../photo-tools.md](../photo-tools.md). A follow-up plan for the
+It is kept as history: where it and the code differ, [../photo-tools.md](../photo-tools.md)
+describes what is built. Known differences: the home screen has six tools, not three; a PNG
+that cannot reach a size is made smaller in pixels, not offered as JPG; large photos open
+without a confirmation; and the page has no partials. A follow-up plan for the
 print sheet and a background colour change is in
 [photo-tools-print-background.md](photo-tools-print-background.md); it replaces the "white
 background left out" assumption below.
