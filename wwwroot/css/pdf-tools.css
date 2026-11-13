@@ -168,6 +168,7 @@
 .pdft-accent--blue { --pdft-accent: var(--bs-blue); }
 .pdft-accent--indigo { --pdft-accent: var(--bs-indigo); }
 .pdft-accent--purple { --pdft-accent: var(--bs-purple); }
+.pdft-accent--teal { --pdft-accent: var(--bs-teal); }
 
 .pdft-footnote {
     margin-top: 2rem;
@@ -476,7 +477,83 @@
     border: 1px solid var(--pdft-border);
 }
 
+/* ---------- Reduce size ---------- */
+
+.pdft-compress-about,
+.pdft-compress-outcome {
+    margin: 0 0 1rem;
+    color: var(--pdft-muted);
+}
+
+.pdft-compress-outcome {
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid var(--pdft-border);
+    background: var(--pdft-surface);
+    color: var(--bs-body-color);
+}
+
+.pdft-compress-outcome:focus {
+    outline: none;
+}
+
+.pdft-presets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.75rem;
+}
+
+/* A preset is a large choice card; the radio inside keeps it a native, keyboard-friendly control. */
+.pdft-preset {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-height: 44px;
+    padding: 0.8rem 0.9rem 0.8rem 2.6rem;
+    border: 2px solid var(--pdft-border);
+    border-radius: 10px;
+    background: var(--pdft-surface);
+    cursor: pointer;
+}
+
+.pdft-preset:has(.pdft-preset__input:checked) {
+    border-color: var(--bs-primary);
+    background: color-mix(in srgb, var(--bs-primary) 6%, var(--pdft-surface));
+}
+
+.pdft-preset:has(.pdft-preset__input:focus-visible) {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.pdft-preset__input {
+    position: absolute;
+    top: 0.95rem;
+    left: 0.9rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    margin: 0;
+    accent-color: var(--bs-primary);
+}
+
+.pdft-preset__title {
+    font-weight: 700;
+}
+
+.pdft-preset__note {
+    color: var(--pdft-muted);
+    font-size: 0.9rem;
+}
+
 /* ---------- Result ---------- */
+
+.pdft-result__detail {
+    max-width: 36rem;
+    margin: 0;
+    text-align: center;
+    color: var(--pdft-muted);
+}
 
 .pdft-result__warning {
     max-width: 36rem;

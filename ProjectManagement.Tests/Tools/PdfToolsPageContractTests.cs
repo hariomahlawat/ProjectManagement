@@ -36,9 +36,16 @@ public sealed class PdfToolsPageContractTests
     {
         var root = FindProjectRoot();
         var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Pdf", "Index.cshtml"));
-        var scripts = new[] { "pdf-tools-core.js", "pdf-tools-app.js", "pdf-tools-annotate.js" }
+        var scriptNames = new[] { "pdf-tools-core.js", "pdf-tools-app.js", "pdf-tools-annotate.js", "pdf-tools-compress.js" };
+        var scripts = scriptNames
             .Select(name => File.ReadAllText(Path.Combine(root, "wwwroot", "js", "pdf-tools", name)))
             .ToArray();
+
+        // Every script checked here is one the page loads, from the application itself.
+        foreach (var name in scriptNames)
+        {
+            Assert.Contains($"src=\"~/js/pdf-tools/{name}\"", page, StringComparison.Ordinal);
+        }
 
         Assert.DoesNotMatch(new Regex(@"(src|href)\s*=\s*""(https?:)?//", RegexOptions.IgnoreCase), page);
         Assert.DoesNotContain("<form method=\"post\"", page, StringComparison.OrdinalIgnoreCase);

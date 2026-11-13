@@ -113,11 +113,14 @@
       busy = false;
       // Shown once the page is back: an alert written inside the inert page may not be read out.
       if (failure) showError(failure);
-      // The page was inert, which takes the focus away; give it where it was asked for, or back.
-      const target = focusAfterBusy || (canFocus(before) ? before : null);
+      // Focus asked for during the work is always given (the screen changed); otherwise the
+      // focus goes back to where it was if the inert page took it away.
+      const asked = focusAfterBusy;
       focusAfterBusy = null;
-      if (target && (document.activeElement === document.body || !canFocus(document.activeElement))) {
-        target.focus({ preventScroll: true });
+      if (asked && canFocus(asked)) {
+        asked.focus({ preventScroll: true });
+      } else if (canFocus(before) && (document.activeElement === document.body || !canFocus(document.activeElement))) {
+        before.focus({ preventScroll: true });
       }
     }
   }
@@ -320,6 +323,7 @@
     const resultName = $('[data-result-name]', result);
     const resultPreview = $('[data-result-preview]', result);
     const resultWarning = $('[data-result-warning]', result);
+    const resultDetail = $('[data-result-detail]', result);
     const resultHeading = $('h2', result);
     if (resultHeading) resultHeading.tabIndex = -1;
     let output = null;
@@ -345,8 +349,11 @@
         onReset?.();
         moveFocus($('[data-action="choose-files"]', drop));
       },
-      /** Shows the finished file and downloads it. `warning` is something the user should know about it. */
-      async finish(bytesOrBlob, fileName, mime, { warning } = {}) {
+      /**
+       * Shows the finished file and downloads it. `detail` says what was done; `warning` is
+       * something the user should know about the file.
+       */
+      async finish(bytesOrBlob, fileName, mime, { warning, detail } = {}) {
         const blob = bytesOrBlob instanceof Blob ? bytesOrBlob : new Blob([bytesOrBlob], { type: mime });
         output = { blob, fileName };
         workspace.hidden = true;
@@ -355,6 +362,10 @@
         if (resultWarning) {
           resultWarning.textContent = warning || '';
           resultWarning.hidden = !warning;
+        }
+        if (resultDetail) {
+          resultDetail.textContent = detail || '';
+          resultDetail.hidden = !detail;
         }
         // "Your file is ready" is read out, and the next Tab reaches Download.
         moveFocus(resultHeading);
@@ -1118,6 +1129,8 @@
     $$,
     askConfirm,
     moveFocus,
+    fileSummary,
+    formatBytes,
     createTool,
     withBusy,
     showError,
