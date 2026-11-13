@@ -1258,7 +1258,7 @@
   /**
    * True when the bytes after a possible inline-image EI look like content again (printable
    * text and white space), not more binary image data, as pdf.js also checks. A literal string
-   * may hold any byte ("(é) Tj"), so its contents are skipped rather than checked; a hex string
+   * or a comment may hold any byte ("(é) Tj"), so its contents are skipped rather than checked; a hex string
    * must hold only hex digits and white space.
    */
   function followedByText(bytes, from) {
@@ -1278,6 +1278,11 @@
           else if (bytes[at] === 41) depth -= 1;
           at += 1;
         }
+        checked += 1;
+        continue;
+      }
+      if (c === 37) { // % comment, to the end of the line, may hold any byte
+        while (at < bytes.length && bytes[at] !== 10 && bytes[at] !== 13) at += 1;
         checked += 1;
         continue;
       }
