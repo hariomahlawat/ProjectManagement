@@ -183,9 +183,23 @@
       useThePage();
       return { promise, stop: () => fallback?.stop() };
     }
-    const end = () => { worker?.terminate(); worker = null; };
+    // A worker that dies without a word (the browser ends it when it runs out of memory) would
+    // leave "Working…" up. The worker says it is alive every few seconds; after a long silence the
+    // work ends and the screen says so.
+    let watchdog = 0;
+    const SILENCE_MS = 90000;
+    const listen = () => {
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => {
+        end();
+        fail(new core.PdfToolError('worker-silent', 'The work stopped without finishing; the file may be too large for this computer. No file was made.'));
+      }, SILENCE_MS);
+    };
+    const end = () => { clearTimeout(watchdog); worker?.terminate(); worker = null; };
     worker.onmessage = (event) => {
+      listen();
       const message = event.data || {};
+      if (message.type === 'alive') return;
       if (message.type === 'progress') {
         started = true;
         onProgress(message);
@@ -211,6 +225,7 @@
     // The page keeps its own copy, for the before-and-after preview.
     const copy = bytes.slice();
     worker.postMessage({ type: 'reduce', scripts: workerScripts(), bytes: copy, ...options }, [copy.buffer]);
+    listen();
     return {
       promise,
       stop() {
@@ -261,9 +276,12 @@
   function resultWarning(after, report) {
     const warnings = [];
     if (report.target && !report.target.reached) {
+      const kept = report.target.keptSize
+        ? ` ${plural(report.target.keptSize, ['picture keeps its own size', 'pictures keep their own size'])}, because where ${report.target.keptSize === 1 ? 'it is' : 'they are'} shown could not be read.`
+        : '';
       warnings.push(report.target.atLowest
-        ? `This is the smallest this tool can make it: ${ui.formatBytes(after)}, which is over ${limitWords}. Pictures are already at ${report.target.dpi} dpi, the lowest it goes. Splitting the PDF into parts may help.`
-        : `This could not be made smaller than ${ui.formatBytes(after)}, which is over ${limitWords}. Splitting the PDF into parts may help.`);
+        ? `This is the smallest this tool can make it: ${ui.formatBytes(after)}, which is over ${limitWords}. Pictures are at ${report.target.dpi} dpi, the lowest it goes.${kept} Splitting the PDF into parts may help.`
+        : `This could not be made smaller than ${ui.formatBytes(after)}, which is over ${limitWords}.${kept} Splitting the PDF into parts may help.`);
     }
     if (report.pdfA) {
       warnings.push('This file said it was PDF/A. After the change it may no longer meet PDF/A, so check before sending it where PDF/A is required.');

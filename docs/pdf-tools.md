@@ -121,8 +121,9 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
 
 - **Before any work** the file is read once (`describePdf`): pages, size, and how much of it is
   pictures. A file whose pictures are under a quarter of it is told it may not get much smaller.
-  A signed PDF (a signature field with a value, or `/Perms`) is refused on opening
-  (`isSignedPdf`), as an encrypted one is.
+  A signed PDF (a signature field with a value, found through the form's field list or through a
+  widget on a page and its parents; `/Perms`; or the AppendOnly bit of `/SigFlags`) is refused on
+  opening (`isSignedPdf`), as an encrypted one is. An empty signature field alone is not refused.
 - **The file is changed in place,** never rebuilt page by page, so bookmarks, page labels, tags,
   metadata, links and form fields stay as they were.
 - **Lossless clean-up.** Identical streams, fonts, font descriptors and graphics states are stored
@@ -172,13 +173,18 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
   pictures being re-saved takes; the rest is the pictures' budget. `searchReduceSettings` then
   tries the preset, then searches the quality (down to 0.35) at the preset's resolution, and only
   when that is still too big steps the resolution down (by the square root of the shortfall,
-  never below 72 dpi) and searches again. Each try re-saves every picture without putting it in
-  the file; the best-looking try that fits is used, or the smallest one when nothing fits. The
+  never below 72 dpi) and searches again. It always reaches 72 dpi before giving up, and goes
+  straight there when a step down saved less than 2% (most pictures keep their size). When the
+  rest of the file is already over the size, there is no budget to search: the lowest settings
+  are tried once. Each try re-saves every picture without putting it in the file; only the
+  best fit and the smallest try so far keep their pictures, the others are let go at once. The
+  best-looking try that fits is used, or the smallest one when nothing fits. The
   budget is an estimate (a new picture's dictionary and the file's tables add a little), so the
   saved file is checked against the target; when it is over, the overshoot comes off the budget
   and the search runs again, reusing the settings already tried (up to four rounds). The result
   says it is under the size, with the resolution and quality used, or says in amber that it could
-  not be made smaller, naming 72 dpi as the lowest only when that is where the search ended.
+  not be made smaller, naming 72 dpi as the lowest only when that is where the search ended, and
+  saying how many pictures keep their own size because where they are shown could not be read.
   The size and its unit are remembered in this browser only (`localStorage`,
   `prism.pdfTools.reduce`).
 - **In the background.** The work runs in a worker (`pdf-tools-compress-worker.js`), so a large
@@ -188,7 +194,9 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
   page. Pictures are re-encoded with `OffscreenCanvas` (`pdf-tools-encode.js`, shared with the
   page). A browser without workers or `OffscreenCanvas`, or a worker that cannot start, does the
   same work on the page instead; the result is the same file. The worker is a script file on this
-  site, as the Content-Security-Policy (`script-src 'self'`, no `worker-src`) requires.
+  site, as the Content-Security-Policy (`script-src 'self'`, no `worker-src`) requires. The
+  worker says it is alive every 5 seconds; a worker the browser ends without a word (out of
+  memory) is noticed after 90 seconds of silence, and the screen says no file was made.
 - **Stop.** While the work runs, the "Working…" box has a Stop button (outside the inert page, and
   given the focus). It ends the worker at once, or, on the page, stops between pictures
   (`signal`). No file is made, and the screen says so.

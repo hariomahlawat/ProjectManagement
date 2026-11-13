@@ -2024,6 +2024,26 @@
     const catalog = document.catalog;
     if (catalog.lookupMaybe(PDFName.of('Perms'), PDFDict)) return true;
     const form = catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict);
+    // SigFlags bit 2 (AppendOnly): the file holds signatures that a rewrite would break.
+    const flags = form ? form.lookup(PDFName.of('SigFlags')) : undefined;
+    if (flags instanceof PDFLib.PDFNumber && (flags.asNumber() & 2)) return true;
+    // A signature widget on a page counts even when the form's field list leaves it out: its
+    // field (the widget, or a parent reached through /Parent) is a signature with a value.
+    for (const page of document.getPages()) {
+      const annots = page.node.Annots();
+      for (const ref of annots ? annots.asArray() : []) {
+        let node = ref instanceof PDFRef ? document.context.lookup(ref) : ref;
+        let type;
+        let value;
+        for (let depth = 0; node instanceof PDFDict && depth < 32; depth += 1) {
+          if (type === undefined && node.get(PDFName.of('FT'))) type = String(node.get(PDFName.of('FT')));
+          if (value === undefined && node.get(PDFName.of('V'))) value = node.get(PDFName.of('V'));
+          const parent = node.get(PDFName.of('Parent'));
+          node = parent instanceof PDFRef ? document.context.lookup(parent) : undefined;
+        }
+        if (type === '/Sig' && value) return true;
+      }
+    }
     const fields = form ? form.lookupMaybe(PDFName.of('Fields'), PDFArray) : undefined;
     if (!fields) return false;
     const seen = new Set();
@@ -2197,38 +2217,75 @@
    * with its total `bytes`. The quality is searched first at the starting resolution; only when the
    * lowest quality is still too big is the resolution stepped down, never below `minDpi`.
    * Resolves to the chosen attempt with `reached`; when nothing fits, the smallest one tried.
+   *
+   * The resolution always reaches `minDpi` before the search gives up. When lowering it no longer
+   * makes the pictures clearly smaller (most of them keep their size), it goes straight there.
+   * With `release(attempt)`, an attempt that can no longer be chosen is handed back as soon as
+   * it is passed over, so only the best fit and the smallest so far hold their pictures.
+   * A budget of 0 or less cannot be met: the lowest settings are tried once, not searched.
    */
-  async function searchReduceSettings({ dpi, quality, budget, measure, minDpi = REDUCE_MIN_DPI, lowestQuality = REDUCE_LOWEST_QUALITY }) {
+  async function searchReduceSettings({ dpi, quality, budget, measure, release, minDpi = REDUCE_MIN_DPI, lowestQuality = REDUCE_LOWEST_QUALITY }) {
+    const lowest = Math.min(quality, lowestQuality);
+    if (!(budget > 0)) {
+      return { ...(await measure(minDpi, lowest)), reached: false };
+    }
     let smallest = null;
-    const keep = (attempt) => {
+    let found = null;
+    const measured = [];
+    // Hands back every attempt that is neither the smallest nor the best fit.
+    const tidy = () => {
+      for (let i = measured.length - 1; i >= 0; i -= 1) {
+        const item = measured[i];
+        if (item !== smallest && item !== found) {
+          release?.(item);
+          measured.splice(i, 1);
+        }
+      }
+    };
+    const keep = async (atDpi, atQuality) => {
+      const attempt = await measure(atDpi, atQuality);
+      if (!measured.includes(attempt)) measured.push(attempt);
       if (!smallest || attempt.bytes < smallest.bytes) smallest = attempt;
       return attempt;
     };
     let current = dpi;
-    for (let round = 0; round < 8; round += 1) {
-      const top = keep(await measure(current, quality));
-      if (top.bytes <= budget) return { ...top, reached: true };
-      const floor = keep(await measure(current, Math.min(quality, lowestQuality)));
+    let previousFloor = null;
+    for (;;) {
+      const top = await keep(current, quality);
+      if (top.bytes <= budget) {
+        found = top;
+        smallest = top; // a fit is found: nothing else can be chosen
+        tidy();
+        return { ...top, reached: true };
+      }
+      const floor = await keep(current, lowest);
       if (floor.bytes <= budget) {
-        let found = floor;
-        let low = Math.min(quality, lowestQuality);
+        found = floor;
+        let low = lowest;
         let high = quality;
         for (let step = 0; step < 4; step += 1) {
           const middle = (low + high) / 2;
-          const attempt = keep(await measure(current, middle));
+          const attempt = await keep(current, middle);
           if (attempt.bytes <= budget) {
             found = attempt;
             low = middle;
           } else {
             high = middle;
           }
+          tidy();
         }
+        smallest = found; // a fit is found: nothing else can be chosen
+        tidy();
         return { ...found, reached: true };
       }
+      tidy();
       if (current <= minDpi) break;
-      // Picture size follows the pixel count, so aim a little under with the square root.
-      const scale = budget > 0 ? Math.sqrt(budget / floor.bytes) * 0.95 : 0;
-      current = Math.max(minDpi, Math.round(current * Math.min(0.9, Math.max(0.5, scale))));
+      // Picture size follows the pixel count, so aim a little under with the square root. When
+      // the last step barely helped, the pictures that shrink are a small part: go to the lowest.
+      const stalled = previousFloor && floor.bytes > previousFloor * 0.98;
+      const scale = Math.sqrt(budget / floor.bytes) * 0.95;
+      current = stalled ? minDpi : Math.max(minDpi, Math.round(current * Math.min(0.9, Math.max(0.5, scale))));
+      previousFloor = floor.bytes;
     }
     return { ...smallest, reached: false };
   }
@@ -2290,14 +2347,20 @@
     // Each setting is re-saved once; the search may ask for it again.
     const attempts = new Map();
 
-    /** Re-saves every picture at one resolution and quality. Nothing is put in the file yet. */
+    /**
+     * Re-saves every picture at one resolution and quality. Nothing is put in the file yet. An
+     * attempt the search has passed over gives back its pictures (`release`); asked for again, it
+     * is re-saved.
+     */
     const attempt = async (dpi, quality) => {
       const key = `${dpi}|${quality}`;
-      if (attempts.has(key)) return attempts.get(key);
+      const cached = attempts.get(key);
+      if (cached && cached.chosen) return cached;
       const made = await resaveAll(dpi, quality);
       attempts.set(key, made);
       return made;
     };
+    const release = (item) => { item.chosen = null; };
 
     const resaveAll = async (dpi, quality) => {
       step += 1;
@@ -2397,7 +2460,7 @@
       const fixedBytes = (await save(document)).length - work.reduce((sum, image) => sum + image.size, 0);
       let budget = targetBytes - fixedBytes;
       for (let round = 0; round < 4; round += 1) {
-        result = await searchReduceSettings({ dpi: preset.dpi, quality: preset.quality, budget, measure: attempt });
+        result = await searchReduceSettings({ dpi: preset.dpi, quality: preset.quality, budget, measure: attempt, release });
         stopIfCancelled();
         output = await saveWith(result.chosen);
         if (output.length <= targetBytes || !result.reached) break;
@@ -2439,7 +2502,9 @@
         dpi: result.dpi,
         quality: result.quality,
         // Missed with the lowest settings this tool uses, not for want of trying them.
-        atLowest: result.dpi <= REDUCE_MIN_DPI
+        atLowest: result.dpi <= REDUCE_MIN_DPI,
+        // Pictures whose shown size could not be read keep their own size at any resolution.
+        keptSize: work.filter((image) => !image.use).length
       };
     }
     if (output.length >= bytes.length) {
