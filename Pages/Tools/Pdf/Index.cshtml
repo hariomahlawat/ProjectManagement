@@ -443,6 +443,7 @@
             <partial name="_PdfToolHeader" model="@(("pdftAnnotateTitle", "Sign & annotate", "Pick a tool, then click on a page to place it. Drag to move, use the corner handle to resize."))" />
             <partial name="_PdfToolDrop" model="@(("Choose a PDF file", "or drop a PDF here", "application/pdf,.pdf", false))" />
             <div class="pdft-workspace" data-workspace hidden>
+                <div class="pdft-file" data-file-summary></div>
                 <div class="pdft-toolbar pdft-toolbar--sticky" role="toolbar" aria-label="Annotation tools">
                     <div class="btn-group" role="group" aria-label="Tool">
                         <button type="button" class="btn btn-outline-secondary btn-sm" data-annotate-tool="select" aria-pressed="true" title="Select and move"><i class="bi bi-cursor" aria-hidden="true"></i><span class="pdft-hide-sm"> Select</span></button>
