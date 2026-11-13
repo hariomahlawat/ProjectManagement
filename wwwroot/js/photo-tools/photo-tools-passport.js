@@ -83,13 +83,18 @@
   const fixClear = $('[data-action="bg-fix-clear"]');
   const fixDone = $('[data-action="bg-fix-done"]');
 
-  // Brush widths as a share of the crop frame's width, so a brush is the same on any screen.
+  // Brush sizes (the radius) as a share of the crop frame's width, so a brush is the same on any
+  // screen. [ and ] step through them, as in common photo editors.
   const BRUSH_SHARES = { small: 0.02, medium: 0.04, large: 0.08 };
+  const BRUSH_ORDER = ['small', 'medium', 'large'];
+  // How far in from its edge a stroke fades, as a share of its radius: a soft brush.
+  const BRUSH_SOFTNESS = 0.35;
   const BRUSH_HINTS = {
-    keep: 'Paint where part of the person was taken. The photo comes back there.',
-    remove: 'Paint where old background is left. It gets the new colour.'
+    refine: 'Paint over the old background left around hair or shoulders. Only what still looks like the old background takes the new colour; hair and skin under the brush stay.',
+    erase: 'Paint over anything left in the background. Everything under the brush takes the new background colour.',
+    restore: 'Paint where part of the person was changed. The original photo comes back there.'
   };
-  const FIX_HINT = 'Drag on the photo to paint. With the keyboard, the arrow keys move the ring and Space paints. Press Done to move the photo again.';
+  const FIX_HINT = 'Drag on the photo to paint. With the keyboard, the arrow keys move the brush and Space paints; [ and ] change its size. Press Done to move the photo again.';
   const bgNote = $('[data-bg-note]');
 
   const BG_PROBLEMS = {
@@ -145,18 +150,21 @@
   let shown = null;
   let showOriginal = false;
 
-  // Fixes painted by hand over the changed background. Each is a brush stroke in the photo's own
-  // pixels, so it stays on the same part of the photo when the photo is moved or zoomed.
+  // Touch-up strokes over the changed background (Refine Edge, Erase, Restore). Each is a brush
+  // stroke in the photo's own pixels, so it stays on the same part of the photo when the photo is
+  // moved or zoomed.
   // `plain` and `changedPixels` are the finished photo before and after the background change,
   // kept so a stroke can be shown at once without finding the background again.
   let fixes = [];
   let fixing = false;
-  let brush = 'keep';
+  let brush = 'refine';
   let brushSize = 'medium';
   let stroke = null;
   let ring = null;
   let plain = null;
   let changedPixels = null;
+  // The old background's colours, as the background change found them. Refine Edge needs them.
+  let wall = null;
   // What the checks look at: the finished photo before any background change, and where its
   // background was found when the background change already looked.
   let checked = null;
@@ -536,7 +544,7 @@
     bgProblem.hidden = !problem;
     bgProblem.textContent = problem || '';
 
-    // Fixing by hand needs a changed background to fix.
+    // Touching up needs a changed background.
     if (!changed && fixing) {
       fixing = false;
       stroke = null;
@@ -544,7 +552,9 @@
     }
     handFixButton.hidden = !changed || fixing;
     handFixButton.setAttribute('aria-expanded', String(fixing));
-    fixLabel.textContent = fixes.length ? `Fix by hand (${fixes.length} done)` : 'Fix by hand';
+    fixLabel.textContent = fixes.length
+      ? `Touch up edges (${fixes.length} ${fixes.length === 1 ? 'stroke' : 'strokes'})`
+      : 'Touch up edges';
     fixBox.hidden = !fixing;
     crop.classList.toggle('is-painting', fixing);
     for (const button of brushButtons) {
@@ -574,6 +584,7 @@
   function applyBackground(context, width, height) {
     plain = null;
     changedPixels = null;
+    wall = null;
     checked = null;
     if (mode !== 'photo') return null;
     const before = context.getImageData(0, 0, width, height);
@@ -586,6 +597,7 @@
     if (status === core.BACKGROUND_STATUS.changed) {
       plain = before;
       changedPixels = after;
+      wall = result.wall;
       composeFixes(context);
     }
     return status;
@@ -630,7 +642,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Fixing the background by hand
+  // Touching up the changed background: Refine Edge, Erase and Restore brushes
   // ---------------------------------------------------------------------------
 
   /** How much the full photo is scaled to make the saved photo. */
@@ -639,9 +651,9 @@
   }
 
   /**
-   * A picture of the brush strokes at the saved size: red where the photo is brought back, blue
-   * where the background colour is put. The strokes are drawn through the same move, turn and
-   * zoom as the photo, so they lie on the part of the photo they were painted on.
+   * A picture of the brush strokes at the saved size, each in its brush's colour (red Restore,
+   * green Refine Edge, blue Erase). The strokes are drawn through the same move, turn and zoom as
+   * the photo, so they lie on the part of the photo they were painted on.
    */
   function fixMask() {
     const mask = shared.newCanvas(size.width, size.height);
@@ -656,7 +668,7 @@
     context.lineCap = 'round';
     context.lineJoin = 'round';
     for (const fix of fixes) {
-      const colour = fix.kind === 'keep' ? '#ff0000' : '#0000ff';
+      const colour = (core.BACKGROUND_BRUSHES[fix.kind] || core.BACKGROUND_BRUSHES.refine).mark;
       context.strokeStyle = colour;
       context.fillStyle = colour;
       context.lineWidth = fix.radius * 2;
@@ -673,13 +685,34 @@
     return context.getImageData(0, 0, size.width, size.height);
   }
 
-  /** Writes the changed photo with the fixes laid over it. */
+  /** How far in from its edge a stroke fades, in pixels of the saved photo: a share of the smallest brush used. */
+  function featherRadius() {
+    const zoomed = outputScale();
+    const smallest = Math.min(...fixes.map(fix => fix.radius)) * zoomed;
+    return Math.max(1, Math.round(smallest * BRUSH_SOFTNESS));
+  }
+
+  /** Writes the changed photo with the touch-up strokes laid over it. */
   function composeFixes(context) {
     const pixels = new ImageData(new Uint8ClampedArray(changedPixels.data), changedPixels.width, changedPixels.height);
     if (fixes.length) {
-      core.applyBackgroundFixes(pixels.data, plain.data, fixMask().data, backgroundColour());
+      core.applyBackgroundFixes(pixels.data, plain.data, fixMask().data, backgroundColour(), {
+        width: pixels.width,
+        wall,
+        feather: featherRadius()
+      });
     }
     context.putImageData(pixels, 0, 0);
+  }
+
+  /** [ and ] make the brush smaller or larger. */
+  function stepBrushSize(by) {
+    const at = BRUSH_ORDER.indexOf(brushSize);
+    const next = BRUSH_ORDER[Math.min(BRUSH_ORDER.length - 1, Math.max(0, at + by))];
+    if (next === brushSize) return;
+    brushSize = next;
+    renderBackground();
+    draw();
   }
 
   /** Shows the fixes on the stage at once; the saved file follows shortly after. */
@@ -1022,6 +1055,15 @@
       event.preventDefault();
       setZoom(zoomFactor / 1.1);
     }
+  });
+
+  // [ and ] change the brush size while touching up, wherever the focus is on this screen,
+  // except while typing in a box.
+  view.addEventListener('keydown', (event) => {
+    if (!fixing || (event.key !== '[' && event.key !== ']')) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) && event.target.type !== 'range') return;
+    event.preventDefault();
+    stepBrushSize(event.key === '[' ? -1 : 1);
   });
 
   zoom.addEventListener('input', () => setZoom(Number(zoom.value) / 100));

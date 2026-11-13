@@ -197,25 +197,26 @@
                                 <i class="bi bi-eye" aria-hidden="true"></i> Hold to see the original
                             </button>
                             <button type="button" class="btn btn-outline-secondary phot-bg__compare" data-action="bg-fix" aria-expanded="false" hidden>
-                                <i class="bi bi-brush" aria-hidden="true"></i> <span data-bg-fix-label>Fix by hand</span>
+                                <i class="bi bi-brush" aria-hidden="true"></i> <span data-bg-fix-label>Touch up edges</span>
                             </button>
                             <div class="phot-bgfix" data-bg-fix hidden>
-                                <div class="phot-segment phot-segment--start" role="group" aria-label="What the brush does">
-                                    <button type="button" aria-pressed="true" data-bg-brush="keep">Bring back</button>
-                                    <button type="button" aria-pressed="false" data-bg-brush="remove">Remove</button>
+                                <div class="phot-segment phot-brushes" role="group" aria-label="Brush">
+                                    <button type="button" aria-pressed="true" data-bg-brush="refine"><i class="bi bi-magic" aria-hidden="true"></i> Refine Edge</button>
+                                    <button type="button" aria-pressed="false" data-bg-brush="erase"><i class="bi bi-eraser" aria-hidden="true"></i> Erase</button>
+                                    <button type="button" aria-pressed="false" data-bg-brush="restore"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Restore</button>
                                 </div>
                                 <p class="phot-hint" data-bg-brush-hint aria-live="polite"></p>
                                 <div class="phot-bgfix__row">
-                                    <span class="phot-bg__title" id="photBrushSize">Brush</span>
+                                    <span class="phot-bg__title" id="photBrushSize">Brush size</span>
                                     <div class="phot-segment" role="group" aria-labelledby="photBrushSize">
-                                        <button type="button" aria-pressed="false" data-bg-size="small">Small</button>
+                                        <button type="button" aria-pressed="false" data-bg-size="small" title="Smaller: [">Small</button>
                                         <button type="button" aria-pressed="true" data-bg-size="medium">Medium</button>
-                                        <button type="button" aria-pressed="false" data-bg-size="large">Large</button>
+                                        <button type="button" aria-pressed="false" data-bg-size="large" title="Larger: ]">Large</button>
                                     </div>
                                 </div>
                                 <div class="phot-bgfix__row">
                                     <button type="button" class="btn btn-outline-secondary" data-action="bg-fix-undo" disabled>Undo</button>
-                                    <button type="button" class="btn btn-outline-secondary" data-action="bg-fix-clear" disabled>Clear all fixes</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-action="bg-fix-clear" disabled>Reset</button>
                                     <button type="button" class="btn btn-primary" data-action="bg-fix-done">Done</button>
                                 </div>
                             </div>

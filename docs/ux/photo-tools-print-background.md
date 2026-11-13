@@ -200,7 +200,8 @@ After the four PRs, and with the owner's approval of a second mockup:
 
 - The background method was reworked after trying it on real photographs.
 - **Fix by hand**: a brush in Passport photo to bring back what the tool took and remove what it
-  left.
+  left. (Since renamed **Touch up edges**, with Refine Edge, Erase and Restore brushes; see
+  the current description.)
 - **Position in Print sheet**: a photo of another shape is dragged and zoomed to choose the part
   printed, in place of the "its middle is used" warning.
 
