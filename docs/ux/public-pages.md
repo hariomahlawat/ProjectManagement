@@ -38,9 +38,11 @@ not moved), with these added, all decorative and all tokens (`--lp-prism-*-alpha
 The About icon sets its own night values for these and switches the ground effects off,
 as it already does for the ground shadow.
 
-- The landing hero draws the mark with labels (`model: true`); the sign-in page draws the
-  bare artwork (`model: false`), whose rays run on past the SVG box and behind the glass
-  card. Gradient ids are fixed, so render it at most once per page.
+- The partial takes `PrismSpectrumOptions` (`Utilities/`). The landing hero draws the mark
+  with labels (`ShowLabels: true`); sign-in and About draw the bare artwork, whose rays run
+  on past the SVG box (behind the glass card on sign-in). `BeamStartX/Y` moves where the
+  beam comes from. A page that draws the mark twice (About: hero and icon) gives the second
+  one its own `IdPrefix`, so the ids inside the SVG stay unique.
 - On phones the SVG labels would be too small, so they are hidden and the six areas show as
   chips under the artwork.
 - The beam pulse, ray shimmer, travelling light on the workflow track and mock caret are
@@ -106,11 +108,18 @@ an icon, an eyebrow, a heading, one sentence and the next action.
 `/Developer`, linked as "About" from the signed-in footer, is the maker's page first and
 PRISM's second. It tells the prism story inside the app:
 
-- **Hero: the developer.** The SDD archer stands in warm light; the light of its arrow
-  leaves the arrowhead and opens into the six-colour spectrum behind "Designed and built by",
-  the developer's name and division. Email and phone are copy-to-clipboard buttons.
+- **Hero: the developer, as one line of light** (since 2026-11-13). The SDD archer stands at
+  the left and looses its arrow; the arrow flies as a white beam into the glass prism, and
+  the prism splits it into the six rays, which run off to the right. Under it: "Designed
+  and built by", the developer's name as a signature (`Pages/Shared/_AboutSignature.cshtml`:
+  the outlines of the name in Dancing Script Bold, the script the sign-in page writes
+  "Prism" in; screen readers get the name as text) and the division. Email and phone are
+  copy-to-clipboard buttons. The whole hero fits one screen.
+  The prism here is the shared mark, drawn with its beam starting at the archer's arrowhead
+  (`PrismSpectrumOptions.BeamStartX/Y`), so the glass and rays cannot drift from sign-in and
+  the landing page. `developer.css` lays the archer and the mark out in the mark's units.
 - **The work: PRISM ERP.** The PRISM icon (a night tile that stays dark in both themes and
-  draws the bare mark, `model: false`, with its night values), the tagline and the six
+  draws the bare mark with its night values), the tagline and the six
   areas from `Utilities/PrismAreas.cs`. That class is also the list the prism mark draws its
   rays from, so the two cannot drift apart.
 - **This installation**: version (`App:Version` when set, otherwise the assembly version),
@@ -119,8 +128,9 @@ PRISM's second. It tells the prism story inside the app:
   (`1.0.0+<sha>` from Source Link). Times are IST. "Copy details" copies them as plain text
   for a fault report.
 
-Motion: the hero plays once on load (the archer lands, the spectrum opens from the arrow,
-the lines rise in and one sweep of light crosses the name); lower sections rise in as they
+Motion: the hero plays once on load (the archer lands, the beam draws from the arrowhead
+to the glass, the rays leave one after another, the lines rise in and the signature is
+written from left to right); lower sections rise in as they
 scroll into view (`wwwroot/js/pages/about-prism.js`). Reduce Motion shows everything at
 rest. Copying falls back to `execCommand('copy')` because PRISM is often served over plain
 http on the LAN, where `navigator.clipboard` is unavailable. Styles:
@@ -142,7 +152,7 @@ Keep the copy true to the current application; update it when a module is added 
 | --- | --- |
 | Landing markup | `Pages/Index.cshtml` |
 | Sign-in markup | `Areas/Identity/Pages/Account/Login.cshtml` |
-| The prism mark | `Pages/Shared/_PrismSpectrum.cshtml` |
+| The prism mark | `Pages/Shared/_PrismSpectrum.cshtml`, options in `Utilities/PrismSpectrumOptions.cs` |
 | The written name on sign-in | `Pages/Shared/_PrismSignature.cshtml` |
 | Signed-out top bar and footer | `Pages/Shared/_Layout.cshtml`, `wwwroot/css/public-shell.css` (loaded for every signed-out page; site tokens only) |
 | Landing styles, shared tokens, buttons, prism styles | `wwwroot/css/landing.css` |

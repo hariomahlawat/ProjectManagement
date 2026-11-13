@@ -1,13 +1,16 @@
-@model bool
+@model ProjectManagement.Utilities.PrismSpectrumOptions
 @*
     The PRISM refraction mark: one beam (the project record) enters the prism and leaves as
     six coloured rays, one per area of the platform. Inline SVG so it ships with the app (no
     network), follows the Light/Dark tokens in landing.css and stays sharp at any size.
-    Model: true draws the ray labels (landing hero), false draws the bare artwork (sign-in).
-    Gradient ids are fixed, so render it at most once per page.
+    Model: PrismSpectrumOptions. ShowLabels draws the ray labels (landing hero); without
+    it the bare artwork is drawn (sign-in, About). The beam can start somewhere other than
+    the left edge, and IdPrefix keeps the ids unique when a page draws the mark twice.
 *@
 @{
-    var showLabels = Model;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var showLabels = Model.ShowLabels;
+    var id = Model.IdPrefix;
     // Each ray leaves the prism's right face (between Start and the next ray's start) and
     // fans out to a 14-unit band centred on Y at x = 520. The bare artwork carries the rays on
     // to x = 1800, well past the SVG box, so on the sign-in page they run behind the glass card
@@ -18,9 +21,13 @@
         .Select((area, i) => (Y: 120 + 70 * i, area.Name, area.Detail))
         .ToArray();
     var rayEndX = showLabels ? 520.0 : 1800.0;
-    var inv = System.Globalization.CultureInfo.InvariantCulture;
     // Where the beam enters the glass; the spectrum starts separating from here.
     const double entryX = 226, entryY = 301;
+    // Where the beam comes from, and the point 21% of the way along it where its bright core
+    // begins (so the core fades in as the beam itself does).
+    double beamX = Model.BeamStartX, beamY = Model.BeamStartY;
+    double coreX = beamX + (entryX - beamX) * 0.212, coreY = beamY + (entryY - beamY) * 0.212;
+    string N(double value) => value.ToString("0.#", inv);
     var rays = labels.Select((label, i) =>
     {
         // Exit points step evenly down the right face from (345.6, 219.2).
@@ -46,56 +53,56 @@
 <svg class="lp-prism @(showLabels ? "lp-prism--labelled" : "lp-prism--art")"
      viewBox="@(showLabels ? "0 0 760 520" : "0 0 540 520")"
      role="img"
-     aria-labelledby="lpPrismTitle lpPrismDesc"
+     aria-labelledby="@(id)Title @(id)Desc"
      focusable="false">
-    <title id="lpPrismTitle">PRISM: one record, every view</title>
-    <desc id="lpPrismDesc">A single beam of light, the project record, enters a prism and leaves as six coloured rays: projects, the command and briefing desks, teamwork, office records, media and documents.</desc>
+    <title id="@(id)Title">PRISM: one record, every view</title>
+    <desc id="@(id)Desc">A single beam of light, the project record, enters a prism and leaves as six coloured rays: projects, the command and briefing desks, teamwork, office records, media and documents.</desc>
     <defs>
-        <radialGradient id="lpPrismAura" cx="0.5" cy="0.5" r="0.5">
+        <radialGradient id="@(id)Aura" cx="0.5" cy="0.5" r="0.5">
             <stop offset="0" class="lp-stop lp-stop--aura" stop-opacity="0.55" />
             <stop offset="1" class="lp-stop lp-stop--aura" stop-opacity="0" />
         </radialGradient>
-        <linearGradient id="lpPrismGlass" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id="@(id)Glass" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" class="lp-stop lp-stop--glass-hi" />
             <stop offset="1" class="lp-stop lp-stop--glass-lo" />
         </linearGradient>
-        <linearGradient id="lpPrismBeam" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="226" y2="0">
+        <linearGradient id="@(id)Beam" gradientUnits="userSpaceOnUse" x1="@N(beamX < -10 ? beamX : 0)" y1="0" x2="226" y2="0">
             <stop offset="0" class="lp-stop lp-stop--beam" stop-opacity="0" />
             <stop offset="0.35" class="lp-stop lp-stop--beam" stop-opacity="0.85" />
             <stop offset="1" class="lp-stop lp-stop--beam" stop-opacity="1" />
         </linearGradient>
-        <linearGradient id="lpPrismFan" gradientUnits="userSpaceOnUse" x1="226" y1="0" x2="375" y2="0">
+        <linearGradient id="@(id)Fan" gradientUnits="userSpaceOnUse" x1="226" y1="0" x2="375" y2="0">
             <stop offset="0" class="lp-stop lp-stop--fan" />
             <stop offset="1" class="lp-stop lp-stop--fan lp-stop--fan-end" />
         </linearGradient>
         @* The face inside the bevels: lit at the top-left, shaded towards the base. *@
-        <linearGradient id="lpPrismInner" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id="@(id)Inner" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" class="lp-stop lp-stop--inner-hi" />
             <stop offset="1" class="lp-stop lp-stop--inner-lo" />
         </linearGradient>
         @* The glass mirrored in the surface it stands on, fading out downwards. *@
-        <linearGradient id="lpPrismMirror" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="@(id)Mirror" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" class="lp-stop lp-stop--mirror" />
             <stop offset="1" class="lp-stop lp-stop--mirror lp-stop--mirror-end" />
         </linearGradient>
         @* The spectrum spilling on the ground beside the exit face. *@
-        <linearGradient id="lpPrismSpill" gradientUnits="userSpaceOnUse" x1="385" y1="0" x2="525" y2="0">
+        <linearGradient id="@(id)Spill" gradientUnits="userSpaceOnUse" x1="385" y1="0" x2="525" y2="0">
             @for (var i = 0; i < 6; i++)
             {
                 <stop offset="@((i / 5.0).ToString("0.##", inv))" class="lp-stop lp-stop--spec-@(i + 1)" />
             }
         </linearGradient>
-        <filter id="lpPrismBlur" x="-20%" y="-20%" width="140%" height="140%">
+        <filter id="@(id)Blur" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="7" />
         </filter>
-        <filter id="lpPrismSoft" x="-20%" y="-50%" width="140%" height="200%">
+        <filter id="@(id)Soft" x="-20%" y="-50%" width="140%" height="200%">
             <feGaussianBlur stdDeviation="5" />
         </filter>
         @if (showLabels)
         {
             for (var i = 0; i < rays.Length; i++)
             {
-                <linearGradient id="lpPrismTail@(i)" gradientUnits="userSpaceOnUse" x1="520" y1="0" x2="760" y2="0">
+                <linearGradient id="@(id)Tail@(i)" gradientUnits="userSpaceOnUse" x1="520" y1="0" x2="760" y2="0">
                     <stop offset="0" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="0.5" />
                     <stop offset="0.45" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="0.14" />
                     <stop offset="1" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="0" />
@@ -104,7 +111,7 @@
         }
         @for (var i = 0; i < rays.Length; i++)
         {
-            <linearGradient id="lpPrismRay@(i)" gradientUnits="userSpaceOnUse" x1="350" y1="0" x2="@(showLabels ? "520" : "1800")" y2="0">
+            <linearGradient id="@(id)Ray@(i)" gradientUnits="userSpaceOnUse" x1="350" y1="0" x2="@(showLabels ? "520" : "1800")" y2="0">
                 <stop offset="0" class="lp-stop lp-stop--spec-@(i + 1)" stop-opacity="0.95" />
                 @if (!showLabels)
                 {
@@ -115,20 +122,22 @@
         }
     </defs>
 
-    <circle class="lp-prism__aura" cx="350" cy="280" r="250" fill="url(#lpPrismAura)" />
+    <circle class="lp-prism__aura" cx="350" cy="280" r="250" fill="url(#@(id)Aura)" />
 
     @* A soft shadow on the ground, so the glass stands on something. *@
-    <ellipse class="lp-prism__ground" cx="304" cy="436" rx="128" ry="8" filter="url(#lpPrismSoft)" aria-hidden="true" />
+    <ellipse class="lp-prism__ground" cx="304" cy="436" rx="128" ry="8" filter="url(#@(id)Soft)" aria-hidden="true" />
     @* What the glass does to the ground: its own faint mirror image under the base, and the
        colours it throws beside the exit face. *@
-    <polygon class="lp-prism__mirror" points="184,432 416,432 400,456 200,456" fill="url(#lpPrismMirror)" aria-hidden="true" />
-    <ellipse class="lp-prism__spill" cx="455" cy="441" rx="70" ry="6" fill="url(#lpPrismSpill)" filter="url(#lpPrismSoft)" aria-hidden="true" />
+    <polygon class="lp-prism__mirror" points="184,432 416,432 400,456 200,456" fill="url(#@(id)Mirror)" aria-hidden="true" />
+    <ellipse class="lp-prism__spill" cx="455" cy="441" rx="70" ry="6" fill="url(#@(id)Spill)" filter="url(#@(id)Soft)" aria-hidden="true" />
 
     @* The incoming beam, its soft glow, a bright core and a travelling pulse. *@
-    <line class="lp-prism__beam-glow" x1="-10" y1="360" x2="226" y2="301" />
-    <line class="lp-prism__beam" x1="-10" y1="360" x2="226" y2="301" stroke="url(#lpPrismBeam)" />
-    <line class="lp-prism__beam-core" x1="40" y1="347.5" x2="224" y2="301.5" />
-    <line class="lp-prism__pulse" x1="-10" y1="360" x2="226" y2="301" />
+    <line class="lp-prism__beam-glow" x1="@N(beamX)" y1="@N(beamY)" x2="226" y2="301" />
+    <line class="lp-prism__beam" x1="@N(beamX)" y1="@N(beamY)" x2="226" y2="301" stroke="url(#@(id)Beam)" />
+    <line class="lp-prism__beam-core" x1="@N(coreX)" y1="@N(coreY)" x2="224" y2="301.5" />
+    @* pathLength keeps the pulse's dash pattern (written for the default beam) right for a
+       beam of any length. *@
+    <line class="lp-prism__pulse" pathLength="243.3" x1="@N(beamX)" y1="@N(beamY)" x2="226" y2="301" />
     @if (showLabels)
     {
         <g class="lp-prism__beam-label-wrap">
@@ -136,10 +145,10 @@
         </g>
     }
 
-    <g class="lp-prism__rays-glow" filter="url(#lpPrismBlur)" aria-hidden="true">
+    <g class="lp-prism__rays-glow" filter="url(#@(id)Blur)" aria-hidden="true">
         @for (var i = 0; i < rays.Length; i++)
         {
-            <polygon points="@rays[i].Points" fill="url(#lpPrismRay@(i))" />
+            <polygon points="@rays[i].Points" fill="url(#@(id)Ray@(i))" />
         }
     </g>
     @if (showLabels)
@@ -147,7 +156,7 @@
         <g class="lp-prism__tails" aria-hidden="true">
             @for (var i = 0; i < rays.Length; i++)
             {
-                <polygon points="@rays[i].Tail" fill="url(#lpPrismTail@(i))" filter="url(#lpPrismSoft)" />
+                <polygon points="@rays[i].Tail" fill="url(#@(id)Tail@(i))" filter="url(#@(id)Soft)" />
             }
         </g>
     }
@@ -155,7 +164,7 @@
         @for (var i = 0; i < rays.Length; i++)
         {
             <g class="lp-prism__ray lp-prism__ray--@(i + 1)">
-                <polygon points="@rays[i].Points" fill="url(#lpPrismRay@(i))" />
+                <polygon points="@rays[i].Points" fill="url(#@(id)Ray@(i))" />
                 <polygon class="lp-prism__ray-core" points="@rays[i].Core" />
             </g>
         }
@@ -166,8 +175,8 @@
        catches the light, the base and the exit face are shaded), the face inside them, a
        soft sheen across that face, an edge highlight, a glint at the apex and a bloom where
        the beam meets the glass. The inner triangle is the outer one inset by 10 units. *@
-    <polygon class="lp-prism__glass" points="300,90 180,430 420,430" fill="url(#lpPrismGlass)" />
-    <polygon class="lp-prism__fan" points="226,301 345.6,219.2 374.4,300.8" fill="url(#lpPrismFan)" />
+    <polygon class="lp-prism__glass" points="300,90 180,430 420,430" fill="url(#@(id)Glass)" />
+    <polygon class="lp-prism__fan" points="226,301 345.6,219.2 374.4,300.8" fill="url(#@(id)Fan)" />
     <g class="lp-prism__split" aria-hidden="true">
         @for (var i = 0; i < rays.Length; i++)
         {
@@ -175,16 +184,16 @@
         }
     </g>
     <g class="lp-prism__bevels" aria-hidden="true">
-        <polygon class="lp-prism__inner" points="300,120.1 194.2,420 405.8,420" fill="url(#lpPrismInner)" />
+        <polygon class="lp-prism__inner" points="300,120.1 194.2,420 405.8,420" fill="url(#@(id)Inner)" />
         <polygon class="lp-prism__bevel lp-prism__bevel--left" points="300,90 180,430 194.2,420 300,120.1" />
         <polygon class="lp-prism__bevel lp-prism__bevel--base" points="180,430 420,430 405.8,420 194.2,420" />
         <polygon class="lp-prism__face" points="300,90 420,430 405.8,420 300,120.1" />
         <polygon class="lp-prism__inner-edge" points="300,120.1 194.2,420 405.8,420" />
     </g>
-    <polygon class="lp-prism__sheen" points="286,168 300,160 246,372 222,380" filter="url(#lpPrismSoft)" aria-hidden="true" />
+    <polygon class="lp-prism__sheen" points="286,168 300,160 246,372 222,380" filter="url(#@(id)Soft)" aria-hidden="true" />
     <line class="lp-prism__shine" x1="295" y1="108" x2="194" y2="396" />
     <path class="lp-prism__glint" d="M300 95l2.2 7 7 2.2-7 2.2-2.2 7-2.2-7-7-2.2 7-2.2z" aria-hidden="true" />
-    <circle class="lp-prism__bloom" cx="226" cy="301" r="13" filter="url(#lpPrismSoft)" aria-hidden="true" />
+    <circle class="lp-prism__bloom" cx="226" cy="301" r="13" filter="url(#@(id)Soft)" aria-hidden="true" />
 
     @if (showLabels)
     {

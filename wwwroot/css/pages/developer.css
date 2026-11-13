@@ -19,7 +19,6 @@ body:has(.about) main {
 }
 
 .about {
-    --about-emblem: clamp(8.5rem, 14vw, 11rem);
     --about-icon: clamp(96px, 9vw, 116px);
     --about-spring: cubic-bezier(0.16, 1, 0.3, 1);
     --about-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
@@ -48,7 +47,7 @@ body:has(.about) main {
 .about-hero {
     position: relative;
     isolation: isolate;
-    padding: clamp(2.5rem, 6vw, 4.5rem) 0 clamp(3.5rem, 8vw, 6rem);
+    padding: clamp(1.25rem, 3vw, 2rem) 0 clamp(3rem, 7vw, 5rem);
     overflow: hidden;
     text-align: center;
 }
@@ -59,84 +58,116 @@ body:has(.about) main {
     align-items: center;
 }
 
-/* The archer, standing in warm light, with a soft shadow where the laptop rests. */
-.about-emblem {
+/* One line of light: the archer at the left, the beam from the arrowhead, the glass prism
+   and the six rays running off to the right.
+   The scene is laid out in the mark's own units. The mark is 540 x 520; the archer is 520
+   tall and stands with its arrowhead at (-520, 176), which puts its left edge at -815 and
+   its feet at 580. So the scene is 1855 x 600 units, the mark starts 815 units in (43.94%)
+   and is 540 wide (29.11%), and the archer is 306 wide (16.5%) and starts 59.5 down (9.92%).
+   The width also gives way on short screens so the name and contacts stay on the first
+   screen: 24rem is everything else in the hero. */
+.about-scene {
     position: relative;
     isolation: isolate;
-    width: var(--about-emblem);
-    margin-bottom: clamp(1.5rem, 3vw, 2.25rem);
-    animation: about-land 1.2s var(--about-spring) 0.1s both;
+    flex: none;
+    width: min(100%, 1180px, max(34rem, (100vh - 24rem) * 3.09));
+    width: min(100%, 1180px, max(34rem, (100dvh - 24rem) * 3.09));
+    aspect-ratio: 1855 / 600;
 }
 
-.about-emblem img {
-    display: block;
-    width: 100%;
+.about-scene__prism {
+    position: absolute;
+    top: 0;
+    left: 43.94%;
+    width: 29.11%;
+}
+
+.about-scene__archer {
+    position: absolute;
+    top: 9.92%;
+    left: 0;
+    width: 16.5%;
     height: auto;
-    filter: drop-shadow(0 22px 26px color-mix(in srgb, var(--lp-shadow) 24%, transparent));
+    filter: drop-shadow(0 14px 18px color-mix(in srgb, var(--lp-shadow) 24%, transparent));
+    transform-origin: 50% 100%;
+    animation: about-land 1.1s var(--about-spring) 0.1s both;
 }
 
-.about-emblem::before {
+/* A faint warm light behind the archer, and a soft shadow where the laptop rests. */
+.about-scene::before {
     content: "";
     position: absolute;
-    inset: 4% -45% 18%;
+    top: 6%;
+    left: -5%;
     z-index: -1;
+    width: 27%;
+    height: 84%;
     border-radius: 50%;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--lp-spec-2) 38%, transparent), transparent);
-    filter: blur(18px);
-    animation: about-glow 1.6s ease-out 0.3s both;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--lp-spec-2) 16%, transparent), transparent);
+    filter: blur(16px);
 }
 
-.about-emblem::after {
+.about-scene::after {
     content: "";
     position: absolute;
-    left: 4%;
-    right: 30%;
-    bottom: -4%;
+    bottom: -1%;
+    left: 1%;
     z-index: -1;
-    height: 9%;
+    width: 13%;
+    height: 5%;
     border-radius: 50%;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--lp-shadow) 28%, transparent), transparent);
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--lp-shadow) 30%, transparent), transparent);
 }
 
-/* The arrow's light: it leaves the arrowhead (top right of the emblem) and opens into the
-   spectrum, running on to the right edge of the page behind the name. */
-.about-emblem__fan {
-    position: absolute;
-    top: 22.2%;
-    left: 98%;
-    z-index: -1;
-    width: max(50vw, 30rem);
-    height: min(34rem, 72vh);
-    background: linear-gradient(180deg, var(--lp-spec-1), var(--lp-spec-2), var(--lp-spec-3), var(--lp-spec-4), var(--lp-spec-5), var(--lp-spec-6));
-    clip-path: polygon(0 49.7%, 100% 0, 100% 100%, 0 50.3%);
-    -webkit-mask-image: linear-gradient(90deg, var(--lp-shadow) 0%, transparent 88%);
-    mask-image: linear-gradient(90deg, var(--lp-shadow) 0%, transparent 88%);
-    opacity: max(var(--lp-fan-alpha), 0.3);
-    filter: blur(1px);
-    pointer-events: none;
-    transform: translateY(-50%);
-    transform-origin: left center;
-    animation: about-fan 1.4s var(--about-spring) 0.75s both;
+/* The arrow is loosed: the beam draws from the arrowhead to the glass (it is about 757
+   units long), the light appears inside the glass, and the rays leave one after another. */
+.about-scene .lp-prism__beam,
+.about-scene .lp-prism__beam-core {
+    stroke-dasharray: 760;
+    animation: about-beam 0.55s ease-out 0.7s both;
 }
 
+.about-scene .lp-prism__beam-glow,
+.about-scene .lp-prism__fan,
+.about-scene .lp-prism__split,
+.about-scene .lp-prism__bloom,
+.about-scene .lp-prism__spill,
+.about-scene .lp-prism__rays-glow {
+    animation: about-appear 0.45s ease 1.15s both;
+}
+
+.about-scene .lp-prism__ray {
+    animation: about-ray 0.7s cubic-bezier(0.3, 0.7, 0.3, 1) both, lp-ray 6s ease-in-out infinite;
+}
+
+.about-scene .lp-prism__ray--1 { animation-delay: 1.2s, 0s; }
+.about-scene .lp-prism__ray--2 { animation-delay: 1.24s, -1s; }
+.about-scene .lp-prism__ray--3 { animation-delay: 1.28s, -2s; }
+.about-scene .lp-prism__ray--4 { animation-delay: 1.32s, -3s; }
+.about-scene .lp-prism__ray--5 { animation-delay: 1.36s, -4s; }
+.about-scene .lp-prism__ray--6 { animation-delay: 1.4s, -5s; }
+
+.about-scene .lp-prism__pulse {
+    animation-delay: 3.4s;
+}
+
+/* The name is a signature (Pages/Shared/_AboutSignature.cshtml), written from left to
+   right once the light has reached the glass. */
 .about-hero__title {
+    width: 100%;
     margin: 0;
-    font-size: clamp(2.7rem, 7.4vw, 5.6rem);
+    color: var(--lp-text);
     line-height: 1;
-    letter-spacing: -0.05em;
-    text-wrap: balance;
 }
 
-/* One sweep of light across the name, after it has risen in. */
-.about-hero__title span {
-    background: linear-gradient(100deg, var(--lp-text) 0%, var(--lp-text) 42%, var(--lp-spec-6) 50%, var(--lp-spec-5) 54%, var(--lp-text) 62%, var(--lp-text) 100%);
-    background-size: 260% 100%;
-    background-position: 0% 0;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-    animation: about-shine 1.8s cubic-bezier(0.45, 0, 0.2, 1) 1.35s both;
+.about-sig {
+    display: block;
+    width: min(100%, 47rem);
+    height: auto;
+    margin: 0 auto;
+    overflow: visible;
+    fill: currentColor;
+    animation: about-write 1.7s cubic-bezier(0.45, 0.1, 0.55, 0.9) 1.5s both;
 }
 
 .about-hero__unit {
@@ -666,17 +697,23 @@ body:has(.about) main {
     from { opacity: 0; filter: blur(10px); transform: translateY(16px) scale(0.9); }
 }
 
-@keyframes about-glow {
-    from { opacity: 0; transform: scale(0.6); }
+@keyframes about-beam {
+    from { stroke-dashoffset: 760; }
+    to { stroke-dashoffset: 0; }
 }
 
-@keyframes about-fan {
-    from { opacity: 0; transform: translateY(-50%) scaleX(0.08); }
+@keyframes about-appear {
+    from { opacity: 0; }
 }
 
-@keyframes about-shine {
-    from { background-position: 100% 0; }
-    to { background-position: 0% 0; }
+@keyframes about-ray {
+    from { clip-path: inset(-10% 100% -10% 0); }
+    to { clip-path: inset(-10% -1% -10% 0); }
+}
+
+@keyframes about-write {
+    from { clip-path: inset(-10% 100% -10% 0); }
+    to { clip-path: inset(-10% -2% -10% 0); }
 }
 
 @keyframes about-sweep {
@@ -700,10 +737,25 @@ body:has(.about) main {
     }
 }
 
-@media (max-width: 640px) {
-    .about-emblem__fan {
-        height: 18rem;
+/* The name sits a little way up into the scene, under the glass, where there is room
+   beside the archer. On narrower screens it would touch the archer, so it stays below. */
+@media (min-width: 1000px) {
+    .about-hero .lp-eyebrow {
+        margin-top: -2.25rem;
     }
+}
+
+/* On phones the scene is drawn wider than the screen and starts at the left edge, so the
+   archer and the glass stay a readable size and the rays run off the right. */
+@media (max-width: 720px) {
+    .about-scene {
+        align-self: flex-start;
+        width: 175%;
+        margin-bottom: 1.25rem;
+    }
+}
+
+@media (max-width: 640px) {
 
     .about-contacts {
         grid-template-columns: minmax(0, 20rem);
@@ -735,10 +787,17 @@ body:has(.about) main {
 /* ---------- Accessibility ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-    .about-emblem,
-    .about-emblem::before,
-    .about-emblem__fan,
-    .about-hero__title span,
+    .about-scene__archer,
+    .about-scene .lp-prism__beam,
+    .about-scene .lp-prism__beam-core,
+    .about-scene .lp-prism__beam-glow,
+    .about-scene .lp-prism__fan,
+    .about-scene .lp-prism__split,
+    .about-scene .lp-prism__bloom,
+    .about-scene .lp-prism__spill,
+    .about-scene .lp-prism__rays-glow,
+    .about-scene .lp-prism__ray,
+    .about-sig,
     .about-rise,
     .about-dot::after,
     .about.is-ready .is-in .about-icon::after {
@@ -758,10 +817,6 @@ body:has(.about) main {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-    .about-emblem__fan {
-        display: none;
-    }
-
     .about-contact,
     .about-toast {
         background: var(--lp-surface);

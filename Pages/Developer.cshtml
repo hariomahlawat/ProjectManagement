@@ -14,9 +14,10 @@
 
 @*
     ABOUT (/Developer, "About" in the signed-in footer)
-    The maker first: the SDD archer looses an arrow and its light opens into the six-colour
-    spectrum behind the developer's name. Then the work (PRISM ERP: the prism icon and the six
-    areas) and, last, this installation's build for fault reports.
+    The maker first, as one line of light: the SDD archer looses an arrow, it flies as a white
+    beam into the glass prism, and the prism splits it into the six colours, above the
+    developer's signature. Then the work (PRISM ERP: the prism icon and the six areas) and,
+    last, this installation's build for fault reports.
     Styles: wwwroot/css/pages/developer.css (landing.css tokens only).
     Script: wwwroot/js/pages/about-prism.js (copy buttons, scroll reveal).
 *@
@@ -25,13 +26,20 @@
 
     <section class="about-hero" aria-labelledby="about-title">
         <div class="lp-wrap about-hero__inner">
-            <div class="about-emblem">
-                <div class="about-emblem__fan" aria-hidden="true"></div>
-                <img src="~/img/logos/sdd.webp" alt="Simulator Development Division emblem: an archer drawing a bow, rising from a laptop" width="433" height="735" />
+            @* The archer stands at the left; the mark is drawn with its beam starting at the
+               arrowhead (-520,176 in the mark's units; see developer.css for the layout). *@
+            <div class="about-scene">
+                <img class="about-scene__archer" src="~/img/logos/sdd.webp" alt="Simulator Development Division emblem: an archer drawing a bow, rising from a laptop" width="433" height="735" />
+                <div class="about-scene__prism">
+                    <partial name="_PrismSpectrum" model="new PrismSpectrumOptions(BeamStartX: -520, BeamStartY: 176)" />
+                </div>
             </div>
 
             <p class="lp-eyebrow about-rise" style="--i: 1">Designed and built by</p>
-            <h1 id="about-title" class="about-hero__title about-rise" style="--i: 2"><span>Col Hari Om Ahlawat</span></h1>
+            <h1 id="about-title" class="about-hero__title about-rise" style="--i: 2">
+                <span class="visually-hidden">Colonel Hari Om Ahlawat</span>
+                <partial name="_AboutSignature" />
+            </h1>
             <p class="about-hero__unit about-rise" style="--i: 3">Simulator Development Division</p>
 
             <div class="about-contacts about-rise" style="--i: 4">
@@ -56,7 +64,7 @@
     <section class="lp-wrap about-section about-work" aria-labelledby="about-work-title">
         <header class="about-work__head about-reveal">
             <div class="about-icon" aria-hidden="true">
-                <partial name="_PrismSpectrum" model="false" />
+                <partial name="_PrismSpectrum" model="@(new PrismSpectrumOptions(IdPrefix: "aboutIconPrism"))" />
             </div>
             <p class="lp-eyebrow">The work</p>
             <h2 id="about-work-title" class="about-work__title">PRISM <span>ERP</span></h2>
