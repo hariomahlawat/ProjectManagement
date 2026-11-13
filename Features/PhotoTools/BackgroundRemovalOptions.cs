@@ -23,7 +23,7 @@ public sealed class BackgroundRemovalOptions
     /// </summary>
     public int IntraOpThreads { get; set; } = 6;
 
-    /// <summary>Photos processed at the same time.</summary>
+    /// <summary>Photos processed at the same time (1 to 4). Read when PRISM starts: a change needs a restart.</summary>
     public int MaximumConcurrent { get; set; } = 1;
 
     /// <summary>Photos that may wait for a turn; beyond this the server answers "busy".</summary>

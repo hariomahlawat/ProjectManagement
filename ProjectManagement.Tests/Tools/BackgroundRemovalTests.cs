@@ -203,6 +203,29 @@ public sealed class BackgroundRemovalTests : IDisposable
     }
 
     [Fact]
+    public async Task MaskAsync_KeepsTheConcurrencyItStartedWith_WhenTheSettingChanges()
+    {
+        var options = EnabledOptions();
+        options.MaximumConcurrent = 1;
+        options.MaximumWaiting = 1;
+        var segmenter = new HeldSegmenter();
+        var service = new BackgroundRemovalService(
+            Monitor(options), ReadinessFor(options), segmenter, NullLogger<BackgroundRemovalService>.Instance);
+        // Changed while PRISM runs: it applies after a restart, and admission keeps to the old value.
+        options.MaximumConcurrent = 4;
+        var photo = Png(8, 8, (_, _) => SKColors.Red);
+
+        var first = service.MaskAsync(photo, CancellationToken.None);
+        await segmenter.Started.Task;
+        var second = service.MaskAsync(photo, CancellationToken.None);
+        Assert.Equal(BackgroundRemovalOutcome.Busy, (await service.MaskAsync(photo, CancellationToken.None)).Outcome);
+
+        segmenter.Release.SetResult();
+        Assert.Equal(BackgroundRemovalOutcome.Done, (await first).Outcome);
+        Assert.Equal(BackgroundRemovalOutcome.Done, (await second).Outcome);
+    }
+
+    [Fact]
     public async Task MaskAsync_ACancelledPhotoGivesUpItsPlaceInTheQueue()
     {
         var options = EnabledOptions();

@@ -65,7 +65,7 @@ on a computer with Internet access and copied to the server.
    open `/api/photo-tools/background/status` while signed in: `"state": "ready"`.
 
 Settings are re-read while PRISM runs, and the model is loaded on the first photo, so a restart
-is not needed; restart if in doubt.
+is not needed; the one exception is `MaximumConcurrent`, which is read when PRISM starts.
 
 ### Licence
 
@@ -85,7 +85,7 @@ Section `PhotoTools:BackgroundRemoval` (defaults in `appsettings.json`, code in
 | `Enabled` | `false` | Turns the tool on. While off, the screen says it is not set up. |
 | `ModelRoot` | empty | Folder holding the model file; a relative path is under the content root. |
 | `IntraOpThreads` | `6` | Processor threads one photo may use. Kept well under the server's cores (16) so the rest of PRISM stays responsive. |
-| `MaximumConcurrent` | `1` | Photos processed at the same time. |
+| `MaximumConcurrent` | `1` | Photos processed at the same time (1 to 4). Read when PRISM starts: a change needs a restart. |
 | `MaximumWaiting` | `4` | Photos that may wait; beyond this the answer is "busy, try again in a few seconds". |
 | `MaximumUploadBytes` | `20971520` | Largest request (20 MB). |
 | `MaximumSide` | `2048` | Longest side of the copy the browser sends. The model works at 1024 px; a larger copy only costs transfer. |

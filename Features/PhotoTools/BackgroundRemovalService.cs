@@ -44,6 +44,9 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
     private readonly IBackgroundSegmenter _segmenter;
     private readonly ILogger<BackgroundRemovalService> _logger;
     private readonly SemaphoreSlim _turn;
+    // How many photos run at once is fixed when PRISM starts (a change needs a restart), and the
+    // queue is admitted against that same number, so the two never disagree.
+    private readonly int _concurrent;
     private int _waiting;
 
     public BackgroundRemovalService(
@@ -56,8 +59,8 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
         _readiness = readiness ?? throw new ArgumentNullException(nameof(readiness));
         _segmenter = segmenter ?? throw new ArgumentNullException(nameof(segmenter));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        var concurrent = Math.Clamp(_options.CurrentValue.MaximumConcurrent, 1, 4);
-        _turn = new SemaphoreSlim(concurrent, concurrent);
+        _concurrent = Math.Clamp(_options.CurrentValue.MaximumConcurrent, 1, 4);
+        _turn = new SemaphoreSlim(_concurrent, _concurrent);
     }
 
     public BackgroundModelReadiness Readiness() => _readiness.Check();
@@ -95,7 +98,7 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
             return new(BackgroundRemovalOutcome.TooLarge);
         }
 
-        if (Interlocked.Increment(ref _waiting) > options.MaximumWaiting + Math.Max(1, options.MaximumConcurrent))
+        if (Interlocked.Increment(ref _waiting) > Math.Max(0, options.MaximumWaiting) + _concurrent)
         {
             Interlocked.Decrement(ref _waiting);
             return new(BackgroundRemovalOutcome.Busy);
