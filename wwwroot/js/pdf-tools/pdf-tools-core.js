@@ -46,7 +46,9 @@
     }
 
     const groups = [];
-    for (const rawToken of text.split(/[,;]/)) {
+    // A range typed in Word or pasted from elsewhere often has an en dash ("1–3"), a figure
+    // dash or a minus sign; read them all as a hyphen.
+    for (const rawToken of text.replace(/[\u2010-\u2015\u2212]/g, '-').split(/[,;]/)) {
       const token = rawToken.trim();
       if (!token) {
         continue;
@@ -117,10 +119,17 @@
   // everything placed by the user is converted here.
   // ---------------------------------------------------------------------------
 
+  /**
+   * A page's /Rotate as viewers apply it: a multiple of 90 in [0, 360). Any other value is not
+   * valid PDF; pdf.js (and so the previews here) shows such a page as not turned, so it is read
+   * as 0 rather than rounded to the nearest quarter turn.
+   */
   function normalizeRotation(degrees) {
-    const value = Math.round(Number(degrees) || 0);
-    const quarter = Math.round(value / 90) * 90;
-    return ((quarter % 360) + 360) % 360;
+    const value = Number(degrees) || 0;
+    if (!Number.isInteger(value) || value % 90 !== 0) {
+      return 0;
+    }
+    return ((value % 360) + 360) % 360;
   }
 
   /**
@@ -128,7 +137,9 @@
    * MediaBox when they do not overlap. pdf.js renders exactly this box, so the editor preview
    * and the saved PDF must both map coordinates against it.
    */
-  function effectiveBox(mediaBox, cropBox) {
+  function effectiveBox(rawMediaBox, rawCropBox) {
+    const mediaBox = normalizeBox(rawMediaBox);
+    const cropBox = normalizeBox(rawCropBox);
     const x0 = Math.max(mediaBox.x, cropBox.x);
     const y0 = Math.max(mediaBox.y, cropBox.y);
     const x1 = Math.min(mediaBox.x + mediaBox.width, cropBox.x + cropBox.width);
@@ -137,6 +148,33 @@
       return { x: mediaBox.x, y: mediaBox.y, width: mediaBox.width, height: mediaBox.height };
     }
     return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+  }
+
+  /**
+   * A PDF rectangle may name any two opposite corners ([612 792 0 0] is valid); pdf-lib keeps
+   * them as written, which gives a negative width or height. Puts the lower-left corner first.
+   */
+  function normalizeBox(box) {
+    const width = Number(box.width) || 0;
+    const height = Number(box.height) || 0;
+    return {
+      x: width < 0 ? box.x + width : box.x,
+      y: height < 0 ? box.y + height : box.y,
+      width: Math.abs(width),
+      height: Math.abs(height)
+    };
+  }
+
+  /** The page's /UserUnit (the size of one unit in 1/72 inch); 1 when absent or invalid. */
+  function pageUserUnit(PDFLib, page) {
+    let value = null;
+    try {
+      value = page.node.lookupMaybe(PDFLib.PDFName.of('UserUnit'), PDFLib.PDFNumber);
+    } catch {
+      return 1; // not a number
+    }
+    const unit = value ? value.asNumber() : 1;
+    return Number.isFinite(unit) && unit > 0 ? unit : 1;
   }
 
   function visibleBox(page) {
@@ -501,7 +539,7 @@
       }
       used.add(key);
       const current = copy.getRotation().angle;
-      copy.setRotation(PDFLib.degrees(normalizeRotation(current + (Number(page.rotate) || 0))));
+      copy.setRotation(PDFLib.degrees(normalizeRotation(normalizeRotation(current) + (Number(page.rotate) || 0))));
       output.addPage(copy);
       pageSources.set(String(copy.ref), page.source);
       if (!outputPages.has(key)) {
@@ -954,17 +992,20 @@
     const font = await document.embedFont(PDFLib.StandardFonts.HelveticaBold);
     ensureEncodable(font, text, 'in the watermark');
 
-    const fontSize = clamp(settings.fontSize, 6, 300, 60);
+    const physicalSize = clamp(settings.fontSize, 6, 300, 60);
     const opacity = clamp(settings.opacity, 0.02, 1, 0.25);
     const angle = clamp(settings.angle, -360, 360, 45);
     const rgb = hexToRgb(settings.color || '#c0392b');
-    const textWidth = font.widthOfTextAtSize(text, fontSize);
-    const capHeight = font.heightAtSize(fontSize, { descender: false }) * 0.72;
     const position = settings.position || 'middle-center';
     const pages = document.getPages();
 
     for (const index of selectedIndexes(pages.length, settings.pages)) {
       const page = pages[index];
+      // Sizes are chosen in points; a page with /UserUnit 2 has units twice as large.
+      const unit = pageUserUnit(PDFLib, page);
+      const fontSize = physicalSize / unit;
+      const textWidth = font.widthOfTextAtSize(text, fontSize);
+      const capHeight = font.heightAtSize(fontSize, { descender: false }) * 0.72;
       const rotation = page.getRotation().angle;
       const box = visibleBox(page);
       const view = displaySize(box, rotation);
@@ -973,7 +1014,7 @@
       const radians = (angle * Math.PI) / 180;
       const boundsWidth = Math.abs(textWidth * Math.cos(radians)) + Math.abs(capHeight * Math.sin(radians));
       const boundsHeight = Math.abs(textWidth * Math.sin(radians)) + Math.abs(capHeight * Math.cos(radians));
-      const block = positionBlock(position, view, { width: boundsWidth, height: boundsHeight }, 36);
+      const block = positionBlock(position, view, { width: boundsWidth, height: boundsHeight }, 36 / unit);
       const centreU = block.left + boundsWidth / 2;
       const centreV = block.top + boundsHeight / 2;
 
@@ -1012,8 +1053,8 @@
     }
     const document = await loadPdf(PDFLib, bytes);
     const font = await document.embedFont(PDFLib.StandardFonts.Helvetica);
-    const fontSize = clamp(settings.fontSize, 6, 72, 10);
-    const margin = clamp(settings.margin, 0, 144, 28);
+    const physicalSize = clamp(settings.fontSize, 6, 72, 10);
+    const physicalMargin = clamp(settings.margin, 0, 144, 28);
     const startAt = Math.round(clamp(settings.startAt, 0, 100000, 1));
     const rgb = hexToRgb(settings.color || '#000000');
     const pages = document.getPages();
@@ -1023,11 +1064,15 @@
       indexes = indexes.filter((index) => index !== 0);
     }
     const total = indexes.length + startAt - 1;
-    const ascent = font.heightAtSize(fontSize, { descender: false });
-    const descent = Math.max(0, font.heightAtSize(fontSize) - ascent);
 
     indexes.forEach((index, ordinal) => {
       const page = pages[index];
+      // Sizes are chosen in points; a page with /UserUnit 2 has units twice as large.
+      const unit = pageUserUnit(PDFLib, page);
+      const fontSize = physicalSize / unit;
+      const margin = physicalMargin / unit;
+      const ascent = font.heightAtSize(fontSize, { descender: false });
+      const descent = Math.max(0, font.heightAtSize(fontSize) - ascent);
       const rotation = page.getRotation().angle;
       const box = visibleBox(page);
       const view = displaySize(box, rotation);
@@ -2120,6 +2165,7 @@
     pageSetFromRanges,
     chunkPages,
     normalizeRotation,
+    normalizeBox,
     effectiveBox,
     displaySize,
     displayToPdfPoint,

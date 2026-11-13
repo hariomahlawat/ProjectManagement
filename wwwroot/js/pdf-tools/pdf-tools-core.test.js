@@ -670,3 +670,63 @@ test('applyAnnotations flattens text, shapes and images', async () => {
   await assert.rejects(tools.applyAnnotations(PDFLib, pdf, []), { code: 'no-annotations' });
   await assert.rejects(tools.applyAnnotations(PDFLib, pdf, [{ page: 4, type: 'rect' }]), { code: 'range-out-of-bounds' });
 });
+
+// -----------------------------------------------------------------------------
+// Unusual but valid page geometry (review fix PR 3)
+// -----------------------------------------------------------------------------
+
+/** One page whose dictionary is changed by `edit(node, context)` before saving. */
+async function makeEditedPdf(size, edit) {
+  const document = await PDFLib.PDFDocument.create();
+  const page = document.addPage(size);
+  edit(page.node, document.context);
+  return document.save();
+}
+
+test('parsePageRanges reads an en dash, an em dash and a minus sign as a hyphen', () => {
+  assert.deepEqual(tools.parsePageRanges('1\u20133, 5\u20146, 8\u2212', 9), [[0, 1, 2], [4, 5], [7, 8]]);
+});
+
+test('normalizeRotation reads a /Rotate that is not a quarter turn as 0, as pdf.js shows it', () => {
+  assert.equal(tools.normalizeRotation(45), 0);
+  assert.equal(tools.normalizeRotation(90.5), 0);
+  assert.equal(tools.normalizeRotation(-270), 90);
+});
+
+test('assemblePages turns a page with an invalid /Rotate from how it is shown', async () => {
+  const pdf = await makeEditedPdf([200, 100], (node, context) => node.set(PDFLib.PDFName.of('Rotate'), context.obj(45)));
+  const output = await tools.assemblePages(PDFLib, [pdf], [{ source: 0, index: 0, rotate: 90 }]);
+  assert.equal((await describePages(output))[0].rotation, 90);
+});
+
+test('normalizeBox puts the lower-left corner first', () => {
+  assert.deepEqual(tools.normalizeBox({ x: 612, y: 792, width: -612, height: -792 }), { x: 0, y: 0, width: 612, height: 792 });
+  assert.deepEqual(tools.normalizeBox({ x: 0, y: 792, width: 612, height: -792 }), { x: 0, y: 0, width: 612, height: 792 });
+});
+
+test('addTextStamps places text on the page when the MediaBox names its corners the other way round', async () => {
+  const font = await (await PDFLib.PDFDocument.create()).embedFont(PDFLib.StandardFonts.Helvetica);
+  const descent = font.heightAtSize(10) - font.heightAtSize(10, { descender: false });
+  for (const corners of [[612, 792, 0, 0], [0, 792, 612, 0]]) {
+    const pdf = await makeEditedPdf([612, 792], (node, context) => node.set(PDFLib.PDFName.of('MediaBox'), context.obj(corners)));
+    const output = await tools.addTextStamps(PDFLib, pdf, {
+      stamps: [{ template: 'Page {n}', position: 'bottom-left' }], fontSize: 10, margin: 28
+    });
+    const [matrix] = textMatrices(await contentOf(output, 0));
+    near(matrix[4], 28, `left margin for [${corners}]`);
+    near(matrix[5], 28 + descent, `bottom margin for [${corners}]`);
+  }
+});
+
+test('addTextStamps and addWatermark keep their size in points on a page with /UserUnit', async () => {
+  const pdf = await makeEditedPdf([400, 400], (node, context) => node.set(PDFLib.PDFName.of('UserUnit'), context.obj(2)));
+  const stamped = await tools.addTextStamps(PDFLib, pdf, {
+    stamps: [{ template: 'Page {n}', position: 'bottom-left' }], fontSize: 10, margin: 28
+  });
+  const content = await contentOf(stamped, 0);
+  assert.match(content, /^\/\S+ 5 Tf$/m, '10 pt is 5 units of 2/72 inch');
+  near(textMatrices(content)[0][4], 14, '28 pt margin is 14 units');
+
+  const marked = await tools.addWatermark(PDFLib, pdf, { text: 'DRAFT', fontSize: 40, angle: 0 });
+  assert.match(await contentOf(marked, 0), /^\/\S+ 20 Tf$/m, '40 pt is 20 units');
+});
