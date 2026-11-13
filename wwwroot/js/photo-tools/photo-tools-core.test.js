@@ -1060,6 +1060,19 @@ test('Refine Edge keeps the soft edge where skin meets hair: it is all person', 
   assert.deepEqual(rgbAt(changed, row.length, 10, 0), BLUE);
 });
 
+test('Refine Edge keeps grey hair against a grey wall, where every colour lies on one line', () => {
+  // Two shades of neutral hair and a neutral wall: wall-and-hair and hair-and-hair fit equally.
+  const wallGrey = [220, 220, 220];
+  const row = [[20, 20, 20], [20, 20, 20], [60, 60, 60], [60, 60, 60], wallGrey, wallGrey, wallGrey, wallGrey];
+  const before = new Uint8ClampedArray(row.flatMap(colour => [...colour, 255]));
+  const changed = before.slice();
+  const newColour = [100, 150, 255];
+  tools.applyBackgroundFixes(changed, before, brushMask(row.length, 'refine'), newColour, { width: row.length, wall: flatWall(wallGrey) });
+  assert.deepEqual(rgbAt(changed, row.length, 0, 0), [20, 20, 20], 'the darker hair stays');
+  assert.deepEqual(rgbAt(changed, row.length, 2, 0), [60, 60, 60], 'the lighter hair stays');
+  assert.deepEqual(rgbAt(changed, row.length, 6, 0), newColour, 'the wall changes');
+});
+
 test('Refine Edge follows the colour the wall has at that spot', () => {
   // The wall is darker on the right. A pixel of that darker wall is still wall.
   const wall = { field: Float32Array.from([...WALL, ...WALL.map(value => value - 40)]), cell: 1, columns: 2, rows: 1, limit: 14 };

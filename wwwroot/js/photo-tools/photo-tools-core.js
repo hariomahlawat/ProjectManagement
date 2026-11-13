@@ -1011,6 +1011,9 @@
     };
   }
 
+  // Two fits of a pixel this close (in RGB levels) are equally good.
+  const FIT_TOLERANCE = 1;
+
   /** How far a point (dr, dg, db from a start) is from the segment to (fr, fg, fb), and where along it (0 to 1) it is nearest. */
   function segmentFit(dr, dg, db, fr, fg, fb) {
     const length = fr * fr + fg * fg + fb * fb;
@@ -1037,11 +1040,13 @@
       const distance = backgroundDistance(r, g, b, was, BACKGROUND_STEP_LUMA);
       return Math.min(1, Math.max(0, (distance - limit) / BACKGROUND_EDGE_SOFTNESS));
     }
-    // The best mix of wall and one person colour.
+    // The best mix of wall and one person colour. Of mixes that fit about as well, the one that
+    // leaves more of the pixel to the person is taken: when unsure, the person is kept.
     let best = null;
     for (let i = 0; i < candidates.length; i += 4) {
       const fit = segmentFit(r - was[0], g - was[1], b - was[2], candidates[i] - was[0], candidates[i + 1] - was[1], candidates[i + 2] - was[2]);
-      if (!best || fit.off < best.off) best = fit;
+      if (!best || fit.off < best.off - FIT_TOLERANCE
+        || (fit.off <= best.off + FIT_TOLERANCE && fit.along > best.along)) best = fit;
     }
     // The best mix of the two colours of one square of the person.
     let inside = Infinity;
@@ -1053,7 +1058,9 @@
         if (fit.off < inside) inside = fit.off;
       }
     }
-    if (inside < best.off) return 1;
+    // Two person colours explain it as well as wall and person do (grey hair against a grey wall,
+    // where every colour lies on one line): it is person.
+    if (inside <= best.off + FIT_TOLERANCE) return 1;
     // Grain on the wall is not person: the first tenth of the way counts as wall.
     const mixed = Math.min(1, Math.max(0, (best.along - 0.1) / 0.9));
     const own = Math.min(1, Math.max(0, (best.off - limit) / (BACKGROUND_EDGE_SOFTNESS / 2)));

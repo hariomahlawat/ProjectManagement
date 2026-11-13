@@ -180,6 +180,10 @@ step through them, as in Photoshop), Undo, Reset (removes every stroke) and Done
     changed;
   - nothing fits well: a colour of its own, and person.
 
+  When two explanations fit equally well (grey hair against a grey wall, where every colour lies
+  on one line), the one that keeps more of the person is taken: the brush errs on keeping the
+  person.
+
   Old wall becomes the new colour, a strand of hair keeps its colour on the new background, and
   solid hair, skin and the edge between them are not changed. The first tenth of the way from
   the wall (grain on the wall) counts as wall. Where no person is near, only a pixel well away
