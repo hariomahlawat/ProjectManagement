@@ -2,7 +2,7 @@
 // SIGN-IN PAGE
 // Small helpers for /Identity/Account/Login:
 //  - a greeting for the time of day;
-//  - the opening sequence's traced wordmark (light writes PRISM ERP);
+//  - the point of light on the pen tip while the name is written in the opening sequence;
 //  - a Caps Lock hint under the password field;
 //  - a busy state on the submit button so a slow sign-in is not submitted twice (the scene
 //    gets auth--sending with it, which sends a pulse down the beam).
@@ -11,7 +11,6 @@
 (function () {
   'use strict';
 
-  var SVG_NS = 'http://www.w3.org/2000/svg';
   var scene = document.querySelector('[data-auth-scene]');
 
   // SECTION: Greeting, by this computer's clock.
@@ -21,110 +20,60 @@
     greeting.textContent = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   }
 
-  // SECTION: Traced wordmark. One outlined SVG letter is laid exactly over each letter of
-  // the real text; auth-login.css draws the outlines in turn, tints them and fades them out
-  // as the real text fades in. Skipped on the narrow layout, under Reduce Motion, and when
-  // the page was slow enough that the rest of the sequence has already moved on.
-  function traceWordmark() {
-    var wordmark = scene && scene.classList.contains('auth--intro')
-      ? scene.querySelector('[data-auth-wordmark]')
+  // SECTION: Pen light. auth-login.css writes the name by drawing each pen path in turn
+  // (Pages/Shared/_PrismSignature.cshtml). This reads how far the stroke being drawn has got
+  // from its own animation and puts the point of light there, so the two cannot drift. The
+  // writing itself needs no script.
+  function followPen() {
+    var pen = scene && scene.classList.contains('auth--intro')
+      ? scene.querySelector('.auth__sig-pen')
       : null;
-    var text = wordmark && wordmark.querySelector('.auth__wordmark-text');
-    if (!text || !window.matchMedia || !document.createRange ||
-        !window.matchMedia('(min-width: 961px) and (prefers-reduced-motion: no-preference)').matches ||
-        window.performance.now() > 1300) {
+    if (!pen || !window.matchMedia || !pen.getAnimations ||
+        !window.matchMedia('(min-width: 961px) and (prefers-reduced-motion: no-preference)').matches) {
       return;
     }
 
-    var box = wordmark.getBoundingClientRect();
-    var fontSize = parseFloat(window.getComputedStyle(wordmark).fontSize) || 0;
-    if (!box.width || !fontSize) {
-      return;
-    }
-
-    // An empty inline-block sits on the baseline, so its bottom edge is the baseline.
-    var probe = document.createElement('span');
-    probe.style.display = 'inline-block';
-    text.insertBefore(probe, text.firstChild);
-    var baseline = probe.getBoundingClientRect().bottom - box.top;
-    text.removeChild(probe);
-
-    var svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('class', 'auth__trace');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.setAttribute('focusable', 'false');
-
-    var gradient = document.createElementNS(SVG_NS, 'linearGradient');
-    gradient.setAttribute('id', 'authTraceSpectrum');
-    gradient.setAttribute('gradientUnits', 'userSpaceOnUse');
-    for (var s = 0; s < 6; s++) {
-      var stop = document.createElementNS(SVG_NS, 'stop');
-      stop.setAttribute('offset', String(s / 5));
-      stop.setAttribute('class', 'lp-stop lp-stop--spec-' + (s + 1));
-      gradient.appendChild(stop);
-    }
-    var defs = document.createElementNS(SVG_NS, 'defs');
-    defs.appendChild(gradient);
-    svg.appendChild(defs);
-
-    var range = document.createRange();
-    var walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
-    var count = 0;
-    var right = 0;
-    var node;
-    while ((node = walker.nextNode())) {
-      var weight = window.getComputedStyle(node.parentElement).fontWeight;
-      for (var i = 0; i < node.data.length; i++) {
-        if (!node.data.charAt(i).trim()) {
-          continue;
-        }
-        range.setStart(node, i);
-        range.setEnd(node, i + 1);
-        var rect = range.getBoundingClientRect();
-        var letter = document.createElementNS(SVG_NS, 'text');
-        letter.setAttribute('class', 'auth__trace-letter');
-        letter.setAttribute('x', String(rect.left - box.left));
-        letter.setAttribute('y', String(baseline));
-        letter.setAttribute('font-weight', weight);
-        letter.setAttribute('fill', 'url(#authTraceSpectrum)');
-        letter.setAttribute('stroke', 'url(#authTraceSpectrum)');
-        letter.style.setProperty('--auth-i', String(count++));
-        letter.textContent = node.data.charAt(i);
-        svg.appendChild(letter);
-        right = Math.max(right, rect.right - box.left);
-      }
-    }
-    if (!count) {
-      return;
-    }
-
-    gradient.setAttribute('x1', '0');
-    gradient.setAttribute('x2', String(right));
-    // Longer than any letter's outline at this size, so each one draws from nothing.
-    svg.style.setProperty('--auth-dash', String(Math.round(fontSize * 9)));
-
-    var pen = document.createElement('span');
-    pen.className = 'auth__pen';
-    pen.setAttribute('aria-hidden', 'true');
-    pen.style.top = (baseline - fontSize * 0.36) + 'px';
-    pen.style.setProperty('--auth-trace-width', right + 'px');
-
-    svg.addEventListener('animationend', function (event) {
-      if (event.target === svg) {
-        svg.remove();
-        pen.remove();
+    var runs = [];
+    Array.prototype.forEach.call(scene.querySelectorAll('.auth__sig-stroke'), function (stroke) {
+      var animation = stroke.getAnimations()[0];
+      if (animation && animation.effect) {
+        runs.push({ stroke: stroke, length: stroke.getTotalLength(), animation: animation });
       }
     });
 
-    wordmark.appendChild(svg);
-    wordmark.appendChild(pen);
-    wordmark.classList.add('is-tracing');
+    function frame() {
+      var waiting = false;
+      var drawing = null;
+      runs.forEach(function (run) {
+        var timing = run.animation.effect.getComputedTiming();
+        var now = run.animation.currentTime;
+        if (now === null || now >= timing.endTime) {
+          return;
+        }
+        waiting = true;
+        if (!drawing && now >= timing.delay && timing.progress !== null) {
+          drawing = { run: run, progress: timing.progress };
+        }
+      });
+
+      if (drawing) {
+        var point = drawing.run.stroke.getPointAtLength(drawing.run.length * drawing.progress);
+        pen.setAttribute('cx', String(point.x));
+        pen.setAttribute('cy', String(point.y));
+      }
+      pen.style.opacity = drawing ? '1' : '0';
+
+      if (waiting) {
+        window.requestAnimationFrame(frame);
+      }
+    }
+
+    if (runs.length) {
+      window.requestAnimationFrame(frame);
+    }
   }
 
-  // Letter positions are only right once Mulish has loaded.
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(traceWordmark);
-  }
+  followPen();
 
   var form = document.querySelector('[data-auth-form]');
   if (!form) {

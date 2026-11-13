@@ -32,33 +32,38 @@ than rods or ribbons. All of it is tokens in `landing.css` (`--lp-fan-alpha`,
 - The beam pulse, ray shimmer, travelling light on the workflow track and mock caret are
   switched off under `prefers-reduced-motion`.
 
-## Sign-in: light writes the name
+## Sign-in: the name, written
 
-Added 2026-11-13. On arrival the sign-in page plays one opening sequence, about two
-seconds: the beam enters the prism, the six rays leave, a point of light traces PRISM ERP
-letter by letter as a fine spectrum outline, the outline takes a faint tint and gives way
-to the solid wordmark, then the tagline and strap line rise in. It is kept quiet on
-purpose: one outline pass, no flashing fill, and a glow on the dark scene only (on a pale
-ground a glow just blurs the letters).
+Added 2026-11-13. On the sign-in page the name is a signature: "Prism" in script
+(`Pages/Shared/_PrismSignature.cshtml`) with ERP beside it in the regular type. On arrival
+it is written stroke by stroke, in about three and a half seconds with the rest of the
+opening sequence: the beam enters the prism, the six rays leave, a point of light writes
+the name in the colours of the spectrum (the P's stem, its bowl, "ris" joined, "m", then
+the dot of the i), the word settles to the text colour and stays, and ERP, the tagline and
+the strap line rise in. The bold sans wordmark stays everywhere else.
 
+- **No font file.** The signature is an inline SVG holding the outlines of five letters
+  of Dancing Script Bold (SIL Open Font License 1.1). Nothing is fetched or installed.
+- **How it is written.** Each stroke has a pen path drawn down its middle. The pen paths
+  sit in an SVG mask over a spectrum-filled copy of the word; `auth-login.css` draws them
+  in turn (durations follow each stroke's length), which uncovers the word as if written.
+  The solid word then fades in over it, unmasked, so the resting shape is exact. Changing
+  the lettering means redrawing the pen paths.
+- **Script is optional.** The writing is CSS only. `auth-login.js` reads how far the stroke
+  being drawn has got from its own animation and keeps the point of light there.
 - **When it plays.** Only on a GET (`auth--intro` on the scene; a failed sign-in comes back
   as a POST and shows the page at rest), only on the wide layout (above 960px) and only when
-  Reduce Motion is off. The form is ready to type in from the first frame; nothing waits for
-  the sequence.
-- **How the letters are traced.** `auth-login.js` lays one outlined SVG letter exactly over
-  each letter of the real wordmark text (positions measured from the text itself once Mulish
-  has loaded) and `auth-login.css` animates them. The solid name is plain HTML text. If the
-  script does not run, or the page took longer than 1.3 s to get there, the name simply fades
-  in by CSS. The script starts the name's wait by renaming its animation
-  (`auth-name` to `auth-name-traced`), which keeps the two in step without inline styles.
+  Reduce Motion is off. At rest the solid word simply shows. The form is ready to type in
+  from the first frame; nothing waits for the sequence.
 - **Sending.** The rays brighten and one pulse runs down the beam when the form is sent
   (`auth--sending`). Nothing reacts to typing.
 - **Greeting.** The card heading is "Good morning / afternoon / evening" by the computer's
   clock ("Welcome back" without the script), with "Sign in to PRISM." under it.
-- **One screen.** The artwork shrinks on short screens so the wordmark and tagline stay on
-  the first screen (they were cut off at 1080p with 125% display scaling). The bare
-  artwork's rays therefore run on to x = 1800, so they still pass behind the card when the
-  prism is drawn small.
+- **One screen.** The artwork shrinks on short screens so the name and tagline stay on the
+  first screen (they were cut off at 1080p with 125% display scaling). The bare artwork's
+  rays therefore run on to x = 1800, so they still pass behind the card when the prism is
+  drawn small.
+- **Screen readers** get "PRISM ERP" as text; the drawing is hidden from them.
 
 ## Status pages
 
@@ -122,12 +127,13 @@ Keep the copy true to the current application; update it when a module is added 
 | Landing markup | `Pages/Index.cshtml` |
 | Sign-in markup | `Areas/Identity/Pages/Account/Login.cshtml` |
 | The prism mark | `Pages/Shared/_PrismSpectrum.cshtml` |
+| The written name on sign-in | `Pages/Shared/_PrismSignature.cshtml` |
 | Signed-out top bar and footer | `Pages/Shared/_Layout.cshtml`, `wwwroot/css/public-shell.css` (loaded for every signed-out page; site tokens only) |
 | Landing styles, shared tokens, buttons, prism styles | `wwwroot/css/landing.css` |
 | Sign-in styles | `wwwroot/css/auth-login.css` (landing tokens only; no colour literals) |
 | Status pages markup | `Areas/Identity/Pages/Account/Logout.cshtml`, `Areas/Identity/Pages/Account/AccessDenied.cshtml`, `Pages/Error.cshtml` |
 | Status page styles | `wwwroot/css/status-page.css` (loaded after `landing.css`; landing tokens only; no colour literals) |
-| Greeting, traced wordmark, Caps Lock hint and busy submit button | `wwwroot/js/pages/auth-login.js` (the form works without it) |
+| Greeting, pen light, Caps Lock hint and busy submit button | `wwwroot/js/pages/auth-login.js` (the form works without it) |
 | Pointer-following glass highlight | `wwwroot/js/pages/glass-light.js` (decorative; skipped for touch and Reduce Motion) |
 
 ## Theme
