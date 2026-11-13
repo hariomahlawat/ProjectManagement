@@ -527,17 +527,21 @@
       unique.forEach((index, position) => copies.set(`${sourceIndex}:${index}`, copied[position]));
     }
 
-    const used = new Set();
+    const used = new Map();
     const outputPages = new Map();
     const pageSources = new Map();
+    const pageCopies = new Map();
     for (const page of pages) {
       const key = `${page.source}:${page.index}`;
       let copy = copies.get(key);
-      if (used.has(key)) {
+      const occurrence = used.get(key) || 0;
+      if (occurrence > 0) {
         // The same page appears twice: copy it again so each occurrence is its own page.
         [copy] = await output.copyPages(loaded[page.source], [page.index]);
       }
-      used.add(key);
+      used.set(key, occurrence + 1);
+      // Pages copied together share their fields' objects; a repeat copy has its own.
+      pageCopies.set(String(copy.ref), occurrence === 0 ? 0 : `${key}#${occurrence}`);
       const current = copy.getRotation().angle;
       copy.setRotation(PDFLib.degrees(normalizeRotation(normalizeRotation(current) + (Number(page.rotate) || 0))));
       output.addPage(copy);
@@ -546,7 +550,7 @@
         outputPages.set(key, copy.ref);
       }
     }
-    carryFormFields(PDFLib, output, loaded, pageSources);
+    carryFormFields(PDFLib, output, loaded, pageSources, pageCopies);
     resolvePageTags(PDFLib, output, outputPages);
     removeUnreachableObjects(PDFLib, output);
     assertOnlyOutputPages(PDFLib, output);
@@ -562,9 +566,17 @@
    * A field keeps its own answer. PDF viewers treat fields with the same name as one field, so
    * two filled copies of the same form, merged, would show or overwrite each other's answers.
    * A top-level field whose name an earlier file already uses is renamed "name (2)", "name (3)".
-   * Fields of the same file keep their names, so a page used twice still shares its fields.
+   *
+   * A page used twice is copied twice, so its fields are copied twice too. The second copy's
+   * widgets are joined to the first copy's field, so the two pages share one answer as they
+   * did in the file. When the two fields are not built alike (a field that is also its own
+   * widget), the second copy is renamed like a field of another file and keeps its own answer.
+   *
+   * The form's settings (/DA, /Q, /DR, /NeedAppearances) come from the files whose fields were
+   * kept: /DA and /Q from the first, the default resources merged (the first file's entry wins
+   * a name both have), and /NeedAppearances set when any of them sets it.
    */
-  function carryFormFields(PDFLib, output, sources, pageSources) {
+  function carryFormFields(PDFLib, output, sources, pageSources, pageCopies) {
     const { PDFName, PDFDict, PDFArray, PDFRef, PDFHexString } = PDFLib;
     const PARENT = PDFName.of('Parent');
     const KIDS = PDFName.of('Kids');
@@ -590,7 +602,10 @@
           const parent = node.get(PARENT);
           if (!(parent instanceof PDFRef)) {
             roots.set(String(nodeRef), nodeRef);
-            rootSources.set(String(nodeRef), pageSources ? pageSources.get(String(page.ref)) : 0);
+            rootSources.set(String(nodeRef), {
+              source: pageSources ? pageSources.get(String(page.ref)) : 0,
+              copy: pageCopies ? pageCopies.get(String(page.ref)) : 0
+            });
             break;
           }
           nodeRef = parent;
@@ -616,46 +631,129 @@
     // Names are taken in page order, so the first file keeps its field names. Every name that is
     // already in use is reserved first, so a new name never repeats one that a later file has
     // (a file with both "name" and "name (2)").
+    const titleOf = (node) => {
+      const title = node instanceof PDFDict ? node.lookup(PDFName.of('T')) : undefined;
+      return title && typeof title.decodeText === 'function' ? title.decodeText() : undefined;
+    };
     const entries = [];
     for (const [key, ref] of roots) {
       const node = output.context.lookup(ref);
-      const title = node instanceof PDFDict ? node.lookup(PDFName.of('T')) : undefined;
-      const name = title && typeof title.decodeText === 'function' ? title.decodeText() : undefined;
-      if (name !== undefined) entries.push({ node, name, source: rootSources.get(key) });
+      const name = titleOf(node);
+      if (name !== undefined) entries.push({ key, ref, node, name, ...rootSources.get(key) });
     }
+
+    // Can `from` be joined into `into`: both have kids, and every named kid of `from` either has
+    // no namesake in `into` or can itself be joined into it.
+    const kidsOf = (node) => (node instanceof PDFDict ? node.lookupMaybe(KIDS, PDFArray) : undefined);
+    const canJoin = (into, from, depth = 0) => {
+      const target = kidsOf(into);
+      const extra = kidsOf(from);
+      if (!target || !extra || depth > 32) return false;
+      return extra.asArray().every((ref) => {
+        const kid = output.context.lookup(ref);
+        const name = titleOf(kid);
+        if (name === undefined) return true;
+        const same = target.asArray().map((other) => output.context.lookup(other)).find((other) => titleOf(other) === name);
+        return !same || canJoin(same, kid, depth + 1);
+      });
+    };
+    const join = (intoRef, into, from) => {
+      const target = kidsOf(into);
+      for (const ref of kidsOf(from).asArray()) {
+        const kid = output.context.lookup(ref);
+        const name = titleOf(kid);
+        const sameRef = name === undefined ? undefined
+          : target.asArray().find((other) => titleOf(output.context.lookup(other)) === name);
+        if (sameRef) {
+          join(sameRef, output.context.lookup(sameRef), kid);
+        } else {
+          target.push(ref);
+          kid.set(PARENT, intoRef);
+        }
+      }
+    };
+
     const taken = new Set(entries.map((entry) => entry.name));
     const firstSource = new Map();
-    // A field of one file seen again (its page used twice) gets the same new name, so it still
-    // shares its answer, as it does in that file.
+    // The first root of each name in each file and copy, to join a repeated page's fields to.
+    const firstOfCopy = new Map();
+    // A field of one file renamed once keeps that new name wherever it is seen again.
     const renamed = new Map();
-    for (const { node, name, source } of entries) {
+    const nextName = (name) => {
+      let number = 2;
+      while (taken.has(`${name} (${number})`)) number += 1;
+      const next = `${name} (${number})`;
+      taken.add(next);
+      return next;
+    };
+    for (const entry of entries) {
+      const { key, ref, node, name, source, copy } = entry;
+      const sourceKey = `${source}\u0000${name}`;
+      const first = firstOfCopy.get(sourceKey);
+      if (first && first.copy !== copy) {
+        // The same field of a page used twice: share one answer if the two can be joined.
+        if (canJoin(first.node, node)) {
+          join(first.ref, first.node, node);
+          roots.delete(key);
+          continue;
+        }
+        node.set(PDFName.of('T'), PDFHexString.fromText(nextName(renamed.get(sourceKey) || name)));
+        continue;
+      }
+      if (!first) firstOfCopy.set(sourceKey, { ref, node, copy });
       if (!firstSource.has(name)) {
         firstSource.set(name, source);
         continue;
       }
       if (firstSource.get(name) === source) continue;
-      const key = `${source}\u0000${name}`;
-      let next = renamed.get(key);
+      let next = renamed.get(sourceKey);
       if (!next) {
-        let number = 2;
-        while (taken.has(`${name} (${number})`)) number += 1;
-        next = `${name} (${number})`;
-        taken.add(next);
-        renamed.set(key, next);
+        next = nextName(name);
+        renamed.set(sourceKey, next);
       }
       node.set(PDFName.of('T'), PDFHexString.fromText(next));
     }
 
     const acroForm = output.context.obj({});
     acroForm.set(PDFName.of('Fields'), output.context.obj(Array.from(roots.values())));
-    const source = sources.find((document) => document && document.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict));
-    if (source) {
-      const sourceForm = source.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict);
-      const copier = PDFLib.PDFObjectCopier.for(source.context, output.context);
-      for (const key of ['DA', 'DR', 'NeedAppearances', 'Q']) {
+    // Settings from the files whose fields were kept, in page order.
+    const contributing = [];
+    for (const key of roots.keys()) {
+      const { source } = rootSources.get(key);
+      if (!contributing.includes(source)) contributing.push(source);
+    }
+    for (const sourceIndex of contributing) {
+      const document = sources[sourceIndex];
+      const sourceForm = document ? document.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict) : undefined;
+      if (!sourceForm) continue;
+      const copier = PDFLib.PDFObjectCopier.for(document.context, output.context);
+      for (const key of ['DA', 'Q']) {
         const value = sourceForm.get(PDFName.of(key));
-        if (value !== undefined) {
-          acroForm.set(PDFName.of(key), copier.copy(value));
+        if (value !== undefined && !acroForm.has(PDFName.of(key))) acroForm.set(PDFName.of(key), copier.copy(value));
+      }
+      const need = sourceForm.lookup(PDFName.of('NeedAppearances'));
+      if (need instanceof PDFLib.PDFBool && need.asBoolean()) acroForm.set(PDFName.of('NeedAppearances'), PDFLib.PDFBool.True);
+      const resources = sourceForm.lookupMaybe(PDFName.of('DR'), PDFDict);
+      if (resources) {
+        let merged = acroForm.lookupMaybe(PDFName.of('DR'), PDFDict);
+        if (!merged) {
+          merged = output.context.obj({});
+          acroForm.set(PDFName.of('DR'), merged);
+        }
+        for (const [category, value] of resources.entries()) {
+          const entries = resources.lookup(category);
+          if (!(entries instanceof PDFDict)) {
+            if (!merged.has(category)) merged.set(category, copier.copy(value));
+            continue;
+          }
+          let into = merged.lookupMaybe(category, PDFDict);
+          if (!into) {
+            into = output.context.obj({});
+            merged.set(category, into);
+          }
+          for (const [name, item] of entries.entries()) {
+            if (!into.has(name)) into.set(name, copier.copy(item));
+          }
         }
       }
     }
@@ -757,10 +855,25 @@
       }
     };
 
+    const ACTION_KEYS = [PDFName.of('A'), PDFName.of('AA')];
     for (const index of indexes) {
-      const annots = document.getPage(index).node.Annots();
+      const node = document.getPage(index).node;
+      // The page's own actions (on opening or closing it) can go to another page.
+      visit(node.get(PDFName.of('AA')));
+      const annots = node.Annots();
       if (annots) {
-        annots.asArray().forEach((ref) => visit(ref, true));
+        annots.asArray().forEach((ref) => {
+          visit(ref, true);
+          // A widget's fields can carry actions too; their other links (/Kids, /Parent) are the
+          // form's structure, which carryFormFields rebuilds.
+          let field = document.context.lookup(ref);
+          for (let depth = 0; field instanceof PDFDict && depth < 32; depth += 1) {
+            const parent = field.get(PDFName.of('Parent'));
+            field = parent instanceof PDFRef ? document.context.lookup(parent) : undefined;
+            if (!(field instanceof PDFDict)) break;
+            for (const key of ACTION_KEYS) visit(field.get(key));
+          }
+        });
       }
     }
   }
@@ -820,15 +933,48 @@
       return true;
     };
 
+    // An action holder (a page's /AA, a field's /A and /AA): keep what resolves, drop the rest.
+    const resolveActions = (holder) => {
+      for (const key of [PDFName.of('A'), PDFName.of('AA')]) {
+        const entry = holder.get(key);
+        if (entry === undefined) continue;
+        const tag = resolveTag(entry);
+        if (tag) holder.set(key, tag);
+        else if (tag === null || !resolve(entry, new Set())) holder.delete(key);
+      }
+    };
+    const resolveFieldActions = (annot) => {
+      let field = annot;
+      for (let depth = 0; depth < 32; depth += 1) {
+        const parent = field.get(PDFName.of('Parent'));
+        field = parent instanceof PDFRef ? output.context.lookup(parent) : undefined;
+        if (!(field instanceof PDFDict)) return;
+        resolveActions(field);
+      }
+    };
+
     for (const page of output.getPages()) {
       // Article-thread beads chain pages together; the threads are not carried over.
       page.node.delete(PDFName.of('B'));
+      if (page.node.has(PDFName.of('AA'))) {
+        const actions = page.node.lookup(PDFName.of('AA'));
+        if (actions instanceof PDFDict) {
+          for (const [key, entry] of actions.entries()) {
+            const tag = resolveTag(entry);
+            if (tag) actions.set(key, tag);
+            else if (tag === null || !resolve(entry, new Set())) actions.delete(key);
+          }
+        } else {
+          page.node.delete(PDFName.of('AA'));
+        }
+      }
       const annots = page.node.Annots();
       if (!annots) continue;
       const keep = annots.asArray().filter((ref) => {
         const annot = ref instanceof PDFRef ? output.context.lookup(ref) : ref;
         if (!(annot instanceof PDFDict)) return true;
         const isLink = String(annot.get(PDFName.of('Subtype'))) === '/Link';
+        resolveFieldActions(annot);
         if (annot.has(PDFName.of('P'))) {
           annot.set(PDFName.of('P'), page.ref);
         }
