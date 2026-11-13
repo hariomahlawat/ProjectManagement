@@ -667,6 +667,7 @@ builder.Services.AddScoped<IAdminMasterDataIntegrityService, AdminMasterDataInte
 builder.Services.AddScoped<IListOrderNoticeService, ListOrderNoticeService>();
 builder.Services.AddScoped<ICelebrationAdministrationService, CelebrationAdministrationService>();
 builder.Services.AddScoped<ProjectManagement.Services.Celebrations.ICelebrationWishService, ProjectManagement.Services.Celebrations.CelebrationWishService>();
+builder.Services.AddScoped<ProjectManagement.Services.Celebrations.IMyCelebrationService, ProjectManagement.Services.Celebrations.MyCelebrationService>();
 builder.Services.AddScoped<ICalendarRecoveryService, CalendarRecoveryService>();
 builder.Services.AddScoped<IHolidayAdminService, HolidayAdminService>();
 builder.Services.AddScoped<IOfficeCalendarService, OfficeCalendarService>();

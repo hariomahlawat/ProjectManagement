@@ -292,6 +292,13 @@
   padding: .6rem 0 .6rem;
 }
 
+/* Birthday and anniversary: day, month, year (and spouse) side by side, stacking when narrow. */
+.account__celebration-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.75rem;
+}
+
 .account__report-form p {
   color: var(--pm-muted);
   font-size: .86rem;
