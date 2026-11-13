@@ -505,8 +505,15 @@
       throw new PdfToolError('no-pages', 'There are no pages to save.');
     }
     const output = await PDFLib.PDFDocument.create();
-    // copyPages per source keeps shared resources (fonts, images) de-duplicated.
+    // One copier per source (as copyPages uses) keeps shared resources (fonts, images, layers)
+    // de-duplicated, and is kept so the source's layer settings are copied to the same objects.
     const copies = new Map();
+    const copiers = [];
+    const copyWith = (copier, document, index) => {
+      const node = copier.copy(document.getPage(index).node);
+      const ref = output.context.register(node);
+      return PDFLib.PDFPage.of(node, ref, output);
+    };
     for (let sourceIndex = 0; sourceIndex < loaded.length; sourceIndex += 1) {
       const indexes = pages.filter((page) => page.source === sourceIndex).map((page) => page.index);
       if (indexes.length === 0) {
@@ -523,8 +530,9 @@
         }
       });
       tagPageReferences(PDFLib, document, sourceIndex, unique);
-      const copied = await output.copyPages(document, unique);
-      unique.forEach((index, position) => copies.set(`${sourceIndex}:${index}`, copied[position]));
+      const copier = PDFLib.PDFObjectCopier.for(document.context, output.context);
+      copiers.push({ source: sourceIndex, copier, repeat: false });
+      unique.forEach((index) => copies.set(`${sourceIndex}:${index}`, copyWith(copier, document, index)));
     }
 
     const used = new Map();
@@ -537,7 +545,9 @@
       const occurrence = used.get(key) || 0;
       if (occurrence > 0) {
         // The same page appears twice: copy it again so each occurrence is its own page.
-        [copy] = await output.copyPages(loaded[page.source], [page.index]);
+        const copier = PDFLib.PDFObjectCopier.for(loaded[page.source].context, output.context);
+        copiers.push({ source: page.source, copier, repeat: true });
+        copy = copyWith(copier, loaded[page.source], page.index);
       }
       used.set(key, occurrence + 1);
       // Pages copied together share their fields' objects; a repeat copy has its own.
@@ -552,6 +562,8 @@
     }
     carryFormFields(PDFLib, output, loaded, pageSources, pageCopies);
     resolvePageTags(PDFLib, output, outputPages);
+    carryLayers(PDFLib, output, loaded, copiers);
+    carryBookmarks(PDFLib, output, loaded, pages, outputPages);
     removeUnreachableObjects(PDFLib, output);
     assertOnlyOutputPages(PDFLib, output);
     return save(output);
@@ -758,6 +770,191 @@
       }
     }
     output.catalog.set(PDFName.of('AcroForm'), output.context.register(acroForm));
+  }
+
+  /**
+   * Optional content (layers). Without /OCProperties a viewer shows every layer, so a draft or
+   * print-only layer that was off in the file would show after Organise or Split. The settings
+   * of each file whose pages were kept are copied with the copier its pages were copied with, so
+   * they name the same layer objects, and merged: the layers listed, and the default
+   * configuration's Locked, AS, Order and RBGroups lists joined (Name, Intent and ListMode from
+   * the first file). Files can start from different base states (/BaseState ON or OFF), so each
+   * layer's own state in its file is worked out first and the merged view says it outright: base
+   * ON, and every layer that was off listed in OFF. A page used twice is copied separately with
+   * its own layer objects; those are listed with their on/off state but left out of the layer
+   * panel's Order. Alternate configurations (/Configs) are not carried.
+   */
+  function carryLayers(PDFLib, output, sources, copiers) {
+    const { PDFName, PDFDict, PDFArray } = PDFLib;
+    const OCGS = PDFName.of('OCGs');
+    const groups = [];
+    const seen = new Set();
+    const off = [];
+    const lists = { Locked: [], AS: [], Order: [], RBGroups: [] };
+    let base = null;
+    for (const { source, copier, repeat } of copiers) {
+      const document = sources[source];
+      const properties = document ? document.catalog.lookupMaybe(PDFName.of('OCProperties'), PDFDict) : undefined;
+      if (!properties) continue;
+      const copied = copier.copy(properties);
+      const listed = copied.lookupMaybe(OCGS, PDFArray);
+      const config = copied.lookupMaybe(PDFName.of('D'), PDFDict);
+      // This file's own state of each layer: its base state, then its ON and OFF lists.
+      const names = (key) => {
+        const values = config ? config.lookupMaybe(PDFName.of(key), PDFArray) : undefined;
+        return new Set((values ? values.asArray() : []).map(String));
+      };
+      const baseOff = config ? String(config.get(PDFName.of('BaseState'))) === '/OFF' : false;
+      const on = names('ON');
+      const offHere = names('OFF');
+      for (const ref of listed ? listed.asArray() : []) {
+        if (seen.has(String(ref))) continue;
+        seen.add(String(ref));
+        groups.push(ref);
+        const hidden = baseOff ? !on.has(String(ref)) : offHere.has(String(ref));
+        if (hidden) off.push(ref);
+      }
+      if (!config) continue;
+      if (!base) {
+        base = output.context.obj({});
+        for (const key of ['Name', 'Creator', 'Intent', 'ListMode']) {
+          const value = config.get(PDFName.of(key));
+          if (value !== undefined) base.set(PDFName.of(key), value);
+        }
+      }
+      for (const [key, list] of Object.entries(lists)) {
+        if (repeat && (key === 'Order' || key === 'RBGroups')) continue;
+        const values = config.lookupMaybe(PDFName.of(key), PDFArray);
+        if (values) list.push(...values.asArray());
+      }
+    }
+    if (groups.length === 0) return;
+    const config = base || output.context.obj({});
+    config.set(PDFName.of('BaseState'), PDFName.of('ON'));
+    if (off.length) config.set(PDFName.of('OFF'), output.context.obj(off));
+    for (const [key, list] of Object.entries(lists)) {
+      if (list.length) config.set(PDFName.of(key), output.context.obj(list));
+    }
+    output.catalog.set(PDFName.of('OCProperties'), output.context.obj({ OCGs: groups, D: config }));
+  }
+
+  /**
+   * Bookmarks (the outline). Each kept file's bookmarks are carried, in page order of the files,
+   * pointing at the output pages: a bookmark to a kept page goes to that page (a page used twice:
+   * its first copy), one to a dropped page loses its link, and is dropped unless bookmarks under it
+   * still lead somewhere, so the headings above kept pages stay. Named destinations are resolved.
+   * A web link (URI action) is kept. Open and closed state and the colour and style are kept.
+   * Page labels are not carried: after reordering or dropping pages they would number the wrong
+   * pages.
+   */
+  function carryBookmarks(PDFLib, output, sources, pages, outputPages) {
+    const { PDFName, PDFDict, PDFArray, PDFRef, PDFNumber, PDFHexString } = PDFLib;
+    const order = [];
+    for (const page of pages) if (!order.includes(page.source)) order.push(page.source);
+    const items = [];
+    for (const sourceIndex of order) {
+      const document = sources[sourceIndex];
+      const outlines = document ? document.catalog.lookupMaybe(PDFName.of('Outlines'), PDFDict) : undefined;
+      if (!outlines) continue;
+      const pageIndexByRef = new Map(document.getPages().map((page, index) => [String(page.ref), index]));
+      const named = namedDestinations(PDFLib, document);
+      const lookup = (value) => (value instanceof PDFRef ? document.context.lookup(value) : value);
+      // The destination in the output, or null when its page was not kept (or it is not a page).
+      const target = (value) => {
+        let destination = lookup(value);
+        if (destination instanceof PDFDict) destination = lookup(destination.get(PDFName.of('D')));
+        if (!(destination instanceof PDFArray)) {
+          const name = destinationName(PDFLib, destination);
+          destination = name === undefined ? undefined : named.get(name);
+        }
+        if (!(destination instanceof PDFArray) || destination.size() === 0) return null;
+        const first = destination.get(0);
+        let key = null;
+        if (first instanceof PDFRef && pageIndexByRef.has(String(first))) {
+          key = `${sourceIndex}:${pageIndexByRef.get(String(first))}`;
+        } else if (first instanceof PDFName && first.decodeText().startsWith(PAGE_TAG_PREFIX)) {
+          // An array an annotation shares, already tagged for this output.
+          key = first.decodeText().slice(PAGE_TAG_PREFIX.length);
+        }
+        const pageRef = key ? outputPages.get(key) : undefined;
+        if (!pageRef) return null;
+        const rest = destination.asArray().slice(1);
+        const simple = rest.every((entry) => entry instanceof PDFName || entry instanceof PDFNumber || String(entry) === 'null');
+        return output.context.obj([pageRef, ...(simple && rest.length ? rest : [PDFName.of('Fit')])]);
+      };
+      const seen = new Set();
+      const read = (firstRef, depth) => {
+        const list = [];
+        let ref = firstRef;
+        while (ref instanceof PDFRef && !seen.has(String(ref)) && depth < 64 && seen.size < 20000) {
+          seen.add(String(ref));
+          const node = document.context.lookup(ref);
+          if (!(node instanceof PDFDict)) break;
+          const title = node.lookup(PDFName.of('Title'));
+          const item = {
+            title: title && typeof title.decodeText === 'function' ? title.decodeText() : '',
+            destination: null,
+            link: null,
+            closed: node.lookup(PDFName.of('Count')) instanceof PDFNumber && node.lookup(PDFName.of('Count')).asNumber() < 0,
+            colour: node.lookupMaybe(PDFName.of('C'), PDFArray),
+            style: node.lookup(PDFName.of('F')) instanceof PDFNumber ? node.lookup(PDFName.of('F')).asNumber() : null,
+            children: read(node.get(PDFName.of('First')), depth + 1)
+          };
+          if (node.has(PDFName.of('Dest'))) {
+            item.destination = target(node.get(PDFName.of('Dest')));
+          } else {
+            const action = node.lookupMaybe(PDFName.of('A'), PDFDict);
+            const type = action ? String(action.get(PDFName.of('S'))) : '';
+            if (type === '/GoTo') item.destination = target(action.get(PDFName.of('D')));
+            const uri = type === '/URI' ? action.lookup(PDFName.of('URI')) : undefined;
+            // The address is kept as the very string object it was (literal or hex), so its bytes
+            // and escaping are written back unchanged: a "(" or "\" in it cannot break the file.
+            if (uri instanceof PDFLib.PDFString || uri instanceof PDFHexString) item.link = uri;
+          }
+          if (item.destination || item.link || item.children.length) list.push(item);
+          ref = node.get(PDFName.of('Next'));
+        }
+        return list;
+      };
+      items.push(...read(outlines.get(PDFName.of('First')), 0));
+    }
+    if (items.length === 0) return;
+
+    const visible = (item) => item.children.reduce((sum, child) => sum + 1 + (child.closed ? 0 : visible(child)), 0);
+    const write = (list, parentRef) => {
+      const refs = list.map(() => output.context.nextRef());
+      list.forEach((item, index) => {
+        const dict = output.context.obj({});
+        dict.set(PDFName.of('Title'), PDFHexString.fromText(item.title));
+        dict.set(PDFName.of('Parent'), parentRef);
+        if (index > 0) dict.set(PDFName.of('Prev'), refs[index - 1]);
+        if (index < list.length - 1) dict.set(PDFName.of('Next'), refs[index + 1]);
+        if (item.destination) dict.set(PDFName.of('Dest'), item.destination);
+        else if (item.link) {
+          const action = output.context.obj({ S: 'URI' });
+          action.set(PDFName.of('URI'), item.link);
+          dict.set(PDFName.of('A'), action);
+        }
+        if (item.colour && item.colour.size() === 3 && item.colour.asArray().every((value) => value instanceof PDFNumber)) {
+          dict.set(PDFName.of('C'), output.context.obj(item.colour.asArray().map((value) => value.asNumber())));
+        }
+        if (item.style !== null) dict.set(PDFName.of('F'), output.context.obj(item.style));
+        if (item.children.length) {
+          const children = write(item.children, refs[index]);
+          dict.set(PDFName.of('First'), children[0]);
+          dict.set(PDFName.of('Last'), children[children.length - 1]);
+          const count = visible(item);
+          dict.set(PDFName.of('Count'), output.context.obj(item.closed ? -count : count));
+        }
+        output.context.assign(refs[index], dict);
+      });
+      return refs;
+    };
+    const rootRef = output.context.nextRef();
+    const top = write(items, rootRef);
+    const total = items.reduce((sum, item) => sum + 1 + (item.closed ? 0 : visible(item)), 0);
+    output.context.assign(rootRef, output.context.obj({ Type: 'Outlines', First: top[0], Last: top[top.length - 1], Count: total }));
+    output.catalog.set(PDFName.of('Outlines'), rootRef);
   }
 
   const PAGE_TAG_PREFIX = 'PrismPdfToolsPage:';
