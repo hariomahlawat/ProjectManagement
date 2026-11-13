@@ -194,6 +194,38 @@ test('a Type 3 font without its own resources draws from the enclosing ones; onl
   assert.deepEqual(plan.find((item) => String(item.ref) === String(untouched)).target, { width: 75, height: 75, scaled: true });
 });
 
+test('one glyph shared by two Type 3 fonts is read in each font\'s resources', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const first = addImage(document, { width: 600, height: 600 });
+  const second = addImage(document, { width: 600, height: 600, data: noise(600 * 600 * 3, 99) });
+  // The same glyph stream (as after identical glyphs are stored once); /Img differs by font.
+  const glyph = document.context.register(document.context.stream(bytesOf('0 0 0 0 0 0 d1 q 432 0 0 432 0 0 cm /Img Do Q')));
+  const font = (image) => document.context.register(document.context.obj({
+    Type: 'Font', Subtype: 'Type3', FontBBox: [0, 0, 1, 1], FontMatrix: [1, 0, 0, 1, 0, 0],
+    CharProcs: { g: glyph }, Resources: { XObject: { Img: image } }
+  }));
+  // A form without its own resources, used from two places with different /Img.
+  const form = document.context.register(document.context.stream(bytesOf('/Img Do'), { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 1, 1] }));
+  const third = addImage(document, { width: 600, height: 600, data: noise(600 * 600 * 3, 5) });
+  const fourth = addImage(document, { width: 600, height: 600, data: noise(600 * 600 * 3, 6) });
+  const maskState = (image) => document.context.obj({
+    SMask: { S: 'Luminosity', G: document.context.register(document.context.stream(bytesOf('/F Do'), {
+      Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 1, 1], Resources: { XObject: { F: form, Img: image } }
+    })) }
+  });
+  const page = document.addPage([612, 792]);
+  page.node.set(PDFName.of('Resources'), document.context.obj({
+    XObject: { A: first, B: second, C: third, D: fourth },
+    Font: { F1: font(first), F2: font(second) },
+    ExtGState: { G1: maskState(third), G2: maskState(fourth) }
+  }));
+  page.node.set(PDFName.of('Contents'), document.context.register(document.context.stream(bytesOf(
+    ['A', 'B', 'C', 'D'].map((name, i) => `q 36 0 0 36 ${i * 40} 0 cm /${name} Do Q`).join(' ')))));
+  const measured = tools.measureImageUses(PDFLib, document);
+  for (const ref of [first, second]) assert.ok(measured.unmeasured.has(String(ref)), `glyph image ${ref}`);
+  for (const ref of [third, fourth]) assert.ok(measured.unmeasured.has(String(ref)), `form image ${ref}`);
+});
+
 test('measureImageUses ends on resources that lead back to themselves', async () => {
   const document = await PDFLib.PDFDocument.create();
   const image = addImage(document, { width: 600, height: 600 });

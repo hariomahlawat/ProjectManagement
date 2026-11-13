@@ -130,7 +130,9 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
   page that cannot be read is not measured, whatever its other uses, and keeps its pixel size (it
   may still be re-saved at the preset's quality). Patterns, glyphs and groups are read for the
   pictures they actually draw, by name in their own resources or, when they have none, in the
-  enclosing ones, as viewers do; resources that lead back to themselves are visited once.
+  enclosing ones, as viewers do. Each is read once per set of resources it is used with (one glyph
+  shared by two Type 3 fonts can draw a different picture in each), so resources that lead back
+  to themselves end.
 - **Which pictures change** (`reduceImagePlan`). Re-saved: 8-bit RGB or grey pictures, stored as
   JPG or with Flate (and LZW, ASCII85, ASCIIHex, RunLength; PNG predictors are undone by
   `undoPngPredictor`). Left as they are, and counted on the result: image masks and soft masks

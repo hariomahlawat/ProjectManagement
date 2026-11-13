@@ -1349,9 +1349,23 @@
      * none, in the enclosing ones (as viewers do). `seen` holds what was visited, so resources that
      * lead back to themselves end.
      */
+    // What was read, keyed by the object and the resources it was read in: one glyph, pattern or
+    // form can draw a different image in each place it is used (two Type 3 fonts sharing a
+    // glyph, a form without resources of its own), so it is read again in each. Each pair once,
+    // so resources that lead back to themselves end.
+    const once = (seen, object, resources) => {
+      let contexts = seen.get(object);
+      if (!contexts) {
+        contexts = new Set();
+        seen.set(object, contexts);
+      }
+      if (contexts.has(resources)) return false;
+      contexts.add(resources);
+      return true;
+    };
+
     const markIndirect = (resources, depth, seen) => {
-      if (depth > 12 || !(resources instanceof PDFDict) || seen.has(resources)) return;
-      seen.add(resources);
+      if (depth > 12 || !(resources instanceof PDFDict) || !once(seen, resources, null)) return;
       const own = (holder) => {
         const value = holder instanceof PDFStream ? holder.dict.lookup(PDFName.of('Resources')) : holder.lookup(PDFName.of('Resources'));
         return value instanceof PDFDict ? value : resources;
@@ -1364,8 +1378,7 @@
       const fonts = lookupDict(resources, 'Font');
       for (const value of fonts ? fonts.values() : []) {
         const font = resolve(value);
-        if (!(font instanceof PDFDict) || String(font.get(PDFName.of('Subtype'))) !== '/Type3' || seen.has(font)) continue;
-        seen.add(font);
+        if (!(font instanceof PDFDict) || String(font.get(PDFName.of('Subtype'))) !== '/Type3') continue;
         const procs = lookupDict(font, 'CharProcs');
         const glyphs = procs ? procs.values().map(resolve).filter((item) => item instanceof PDFStream) : [];
         markDrawnBy(glyphs, own(font), depth + 1, seen);
@@ -1381,12 +1394,12 @@
 
     /** A form and everything it can draw is unmeasured. */
     const markForm = (ref, resources, depth, seen) => {
-      const key = String(ref);
-      if (seen.has(key)) return;
-      seen.add(key);
       const form = context.lookup(ref);
-      const formResources = form instanceof PDFStream ? form.dict.lookup(PDFName.of('Resources')) : undefined;
-      markAll(formResources instanceof PDFDict ? formResources : resources, depth + 1, seen);
+      if (!(form instanceof PDFStream)) return;
+      const own = form.dict.lookup(PDFName.of('Resources'));
+      const used = own instanceof PDFDict ? own : resources;
+      if (!once(seen, form, used)) return;
+      markAll(used, depth + 1, seen);
     };
 
     /** The images these content streams draw (by name, in `resources`) are unmeasured. */
@@ -1395,8 +1408,7 @@
       markIndirect(resources, depth, seen);
       const names = new Map(xobjects(resources).map(([key, ref]) => [String(key), ref]));
       for (const stream of streams) {
-        if (seen.has(stream)) continue;
-        seen.add(stream);
+        if (!once(seen, stream, resources)) continue;
         const bytes = streamBytes(PDFLib, stream);
         if (!bytes) {
           // Cannot be read: anything it could reach is treated as drawn.
@@ -1428,10 +1440,10 @@
 
     const run = (contents, resources, ctm, scale, depth, stack) => {
       if (depth > 12) return;
-      markIndirect(resources, depth, new Set());
+      markIndirect(resources, depth, new Map());
       const bytes = contents.map((stream) => streamBytes(PDFLib, stream));
       if (bytes.some((part) => !part)) {
-        markAll(resources, depth, new Set());
+        markAll(resources, depth, new Map());
         return;
       }
       const joined = new Uint8Array(bytes.reduce((sum, part) => sum + part.length + 1, 0));
@@ -1505,7 +1517,7 @@
           const forms = target instanceof PDFStream ? [target]
             : target instanceof PDFDict ? target.values().map((item) => (item instanceof PDFRef ? context.lookup(item) : item)).filter((item) => item instanceof PDFStream)
               : [];
-          for (const form of forms) markAll(form.dict.lookup(PDFName.of('Resources')), 0, new Set());
+          for (const form of forms) markAll(form.dict.lookup(PDFName.of('Resources')), 0, new Map());
         }
       }
     }
