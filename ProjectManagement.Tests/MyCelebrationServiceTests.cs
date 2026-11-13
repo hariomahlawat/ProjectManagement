@@ -140,6 +140,32 @@ public sealed class MyCelebrationServiceTests
         Assert.Equal(Sharma, (await admin.GetAsync(vermas.Value))!.UserId);
     }
 
+    // A change or unlink is refused once the entry no longer belongs to the person, and writes nothing.
+    [Fact]
+    public async Task ChangeOwnAndUnlinkOwn_RefuseAnEntryThatIsNoLongerMine()
+    {
+        await using var db = CreateDb();
+        var (_, admin) = Create(db);
+        var entry = await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "R Sharma", null, 13, 11, null, "admin", Sharma));
+        // A manager moves the entry to another account after My account was shown.
+        await admin.LinkAsync(entry.Value, Verma, "admin");
+
+        var change = await admin.ChangeOwnAsync(entry.Value, Sharma, 1, 1, null, null);
+        var unlink = await admin.UnlinkOwnAsync(entry.Value, Sharma);
+        var badDate = await admin.ChangeOwnAsync(entry.Value, Verma, 31, 2, null, null);
+        var ownersChange = await admin.ChangeOwnAsync(entry.Value, Verma, 20, 11, 1980, "ignored for a birthday");
+
+        Assert.Equal("CelebrationNotYours", change.ErrorCode);
+        Assert.Equal("CelebrationNotYours", unlink.ErrorCode);
+        Assert.Equal("InvalidCelebrationDate", badDate.ErrorCode);
+        Assert.True(ownersChange.Succeeded);
+        var item = await admin.GetAsync(entry.Value);
+        Assert.Equal(Verma, item!.UserId);
+        Assert.Equal((byte)20, item.Day);
+        Assert.Equal("R Sharma", item.Name);
+        Assert.Null(item.SpouseName);
+    }
+
     [Fact]
     public async Task ICannotHaveTwoBirthdays_AndSavingNeverTouchesAnotherPersonsEntry()
     {

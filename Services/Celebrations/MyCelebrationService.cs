@@ -121,32 +121,25 @@ public sealed class MyCelebrationService : IMyCelebrationService
 
         // A birthday has no spouse name, whatever the form sent.
         var spouse = type == CelebrationType.Anniversary ? spouseName : null;
-        string name;
+        var saved = type == CelebrationType.Anniversary ? "Your anniversary is saved." : "Your birthday is saved.";
         if (line.Id is Guid id)
         {
-            // The name on the Calendar stays as it is written; only the date and spouse change here.
-            var existing = await _celebrations.GetAsync(id, cancellationToken);
-            if (existing is null || existing.UserId != userId)
-            {
-                return AdminOperationResult.Failure("The celebration could not be found.", "CelebrationNotFound");
-            }
-
-            name = existing.Name;
-        }
-        else
-        {
-            var user = await _db.Users.AsNoTracking()
-                .Where(item => item.Id == userId)
-                .Select(item => new { item.Rank, item.FullName, item.UserName })
-                .SingleAsync(cancellationToken);
-            name = CelebrationUserMatcher.Label(user.Rank, user.FullName, user.UserName);
+            // Only the date and spouse change, and only while the entry still belongs to this
+            // person at the moment of the write. The name on the Calendar stays as it is written.
+            var changed = await _celebrations.ChangeOwnAsync(id, userId, day, month, year, spouse, cancellationToken);
+            return changed.Succeeded ? AdminOperationResult.Success(saved) : changed;
         }
 
+        var user = await _db.Users.AsNoTracking()
+            .Where(item => item.Id == userId)
+            .Select(item => new { item.Rank, item.FullName, item.UserName })
+            .SingleAsync(cancellationToken);
         var result = await _celebrations.SaveAsync(
-            new CelebrationSaveCommand(line.Id, type, name, spouse, day, month, year, userId, userId),
+            new CelebrationSaveCommand(
+                null, type, CelebrationUserMatcher.Label(user.Rank, user.FullName, user.UserName), spouse, day, month, year, userId, userId),
             cancellationToken);
         return result.Succeeded
-            ? AdminOperationResult.Success(type == CelebrationType.Anniversary ? "Your anniversary is saved." : "Your birthday is saved.")
+            ? AdminOperationResult.Success(saved)
             : AdminOperationResult.Failure(result.UserMessage ?? "It could not be saved.", result.ErrorCode);
     }
 
@@ -171,18 +164,16 @@ public sealed class MyCelebrationService : IMyCelebrationService
             .Where(item => item.DeletedUtc == null && item.UserId == userId && item.EventType == type)
             .Select(item => (Guid?)item.Id)
             .FirstOrDefaultAsync(cancellationToken);
-        var existing = mine is Guid id ? await _celebrations.GetAsync(id, cancellationToken) : null;
-        if (existing is null)
+        if (mine is not Guid id)
         {
             return AdminOperationResult.Failure("The celebration could not be found.", "CelebrationNotFound");
         }
 
-        var result = await _celebrations.SaveAsync(
-            new CelebrationSaveCommand(existing.Id, existing.EventType, existing.Name, existing.SpouseName, existing.Day, existing.Month, existing.Year, userId, null),
-            cancellationToken);
+        // Only the link goes, and only while the entry still belongs to this person at the write.
+        var result = await _celebrations.UnlinkOwnAsync(id, userId, cancellationToken);
         return result.Succeeded
             ? AdminOperationResult.Success("Unlinked. PRISM will no longer wish you on that day; the entry stays on the Calendar.")
-            : AdminOperationResult.Failure(result.UserMessage ?? "It could not be unlinked.", result.ErrorCode);
+            : result;
     }
 
     // An id whose account has gone, or can no longer sign in, reads as not linked.
