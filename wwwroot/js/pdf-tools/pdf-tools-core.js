@@ -1256,6 +1256,19 @@
     || c === 123 || c === 125 || c === 47 || c === 37;
 
   /**
+   * True when the bytes after a possible inline-image EI look like content again (printable
+   * text and white space), not more binary image data, as pdf.js also checks.
+   */
+  function followedByText(bytes, from) {
+    const end = Math.min(bytes.length, from + 16);
+    for (let at = from; at < end; at += 1) {
+      const c = bytes[at];
+      if (!isWhiteByte(c) && (c < 32 || c > 126)) return false;
+    }
+    return true;
+  }
+
+  /**
    * Reads the operators of a content stream and calls `onOperator(name, operands)` for each.
    * Operands are numbers, names ("/Im1") or null for anything else (strings, arrays, dictionaries).
    * Inline images (BI ... ID ... EI) are skipped whole. Only what measuring images needs is kept.
@@ -1322,7 +1335,8 @@
       if (!word) { i += 1; continue; }
       if (nest > 0) continue;
       if (word === 'BI') {
-        // Skip the inline image: its dictionary, then the data from ID to an EI on its own.
+        // Skip the inline image: its dictionary, then the data from ID to the EI that ends it.
+        const dictStart = i;
         while (i < length) {
           const at = i;
           if (bytes[at] === 73 && bytes[at + 1] === 68 && isWhiteByte(bytes[at - 1]) && (at + 2 >= length || isWhiteByte(bytes[at + 2]))) {
@@ -1331,9 +1345,15 @@
           }
           i += 1;
         }
+        // The data can hold the bytes "EI" itself. When the dictionary gives its length (/L or
+        // /Length), start looking for EI after the data.
+        const header = String.fromCharCode(...bytes.subarray(dictStart, Math.max(dictStart, i - 3)));
+        const stated = /\/L(?:ength)?\s+(\d+)(?![\d.])/.exec(header);
+        if (stated) i = Math.min(length, i + Number(stated[1]));
         while (i < length) {
           if (bytes[i] === 69 && bytes[i + 1] === 73 && isWhiteByte(bytes[i - 1])
-              && (i + 2 >= length || isWhiteByte(bytes[i + 2]) || isDelimiterByte(bytes[i + 2]))) {
+              && (i + 2 >= length || isWhiteByte(bytes[i + 2]) || isDelimiterByte(bytes[i + 2]))
+              && followedByText(bytes, i + 2)) {
             i += 2;
             break;
           }
@@ -1377,6 +1397,16 @@
     const xobjects = (resources) => {
       const dict = resources instanceof PDFDict ? resources.lookupMaybe(XOBJECT, PDFDict) : undefined;
       return dict ? dict.entries() : [];
+    };
+    // contentOperators decodes #xx in names ("/Big#20Pic" is "/Big Pic"), while String(PDFName)
+    // keeps them escaped; key the resources by the decoded name so the two meet.
+    const xobjectNames = (resources) => new Map(xobjects(resources).map(([key, ref]) => [`/${key.decodeText()}`, ref]));
+    // Past the nesting limit nothing more is followed, but the images named here are still
+    // treated as unmeasured rather than forgotten.
+    const markHere = (resources) => {
+      for (const [, ref] of xobjects(resources)) {
+        if (ref instanceof PDFRef && subtypeOf(ref) === '/Image') unmeasured.add(String(ref));
+      }
     };
     const subtypeOf = (ref) => {
       const object = ref instanceof PDFRef ? context.lookup(ref) : ref;
@@ -1449,9 +1479,9 @@
 
     /** The images these content streams draw (by name, in `resources`) are unmeasured. */
     const markDrawnBy = (streams, resources, depth, seen) => {
-      if (depth > 12) return;
+      if (depth > 12) { markHere(resources); return; }
       markIndirect(resources, depth, seen);
-      const names = new Map(xobjects(resources).map(([key, ref]) => [String(key), ref]));
+      const names = xobjectNames(resources);
       for (const stream of streams) {
         if (!once(seen, stream, resources)) continue;
         const bytes = streamBytes(PDFLib, stream);
@@ -1473,7 +1503,7 @@
 
     /** Every image under these resources (forms, patterns, Type 3 fonts and masks followed) is unmeasured. */
     const markAll = (resources, depth, seen) => {
-      if (depth > 12) return;
+      if (depth > 12) { markHere(resources); return; }
       markIndirect(resources, depth, seen);
       for (const [, ref] of xobjects(resources)) {
         if (!(ref instanceof PDFRef)) continue;
@@ -1484,7 +1514,11 @@
     };
 
     const run = (contents, resources, ctm, scale, depth, stack) => {
-      if (depth > 12) return;
+      if (depth > 12) {
+        // Too deep to measure: everything it can draw keeps its pixel size.
+        markAll(resources, 0, new Map());
+        return;
+      }
       markIndirect(resources, depth, new Map());
       const bytes = contents.map((stream) => streamBytes(PDFLib, stream));
       if (bytes.some((part) => !part)) {
@@ -1498,7 +1532,7 @@
         joined[offset + part.length] = 10;
         offset += part.length + 1;
       }
-      const names = new Map(xobjects(resources).map(([key, ref]) => [String(key), ref]));
+      const names = xobjectNames(resources);
       const states = [];
       let current = ctm;
       contentOperators(joined, (operator, operands) => {
@@ -1686,6 +1720,10 @@
 
       let source;
       if (filters.length === 1 && filters[0] === 'DCTDecode') {
+        // /ColorTransform says how a viewer turns the JPG's channels into colours; a browser
+        // decides that from the JPG alone, so the copy could change colour.
+        const parms = get(dict, 'DecodeParms');
+        if (parms instanceof PDFDict && parms.lookup(PDFName.of('ColorTransform'))) return skip(REDUCE_SKIP.other);
         source = 'jpeg';
       } else if (filters.every((name) => ['FlateDecode', 'LZWDecode', 'ASCIIHexDecode', 'ASCII85Decode', 'RunLengthDecode'].includes(name))) {
         const parms = get(dict, 'DecodeParms');
@@ -1698,7 +1736,11 @@
         return skip(REDUCE_SKIP.other);
       }
 
-      const use = measured.unmeasured.has(key) ? null : measured.uses.get(key) || null;
+      // A soft mask with /Matte holds colours blended for this image's exact pixels; it must keep
+      // the image's size, so the image keeps its size too (it may still be re-saved).
+      const softMask = get(dict, 'SMask');
+      const matte = softMask instanceof PDFRawStream && softMask.dict.lookup(PDFName.of('Matte'));
+      const use = matte || measured.unmeasured.has(key) ? null : measured.uses.get(key) || null;
       const target = reduceTarget(width, height, use, preset.dpi);
       return { ...plan, action: 'resave', source, grey: space === '/DeviceGray', use, target };
     });
@@ -1829,6 +1871,8 @@
     let compressed = 0;
     for (const [ref, object] of context.enumerateIndirectObjects()) {
       if (!(object instanceof PDFRawStream) || object.dict.get(PDFName.of('Filter'))) continue;
+      // Without a filter, /DecodeParms means nothing today; with Flate it would apply.
+      if (object.dict.get(PDFName.of('DecodeParms'))) continue;
       // Metadata stays readable as text, as PDF/A asks.
       if (['/Metadata', '/XRef', '/ObjStm'].includes(String(object.dict.get(PDFName.of('Type'))))) continue;
       if (object.contents.length < 256) continue;
