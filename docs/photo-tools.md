@@ -9,11 +9,16 @@ describes what is built.
 
 ## Privacy and data contract
 
-- Every operation runs in the user's browser. Photos are read with the File API, drawn on a
-  canvas and downloaded with a `blob:` link.
-- Nothing is uploaded, stored, logged or retained by PRISM. The page model
-  (`Pages/Tools/Photo/Index.cshtml.cs`) has only `OnGet`; there is no form post, API endpoint,
-  database table or migration.
+- Every operation runs in the user's browser, with one exception: **Remove background** sends a
+  copy of the photo (at most 2048 px) to the PRISM server, whose model returns only a mask. The
+  server holds the photo in memory for that request and never writes, stores or logs it (see
+  [photo-tools-background-removal.md](photo-tools-background-removal.md)). Photos are read with
+  the File API, drawn on a canvas and downloaded with a `blob:` link.
+- Nothing is stored or retained by PRISM. The page model (`Pages/Tools/Photo/Index.cshtml.cs`)
+  has only `OnGet`; there is no form post, database table or migration. The only API is the
+  two Remove background endpoints (`Features/PhotoTools/PhotoToolsApi.cs`): status, and the
+  mask of one photo, both for signed-in users, the second also checked for the antiforgery
+  token.
 - The page requires a signed-in user (`[Authorize]`), like the rest of PRISM.
 - Usage telemetry records only that the `photo-tools` module was opened
   (`ErpUsageModuleCatalog`), never file names or contents.
@@ -24,8 +29,9 @@ describes what is built.
   open it in place of the page and lose the work on every screen (as in PDF Tools).
 
 `ProjectManagement.Tests/Tools/PhotoToolsPageContractTests.cs` guards these points: sign-in
-required, no handler other than `OnGet`, no form, no network calls in the scripts, and all
-assets local.
+required, no handler other than `OnGet`, no form, all assets local, no network calls in any
+script but `photo-tools-background.js`, and that one only to the two Remove background
+endpoints.
 
 ## Offline deployment
 
@@ -43,6 +49,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. What the tool gets wrong is touched up with Refine Edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
+| Remove background | One photo, any background. The PRISM server's model (BRIA RMBG) finds the subject; the browser takes the old background's tint out of the soft edge, and the cut-out is saved see-through (PNG, WEBP), on a plain colour or on a blur of its own background (JPG, PNG, WEBP), at up to 4096 px. Refine Edge, Erase and Restore brushes touch up the edge. Off until an administrator installs the model; see [photo-tools-background-removal.md](photo-tools-background-removal.md). |
 | Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Cover, Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
 
 Every step of the first build plan ([ux/photo-tools.md](ux/photo-tools.md)) is done, including
@@ -399,6 +406,8 @@ see-through areas with white.
 | `wwwroot/js/photo-tools/photo-tools-print.js` | Print sheet: preview, paper, copies, the saved PDF or JPG. |
 | `wwwroot/lib/pdf-lib/1.17.1/` | PDF library shared with PDF Tools; used here to write the print sheet PDF. |
 | `wwwroot/js/photo-tools/photo-tools-editor.js` | Edit photo. |
+| `wwwroot/js/photo-tools/photo-tools-background.js` | Remove background: asks the server for the mask, then the cut-out, brushes and saving. |
+| `Features/PhotoTools/` | Remove background on the server: settings, model check, ONNX Runtime, the queue and the two endpoints. |
 | `wwwroot/js/tools-shared/zip-writer.js` | ZIP writer shared with PDF Tools. |
 | `wwwroot/css/photo-tools.css` | Photo Tools styles. The shell (top bar, home cards, drop zone) is shared with PDF Tools through `pdf-tools.css`. Bootstrap theme variables only, so Light and Dark both work. |
 
@@ -415,3 +424,6 @@ see-through areas with white.
   Display P3) can look very slightly less vivid after saving.
 - Reduce size shows a small thumbnail of each photo once it has been opened; a photo still
   waiting shows an empty box.
+- Remove background needs the PRISM server and its installed model. When either is missing the
+  screen says so and the other tools are not affected. See
+  [photo-tools-background-removal.md](photo-tools-background-removal.md) for its own limits.

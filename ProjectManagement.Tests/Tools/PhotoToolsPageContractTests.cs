@@ -7,8 +7,10 @@ using Xunit;
 namespace ProjectManagement.Tests.Tools;
 
 /// <summary>
-/// Photo Tools changes users' own photos in the browser only. These checks keep the page
-/// signed-in only, free of server handlers that could receive photos, and offline-safe.
+/// Photo Tools changes users' own photos in the browser. The one exception is Remove background,
+/// which sends a copy to the PRISM server's own model and gets back only a mask. These checks keep
+/// the page signed-in only, free of page handlers that could receive photos, offline-safe, and
+/// keep every other script off the network.
 /// </summary>
 public sealed class PhotoToolsPageContractTests
 {
@@ -22,6 +24,9 @@ public sealed class PhotoToolsPageContractTests
         Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-print.js"),
         Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-editor.js")
     };
+
+    private static readonly string BackgroundScript =
+        Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-background.js");
 
     [Fact]
     public void Page_RequiresASignedInUser()
@@ -67,6 +72,28 @@ public sealed class PhotoToolsPageContractTests
             Assert.DoesNotContain("sendBeacon", source, StringComparison.Ordinal);
             Assert.DoesNotContain("WebSocket", source, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void RemoveBackground_TalksOnlyToPrismsOwnBackgroundEndpoints()
+    {
+        var root = FindProjectRoot();
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Photo", "Index.cshtml"));
+        Assert.Contains("~/js/photo-tools/photo-tools-background.js", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"csrf-token\"", page, StringComparison.Ordinal);
+
+        var source = File.ReadAllText(Path.Combine(root, BackgroundScript));
+        Assert.Contains($"'{ProjectManagement.Features.PhotoTools.PhotoToolsApi.StatusPath}'", source, StringComparison.Ordinal);
+        Assert.Contains($"'{ProjectManagement.Features.PhotoTools.PhotoToolsApi.MaskPath}'", source, StringComparison.Ordinal);
+        Assert.DoesNotMatch(new Regex(@"https?://", RegexOptions.IgnoreCase), source);
+        Assert.DoesNotContain("XMLHttpRequest", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("sendBeacon", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("WebSocket", source, StringComparison.Ordinal);
+
+        // Every fetch goes to one of the two endpoints, never to an address built at run time.
+        var fetches = Regex.Matches(source, @"fetch\(([^,)]+)");
+        Assert.Equal(2, fetches.Count);
+        Assert.All(fetches, call => Assert.Contains(call.Groups[1].Value.Trim(), new[] { "STATUS_URL", "MASK_URL" }));
     }
 
     [Fact]

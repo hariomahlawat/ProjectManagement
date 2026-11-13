@@ -1364,3 +1364,45 @@
         width: 100%;
     }
 }
+
+/* ---------- Remove background ---------- */
+
+.pdft-accent--teal { --pdft-accent: var(--bs-teal); }
+
+/* See-through areas are shown as the usual grey and white squares, light in both themes as in
+   other photo editors. */
+.phot-bgchoice__dot--clear,
+.phot-remove__photo.is-clear {
+    background-color: var(--bs-white);
+    background-image: conic-gradient(var(--bs-gray-300) 25%, transparent 0 50%, var(--bs-gray-300) 0 75%, transparent 0);
+    background-size: 16px 16px;
+}
+
+.phot-bgchoice__dot--clear {
+    background-size: 10px 10px;
+}
+
+.phot-remove__photo {
+    touch-action: none;
+    cursor: crosshair;
+}
+
+.phot-remove__photo:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 3px;
+}
+
+.phot-remove-status {
+    margin-bottom: 1rem;
+}
+
+.phot-remove-privacy {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.phot-remove-credit {
+    font-size: 0.8rem;
+}
