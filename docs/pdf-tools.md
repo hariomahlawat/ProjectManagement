@@ -226,7 +226,8 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
 
 | File | Role |
 | --- | --- |
-| `Pages/Tools/Pdf/Index.cshtml` (+ `_PdfTool*.cshtml` partials) | Standalone page with its own minimal shell (`Layout = null`). |
+| `Pages/Tools/Pdf/Index.cshtml` (+ `_PdfTool*.cshtml` partials) | Standalone page with its own minimal shell (`Layout = null`). It renders the PRISM confirmation dialog itself (`_PrismConfirmDialog`, `prism-confirm-dialog.js` and `.css`), so white-out, a large file and opening another PDF ask in the same dialog as the rest of PRISM, never in the browser's `confirm()` box. |
+| `wwwroot/css/tools-shared/prism-confirm-standalone.css` | Gives the dialog the `--pm-*` site tokens it is drawn from, taken from Bootstrap's Light and Dark colours, on a page that does not load `site.css`. |
 | `wwwroot/js/pdf-tools/pdf-tools-core.js` | Pure operations and geometry (page ranges, rotation mapping, EXIF, pdf-lib operations). Runs in Node for tests. |
 | `wwwroot/js/tools-shared/zip-writer.js` | ZIP writer, shared with Photo Tools ([photo-tools.md](photo-tools.md)). Loaded before the core script. |
 | `wwwroot/js/pdf-tools/pdf-tools-core.test.js` | Node tests, part of `npm test`. |
