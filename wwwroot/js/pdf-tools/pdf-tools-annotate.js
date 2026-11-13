@@ -45,6 +45,8 @@
   let pendingPlacement = null; // { type: 'signature' | 'image', image }
   let signature = null; // last signature, reused within this tab only
   let nextId = 1;
+  // Object URLs made for signatures and images; freed when the file is closed.
+  const objectUrls = new Set();
   const whiteoutNote = $('[data-annotate-whiteout-note]', section);
   if (whiteoutNote) whiteoutNote.textContent = WHITEOUT_WARNING;
 
@@ -146,6 +148,12 @@
   // Images and signatures
   // ---------------------------------------------------------------------------
 
+  function makeUrl(blob) {
+    const url = URL.createObjectURL(blob);
+    objectUrls.add(url);
+    return url;
+  }
+
   /** Returns { bytes, type, url, width, height } with PNG for anything that is not JPG/PNG. */
   async function loadImage(file) {
     let bytes = await ui.readFile(file);
@@ -172,7 +180,7 @@
       type,
       width: bitmap.width,
       height: bitmap.height,
-      url: URL.createObjectURL(new Blob([bytes], { type: type === 'jpg' ? 'image/jpeg' : 'image/png' }))
+      url: makeUrl(new Blob([bytes], { type: type === 'jpg' ? 'image/jpeg' : 'image/png' }))
     };
     bitmap.close?.();
     return image;
@@ -215,7 +223,7 @@
       type: 'png',
       width: cropW,
       height: cropH,
-      url: URL.createObjectURL(new Blob([bytes], { type: 'image/png' }))
+      url: makeUrl(new Blob([bytes], { type: 'image/png' }))
     };
   }
 
@@ -432,7 +440,9 @@
 
   function removeItem(item) {
     const page = pageOf(item);
-    const hadFocus = item.element.contains(document.activeElement);
+    // From the toolbar Delete button, which is disabled below, the focus would fall to the top
+    // of the page; keep it on the page instead.
+    const hadFocus = item.element.contains(document.activeElement) || document.activeElement === deleteButton;
     item.element.remove();
     items = items.filter((candidate) => candidate !== item);
     if (selected === item) select(null);
@@ -468,6 +478,9 @@
       return;
     }
     measureText(item);
+    // Text typed near the edge must not be saved running off the page.
+    clampToPage(item);
+    paintItem(item);
   }
 
   function createItem(pageIndex, data) {
@@ -595,7 +608,7 @@
       // Keep every press on an item away from the page overlay, which would deselect it and
       // end editing; while editing, let the browser place the caret as usual.
       event.stopPropagation();
-      if (item.editing) return;
+      if (item.editing || !isPrimaryPress(event)) return;
       select(item);
       const resizing = event.target.classList.contains('pdft-item__handle');
       const s = pageOf(item).scale;
@@ -631,7 +644,13 @@
   // Placing items on a page
   // ---------------------------------------------------------------------------
 
+  /** The main button or the first finger: right-click and a second finger do not place or move. */
+  function isPrimaryPress(event) {
+    return event.isPrimary !== false && (event.button === 0 || event.button === undefined);
+  }
+
   function onOverlayPointerDown(event, pageIndex) {
+    if (!isPrimaryPress(event)) return;
     const page = current.pages[pageIndex];
     const rect = page.overlay.getBoundingClientRect();
     const x = (event.clientX - rect.left) / page.scale;
@@ -824,12 +843,22 @@
         page.queued = false;
         if (!page.near || page.drawn || current !== generation) continue;
         try {
-          await ui.renderPage(page.pdfPage, page.canvas, { width: page.width * page.scale });
+          const scale = page.scale;
+          await ui.renderPage(page.pdfPage, page.canvas, { width: page.width * scale });
           page.drawn = true;
+          page.sheet.classList.remove('is-failed');
+          // The pages were refitted while it was drawn: draw it again at the new size.
+          if (page.scale !== scale) {
+            page.drawn = false;
+            if (page.near) want(page);
+            continue;
+          }
           // It may have scrolled away while it was being drawn.
           if (!page.near) release(page);
         } catch (error) {
           console.warn('PDF Tools: page could not be drawn', error);
+          // Say so on the sheet rather than showing a blank page that looks empty.
+          page.sheet.classList.add('is-failed');
         }
       }
     } finally {
@@ -837,8 +866,44 @@
     }
   }
 
+  function availableWidth() {
+    return Math.min(MAX_PAGE_WIDTH, Math.max(280, editor.clientWidth - 32));
+  }
+
+  /** Fits the pages to the editor again after the window is resized or a phone is turned. */
+  function refit() {
+    if (!current?.pages.length) return;
+    const available = availableWidth();
+    if (Math.abs(available - current.fittedWidth) < 1) return;
+    current.fittedWidth = available;
+    for (const page of current.pages) {
+      page.scale = available / page.width;
+      page.sheet.style.width = `${page.width * page.scale}px`;
+      page.sheet.style.height = `${page.height * page.scale}px`;
+      // renderPage sizes the canvas in pixels; let it fill the new sheet until it is redrawn,
+      // so the picture and the items on it stay lined up.
+      page.canvas.style.width = '100%';
+      page.canvas.style.height = '100%';
+      if (page.drawn) {
+        // Draw it again at the new size; the old picture stays, stretched, until then.
+        page.drawn = false;
+        if (page.near) want(page);
+      }
+    }
+    items.forEach(paintItem);
+  }
+
+  let refitTimer = 0;
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(() => {
+      clearTimeout(refitTimer);
+      refitTimer = setTimeout(refit, 150);
+    }).observe(editor);
+  }
+
   async function buildPages() {
-    const available = Math.min(MAX_PAGE_WIDTH, Math.max(280, editor.clientWidth - 32));
+    const available = availableWidth();
+    current.fittedWidth = available;
     const pages = [];
     observer = 'IntersectionObserver' in window
       ? new IntersectionObserver((entries) => {
@@ -861,6 +926,7 @@
 
       const sheet = document.createElement('div');
       sheet.className = 'pdft-sheet';
+      sheet.dataset.failedText = 'This page could not be shown.';
       sheet.style.width = `${width * scale}px`;
       sheet.style.height = `${height * scale}px`;
       const canvas = document.createElement('canvas');
@@ -883,7 +949,7 @@
       sheet.append(canvas, overlay);
       editor.append(sheet, label);
 
-      const page = { index, width, height, scale, overlay, canvas, pdfPage, drawn: false, queued: false, near: false };
+      const page = { index, width, height, scale, sheet, overlay, canvas, pdfPage, drawn: false, queued: false, near: false };
       pages.push(page);
       if (observer) {
         sheet.__page = page;
@@ -906,18 +972,35 @@
     pendingPlacement = null;
     deleteButton.disabled = true;
     editor.replaceChildren();
+    for (const url of objectUrls) {
+      if (url === signature?.url) continue; // the signature is kept for the next file
+      URL.revokeObjectURL(url);
+      objectUrls.delete(url);
+    }
     setTool('select');
   }
 
   const tool = ui.createTool(section, {
     accept: ui.isPdf,
     async onFiles([file], state) {
+      if (current && items.length) {
+        const go = await ui.askConfirm({
+          tone: 'warning',
+          icon: 'bi-file-earmark-pdf',
+          title: 'Open another PDF?',
+          message: `The ${items.length} item${items.length === 1 ? '' : 's'} you added to ${current.file.name} will be lost.`,
+          confirmText: 'Open another PDF',
+          cancelText: 'Keep editing'
+        });
+        if (!go) return;
+      }
       reset();
       await ui.withBusy('Opening PDF…', async () => {
         const bytes = await ui.readFile(file);
-        await core.pageCount(PDFLib, bytes); // fail early on encrypted or damaged files
+        const pageCount = await core.pageCount(PDFLib, bytes); // fail early on encrypted or damaged files
         const render = await ui.openForRender(bytes);
-        current = { file, bytes, render, pages: [] };
+        current = { file, bytes, render, pages: [], fittedWidth: 0 };
+        ui.fileSummary(section, file, pageCount);
         state.showWorkspace();
         current.pages = await buildPages();
         updateSummary();
