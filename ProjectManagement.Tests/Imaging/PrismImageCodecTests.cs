@@ -168,6 +168,75 @@ public sealed class PrismImageCodecTests
         Assert.True(low.Length < high.Length, $"Quality 40 gave {low.Length} bytes, quality 95 gave {high.Length}.");
     }
 
+    [Fact]
+    public void Crop_copies_the_rectangle_and_outlives_the_source()
+    {
+        SKBitmap cropped;
+        using (var source = TwoHalves(60, 40, SKColors.Red, SKColors.Blue))
+        {
+            cropped = PrismImageCodec.Crop(source, 20, 10, 30, 20);
+        }
+
+        using (cropped)
+        {
+            Assert.Equal((30, 20), (cropped.Width, cropped.Height));
+            AssertMostly(cropped.GetPixel(2, 10), red: true);
+            AssertMostly(cropped.GetPixel(27, 10), red: false);
+        }
+    }
+
+    [Theory]
+    [InlineData(-1, 0, 10, 10)]
+    [InlineData(0, 0, 61, 10)]
+    [InlineData(55, 0, 10, 10)]
+    [InlineData(0, 35, 10, 10)]
+    [InlineData(0, 0, 0, 10)]
+    public void Crop_refuses_a_rectangle_outside_the_image(int x, int y, int width, int height)
+    {
+        using var source = TwoHalves(60, 40, SKColors.Red, SKColors.Blue);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => PrismImageCodec.Crop(source, x, y, width, height));
+    }
+
+    [Fact]
+    public void HasTransparency_is_true_only_when_a_pixel_is_not_opaque()
+    {
+        using var opaque = new SKBitmap(new SKImageInfo(16, 16, SKImageInfo.PlatformColorType, SKAlphaType.Premul));
+        opaque.Erase(SKColors.Green);
+        Assert.False(PrismImageCodec.HasTransparency(opaque));
+
+        opaque.SetPixel(15, 15, new SKColor(0, 128, 0, 120));
+        Assert.True(PrismImageCodec.HasTransparency(opaque));
+
+        using var declaredOpaque = TwoHalves(16, 16, SKColors.Red, SKColors.Blue);
+        Assert.False(PrismImageCodec.HasTransparency(declaredOpaque));
+    }
+
+    [Fact]
+    public void EncodePng_keeps_transparency()
+    {
+        using var source = new SKBitmap(new SKImageInfo(16, 16, SKImageInfo.PlatformColorType, SKAlphaType.Premul));
+        source.Erase(new SKColor(50, 120, 200, 120));
+
+        var png = PrismImageCodec.EncodePng(source);
+
+        Assert.Equal(PrismImageFormat.Png, PrismImageCodec.Identify(png)!.Format);
+        using var decoded = PrismImageCodec.DecodeOriented(png);
+        Assert.True(PrismImageCodec.HasTransparency(decoded));
+    }
+
+    [Fact]
+    public void EncodeWebp_stays_lossy_even_at_quality_100()
+    {
+        using var source = Noise(256, 256);
+
+        var capped = PrismImageCodec.EncodeWebp(source, 100);
+        var explicit99 = PrismImageCodec.EncodeWebp(source, 99);
+
+        Assert.Equal(PrismImageFormat.Webp, PrismImageCodec.Identify(capped)!.Format);
+        Assert.Equal(explicit99.Length, capped.Length);
+    }
+
     private static void AssertMostly(SKColor pixel, bool red)
     {
         if (red)

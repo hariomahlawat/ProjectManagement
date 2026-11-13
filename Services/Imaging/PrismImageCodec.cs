@@ -232,6 +232,97 @@ public static class PrismImageCodec
     }
 
     /// <summary>
+    /// Copies the given rectangle out of the image. The rectangle must lie inside the image.
+    /// The caller owns the returned bitmap.
+    /// </summary>
+    public static SKBitmap Crop(SKBitmap source, int x, int y, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (width <= 0 || height <= 0 || x < 0 || y < 0 || x + width > source.Width || y + height > source.Height)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), "The crop rectangle must lie inside the image.");
+        }
+
+        if (x == 0 && y == 0 && width == source.Width && height == source.Height)
+        {
+            return source.Copy()
+                   ?? throw new PrismImageException("The image could not be copied.");
+        }
+
+        // ExtractSubset shares the pixels of the source, so the subset is copied to give the
+        // caller a bitmap that outlives it.
+        using var subset = new SKBitmap();
+        if (!source.ExtractSubset(subset, new SKRectI(x, y, x + width, y + height)))
+        {
+            throw new PrismImageException("The image could not be cropped.");
+        }
+
+        return subset.Copy()
+               ?? throw new PrismImageException("The cropped image could not be copied.");
+    }
+
+    /// <summary>True when at least one pixel is not fully opaque.</summary>
+    public static bool HasTransparency(SKBitmap source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (source.AlphaType == SKAlphaType.Opaque)
+        {
+            return false;
+        }
+
+        if (source.ColorType is not (SKColorType.Rgba8888 or SKColorType.Bgra8888))
+        {
+            for (var y = 0; y < source.Height; y++)
+            {
+                for (var x = 0; x < source.Width; x++)
+                {
+                    if (source.GetPixel(x, y).Alpha < 255)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        // Both 32-bit layouts keep alpha in the fourth byte of each pixel.
+        var pixels = source.GetPixelSpan();
+        var rowBytes = source.RowBytes;
+        var rowLength = source.Width * 4;
+        for (var y = 0; y < source.Height; y++)
+        {
+            var row = pixels.Slice(y * rowBytes, rowLength);
+            for (var index = 3; index < row.Length; index += 4)
+            {
+                if (row[index] < 255)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Encodes the image as PNG, keeping any transparency.</summary>
+    public static byte[] EncodePng(SKBitmap source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Encode(source, SKEncodedImageFormat.Png, 100);
+    }
+
+    /// <summary>
+    /// Encodes the image as lossy WebP, keeping any transparency. Quality 100 would switch
+    /// the encoder to lossless, which makes photos several times larger, so it is capped at 99.
+    /// </summary>
+    public static byte[] EncodeWebp(SKBitmap source, int quality)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Encode(source, SKEncodedImageFormat.Webp, Math.Clamp(quality, 1, 99));
+    }
+
+    /// <summary>
     /// Encodes the image as JPEG. JPEG has no transparency, so a transparent image is laid
     /// on white first.
     /// </summary>
