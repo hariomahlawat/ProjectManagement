@@ -136,6 +136,14 @@ public sealed class CelebrationWishServiceTests
         Assert.DoesNotContain("http://", view + script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("https://", view + script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("document.fullscreenElement", script, StringComparison.Ordinal);
+
+        // A wish playing while a report is printed must not land on the paper.
+        var css = File.ReadAllText(Path.Combine(root, "wwwroot", "css", "components", "prism-wish.css"));
+        var print = css[css.IndexOf("@media print", StringComparison.Ordinal)..];
+        print = print[..print.IndexOf("@media (prefers-reduced-motion", StringComparison.Ordinal)];
+        Assert.Contains(".prism-wish,", print, StringComparison.Ordinal);
+        Assert.Contains(".prism-wish__sky,", print, StringComparison.Ordinal);
+        Assert.Contains("display: none !important;", print, StringComparison.Ordinal);
     }
 
     private static Celebration Add(ApplicationDbContext db, CelebrationType type, string? userId, byte day, byte month, short? year = null, string? spouse = null)

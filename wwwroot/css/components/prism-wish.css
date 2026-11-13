@@ -153,6 +153,15 @@
     align-items: center;
 }
 
+/* Never on paper: a wish playing while a report is printed must not cover the page. */
+@media print {
+    .prism-wish,
+    .prism-wish__sky,
+    .prism-wish-mark-item {
+        display: none !important;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .prism-wish,
     .prism-wish__card,
