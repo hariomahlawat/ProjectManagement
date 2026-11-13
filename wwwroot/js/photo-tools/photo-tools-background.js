@@ -2,7 +2,7 @@
 //
 // A copy of the photo (at most 2048 px) is sent to the PRISM server, whose model returns only a
 // mask: how much of each pixel is the subject. Everything else happens in this browser: the old
-// background's tint is taken out of the soft edge, the touch-up brushes (Refine Edge, Erase,
+// background's tint is taken out of the soft edge, the touch-up brushes (Refine edge, Erase,
 // Restore) change the mask, and the cut-out is saved on a see-through, plain colour or blurred
 // background. The server keeps nothing.
 (() => {
