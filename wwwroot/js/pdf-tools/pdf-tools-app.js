@@ -334,6 +334,7 @@
       /** Stops watching an element that was removed. */
       forget(element) {
         if (element.__thumbnail) element.__thumbnail.near = false;
+        delete element.__thumbnail;
         observer?.unobserve(element);
       },
       reset() {
@@ -876,7 +877,11 @@
       clearError();
       const ids = new Set(selected.map((page) => String(page.id)));
       pages = pages.filter((page) => !page.selected);
-      $$('.pdft-page', grid).forEach((card) => ids.has(card.dataset.pageId) && card.remove());
+      $$('.pdft-page', grid).forEach((card) => {
+        if (!ids.has(card.dataset.pageId)) return;
+        thumbnails.forget(card);
+        card.remove();
+      });
       updateSummary();
       if (pages.length === 0) {
         tool.reset();
