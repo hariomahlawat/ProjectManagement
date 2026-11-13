@@ -40,7 +40,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Tool | What it does |
 | --- | --- |
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none), smaller dimensions, save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
-| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. What the tool gets wrong can be fixed by hand with a brush. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
+| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. What the tool gets wrong is touched up with Refine Edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
 | Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
 | Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Cover, Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
@@ -139,31 +139,69 @@ Limits, stated on the screen where they matter:
 - Fine loose hair is softened, not cut out strand by strand.
 - Some authorities do not accept a photo with a changed background. The screen says to check.
 
-### Fixing the background by hand
+### Touching up the background
 
-When the background has been changed, **Fix by hand** opens a brush for what the tool got wrong.
-**Bring back** returns the photo where part of the person was taken; **Remove** puts the new
-colour where old background was left. There are three brush sizes, Undo, Clear all fixes and
-Done.
+When the background has been changed, **Touch up edges** opens three brushes, named as in common
+photo editors (Photoshop's Select and Mask, Canva, remove.bg):
+
+| Brush | What it does | For |
+| --- | --- | --- |
+| **Refine Edge** (the default) | Only what still looks like the old background takes the new colour. Hair, skin and clothes under the brush stay. | The rim of old wall left around hair and shoulders. |
+| **Erase** | Everything under the brush takes the new background colour. | Something left standing in the background that does not look like the wall. |
+| **Restore** | The photo as it was before the change comes back. | Part of the person that was given the new colour. |
+
+None of them makes anything see-through: the photo is a JPG, and "erased" means the chosen
+background colour shows there. There are three brush sizes (Small, Medium, Large; **[** and **]**
+step through them, as in Photoshop), Undo, Reset (removes every stroke) and Done.
 
 - It is a separate mode. While it is open, dragging on the photo paints; Done goes back to
   dragging the photo into position. With the keyboard, the arrow keys move a ring over the photo
   and Space or Enter paints one dab where it is; Escape leaves the mode.
-- Each fix is a brush stroke stored in the photo's own pixels, with its width. The strokes are
-  drawn through the same move, turn and zoom as the photo, so a fix stays on the part of the
+- Each stroke is stored in the photo's own pixels, with its width and brush. The strokes are
+  drawn through the same move, turn and zoom as the photo, so a stroke stays on the part of the
   photo it was painted on when the photo is moved, zoomed or straightened afterwards. A brush is
-  a share of the crop frame's width (2%, 4% or 8%), so it is the same size on any screen.
+  a share of the crop frame's width (a radius of 2%, 4% or 8%), so it is the same size on any
+  screen.
+- **The brush is soft.** Each stroke fades out over about a third of its own radius on each
+  side of its edge: it is drawn into the stroke picture as six nested, partly see-through strokes
+  of falling width around a solid core. The softness belongs to the stroke, so a stroke painted
+  later with another brush size does not change the edge of an earlier one, and Undo of one
+  stroke changes nothing else. A later stroke lies over an earlier one.
+- **How Refine Edge decides.** At the edge of a person a pixel is a mix of the person and the
+  wall behind them, as thin hair over a wall is. The background change keeps the wall's colour
+  at every spot (the grid of colours in step 3 above) and hands it to the brush
+  (`changeBackground` returns it as `wall`, read with `wallColourAt`). Around the stroke, the
+  pixels that are clearly not wall are collected in small squares, each split by brightness into
+  a dark and a light group (hair and skin, say), and each group's average colour is kept
+  (`personColours`; the squares are about 3% of the photo's width, fixed to the photo, so another
+  stroke elsewhere or its Undo never changes them). Each pixel under the brush is then explained by the best-fitting mix
+  (`personShare`):
+  - wall and one of the person's colours near it: a strand of hair over the wall. How far the
+    pixel lies from the wall colour towards that colour is the person's share, and only the
+    wall's share is moved to the new colour;
+  - two colours of the person: the soft edge where skin meets hair. It is all person and is not
+    changed;
+  - nothing fits well: a colour of its own, and person.
+
+  When two explanations fit equally well (grey hair against a grey wall, where every colour lies
+  on one line), the one that keeps more of the person is taken: the brush errs on keeping the
+  person.
+
+  Old wall becomes the new colour, a strand of hair keeps its colour on the new background, and
+  solid hair, skin and the edge between them are not changed. The first tenth of the way from
+  the wall (grain on the wall) counts as wall. Where no person is near, only a pixel well away
+  from the wall colour counts as person.
+- Refine Edge cannot tell a shirt of the wall's colour from the wall; Restore is there for that.
 - The saved photo is made in three steps: the cropped photo with its clean-up, the background
-  change, then the fixes (`applyBackgroundFixes`): the photo before the change is brought back
-  under Bring back strokes, and the background colour is put under Remove strokes, with a soft
-  rim. The first two steps are kept, so a stroke shows on the stage at once without finding the
-  background again; the file follows a moment later, made from the same kept steps. Only a
-  change to the photo itself (moving, zooming, size, lighting, background or slider) finds the
-  background again; a stroke, Undo or Clear all fixes does not, so painting stays quick on a
-  large photo.
-- Fixes are cleared by a new photo and by turning the photo a quarter. They are kept, but not
-  applied, while the background is set to Keep or cannot be changed. Print sheet receives the
-  photo with its fixes.
+  change, then the strokes (`applyBackgroundFixes`). The first two steps are kept, so a stroke
+  shows on the stage at once without finding the background again; the file follows a moment
+  later, made from the same kept steps. Only a change to the photo itself (moving, zooming, size,
+  lighting, background or slider) finds the background again; a stroke, Undo or Reset does not,
+  so painting stays quick on a large photo. The strokes are worked out only inside the box they
+  cover: a large stroke on a 4000 × 4000 px photo takes about a fifth of a second.
+- Strokes are cleared by a new photo and by turning the photo a quarter. They are kept, but not
+  applied, while the background is set to Keep or cannot be changed. A change of background
+  colour applies them in the new colour. Print sheet receives the photo with its strokes.
 
 ### Checks before saving a passport photo
 

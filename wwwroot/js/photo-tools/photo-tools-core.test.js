@@ -990,28 +990,179 @@ test('changeBackground keeps cloth of the wall colour, because cloth is not smoo
   }
 });
 
-test('applyBackgroundFixes brings the photo back under red and removes under blue', () => {
-  // Four pixels of a changed photo (all light blue), the photo before, and the strokes.
-  const changed = new Uint8ClampedArray([...BLUE, 255, ...BLUE, 255, ...BLUE, 255, 90, 80, 70, 200]);
-  const before = new Uint8ClampedArray([...COAT, 255, ...COAT, 255, ...WALL, 255, 90, 80, 70, 200]);
-  const mask = new Uint8ClampedArray([
-    255, 0, 0, 255, // bring back, full strength
-    255, 0, 0, 128, // bring back, the soft rim of a stroke
-    0, 0, 0, 0, // not painted
-    0, 0, 255, 255 // remove
-  ]);
-  tools.applyBackgroundFixes(changed, before, mask, BLUE);
+/** A wall model of one colour everywhere, as changeBackground returns it. */
+function flatWall(colour, limit) {
+  return { field: Float32Array.from(colour), cell: 1000, columns: 1, rows: 1, limit: limit ?? 14 };
+}
 
-  assert.deepEqual(Array.from(changed.slice(0, 3)), COAT, 'the coat is back');
-  const rim = Array.from(changed.slice(4, 7));
-  rim.forEach((value, channel) => {
-    const low = Math.min(COAT[channel], BLUE[channel]);
-    const high = Math.max(COAT[channel], BLUE[channel]);
-    assert.ok(value > low && value < high, `rim channel ${channel} is between the two`);
+/** A mask of one brush at full strength over every pixel. */
+function brushMask(count, brush, strength) {
+  const mask = new Uint8ClampedArray(count * 4);
+  for (let i = 0; i < count; i += 1) {
+    mask[i * 4 + tools.BACKGROUND_BRUSHES[brush].channel] = 255;
+    mask[i * 4 + 3] = strength ?? 255;
+  }
+  return mask;
+}
+
+test('Restore brings the photo before the change back, and its soft rim blends', () => {
+  const changed = new Uint8ClampedArray([...BLUE, 255, ...BLUE, 255, ...BLUE, 255]);
+  const before = new Uint8ClampedArray([...COAT, 255, ...COAT, 255, ...WALL, 255]);
+  const mask = brushMask(3, 'restore');
+  mask[7] = 128; // the soft rim of a stroke
+  mask[11] = 0; // not painted
+  tools.applyBackgroundFixes(changed, before, mask, BLUE, { width: 3, wall: flatWall(WALL) });
+
+  assert.deepEqual(rgbAt(changed, 3, 0, 0), COAT, 'the coat is back');
+  rgbAt(changed, 3, 1, 0).forEach((value, channel) => {
+    assert.ok(value > Math.min(COAT[channel], BLUE[channel]) && value < Math.max(COAT[channel], BLUE[channel]), `rim channel ${channel} is between the two`);
   });
-  assert.deepEqual(Array.from(changed.slice(8, 11)), BLUE, 'an unpainted pixel is left alone');
-  assert.deepEqual(Array.from(changed.slice(12, 15)), BLUE, 'a removed pixel gets the new colour');
-  assert.deepEqual([changed[3], changed[7], changed[11], changed[15]], [255, 255, 255, 200], 'alpha is not touched');
+  assert.deepEqual(rgbAt(changed, 3, 2, 0), BLUE, 'an unpainted pixel is left alone');
+});
+
+test('Refine Edge gives old background the new colour and keeps hair and skin under the brush', () => {
+  // One row as the brush meets it at a hair edge: wall left over, wall seen through thin hair,
+  // a strand of hair, skin. All four were left alone by the automatic change.
+  const halfHair = WALL.map((value, channel) => Math.round((value + HAIR[channel]) / 2));
+  const before = new Uint8ClampedArray([...WALL, 255, ...halfHair, 255, ...HAIR, 255, ...SKIN, 255]);
+  const changed = before.slice();
+  tools.applyBackgroundFixes(changed, before, brushMask(4, 'refine'), BLUE, { width: 4, wall: flatWall(WALL) });
+
+  assert.deepEqual(rgbAt(changed, 4, 0, 0), BLUE, 'the old wall takes the new colour');
+  assert.deepEqual(rgbAt(changed, 4, 2, 0), HAIR, 'the hair stays');
+  assert.deepEqual(rgbAt(changed, 4, 3, 0), SKIN, 'the skin stays');
+  // Thin hair over the wall: the hair stays darker than the new colour, and the old wall in it
+  // is shifted towards the new colour (the blue channel rises), not painted over.
+  const mixed = rgbAt(changed, 4, 1, 0);
+  assert.ok(mixed[2] > halfHair[2], 'the wall seen through the hair moves towards the new colour');
+  assert.ok(mixed.every((value, channel) => value < BLUE[channel]), 'the hair in it is not painted over');
+});
+
+test('Refine Edge keeps skin beside dark hair, even when both are in one small square', () => {
+  // Hair, hair, skin, skin, then wall: the first square of the person-colour grid holds hair and
+  // skin, so the person colour there is their average.
+  const before = new Uint8ClampedArray([...HAIR, 255, ...HAIR, 255, ...SKIN, 255, ...SKIN, 255, ...WALL, 255, ...WALL, 255, ...WALL, 255, ...WALL, 255]);
+  const changed = before.slice();
+  tools.applyBackgroundFixes(changed, before, brushMask(8, 'refine'), BLUE, { width: 8, wall: flatWall(WALL) });
+  assert.deepEqual(rgbAt(changed, 8, 2, 0), SKIN, 'skin stays');
+  assert.deepEqual(rgbAt(changed, 8, 3, 0), SKIN, 'skin stays');
+  assert.deepEqual(rgbAt(changed, 8, 0, 0), HAIR, 'hair stays');
+  assert.deepEqual(rgbAt(changed, 8, 6, 0), BLUE, 'the wall changes');
+});
+
+test('Refine Edge keeps the soft edge where skin meets hair: it is all person', () => {
+  const edge = SKIN.map((value, channel) => Math.round((value + HAIR[channel]) / 2));
+  const row = [HAIR, HAIR, HAIR, edge, SKIN, SKIN, SKIN, SKIN, WALL, WALL, WALL, WALL];
+  const before = new Uint8ClampedArray(row.flatMap(colour => [...colour, 255]));
+  const changed = before.slice();
+  tools.applyBackgroundFixes(changed, before, brushMask(row.length, 'refine'), BLUE, { width: row.length, wall: flatWall(WALL) });
+  assert.deepEqual(rgbAt(changed, row.length, 3, 0), edge, 'the skin-hair edge stays');
+  assert.deepEqual(rgbAt(changed, row.length, 10, 0), BLUE);
+});
+
+test('Refine Edge keeps grey hair against a grey wall, where every colour lies on one line', () => {
+  // Two shades of neutral hair and a neutral wall: wall-and-hair and hair-and-hair fit equally.
+  const wallGrey = [220, 220, 220];
+  const row = [[20, 20, 20], [20, 20, 20], [60, 60, 60], [60, 60, 60], wallGrey, wallGrey, wallGrey, wallGrey];
+  const before = new Uint8ClampedArray(row.flatMap(colour => [...colour, 255]));
+  const changed = before.slice();
+  const newColour = [100, 150, 255];
+  tools.applyBackgroundFixes(changed, before, brushMask(row.length, 'refine'), newColour, { width: row.length, wall: flatWall(wallGrey) });
+  assert.deepEqual(rgbAt(changed, row.length, 0, 0), [20, 20, 20], 'the darker hair stays');
+  assert.deepEqual(rgbAt(changed, row.length, 2, 0), [60, 60, 60], 'the lighter hair stays');
+  assert.deepEqual(rgbAt(changed, row.length, 6, 0), newColour, 'the wall changes');
+});
+
+test('a Refine Edge stroke is not changed by another stroke elsewhere', () => {
+  // A wall, a band of hair, and edge pixels beside it that the brush refines. A distant Erase dab
+  // must not change the refined pixels: the person's colours are read from the photo, not from
+  // the area the strokes happen to cover.
+  const wallGrey = [220, 220, 220];
+  const [width, height] = [40, 12];
+  const before = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const colour = x >= 10 && x < 14 ? [30, 25, 20] : x >= 14 && x < 17 ? [182, 181, 180] : wallGrey;
+      before.set([...colour, 255], (y * width + x) * 4);
+    }
+  }
+  const newColour = [100, 150, 255];
+  const refine = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y += 1) for (let x = 14; x < 17; x += 1) refine.set([0, 255, 0, 255], (y * width + x) * 4);
+  const alone = before.slice();
+  tools.applyBackgroundFixes(alone, before, refine, newColour, { width, wall: flatWall(wallGrey), cell: 4 });
+
+  const withDab = refine.slice();
+  withDab.set([0, 0, 255, 255], (0 * width + 1) * 4);
+  const together = before.slice();
+  tools.applyBackgroundFixes(together, before, withDab, newColour, { width, wall: flatWall(wallGrey), cell: 4 });
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 14; x < 17; x += 1) {
+      assert.deepEqual(rgbAt(together, width, x, y), rgbAt(alone, width, x, y), `refined pixel ${x},${y}`);
+    }
+  }
+});
+
+test('Refine Edge follows the colour the wall has at that spot', () => {
+  // The wall is darker on the right. A pixel of that darker wall is still wall.
+  const wall = { field: Float32Array.from([...WALL, ...WALL.map(value => value - 40)]), cell: 1, columns: 2, rows: 1, limit: 14 };
+  const darker = WALL.map(value => value - 40);
+  const before = new Uint8ClampedArray([...WALL, 255, ...darker, 255]);
+  const changed = before.slice();
+  tools.applyBackgroundFixes(changed, before, brushMask(2, 'refine'), BLUE, { width: 2, wall });
+  assert.deepEqual(rgbAt(changed, 2, 0, 0), BLUE);
+  assert.deepEqual(rgbAt(changed, 2, 1, 0), BLUE, 'the darker part of the wall is wall too');
+});
+
+test('Erase gives everything under the brush the new colour', () => {
+  const before = new Uint8ClampedArray([...HAIR, 255, ...WALL, 200]);
+  const changed = before.slice();
+  tools.applyBackgroundFixes(changed, before, brushMask(2, 'erase'), BLUE, { width: 2, wall: flatWall(WALL) });
+  assert.deepEqual(rgbAt(changed, 2, 0, 0), BLUE);
+  assert.deepEqual(rgbAt(changed, 2, 1, 0), BLUE);
+  assert.deepEqual([changed[3], changed[7]], [255, 200], 'alpha is not touched');
+});
+
+test('applyBackgroundFixes feathers the edge of a stroke', () => {
+  // A stroke over the left half of a row of 21 wall pixels that the change left alone.
+  const width = 21;
+  const before = new Uint8ClampedArray(width * 4);
+  for (let x = 0; x < width; x += 1) before.set([...WALL, 255], x * 4);
+  const mask = new Uint8ClampedArray(width * 4);
+  for (let x = 0; x < 10; x += 1) mask.set([0, 0, 255, 255], x * 4);
+
+  const hard = before.slice();
+  tools.applyBackgroundFixes(hard, before, mask, BLUE, { width, wall: flatWall(WALL) });
+  const soft = before.slice();
+  tools.applyBackgroundFixes(soft, before, mask, BLUE, { width, wall: flatWall(WALL), feather: 3 });
+
+  assert.deepEqual(rgbAt(hard, width, 10, 0), WALL, 'without feather the edge is hard');
+  assert.deepEqual(rgbAt(soft, width, 0, 0), BLUE, 'inside the stroke is the new colour');
+  assert.deepEqual(rgbAt(soft, width, 20, 0), WALL, 'far outside is untouched');
+  const blues = Array.from({ length: width }, (_, x) => soft[x * 4 + 2]);
+  for (let x = 1; x < width; x += 1) assert.ok(blues[x] <= blues[x - 1], 'the stroke fades out steadily');
+  assert.ok(blues[9] < BLUE[2] && blues[11] > WALL[2], 'the edge is a gradual blend');
+});
+
+test('a later stroke lies over an earlier one, and strokes never add up past full strength', () => {
+  const before = new Uint8ClampedArray([...COAT, 255]);
+  const changed = new Uint8ClampedArray([...BLUE, 255]);
+  // Restore and Erase both at full strength on one pixel, as the mask can hold after blending.
+  tools.applyBackgroundFixes(changed, before, new Uint8ClampedArray([255, 0, 255, 255]), BLUE, { width: 1 });
+  rgbAt(changed, 1, 0, 0).forEach((value, channel) => {
+    assert.ok(value >= Math.min(COAT[channel], BLUE[channel]) && value <= Math.max(COAT[channel], BLUE[channel]), `channel ${channel} stays between the two`);
+  });
+});
+
+test('changeBackground returns the wall it found, for the touch-up brushes', () => {
+  const [w, h] = [80, 100];
+  const pixels = portrait(w, h, () => WALL);
+  const result = tools.changeBackground(pixels, w, h, BLUE, 50);
+  assert.equal(result.status, 'changed');
+  const colour = tools.wallColourAt(result.wall, 5, 5, [0, 0, 0]);
+  colour.forEach((value, channel) => assert.ok(Math.abs(value - WALL[channel]) < 2, `channel ${channel} is the wall`));
+  assert.ok(result.wall.limit > 0);
 });
 
 // ----- Passport photo checks -----

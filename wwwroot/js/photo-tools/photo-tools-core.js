@@ -464,23 +464,9 @@
     const field = new Float32Array(columns * rows * 3);
     for (let i = 0; i < columns * rows; i += 1) field.set(old, i * 3);
     const local = [0, 0, 0];
+    const wall = { field, cell, columns, rows, limit };
     /** The background colour expected at a pixel, blended between the squares around it. */
-    const colourAt = (x, y) => {
-      const fx = Math.min(columns - 1, Math.max(0, (x + 0.5) / cell - 0.5));
-      const fy = Math.min(rows - 1, Math.max(0, (y + 0.5) / cell - 0.5));
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = Math.min(columns - 1, x0 + 1);
-      const y1 = Math.min(rows - 1, y0 + 1);
-      const tx = fx - x0;
-      const ty = fy - y0;
-      for (let channel = 0; channel < 3; channel += 1) {
-        const top = field[(y0 * columns + x0) * 3 + channel] * (1 - tx) + field[(y0 * columns + x1) * 3 + channel] * tx;
-        const bottom = field[(y1 * columns + x0) * 3 + channel] * (1 - tx) + field[(y1 * columns + x1) * 3 + channel] * tx;
-        local[channel] = top * (1 - ty) + bottom * ty;
-      }
-      return local;
-    };
+    const colourAt = (x, y) => wallColourAt(wall, x, y, local);
 
     // A wall is smooth; the outline of a person, and cloth, are not. Where the brightness
     // changes quickly from one pixel to the next the background does not spread, even when
@@ -688,7 +674,7 @@
     }
     if (inFace > (right - left) * (bottom - top) * 0.2) return { status: BACKGROUND_STATUS.tooMuch, share };
     // Asked only where the background is: nothing is painted.
-    if (!colour) return { status: BACKGROUND_STATUS.changed, share, mask };
+    if (!colour) return { status: BACKGROUND_STATUS.changed, share, mask, wall };
 
     // The three rows of pixels on the person's side of the boundary: 1 touches the background,
     // 2 touches those, 3 touches those. They are a mix of person and wall (hair, a soft edge).
@@ -742,7 +728,30 @@
         pixels[at + 2] = Math.min(255, Math.max(0, Math.round(pixels[at + 2] + wall * (colour[2] - was[2]))));
       }
     }
-    return { status: BACKGROUND_STATUS.changed, share, mask };
+    return { status: BACKGROUND_STATUS.changed, share, mask, wall };
+  }
+
+  /**
+   * The old background colour expected at a pixel, from the `wall` that changeBackground returns:
+   * a coarse grid of colours that follows the light across the wall, blended between the squares
+   * around the pixel. Written into `out` ([r, g, b]) and returned.
+   */
+  function wallColourAt(wall, x, y, out) {
+    const { field, cell, columns, rows } = wall;
+    const fx = Math.min(columns - 1, Math.max(0, (x + 0.5) / cell - 0.5));
+    const fy = Math.min(rows - 1, Math.max(0, (y + 0.5) / cell - 0.5));
+    const x0 = Math.floor(fx);
+    const y0 = Math.floor(fy);
+    const x1 = Math.min(columns - 1, x0 + 1);
+    const y1 = Math.min(rows - 1, y0 + 1);
+    const tx = fx - x0;
+    const ty = fy - y0;
+    for (let channel = 0; channel < 3; channel += 1) {
+      const top = field[(y0 * columns + x0) * 3 + channel] * (1 - tx) + field[(y0 * columns + x1) * 3 + channel] * tx;
+      const bottom = field[(y1 * columns + x0) * 3 + channel] * (1 - tx) + field[(y1 * columns + x1) * 3 + channel] * tx;
+      out[channel] = top * (1 - ty) + bottom * ty;
+    }
+    return out;
   }
 
   /**
@@ -876,23 +885,292 @@
     return problems;
   }
 
+  // The three brushes for touching up a changed background, named as in common photo editors.
+  // A stroke is drawn into a mask picture in its brush's colour channel, so a later stroke lies
+  // over an earlier one.
+  //   refine   Refine Edge: only what still looks like the old background takes the new colour;
+  //            hair, skin and clothes under the brush stay. For the rim left around hair.
+  //   erase    Erase: everything under the brush takes the new colour. For something left
+  //            standing in the background that does not look like the wall.
+  //   restore  Restore: the photo as it was before the change comes back.
+  const BACKGROUND_BRUSHES = Object.freeze({
+    restore: Object.freeze({ key: 'restore', channel: 0, mark: '#ff0000' }),
+    refine: Object.freeze({ key: 'refine', channel: 1, mark: '#00ff00' }),
+    erase: Object.freeze({ key: 'erase', channel: 2, mark: '#0000ff' })
+  });
+
   /**
-   * Lays fixes made by hand over a photo whose background was changed. `original` is the photo
-   * before the change and `mask` a picture of the brush strokes, all three RGBA of one size:
-   * where the mask is red the original is brought back, where it is blue the pixel gets the
-   * background colour, and its alpha says how strongly (the soft rim of a stroke). Alpha of the
-   * photo is not touched.
+   * Softens one plane of strengths (0 to 1) inside a box of the picture: a box blur of the given
+   * radius, run twice across and twice down, which is close to a Gaussian. In place.
    */
-  function applyBackgroundFixes(pixels, original, mask, colour) {
-    for (let i = 0; i < pixels.length; i += 4) {
-      const strength = mask[i + 3] / 255;
-      if (!strength) continue;
-      const back = mask[i] / 255 * strength;
-      const away = mask[i + 2] / 255 * strength;
-      const stay = Math.max(0, 1 - back - away);
-      pixels[i] = Math.round(pixels[i] * stay + original[i] * back + colour[0] * away);
-      pixels[i + 1] = Math.round(pixels[i + 1] * stay + original[i + 1] * back + colour[1] * away);
-      pixels[i + 2] = Math.round(pixels[i + 2] * stay + original[i + 2] * back + colour[2] * away);
+  function featherPlane(plane, width, box, radius) {
+    if (radius < 1) return plane;
+    const { left, top, right, bottom } = box;
+    const span = Math.max(right - left, bottom - top);
+    const line = new Float32Array(span);
+    const blurLine = (start, step, count) => {
+      for (let n = 0; n < count; n += 1) line[n] = plane[start + n * step];
+      const size = radius * 2 + 1;
+      let sum = 0;
+      for (let n = -radius; n <= radius; n += 1) sum += line[Math.min(count - 1, Math.max(0, n))];
+      for (let n = 0; n < count; n += 1) {
+        plane[start + n * step] = sum / size;
+        sum += line[Math.min(count - 1, n + radius + 1)] - line[Math.max(0, n - radius)];
+      }
+    };
+    for (let pass = 0; pass < 2; pass += 1) {
+      for (let y = top; y < bottom; y += 1) blurLine(y * width + left, 1, right - left);
+      for (let x = left; x < right; x += 1) blurLine(top * width + x, width, bottom - top);
+    }
+    return plane;
+  }
+
+  /**
+   * Lays the touch-up strokes over a photo whose background was changed, in place. All pictures
+   * are RGBA of one size:
+   *   pixels    the changed photo
+   *   original  the photo before the change
+   *   mask      the strokes: red Restore, green Refine Edge, blue Erase; alpha is how strongly
+   *   colour    the new background colour [r, g, b]
+   * options:
+   *   width     the pictures' width in pixels
+   *   wall      the `wall` changeBackground returned; Refine Edge needs it to tell the old
+   *             background from the person (without it, Refine Edge acts as Erase)
+   *   feather   the radius in pixels over which every stroke's edge fades out (default none;
+   *             a caller that draws soft strokes itself leaves it out)
+   *   cell      the size in pixels of the squares the person's colours are read from
+   *             (default twice the feather, at least 4)
+   *
+   * Refine Edge treats each pixel as a mix of the person and the wall behind them, as hair over a
+   * wall is. The wall's colour there is known (`wall`); the person's colour is taken from the
+   * nearby pixels that are clearly person (a small square around the pixel). How far the pixel
+   * lies from the wall colour towards the person's colour is the person's share; the wall's share
+   * is moved to the new colour. So old wall becomes the new colour, a strand of hair keeps its
+   * colour on the new background, and solid hair or skin is not changed.
+   * Alpha of the photo is not touched.
+   */
+  /**
+   * The person's colours near each pixel of a box. The box is cut into small squares; in each,
+   * the pixels that are clearly not wall are split by brightness into a dark group and a light
+   * group (hair and skin, say), and each group's average is kept. `at(x, y)` gives the colours
+   * of the pixel's square and the eight around it, as a flat list [r, g, b, group, ...], where
+   * group numbers the square so the two colours of one square can be paired; empty when no
+   * person is near.
+   */
+  function personColours(original, width, height, box, wall, cell) {
+    // The squares are fixed to the photo, not to the strokes, and every square that a pixel of
+    // the box or its neighbours touches is read whole, so a pixel's person colours depend only on
+    // the photo near it: another stroke elsewhere, or its Undo, cannot change them.
+    const firstColumn = Math.max(0, Math.floor(box.left / cell) - 1);
+    const firstRow = Math.max(0, Math.floor(box.top / cell) - 1);
+    const lastColumn = Math.min(Math.ceil(width / cell) - 1, Math.floor((box.right - 1) / cell) + 1);
+    const lastRow = Math.min(Math.ceil(height / cell) - 1, Math.floor((box.bottom - 1) / cell) + 1);
+    const columns = lastColumn - firstColumn + 1;
+    const rows = lastRow - firstRow + 1;
+    const area = {
+      left: firstColumn * cell,
+      top: firstRow * cell,
+      right: Math.min(width, (lastColumn + 1) * cell),
+      bottom: Math.min(height, (lastRow + 1) * cell)
+    };
+    const areaWidth = area.right - area.left;
+    const clear = wall.limit + BACKGROUND_EDGE_SOFTNESS;
+    const was = [0, 0, 0];
+    const squareOf = (x, y) => (Math.floor(y / cell) - firstRow) * columns + (Math.floor(x / cell) - firstColumn);
+    // Which pixels are person, and the average brightness of the person in each square.
+    const isPerson = new Uint8Array(areaWidth * (area.bottom - area.top));
+    const light = new Float64Array(columns * rows * 2);
+    for (let y = area.top; y < area.bottom; y += 1) {
+      for (let x = area.left; x < area.right; x += 1) {
+        const at = (y * width + x) * 4;
+        wallColourAt(wall, x, y, was);
+        if (backgroundDistance(original[at], original[at + 1], original[at + 2], was, BACKGROUND_STEP_LUMA) < clear) continue;
+        isPerson[(y - area.top) * areaWidth + (x - area.left)] = 1;
+        const square = squareOf(x, y) * 2;
+        light[square] += luminance(original, at);
+        light[square + 1] += 1;
+      }
+    }
+    // The dark and the light group of each square.
+    const sums = new Float64Array(columns * rows * 8);
+    for (let y = area.top; y < area.bottom; y += 1) {
+      for (let x = area.left; x < area.right; x += 1) {
+        if (!isPerson[(y - area.top) * areaWidth + (x - area.left)]) continue;
+        const at = (y * width + x) * 4;
+        const square = squareOf(x, y);
+        const middle = light[square * 2] / light[square * 2 + 1];
+        const group = (square * 2 + (luminance(original, at) > middle ? 1 : 0)) * 4;
+        sums[group] += original[at];
+        sums[group + 1] += original[at + 1];
+        sums[group + 2] += original[at + 2];
+        sums[group + 3] += 1;
+      }
+    }
+    const found = [];
+    return {
+      at(x, y) {
+        found.length = 0;
+        const cx = Math.floor(x / cell) - firstColumn;
+        const cy = Math.floor(y / cell) - firstRow;
+        for (let ny = cy - 1; ny <= cy + 1; ny += 1) {
+          for (let nx = cx - 1; nx <= cx + 1; nx += 1) {
+            if (nx < 0 || ny < 0 || nx >= columns || ny >= rows) continue;
+            const square = ny * columns + nx;
+            for (let half = 0; half < 2; half += 1) {
+              const group = (square * 2 + half) * 4;
+              const count = sums[group + 3];
+              if (count) found.push(sums[group] / count, sums[group + 1] / count, sums[group + 2] / count, square);
+            }
+          }
+        }
+        return found;
+      }
+    };
+  }
+
+  // Two fits of a pixel this close (in RGB levels) are equally good.
+  const FIT_TOLERANCE = 1;
+
+  /** How far a point (dr, dg, db from a start) is from the segment to (fr, fg, fb), and where along it (0 to 1) it is nearest. */
+  function segmentFit(dr, dg, db, fr, fg, fb) {
+    const length = fr * fr + fg * fg + fb * fb;
+    const along = length < 1 ? 0 : Math.min(1, Math.max(0, (dr * fr + dg * fg + db * fb) / length));
+    const er = dr - along * fr;
+    const eg = dg - along * fg;
+    const eb = db - along * fb;
+    return { along, off: Math.sqrt(er * er + eg * eg + eb * eb) };
+  }
+
+  /**
+   * How much of a pixel is person (0 to 1). The pixel is explained as the best-fitting mix of:
+   * the wall colour `was` and one of the person's colours near it (a strand of hair over the
+   * wall: the person's share is how far along from the wall the pixel lies), or two colours of
+   * the person (where skin meets hair: all person). A pixel that none of these explains well is a
+   * colour of its own, and person. Without a person colour near, only a pixel well away from
+   * the wall counts as person.
+   */
+  function personShare(original, at, was, candidates, limit) {
+    const r = original[at];
+    const g = original[at + 1];
+    const b = original[at + 2];
+    if (!candidates || !candidates.length) {
+      const distance = backgroundDistance(r, g, b, was, BACKGROUND_STEP_LUMA);
+      return Math.min(1, Math.max(0, (distance - limit) / BACKGROUND_EDGE_SOFTNESS));
+    }
+    // The best mix of wall and one person colour. Of mixes that fit about as well, the one that
+    // leaves more of the pixel to the person is taken: when unsure, the person is kept.
+    let best = null;
+    for (let i = 0; i < candidates.length; i += 4) {
+      const fit = segmentFit(r - was[0], g - was[1], b - was[2], candidates[i] - was[0], candidates[i + 1] - was[1], candidates[i + 2] - was[2]);
+      if (!best || fit.off < best.off - FIT_TOLERANCE
+        || (fit.off <= best.off + FIT_TOLERANCE && fit.along > best.along)) best = fit;
+    }
+    // The best mix of the two colours of one square of the person.
+    let inside = Infinity;
+    for (let i = 0; i < candidates.length; i += 4) {
+      for (let j = i + 4; j < candidates.length; j += 4) {
+        if (candidates[i + 3] !== candidates[j + 3]) continue;
+        const fit = segmentFit(r - candidates[i], g - candidates[i + 1], b - candidates[i + 2],
+          candidates[j] - candidates[i], candidates[j + 1] - candidates[i + 1], candidates[j + 2] - candidates[i + 2]);
+        if (fit.off < inside) inside = fit.off;
+      }
+    }
+    // Two person colours explain it as well as wall and person do (grey hair against a grey wall,
+    // where every colour lies on one line): it is person.
+    if (inside <= best.off + FIT_TOLERANCE) return 1;
+    // Grain on the wall is not person: the first tenth of the way counts as wall.
+    const mixed = Math.min(1, Math.max(0, (best.along - 0.1) / 0.9));
+    const own = Math.min(1, Math.max(0, (best.off - limit) / (BACKGROUND_EDGE_SOFTNESS / 2)));
+    return Math.max(mixed, own);
+  }
+
+  function applyBackgroundFixes(pixels, original, mask, colour, options) {
+    const total = pixels.length / 4;
+    const width = (options && options.width) || total;
+    const height = total / width;
+    const wall = options && options.wall;
+    const feather = Math.max(0, Math.round(Number(options && options.feather) || 0));
+
+    // The box the strokes cover, widened by the soft edge. Only that box is worked on, so a
+    // stroke on a large photo costs little.
+    let left = Infinity;
+    let top = Infinity;
+    let right = -1;
+    let bottom = -1;
+    for (let i = 0; i < total; i += 1) {
+      if (!mask[i * 4 + 3]) continue;
+      const x = i % width;
+      const y = (i - x) / width;
+      if (x < left) left = x;
+      if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+    }
+    if (right < 0) return pixels;
+    const box = {
+      left: Math.max(0, left - feather * 2),
+      top: Math.max(0, top - feather * 2),
+      right: Math.min(width, right + 1 + feather * 2),
+      bottom: Math.min(height, bottom + 1 + feather * 2)
+    };
+    const boxWidth = box.right - box.left;
+    const boxHeight = box.bottom - box.top;
+
+    // Strength of each brush per pixel of the box: red Restore, green Refine Edge, blue Erase.
+    const planes = [0, 1, 2].map(() => new Float32Array(boxWidth * boxHeight));
+    for (let y = box.top; y < box.bottom; y += 1) {
+      for (let x = box.left; x < box.right; x += 1) {
+        const at = (y * width + x) * 4;
+        const strength = mask[at + 3] / 255;
+        if (!strength) continue;
+        const local = (y - box.top) * boxWidth + (x - box.left);
+        for (let plane = 0; plane < 3; plane += 1) planes[plane][local] = mask[at + plane] / 255 * strength;
+      }
+    }
+    if (feather) {
+      const whole = { left: 0, top: 0, right: boxWidth, bottom: boxHeight };
+      for (const plane of planes) featherPlane(plane, boxWidth, whole, feather);
+    }
+
+    const person = wall && planes[1].some(value => value > 0)
+      ? personColours(original, width, height, box, wall, Math.max(4, Math.round(Number(options && options.cell) || feather * 2)))
+      : null;
+    const was = [0, 0, 0];
+    for (let y = box.top; y < box.bottom; y += 1) {
+      for (let x = box.left; x < box.right; x += 1) {
+        const local = (y - box.top) * boxWidth + (x - box.left);
+        let restore = planes[0][local];
+        let refine = planes[1][local];
+        let erase = planes[2][local];
+        const sum = restore + refine + erase;
+        if (sum < 0.002) continue;
+        if (sum > 1) {
+          restore /= sum;
+          refine /= sum;
+          erase /= sum;
+        }
+        const stay = Math.max(0, 1 - restore - refine - erase);
+        const at = (y * width + x) * 4;
+        // Refine Edge: how much of the photo here was old wall. 1 is all wall, 0 all person.
+        // Without the wall's colours it acts as Erase.
+        let wallShare = 1;
+        if (refine && wall) {
+          wallColourAt(wall, x, y, was);
+          wallShare = 1 - personShare(original, at, was, person && person.at(x, y), wall.limit);
+        } else {
+          was[0] = original[at];
+          was[1] = original[at + 1];
+          was[2] = original[at + 2];
+        }
+        for (let channel = 0; channel < 3; channel += 1) {
+          const refined = original[at + channel] + wallShare * (colour[channel] - was[channel]);
+          pixels[at + channel] = Math.round(
+            pixels[at + channel] * stay
+            + original[at + channel] * restore
+            + Math.min(255, Math.max(0, refined)) * refine
+            + colour[channel] * erase);
+        }
+      }
     }
     return pixels;
   }
@@ -1685,6 +1963,9 @@
     PASSPORT_GUIDE,
     headOutline,
     passportChecks,
+    BACKGROUND_BRUSHES,
+    wallColourAt,
+    featherPlane,
     applyBackgroundFixes,
     sheetPdfPlan,
     coverCrop,

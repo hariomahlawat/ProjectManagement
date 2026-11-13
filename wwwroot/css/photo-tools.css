@@ -801,7 +801,7 @@
     cursor: pointer;
 }
 
-/* Fixing the background by hand: the brush tools, shown while painting. */
+/* Touching up a changed background: the brush tools, shown while painting. */
 .phot-bgfix {
     display: flex;
     flex-direction: column;
@@ -826,6 +826,28 @@
 
 .phot-crop.is-painting {
     cursor: crosshair;
+}
+
+/* The three brushes as a tool palette: equal columns, the icon above the name. */
+.phot-brushes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.phot-brushes button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1rem;
+    min-height: 56px;
+    padding: 0.35rem 0.25rem;
+    white-space: nowrap;
+}
+
+.phot-brushes .bi {
+    font-size: 1.15rem;
+    line-height: 1;
 }
 
 /* ---------- Passport photo: checks before saving ---------- */
