@@ -241,7 +241,7 @@ Each PR is usable on its own and checked on phones, in the Dark theme and with t
 | --- | --- | --- |
 | 1 | This plan (done, #3178) | Nothing visible |
 | 2 | Built. Reduce size tool: lossless clean-up, re-saving images with the three presets, signed and encrypted PDFs refused, honest before and after sizes | Scans and photo-heavy PDFs made much smaller, with text and forms kept |
-| 3 | Keep under a size, before and after preview of a page, background worker with Cancel | Files that fit a portal's limit, and large files without a frozen page |
+| 3 | Built. Keep under a size, before and after preview of a page, background worker with Cancel | Files that fit a portal's limit, and large files without a frozen page |
 | 4 | Scan mode | The smallest scans, for files where selectable text does not matter |
 
 ## Differences found while building PR 2
@@ -257,6 +257,21 @@ Each PR is usable on its own and checked on phones, in the Dark theme and with t
   stored" (`jpegClearOrientation`); checked against PDFium and Poppler.
 - **No file when nothing shrinks.** Instead of offering the original under a new name, no file is
   made and the screen says the PDF is already as small as this tool can make it.
+
+## Differences found while building PR 3
+
+- **Cancel is called Stop**, on the "Working…" box. In the worker it ends the worker at once; on
+  the page it stops between pictures. No file is made either way.
+- **The worker loads the page's own scripts.** The page passes the addresses it loaded them from,
+  versioned, so a worker started after a deployment cannot run older code than the page. Its own
+  address is versioned with `IFileVersionProvider`, as the Document Repository viewer's is.
+- **Without a worker the page does the work.** A browser without workers or `OffscreenCanvas`, or a
+  worker that cannot start, runs the same `reducePdf` on the page; the file is the same.
+- **The size search** saves the file once after the clean-up to know the part that does not
+  change, and then works from the sizes of the re-saved pictures; the final file is checked
+  against the target, and the screen never claims a size it did not reach.
+- **The preview** shows the page of the largest re-saved picture, except a JPG with its own EXIF
+  orientation: pdf.js in the browser turns such a photo, so before and after would not match.
 
 ## Open questions for the owner (answered)
 

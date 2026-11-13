@@ -1,5 +1,6 @@
 @page
 @model ProjectManagement.Pages.Tools.Pdf.IndexModel
+@inject Microsoft.AspNetCore.Mvc.ViewFeatures.IFileVersionProvider FileVersions
 @{
     // Standalone tool: it opens in its own tab with its own minimal shell instead of the
     // PRISM layout, and never posts files back to the server.
@@ -23,7 +24,8 @@
       data-pdf-tools
       data-pdfjs-src="@Url.Content("~/lib/pdfjs/4.10.38/legacy/build/pdf.min.mjs")"
       data-pdfjs-worker-src="@Url.Content("~/lib/pdfjs/4.10.38/legacy/build/pdf.worker.min.mjs")"
-      data-pdfjs-cmap-url="@Url.Content("~/lib/pdfjs/4.10.38/cmaps/")">
+      data-pdfjs-cmap-url="@Url.Content("~/lib/pdfjs/4.10.38/cmaps/")"
+      data-compress-worker-src="@FileVersions.AddFileVersionToPath(ViewContext.HttpContext.Request.PathBase, "/js/pdf-tools/pdf-tools-compress-worker.js")">
 
     <header class="pdft-topbar">
         <a class="pdft-brand" href="#" data-nav-home>
@@ -164,6 +166,24 @@
                 <fieldset class="pdft-options">
                     <legend>How small</legend>
                     <div class="pdft-presets" data-compress-presets></div>
+                </fieldset>
+                <fieldset class="pdft-options pdft-keep">
+                    <legend><label for="pdftKeepUnder">Keep under</label> <span class="pdft-optional">(optional)</span></legend>
+                    <div class="pdft-keep__row">
+                        <input type="text" inputmode="decimal" class="form-control pdft-keep__value" id="pdftKeepUnder" maxlength="7" placeholder="No limit" autocomplete="off" data-compress-target aria-describedby="pdftKeepUnderHint" />
+                        <div class="btn-group" role="group" aria-label="Unit">
+                            <button type="button" class="btn btn-outline-secondary" data-compress-unit="KB" aria-pressed="false">KB</button>
+                            <button type="button" class="btn btn-outline-secondary" data-compress-unit="MB" aria-pressed="true">MB</button>
+                        </div>
+                    </div>
+                    <div class="pdft-keep__quick" role="group" aria-label="Quick sizes">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-compress-quick="500:KB">500 KB</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-compress-quick="1:MB">1 MB</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-compress-quick="2:MB">2 MB</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-compress-quick="5:MB">5 MB</button>
+                        <button type="button" class="btn btn-link btn-sm" data-compress-quick="">No limit</button>
+                    </div>
+                    <p class="pdft-keep__hint" id="pdftKeepUnderHint" data-compress-target-hint>Leave empty for no limit. With a limit, pictures are made smaller until the file fits, but never below 72 dpi.</p>
                 </fieldset>
                 <p class="pdft-compress-outcome" data-compress-outcome role="status" tabindex="-1" hidden></p>
                 <div class="pdft-actions">
@@ -495,6 +515,7 @@
         <div class="pdft-busy__panel" role="status" aria-live="polite">
             <div class="spinner-border text-primary" aria-hidden="true"></div>
             <span data-busy-text>Working…</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-busy-stop hidden>Stop</button>
         </div>
     </div>
 
@@ -504,6 +525,7 @@
     <script src="~/js/pdf-tools/pdf-tools-core.js" asp-append-version="true"></script>
     <script src="~/js/pdf-tools/pdf-tools-app.js" asp-append-version="true"></script>
     <script src="~/js/pdf-tools/pdf-tools-annotate.js" asp-append-version="true"></script>
+    <script src="~/js/pdf-tools/pdf-tools-encode.js" asp-append-version="true"></script>
     <script src="~/js/pdf-tools/pdf-tools-compress.js" asp-append-version="true"></script>
 </body>
 </html>

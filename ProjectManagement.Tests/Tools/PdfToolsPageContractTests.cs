@@ -36,8 +36,11 @@ public sealed class PdfToolsPageContractTests
     {
         var root = FindProjectRoot();
         var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Pdf", "Index.cshtml"));
-        var scriptNames = new[] { "pdf-tools-core.js", "pdf-tools-app.js", "pdf-tools-annotate.js", "pdf-tools-compress.js" };
-        var scripts = scriptNames
+        var scriptNames = new[] { "pdf-tools-core.js", "pdf-tools-app.js", "pdf-tools-annotate.js", "pdf-tools-encode.js", "pdf-tools-compress.js" };
+        // Reduce size runs in a background worker, which loads the page's own scripts by their
+        // addresses on this site; it is checked like the page's scripts.
+        const string workerName = "pdf-tools-compress-worker.js";
+        var scripts = scriptNames.Append(workerName)
             .Select(name => File.ReadAllText(Path.Combine(root, "wwwroot", "js", "pdf-tools", name)))
             .ToArray();
 
@@ -46,6 +49,7 @@ public sealed class PdfToolsPageContractTests
         {
             Assert.Contains($"src=\"~/js/pdf-tools/{name}\"", page, StringComparison.Ordinal);
         }
+        Assert.Contains($"\"/js/pdf-tools/{workerName}\"", page, StringComparison.Ordinal);
 
         Assert.DoesNotMatch(new Regex(@"(src|href)\s*=\s*""(https?:)?//", RegexOptions.IgnoreCase), page);
         Assert.DoesNotContain("<form method=\"post\"", page, StringComparison.OrdinalIgnoreCase);

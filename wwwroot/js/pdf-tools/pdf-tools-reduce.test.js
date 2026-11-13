@@ -109,8 +109,8 @@ test('measureImageUses keeps the largest use of each image, through cm, q/Q and 
   ].join('\n')))));
 
   const { uses, unmeasured } = tools.measureImageUses(PDFLib, document);
-  assert.deepEqual(uses.get(String(image)), { width: 216, height: 72 }, 'largest along each side of the image');
-  assert.deepEqual(uses.get(String(other)), { width: 100, height: 50 }, '0.5 x 2 x 100 by 0.5 x 2 x 50');
+  assert.deepEqual(uses.get(String(image)), { width: 216, height: 72, page: 0 }, 'largest along each side of the image');
+  assert.deepEqual(uses.get(String(other)), { width: 100, height: 50, page: 0 }, '0.5 x 2 x 100 by 0.5 x 2 x 50');
   assert.equal(unmeasured.size, 0);
 });
 
@@ -129,7 +129,7 @@ test('measureImageUses counts a page UserUnit, and leaves images in annotation a
   page.node.set(PDFName.of('Annots'), document.context.obj([annotation]));
 
   const { uses, unmeasured } = tools.measureImageUses(PDFLib, document);
-  assert.deepEqual(uses.get(String(image)), { width: 144, height: 144 }, 'one inch at UserUnit 2 is two inches');
+  assert.deepEqual(uses.get(String(image)), { width: 144, height: 144, page: 0 }, 'one inch at UserUnit 2 is two inches');
   assert.ok(unmeasured.has(String(stamp)));
 });
 
@@ -450,7 +450,7 @@ test('reducePdf re-saves a large image at the preset resolution and keeps text, 
   const result = await tools.reducePdf(PDFLib, original, {
     preset: 'standard',
     encodeImage: encoder.encodeImage,
-    onProgress: (done, total) => progress.push(`${done}/${total}`)
+    onProgress: ({ step, done, total }) => progress.push(`${step}:${done}/${total}`)
   });
 
   // Two inches at 150 dpi: 300 x 300.
@@ -459,7 +459,8 @@ test('reducePdf re-saves a large image at the preset resolution and keeps text, 
     { w: encoder.calls[0].targetWidth, h: encoder.calls[0].targetHeight, q: encoder.calls[0].quality, source: encoder.calls[0].source, channels: encoder.calls[0].channels },
     { w: 300, h: 300, q: 0.75, source: 'pixels', channels: 3 });
   assert.equal(encoder.calls[0].data.length, 600 * 600 * 3, 'decoded pixels were handed over');
-  assert.deepEqual(progress, ['1/1']);
+  assert.deepEqual(progress, ['1:1/1']);
+  assert.equal(result.report.previewPage, 0, 'the page of the largest re-saved picture');
   assert.equal(result.unchanged, false);
   assert.ok(result.bytes.length < original.length / 2, `${original.length} -> ${result.bytes.length}`);
   assert.equal(result.report.resaved, 1);
@@ -539,4 +540,126 @@ test('describePdf reports pages, size and how much of the file is images', async
   assert.equal(info.imageCount, 1);
   assert.ok(info.imageBytes > 30000 && info.imageBytes < bytes.length);
   assert.equal(info.signed, false);
+});
+
+// -----------------------------------------------------------------------------
+// Keep under a size, cancelling and the preview page (PR 3)
+// -----------------------------------------------------------------------------
+
+test('parseSizeLimit reads KB and MB, a decimal comma and thousands', () => {
+  assert.equal(tools.parseSizeLimit('2', 'MB'), 2 * 1024 * 1024);
+  assert.equal(tools.parseSizeLimit('1,5', 'MB'), Math.round(1.5 * 1024 * 1024));
+  assert.equal(tools.parseSizeLimit('1,000', 'KB'), 1000 * 1024, 'thousands, not 1 KB');
+  assert.equal(tools.parseSizeLimit(' 500 ', 'kb'), 500 * 1024);
+  for (const bad of ['', '  ', 'abc', '0', '-3', null, undefined]) assert.equal(tools.parseSizeLimit(bad, 'KB'), null, String(bad));
+});
+
+/** A stand-in for re-saving every picture: bytes follow the pixel count and the quality. */
+function fakeMeasure(perPixelAtFullQuality = 1) {
+  const calls = [];
+  const measure = async (dpi, quality) => {
+    calls.push([dpi, Math.round(quality * 100) / 100]);
+    return { dpi, quality, bytes: Math.round(dpi * dpi * quality * perPixelAtFullQuality) };
+  };
+  return { measure, calls };
+}
+
+test('searchReduceSettings keeps the preset when it fits, then lowers quality, then resolution', async () => {
+  // 150 dpi at 0.75 is 16875 bytes.
+  let fake = fakeMeasure();
+  let found = await tools.searchReduceSettings({ dpi: 150, quality: 0.75, budget: 20000, measure: fake.measure });
+  assert.deepEqual([found.dpi, found.quality, found.reached], [150, 0.75, true]);
+  assert.equal(fake.calls.length, 1, 'one attempt when the preset already fits');
+
+  // Fits with a lower quality at the same resolution: the best quality that fits is chosen.
+  fake = fakeMeasure();
+  found = await tools.searchReduceSettings({ dpi: 150, quality: 0.75, budget: 12000, measure: fake.measure });
+  assert.equal(found.dpi, 150);
+  assert.equal(found.reached, true);
+  assert.ok(found.bytes <= 12000);
+  assert.ok(found.quality > 0.5 && found.quality < 0.75, `quality ${found.quality}`);
+
+  // Too big even at the lowest quality: the resolution is stepped down, then quality searched again.
+  fake = fakeMeasure();
+  found = await tools.searchReduceSettings({ dpi: 150, quality: 0.75, budget: 4000, measure: fake.measure });
+  assert.equal(found.reached, true);
+  assert.ok(found.bytes <= 4000);
+  assert.ok(found.dpi < 150 && found.dpi >= 72, `dpi ${found.dpi}`);
+
+  // Cannot be reached: never below 72 dpi, and the smallest attempt is returned, marked as missed.
+  fake = fakeMeasure();
+  found = await tools.searchReduceSettings({ dpi: 150, quality: 0.75, budget: 100, measure: fake.measure });
+  assert.equal(found.reached, false);
+  assert.equal(found.dpi, 72);
+  assert.equal(found.bytes, Math.min(...fake.calls.map(([dpi, quality]) => Math.round(dpi * dpi * quality))));
+  assert.ok(fake.calls.every(([dpi]) => dpi >= 72));
+});
+
+/** A stand-in encoder whose JPG size follows the target's pixel count and the quality. */
+function sizedEncoder() {
+  const calls = [];
+  const encodeImage = async (input) => {
+    calls.push(input);
+    return { jpeg: new Uint8Array(Math.max(1, Math.round(input.targetWidth * input.targetHeight * input.quality * 0.5))).fill(0x5a) };
+  };
+  return { encodeImage, calls };
+}
+
+test('reducePdf keeps a file under a size by lowering quality and then resolution, and says so', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const photo = addImage(document, { width: 1200, height: 1200 });
+  // Drawn four inches square: 600 x 600 px at Standard's 150 dpi.
+  pageDrawing(document, [{ ref: photo, name: 'P', matrix: [288, 0, 0, 288, 0, 0] }]);
+  const original = await document.save();
+
+  const plain = await tools.reducePdf(PDFLib, original, { preset: 'standard', encodeImage: sizedEncoder().encodeImage });
+  assert.equal(plain.report.target, null, 'no target asked for');
+
+  const target = Math.round(plain.bytes.length * 0.6);
+  const encoder = sizedEncoder();
+  const kept = await tools.reducePdf(PDFLib, original, { preset: 'standard', targetBytes: target, encodeImage: encoder.encodeImage });
+  assert.ok(kept.bytes.length <= target, `${kept.bytes.length} <= ${target}`);
+  assert.deepEqual({ reached: kept.report.target.reached, bytes: kept.report.target.bytes }, { reached: true, bytes: target });
+  assert.ok(kept.report.target.quality < 0.75 || kept.report.target.dpi < 150, 'settings were lowered to fit');
+  assert.ok(encoder.calls.length > 1, 'several attempts were made');
+
+  // A target nothing can reach: the smallest file is still made, at 72 dpi, and marked as missed.
+  const missed = await tools.reducePdf(PDFLib, original, { preset: 'standard', targetBytes: 10, encodeImage: sizedEncoder().encodeImage });
+  assert.equal(missed.report.target.reached, false);
+  assert.equal(missed.report.target.dpi, 72);
+  assert.equal(missed.unchanged, false);
+  assert.ok(missed.bytes.length < kept.bytes.length);
+});
+
+test('reducePdf stops between pictures when cancelled, and makes no file', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const one = addImage(document, { width: 300, height: 300 });
+  const two = addImage(document, { width: 300, height: 300, data: noise(300 * 300 * 3, 42) });
+  pageDrawing(document, [{ ref: one, name: 'A', matrix: [72, 0, 0, 72, 0, 0] }, { ref: two, name: 'B', matrix: [72, 0, 0, 72, 100, 0] }]);
+  const original = await document.save();
+  const controller = new AbortController();
+  const encoder = sizedEncoder();
+  await assert.rejects(
+    tools.reducePdf(PDFLib, original, {
+      encodeImage: async (input) => { controller.abort(); return encoder.encodeImage(input); },
+      signal: controller.signal
+    }),
+    (error) => error.code === 'cancelled' && /No file was made/.test(error.message));
+  assert.equal(encoder.calls.length, 1, 'stopped after the picture in hand');
+});
+
+test('reducePdf names the page of the largest re-saved picture, leaving out a JPG with its own orientation', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const small = addImage(document, { width: 300, height: 300 });
+  const large = addImage(document, { width: 900, height: 900, data: noise(900 * 900 * 3, 8) });
+  // A larger JPG whose EXIF says "turned": the browser's preview would show it turned.
+  const exif = [0x45, 0x78, 0x69, 0x66, 0, 0, 0x49, 0x49, 42, 0, 8, 0, 0, 0, 1, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0];
+  const turned = Uint8Array.from([0xff, 0xd8, 0xff, 0xe1, 0, exif.length + 2, ...exif, ...noise(3000000, 3), 0xff, 0xd9]);
+  const jpeg = addImage(document, { width: 2000, height: 2000, filter: 'DCTDecode', data: turned });
+  pageDrawing(document, [{ ref: small, name: 'S', matrix: [72, 0, 0, 72, 0, 0] }]);
+  pageDrawing(document, [{ ref: large, name: 'L', matrix: [72, 0, 0, 72, 0, 0] }]);
+  pageDrawing(document, [{ ref: jpeg, name: 'J', matrix: [72, 0, 0, 72, 0, 0] }]);
+  const result = await tools.reducePdf(PDFLib, await document.save(), { encodeImage: sizedEncoder().encodeImage });
+  assert.equal(result.report.resaved, 3);
+  assert.equal(result.report.previewPage, 1, 'page 2, where the largest picture without its own orientation is');
 });

@@ -30,6 +30,15 @@
 
   const busyLayer = $('[data-busy]');
   const busyText = $('[data-busy-text]');
+  const busyStop = $('[data-busy-stop]');
+  let stopWork = null;
+  // Outside the inert page, so Stop can be reached with the keyboard while the work runs.
+  busyStop?.addEventListener('click', () => {
+    if (!stopWork) return;
+    busyStop.disabled = true;
+    busyText.textContent = 'Stopping…';
+    stopWork();
+  });
   const errorBox = $('[data-error]');
   const main = $('#pdftMain');
 
@@ -93,9 +102,10 @@
 
   /**
    * Runs an async task behind the busy overlay and reports failures to the user. A task asked for
-   * while another runs is ignored (a second Enter on Run, a file dropped meanwhile).
+   * while another runs is ignored (a second Enter on Run, a file dropped meanwhile). With
+   * `onStop`, the overlay offers a Stop button, which calls it; the task then ends as it chooses.
    */
-  async function withBusy(message, task) {
+  async function withBusy(message, task, { onStop } = {}) {
     if (busy) return undefined;
     busy = true;
     focusAfterBusy = null;
@@ -103,6 +113,12 @@
     let failure = null;
     clearError();
     setBusy(message);
+    stopWork = onStop || null;
+    if (busyStop) {
+      busyStop.hidden = !onStop;
+      busyStop.disabled = false;
+      if (onStop) busyStop.focus({ preventScroll: true });
+    }
     try {
       return await task((text) => setBusy(text));
     } catch (error) {
@@ -111,6 +127,8 @@
     } finally {
       setBusy(null);
       busy = false;
+      stopWork = null;
+      if (busyStop) busyStop.hidden = true;
       // Shown once the page is back: an alert written inside the inert page may not be read out.
       if (failure) showError(failure);
       // Focus asked for during the work is always given (the screen changed); otherwise the
