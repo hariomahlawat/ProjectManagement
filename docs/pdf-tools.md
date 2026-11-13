@@ -159,8 +159,11 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
   when that is still too big steps the resolution down (by the square root of the shortfall,
   never below 72 dpi) and searches again. Each try re-saves every picture without putting it in
   the file; the best-looking try that fits is used, or the smallest one when nothing fits. The
-  saved file is then checked against the target: the result says it is under the size, with the
-  resolution and quality used, or says in amber that this is the smallest the tool can make it.
+  budget is an estimate (a new picture's dictionary and the file's tables add a little), so the
+  saved file is checked against the target; when it is over, the overshoot comes off the budget
+  and the search runs again, reusing the settings already tried (up to four rounds). The result
+  says it is under the size, with the resolution and quality used, or says in amber that it could
+  not be made smaller, naming 72 dpi as the lowest only when that is where the search ended.
   The size and its unit are remembered in this browser only (`localStorage`,
   `prism.pdfTools.reduce`).
 - **In the background.** The work runs in a worker (`pdf-tools-compress-worker.js`), so a large

@@ -1947,8 +1947,19 @@
     const REPLACED = new Set(['/Length', '/Filter', '/DecodeParms', '/Width', '/Height', '/ColorSpace', '/BitsPerComponent', '/DL']);
     let step = 0;
 
+    // Each setting is re-saved once; the search may ask for it again.
+    const attempts = new Map();
+
     /** Re-saves every picture at one resolution and quality. Nothing is put in the file yet. */
     const attempt = async (dpi, quality) => {
+      const key = `${dpi}|${quality}`;
+      if (attempts.has(key)) return attempts.get(key);
+      const made = await resaveAll(dpi, quality);
+      attempts.set(key, made);
+      return made;
+    };
+
+    const resaveAll = async (dpi, quality) => {
       step += 1;
       const chosen = new Map();
       const skipped = {};
@@ -2023,25 +2034,38 @@
       return { dpi, quality, bytes: imageBytes, chosen, skipped, resized };
     };
 
+    /** Puts one attempt's pictures in the file (and the others back as they were) and saves it. */
+    const saveWith = async (chosen) => {
+      for (const image of work) context.assign(image.ref, chosen.get(image) || image.stream);
+      removeUnreachableObjects(PDFLib, document);
+      return save(document);
+    };
+
     // 3. Settings: the preset, or the best-looking ones that keep the file under the target.
     let result;
+    let output;
     if (targetBytes && work.length) {
       // Everything but the pictures being re-saved stays as it is now, so the file's size is that
-      // part plus the pictures; the pictures' share is the budget.
+      // part plus the pictures; the pictures' share is the budget. That is an estimate: a new
+      // picture's dictionary and the file's tables add a little, so a file the estimate says fits
+      // can still come out over. Then the overshoot, and a little more, comes off the budget and
+      // the search runs again (settings already tried are not re-saved again).
       const fixedBytes = (await save(document)).length - work.reduce((sum, image) => sum + image.size, 0);
-      result = await searchReduceSettings({
-        dpi: preset.dpi,
-        quality: preset.quality,
-        budget: targetBytes - fixedBytes,
-        measure: attempt
-      });
+      let budget = targetBytes - fixedBytes;
+      for (let round = 0; round < 4; round += 1) {
+        result = await searchReduceSettings({ dpi: preset.dpi, quality: preset.quality, budget, measure: attempt });
+        stopIfCancelled();
+        output = await saveWith(result.chosen);
+        if (output.length <= targetBytes || !result.reached) break;
+        budget -= output.length - targetBytes + Math.max(256, Math.round(targetBytes * 0.002));
+      }
     } else {
       result = await attempt(preset.dpi, preset.quality);
+      stopIfCancelled();
+      output = await saveWith(result.chosen);
     }
-    stopIfCancelled();
 
-    // 4. Put the chosen pictures in and save.
-    for (const [image, stream] of result.chosen) context.assign(image.ref, stream);
+    // 4. What was done.
     report.resaved = result.chosen.size;
     report.resized = result.resized;
     report.dpi = result.dpi;
@@ -2058,10 +2082,15 @@
       .sort((a, b) => b.size - a.size)[0];
     report.previewPage = largest ? largest.use.page : null;
 
-    removeUnreachableObjects(PDFLib, document);
-    const output = await save(document);
     if (targetBytes) {
-      report.target = { bytes: targetBytes, reached: output.length <= targetBytes, dpi: result.dpi, quality: result.quality };
+      report.target = {
+        bytes: targetBytes,
+        reached: output.length <= targetBytes,
+        dpi: result.dpi,
+        quality: result.quality,
+        // Missed with the lowest settings this tool uses, not for want of trying them.
+        atLowest: result.dpi <= REDUCE_MIN_DPI
+      };
     }
     if (output.length >= bytes.length) {
       return { bytes, unchanged: true, report };

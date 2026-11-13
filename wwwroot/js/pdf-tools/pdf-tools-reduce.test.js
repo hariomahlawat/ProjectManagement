@@ -663,3 +663,21 @@ test('reducePdf names the page of the largest re-saved picture, leaving out a JP
   assert.equal(result.report.resaved, 3);
   assert.equal(result.report.previewPage, 1, 'page 2, where the largest picture without its own orientation is');
 });
+
+test('a target the settings can meet is met by the saved file, not only by the estimate', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  // Stored without compression (noise does not compress), as in the case Codex found.
+  const raw = addImage(document, { width: 600, height: 600, filter: null });
+  pageDrawing(document, [{ ref: raw, name: 'R', matrix: [288, 0, 0, 288, 0, 0] }]);
+  const original = await document.save();
+  const plain = await tools.reducePdf(PDFLib, original, { preset: 'standard', encodeImage: sizedEncoder().encodeImage });
+  const smallest = await tools.reducePdf(PDFLib, original, { preset: 'standard', targetBytes: 1, encodeImage: sizedEncoder().encodeImage });
+  // Every target between the smallest possible file and the preset's file can be met.
+  const misses = [];
+  for (let target = plain.bytes.length - 40; target <= plain.bytes.length + 5; target += 3) {
+    const result = await tools.reducePdf(PDFLib, original, { preset: 'standard', targetBytes: target, encodeImage: sizedEncoder().encodeImage });
+    if (result.report.target.reached !== (result.bytes.length <= target)) misses.push(`${target}: said ${result.report.target.reached}, made ${result.bytes.length}`);
+    if (target >= smallest.bytes.length + 2000 && result.bytes.length > target) misses.push(`${target}: made ${result.bytes.length}, over a reachable target`);
+  }
+  assert.deepEqual(misses, []);
+});

@@ -259,7 +259,9 @@
   function resultWarning(after, report) {
     const warnings = [];
     if (report.target && !report.target.reached) {
-      warnings.push(`This is the smallest this tool can make it: ${ui.formatBytes(after)}, which is over ${limitWords}. Pictures are already at ${report.target.dpi} dpi, the lowest it goes. Splitting the PDF into parts may help.`);
+      warnings.push(report.target.atLowest
+        ? `This is the smallest this tool can make it: ${ui.formatBytes(after)}, which is over ${limitWords}. Pictures are already at ${report.target.dpi} dpi, the lowest it goes. Splitting the PDF into parts may help.`
+        : `This could not be made smaller than ${ui.formatBytes(after)}, which is over ${limitWords}. Splitting the PDF into parts may help.`);
     }
     if (report.pdfA) {
       warnings.push('This file said it was PDF/A. After the change it may no longer meet PDF/A, so check before sending it where PDF/A is required.');
