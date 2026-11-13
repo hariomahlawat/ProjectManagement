@@ -39,6 +39,7 @@ namespace ProjectManagement.Pages.Dashboard
     {
         private readonly INotebookService _notebook;
         private readonly UserManager<ApplicationUser> _users;
+        private readonly ProjectManagement.Services.Celebrations.ICelebrationWishService? _celebrationWishes;
         private readonly Data.ApplicationDbContext _db;
         private readonly IProjectPulseService _projectPulse;
         private readonly IOpsSignalsService _opsSignalsService;
@@ -59,8 +60,10 @@ namespace ProjectManagement.Pages.Dashboard
             ILogger<IndexModel> logger,
             IDashboardAnalyticsService? dashboardAnalytics = null,
             IAuthorizationService? authorization = null,
-            IItProjectReadService? itProjects = null)
+            IItProjectReadService? itProjects = null,
+            ProjectManagement.Services.Celebrations.ICelebrationWishService? celebrationWishes = null)
         {
+            _celebrationWishes = celebrationWishes;
             _itProjects = itProjects;
             _dashboardAnalytics = dashboardAnalytics;
             _authorization = authorization;
@@ -91,6 +94,12 @@ namespace ProjectManagement.Pages.Dashboard
         /// <summary>One card each for IT, MOLTI and SRE projects; empty when the caller may not view them, and without a module whose figures could not be read.</summary>
         public IReadOnlyList<DashboardModuleProjectsVm> ModuleProjects { get; private set; } = Array.Empty<DashboardModuleProjectsVm>();
         public DateTimeOffset DashboardLoadedAtIst { get; private set; }
+
+        /// <summary>
+        /// "Happy Birthday, Lt Col A Kumar": shown beside the date all day on the viewer's
+        /// birthday or anniversary (docs/ux/celebration-wish.md). Null on every other day.
+        /// </summary>
+        public string? WishGreeting { get; private set; }
 
         /// <summary>"Good morning, Lt Col A Kumar": the header greeting for the signed-in user.</summary>
         public string Greeting { get; private set; } = "Welcome";
@@ -172,6 +181,7 @@ namespace ProjectManagement.Pages.Dashboard
             var uid = _users.GetUserId(User);
             var viewer = await _users.GetUserAsync(User);
             Greeting = GreetingFor(DashboardLoadedAtIst, viewer?.Rank, viewer?.FullName, User.Identity?.Name);
+            WishGreeting = _celebrationWishes is null ? null : (await _celebrationWishes.GetTodayAsync(uid, cancellationToken))?.Greeting;
             // SECTION: Notebook widget load with fault isolation
             if (uid != null)
             {

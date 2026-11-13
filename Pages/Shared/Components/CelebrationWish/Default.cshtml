@@ -1,0 +1,22 @@
+@model ProjectManagement.Services.Celebrations.CelebrationWish
+@using ProjectManagement.Models
+@{
+    var kind = Model.Kind == CelebrationType.Anniversary ? "anniversary" : "birthday";
+}
+@* Today's wish (docs/ux/celebration-wish.md). Hidden until wwwroot/js/components/prism-wish.js
+   decides to play it: at sign-in, then at most once an hour, never in the middle of a page. *@
+<canvas class="prism-wish__sky" id="prismWishSky" aria-hidden="true" hidden></canvas>
+<div class="prism-wish" id="prismWish" role="status" aria-live="polite" hidden
+     data-kind="@kind"
+     data-user="@Model.UserId"
+     data-date="@Model.Date.ToString("yyyy-MM-dd")"
+     data-signin="@Model.SignInStamp">
+    <div class="prism-wish__card">
+        <p class="prism-wish__date">@Model.Date.ToString("d MMMM")</p>
+        <h2 class="prism-wish__title"><span>@Model.Line,</span> <span class="prism-wish__name">@Model.Name</span></h2>
+        <p class="prism-wish__note">@Model.Note</p>
+        <p class="prism-wish__hint">Click anywhere or press Esc to close</p>
+    </div>
+</div>
+<link rel="stylesheet" href="~/css/components/prism-wish.css" asp-append-version="true" />
+<script src="~/js/components/prism-wish.js" asp-append-version="true" defer></script>
