@@ -12,14 +12,8 @@ using ProjectManagement.Models;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Utilities;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Advanced;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using ProjectManagement.Services.Imaging;
+using SkiaSharp;
 
 namespace ProjectManagement.Services.Projects
 {
@@ -834,23 +828,16 @@ namespace ProjectManagement.Services.Projects
                 throw new InvalidOperationException($"Photo exceeds the maximum size of {_options.MaxFileSizeBytes} bytes.");
             }
 
-            content.Position = 0;
-            IImageFormat? detectedFormat = await Image.DetectFormatAsync(content, cancellationToken);
-            if (detectedFormat == null)
+            var imageBytes = new ReadOnlyMemory<byte>(content.GetBuffer(), 0, checked((int)content.Length));
+            var imageInfo = PrismImageCodec.Identify(imageBytes);
+            if (imageInfo is null)
             {
                 throw new InvalidOperationException("The selected file is not a supported image.");
             }
 
-            if (!_options.AllowedContentTypes.Contains(detectedFormat.DefaultMimeType))
+            if (!_options.AllowedContentTypes.Contains(imageInfo.MimeType))
             {
                 throw new InvalidOperationException("Use a JPEG, PNG or WebP image.");
-            }
-
-            content.Position = 0;
-            var imageInfo = await Image.IdentifyAsync(content, cancellationToken);
-            if (imageInfo is null)
-            {
-                throw new InvalidOperationException("The selected image could not be read.");
             }
 
             var pixelCount = (long)imageInfo.Width * imageInfo.Height;
@@ -871,25 +858,35 @@ namespace ProjectManagement.Services.Projects
             await ProcessingSemaphore.WaitAsync(cancellationToken);
             try
             {
-                using var image = await Image.LoadAsync<Rgba32>(content, cancellationToken);
-                image.Mutate(ctx => ctx.AutoOrient());
-                image.Metadata.ExifProfile = null;
-                image.Metadata.IptcProfile = null;
-                image.Metadata.XmpProfile = null;
+                // Every file written below is encoded afresh from pixels, so no EXIF, IPTC or
+                // XMP metadata from the upload is carried into what PRISM stores.
+                SKBitmap image;
+                try
+                {
+                    image = PrismImageCodec.DecodeOriented(imageBytes, _options.MaxPixelCount);
+                }
+                catch (PrismImageException ex)
+                {
+                    throw new InvalidOperationException("The selected image could not be read.", ex);
+                }
 
-                var masterHasTransparency = DetectTransparency(image);
-                var masterFile = await EncodeMasterAsync(image, masterHasTransparency, cancellationToken);
+                using var imageOwner = image;
+
+                var masterHasTransparency = PrismImageCodec.HasTransparency(image);
+                var masterFile = EncodeMaster(image, masterHasTransparency);
 
                 var cropRectangle = crop.HasValue
                     ? ValidateCrop(image.Width, image.Height, crop.Value)
                     : CalculateDefaultCrop(image.Width, image.Height);
 
-                using var cropped = image.Clone(ctx => ctx.Crop(cropRectangle));
-                cropped.Metadata.ExifProfile = null;
-                cropped.Metadata.IptcProfile = null;
-                cropped.Metadata.XmpProfile = null;
+                using var cropped = PrismImageCodec.Crop(
+                    image,
+                    cropRectangle.Left,
+                    cropRectangle.Top,
+                    cropRectangle.Width,
+                    cropRectangle.Height);
 
-                var croppedHasTransparency = DetectTransparency(cropped);
+                var croppedHasTransparency = PrismImageCodec.HasTransparency(cropped);
                 var fallbackContentType = croppedHasTransparency ? "image/png" : "image/jpeg";
                 var isLowResolution = cropped.Width < LowResolutionWidthThreshold ||
                                       cropped.Height < LowResolutionHeightThreshold;
@@ -912,28 +909,14 @@ namespace ProjectManagement.Services.Projects
             }
         }
 
-        private static async Task<InMemoryFile> EncodeMasterAsync(Image<Rgba32> image,
-                                                                   bool hasTransparency,
-                                                                   CancellationToken cancellationToken)
+        private static InMemoryFile EncodeMaster(SKBitmap image, bool hasTransparency)
         {
-            var stream = new MemoryStream();
-            if (hasTransparency)
-            {
-                await image.SaveAsync(stream, new PngEncoder
-                {
-                    ColorType = PngColorType.RgbWithAlpha,
-                    CompressionLevel = PngCompressionLevel.BestCompression
-                }, cancellationToken);
-                stream.Position = 0;
-                return new InMemoryFile(stream, ".png", "image/png");
-            }
-
-            await image.SaveAsync(stream, new JpegEncoder { Quality = 95 }, cancellationToken);
-            stream.Position = 0;
-            return new InMemoryFile(stream, ".jpg", "image/jpeg");
+            return hasTransparency
+                ? new InMemoryFile(new MemoryStream(PrismImageCodec.EncodePng(image)), ".png", "image/png")
+                : new InMemoryFile(new MemoryStream(PrismImageCodec.EncodeJpeg(image, 95)), ".jpg", "image/jpeg");
         }
 
-        private async Task<Dictionary<string, DerivativeSet>> GenerateDerivativesAsync(Image<Rgba32> image,
+        private async Task<Dictionary<string, DerivativeSet>> GenerateDerivativesAsync(SKBitmap image,
                                                                                          bool hasTransparency,
                                                                                          CancellationToken cancellationToken)
         {
@@ -947,58 +930,22 @@ namespace ProjectManagement.Services.Projects
                 await EncodingSemaphore.WaitAsync(cancellationToken);
                 try
                 {
-                    using var clone = image.Clone(ctx => ctx.Resize(new ResizeOptions
-                    {
-                        // SECTION: Derivative scaling
-                        Mode = ResizeMode.Max,
-                        Size = new Size(derivative.Width, derivative.Height),
-                        Sampler = KnownResamplers.Lanczos3
-                    }));
+                    // SECTION: Derivative scaling
+                    using var resized = PrismImageCodec.ResizeToFit(image, derivative.Width, derivative.Height);
 
-                    clone.Metadata.ExifProfile = null;
-                    clone.Metadata.IptcProfile = null;
-                    clone.Metadata.XmpProfile = null;
+                    var webp = new InMemoryFile(
+                        new MemoryStream(PrismImageCodec.EncodeWebp(resized, derivative.Quality)),
+                        ".webp",
+                        "image/webp");
 
-                    var webpStream = new MemoryStream();
-                    var webpEncoder = new WebpEncoder
-                    {
-                        FileFormat = WebpFileFormatType.Lossy,
-                        Quality = derivative.Quality
-                    };
+                    var fallback = hasTransparency
+                        ? new InMemoryFile(new MemoryStream(PrismImageCodec.EncodePng(resized)), ".png", "image/png")
+                        : new InMemoryFile(
+                            new MemoryStream(PrismImageCodec.EncodeJpeg(resized, derivative.Quality)),
+                            ".jpg",
+                            "image/jpeg");
 
-                    await clone.SaveAsync(webpStream, webpEncoder, cancellationToken);
-                    webpStream.Position = 0;
-
-                    var fallbackStream = new MemoryStream();
-                    if (hasTransparency)
-                    {
-                        var pngEncoder = new PngEncoder
-                        {
-                            ColorType = PngColorType.RgbWithAlpha,
-                            CompressionLevel = PngCompressionLevel.BestCompression
-                        };
-
-                        await clone.SaveAsync(fallbackStream, pngEncoder, cancellationToken);
-                        fallbackStream.Position = 0;
-
-                        map[sizeKey] = new DerivativeSet(
-                            new InMemoryFile(webpStream, ".webp", "image/webp"),
-                            new InMemoryFile(fallbackStream, ".png", "image/png"));
-                    }
-                    else
-                    {
-                        var jpegEncoder = new JpegEncoder
-                        {
-                            Quality = derivative.Quality
-                        };
-
-                        await clone.SaveAsync(fallbackStream, jpegEncoder, cancellationToken);
-                        fallbackStream.Position = 0;
-
-                        map[sizeKey] = new DerivativeSet(
-                            new InMemoryFile(webpStream, ".webp", "image/webp"),
-                            new InMemoryFile(fallbackStream, ".jpg", "image/jpeg"));
-                    }
+                    map[sizeKey] = new DerivativeSet(webp, fallback);
                 }
                 finally
                 {
@@ -1154,7 +1101,7 @@ namespace ProjectManagement.Services.Projects
             };
         }
 
-        private static Rectangle ValidateCrop(int width, int height, ProjectPhotoCrop crop)
+        private static SKRectI ValidateCrop(int width, int height, ProjectPhotoCrop crop)
         {
             // SECTION: Positive dimension validation.
             if (crop.Width <= 0 || crop.Height <= 0)
@@ -1168,30 +1115,13 @@ namespace ProjectManagement.Services.Projects
                 throw new InvalidOperationException("Crop rectangle must be within the image bounds.");
             }
 
-            return new Rectangle(crop.X, crop.Y, crop.Width, crop.Height);
+            return SKRectI.Create(crop.X, crop.Y, crop.Width, crop.Height);
         }
 
-        private static Rectangle CalculateDefaultCrop(int width, int height)
+        private static SKRectI CalculateDefaultCrop(int width, int height)
         {
             // SECTION: Default crop uses the full image to preserve arbitrary aspect ratios.
-            return new Rectangle(0, 0, width, height);
-        }
-
-        private static bool DetectTransparency(Image<Rgba32> image)
-        {
-            for (var y = 0; y < image.Height; y++)
-            {
-                var row = image.DangerousGetPixelRowMemory(y).Span;
-                for (var x = 0; x < row.Length; x++)
-                {
-                    if (row[x].A < 255)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
+            return SKRectI.Create(0, 0, width, height);
         }
 
         private static async Task<MemoryStream> CopyToMemoryStreamAsync(Stream content, CancellationToken cancellationToken)
