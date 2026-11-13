@@ -777,17 +777,20 @@
    * print-only layer that was off in the file would show after Organise or Split. The settings
    * of each file whose pages were kept are copied with the copier its pages were copied with, so
    * they name the same layer objects, and merged: the layers listed, and the default
-   * configuration's ON, OFF, Locked, AS, Order and RBGroups lists joined (Name, BaseState, Intent
-   * and ListMode from the first file). A page used twice is copied separately with its own layer
-   * objects; those are listed with their on/off state but left out of the layer panel's Order.
-   * Alternate configurations (/Configs) are not carried.
+   * configuration's Locked, AS, Order and RBGroups lists joined (Name, Intent and ListMode from
+   * the first file). Files can start from different base states (/BaseState ON or OFF), so each
+   * layer's own state in its file is worked out first and the merged view says it outright: base
+   * ON, and every layer that was off listed in OFF. A page used twice is copied separately with
+   * its own layer objects; those are listed with their on/off state but left out of the layer
+   * panel's Order. Alternate configurations (/Configs) are not carried.
    */
   function carryLayers(PDFLib, output, sources, copiers) {
     const { PDFName, PDFDict, PDFArray } = PDFLib;
     const OCGS = PDFName.of('OCGs');
     const groups = [];
     const seen = new Set();
-    const lists = { ON: [], OFF: [], Locked: [], AS: [], Order: [], RBGroups: [] };
+    const off = [];
+    const lists = { Locked: [], AS: [], Order: [], RBGroups: [] };
     let base = null;
     for (const { source, copier, repeat } of copiers) {
       const document = sources[source];
@@ -795,16 +798,26 @@
       if (!properties) continue;
       const copied = copier.copy(properties);
       const listed = copied.lookupMaybe(OCGS, PDFArray);
+      const config = copied.lookupMaybe(PDFName.of('D'), PDFDict);
+      // This file's own state of each layer: its base state, then its ON and OFF lists.
+      const names = (key) => {
+        const values = config ? config.lookupMaybe(PDFName.of(key), PDFArray) : undefined;
+        return new Set((values ? values.asArray() : []).map(String));
+      };
+      const baseOff = config ? String(config.get(PDFName.of('BaseState'))) === '/OFF' : false;
+      const on = names('ON');
+      const offHere = names('OFF');
       for (const ref of listed ? listed.asArray() : []) {
         if (seen.has(String(ref))) continue;
         seen.add(String(ref));
         groups.push(ref);
+        const hidden = baseOff ? !on.has(String(ref)) : offHere.has(String(ref));
+        if (hidden) off.push(ref);
       }
-      const config = copied.lookupMaybe(PDFName.of('D'), PDFDict);
       if (!config) continue;
       if (!base) {
         base = output.context.obj({});
-        for (const key of ['Name', 'Creator', 'BaseState', 'Intent', 'ListMode']) {
+        for (const key of ['Name', 'Creator', 'Intent', 'ListMode']) {
           const value = config.get(PDFName.of(key));
           if (value !== undefined) base.set(PDFName.of(key), value);
         }
@@ -817,6 +830,8 @@
     }
     if (groups.length === 0) return;
     const config = base || output.context.obj({});
+    config.set(PDFName.of('BaseState'), PDFName.of('ON'));
+    if (off.length) config.set(PDFName.of('OFF'), output.context.obj(off));
     for (const [key, list] of Object.entries(lists)) {
       if (list.length) config.set(PDFName.of(key), output.context.obj(list));
     }

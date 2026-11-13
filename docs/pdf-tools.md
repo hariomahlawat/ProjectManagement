@@ -72,8 +72,10 @@ What Organise, extract and Split keep (owner decision, 13 Nov 2026: keep both):
 
 - **Layers** (`carryLayers`). Each kept file's layer settings (`/OCProperties`) are carried, naming
   the same layer objects its pages use, so a layer that was off (a draft or print-only layer)
-  stays off. Merged files' settings are joined: all layers listed, the default view's on, off,
-  locked and panel order lists joined. A page used twice gets its own layer objects, listed with
+  stays off. Merged files' settings are joined: all layers listed, the default view's locked and
+  panel order lists joined. Files may start from different base states, so each layer's own
+  state in its file is worked out and the merged view says it outright (base on, every layer that
+  was off listed as off). A page used twice gets its own layer objects, listed with
   their on/off state but not shown twice in the layer panel. Alternate views (`/Configs`) are not
   carried.
 - **Bookmarks** (`carryBookmarks`). Each kept file's bookmarks are carried, in the order of the

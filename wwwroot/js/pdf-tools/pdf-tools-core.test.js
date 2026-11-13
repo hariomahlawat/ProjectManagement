@@ -931,3 +931,28 @@ test('merged files keep each file\'s bookmarks, in the order of their pages', as
   assert.equal(await outlineOf(plain), null);
   assert.equal((await PDFLib.PDFDocument.load(plain)).catalog.get(PDFLib.PDFName.of('OCProperties')), undefined);
 });
+
+test('merging files with different default layer states keeps each layer as it was', async () => {
+  // File A starts with every layer off and turns "A shown" on; file B starts on and turns "B hidden" off.
+  const file = async (baseState, layers) => {
+    const document = await PDFLib.PDFDocument.create();
+    const context = document.context;
+    const refs = layers.map(([name]) => context.register(context.obj({ Type: 'OCG', Name: PDFLib.PDFHexString.fromText(name) })));
+    const page = document.addPage([200, 200]);
+    page.node.set(PDFLib.PDFName.of('Resources'), context.obj({ Properties: Object.fromEntries(refs.map((ref, i) => [`L${i}`, ref])) }));
+    const listed = (state) => refs.filter((ref, i) => layers[i][1] === state);
+    document.catalog.set(PDFLib.PDFName.of('OCProperties'), context.obj({
+      OCGs: refs,
+      D: { BaseState: baseState, ON: listed('on'), OFF: listed('off') }
+    }));
+    return document.save();
+  };
+  const a = await file('OFF', [['A shown', 'on'], ['A hidden', null]]);
+  const b = await file('ON', [['B shown', null], ['B hidden', 'off']]);
+  const output = await PDFLib.PDFDocument.load(await tools.assemblePages(PDFLib, [a, b], [{ source: 0, index: 0 }, { source: 1, index: 0 }]));
+  const config = output.catalog.lookup(PDFLib.PDFName.of('OCProperties')).lookup(PDFLib.PDFName.of('D'));
+  const name = (ref) => output.context.lookup(ref).lookup(PDFLib.PDFName.of('Name')).decodeText();
+  assert.equal(String(config.get(PDFLib.PDFName.of('BaseState'))), '/ON');
+  assert.deepEqual(config.lookup(PDFLib.PDFName.of('OFF')).asArray().map(name).sort(), ['A hidden', 'B hidden']);
+  assert.equal(config.get(PDFLib.PDFName.of('ON')), undefined, 'every layer not listed as off is on');
+});
