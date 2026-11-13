@@ -69,8 +69,13 @@ Tests check that a dropped page's text and a dropped field's value are absent fr
 All placements honour each page's `/Rotate`, so text and stamps appear upright on rotated
 (for example scanned landscape) pages. The annotate editor works in PDF user units, dividing
 out the page's `/UserUnit` that pdf.js includes in its viewport, so saved items match the
-preview on large-format pages too. Coordinates are mapped against the visible page box (the
-CropBox clipped to the MediaBox, as pdf.js renders it), not the raw CropBox.
+preview on large-format pages too. Watermark and page numbers divide their size and margin by
+`/UserUnit`, so they keep the size in points that was chosen. Coordinates are mapped against the
+visible page box (the CropBox clipped to the MediaBox, as pdf.js renders it), not the raw
+CropBox. Both boxes may name their corners in any order (`[612 792 0 0]` is valid PDF), so they
+are put lower-left first. A `/Rotate` that is not a multiple of 90 is not valid PDF; it is read
+as 0, as pdf.js shows it, and Organise saves the page that way. Page ranges accept an en dash,
+em dash or minus sign as a hyphen ("1–3", as Word writes it).
 
 ### Keyboard
 
