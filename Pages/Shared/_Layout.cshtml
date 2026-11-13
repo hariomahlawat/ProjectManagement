@@ -433,6 +433,8 @@
         <script src="~/js/core/erp-usage-heartbeat.js" asp-append-version="true" defer></script>
         <partial name="_WhatsNew" model="chatEnabled" />
         <script src="~/js/core/whats-new.js" asp-append-version="true" defer></script>
+        @* The birthday or anniversary wish; renders nothing on every other day (docs/ux/celebration-wish.md). *@
+        @await Component.InvokeAsync("CelebrationWish")
     }
     <script src="~/js/comments.js" asp-append-version="true" defer></script>
     <script src="~/js/notifications.js" asp-append-version="true" defer></script>

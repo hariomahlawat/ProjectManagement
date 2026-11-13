@@ -120,6 +120,10 @@
         <div class="db-header__title" title="Loaded @Model.DashboardLoadedAtIst.ToString("dd MMM yyyy, HH:mm") IST">
             <h1>Dashboard</h1>
             <span class="db-header__date">@Model.DashboardLoadedAtIst.ToString("dddd, d MMMM yyyy", CultureInfo.InvariantCulture)</span>
+            @if (Model.WishGreeting is not null)
+            {
+                <span class="db-header__wish">@Model.WishGreeting</span>
+            }
         </div>
     </header>
 

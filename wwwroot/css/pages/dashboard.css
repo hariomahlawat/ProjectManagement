@@ -63,6 +63,8 @@
 .db-header__title { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
 .db-header h1 { margin: 0; color: var(--db-strong); font-size: clamp(1.5rem, 1.9vw, 1.85rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.1; }
 .db-header__date { color: var(--db-muted); font-size: .9375rem; font-weight: 600; white-space: nowrap; }
+/* On the viewer's birthday or anniversary: "Happy Birthday, Col R Sharma" (docs/ux/celebration-wish.md). */
+.db-header__wish { color: var(--pm-accent-pink); font-size: .9375rem; font-weight: 700; }
 /* The only place the whole spectrum appears on this page: a short rule under the title. */
 .db-header::after { content: ""; position: absolute; left: 2px; bottom: 0; width: 168px; height: 3px; border-radius: 999px; background: linear-gradient(90deg, var(--db-spec-1), var(--db-spec-2), var(--db-spec-3), var(--db-spec-4), var(--db-spec-5), var(--db-spec-6)); }
 
