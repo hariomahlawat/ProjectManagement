@@ -59,6 +59,14 @@
     --lp-ray-glow-alpha: 0.35;
     --lp-ray-core-alpha: 0.32;
     --lp-tail-alpha: 0.75;
+    /* The solid-glass details of the mark (bevels, inner face, sheen, mirror, spill, bloom). */
+    --lp-prism-bevel-alpha: 0.75;
+    --lp-prism-inner-hi-alpha: 0.5;
+    --lp-prism-inner-lo-alpha: 0.28;
+    --lp-prism-sheen-alpha: 0.8;
+    --lp-prism-mirror-alpha: 0.55;
+    --lp-prism-spill-alpha: 0.45;
+    --lp-prism-bloom-alpha: 0.9;
 
     /* Glass: white frost in Light, smoked glass in Dark (see "Glass" below). */
     --lp-glass-mix: 46%;
@@ -122,6 +130,13 @@
     --lp-ray-glow-alpha: 0.7;
     --lp-ray-core-alpha: 0.45;
     --lp-tail-alpha: 0.55;
+    --lp-prism-bevel-alpha: 0.14;
+    --lp-prism-inner-hi-alpha: 0.07;
+    --lp-prism-inner-lo-alpha: 0.03;
+    --lp-prism-sheen-alpha: 0.14;
+    --lp-prism-mirror-alpha: 0.1;
+    --lp-prism-spill-alpha: 0.5;
+    --lp-prism-bloom-alpha: 0.5;
 
     --lp-glass-mix: 6%;
     --lp-glass-strong-mix: 9%;
@@ -329,6 +344,10 @@ body:has(.lp),
 .lp-stop--fan-end { stop-opacity: 0.03; }
 .lp-stop--glass-hi { stop-color: var(--lp-glass-hi); stop-opacity: var(--lp-glass-hi-alpha); }
 .lp-stop--glass-lo { stop-color: var(--lp-glass-lo); stop-opacity: var(--lp-glass-lo-alpha); }
+.lp-stop--inner-hi { stop-color: var(--lp-glass-hi); stop-opacity: var(--lp-prism-inner-hi-alpha); }
+.lp-stop--inner-lo { stop-color: var(--lp-glass-edge); stop-opacity: var(--lp-prism-inner-lo-alpha); }
+.lp-stop--mirror { stop-color: var(--lp-glass-lo); stop-opacity: var(--lp-prism-mirror-alpha); }
+.lp-stop--mirror-end { stop-opacity: 0; }
 .lp-stop--spec-1 { stop-color: var(--lp-spec-1); }
 .lp-stop--spec-2 { stop-color: var(--lp-spec-2); }
 .lp-stop--spec-3 { stop-color: var(--lp-spec-3); }
@@ -393,6 +412,49 @@ body:has(.lp),
 .lp-prism__face {
     fill: var(--lp-glass-edge);
     opacity: var(--lp-glass-face-alpha);
+}
+
+/* The bevels give the glass thickness. The left one faces the light; the base is shaded a
+   little less than the exit face. A hairline marks where the bevels meet the inner face. */
+.lp-prism__bevel--left {
+    fill: var(--lp-glass-hi);
+    opacity: var(--lp-prism-bevel-alpha);
+}
+
+.lp-prism__bevel--base {
+    fill: var(--lp-glass-edge);
+    opacity: calc(var(--lp-glass-face-alpha) * 0.6);
+}
+
+.lp-prism__inner-edge {
+    fill: none;
+    stroke: var(--lp-glass-hi);
+    stroke-opacity: var(--lp-prism-bevel-alpha);
+    stroke-width: 0.8;
+    stroke-linejoin: round;
+}
+
+/* A soft band of reflected light across the face, and a glint at the apex. */
+.lp-prism__sheen {
+    fill: var(--lp-glass-hi);
+    opacity: var(--lp-prism-sheen-alpha);
+}
+
+.lp-prism__glint {
+    fill: var(--lp-glass-hi);
+    opacity: 0.9;
+}
+
+/* Where the beam meets the glass. */
+.lp-prism__bloom {
+    fill: var(--lp-glass-hi);
+    opacity: var(--lp-prism-bloom-alpha);
+}
+
+/* The colours thrown on the ground beside the exit face. The mirror image under the base
+   takes its colour and strength from its gradient stops. */
+.lp-prism__spill {
+    opacity: var(--lp-prism-spill-alpha);
 }
 
 /* The spectrum already separating inside the glass, one wedge per ray. */

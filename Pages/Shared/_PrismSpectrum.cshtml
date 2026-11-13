@@ -68,6 +68,23 @@
             <stop offset="0" class="lp-stop lp-stop--fan" />
             <stop offset="1" class="lp-stop lp-stop--fan lp-stop--fan-end" />
         </linearGradient>
+        @* The face inside the bevels: lit at the top-left, shaded towards the base. *@
+        <linearGradient id="lpPrismInner" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" class="lp-stop lp-stop--inner-hi" />
+            <stop offset="1" class="lp-stop lp-stop--inner-lo" />
+        </linearGradient>
+        @* The glass mirrored in the surface it stands on, fading out downwards. *@
+        <linearGradient id="lpPrismMirror" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" class="lp-stop lp-stop--mirror" />
+            <stop offset="1" class="lp-stop lp-stop--mirror lp-stop--mirror-end" />
+        </linearGradient>
+        @* The spectrum spilling on the ground beside the exit face. *@
+        <linearGradient id="lpPrismSpill" gradientUnits="userSpaceOnUse" x1="385" y1="0" x2="525" y2="0">
+            @for (var i = 0; i < 6; i++)
+            {
+                <stop offset="@((i / 5.0).ToString("0.##", inv))" class="lp-stop lp-stop--spec-@(i + 1)" />
+            }
+        </linearGradient>
         <filter id="lpPrismBlur" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="7" />
         </filter>
@@ -102,6 +119,10 @@
 
     @* A soft shadow on the ground, so the glass stands on something. *@
     <ellipse class="lp-prism__ground" cx="304" cy="436" rx="128" ry="8" filter="url(#lpPrismSoft)" aria-hidden="true" />
+    @* What the glass does to the ground: its own faint mirror image under the base, and the
+       colours it throws beside the exit face. *@
+    <polygon class="lp-prism__mirror" points="184,432 416,432 400,456 200,456" fill="url(#lpPrismMirror)" aria-hidden="true" />
+    <ellipse class="lp-prism__spill" cx="455" cy="441" rx="70" ry="6" fill="url(#lpPrismSpill)" filter="url(#lpPrismSoft)" aria-hidden="true" />
 
     @* The incoming beam, its soft glow, a bright core and a travelling pulse. *@
     <line class="lp-prism__beam-glow" x1="-10" y1="360" x2="226" y2="301" />
@@ -140,8 +161,11 @@
         }
     </g>
 
-    @* The glass body, the light spreading and splitting inside it, the shaded exit face
-       and an edge highlight. *@
+    @* The glass body and the light spreading and splitting inside it. Then what makes it
+       read as a solid piece of glass rather than a flat triangle: three bevels (the left one
+       catches the light, the base and the exit face are shaded), the face inside them, a
+       soft sheen across that face, an edge highlight, a glint at the apex and a bloom where
+       the beam meets the glass. The inner triangle is the outer one inset by 10 units. *@
     <polygon class="lp-prism__glass" points="300,90 180,430 420,430" fill="url(#lpPrismGlass)" />
     <polygon class="lp-prism__fan" points="226,301 345.6,219.2 374.4,300.8" fill="url(#lpPrismFan)" />
     <g class="lp-prism__split" aria-hidden="true">
@@ -150,8 +174,17 @@
             <polygon class="lp-prism__split-@(i + 1)" points="@rays[i].Split" />
         }
     </g>
-    <polygon class="lp-prism__face" points="300,90 420,430 407,430 289,97" />
+    <g class="lp-prism__bevels" aria-hidden="true">
+        <polygon class="lp-prism__inner" points="300,120.1 194.2,420 405.8,420" fill="url(#lpPrismInner)" />
+        <polygon class="lp-prism__bevel lp-prism__bevel--left" points="300,90 180,430 194.2,420 300,120.1" />
+        <polygon class="lp-prism__bevel lp-prism__bevel--base" points="180,430 420,430 405.8,420 194.2,420" />
+        <polygon class="lp-prism__face" points="300,90 420,430 405.8,420 300,120.1" />
+        <polygon class="lp-prism__inner-edge" points="300,120.1 194.2,420 405.8,420" />
+    </g>
+    <polygon class="lp-prism__sheen" points="286,168 300,160 246,372 222,380" filter="url(#lpPrismSoft)" aria-hidden="true" />
     <line class="lp-prism__shine" x1="295" y1="108" x2="194" y2="396" />
+    <path class="lp-prism__glint" d="M300 95l2.2 7 7 2.2-7 2.2-2.2 7-2.2-7-7-2.2 7-2.2z" aria-hidden="true" />
+    <circle class="lp-prism__bloom" cx="226" cy="301" r="13" filter="url(#lpPrismSoft)" aria-hidden="true" />
 
     @if (showLabels)
     {

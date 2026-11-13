@@ -24,6 +24,20 @@ than rods or ribbons. All of it is tokens in `landing.css` (`--lp-fan-alpha`,
 `--lp-split-alpha`, `--lp-glass-face-alpha`, `--lp-ground-alpha`, `--lp-beam-core-alpha`,
 `--lp-ray-core-alpha`).
 
+Since 2026-11-13 the glass also reads as a solid piece rather than a flat triangle. It is
+still the front-on triangle (the outline, the beam's entry point and the exit points have
+not moved), with these added, all decorative and all tokens (`--lp-prism-*-alpha`):
+
+- **Bevels** on all three edges, an inner triangle inset by 10 units: the left bevel catches
+  the light, the base and the exit face are shaded. A hairline marks the inner face.
+- **Sheen**: a soft band of reflected light across the face, plus a glint at the apex.
+- **Bloom** where the beam meets the glass.
+- **On the ground**: a faint mirror image under the base and the colours spilling beside
+  the exit face.
+
+The About icon sets its own night values for these and switches the ground effects off,
+as it already does for the ground shadow.
+
 - The landing hero draws the mark with labels (`model: true`); the sign-in page draws the
   bare artwork (`model: false`), whose rays run on past the SVG box and behind the glass
   card. Gradient ids are fixed, so render it at most once per page.
@@ -59,10 +73,12 @@ the strap line rise in. The bold sans wordmark stays everywhere else.
   (`auth--sending`). Nothing reacts to typing.
 - **Greeting.** The card heading is "Good morning / afternoon / evening" by the computer's
   clock ("Welcome back" without the script), with "Sign in to PRISM." under it.
-- **One screen.** The artwork shrinks on short screens so the name and tagline stay on the
-  first screen (they were cut off at 1080p with 125% display scaling). The bare artwork's
-  rays therefore run on to x = 1800, so they still pass behind the card when the prism is
-  drawn small.
+- **One screen, and as large as it allows.** The artwork is sized from the free height so
+  the name and tagline stay on the first screen (they were cut off at 1080p with 125%
+  display scaling). The drawing has blank margins above the apex and below the base; on
+  sign-in negative margins hand that room back to the glass, which makes it about half as
+  large again on a short screen. The signature is 84px tall at most. The bare artwork's
+  rays run on to x = 1800, so they still pass behind the card when the prism is small.
 - **Screen readers** get "PRISM ERP" as text; the drawing is hidden from them.
 
 ## Status pages
