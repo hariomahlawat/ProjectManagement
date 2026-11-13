@@ -50,6 +50,7 @@ pdf.js is an ES module (`.mjs`), served by ASP.NET Core's default content types.
 | PDF to images | PNG or JPG at 72/150/300 dpi, optional page range; several pages download as a ZIP. A page over 24 million pixels at the chosen dpi (A2 and larger at 300 dpi) is made at the highest dpi that fits, and the result says which pages and at about what dpi. |
 | Watermark | Text, position, angle, size, colour, transparency, optional page range. |
 | Page numbers & header/footer | Number formats with `{n}`, `{total}` (the last number used: three pages starting at 5 read "Page 5 of 7"), `{date}`; position, first number, skip cover page, header/footer text. A number field left blank uses its default. |
+| Reduce size | Makes a PDF smaller in the browser: repeated fonts and pictures stored once, pictures re-saved at the size they are shown (Screen 100 dpi, Standard 150 dpi, Print 220 dpi), plain parts compressed, page thumbnails left out. Text, links, form fields and bookmarks keep working. Signed PDFs are refused. A file that would not get smaller is never offered as a saving. See "How Reduce size works" below. |
 | Sign & annotate | Text, signature (draw, type or upload), image, highlight, box and white-out; drag to move, corner handle to resize, or use the keyboard. Items are flattened into the page on save. While White-out is chosen or used, the screen says that it does not remove the covered text, and saving asks first. |
 
 When pages are dropped (Split, extract, delete), they are removed from the saved file, not just
@@ -104,6 +105,54 @@ Pages are drawn when they come near the window and their pictures are released w
 far from it (`KEEP_MARGIN`), so a long PDF holds only a few full-size pages at a time, not every
 page it has shown. A released page is drawn again when it comes back.
 
+### How Reduce size works
+
+The plan, with the owner's decisions, is [ux/pdf-tools-reduce-size.md](ux/pdf-tools-reduce-size.md).
+The rules are pure functions in the core (`reducePdf` and the functions it calls), tested in Node
+in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`encodeImage` in
+`pdf-tools-compress.js`).
+
+- **Before any work** the file is read once (`describePdf`): pages, size, and how much of it is
+  pictures. A file whose pictures are under a quarter of it is told it may not get much smaller.
+  A signed PDF (a signature field with a value, or `/Perms`) is refused on opening
+  (`isSignedPdf`), as an encrypted one is.
+- **The file is changed in place,** never rebuilt page by page, so bookmarks, page labels, tags,
+  metadata, links and form fields stay as they were.
+- **Lossless clean-up.** Identical streams, fonts, font descriptors and graphics states are stored
+  once (`deduplicateObjects`; pages are never merged). Streams stored without compression are
+  compressed with pdf-lib's own Flate (`compressPlainStreams`; XMP metadata stays readable). Page
+  thumbnails (`/Thumb`) and objects nothing refers to are left out.
+- **How large each picture is shown** is read from the page content itself
+  (`contentOperators`, `measureImageUses`): `q`, `Q`, `cm` and `Do`, through form XObjects and
+  their `/Matrix`, and the page's `/UserUnit`. A picture drawn in several places keeps the
+  resolution of its largest use. A picture that is also drawn where its size is not followed (an
+  annotation's appearance, a tiling pattern, a Type 3 font's glyphs, a soft-mask group) or on a
+  page that cannot be read is not measured, whatever its other uses, and keeps its pixel size (it
+  may still be re-saved at the preset's quality). Patterns, glyphs and groups are read for the
+  pictures they actually draw, by name in their own resources or, when they have none, in the
+  enclosing ones, as viewers do. Each is read once per set of resources it is used with (one glyph
+  shared by two Type 3 fonts can draw a different picture in each), so resources that lead back
+  to themselves end.
+- **Which pictures change** (`reduceImagePlan`). Re-saved: 8-bit RGB or grey pictures, stored as
+  JPG or with Flate (and LZW, ASCII85, ASCIIHex, RunLength; PNG predictors are undone by
+  `undoPngPredictor`). Left as they are, and counted on the result: image masks and soft masks
+  (the picture they belong to may be re-saved; the mask stays lossless), JBIG2 and CCITT
+  black-and-white scans, CMYK, ICC-based and other print colour, a `/Decode` array or colour-key
+  mask, other bit depths, and pictures under 10 KB.
+- **Re-saving.** A picture larger than the preset needs (`reduceTarget`, kept when within 10%) is
+  drawn smaller in halving steps and saved as a JPG at the preset's quality. A grey picture is
+  also tried as grey pixels with Flate, and the smaller of the two is kept. A re-saved picture is
+  kept only when it is at least 10% smaller than the one it replaces; it replaces it in place, so
+  every page that uses it gets the new one.
+- **A JPG is read as stored.** Browsers turn a JPG by its EXIF orientation when decoding it, and
+  current Chromium does so whatever `createImageBitmap` is asked; PDF viewers (PDFium, Poppler,
+  Acrobat) never do. The page decodes a copy whose orientation says "as stored"
+  (`jpegClearOrientation`), so an upside-down or mirrored tag cannot turn or flip a photo. A
+  picture whose decoded size differs from the PDF's is left as it is.
+- **The result** gives the size before and after, what was done and what was left. When the file
+  would not be smaller, no file is made and the screen says so. A file that says it is PDF/A is
+  made smaller with a warning that it may no longer meet PDF/A.
+
 ## Code map
 
 | File | Role |
@@ -114,6 +163,8 @@ page it has shown. A released page is drawn again when it comes back.
 | `wwwroot/js/pdf-tools/pdf-tools-core.test.js` | Node tests, part of `npm test`. |
 | `wwwroot/js/pdf-tools/pdf-tools-app.js` | Shell, routing (`#tool`), and the six form-based tools. |
 | `wwwroot/js/pdf-tools/pdf-tools-annotate.js` | Sign & annotate editor. |
+| `wwwroot/js/pdf-tools/pdf-tools-compress.js` | Reduce size: the screen and the canvas re-encoding of a picture. The rules are in the core. |
+| `wwwroot/js/pdf-tools/pdf-tools-reduce.test.js` | Node tests for Reduce size, part of `npm test`. |
 | `wwwroot/css/pdf-tools.css` | Styles; Bootstrap theme variables only, so Light and Dark both work. |
 
 ## Known limits
@@ -127,6 +178,11 @@ page it has shown. A released page is drawn again when it comes back.
   White-out covers content visually; it does not remove the underlying text from the file,
   so it is not a redaction tool. The screen says so while White-out is chosen or on the page,
   and saving a file with White-out asks for confirmation first.
+- Reduce size does not subset fonts or simplify vector drawings, and leaves print-colour (CMYK,
+  ICC-based), JBIG2, CCITT and inline pictures as they are; a file made of those stays large.
+- Thumbnails and previews are drawn with pdf.js in the browser, which turns a JPG photo by its
+  EXIF orientation. A PDF holding such a photo can look turned in PDF Tools while the file itself,
+  and other viewers, show it as stored.
 - Everything is held in browser memory, so very large files depend on the user's computer.
   Files over 200 MB ask for confirmation first.
 

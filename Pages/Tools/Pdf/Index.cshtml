@@ -58,6 +58,11 @@
                     <span class="pdft-card__title">Split PDF</span>
                     <span class="pdft-card__text">Split by page ranges, into single pages or every N pages.</span>
                 </a>
+                <a class="pdft-card" role="listitem" href="#compress">
+                    <span class="pdft-card__icon pdft-accent--teal" aria-hidden="true"><i class="bi bi-file-earmark-zip"></i></span>
+                    <span class="pdft-card__title">Reduce size</span>
+                    <span class="pdft-card__text">Make a PDF smaller for email and upload limits.</span>
+                </a>
                 <a class="pdft-card" role="listitem" href="#images">
                     <span class="pdft-card__icon pdft-accent--yellow" aria-hidden="true"><i class="bi bi-file-earmark-image"></i></span>
                     <span class="pdft-card__title">Images to PDF</span>
@@ -144,6 +149,25 @@
                 </fieldset>
                 <div class="pdft-actions">
                     <button type="button" class="btn btn-primary btn-lg" data-action="run"><i class="bi bi-scissors" aria-hidden="true"></i> Split PDF</button>
+                </div>
+            </div>
+            <partial name="_PdfToolResult" />
+        </section>
+
+        @* ---------- Reduce size (plan: docs/ux/pdf-tools-reduce-size.md) ---------- *@
+        <section class="pdft-view" data-view="compress" data-tool="compress" hidden aria-labelledby="pdftCompressTitle">
+            <partial name="_PdfToolHeader" model="@(("pdftCompressTitle", "Reduce size", "Make a PDF smaller by saving its pictures at the size they are shown. Text, links and form fields keep working."))" />
+            <partial name="_PdfToolDrop" model="@(("Choose a PDF file", "or drop a PDF here", "application/pdf,.pdf", false))" />
+            <div class="pdft-workspace" data-workspace hidden>
+                <div class="pdft-file" data-file-summary></div>
+                <p class="pdft-compress-about" data-compress-about hidden></p>
+                <fieldset class="pdft-options">
+                    <legend>How small</legend>
+                    <div class="pdft-presets" data-compress-presets></div>
+                </fieldset>
+                <p class="pdft-compress-outcome" data-compress-outcome role="status" tabindex="-1" hidden></p>
+                <div class="pdft-actions">
+                    <button type="button" class="btn btn-primary btn-lg" data-action="run"><i class="bi bi-file-earmark-zip" aria-hidden="true"></i> Reduce size</button>
                 </div>
             </div>
             <partial name="_PdfToolResult" />
@@ -480,5 +504,6 @@
     <script src="~/js/pdf-tools/pdf-tools-core.js" asp-append-version="true"></script>
     <script src="~/js/pdf-tools/pdf-tools-app.js" asp-append-version="true"></script>
     <script src="~/js/pdf-tools/pdf-tools-annotate.js" asp-append-version="true"></script>
+    <script src="~/js/pdf-tools/pdf-tools-compress.js" asp-append-version="true"></script>
 </body>
 </html>

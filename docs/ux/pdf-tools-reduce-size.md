@@ -2,7 +2,11 @@
 
 A new tool for PDF Tools (`/Tools/Pdf`) that makes a PDF smaller, asked for by the owner on
 13 Nov 2026. The durable description of PDF Tools stays in [../pdf-tools.md](../pdf-tools.md);
-this document is the plan. Nothing in it is built yet.
+this document is the plan.
+
+PR 2 is built (see "Build plan"). What was built is described in [../pdf-tools.md](../pdf-tools.md)
+("How Reduce size works"); where it differs from this plan, that document is right. The
+differences are listed under "Differences found while building PR 2".
 
 ## What exists today
 
@@ -25,6 +29,15 @@ this document is the plan. Nothing in it is built yet.
 | Scan mode | Offered, as a separate choice with a plain warning, built last |
 | Signed PDFs | Refused, with a clear message. No "continue anyway" |
 | Next step | This plan, reviewed before any code |
+
+The owner asked for the recommendations below to be used for the open questions (13 Nov 2026):
+
+| Question | Answer |
+| --- | --- |
+| Preset names | Screen, Standard and Print, each with a short note under it |
+| Remember "Keep under" | Yes, in this browser only, as Photo Tools does (PR 3) |
+| Leave out attachments | Not now |
+| White-out "remove for good" | Decided after Scan mode is built |
 
 ## Privacy, offline and deployment
 
@@ -226,12 +239,28 @@ Each PR is usable on its own and checked on phones, in the Dark theme and with t
 
 | PR | Scope | What the user gets |
 | --- | --- | --- |
-| 1 | This plan | Nothing visible |
-| 2 | Reduce size tool: lossless clean-up, re-saving images with the three presets, signed and encrypted PDFs refused, honest before and after sizes | Scans and photo-heavy PDFs made much smaller, with text and forms kept |
+| 1 | This plan (done, #3178) | Nothing visible |
+| 2 | Built. Reduce size tool: lossless clean-up, re-saving images with the three presets, signed and encrypted PDFs refused, honest before and after sizes | Scans and photo-heavy PDFs made much smaller, with text and forms kept |
 | 3 | Keep under a size, before and after preview of a page, background worker with Cancel | Files that fit a portal's limit, and large files without a frozen page |
 | 4 | Scan mode | The smallest scans, for files where selectable text does not matter |
 
-## Open questions for the owner
+## Differences found while building PR 2
+
+- **Measuring.** How large a picture is drawn is read from the page content by a small reader in
+  the core (`contentOperators`, `measureImageUses`), not from pdf.js, so it is tested in Node. A
+  picture whose use cannot be measured keeps its pixel size rather than being capped.
+- **Compression.** Plain streams are compressed with pdf-lib's own Flate (`context.flateStream`,
+  the bundled pako), not the browser's `CompressionStream`, so the core needs no browser feature.
+- **JPG orientation.** Current Chromium turns a JPG by its EXIF orientation even when
+  `createImageBitmap` is asked not to. PDF viewers do not, so a photo tagged upside down or
+  mirrored would have been saved turned. The page now decodes a copy whose orientation says "as
+  stored" (`jpegClearOrientation`); checked against PDFium and Poppler.
+- **No file when nothing shrinks.** Instead of offering the original under a new name, no file is
+  made and the screen says the PDF is already as small as this tool can make it.
+
+## Open questions for the owner (answered)
+
+The answers are in the table under "Owner direction".
 
 1. Are the preset names Screen, Standard and Print clear, or would "Small / Medium / High
    quality" read better?

@@ -252,22 +252,44 @@
 
   /** The EXIF orientation of a JPEG, 1 to 8, or 1 when there is none. */
   function jpegOrientation(bytes) {
+    const entry = jpegOrientationEntry(bytes);
+    return entry ? entry.orientation : 1;
+  }
+
+  /**
+   * A copy of a JPEG whose EXIF orientation says "as stored" (1), or the same bytes when it
+   * already does. Browsers turn a JPEG by its EXIF orientation when decoding it, and current
+   * ones ignore a request not to; PDF viewers never do. Reduce size decodes this copy, so the
+   * pixels are the ones the PDF shows.
+   */
+  function jpegClearOrientation(bytes) {
+    const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const entry = jpegOrientationEntry(data);
+    if (!entry || entry.orientation === 1) return data;
+    const copy = new Uint8Array(data);
+    copy[entry.at] = entry.little ? 1 : 0;
+    copy[entry.at + 1] = entry.little ? 0 : 1;
+    return copy;
+  }
+
+  /** Where a JPEG's EXIF orientation is: { orientation, at, little }, or null when it has none. */
+  function jpegOrientationEntry(bytes) {
     const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) {
-      return 1;
+      return null;
     }
     let offset = 2;
     while (offset + 4 <= data.length) {
       if (data[offset] !== 0xff) {
-        return 1;
+        return null;
       }
       const marker = data[offset + 1];
       if (marker === 0xda || marker === 0xd9) {
-        return 1;
+        return null;
       }
       const length = (data[offset + 2] << 8) | data[offset + 3];
       if (length < 2) {
-        return 1;
+        return null;
       }
       if (marker === 0xe1 && offset + 10 <= data.length &&
           data[offset + 4] === 0x45 && data[offset + 5] === 0x78 && data[offset + 6] === 0x69 &&
@@ -276,17 +298,17 @@
       }
       offset += 2 + length;
     }
-    return 1;
+    return null;
   }
 
   function orientationFromTiff(data, start, end) {
     if (start + 8 > end) {
-      return 1;
+      return null;
     }
     const little = data[start] === 0x49 && data[start + 1] === 0x49;
     const big = data[start] === 0x4d && data[start + 1] === 0x4d;
     if (!little && !big) {
-      return 1;
+      return null;
     }
     const u16 = (at) => (little ? data[at] | (data[at + 1] << 8) : (data[at] << 8) | data[at + 1]);
     const u32 = (at) => (little
@@ -294,20 +316,20 @@
       : ((data[at] << 24) | (data[at + 1] << 16) | (data[at + 2] << 8) | data[at + 3]) >>> 0);
     const ifd = start + u32(start + 4);
     if (ifd + 2 > end) {
-      return 1;
+      return null;
     }
     const count = u16(ifd);
     for (let i = 0; i < count; i += 1) {
       const entry = ifd + 2 + i * 12;
       if (entry + 12 > end) {
-        return 1;
+        return null;
       }
       if (u16(entry) === 0x0112) {
         const orientation = u16(entry + 8);
-        return orientation >= 1 && orientation <= 8 ? orientation : 1;
+        return { orientation: orientation >= 1 && orientation <= 8 ? orientation : 1, at: entry + 8, little };
       }
     }
-    return 1;
+    return null;
   }
 
   /**
@@ -1140,6 +1162,774 @@
     return save(document);
   }
 
+  // ---------------------------------------------------------------------------
+  // Reduce size (docs/ux/pdf-tools-reduce-size.md)
+  //
+  // The file is changed in place: identical streams are stored once, images are re-saved at the
+  // resolution they are shown at, plain streams are compressed, and page thumbnails and objects
+  // nothing refers to are left out. Re-encoding pixels needs a canvas, so it is passed in
+  // (`encodeImage`); everything else is here and runs in Node for tests.
+  // ---------------------------------------------------------------------------
+
+  // Starting values, tuned on real files before they are relied on (see the plan).
+  const PDF_SIZE_PRESETS = Object.freeze([
+    Object.freeze({ key: 'screen', label: 'Screen', note: 'For viewing and email', dpi: 100, quality: 0.6 }),
+    Object.freeze({ key: 'standard', label: 'Standard', note: 'Good for most forms and portals', dpi: 150, quality: 0.75 }),
+    Object.freeze({ key: 'print', label: 'Print', note: 'Keeps detail for printing', dpi: 220, quality: 0.85 })
+  ]);
+
+  // An image smaller than this is not worth the risk of re-saving.
+  const REDUCE_MIN_IMAGE_BYTES = 10 * 1024;
+  // A re-saved image is kept only when it is clearly smaller than the one it replaces.
+  const REDUCE_KEEP_RATIO = 0.9;
+  // An image already close to the preset's resolution keeps its pixel size.
+  const REDUCE_MIN_SCALE = 0.9;
+
+  // Why an image was left as it is; the screen counts these.
+  const REDUCE_SKIP = Object.freeze({
+    mask: 'mask',           // an image mask or soft mask (transparency)
+    blackWhite: 'bw',       // JBIG2 or CCITT black-and-white scan formats
+    printColour: 'colour',  // CMYK, ICC-based or separation colour (print files)
+    small: 'small',         // under REDUCE_MIN_IMAGE_BYTES
+    other: 'other',         // a format the browser cannot re-save safely
+    notSmaller: 'kept'      // re-saving did not make it clearly smaller
+  });
+
+  function pdfMatrixMultiply(m1, m2) {
+    return [
+      m1[0] * m2[0] + m1[1] * m2[2],
+      m1[0] * m2[1] + m1[1] * m2[3],
+      m1[2] * m2[0] + m1[3] * m2[2],
+      m1[2] * m2[1] + m1[3] * m2[3],
+      m1[4] * m2[0] + m1[5] * m2[2] + m2[4],
+      m1[4] * m2[1] + m1[5] * m2[3] + m2[5]
+    ];
+  }
+
+  const isWhiteByte = (c) => c === 0 || c === 9 || c === 10 || c === 12 || c === 13 || c === 32;
+  const isDelimiterByte = (c) => c === 40 || c === 41 || c === 60 || c === 62 || c === 91 || c === 93
+    || c === 123 || c === 125 || c === 47 || c === 37;
+
+  /**
+   * Reads the operators of a content stream and calls `onOperator(name, operands)` for each.
+   * Operands are numbers, names ("/Im1") or null for anything else (strings, arrays, dictionaries).
+   * Inline images (BI ... ID ... EI) are skipped whole. Only what measuring images needs is kept.
+   */
+  function contentOperators(bytes, onOperator) {
+    const length = bytes.length;
+    let operands = [];
+    let nest = 0;
+    let i = 0;
+    const push = (value) => { if (nest === 0) operands.push(value); };
+    const readWord = () => {
+      const start = i;
+      while (i < length && !isWhiteByte(bytes[i]) && !isDelimiterByte(bytes[i])) i += 1;
+      return String.fromCharCode(...bytes.subarray(start, i));
+    };
+    while (i < length) {
+      const c = bytes[i];
+      if (isWhiteByte(c)) { i += 1; continue; }
+      if (c === 37) { // % comment
+        while (i < length && bytes[i] !== 10 && bytes[i] !== 13) i += 1;
+        continue;
+      }
+      if (c === 40) { // ( string )
+        let depth = 1;
+        i += 1;
+        while (i < length && depth > 0) {
+          if (bytes[i] === 92) { i += 2; continue; }
+          if (bytes[i] === 40) depth += 1;
+          else if (bytes[i] === 41) depth -= 1;
+          i += 1;
+        }
+        push(null);
+        continue;
+      }
+      if (c === 60) { // << or <hex>
+        if (bytes[i + 1] === 60) { nest += 1; i += 2; continue; }
+        while (i < length && bytes[i] !== 62) i += 1;
+        i += 1;
+        push(null);
+        continue;
+      }
+      if (c === 62) { // >>
+        i += bytes[i + 1] === 62 ? 2 : 1;
+        nest = Math.max(0, nest - 1);
+        push(null);
+        continue;
+      }
+      if (c === 91) { nest += 1; i += 1; continue; }
+      if (c === 93) { nest = Math.max(0, nest - 1); i += 1; push(null); continue; }
+      if (c === 123 || c === 125) { i += 1; continue; }
+      if (c === 47) { // /Name
+        i += 1;
+        const raw = readWord();
+        push(`/${raw.replace(/#([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))}`);
+        continue;
+      }
+      if ((c >= 48 && c <= 57) || c === 43 || c === 45 || c === 46) {
+        const word = readWord();
+        const number = Number(word);
+        push(Number.isFinite(number) ? number : null);
+        continue;
+      }
+      const word = readWord();
+      if (!word) { i += 1; continue; }
+      if (nest > 0) continue;
+      if (word === 'BI') {
+        // Skip the inline image: its dictionary, then the data from ID to an EI on its own.
+        while (i < length) {
+          const at = i;
+          if (bytes[at] === 73 && bytes[at + 1] === 68 && isWhiteByte(bytes[at - 1]) && (at + 2 >= length || isWhiteByte(bytes[at + 2]))) {
+            i = at + 3;
+            break;
+          }
+          i += 1;
+        }
+        while (i < length) {
+          if (bytes[i] === 69 && bytes[i + 1] === 73 && isWhiteByte(bytes[i - 1])
+              && (i + 2 >= length || isWhiteByte(bytes[i + 2]) || isDelimiterByte(bytes[i + 2]))) {
+            i += 2;
+            break;
+          }
+          i += 1;
+        }
+        operands = [];
+        continue;
+      }
+      if (word === 'true' || word === 'false' || word === 'null') { push(null); continue; }
+      onOperator(word, operands);
+      operands = [];
+    }
+  }
+
+  /** The decoded bytes of a stream, or null when pdf-lib cannot decode it. */
+  function streamBytes(PDFLib, stream) {
+    try {
+      if (stream instanceof PDFLib.PDFRawStream) return PDFLib.decodePDFRawStream(stream).decode();
+      if (typeof stream.getUnencodedContents === 'function') return stream.getUnencodedContents();
+    } catch {
+      // Not decodable here; the caller treats its images as unmeasured.
+    }
+    return null;
+  }
+
+  /**
+   * How large each image is drawn, in points, at its largest use: Map of "n g R" to
+   * { width, height } along the image's own sides. Images drawn where this cannot be measured
+   * (an annotation's appearance, a tiling pattern, a Type 3 font's glyphs, a soft-mask group, a
+   * page that cannot be read) are in `unmeasured`, whatever their other uses.
+   */
+  function measureImageUses(PDFLib, document) {
+    const { PDFName, PDFDict, PDFArray, PDFRef, PDFNumber, PDFStream } = PDFLib;
+    const context = document.context;
+    const uses = new Map();
+    const unmeasured = new Set();
+    const XOBJECT = PDFName.of('XObject');
+    const SUBTYPE = PDFName.of('Subtype');
+    const number = (value) => (value instanceof PDFNumber ? value.asNumber() : Number(value));
+
+    const xobjects = (resources) => {
+      const dict = resources instanceof PDFDict ? resources.lookupMaybe(XOBJECT, PDFDict) : undefined;
+      return dict ? dict.entries() : [];
+    };
+    const subtypeOf = (ref) => {
+      const object = ref instanceof PDFRef ? context.lookup(ref) : ref;
+      return object instanceof PDFStream ? String(object.dict.get(SUBTYPE)) : '';
+    };
+
+    const lookupDict = (dict, key) => (dict instanceof PDFDict ? dict.lookupMaybe(PDFName.of(key), PDFDict) : undefined);
+    const resolve = (value) => (value instanceof PDFRef ? context.lookup(value) : value);
+
+    /**
+     * Images can also be drawn by a tiling pattern, a Type 3 font's glyphs or a soft-mask group;
+     * how large depends on where those are painted, which is not followed here. Every image they
+     * draw is unmeasured, so it keeps its pixel size even when a direct use is small. Their
+     * content is read for the images it draws, resolved in their own resources or, when they have
+     * none, in the enclosing ones (as viewers do). `seen` holds what was visited, so resources that
+     * lead back to themselves end.
+     */
+    // What was read, keyed by the object and the resources it was read in: one glyph, pattern or
+    // form can draw a different image in each place it is used (two Type 3 fonts sharing a
+    // glyph, a form without resources of its own), so it is read again in each. Each pair once,
+    // so resources that lead back to themselves end.
+    const once = (seen, object, resources) => {
+      let contexts = seen.get(object);
+      if (!contexts) {
+        contexts = new Set();
+        seen.set(object, contexts);
+      }
+      if (contexts.has(resources)) return false;
+      contexts.add(resources);
+      return true;
+    };
+
+    const markIndirect = (resources, depth, seen) => {
+      if (depth > 12 || !(resources instanceof PDFDict) || !once(seen, resources, null)) return;
+      const own = (holder) => {
+        const value = holder instanceof PDFStream ? holder.dict.lookup(PDFName.of('Resources')) : holder.lookup(PDFName.of('Resources'));
+        return value instanceof PDFDict ? value : resources;
+      };
+      const patterns = lookupDict(resources, 'Pattern');
+      for (const value of patterns ? patterns.values() : []) {
+        const pattern = resolve(value);
+        if (pattern instanceof PDFStream) markDrawnBy([pattern], own(pattern), depth + 1, seen);
+      }
+      const fonts = lookupDict(resources, 'Font');
+      for (const value of fonts ? fonts.values() : []) {
+        const font = resolve(value);
+        if (!(font instanceof PDFDict) || String(font.get(PDFName.of('Subtype'))) !== '/Type3') continue;
+        const procs = lookupDict(font, 'CharProcs');
+        const glyphs = procs ? procs.values().map(resolve).filter((item) => item instanceof PDFStream) : [];
+        markDrawnBy(glyphs, own(font), depth + 1, seen);
+      }
+      const states = lookupDict(resources, 'ExtGState');
+      for (const value of states ? states.values() : []) {
+        const state = resolve(value);
+        const mask = state instanceof PDFDict ? resolve(state.get(PDFName.of('SMask'))) : undefined;
+        const group = mask instanceof PDFDict ? resolve(mask.get(PDFName.of('G'))) : undefined;
+        if (group instanceof PDFStream) markDrawnBy([group], own(group), depth + 1, seen);
+      }
+    };
+
+    /** A form and everything it can draw is unmeasured. */
+    const markForm = (ref, resources, depth, seen) => {
+      const form = context.lookup(ref);
+      if (!(form instanceof PDFStream)) return;
+      const own = form.dict.lookup(PDFName.of('Resources'));
+      const used = own instanceof PDFDict ? own : resources;
+      if (!once(seen, form, used)) return;
+      markAll(used, depth + 1, seen);
+    };
+
+    /** The images these content streams draw (by name, in `resources`) are unmeasured. */
+    const markDrawnBy = (streams, resources, depth, seen) => {
+      if (depth > 12) return;
+      markIndirect(resources, depth, seen);
+      const names = new Map(xobjects(resources).map(([key, ref]) => [String(key), ref]));
+      for (const stream of streams) {
+        if (!once(seen, stream, resources)) continue;
+        const bytes = streamBytes(PDFLib, stream);
+        if (!bytes) {
+          // Cannot be read: anything it could reach is treated as drawn.
+          markAll(resources, depth + 1, seen);
+          continue;
+        }
+        contentOperators(bytes, (operator, operands) => {
+          if (operator !== 'Do' || typeof operands[operands.length - 1] !== 'string') return;
+          const ref = names.get(operands[operands.length - 1]);
+          if (!(ref instanceof PDFRef)) return;
+          const subtype = subtypeOf(ref);
+          if (subtype === '/Image') unmeasured.add(String(ref));
+          else if (subtype === '/Form') markForm(ref, resources, depth + 1, seen);
+        });
+      }
+    };
+
+    /** Every image under these resources (forms, patterns, Type 3 fonts and masks followed) is unmeasured. */
+    const markAll = (resources, depth, seen) => {
+      if (depth > 12) return;
+      markIndirect(resources, depth, seen);
+      for (const [, ref] of xobjects(resources)) {
+        if (!(ref instanceof PDFRef)) continue;
+        const subtype = subtypeOf(ref);
+        if (subtype === '/Image') unmeasured.add(String(ref));
+        else if (subtype === '/Form') markForm(ref, resources, depth + 1, seen);
+      }
+    };
+
+    const run = (contents, resources, ctm, scale, depth, stack) => {
+      if (depth > 12) return;
+      markIndirect(resources, depth, new Map());
+      const bytes = contents.map((stream) => streamBytes(PDFLib, stream));
+      if (bytes.some((part) => !part)) {
+        markAll(resources, depth, new Map());
+        return;
+      }
+      const joined = new Uint8Array(bytes.reduce((sum, part) => sum + part.length + 1, 0));
+      let offset = 0;
+      for (const part of bytes) {
+        joined.set(part, offset);
+        joined[offset + part.length] = 10;
+        offset += part.length + 1;
+      }
+      const names = new Map(xobjects(resources).map(([key, ref]) => [String(key), ref]));
+      const states = [];
+      let current = ctm;
+      contentOperators(joined, (operator, operands) => {
+        if (operator === 'q') {
+          states.push(current);
+        } else if (operator === 'Q') {
+          current = states.pop() || ctm;
+        } else if (operator === 'cm' && operands.length >= 6) {
+          const m = operands.slice(-6);
+          if (m.every((value) => typeof value === 'number')) current = pdfMatrixMultiply(m, current);
+        } else if (operator === 'Do' && typeof operands[operands.length - 1] === 'string') {
+          const ref = names.get(operands[operands.length - 1]);
+          if (!(ref instanceof PDFRef)) return;
+          const key = String(ref);
+          const subtype = subtypeOf(ref);
+          if (subtype === '/Image') {
+            const width = Math.hypot(current[0], current[1]) * scale;
+            const height = Math.hypot(current[2], current[3]) * scale;
+            if (!(width > 0) || !(height > 0)) {
+              unmeasured.add(key);
+              return;
+            }
+            const before = uses.get(key);
+            uses.set(key, {
+              width: Math.max(width, before ? before.width : 0),
+              height: Math.max(height, before ? before.height : 0)
+            });
+          } else if (subtype === '/Form' && !stack.has(key)) {
+            const form = context.lookup(ref);
+            const matrix = form.dict.lookupMaybe(PDFName.of('Matrix'), PDFArray);
+            const values = matrix ? matrix.asArray().map(number) : [1, 0, 0, 1, 0, 0];
+            const inner = values.length === 6 && values.every(Number.isFinite) ? pdfMatrixMultiply(values, current) : current;
+            const innerResources = form.dict.lookup(PDFName.of('Resources')) || resources;
+            stack.add(key);
+            run([form], innerResources, inner, scale, depth + 1, stack);
+            stack.delete(key);
+          }
+        }
+      });
+    };
+
+    for (const page of document.getPages()) {
+      const node = page.node;
+      const resources = node.Resources();
+      const userUnit = node.lookupMaybe(PDFName.of('UserUnit'), PDFNumber);
+      const scale = userUnit ? userUnit.asNumber() : 1;
+      const contents = node.Contents();
+      const streams = contents instanceof PDFArray
+        ? contents.asArray().map((ref) => context.lookup(ref)).filter((item) => item instanceof PDFStream)
+        : contents instanceof PDFStream ? [contents] : [];
+      run(streams, resources, [1, 0, 0, 1, 0, 0], scale, 0, new Set());
+
+      // Annotation appearances are drawn into the annotation's box at a size not measured here.
+      const annots = node.Annots();
+      for (const ref of annots ? annots.asArray() : []) {
+        const annot = ref instanceof PDFRef ? context.lookup(ref) : ref;
+        const appearance = annot instanceof PDFDict ? annot.lookupMaybe(PDFName.of('AP'), PDFDict) : undefined;
+        if (!appearance) continue;
+        for (const [, value] of appearance.entries()) {
+          const target = value instanceof PDFRef ? context.lookup(value) : value;
+          const forms = target instanceof PDFStream ? [target]
+            : target instanceof PDFDict ? target.values().map((item) => (item instanceof PDFRef ? context.lookup(item) : item)).filter((item) => item instanceof PDFStream)
+              : [];
+          for (const form of forms) markAll(form.dict.lookup(PDFName.of('Resources')), 0, new Map());
+        }
+      }
+    }
+    return { uses, unmeasured };
+  }
+
+  /**
+   * The pixel size an image is re-saved at: enough for `dpi` at its largest use, never larger
+   * than it is. Unchanged when it cannot be measured or is already close to that resolution.
+   */
+  function reduceTarget(pixelWidth, pixelHeight, use, dpi) {
+    if (!use || !(use.width > 0) || !(use.height > 0)) {
+      return { width: pixelWidth, height: pixelHeight, scaled: false };
+    }
+    const wantWidth = (use.width / 72) * dpi;
+    const wantHeight = (use.height / 72) * dpi;
+    const scale = Math.min(1, Math.max(wantWidth / pixelWidth, wantHeight / pixelHeight));
+    if (scale > REDUCE_MIN_SCALE) return { width: pixelWidth, height: pixelHeight, scaled: false };
+    return {
+      width: Math.max(1, Math.round(pixelWidth * scale)),
+      height: Math.max(1, Math.round(pixelHeight * scale)),
+      scaled: true
+    };
+  }
+
+  /** Undoes the PNG predictors (Predictor 10 to 15) a FlateDecode image may use. Null if malformed. */
+  function undoPngPredictor(data, colors, bitsPerComponent, columns) {
+    const bytesPerPixel = Math.max(1, Math.ceil((colors * bitsPerComponent) / 8));
+    const rowLength = Math.ceil((colors * bitsPerComponent * columns) / 8);
+    const rows = Math.floor(data.length / (rowLength + 1));
+    const output = new Uint8Array(rows * rowLength);
+    let previous = new Uint8Array(rowLength);
+    for (let row = 0; row < rows; row += 1) {
+      const start = row * (rowLength + 1);
+      const type = data[start];
+      const input = data.subarray(start + 1, start + 1 + rowLength);
+      const current = output.subarray(row * rowLength, (row + 1) * rowLength);
+      for (let i = 0; i < rowLength; i += 1) {
+        const left = i >= bytesPerPixel ? current[i - bytesPerPixel] : 0;
+        const up = previous[i];
+        const upLeft = i >= bytesPerPixel ? previous[i - bytesPerPixel] : 0;
+        let value;
+        if (type === 0) value = input[i];
+        else if (type === 1) value = input[i] + left;
+        else if (type === 2) value = input[i] + up;
+        else if (type === 3) value = input[i] + ((left + up) >> 1);
+        else if (type === 4) {
+          const p = left + up - upLeft;
+          const pa = Math.abs(p - left);
+          const pb = Math.abs(p - up);
+          const pc = Math.abs(p - upLeft);
+          value = input[i] + (pa <= pb && pa <= pc ? left : pb <= pc ? up : upLeft);
+        } else {
+          return null;
+        }
+        current[i] = value & 0xff;
+      }
+      previous = current;
+    }
+    return output;
+  }
+
+  /** The filters of a stream, as names without the slash. */
+  function streamFilters(PDFLib, dict) {
+    const { PDFName, PDFArray } = PDFLib;
+    const filter = dict.lookup(PDFName.of('Filter'));
+    if (!filter) return [];
+    if (filter instanceof PDFArray) return filter.asArray().map((item) => String(item).replace(/^\//, ''));
+    return [String(filter).replace(/^\//, '')];
+  }
+
+  /**
+   * Every image XObject of the document, with what can be done with it. `action` is 'resave'
+   * (with a target size) or 'skip' (with one of REDUCE_SKIP).
+   */
+  function reduceImagePlan(PDFLib, document, measured, preset) {
+    const { PDFName, PDFRawStream, PDFRef, PDFNumber, PDFArray, PDFDict, PDFBool } = PDFLib;
+    const context = document.context;
+    const get = (dict, key) => dict.lookup(PDFName.of(key));
+    const masks = new Set();
+    const images = [];
+    for (const [ref, object] of context.enumerateIndirectObjects()) {
+      if (!(object instanceof PDFRawStream) || String(object.dict.get(PDFName.of('Subtype'))) !== '/Image') continue;
+      images.push({ ref, stream: object });
+      for (const key of ['SMask', 'Mask']) {
+        const value = object.dict.get(PDFName.of(key));
+        if (value instanceof PDFRef) masks.add(String(value));
+      }
+    }
+
+    return images.map(({ ref, stream }) => {
+      const dict = stream.dict;
+      const key = String(ref);
+      const size = stream.contents.length;
+      const width = get(dict, 'Width') instanceof PDFNumber ? get(dict, 'Width').asNumber() : 0;
+      const height = get(dict, 'Height') instanceof PDFNumber ? get(dict, 'Height').asNumber() : 0;
+      const plan = { ref, stream, width, height, size };
+      const skip = (reason) => ({ ...plan, action: 'skip', reason });
+
+      const imageMask = get(dict, 'ImageMask');
+      if (masks.has(key) || (imageMask instanceof PDFBool && imageMask.asBoolean())) return skip(REDUCE_SKIP.mask);
+      const filters = streamFilters(PDFLib, dict);
+      if (filters.some((name) => name === 'JBIG2Decode' || name === 'CCITTFaxDecode')) return skip(REDUCE_SKIP.blackWhite);
+      const colourSpace = get(dict, 'ColorSpace');
+      const space = colourSpace instanceof PDFArray ? String(colourSpace.get(0)) : String(colourSpace || '');
+      if (['/DeviceCMYK', '/ICCBased', '/Separation', '/DeviceN', '/CalRGB', '/CalGray', '/Lab'].includes(space)) {
+        return skip(REDUCE_SKIP.printColour);
+      }
+      if (space !== '/DeviceRGB' && space !== '/DeviceGray') return skip(REDUCE_SKIP.other);
+      const bits = get(dict, 'BitsPerComponent');
+      if (!(bits instanceof PDFNumber) || bits.asNumber() !== 8) return skip(REDUCE_SKIP.other);
+      // A Decode array or a colour-key mask changes what the pixels mean; a lossy copy would break it.
+      if (get(dict, 'Decode') || get(dict, 'Mask')) return skip(REDUCE_SKIP.other);
+      if (!(width > 0) || !(height > 0)) return skip(REDUCE_SKIP.other);
+      if (size < REDUCE_MIN_IMAGE_BYTES) return skip(REDUCE_SKIP.small);
+
+      let source;
+      if (filters.length === 1 && filters[0] === 'DCTDecode') {
+        source = 'jpeg';
+      } else if (filters.every((name) => ['FlateDecode', 'LZWDecode', 'ASCIIHexDecode', 'ASCII85Decode', 'RunLengthDecode'].includes(name))) {
+        const parms = get(dict, 'DecodeParms');
+        const last = parms instanceof PDFArray ? parms.lookup(parms.size() - 1) : parms;
+        const predictor = last instanceof PDFDict && last.lookup(PDFName.of('Predictor')) instanceof PDFNumber
+          ? last.lookup(PDFName.of('Predictor')).asNumber() : 1;
+        if (predictor !== 1 && predictor < 10) return skip(REDUCE_SKIP.other);
+        source = 'pixels';
+      } else {
+        return skip(REDUCE_SKIP.other);
+      }
+
+      const use = measured.unmeasured.has(key) ? null : measured.uses.get(key);
+      const target = reduceTarget(width, height, use, preset.dpi);
+      return { ...plan, action: 'resave', source, grey: space === '/DeviceGray', target };
+    });
+  }
+
+  /** The pixels of a 'pixels' image: { data, channels } with 8 bits per channel, or null. */
+  function decodeImagePixels(PDFLib, image) {
+    const { PDFName, PDFArray, PDFDict, PDFNumber } = PDFLib;
+    const dict = image.stream.dict;
+    let data = streamFilters(PDFLib, dict).length ? streamBytes(PDFLib, image.stream) : image.stream.contents;
+    if (!data) return null;
+    const parms = dict.lookup(PDFName.of('DecodeParms'));
+    const last = parms instanceof PDFArray ? parms.lookup(parms.size() - 1) : parms;
+    if (last instanceof PDFDict) {
+      const read = (key, fallback) => (last.lookup(PDFName.of(key)) instanceof PDFNumber ? last.lookup(PDFName.of(key)).asNumber() : fallback);
+      if (read('Predictor', 1) >= 10) {
+        data = undoPngPredictor(data, read('Colors', 1), read('BitsPerComponent', 8), read('Columns', 1));
+        if (!data) return null;
+      }
+    }
+    const channels = image.grey ? 1 : 3;
+    const expected = image.width * image.height * channels;
+    if (data.length < expected) return null;
+    return { data: data.subarray(0, expected), channels };
+  }
+
+  /** True when the document carries a digital signature, which any change would break. */
+  function isSignedPdf(PDFLib, document) {
+    const { PDFName, PDFDict, PDFArray, PDFRef } = PDFLib;
+    const catalog = document.catalog;
+    if (catalog.lookupMaybe(PDFName.of('Perms'), PDFDict)) return true;
+    const form = catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict);
+    const fields = form ? form.lookupMaybe(PDFName.of('Fields'), PDFArray) : undefined;
+    if (!fields) return false;
+    const seen = new Set();
+    const visit = (value, inheritedType) => {
+      const key = value instanceof PDFRef ? String(value) : null;
+      if (key) {
+        if (seen.has(key)) return false;
+        seen.add(key);
+      }
+      const node = value instanceof PDFRef ? document.context.lookup(value) : value;
+      if (!(node instanceof PDFDict)) return false;
+      const type = node.get(PDFName.of('FT')) ? String(node.get(PDFName.of('FT'))) : inheritedType;
+      if (type === '/Sig' && node.get(PDFName.of('V'))) return true;
+      const kids = node.lookupMaybe(PDFName.of('Kids'), PDFArray);
+      return kids ? kids.asArray().some((kid) => visit(kid, type)) : false;
+    };
+    return fields.asArray().some((field) => visit(field, undefined));
+  }
+
+  /** True when the document says it is PDF/A in its metadata. */
+  function claimsPdfA(PDFLib, document) {
+    const { PDFName, PDFStream } = PDFLib;
+    const metadata = document.catalog.lookup(PDFName.of('Metadata'));
+    if (!(metadata instanceof PDFStream)) return false;
+    const bytes = streamBytes(PDFLib, metadata);
+    return Boolean(bytes) && /pdfaid:part/.test(String.fromCharCode(...bytes.subarray(0, 65536)));
+  }
+
+  /**
+   * Stores identical streams, fonts, font descriptors and graphics states once, pointing every
+   * reference at one copy. Pages and other objects are never merged. Repeated a few times, so
+   * fonts become equal once their font files have been merged. Returns how many were merged.
+   */
+  function deduplicateObjects(PDFLib, document) {
+    const { PDFName, PDFRawStream, PDFDict, PDFArray, PDFRef } = PDFLib;
+    const context = document.context;
+    const MERGEABLE_DICTS = new Set(['/Font', '/FontDescriptor', '/ExtGState']);
+    const SKIP_STREAMS = new Set(['/XRef', '/ObjStm', '/Metadata']);
+    let merged = 0;
+    for (let round = 0; round < 4; round += 1) {
+      const first = new Map();
+      const replace = new Map();
+      for (const [ref, object] of context.enumerateIndirectObjects()) {
+        let key = null;
+        if (object instanceof PDFRawStream) {
+          if (SKIP_STREAMS.has(String(object.dict.get(PDFName.of('Type'))))) continue;
+          key = `s${object.dict.toString()}|${object.contents.length}|${crc32(object.contents)}`;
+        } else if (object instanceof PDFDict && MERGEABLE_DICTS.has(String(object.get(PDFName.of('Type'))))) {
+          key = `d${object.toString()}`;
+        }
+        if (!key) continue;
+        const earlier = first.get(key);
+        if (!earlier) {
+          first.set(key, ref);
+          continue;
+        }
+        // The same bytes, not only the same checksum.
+        if (object instanceof PDFRawStream) {
+          const other = context.lookup(earlier).contents;
+          if (other.length !== object.contents.length || other.some((byte, at) => byte !== object.contents[at])) continue;
+        }
+        replace.set(String(ref), earlier);
+      }
+      if (replace.size === 0) break;
+      const rewrite = (value) => {
+        if (value instanceof PDFDict) {
+          for (const [key, entry] of value.entries()) {
+            const to = entry instanceof PDFRef ? replace.get(String(entry)) : undefined;
+            if (to) value.set(key, to);
+            else if (entry instanceof PDFDict || entry instanceof PDFArray) rewrite(entry);
+          }
+        } else if (value instanceof PDFArray) {
+          value.asArray().forEach((entry, index) => {
+            const to = entry instanceof PDFRef ? replace.get(String(entry)) : undefined;
+            if (to) value.set(index, to);
+            else if (entry instanceof PDFDict || entry instanceof PDFArray) rewrite(entry);
+          });
+        } else if (value instanceof PDFRawStream) {
+          rewrite(value.dict);
+        }
+      };
+      for (const [, object] of context.enumerateIndirectObjects()) rewrite(object);
+      for (const key of replace.keys()) {
+        const [objectNumber, generation] = key.split(' ').map(Number);
+        context.delete(PDFRef.of(objectNumber, generation));
+      }
+      merged += replace.size;
+    }
+    return merged;
+  }
+
+  /** Compresses streams stored without compression (lossless). Returns how many were compressed. */
+  function compressPlainStreams(PDFLib, document) {
+    const { PDFName, PDFRawStream } = PDFLib;
+    const context = document.context;
+    let compressed = 0;
+    for (const [ref, object] of context.enumerateIndirectObjects()) {
+      if (!(object instanceof PDFRawStream) || object.dict.get(PDFName.of('Filter'))) continue;
+      // Metadata stays readable as text, as PDF/A asks.
+      if (['/Metadata', '/XRef', '/ObjStm'].includes(String(object.dict.get(PDFName.of('Type'))))) continue;
+      if (object.contents.length < 256) continue;
+      const smaller = context.flateStream(object.contents, {});
+      if (smaller.getContentsSize() >= object.contents.length * 0.95) continue;
+      for (const [key, value] of object.dict.entries()) {
+        if (String(key) !== '/Length' && String(key) !== '/Filter') smaller.dict.set(key, value);
+      }
+      context.assign(ref, smaller);
+      compressed += 1;
+    }
+    return compressed;
+  }
+
+  /** Leaves out page thumbnails stored in the file; viewers draw their own. */
+  function dropPageThumbnails(PDFLib, document) {
+    let dropped = 0;
+    for (const page of document.getPages()) {
+      if (page.node.get(PDFLib.PDFName.of('Thumb'))) {
+        page.node.delete(PDFLib.PDFName.of('Thumb'));
+        dropped += 1;
+      }
+    }
+    return dropped;
+  }
+
+  /** What is in a PDF, for the screen before any work: pages, size and how much is images. */
+  async function describePdf(PDFLib, bytes) {
+    const document = await loadPdf(PDFLib, bytes);
+    let imageBytes = 0;
+    let imageCount = 0;
+    for (const [, object] of document.context.enumerateIndirectObjects()) {
+      if (object instanceof PDFLib.PDFRawStream && String(object.dict.get(PDFLib.PDFName.of('Subtype'))) === '/Image') {
+        imageBytes += object.contents.length;
+        imageCount += 1;
+      }
+    }
+    return {
+      pages: document.getPageCount(),
+      bytes: bytes.length,
+      imageBytes,
+      imageCount,
+      signed: isSignedPdf(PDFLib, document)
+    };
+  }
+
+  const SIGNED_PDF_MESSAGE = 'This PDF is digitally signed. Making it smaller would break the signature, so it was not changed.';
+
+  /**
+   * Makes a PDF smaller. options: { preset: 'screen' | 'standard' | 'print', encodeImage, onProgress }.
+   *
+   * encodeImage({ source: 'jpeg', bytes } | { source: 'pixels', data, channels },
+   *             width, height, targetWidth, targetHeight, quality, grey)
+   *   → { jpeg?: Uint8Array (3-colour JPG at the target size), grey?: Uint8Array (8-bit grey
+   *       pixels at the target size, for a grey image) } or null when it cannot be read.
+   *
+   * Returns { bytes, unchanged, report }. `unchanged` is true, and `bytes` the original, when the
+   * result would not be smaller: a bigger file is never offered as a saving.
+   */
+  async function reducePdf(PDFLib, bytes, options) {
+    const settings = options || {};
+    const preset = PDF_SIZE_PRESETS.find((item) => item.key === settings.preset) || PDF_SIZE_PRESETS[1];
+    const document = await loadPdf(PDFLib, bytes);
+    if (isSignedPdf(PDFLib, document)) throw new PdfToolError('signed', SIGNED_PDF_MESSAGE);
+    const { PDFName, PDFRawStream } = PDFLib;
+    const context = document.context;
+
+    const report = {
+      preset: preset.key,
+      merged: deduplicateObjects(PDFLib, document),
+      resaved: 0,
+      resized: 0,
+      skipped: {},
+      compressed: 0,
+      thumbnails: 0,
+      pdfA: claimsPdfA(PDFLib, document)
+    };
+    const count = (reason) => { report.skipped[reason] = (report.skipped[reason] || 0) + 1; };
+
+    const plan = reduceImagePlan(PDFLib, document, measureImageUses(PDFLib, document), preset);
+    plan.filter((image) => image.action === 'skip').forEach((image) => count(image.reason));
+    const work = plan.filter((image) => image.action === 'resave');
+    // Keys the old dictionary keeps; the new stream sets its own size, colour and filter.
+    const REPLACED = new Set(['/Length', '/Filter', '/DecodeParms', '/Width', '/Height', '/ColorSpace', '/BitsPerComponent', '/DL']);
+
+    for (const [index, image] of work.entries()) {
+      settings.onProgress?.(index + 1, work.length);
+      let input;
+      if (image.source === 'jpeg') {
+        input = { source: 'jpeg', bytes: image.stream.contents };
+      } else {
+        const pixels = decodeImagePixels(PDFLib, image);
+        if (!pixels) { count(REDUCE_SKIP.other); continue; }
+        input = { source: 'pixels', ...pixels };
+      }
+      let encoded = null;
+      try {
+        encoded = await settings.encodeImage({
+          ...input,
+          width: image.width,
+          height: image.height,
+          targetWidth: image.target.width,
+          targetHeight: image.target.height,
+          quality: preset.quality,
+          grey: image.grey
+        });
+      } catch {
+        encoded = null;
+      }
+      if (!encoded) { count(REDUCE_SKIP.other); continue; }
+
+      const candidates = [];
+      const base = (colourSpace) => {
+        const dict = context.obj({});
+        for (const [key, value] of image.stream.dict.entries()) {
+          if (!REPLACED.has(String(key))) dict.set(key, value);
+        }
+        dict.set(PDFName.of('Width'), context.obj(image.target.width));
+        dict.set(PDFName.of('Height'), context.obj(image.target.height));
+        dict.set(PDFName.of('ColorSpace'), PDFName.of(colourSpace));
+        dict.set(PDFName.of('BitsPerComponent'), context.obj(8));
+        return dict;
+      };
+      if (encoded.jpeg && encoded.jpeg.length) {
+        const dict = base('DeviceRGB');
+        dict.set(PDFName.of('Filter'), PDFName.of('DCTDecode'));
+        candidates.push(PDFRawStream.of(dict, encoded.jpeg));
+      }
+      if (image.grey && encoded.grey && encoded.grey.length === image.target.width * image.target.height) {
+        const stream = context.flateStream(encoded.grey, {});
+        for (const [key, value] of base('DeviceGray').entries()) stream.dict.set(key, value);
+        candidates.push(stream);
+      }
+      candidates.sort((a, b) => a.getContentsSize() - b.getContentsSize());
+      const best = candidates[0];
+      if (!best || best.getContentsSize() >= image.size * REDUCE_KEEP_RATIO) { count(REDUCE_SKIP.notSmaller); continue; }
+      context.assign(image.ref, best);
+      report.resaved += 1;
+      if (image.target.scaled) report.resized += 1;
+    }
+
+    report.compressed = compressPlainStreams(PDFLib, document);
+    report.thumbnails = dropPageThumbnails(PDFLib, document);
+    removeUnreachableObjects(PDFLib, document);
+    const output = await save(document);
+    if (output.length >= bytes.length) {
+      return { bytes, unchanged: true, report };
+    }
+    return { bytes: output, unchanged: false, report };
+  }
+
   async function pageCount(PDFLib, bytes) {
     const document = await loadPdf(PDFLib, bytes);
     return document.getPageCount();
@@ -1162,6 +1952,7 @@
     jpegRotation,
     jpegOrientation,
     jpegMirrored,
+    jpegClearOrientation,
     orientedImageDraw,
     formatStamp,
     hexToRgb,
@@ -1175,6 +1966,19 @@
     addWatermark,
     addTextStamps,
     applyAnnotations,
-    pageCount
+    pageCount,
+    PDF_SIZE_PRESETS,
+    REDUCE_SKIP,
+    SIGNED_PDF_MESSAGE,
+    contentOperators,
+    measureImageUses,
+    reduceTarget,
+    undoPngPredictor,
+    reduceImagePlan,
+    isSignedPdf,
+    deduplicateObjects,
+    compressPlainStreams,
+    describePdf,
+    reducePdf
   });
 });
