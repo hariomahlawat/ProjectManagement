@@ -495,6 +495,8 @@
     mode = next;
     const words = MODES[mode];
     title.textContent = words.title;
+    // The tab names the screen too, so it follows the heading while this screen is showing.
+    if (!view.hidden) document.title = `${words.title} | Photo Tools`;
     sizeTitle.textContent = words.sizeTitle;
     sizes.setAttribute('aria-label', words.sizeLabel);
     dropHint.textContent = words.dropHint;
