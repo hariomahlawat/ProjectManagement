@@ -153,7 +153,7 @@
   let shown = null;
   let showOriginal = false;
 
-  // Touch-up strokes over the changed background (Refine Edge, Erase, Restore). Each is a brush
+  // Touch-up strokes over the changed background (Refine edge, Erase, Restore). Each is a brush
   // stroke in the photo's own pixels, so it stays on the same part of the photo when the photo is
   // moved or zoomed.
   // `plain` and `changedPixels` are the finished photo before and after the background change,
@@ -166,7 +166,7 @@
   let ring = null;
   let plain = null;
   let changedPixels = null;
-  // The old background's colours, as the background change found them. Refine Edge needs them.
+  // The old background's colours, as the background change found them. Refine edge needs them.
   let wall = null;
   // What the checks look at: the finished photo before any background change, and where its
   // background was found when the background change already looked.
@@ -661,7 +661,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Touching up the changed background: Refine Edge, Erase and Restore brushes
+  // Touching up the changed background: Refine edge, Erase and Restore brushes
   // ---------------------------------------------------------------------------
 
   /** How much the full photo is scaled to make the saved photo. */
@@ -671,7 +671,7 @@
 
   /**
    * A picture of the brush strokes at the saved size, each in its brush's colour (red Restore,
-   * green Refine Edge, blue Erase). The strokes are drawn through the same move, turn and zoom as
+   * green Refine edge, blue Erase). The strokes are drawn through the same move, turn and zoom as
    * the photo, so they lie on the part of the photo they were painted on.
    *
    * Each stroke is soft on its own: it is drawn as a few nested strokes of falling width, each
@@ -726,7 +726,7 @@
       core.applyBackgroundFixes(pixels.data, plain.data, fixMask().data, backgroundColour(), {
         width: pixels.width,
         wall,
-        // The squares Refine Edge reads the person's colours from: about 3% of the photo's width.
+        // The squares Refine edge reads the person's colours from: about 3% of the photo's width.
         cell: Math.max(4, Math.round(pixels.width * 0.03))
       });
     }
@@ -1111,9 +1111,19 @@
 
   for (const button of $$('[data-mode]')) {
     button.addEventListener('click', () => {
-      if (button.dataset.mode !== mode) setMode(button.dataset.mode);
+      if (button.dataset.mode === mode) return;
+      setMode(button.dataset.mode);
+      // The address follows the mode, so Back, a refresh or a bookmark opens the same one.
+      history.replaceState(null, '', `#${mode === 'signature' ? 'signature' : 'passport'}`);
     });
   }
+
+  // The home screen has a card for each: #passport opens Photo, #signature opens Signature.
+  function modeFromAddress() {
+    const wanted = { '#passport': 'photo', '#signature': 'signature' }[window.location.hash];
+    if (wanted && wanted !== mode) setMode(wanted);
+  }
+  window.addEventListener('hashchange', modeFromAddress);
 
   paperButton.addEventListener('click', () => {
     paperOn = !paperOn;
@@ -1220,4 +1230,5 @@
   renderSizes();
   renderSheet();
   renderBackground();
+  modeFromAddress();
 })();
