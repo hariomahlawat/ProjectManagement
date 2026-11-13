@@ -681,3 +681,34 @@ test('a target the settings can meet is met by the saved file, not only by the e
   }
   assert.deepEqual(misses, []);
 });
+
+test('a second search round still decodes a picture whose decoding settings are a separate object', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const width = 200;
+  const height = 150;
+  const pixels = noise(width * height * 3, 77);
+  // PNG predictor rows (filter type 0) before compression, as many PDF writers store images.
+  const rows = new Uint8Array(height * (width * 3 + 1));
+  for (let y = 0; y < height; y += 1) rows.set(pixels.subarray(y * width * 3, (y + 1) * width * 3), y * (width * 3 + 1) + 1);
+  const parms = document.context.register(document.context.obj({ Predictor: 15, Colors: 3, BitsPerComponent: 8, Columns: width }));
+  const predicted = document.context.register(document.context.stream(zlib.deflateSync(rows), {
+    Type: 'XObject', Subtype: 'Image', Width: width, Height: height, ColorSpace: 'DeviceRGB', BitsPerComponent: 8,
+    Filter: 'FlateDecode', DecodeParms: parms
+  }));
+  const draws = [{ ref: predicted, name: 'P', matrix: [144, 0, 0, 108, 0, 0] }];
+  for (let i = 0; i < 10; i += 1) {
+    draws.push({ ref: addImage(document, { width: 200, height: 200, filter: null, data: noise(200 * 200 * 3, 100 + i) }), name: `R${i}`, matrix: [144, 0, 0, 144, 0, 0] });
+  }
+  pageDrawing(document, draws);
+  const original = await document.save();
+  const preset = await tools.reducePdf(PDFLib, original, { preset: 'standard', encodeImage: sizedEncoder().encodeImage });
+
+  // One byte under the preset's file: the first round fits by estimate, so a second round runs.
+  const encoder = sizedEncoder();
+  await tools.reducePdf(PDFLib, original, { preset: 'standard', targetBytes: preset.bytes.length - 1, encodeImage: encoder.encodeImage });
+  const forPredicted = encoder.calls.filter((call) => call.source === 'pixels' && call.width === width && call.height === height);
+  assert.ok(forPredicted.length >= 2, `the predicted picture was re-saved in ${forPredicted.length} attempts`);
+  for (const call of forPredicted) {
+    assert.equal(Buffer.compare(Buffer.from(call.data), Buffer.from(pixels)), 0, 'every attempt received the true pixels');
+  }
+});

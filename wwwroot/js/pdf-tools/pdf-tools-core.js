@@ -2034,10 +2034,14 @@
       return { dpi, quality, bytes: imageBytes, chosen, skipped, resized };
     };
 
-    /** Puts one attempt's pictures in the file (and the others back as they were) and saves it. */
+    /**
+     * Puts one attempt's pictures in the file (and the others back as they were) and saves it.
+     * Nothing is pruned here: an object only an original picture refers to (its /DecodeParms, say)
+     * looks unused while a new picture stands in its place, but a later round decodes the original
+     * again and needs it. Pruning comes once, after the search; it only makes the file smaller.
+     */
     const saveWith = async (chosen) => {
       for (const image of work) context.assign(image.ref, chosen.get(image) || image.stream);
-      removeUnreachableObjects(PDFLib, document);
       return save(document);
     };
 
@@ -2064,6 +2068,10 @@
       stopIfCancelled();
       output = await saveWith(result.chosen);
     }
+
+    // The search is over: now objects nothing refers to can go, which only makes the file smaller.
+    removeUnreachableObjects(PDFLib, document);
+    output = await save(document);
 
     // 4. What was done.
     report.resaved = result.chosen.size;
