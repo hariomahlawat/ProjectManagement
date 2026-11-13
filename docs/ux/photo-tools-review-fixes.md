@@ -94,4 +94,4 @@ fixes.
 | 5 | Built, #3191. Wording and Signature: a Signature card (decision 1), "Hide or blur", "Refine edge", plain hints for pixels and file types, labels that wrap on phones (the copies counter needed nothing: it is only seen with a photo) | 8, Low (Wording) |
 | 6 | Built, #3192. Docs and contract test: correct both docs, read scripts from the page, check the CSS, more patterns, move the PDF test | 9, Low (Docs, Contract test) |
 | 7 | Built, #3194. Speed and shared code: brush drawn once a frame, one-step Redo, Reduce size stops a stale photo between tries, shared open/drop/hold helpers in `photo-tools-canvas.js` (the debounced save and the dark-under-light overlay differ enough per tool to stay where they are) | Low (Screens, Duplication) |
-| 8 | Reduce size keeps the pixels unless the size cannot be reached otherwise (decision 3) | — |
+| 8 | Built, #3195. Reduce size keeps the pixels unless the size cannot be reached otherwise (decision 3); the old saved default of 1600 px is not carried over | — |

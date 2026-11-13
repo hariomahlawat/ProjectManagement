@@ -15,6 +15,10 @@
   }
 
   const SETTINGS_KEY = 'prism.photoTools.reduce';
+  // Settings saved before version 2 hold the old default of 1600 px, which nobody chose: the
+  // pixels are now kept unless the file size needs fewer (owner decision, 13 Nov 2026).
+  const SETTINGS_VERSION = 2;
+  const OLD_DEFAULT_DIMENSIONS = 'longest:1600';
   const SETTLE_MS = 350;
   // Thumbnails are drawn once at a small size: showing every original in the list would decode
   // each full photo again on every update.
@@ -118,7 +122,10 @@
       if (!saved) return;
       if (typeof saved.target === 'string') targetValue.value = saved.target;
       if (saved.unit === 'KB' || saved.unit === 'MB') unit = saved.unit;
-      if ($$('option', dimensions).some(option => option.value === saved.dimensions)) dimensions.value = saved.dimensions;
+      const oldDefault = saved.version !== SETTINGS_VERSION && saved.dimensions === OLD_DEFAULT_DIMENSIONS;
+      if (!oldDefault && $$('option', dimensions).some(option => option.value === saved.dimensions)) {
+        dimensions.value = saved.dimensions;
+      }
       if (Number(saved.customSide) >= 16) customSideValue.value = String(saved.customSide);
       if ($$('option', format).some(option => option.value === saved.format)) format.value = saved.format;
       greyscale.checked = saved.greyscale === true;
@@ -130,6 +137,7 @@
   function saveSettings() {
     try {
       window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+        version: SETTINGS_VERSION,
         target: targetValue.value.trim(),
         unit,
         dimensions: dimensions.value,
