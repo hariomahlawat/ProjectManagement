@@ -66,8 +66,8 @@ Each PR is checked on a phone, in the Dark theme and with the keyboard, and adds
 | PR | Scope | Findings |
 | --- | --- | --- |
 | 1 | This plan | — |
-| 2 | Built, #3184. Sign & annotate on phones and in the editor: scroll and zoom, refit on turn, primary pointer only, text kept on the page, Choose another file, toolbar Delete focus, revoke object URLs, show a page that failed to draw | 1, 6, Low (Sign & annotate) |
-| 3 | Page geometry: corners in any order, `/Rotate` not a multiple of 90 read as 0, `/UserUnit` in watermark and page numbers, en dash in ranges | 2, Low (Geometry) |
+| 2 | Merged, #3184. Sign & annotate on phones and in the editor: scroll and zoom, refit on turn, primary pointer only, text kept on the page, Choose another file, toolbar Delete focus, revoke object URLs, show a page that failed to draw | 1, 6, Low (Sign & annotate) |
+| 3 | Merged, #3185. Page geometry: corners in any order, `/Rotate` not a multiple of 90 read as 0, `/UserUnit` in watermark and page numbers, en dash in ranges | 2, Low (Geometry) |
 | 4 | Reduce size measuring: `#xx` names, inline images by `/L`, depth limit marks unmeasured, JPG `ColorTransform` left as is, `/Matte` masks, stray `/DecodeParms` | 3, 8, Low (Reduce size, measuring) |
 | 5 | Forms and split: AcroForm settings from kept files merged, page and parent-field actions tagged, a page used twice | 4, 5, Low (Forms) |
 | 6 | Organise and Images: release thumbnails, touch drag delay, card roles, Dark buttons, busy announcement, Back while working | 7, 9, Low (Screens) |
