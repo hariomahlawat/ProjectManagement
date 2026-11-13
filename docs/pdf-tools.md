@@ -125,9 +125,10 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
 - **How large each picture is shown** is read from the page content itself
   (`contentOperators`, `measureImageUses`): `q`, `Q`, `cm` and `Do`, through form XObjects and
   their `/Matrix`, and the page's `/UserUnit`. A picture drawn in several places keeps the
-  resolution of its largest use. A picture in an annotation's appearance, a pattern or a page
-  that cannot be read is not measured, and keeps its pixel size (it may still be re-saved at the
-  preset's quality).
+  resolution of its largest use. A picture that is also drawn where its size is not followed (an
+  annotation's appearance, a tiling pattern, a Type 3 font's glyphs, a soft-mask group) or on a
+  page that cannot be read is not measured, whatever its other uses, and keeps its pixel size (it
+  may still be re-saved at the preset's quality).
 - **Which pictures change** (`reduceImagePlan`). Re-saved: 8-bit RGB or grey pictures, stored as
   JPG or with Flate (and LZW, ASCII85, ASCIIHex, RunLength; PNG predictors are undone by
   `undoPngPredictor`). Left as they are, and counted on the result: image masks and soft masks

@@ -1317,7 +1317,8 @@
   /**
    * How large each image is drawn, in points, at its largest use: Map of "n g R" to
    * { width, height } along the image's own sides. Images drawn where this cannot be measured
-   * (in an annotation's appearance, a pattern, a page that cannot be read) are in `unmeasured`.
+   * (an annotation's appearance, a tiling pattern, a Type 3 font's glyphs, a soft-mask group, a
+   * page that cannot be read) are in `unmeasured`, whatever their other uses.
    */
   function measureImageUses(PDFLib, document) {
     const { PDFName, PDFDict, PDFArray, PDFRef, PDFNumber, PDFStream } = PDFLib;
@@ -1337,9 +1338,43 @@
       return object instanceof PDFStream ? String(object.dict.get(SUBTYPE)) : '';
     };
 
-    /** Every image under these resources (forms followed) is unmeasured. */
+    const lookupDict = (dict, key) => (dict instanceof PDFDict ? dict.lookupMaybe(PDFName.of(key), PDFDict) : undefined);
+    const resolve = (value) => (value instanceof PDFRef ? context.lookup(value) : value);
+
+    /**
+     * Images can also be drawn by a tiling pattern, a Type 3 font's glyphs or a soft-mask group;
+     * how large depends on where those are painted, which is not followed here. Every image they
+     * draw is unmeasured, so it keeps its pixel size even when a direct use is small.
+     */
+    const markIndirect = (resources, depth, seen) => {
+      if (depth > 12 || !(resources instanceof PDFDict)) return;
+      const patterns = lookupDict(resources, 'Pattern');
+      for (const value of patterns ? patterns.values() : []) {
+        const pattern = resolve(value);
+        if (pattern instanceof PDFStream) markAll(pattern.dict.lookup(PDFName.of('Resources')), depth + 1, seen);
+      }
+      const fonts = lookupDict(resources, 'Font');
+      for (const value of fonts ? fonts.values() : []) {
+        const font = resolve(value);
+        if (font instanceof PDFDict && String(font.get(PDFName.of('Subtype'))) === '/Type3') {
+          markAll(font.lookup(PDFName.of('Resources')), depth + 1, seen);
+        }
+      }
+      const states = lookupDict(resources, 'ExtGState');
+      for (const value of states ? states.values() : []) {
+        const state = resolve(value);
+        const mask = state instanceof PDFDict ? resolve(state.get(PDFName.of('SMask'))) : undefined;
+        const group = mask instanceof PDFDict ? resolve(mask.get(PDFName.of('G'))) : undefined;
+        if (group instanceof PDFStream) {
+          markAll(group.dict.lookup(PDFName.of('Resources')), depth + 1, seen);
+        }
+      }
+    };
+
+    /** Every image under these resources (forms, patterns, Type 3 fonts and masks followed) is unmeasured. */
     const markAll = (resources, depth, seen) => {
       if (depth > 12) return;
+      markIndirect(resources, depth, seen);
       for (const [, ref] of xobjects(resources)) {
         if (!(ref instanceof PDFRef) || seen.has(String(ref))) continue;
         seen.add(String(ref));
@@ -1354,6 +1389,7 @@
 
     const run = (contents, resources, ctm, scale, depth, stack) => {
       if (depth > 12) return;
+      markIndirect(resources, depth, new Set());
       const bytes = contents.map((stream) => streamBytes(PDFLib, stream));
       if (bytes.some((part) => !part)) {
         markAll(resources, depth, new Set());

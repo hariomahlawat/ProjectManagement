@@ -133,6 +133,41 @@ test('measureImageUses counts a page UserUnit, and leaves images in annotation a
   assert.ok(unmeasured.has(String(stamp)));
 });
 
+test('measureImageUses leaves images drawn by patterns, Type 3 glyphs and soft-mask groups unmeasured', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const shared = addImage(document, { width: 600, height: 600 });
+  const glyph = addImage(document, { width: 600, height: 600 });
+  const group = addImage(document, { width: 600, height: 600 });
+  // A tiling pattern that draws `shared` six inches wide: its size depends on where it is painted.
+  const pattern = document.context.register(document.context.stream(bytesOf('q 432 0 0 432 0 0 cm /Img Do Q'), {
+    Type: 'Pattern', PatternType: 1, PaintType: 1, TilingType: 1, BBox: [0, 0, 432, 432], XStep: 432, YStep: 432,
+    Resources: { XObject: { Img: shared } }
+  }));
+  const type3 = document.context.register(document.context.obj({
+    Type: 'Font', Subtype: 'Type3', FontBBox: [0, 0, 1, 1], FontMatrix: [1, 0, 0, 1, 0, 0],
+    Resources: { XObject: { G: glyph } }
+  }));
+  const maskGroup = document.context.register(document.context.stream(bytesOf('/M Do'), {
+    Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 1, 1], Resources: { XObject: { M: group } }
+  }));
+  const page = document.addPage([612, 792]);
+  page.node.set(PDFName.of('Resources'), document.context.obj({
+    XObject: { Img: shared },
+    Pattern: { P1: pattern },
+    Font: { T3: type3 },
+    ExtGState: { GS: { SMask: { S: 'Luminosity', G: maskGroup } } }
+  }));
+  // Drawn directly at half an inch: on its own, that would allow 75 x 75 px at 150 dpi.
+  page.node.set(PDFName.of('Contents'), document.context.register(document.context.stream(bytesOf(
+    'q 36 0 0 36 0 0 cm /Img Do Q /Pattern cs /P1 scn 0 0 612 792 re f'))));
+
+  const measured = tools.measureImageUses(PDFLib, document);
+  for (const ref of [shared, glyph, group]) assert.ok(measured.unmeasured.has(String(ref)), String(ref));
+  const plan = tools.reduceImagePlan(PDFLib, document, measured, tools.PDF_SIZE_PRESETS[1]);
+  const sharedPlan = plan.find((item) => String(item.ref) === String(shared));
+  assert.deepEqual(sharedPlan.target, { width: 600, height: 600, scaled: false }, 'kept at full size for its pattern use');
+});
+
 test('reduceTarget keeps enough pixels for the preset at the largest use, and never enlarges', () => {
   // 3000 x 2000 px drawn 6 x 4 inches: 150 dpi needs 900 x 600.
   assert.deepEqual(tools.reduceTarget(3000, 2000, { width: 432, height: 288 }, 150), { width: 900, height: 600, scaled: true });
