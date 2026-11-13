@@ -1262,3 +1262,207 @@ test('findBackground finds the background and leaves the photo alone', () => {
   const outline = tools.headOutline(found.mask, w, h);
   assert.ok(Math.abs(outline.top - 0.18) < 0.03, `the head of the test portrait starts at ${outline.top}`);
 });
+
+// ----- Remove background: the cut-out -----
+
+/** A row of RGBA pixels from a list of [r, g, b] colours. */
+const rowOf = colours => new Uint8ClampedArray(colours.flatMap(colour => [...colour, 255]));
+
+test('cutoutBackground reads the background where the mask is sure, and fills it in behind the subject', () => {
+  const [width, height] = [24, 24];
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  const alpha = new Uint8ClampedArray(width * height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const subject = x >= 12;
+      pixels.set([...(subject ? SKIN : WALL), 255], (y * width + x) * 4);
+      alpha[y * width + x] = subject ? 255 : 0;
+    }
+  }
+  const background = tools.cutoutBackground(pixels, alpha, width, height, 4);
+  for (const x of [2, 20]) {
+    const colour = tools.wallColourAt(background, x, 10, [0, 0, 0]);
+    colour.forEach((value, channel) => assert.ok(Math.abs(value - WALL[channel]) < 1, `x ${x} channel ${channel} is the wall`));
+  }
+  assert.equal(tools.cutoutBackground(pixels, new Uint8ClampedArray(width * height).fill(255), width, height, 4), null, 'no sure background');
+});
+
+test('cutoutColours takes the old background tint out of a soft edge', () => {
+  // Hair seen half over the wall: the pixel is the average of the two, and the mask says half.
+  const half = HAIR.map((value, channel) => Math.round((value + WALL[channel]) / 2));
+  const pixels = rowOf([WALL, half, HAIR]);
+  const alpha = new Uint8ClampedArray([0, 128, 255]);
+  const background = flatWall(WALL);
+  tools.cutoutColours(pixels, alpha, 3, background);
+  rgbAt(pixels, 3, 1, 0).forEach((value, channel) => assert.ok(Math.abs(value - HAIR[channel]) <= 3, `channel ${channel} is hair again`));
+  assert.deepEqual(rgbAt(pixels, 3, 2, 0), HAIR, 'solid hair is unchanged');
+  assert.deepEqual([pixels[3], pixels[7], pixels[11]], [0, 128, 255], 'alpha comes from the mask');
+});
+
+test('cutoutOnto lays the cut-out on a colour or on a picture', () => {
+  const cutout = new Uint8ClampedArray([...HAIR, 255, ...HAIR, 0, ...HAIR, 128]);
+  const onColour = cutout.slice();
+  tools.cutoutOnto(onColour, BLUE);
+  assert.deepEqual(rgbAt(onColour, 3, 0, 0), HAIR);
+  assert.deepEqual(rgbAt(onColour, 3, 1, 0), BLUE);
+  rgbAt(onColour, 3, 2, 0).forEach((value, channel) => assert.ok(Math.abs(value - (HAIR[channel] + BLUE[channel]) / 2) <= 1));
+  assert.deepEqual([onColour[3], onColour[7], onColour[11]], [255, 255, 255]);
+
+  const onPicture = cutout.slice();
+  tools.cutoutOnto(onPicture, rowOf([WALL, SKIN, WALL]));
+  assert.deepEqual(rgbAt(onPicture, 3, 1, 0), SKIN);
+});
+
+test('applyCutoutStrokes: Restore, Erase and Refine Edge change the mask, always from the model mask', () => {
+  // Wall, a strand of hair over the wall, solid hair, skin. The model missed the strand and
+  // wrongly took the skin.
+  const half = HAIR.map((value, channel) => Math.round((value + WALL[channel]) / 2));
+  const original = rowOf([WALL, WALL, half, HAIR, HAIR, SKIN, SKIN, WALL]);
+  const modelAlpha = new Uint8ClampedArray([0, 0, 0, 255, 255, 0, 0, 255]);
+  const background = flatWall(WALL);
+  const alpha = new Uint8ClampedArray(8);
+  const mask = new Uint8ClampedArray(8 * 4);
+  mask.set([0, 255, 0, 255], 2 * 4); // Refine Edge over the strand
+  mask.set([0, 255, 0, 255], 1 * 4); // ... and the wall beside it
+  mask.set([255, 0, 0, 255], 5 * 4); // Restore the skin
+  mask.set([255, 0, 0, 255], 6 * 4);
+  mask.set([0, 0, 255, 255], 7 * 4); // Erase a stray bit of wall the model took
+  tools.applyCutoutStrokes(alpha, modelAlpha, original, mask, background, { width: 8, cell: 4 });
+
+  assert.equal(alpha[0], 0, 'unpainted wall stays background');
+  assert.equal(alpha[1], 0, 'Refine Edge keeps wall as background');
+  assert.ok(alpha[2] > 100 && alpha[2] < 160, `Refine Edge makes the strand about half subject (${alpha[2]})`);
+  assert.equal(alpha[3], 255, 'unpainted hair stays subject');
+  assert.equal(alpha[5], 255, 'Restore brings the skin back');
+  assert.equal(alpha[7], 0, 'Erase removes the stray bit');
+
+  // Without strokes the mask is the model's again: Reset and Undo are exact.
+  tools.applyCutoutStrokes(alpha, modelAlpha, original, new Uint8ClampedArray(8 * 4), background, { width: 8 });
+  assert.deepEqual(Array.from(alpha), Array.from(modelAlpha));
+});
+
+test('refineCutoutEdge clears background the model was unsure of, and keeps strands and solid subject', () => {
+  // Wall, wall the model gave 40% to, a strand half over the wall, solid hair, skin at the edge.
+  const half = HAIR.map((value, channel) => Math.round((value + WALL[channel]) / 2));
+  const original = rowOf([WALL, WALL, half, HAIR, HAIR, HAIR, SKIN, SKIN]);
+  const alpha = new Uint8ClampedArray([0, 102, 128, 255, 255, 255, 230, 255]);
+  tools.refineCutoutEdge(alpha, original, 8, flatWall(WALL), 4);
+  assert.equal(alpha[0], 0, 'sure background stays background');
+  assert.equal(alpha[1], 0, 'wall the model was unsure of becomes background');
+  assert.ok(alpha[2] > 100 && alpha[2] <= 128, `the strand stays about half (${alpha[2]})`);
+  assert.equal(alpha[3], 255, 'solid hair stays');
+  assert.equal(alpha[6], 230, 'skin at the edge keeps the model value');
+});
+
+test('a cut-out rebuilt only where a stroke changed matches one rebuilt in full', () => {
+  const [width, height] = [40, 30];
+  const original = new Uint8ClampedArray(width * height * 4);
+  const modelAlpha = new Uint8ClampedArray(width * height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const subject = x >= 20;
+      const strand = x >= 16 && x < 20 && y % 3 === 0;
+      const colour = subject ? HAIR : strand ? HAIR.map((value, channel) => Math.round((value + WALL[channel]) / 2)) : WALL;
+      original.set([...colour, 255], (y * width + x) * 4);
+      modelAlpha[y * width + x] = subject ? 255 : x >= 16 ? 140 : 0;
+    }
+  }
+  const background = flatWall(WALL);
+  // Two strokes: Refine Edge over the strands, Restore further down.
+  const fullMask = new Uint8ClampedArray(width * height * 4);
+  const paint = (mask, maskWidth, left, top, x0, x1, y0, y1, colour) => {
+    for (let y = y0; y < y1; y += 1) for (let x = x0; x < x1; x += 1) mask.set(colour, ((y - top) * maskWidth + (x - left)) * 4);
+  };
+  paint(fullMask, width, 0, 0, 14, 22, 2, 12, [0, 255, 0, 255]);
+  paint(fullMask, width, 0, 0, 10, 14, 20, 26, [255, 0, 0, 255]);
+  const full = new Uint8ClampedArray(width * height);
+  tools.applyCutoutStrokes(full, modelAlpha, original, fullMask, background, { width, cell: 4 });
+
+  // The same, rebuilt first without the Restore stroke, then only in the Restore stroke's area.
+  const partial = new Uint8ClampedArray(width * height);
+  const firstMask = new Uint8ClampedArray(width * height * 4);
+  paint(firstMask, width, 0, 0, 14, 22, 2, 12, [0, 255, 0, 255]);
+  tools.applyCutoutStrokes(partial, modelAlpha, original, firstMask, background, { width, cell: 4 });
+  const region = { left: 8, top: 18, right: 16, bottom: 28 };
+  const regionMask = new Uint8ClampedArray((region.right - region.left) * (region.bottom - region.top) * 4);
+  paint(regionMask, region.right - region.left, region.left, region.top, 10, 14, 20, 26, [255, 0, 0, 255]);
+  tools.applyCutoutStrokes(partial, modelAlpha, original, regionMask, background, { width, cell: 4, region });
+  assert.deepEqual(Array.from(partial), Array.from(full));
+
+  // The colours too: made in full, and made only in the region on top of the earlier ones.
+  const coloursFull = new Uint8ClampedArray(original);
+  tools.cutoutColours(coloursFull, full, width, background);
+  const coloursPartial = new Uint8ClampedArray(original);
+  tools.cutoutColours(coloursPartial, full, width, background);
+  coloursPartial.set(original.subarray(0, 4)); // a stale pixel outside the region stays as it was
+  tools.cutoutColours(coloursPartial, full, width, background, region);
+  assert.deepEqual(Array.from(coloursPartial.subarray(4)), Array.from(coloursFull.subarray(4)));
+});
+
+test('the subject colours read once for a photo give the same strokes as reading them each time', () => {
+  const half = HAIR.map((value, channel) => Math.round((value + WALL[channel]) / 2));
+  const original = rowOf([WALL, WALL, half, HAIR, HAIR, SKIN, SKIN, WALL]);
+  const modelAlpha = new Uint8ClampedArray([0, 0, 0, 255, 255, 0, 0, 255]);
+  const mask = new Uint8ClampedArray(8 * 4);
+  for (const x of [1, 2, 3, 6]) mask.set([0, 255, 0, 255], x * 4);
+  const background = flatWall(WALL);
+  const each = new Uint8ClampedArray(8);
+  tools.applyCutoutStrokes(each, modelAlpha, original, mask, background, { width: 8, cell: 4 });
+  const once = new Uint8ClampedArray(8);
+  const colours = tools.cutoutPersonColours(original, modelAlpha, 8, background, 4);
+  tools.applyCutoutStrokes(once, modelAlpha, original, mask, background, { width: 8, cell: 4, colours });
+  assert.deepEqual(Array.from(once), Array.from(each));
+});
+
+test('cutoutColours leaves alone a pixel that cannot be a mix with the background', () => {
+  // A blue shirt the model was unsure of (60%): taking the wall out would need a colour darker
+  // than black, so it is the shirt's own colour, not a mix, and keeps it.
+  const shirt = [45, 79, 138];
+  const pixels = rowOf([shirt]);
+  tools.cutoutColours(pixels, new Uint8ClampedArray([153]), 1, flatWall(WALL));
+  assert.deepEqual(rgbAt(pixels, 1, 0, 0), shirt);
+});
+
+test('cutoutBackground with too little sure background for any square averages what there is', () => {
+  // One sure background pixel in a 60 x 60 photo, everything else unsure: no square of 20 px
+  // holds enough to be read on its own.
+  const [width, height] = [60, 60];
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let i = 0; i < width * height; i += 1) pixels.set([...SKIN, 255], i * 4);
+  pixels.set([...WALL, 255], 0);
+  const alpha = new Uint8ClampedArray(width * height).fill(128);
+  alpha[0] = 0;
+  const background = tools.cutoutBackground(pixels, alpha, width, height, 20);
+  assert.ok(Array.from(background.field).every(Number.isFinite), 'no square is left without a colour');
+  assert.deepEqual(Array.from(tools.wallColourAt(background, 50, 50, [0, 0, 0])).map(Math.round), WALL);
+});
+
+test('scaleBackground gives the same colours at the same spot of a larger copy', () => {
+  const field = Float32Array.from([10, 10, 10, 200, 200, 200, 100, 100, 100, 50, 50, 50]);
+  const small = { field, cell: 10, columns: 2, rows: 2, limit: 14 };
+  const large = tools.scaleBackground(small, 3);
+  for (const [x, y] of [[0, 0], [7, 4], [15, 15], [19, 19]]) {
+    const a = tools.wallColourAt(small, x, y, [0, 0, 0]).map(value => value.toFixed(3));
+    const b = tools.wallColourAt(large, x * 3 + 1, y * 3 + 1, [0, 0, 0]).map(value => value.toFixed(3));
+    assert.deepEqual(b, a, `spot ${x},${y}`);
+  }
+  assert.equal(tools.scaleBackground(null, 2), null);
+});
+
+test('a soft Erase makes the subject see-through without changing its colour', () => {
+  // A solid grey subject pixel and a half-strength Erase over it.
+  const grey = [150, 150, 150];
+  const original = rowOf([WALL, grey]);
+  const modelAlpha = new Uint8ClampedArray([0, 255]);
+  const mask = new Uint8ClampedArray([0, 0, 0, 0, 0, 0, 255, 128]);
+  const alpha = new Uint8ClampedArray(2);
+  const colourAlpha = new Uint8ClampedArray(2);
+  tools.applyCutoutStrokes(alpha, modelAlpha, original, mask, flatWall([255, 255, 255]), { width: 2, colourAlpha });
+  assert.ok(Math.abs(alpha[1] - 127) <= 1, `half see-through (${alpha[1]})`);
+  assert.equal(colourAlpha[1], 255, 'its colour is still all subject');
+
+  const colours = new Uint8ClampedArray(original);
+  tools.cutoutColours(colours, colourAlpha, 2, flatWall([255, 255, 255]), null, alpha);
+  assert.deepEqual(rgbAt(colours, 2, 1, 0), grey, 'the colour is kept');
+  assert.ok(Math.abs(colours[7] - 127) <= 1, 'and the pixel is half see-through');
+});

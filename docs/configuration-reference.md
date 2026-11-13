@@ -161,6 +161,23 @@ Calendar behaviour is driven by APIs rather than configuration. However, the fol
 | --- | --- | --- |
 | `TimeZone` (runtime) | Asia/Kolkata | Many helpers rely on `IstClock` which is fixed to IST; adjust application logic if another timezone is required. (see Infrastructure/IstClock.cs lines 1-34) |
 
+## Photo Tools: Remove background
+
+`PhotoTools:BackgroundRemoval` turns on Remove background in Photo Tools and points it at the
+approved model. It is off by default (`Enabled: false`); the model is installed separately and
+must match `Model:Sha256`. The full list of keys, the model values and the install steps are in
+[photo-tools-background-removal.md](photo-tools-background-removal.md).
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `PhotoTools:BackgroundRemoval:Enabled` | `false` | Turns the tool on. |
+| `PhotoTools:BackgroundRemoval:ModelRoot` | empty | Folder holding the model file. |
+| `PhotoTools:BackgroundRemoval:Model:FileName` | `model.onnx` | The model file. |
+| `PhotoTools:BackgroundRemoval:Model:Sha256` | empty | Required SHA-256 of the file. |
+| `PhotoTools:BackgroundRemoval:IntraOpThreads` | `6` | Processor threads one photo may use. |
+| `PhotoTools:BackgroundRemoval:MaximumConcurrent` / `MaximumWaiting` | `1` / `4` | Photos at once, and waiting, before "busy". |
+| `PhotoTools:BackgroundRemoval:TimeoutSeconds` | `60` | Longest time for one photo. |
+
 ## Background services
 
 No additional configuration is required for hosted services beyond the keys listed above, but note the following runtime behaviour:

@@ -1,10 +1,13 @@
 @page
 @model ProjectManagement.Pages.Tools.Photo.IndexModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @{
     // Standalone tool: it opens in its own tab with its own minimal shell instead of the
-    // PRISM layout, and never posts photos back to the server. The shell (top bar, cards,
-    // drop zone) is shared with PDF Tools through pdf-tools.css.
+    // PRISM layout. Every tool works in the browser, except Remove background, which sends a
+    // copy of the photo to the PRISM server's model and gets back only the mask; nothing is
+    // stored. The shell (top bar, cards, drop zone) is shared with PDF Tools through pdf-tools.css.
     Layout = null;
+    var csrfToken = Antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -12,6 +15,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#10213f" />
+    <meta name="csrf-token" content="@csrfToken" />
     <title>Photo Tools | PRISM ERP</title>
     <script src="~/js/core/theme-preference.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
@@ -28,9 +32,9 @@
             <span class="pdft-brand__mark" aria-hidden="true"><i class="bi bi-image"></i></span>
             <span class="pdft-brand__text">Photo Tools <span>by PRISM</span></span>
         </a>
-        <span class="pdft-privacy" title="Your photos are processed by this browser and are never uploaded to PRISM.">
+        <span class="pdft-privacy" title="Your photos are changed in this browser. Only Remove background sends a copy to the PRISM server, to find the subject; nothing is stored there.">
             <i class="bi bi-shield-lock" aria-hidden="true"></i>
-            <span>Photos stay on this computer</span>
+            <span>Photos are not saved in PRISM</span>
         </span>
         <a class="pdft-topbar__back" asp-page="/Dashboard/Index">
             <i class="bi bi-box-arrow-up-left" aria-hidden="true"></i>
@@ -45,7 +49,7 @@
         <section class="pdft-view" data-view="home" aria-labelledby="photHomeTitle">
             <div class="pdft-hero">
                 <h1 id="photHomeTitle">What do you want to do with your photo?</h1>
-                <p>Everything happens in this browser. Nothing is uploaded or saved in PRISM; you download the result.</p>
+                <p>Everything happens in this browser, except Remove background, which asks the PRISM server to find the subject. Nothing is saved in PRISM; you download the result.</p>
             </div>
             <div class="pdft-grid phot-grid" role="list">
                 <a class="pdft-card" role="listitem" href="#passport">
@@ -62,6 +66,11 @@
                     <span class="pdft-card__icon pdft-accent--orange" aria-hidden="true"><i class="bi bi-arrows-angle-contract"></i></span>
                     <span class="pdft-card__title">Reduce size</span>
                     <span class="pdft-card__text">Type the size you need, such as under 100 KB, and get the best quality that fits. Works on many photos at once.</span>
+                </a>
+                <a class="pdft-card" role="listitem" href="#remove">
+                    <span class="pdft-card__icon pdft-accent--teal" aria-hidden="true"><i class="bi bi-person-square"></i></span>
+                    <span class="pdft-card__title">Remove background</span>
+                    <span class="pdft-card__text">Cut out the person or object, then save it on a see-through, plain colour or blurred background. Touch up hair and edges with a brush.</span>
                 </a>
                 <a class="pdft-card" role="listitem" href="#edit">
                     <span class="pdft-card__icon pdft-accent--green" aria-hidden="true"><i class="bi bi-crop"></i></span>
@@ -701,6 +710,127 @@
             </div>
         </section>
 
+
+        @* ---------- Remove background ---------- *@
+        <section class="pdft-view" data-view="remove" hidden aria-labelledby="photRemoveTitle">
+            <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-remove-input tabindex="-1" aria-hidden="true" />
+            <div class="phot-head">
+                <a class="phot-head__back" href="#" data-nav-home>
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
+                </a>
+                <h1 id="photRemoveTitle">Remove background</h1>
+                <span class="phot-head__file" data-remove-file></span>
+                <button type="button" class="btn btn-outline-secondary phot-head__action" data-action="change-photo" hidden>
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Change photo
+                </button>
+            </div>
+
+            <div class="alert alert-warning phot-remove-status" role="status" data-remove-status hidden></div>
+
+            <div class="pdft-drop" data-drop data-empty>
+                <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-photo">
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose a photo
+                </button>
+                <p class="pdft-drop__hint">or drop a photo here. JPG, PNG or WEBP. A person, an animal or an object; any background.</p>
+                <p class="pdft-drop__hint phot-remove-privacy">
+                    <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                    A copy of the photo is sent to the PRISM server to find the subject. It is not stored.
+                </p>
+            </div>
+
+            <div class="phot-layout" data-workspace data-drop hidden>
+                <div class="phot-layout__main">
+                    <div class="phot-stage">
+                        <div class="phot-stage__bar phot-stage__bar--tools">
+                            <button type="button" class="btn btn-outline-light btn-sm" data-action="remove-undo" aria-label="Undo the last stroke" disabled>
+                                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> <span class="d-none d-sm-inline">Undo</span>
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm" data-action="remove-original" aria-label="Hold to see the original" disabled>
+                                <i class="bi bi-eye" aria-hidden="true"></i>
+                                <span class="d-none d-sm-inline">Hold to see the original</span><span class="d-sm-none">Hold for original</span>
+                            </button>
+                            <span class="phot-edit__size" data-remove-size aria-live="polite"></span>
+                        </div>
+                        <div class="phot-edit" data-remove-stage>
+                            <div class="phot-edit__photo phot-remove__photo" data-remove-photo tabindex="0" role="group"
+                                 aria-label="Photo. Paint on it with the brush. With the keyboard, the arrow keys move the brush, Space paints, and [ and ] change its size.">
+                                <canvas class="phot-edit__canvas" data-remove-canvas></canvas>
+                            </div>
+                            <div class="phot-busy" data-remove-busy hidden>
+                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                <span data-remove-busy-text>Finding the subject…</span>
+                            </div>
+                        </div>
+                        <p class="visually-hidden" role="status" data-remove-busy-status></p>
+                        <p class="phot-stage__hint">Check the edges, then paint with Refine Edge where hair or fur needs work.</p>
+                    </div>
+                </div>
+
+                <aside class="phot-layout__side" aria-label="Remove background settings">
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">1</span>Background</h2>
+                        <div class="phot-bg__choices" role="group" aria-label="New background">
+                            <button type="button" class="phot-bgchoice" aria-pressed="true" data-remove-bg="transparent">
+                                <span class="phot-bgchoice__dot phot-bgchoice__dot--clear" aria-hidden="true"></span> See-through
+                            </button>
+                            <button type="button" class="phot-bgchoice" aria-pressed="false" data-remove-bg="#ffffff">
+                                <span class="phot-bgchoice__dot" aria-hidden="true"></span> White
+                            </button>
+                            <button type="button" class="phot-bgchoice" aria-pressed="false" data-remove-bg="#cfe3f7">
+                                <span class="phot-bgchoice__dot" aria-hidden="true"></span> Light blue
+                            </button>
+                            <label class="phot-bgchoice" data-remove-bg-other>
+                                <input type="color" value="#e6ecf2" data-remove-bg-colour aria-label="Another background colour" autocomplete="off" />
+                                Other
+                            </label>
+                            <button type="button" class="phot-bgchoice" aria-pressed="false" data-remove-bg="blur">
+                                <i class="bi bi-droplet-half" aria-hidden="true"></i> Blur
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">2</span>Touch up</h2>
+                        <div class="phot-segment phot-brushes" role="group" aria-label="Brush">
+                            <button type="button" aria-pressed="true" data-remove-brush="refine"><i class="bi bi-magic" aria-hidden="true"></i> Refine Edge</button>
+                            <button type="button" aria-pressed="false" data-remove-brush="erase"><i class="bi bi-eraser" aria-hidden="true"></i> Erase</button>
+                            <button type="button" aria-pressed="false" data-remove-brush="restore"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Restore</button>
+                        </div>
+                        <p class="phot-hint" data-remove-brush-hint aria-live="polite"></p>
+                        <div class="phot-bgfix__row">
+                            <span class="phot-bg__title" id="photRemoveBrushSize">Brush size</span>
+                            <div class="phot-segment" role="group" aria-labelledby="photRemoveBrushSize">
+                                <button type="button" aria-pressed="false" data-remove-size-choice="small" title="Smaller: [">Small</button>
+                                <button type="button" aria-pressed="true" data-remove-size-choice="medium">Medium</button>
+                                <button type="button" aria-pressed="false" data-remove-size-choice="large" title="Larger: ]">Large</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary" data-action="remove-reset" disabled>Reset all touch-ups</button>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">3</span>Save</h2>
+                        <label class="phot-field" for="photRemoveFormat">File type
+                            <select class="form-select" id="photRemoveFormat" data-remove-format>
+                                <option value="png">PNG (keeps see-through areas)</option>
+                                <option value="webp">WEBP (smaller, keeps see-through areas)</option>
+                                <option value="jpeg">JPG (no see-through areas)</option>
+                            </select>
+                        </label>
+                        <p class="phot-result" data-remove-result aria-live="polite"></p>
+                        <button type="button" class="btn btn-primary btn-lg" data-action="download-remove" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> Download
+                        </button>
+                        <p class="phot-hint">
+                            <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                            The photo was sent to the PRISM server only to find the subject. It is not stored there. Location and camera details are left out of the saved file.
+                        </p>
+                        <p class="phot-hint phot-remove-credit" data-remove-credit hidden></p>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
         <div class="alert alert-danger pdft-error" role="alert" data-error hidden></div>
     </main>
 
@@ -713,5 +843,6 @@
     <script src="~/lib/pdf-lib/1.17.1/dist/pdf-lib.min.js"></script>
     <script src="~/js/photo-tools/photo-tools-print.js" asp-append-version="true"></script>
     <script src="~/js/photo-tools/photo-tools-editor.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-background.js" asp-append-version="true"></script>
 </body>
 </html>

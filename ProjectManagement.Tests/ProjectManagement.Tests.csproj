@@ -76,6 +76,9 @@
     <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.ExecutiveSummary.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.ExecutiveSummary.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Update="TestData\PhotoTools\*.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="TestData\MediaClassification\**\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

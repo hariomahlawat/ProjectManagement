@@ -926,38 +926,61 @@
   }
 
   /**
-   * Lays the touch-up strokes over a photo whose background was changed, in place. All pictures
-   * are RGBA of one size:
-   *   pixels    the changed photo
-   *   original  the photo before the change
-   *   mask      the strokes: red Restore, green Refine Edge, blue Erase; alpha is how strongly
-   *   colour    the new background colour [r, g, b]
-   * options:
-   *   width     the pictures' width in pixels
-   *   wall      the `wall` changeBackground returned; Refine Edge needs it to tell the old
-   *             background from the person (without it, Refine Edge acts as Erase)
-   *   feather   the radius in pixels over which every stroke's edge fades out (default none;
-   *             a caller that draws soft strokes itself leaves it out)
-   *   cell      the size in pixels of the squares the person's colours are read from
-   *             (default twice the feather, at least 4)
-   *
-   * Refine Edge treats each pixel as a mix of the person and the wall behind them, as hair over a
-   * wall is. The wall's colour there is known (`wall`); the person's colour is taken from the
-   * nearby pixels that are clearly person (a small square around the pixel). How far the pixel
-   * lies from the wall colour towards the person's colour is the person's share; the wall's share
-   * is moved to the new colour. So old wall becomes the new colour, a strand of hair keeps its
-   * colour on the new background, and solid hair or skin is not changed.
-   * Alpha of the photo is not touched.
+   * Reads a picture of brush strokes (red Restore, green Refine Edge, blue Erase; alpha is how
+   * strongly) into one strength plane per brush, over the box the strokes cover, widened by
+   * `feather` and softened by it when given. Null when nothing is painted.
    */
+  function strokePlanes(mask, width, height, feather) {
+    const total = width * height;
+    let left = Infinity;
+    let top = Infinity;
+    let right = -1;
+    let bottom = -1;
+    for (let i = 0; i < total; i += 1) {
+      if (!mask[i * 4 + 3]) continue;
+      const x = i % width;
+      const y = (i - x) / width;
+      if (x < left) left = x;
+      if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+    }
+    if (right < 0) return null;
+    const box = {
+      left: Math.max(0, left - feather * 2),
+      top: Math.max(0, top - feather * 2),
+      right: Math.min(width, right + 1 + feather * 2),
+      bottom: Math.min(height, bottom + 1 + feather * 2)
+    };
+    const boxWidth = box.right - box.left;
+    const boxHeight = box.bottom - box.top;
+    const planes = [0, 1, 2].map(() => new Float32Array(boxWidth * boxHeight));
+    for (let y = box.top; y < box.bottom; y += 1) {
+      for (let x = box.left; x < box.right; x += 1) {
+        const at = (y * width + x) * 4;
+        const strength = mask[at + 3] / 255;
+        if (!strength) continue;
+        const local = (y - box.top) * boxWidth + (x - box.left);
+        for (let plane = 0; plane < 3; plane += 1) planes[plane][local] = mask[at + plane] / 255 * strength;
+      }
+    }
+    if (feather) {
+      const whole = { left: 0, top: 0, right: boxWidth, bottom: boxHeight };
+      for (const plane of planes) featherPlane(plane, boxWidth, whole, feather);
+    }
+    return { box, boxWidth, planes };
+  }
+
   /**
    * The person's colours near each pixel of a box. The box is cut into small squares; in each,
    * the pixels that are clearly not wall are split by brightness into a dark group and a light
-   * group (hair and skin, say), and each group's average is kept. `at(x, y)` gives the colours
+   * group (hair and skin, say), and each group's average is kept; given `sure` (a mask, one byte
+   * per pixel), only pixels it is sure are subject count. `at(x, y)` gives the colours
    * of the pixel's square and the eight around it, as a flat list [r, g, b, group, ...], where
    * group numbers the square so the two colours of one square can be paired; empty when no
    * person is near.
    */
-  function personColours(original, width, height, box, wall, cell) {
+  function personColours(original, width, height, box, wall, cell, sure) {
     // The squares are fixed to the photo, not to the strokes, and every square that a pixel of
     // the box or its neighbours touches is read whole, so a pixel's person colours depend only on
     // the photo near it: another stroke elsewhere, or its Undo, cannot change them.
@@ -985,6 +1008,9 @@
         const at = (y * width + x) * 4;
         wallColourAt(wall, x, y, was);
         if (backgroundDistance(original[at], original[at + 1], original[at + 2], was, BACKGROUND_STEP_LUMA) < clear) continue;
+        // Where a mask is known, only pixels it is sure are subject give the person's colours: a
+        // strand of hair half over the wall is far from the wall colour too, but it is a mix.
+        if (sure && sure[y * width + x] < 255 * CUTOUT_SURE) continue;
         isPerson[(y - area.top) * areaWidth + (x - area.left)] = 1;
         const square = squareOf(x, y) * 2;
         light[square] += luminance(original, at);
@@ -1006,12 +1032,15 @@
         sums[group + 3] += 1;
       }
     }
-    const found = [];
+    // Every pixel of a square has the same list, so it is made once per square.
+    const lists = new Array(columns * rows);
     return {
       at(x, y) {
-        found.length = 0;
         const cx = Math.floor(x / cell) - firstColumn;
         const cy = Math.floor(y / cell) - firstRow;
+        const key = cy * columns + cx;
+        if (lists[key]) return lists[key];
+        const found = [];
         for (let ny = cy - 1; ny <= cy + 1; ny += 1) {
           for (let nx = cx - 1; nx <= cx + 1; nx += 1) {
             if (nx < 0 || ny < 0 || nx >= columns || ny >= rows) continue;
@@ -1023,6 +1052,7 @@
             }
           }
         }
+        lists[key] = found;
         return found;
       }
     };
@@ -1032,13 +1062,17 @@
   const FIT_TOLERANCE = 1;
 
   /** How far a point (dr, dg, db from a start) is from the segment to (fr, fg, fb), and where along it (0 to 1) it is nearest. */
+  // segmentFit writes here instead of making an object: it runs for every pixel under a brush.
+  const fitResult = { along: 0, off: 0 };
   function segmentFit(dr, dg, db, fr, fg, fb) {
     const length = fr * fr + fg * fg + fb * fb;
     const along = length < 1 ? 0 : Math.min(1, Math.max(0, (dr * fr + dg * fg + db * fb) / length));
     const er = dr - along * fr;
     const eg = dg - along * fg;
     const eb = db - along * fb;
-    return { along, off: Math.sqrt(er * er + eg * eg + eb * eb) };
+    fitResult.along = along;
+    fitResult.off = Math.sqrt(er * er + eg * eg + eb * eb);
+    return fitResult;
   }
 
   /**
@@ -1059,11 +1093,14 @@
     }
     // The best mix of wall and one person colour. Of mixes that fit about as well, the one that
     // leaves more of the pixel to the person is taken: when unsure, the person is kept.
-    let best = null;
+    let bestOff = Infinity;
+    let bestAlong = 0;
     for (let i = 0; i < candidates.length; i += 4) {
       const fit = segmentFit(r - was[0], g - was[1], b - was[2], candidates[i] - was[0], candidates[i + 1] - was[1], candidates[i + 2] - was[2]);
-      if (!best || fit.off < best.off - FIT_TOLERANCE
-        || (fit.off <= best.off + FIT_TOLERANCE && fit.along > best.along)) best = fit;
+      if (fit.off < bestOff - FIT_TOLERANCE || (fit.off <= bestOff + FIT_TOLERANCE && fit.along > bestAlong)) {
+        bestOff = fit.off;
+        bestAlong = fit.along;
+      }
     }
     // The best mix of the two colours of one square of the person.
     let inside = Infinity;
@@ -1077,13 +1114,37 @@
     }
     // Two person colours explain it as well as wall and person do (grey hair against a grey wall,
     // where every colour lies on one line): it is person.
-    if (inside <= best.off + FIT_TOLERANCE) return 1;
+    if (inside <= bestOff + FIT_TOLERANCE) return 1;
     // Grain on the wall is not person: the first tenth of the way counts as wall.
-    const mixed = Math.min(1, Math.max(0, (best.along - 0.1) / 0.9));
-    const own = Math.min(1, Math.max(0, (best.off - limit) / (BACKGROUND_EDGE_SOFTNESS / 2)));
+    const mixed = Math.min(1, Math.max(0, (bestAlong - 0.1) / 0.9));
+    const own = Math.min(1, Math.max(0, (bestOff - limit) / (BACKGROUND_EDGE_SOFTNESS / 2)));
     return Math.max(mixed, own);
   }
 
+  /**
+   * Lays the touch-up strokes over a photo whose background was changed, in place. All pictures
+   * are RGBA of one size:
+   *   pixels    the changed photo
+   *   original  the photo before the change
+   *   mask      the strokes: red Restore, green Refine Edge, blue Erase; alpha is how strongly
+   *   colour    the new background colour [r, g, b]
+   * options:
+   *   width     the pictures' width in pixels
+   *   wall      the `wall` changeBackground returned; Refine Edge needs it to tell the old
+   *             background from the person (without it, Refine Edge acts as Erase)
+   *   feather   the radius in pixels over which every stroke's edge fades out (default none;
+   *             a caller that draws soft strokes itself leaves it out)
+   *   cell      the size in pixels of the squares the person's colours are read from
+   *             (default twice the feather, at least 4)
+   *
+   * Refine Edge treats each pixel as a mix of the person and the wall behind them, as hair over a
+   * wall is. The wall's colour there is known (`wall`); the person's colour is taken from the
+   * nearby pixels that are clearly person (a small square around the pixel). How far the pixel
+   * lies from the wall colour towards the person's colour is the person's share; the wall's share
+   * is moved to the new colour. So old wall becomes the new colour, a strand of hair keeps its
+   * colour on the new background, and solid hair or skin is not changed.
+   * Alpha of the photo is not touched.
+   */
   function applyBackgroundFixes(pixels, original, mask, colour, options) {
     const total = pixels.length / 4;
     const width = (options && options.width) || total;
@@ -1091,46 +1152,10 @@
     const wall = options && options.wall;
     const feather = Math.max(0, Math.round(Number(options && options.feather) || 0));
 
-    // The box the strokes cover, widened by the soft edge. Only that box is worked on, so a
-    // stroke on a large photo costs little.
-    let left = Infinity;
-    let top = Infinity;
-    let right = -1;
-    let bottom = -1;
-    for (let i = 0; i < total; i += 1) {
-      if (!mask[i * 4 + 3]) continue;
-      const x = i % width;
-      const y = (i - x) / width;
-      if (x < left) left = x;
-      if (x > right) right = x;
-      if (y < top) top = y;
-      if (y > bottom) bottom = y;
-    }
-    if (right < 0) return pixels;
-    const box = {
-      left: Math.max(0, left - feather * 2),
-      top: Math.max(0, top - feather * 2),
-      right: Math.min(width, right + 1 + feather * 2),
-      bottom: Math.min(height, bottom + 1 + feather * 2)
-    };
-    const boxWidth = box.right - box.left;
-    const boxHeight = box.bottom - box.top;
-
-    // Strength of each brush per pixel of the box: red Restore, green Refine Edge, blue Erase.
-    const planes = [0, 1, 2].map(() => new Float32Array(boxWidth * boxHeight));
-    for (let y = box.top; y < box.bottom; y += 1) {
-      for (let x = box.left; x < box.right; x += 1) {
-        const at = (y * width + x) * 4;
-        const strength = mask[at + 3] / 255;
-        if (!strength) continue;
-        const local = (y - box.top) * boxWidth + (x - box.left);
-        for (let plane = 0; plane < 3; plane += 1) planes[plane][local] = mask[at + plane] / 255 * strength;
-      }
-    }
-    if (feather) {
-      const whole = { left: 0, top: 0, right: boxWidth, bottom: boxHeight };
-      for (const plane of planes) featherPlane(plane, boxWidth, whole, feather);
-    }
+    // Only the box the strokes cover is worked on, so a stroke on a large photo costs little.
+    const strokes = strokePlanes(mask, width, height, feather);
+    if (!strokes) return pixels;
+    const { box, boxWidth, planes } = strokes;
 
     const person = wall && planes[1].some(value => value > 0)
       ? personColours(original, width, height, box, wall, Math.max(4, Math.round(Number(options && options.cell) || feather * 2)))
@@ -1173,6 +1198,292 @@
       }
     }
     return pixels;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Remove background (the cut-out)
+  // ---------------------------------------------------------------------------
+  //
+  // The server's model gives a mask: how much of each pixel is the subject (alpha, 0 to 255).
+  // Everything else happens here: the background's colour is estimated where the mask says
+  // background, the old background's tint is taken out of the soft edge (hair), the touch-up
+  // brushes change the mask, and the cut-out is laid on its new background.
+
+  // How sure the mask must be before a pixel counts as background or as subject.
+  const CUTOUT_SURE = 0.9;
+  // The alpha below which an edge pixel's own colour is not trusted when the tint is taken out.
+  const CUTOUT_LEAST_ALPHA = 0.15;
+  // How far past black or white a worked-out colour may go (rounding, grain) and still be a mix.
+  const CUTOUT_GAMUT_SLACK = 12;
+
+  /**
+   * The old background's colour at every spot, as a coarse grid (the same shape changeBackground
+   * returns as `wall`), from the pixels the mask is sure are background. Squares with too little
+   * sure background take the colour of the squares around them. Null when the mask has no sure
+   * background at all.
+   */
+  function cutoutBackground(pixels, alpha, width, height, cell) {
+    const size = Math.max(4, Math.round(cell || Math.min(width, height) / 24));
+    const columns = Math.ceil(width / size);
+    const rows = Math.ceil(height / size);
+    const sums = new Float64Array(columns * rows * 4);
+    let any = 0;
+    for (let y = 0; y < height; y += 1) {
+      const row = Math.floor(y / size) * columns;
+      for (let x = 0; x < width; x += 1) {
+        const i = y * width + x;
+        if (alpha[i] / 255 > 1 - CUTOUT_SURE) continue;
+        const at = (row + Math.floor(x / size)) * 4;
+        sums[at] += pixels[i * 4];
+        sums[at + 1] += pixels[i * 4 + 1];
+        sums[at + 2] += pixels[i * 4 + 2];
+        sums[at + 3] += 1;
+        any += 1;
+      }
+    }
+    if (!any) return null;
+    const field = new Float32Array(columns * rows * 3);
+    const known = new Uint8Array(columns * rows);
+    for (let i = 0; i < columns * rows; i += 1) {
+      const count = sums[i * 4 + 3];
+      if (count >= size * size * 0.05) {
+        field[i * 3] = sums[i * 4] / count;
+        field[i * 3 + 1] = sums[i * 4 + 1] / count;
+        field[i * 3 + 2] = sums[i * 4 + 2] / count;
+        known[i] = 1;
+      }
+    }
+    // Too little sure background for any square to be read on its own: every square takes the
+    // average of all of it.
+    if (!known.some(value => value)) {
+      const average = [0, 0, 0];
+      for (let i = 0; i < columns * rows; i += 1) {
+        average[0] += sums[i * 4];
+        average[1] += sums[i * 4 + 1];
+        average[2] += sums[i * 4 + 2];
+      }
+      for (let i = 0; i < columns * rows; i += 1) field.set(average.map(value => value / any), i * 3);
+      known.fill(1);
+    }
+    // Fill the squares inside the subject from their neighbours, ring by ring.
+    for (let pass = 0; pass < columns + rows; pass += 1) {
+      const filled = [];
+      for (let i = 0; i < columns * rows; i += 1) {
+        if (known[i]) continue;
+        const cx = i % columns;
+        const cy = (i - cx) / columns;
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        let count = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (nx < 0 || ny < 0 || nx >= columns || ny >= rows || !known[ny * columns + nx]) continue;
+            const at = (ny * columns + nx) * 3;
+            r += field[at];
+            g += field[at + 1];
+            b += field[at + 2];
+            count += 1;
+          }
+        }
+        if (count) filled.push([i, r / count, g / count, b / count]);
+      }
+      if (!filled.length) break;
+      for (const [i, r, g, b] of filled) {
+        field.set([r, g, b], i * 3);
+        known[i] = 1;
+      }
+    }
+    // Squares never reached (no sure background anywhere near) take the average background.
+    if (known.some(value => !value)) {
+      const average = [0, 0, 0];
+      let count = 0;
+      for (let i = 0; i < columns * rows; i += 1) {
+        if (!known[i]) continue;
+        average[0] += field[i * 3];
+        average[1] += field[i * 3 + 1];
+        average[2] += field[i * 3 + 2];
+        count += 1;
+      }
+      for (let i = 0; i < columns * rows; i += 1) {
+        if (!known[i]) field.set(average.map(value => value / count), i * 3);
+      }
+    }
+    const limit = (BACKGROUND_LIMIT_LESS + BACKGROUND_LIMIT_MORE) / 2;
+    return { field, cell: size, columns, rows, limit };
+  }
+
+  /**
+   * The same background estimate for a copy of the photo `scale` times larger (the saved photo,
+   * when the cut-out was made on a smaller copy). The colours stay where they were, so the saved
+   * file's edges match what the screen showed.
+   */
+  function scaleBackground(background, scale) {
+    if (!background) return null;
+    return { ...background, cell: background.cell * scale };
+  }
+
+  /**
+   * The subject's own colours, with the old background's tint taken out of its soft edge, in
+   * place of `pixels` (RGBA; alpha is set from the mask). A pixel at the edge is seen as
+   * alpha × subject + (1 − alpha) × background, so the subject's colour there is
+   * background + (pixel − background) / alpha. Where alpha is very small the pixel's own colour
+   * says little, so the division is held at CUTOUT_LEAST_ALPHA. A pixel whose worked-out colour
+   * would fall outside black to white is no such mix (the model was unsure of solid subject) and
+   * keeps its colour. With `region` ({ left, top,
+   * right, bottom }) only that part is made; `pixels` must hold the photo's colours there.
+   * `opacity`, when given, is how see-through each pixel is shown (the mask after Erase), while
+   * `alpha` says how much of its colour is subject: Erase hides a pixel without changing its colour.
+   */
+  function cutoutColours(pixels, alpha, width, background, region, opacity) {
+    const was = [0, 0, 0];
+    const height = alpha.length / width;
+    const area = region || { left: 0, top: 0, right: width, bottom: height };
+    const shown = opacity || alpha;
+    for (let y = area.top; y < area.bottom; y += 1) for (let x = area.left; x < area.right; x += 1) {
+      const i = y * width + x;
+      const at = i * 4;
+      const share = alpha[i] / 255;
+      pixels[at + 3] = shown[i];
+      if (share >= CUTOUT_SURE || !background) continue;
+      wallColourAt(background, x, y, was);
+      const divide = Math.max(CUTOUT_LEAST_ALPHA, share);
+      const subject = [0, 1, 2].map(channel => was[channel] + (pixels[at + channel] - was[channel]) / divide);
+      // A colour that would have to be darker than black or brighter than white is no mix with
+      // the background: it is the subject's own colour with the mask unsure, and it is kept.
+      if (subject.some(value => value < -CUTOUT_GAMUT_SLACK || value > 255 + CUTOUT_GAMUT_SLACK)) continue;
+      for (let channel = 0; channel < 3; channel += 1) {
+        pixels[at + channel] = Math.min(255, Math.max(0, Math.round(subject[channel])));
+      }
+    }
+    return pixels;
+  }
+
+  /**
+   * Lays a cut-out (RGBA, alpha the mask) over a background, in place of `cutout`, giving an
+   * opaque picture. `background` is a colour [r, g, b] or RGBA pixels of the same size.
+   */
+  function cutoutOnto(cutout, background) {
+    const flat = Array.isArray(background);
+    for (let at = 0; at < cutout.length; at += 4) {
+      const share = cutout[at + 3] / 255;
+      for (let channel = 0; channel < 3; channel += 1) {
+        const behind = flat ? background[channel] : background[at + channel];
+        cutout[at + channel] = Math.round(cutout[at + channel] * share + behind * (1 - share));
+      }
+      cutout[at + 3] = 255;
+    }
+    return cutout;
+  }
+
+  /**
+   * The subject's colours over the whole photo, read once from the pixels the model's mask is sure
+   * are subject. They depend only on the photo and that mask, so a photo's strokes all share them.
+   */
+  function cutoutPersonColours(original, modelAlpha, width, background, cell) {
+    const height = modelAlpha.length / width;
+    const box = { left: 0, top: 0, right: width, bottom: height };
+    return personColours(original, width, height, box, background, Math.max(4, Math.round(cell || 8)), modelAlpha);
+  }
+
+  /**
+   * Refines the model's mask where it is unsure, in place: what the mask calls part subject is
+   * checked against its colour, as Refine Edge does. A pixel that looks like the background there
+   * loses its share (wall seen between strands of hair, which the model blurs over); a mix of
+   * subject and background (a strand) keeps the share its colour shows; a pixel with a colour of
+   * its own keeps the model's value. The mask is never raised, only lowered, so the model's
+   * outline stays. `cell` is the size of the squares the subject's colours are read from;
+   * `colours`, when given, is cutoutPersonColours for this photo and mask.
+   */
+  function refineCutoutEdge(alpha, original, width, background, cell, colours) {
+    if (!background) return alpha;
+    const sure = new Uint8ClampedArray(alpha);
+    const person = colours || cutoutPersonColours(original, sure, width, background, cell);
+    const was = [0, 0, 0];
+    for (let i = 0; i < alpha.length; i += 1) {
+      const share = sure[i] / 255;
+      if (share <= 1 - CUTOUT_SURE || share >= CUTOUT_SURE) continue;
+      const x = i % width;
+      const y = (i - x) / width;
+      wallColourAt(background, x, y, was);
+      const subject = personShare(original, i * 4, was, person.at(x, y), background.limit);
+      alpha[i] = Math.round(255 * Math.min(share, subject));
+    }
+    return alpha;
+  }
+
+  /**
+   * The touch-up brushes on a cut-out's mask, in place of `alpha`, starting from the model's mask
+   * `modelAlpha` each time (so Undo and Reset are exact). `mask` is the picture of the strokes
+   * (red Restore, green Refine Edge, blue Erase). Restore makes a pixel subject, Erase makes it
+   * background, and Refine Edge works out how much of it is subject from its colour: a mix of the
+   * background colour there (`background`, from cutoutBackground) and the subject's colours near
+   * it, as the passport brush does. options: width, cell (squares the subject's colours are read
+   * from), colourAlpha (filled, when given, with how much of each pixel's colour is subject: the
+   * same as the mask but without Erase, which only hides; cutoutColours uses it to clean the edge),
+   * colours (cutoutPersonColours for this photo, so they are not read again on every
+   * stroke), and region ({ left, top, right, bottom }): only that part is made again, and `mask` is
+   * then the strokes in that part only. Every stroke is applied there afresh, so the result is the
+   * same as a full rebuild; it is what keeps painting quick on a large photo.
+   */
+  function applyCutoutStrokes(alpha, modelAlpha, original, mask, background, options) {
+    const width = options.width;
+    const height = alpha.length / width;
+    const region = options.region || { left: 0, top: 0, right: width, bottom: height };
+    const regionWidth = region.right - region.left;
+    const regionHeight = region.bottom - region.top;
+    const colourAlpha = options.colourAlpha || null;
+    for (let y = region.top; y < region.bottom; y += 1) {
+      const start = y * width + region.left;
+      alpha.set(modelAlpha.subarray(start, start + regionWidth), start);
+      if (colourAlpha) colourAlpha.set(modelAlpha.subarray(start, start + regionWidth), start);
+    }
+    const strokes = strokePlanes(mask, regionWidth, regionHeight, 0);
+    if (!strokes) return alpha;
+    const { boxWidth, planes } = strokes;
+    const box = {
+      left: strokes.box.left + region.left,
+      top: strokes.box.top + region.top,
+      right: strokes.box.right + region.left,
+      bottom: strokes.box.bottom + region.top
+    };
+    const refineUsed = background && planes[1].some(value => value > 0);
+    const person = refineUsed
+      ? options.colours || personColours(original, width, height, box, background, Math.max(4, Math.round(Number(options.cell) || 8)), modelAlpha)
+      : null;
+    const was = [0, 0, 0];
+    for (let y = box.top; y < box.bottom; y += 1) {
+      for (let x = box.left; x < box.right; x += 1) {
+        const local = (y - box.top) * boxWidth + (x - box.left);
+        let restore = planes[0][local];
+        let refine = planes[1][local];
+        let erase = planes[2][local];
+        const sum = restore + refine + erase;
+        if (sum < 0.002) continue;
+        if (sum > 1) {
+          restore /= sum;
+          refine /= sum;
+          erase /= sum;
+        }
+        const stay = Math.max(0, 1 - restore - refine - erase);
+        const i = y * width + x;
+        let subject = 0;
+        if (refine) {
+          if (background) {
+            wallColourAt(background, x, y, was);
+            subject = personShare(original, i * 4, was, person && person.at(x, y), background.limit);
+          } else {
+            subject = modelAlpha[i] / 255;
+          }
+        }
+        alpha[i] = Math.round(modelAlpha[i] * stay + 255 * restore + 255 * subject * refine);
+        // How much of the pixel's colour is subject: Erase only hides, so it leaves this as it was.
+        if (colourAlpha) colourAlpha[i] = Math.round(modelAlpha[i] * (stay + erase) + 255 * restore + 255 * subject * refine);
+      }
+    }
+    return alpha;
   }
 
   /**
@@ -1964,6 +2275,13 @@
     headOutline,
     passportChecks,
     BACKGROUND_BRUSHES,
+    cutoutBackground,
+    scaleBackground,
+    cutoutColours,
+    cutoutOnto,
+    cutoutPersonColours,
+    refineCutoutEdge,
+    applyCutoutStrokes,
     wallColourAt,
     featherPlane,
     applyBackgroundFixes,
