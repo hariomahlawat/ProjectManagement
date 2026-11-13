@@ -2,9 +2,8 @@ using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using ProjectManagement.Services.Imaging;
+using SkiaSharp;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
@@ -93,11 +92,25 @@ public sealed class MediaClassifier : IMediaClassifier
         }
 
         var bytes = await ReadBoundedAsync(stream, _options.Processing.MaxImageFileSizeBytes, cancellationToken);
-        // Image.Identify reads only the header, so oversized dimensions are rejected
-        // before Image.Load allocates the full pixel buffer.
-        var header = Image.Identify(bytes);
+        // Identify reads only the header, so oversized dimensions are rejected before the
+        // full pixel buffer is allocated.
+        var header = PrismImageCodec.Identify(bytes)
+            ?? throw new MediaProcessingPermanentException("The image format is not supported.");
         MediaImageBounds.EnsureWithinPixelLimit(header.Width, header.Height, _options.Processing.MaxImagePixels);
-        using var image = Image.Load<Rgba32>(bytes);
+
+        // The measurements describe the stored pixels, as they always have, so the EXIF
+        // orientation is deliberately not applied here.
+        SKBitmap image;
+        try
+        {
+            image = PrismImageCodec.DecodeAsStored(bytes, _options.Processing.MaxImagePixels);
+        }
+        catch (PrismImageException exception)
+        {
+            throw new MediaProcessingPermanentException("The image could not be decoded.", exception);
+        }
+
+        using var imageOwner = image;
         var metrics = Measure(image, _options.Classification.AnalysisMaxDimension);
         var profile = AnalyseStructure(metrics);
         var evidence = CreateEvidenceMap();
@@ -555,15 +568,14 @@ public sealed class MediaClassifier : IMediaClassifier
             naturalPhoto);
     }
 
-    private static ClassificationMetrics Measure(Image<Rgba32> source, int maxDimension)
+    private static ClassificationMetrics Measure(SKBitmap source, int maxDimension)
     {
-        using var image = source.Clone(context => context.Resize(new ResizeOptions
-        {
-            Mode = ResizeMode.Max,
-            Size = new Size(maxDimension, maxDimension)
-        }));
-        var width = image.Width;
-        var height = image.Height;
+        using var resized = PrismImageCodec.ResizeToFit(source, maxDimension, maxDimension);
+        var width = resized.Width;
+        var height = resized.Height;
+
+        // One straight (not premultiplied) colour per pixel, row by row.
+        var image = resized.Pixels;
         var pixels = Math.Max(1, width * height);
         var luminance = new double[pixels];
         var dark = new bool[pixels];
@@ -586,8 +598,8 @@ public sealed class MediaClassifier : IMediaClassifier
             for (var x = 0; x < width; x++)
             {
                 var index = y * width + x;
-                var pixel = image[x, y];
-                var pixelLuminance = (.2126 * pixel.R + .7152 * pixel.G + .0722 * pixel.B) / 255d;
+                var pixel = image[index];
+                var pixelLuminance = (.2126 * pixel.Red + .7152 * pixel.Green + .0722 * pixel.Blue) / 255d;
                 luminance[index] = pixelLuminance;
                 dark[index] = pixelLuminance < 0.72;
                 luminanceSum += pixelLuminance;
@@ -596,13 +608,13 @@ public sealed class MediaClassifier : IMediaClassifier
                 if (pixelLuminance > .86) lightCount++;
                 if (dark[index]) darkCount++;
 
-                var maximum = Math.Max(pixel.R, Math.Max(pixel.G, pixel.B));
-                var minimum = Math.Min(pixel.R, Math.Min(pixel.G, pixel.B));
+                var maximum = Math.Max(pixel.Red, Math.Max(pixel.Green, pixel.Blue));
+                var minimum = Math.Min(pixel.Red, Math.Min(pixel.Green, pixel.Blue));
                 var saturation = maximum == 0 ? 0d : (maximum - minimum) / (double)maximum;
                 saturationSum += saturation;
                 saturationSquareSum += saturation * saturation;
 
-                var quantized = (pixel.R / 32) * 64 + (pixel.G / 32) * 8 + pixel.B / 32;
+                var quantized = (pixel.Red / 32) * 64 + (pixel.Green / 32) * 8 + pixel.Blue / 32;
                 colours.Add(quantized);
                 palette[quantized]++;
 
@@ -610,7 +622,7 @@ public sealed class MediaClassifier : IMediaClassifier
                 {
                     MeasureNeighbour(
                         pixel,
-                        image[x - 1, y],
+                        image[index - 1],
                         ref edgeCount,
                         ref flatCount,
                         ref exactFlatCount,
@@ -620,7 +632,7 @@ public sealed class MediaClassifier : IMediaClassifier
                 {
                     MeasureNeighbour(
                         pixel,
-                        image[x, y - 1],
+                        image[index - width],
                         ref edgeCount,
                         ref flatCount,
                         ref exactFlatCount,
@@ -731,16 +743,16 @@ public sealed class MediaClassifier : IMediaClassifier
     }
 
     private static void MeasureNeighbour(
-        Rgba32 first,
-        Rgba32 second,
+        SKColor first,
+        SKColor second,
         ref double edges,
         ref double flat,
         ref double exactFlat,
         ref double microVariation)
     {
-        var difference = (Math.Abs(first.R - second.R)
-                          + Math.Abs(first.G - second.G)
-                          + Math.Abs(first.B - second.B)) / 765d;
+        var difference = (Math.Abs(first.Red - second.Red)
+                          + Math.Abs(first.Green - second.Green)
+                          + Math.Abs(first.Blue - second.Blue)) / 765d;
         if (difference > .12) edges++;
         if (difference < .025) flat++;
         if (difference < .003) exactFlat++;
