@@ -23,7 +23,7 @@ The user-facing description is in [photo-tools.md](photo-tools.md).
    - takes the old background's tint out of the soft edge, so hair keeps its own colour on any
      new background (`cutoutColours`); a pixel whose worked-out colour would fall outside black
      to white is no mix and keeps its colour;
-   - applies the Refine Edge, Erase and Restore brushes to the mask (`applyCutoutStrokes`), the
+   - applies the Refine edge, Erase and Restore brushes to the mask (`applyCutoutStrokes`), the
      same brushes and maths as Passport photo's touch-up;
    - saves the cut-out see-through (PNG, WEBP) or on a plain colour or a blur of its own
      background (JPG, PNG, WEBP), at up to 4096 px; the mask is enlarged to that size and the
@@ -163,9 +163,9 @@ nothing else changes. No database or stored data is involved.
 ## Limits
 
 - The mask comes from a 2048 px copy and a 1024 px model; very fine detail (single hairs) is as
-  good as the model makes it, and the Refine Edge brush is for the rest.
+  good as the model makes it, and the Refine edge brush is for the rest.
 - Where the model is sure but wrong (wall between hair strands it took as subject), the
   automatic step does not touch it, so as not to eat a white shirt against a white wall; the
-  Refine Edge brush does.
+  Refine edge brush does.
 - The saved photo is at most 4096 px on its longest side.
 - Some offices do not accept a photo with a changed background.

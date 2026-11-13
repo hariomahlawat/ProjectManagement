@@ -169,6 +169,19 @@ public sealed class PhotoToolsPageContractTests
         Assert.True(library >= 0 && library < print, "Print sheet needs pdf-lib loaded before photo-tools-print.js.");
     }
 
+    [Fact]
+    public void Signature_HasItsOwnCardThatOpensPassportPhotoInSignatureMode()
+    {
+        var root = FindProjectRoot();
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Photo", "Index.cshtml"));
+        var app = File.ReadAllText(Path.Combine(root, "wwwroot", "js", "photo-tools", "photo-tools-app.js"));
+        var passport = File.ReadAllText(Path.Combine(root, "wwwroot", "js", "photo-tools", "photo-tools-passport.js"));
+
+        Assert.Contains("href=\"#signature\"", page, StringComparison.Ordinal);
+        Assert.Contains("signature: 'passport'", app, StringComparison.Ordinal);
+        Assert.Contains("'#signature': 'signature'", passport, StringComparison.Ordinal);
+    }
+
     private static string FindProjectRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

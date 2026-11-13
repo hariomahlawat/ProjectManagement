@@ -125,7 +125,8 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
   metadata, links and form fields stay as they were.
 - **Lossless clean-up.** Identical streams, fonts, font descriptors and graphics states are stored
   once (`deduplicateObjects`; pages are never merged). Streams stored without compression are
-  compressed with pdf-lib's own Flate (`compressPlainStreams`; XMP metadata stays readable). Page
+  compressed with pdf-lib's own Flate (`compressPlainStreams`; XMP metadata stays readable, and a
+  stream with `/DecodeParms` but no filter is left alone, since Flate would make them apply). Page
   thumbnails (`/Thumb`) and objects nothing refers to are left out.
 - **How large each picture is shown** is read from the page content itself
   (`contentOperators`, `measureImageUses`): `q`, `Q`, `cm` and `Do`, through form XObjects and
@@ -137,13 +138,20 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
   pictures they actually draw, by name in their own resources or, when they have none, in the
   enclosing ones, as viewers do. Each is read once per set of resources it is used with (one glyph
   shared by two Type 3 fonts can draw a different picture in each), so resources that lead back
-  to themselves end.
+  to themselves end. Names are matched decoded (`/Big#20Pic` is the picture named "Big Pic").
+  An inline picture's data is skipped by its `/L` length when its dictionary has one and `EI`
+  follows the data. Otherwise its end is guessed (an `EI` followed by text, not more binary data),
+  and because a wrong guess could misread what follows, every picture that content can draw is
+  then not measured: a wrong guess keeps pictures at their size and never shrinks them. Forms and
+  patterns nested more than 12 deep are not followed; the pictures they can draw are not measured.
 - **Which pictures change** (`reduceImagePlan`). Re-saved: 8-bit RGB or grey pictures, stored as
   JPG or with Flate (and LZW, ASCII85, ASCIIHex, RunLength; PNG predictors are undone by
   `undoPngPredictor`). Left as they are, and counted on the result: image masks and soft masks
   (the picture they belong to may be re-saved; the mask stays lossless), JBIG2 and CCITT
   black-and-white scans, CMYK, ICC-based and other print colour, a `/Decode` array or colour-key
-  mask, other bit depths, and pictures under 10 KB.
+  mask, other bit depths, a JPG with `/ColorTransform` (a browser could read its colours
+  differently from a PDF viewer), and pictures under 10 KB. A picture whose soft mask has
+  `/Matte` keeps its pixel size, because such a mask must stay the picture's size.
 - **Re-saving.** A picture larger than the preset needs (`reduceTarget`, kept when within 10%) is
   drawn smaller in halving steps and saved as a JPG at the preset's quality. A grey picture is
   also tried as grey pixels with Flate, and the smaller of the two is kept. A re-saved picture is

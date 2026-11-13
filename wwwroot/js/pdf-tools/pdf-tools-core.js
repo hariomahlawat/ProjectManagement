@@ -1256,11 +1256,116 @@
     || c === 123 || c === 125 || c === 47 || c === 37;
 
   /**
+   * True when the bytes after a possible inline-image EI look like content again (printable
+   * text and white space), not more binary image data, as pdf.js also checks. A literal string
+   * or a comment may hold any byte ("(é) Tj"), so its contents are skipped rather than checked; a hex string
+   * must hold only hex digits and white space.
+   */
+  function followedByText(bytes, from) {
+    const LOOK = 16; // bytes outside strings to check
+    const STRING_LIMIT = 4096; // a literal string longer than this is taken as text
+    let checked = 0;
+    let at = from;
+    while (at < bytes.length && checked < LOOK) {
+      const c = bytes[at];
+      if (c === 40) { // ( literal string )
+        let depth = 1;
+        const stop = Math.min(bytes.length, at + 1 + STRING_LIMIT);
+        at += 1;
+        while (at < stop && depth > 0) {
+          if (bytes[at] === 92) { at += 2; continue; }
+          if (bytes[at] === 40) depth += 1;
+          else if (bytes[at] === 41) depth -= 1;
+          at += 1;
+        }
+        checked += 1;
+        continue;
+      }
+      if (c === 37) { // % comment, to the end of the line, may hold any byte
+        while (at < bytes.length && bytes[at] !== 10 && bytes[at] !== 13) at += 1;
+        checked += 1;
+        continue;
+      }
+      if (c === 47) { // /Name, whose bytes may be any but white space and delimiters ("/Imé")
+        at += 1;
+        while (at < bytes.length && !isWhiteByte(bytes[at]) && !isDelimiterByte(bytes[at])) at += 1;
+        checked += 1;
+        continue;
+      }
+      if (c === 60 && bytes[at + 1] === 60) { // << a dictionary, as in "/Span << /MCID 0 >> BDC"
+        at += 2;
+        checked += 2;
+        continue;
+      }
+      if (c === 60) { // <hex string>
+        at += 1;
+        while (at < bytes.length && bytes[at] !== 62) {
+          const h = bytes[at];
+          const hex = (h >= 48 && h <= 57) || (h >= 65 && h <= 70) || (h >= 97 && h <= 102);
+          if (!hex && !isWhiteByte(h)) return false;
+          at += 1;
+        }
+        at += 1;
+        checked += 1;
+        continue;
+      }
+      if (!isWhiteByte(c) && (c < 32 || c > 126)) return false;
+      at += 1;
+      checked += 1;
+    }
+    return true;
+  }
+
+  /**
+   * The /L (or /Length) entry of an inline image's dictionary, read from bytes[from, to) as
+   * tokens, so a "/L 1000" inside a comment or a string does not count. null when absent.
+   */
+  function inlineImageLength(bytes, from, to) {
+    let at = from;
+    let previous = null;
+    while (at < to) {
+      const c = bytes[at];
+      if (isWhiteByte(c)) { at += 1; continue; }
+      if (c === 37) { // % comment
+        while (at < to && bytes[at] !== 10 && bytes[at] !== 13) at += 1;
+        previous = null;
+        continue;
+      }
+      if (c === 40) { // ( string )
+        let depth = 1;
+        at += 1;
+        while (at < to && depth > 0) {
+          if (bytes[at] === 92) { at += 2; continue; }
+          if (bytes[at] === 40) depth += 1;
+          else if (bytes[at] === 41) depth -= 1;
+          at += 1;
+        }
+        previous = null;
+        continue;
+      }
+      if (isDelimiterByte(c) && c !== 47) { at += 1; previous = null; continue; }
+      const start = at;
+      at += 1;
+      while (at < to && !isWhiteByte(bytes[at]) && !isDelimiterByte(bytes[at])) at += 1;
+      const token = String.fromCharCode(...bytes.subarray(start, at));
+      if ((previous === '/L' || previous === '/Length') && /^\d+$/.test(token)) return Number(token);
+      previous = token;
+    }
+    return null;
+  }
+
+  /**
    * Reads the operators of a content stream and calls `onOperator(name, operands)` for each.
    * Operands are numbers, names ("/Im1") or null for anything else (strings, arrays, dictionaries).
    * Inline images (BI ... ID ... EI) are skipped whole. Only what measuring images needs is kept.
+   *
+   * Returns { inlineGuessed }: true when an inline image's end had to be guessed (no /L, or an
+   * /L that does not end at EI). The operators after it may then be wrong, so the caller treats
+   * every image the stream can draw as unmeasured: a wrong guess keeps pictures at their size,
+   * never shrinks them.
    */
   function contentOperators(bytes, onOperator) {
+    let inlineGuessed = false;
     const length = bytes.length;
     let operands = [];
     let nest = 0;
@@ -1322,7 +1427,8 @@
       if (!word) { i += 1; continue; }
       if (nest > 0) continue;
       if (word === 'BI') {
-        // Skip the inline image: its dictionary, then the data from ID to an EI on its own.
+        // Skip the inline image: its dictionary, then the data from ID to the EI that ends it.
+        const dictStart = i;
         while (i < length) {
           const at = i;
           if (bytes[at] === 73 && bytes[at + 1] === 68 && isWhiteByte(bytes[at - 1]) && (at + 2 >= length || isWhiteByte(bytes[at + 2]))) {
@@ -1331,9 +1437,24 @@
           }
           i += 1;
         }
+        // The data can hold the bytes "EI" itself. When the dictionary gives its length (/L or
+        // /Length) and EI follows the data, the end is known; otherwise it is guessed.
+        const stated = inlineImageLength(bytes, dictStart, Math.max(dictStart, i - 3));
+        if (stated !== null) {
+          let end = i + stated;
+          while (end < length && isWhiteByte(bytes[end])) end += 1;
+          if (bytes[end] === 69 && bytes[end + 1] === 73
+              && (end + 2 >= length || isWhiteByte(bytes[end + 2]) || isDelimiterByte(bytes[end + 2]))) {
+            i = end + 2;
+            operands = [];
+            continue;
+          }
+        }
+        inlineGuessed = true;
         while (i < length) {
           if (bytes[i] === 69 && bytes[i + 1] === 73 && isWhiteByte(bytes[i - 1])
-              && (i + 2 >= length || isWhiteByte(bytes[i + 2]) || isDelimiterByte(bytes[i + 2]))) {
+              && (i + 2 >= length || isWhiteByte(bytes[i + 2]) || isDelimiterByte(bytes[i + 2]))
+              && followedByText(bytes, i + 2)) {
             i += 2;
             break;
           }
@@ -1346,6 +1467,7 @@
       onOperator(word, operands);
       operands = [];
     }
+    return { inlineGuessed };
   }
 
   /** The decoded bytes of a stream, or null when pdf-lib cannot decode it. */
@@ -1377,6 +1499,16 @@
     const xobjects = (resources) => {
       const dict = resources instanceof PDFDict ? resources.lookupMaybe(XOBJECT, PDFDict) : undefined;
       return dict ? dict.entries() : [];
+    };
+    // contentOperators decodes #xx in names ("/Big#20Pic" is "/Big Pic"), while String(PDFName)
+    // keeps them escaped; key the resources by the decoded name so the two meet.
+    const xobjectNames = (resources) => new Map(xobjects(resources).map(([key, ref]) => [`/${key.decodeText()}`, ref]));
+    // Past the nesting limit nothing more is followed, but the images named here are still
+    // treated as unmeasured rather than forgotten.
+    const markHere = (resources) => {
+      for (const [, ref] of xobjects(resources)) {
+        if (ref instanceof PDFRef && subtypeOf(ref) === '/Image') unmeasured.add(String(ref));
+      }
     };
     const subtypeOf = (ref) => {
       const object = ref instanceof PDFRef ? context.lookup(ref) : ref;
@@ -1449,9 +1581,9 @@
 
     /** The images these content streams draw (by name, in `resources`) are unmeasured. */
     const markDrawnBy = (streams, resources, depth, seen) => {
-      if (depth > 12) return;
+      if (depth > 12) { markHere(resources); return; }
       markIndirect(resources, depth, seen);
-      const names = new Map(xobjects(resources).map(([key, ref]) => [String(key), ref]));
+      const names = xobjectNames(resources);
       for (const stream of streams) {
         if (!once(seen, stream, resources)) continue;
         const bytes = streamBytes(PDFLib, stream);
@@ -1460,7 +1592,7 @@
           markAll(resources, depth + 1, seen);
           continue;
         }
-        contentOperators(bytes, (operator, operands) => {
+        const read = contentOperators(bytes, (operator, operands) => {
           if (operator !== 'Do' || typeof operands[operands.length - 1] !== 'string') return;
           const ref = names.get(operands[operands.length - 1]);
           if (!(ref instanceof PDFRef)) return;
@@ -1468,12 +1600,13 @@
           if (subtype === '/Image') unmeasured.add(String(ref));
           else if (subtype === '/Form') markForm(ref, resources, depth + 1, seen);
         });
+        if (read.inlineGuessed) markAll(resources, depth + 1, seen);
       }
     };
 
     /** Every image under these resources (forms, patterns, Type 3 fonts and masks followed) is unmeasured. */
     const markAll = (resources, depth, seen) => {
-      if (depth > 12) return;
+      if (depth > 12) { markHere(resources); return; }
       markIndirect(resources, depth, seen);
       for (const [, ref] of xobjects(resources)) {
         if (!(ref instanceof PDFRef)) continue;
@@ -1484,7 +1617,11 @@
     };
 
     const run = (contents, resources, ctm, scale, depth, stack) => {
-      if (depth > 12) return;
+      if (depth > 12) {
+        // Too deep to measure: everything it can draw keeps its pixel size.
+        markAll(resources, 0, new Map());
+        return;
+      }
       markIndirect(resources, depth, new Map());
       const bytes = contents.map((stream) => streamBytes(PDFLib, stream));
       if (bytes.some((part) => !part)) {
@@ -1498,10 +1635,10 @@
         joined[offset + part.length] = 10;
         offset += part.length + 1;
       }
-      const names = new Map(xobjects(resources).map(([key, ref]) => [String(key), ref]));
+      const names = xobjectNames(resources);
       const states = [];
       let current = ctm;
-      contentOperators(joined, (operator, operands) => {
+      const read = contentOperators(joined, (operator, operands) => {
         if (operator === 'q') {
           states.push(current);
         } else if (operator === 'Q') {
@@ -1541,6 +1678,8 @@
           }
         }
       });
+      // Where an inline image's end was guessed, what was measured after it may be wrong.
+      if (read.inlineGuessed) markAll(resources, depth, new Map());
     };
 
     let currentPage = 0;
@@ -1686,6 +1825,10 @@
 
       let source;
       if (filters.length === 1 && filters[0] === 'DCTDecode') {
+        // /ColorTransform says how a viewer turns the JPG's channels into colours; a browser
+        // decides that from the JPG alone, so the copy could change colour.
+        const parms = get(dict, 'DecodeParms');
+        if (parms instanceof PDFDict && parms.lookup(PDFName.of('ColorTransform'))) return skip(REDUCE_SKIP.other);
         source = 'jpeg';
       } else if (filters.every((name) => ['FlateDecode', 'LZWDecode', 'ASCIIHexDecode', 'ASCII85Decode', 'RunLengthDecode'].includes(name))) {
         const parms = get(dict, 'DecodeParms');
@@ -1698,7 +1841,11 @@
         return skip(REDUCE_SKIP.other);
       }
 
-      const use = measured.unmeasured.has(key) ? null : measured.uses.get(key) || null;
+      // A soft mask with /Matte holds colours blended for this image's exact pixels; it must keep
+      // the image's size, so the image keeps its size too (it may still be re-saved).
+      const softMask = get(dict, 'SMask');
+      const matte = softMask instanceof PDFRawStream && softMask.dict.lookup(PDFName.of('Matte'));
+      const use = matte || measured.unmeasured.has(key) ? null : measured.uses.get(key) || null;
       const target = reduceTarget(width, height, use, preset.dpi);
       return { ...plan, action: 'resave', source, grey: space === '/DeviceGray', use, target };
     });
@@ -1829,6 +1976,8 @@
     let compressed = 0;
     for (const [ref, object] of context.enumerateIndirectObjects()) {
       if (!(object instanceof PDFRawStream) || object.dict.get(PDFName.of('Filter'))) continue;
+      // Without a filter, /DecodeParms means nothing today; with Flate it would apply.
+      if (object.dict.get(PDFName.of('DecodeParms'))) continue;
       // Metadata stays readable as text, as PDF/A asks.
       if (['/Metadata', '/XRef', '/ObjStm'].includes(String(object.dict.get(PDFName.of('Type'))))) continue;
       if (object.contents.length < 256) continue;

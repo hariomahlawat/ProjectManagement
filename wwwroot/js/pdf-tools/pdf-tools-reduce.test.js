@@ -736,3 +736,123 @@ test('a second search round still decodes a picture whose decoding settings are 
     assert.equal(Buffer.compare(Buffer.from(call.data), Buffer.from(pixels)), 0, 'every attempt received the true pixels');
   }
 });
+
+// -----------------------------------------------------------------------------
+// Review fixes (docs/ux/pdf-tools-review-fixes.md, PR 4)
+// -----------------------------------------------------------------------------
+
+test('measureImageUses matches image names written with #xx escapes', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const image = addImage(document, { width: 1000, height: 1000 });
+  const accented = addImage(document, { width: 1000, height: 1000, seed: 3 });
+  const page = document.addPage([612, 792]);
+  page.node.set(PDFName.of('Resources'), document.context.obj({ XObject: { Im0: image, 'Big Pic': image, 'Im\u00e9': accented } }));
+  page.node.set(PDFName.of('Contents'), document.context.register(document.context.stream(bytesOf([
+    'q 50 0 0 50 0 0 cm /Im0 Do Q',
+    'q 600 0 0 600 0 0 cm /Big#20Pic Do Q',
+    'q 300 0 0 300 0 0 cm /Im#E9 Do Q'
+  ].join('\n')))));
+
+  const { uses, unmeasured } = tools.measureImageUses(PDFLib, document);
+  assert.deepEqual(uses.get(String(image)), { width: 600, height: 600, page: 0 }, 'the large use under an escaped name counts');
+  assert.deepEqual(uses.get(String(accented)), { width: 300, height: 300, page: 0 });
+  assert.equal(unmeasured.size, 0);
+});
+
+test('contentOperators skips inline-image data that holds "EI", by /L or by what follows', () => {
+  const read = (text) => {
+    const names = [];
+    tools.contentOperators(bytesOf(text), (name) => names.push(name));
+    return names;
+  };
+  // The data "x EI" contains EI; /L 4 says where the data ends.
+  assert.deepEqual(read('BI /W 4 /H 1 /CS /G /BPC 8 /L 4 ID x EI EI\nq Q'), ['q', 'Q']);
+  // No length: an EI followed by binary data is still data.
+  assert.deepEqual(read('q 2 0 0 2 0 0 cm BI /W 2 /H 1 /CS /G /BPC 8 ID \u0001 EI Q \u0002 EI q Q Q'), ['q', 'cm', 'q', 'Q', 'Q']);
+  // A string after the real EI may hold any byte; it is text, not image data.
+  assert.deepEqual(read('BI /W 1 /H 1 /CS /G /BPC 8 ID \u0001 EI BT (é\u0003) Tj <00e9> Tj ET'), ['BT', 'Tj', 'Tj', 'ET']);
+  assert.deepEqual(read('BI /W 1 /H 1 /CS /G /BPC 8 ID \u0001 EI % café\nq Q'), ['q', 'Q']);
+  // Tagged content right after the image: a dictionary, not a hex string.
+  assert.deepEqual(read('BI /W 1 /H 1 /CS /G /BPC 8 ID \u0001 EI /Span <</MCID 0>> BDC q Q EMC'), ['BDC', 'q', 'Q', 'EMC']);
+  // A name after the image may hold any byte.
+  assert.deepEqual(read('BI /W 1 /H 1 /CS /G /BPC 8 ID \u0001 EI /Imé Do'), ['Do']);
+  // "/L 1000" in a comment or a string in the header is not a length.
+  assert.deepEqual(read('BI /W 1 /H 1 /BPC 8 /CS /G % /L 1000\nID x EI q Q'), ['q', 'Q']);
+  assert.deepEqual(read('BI /W 1 /H 1 /BPC 8 /CS /G /X (/L 1000) ID x EI q Q'), ['q', 'Q']);
+});
+
+test('contentOperators says when an inline image\'s end was guessed rather than known', () => {
+  const guessed = (text) => tools.contentOperators(bytesOf(text), () => {}).inlineGuessed;
+  assert.equal(guessed('q Q'), false);
+  assert.equal(guessed('BI /W 4 /H 1 /CS /G /BPC 8 /L 4 ID x EI EI\nq Q'), false, '/L ends at EI');
+  assert.equal(guessed('BI /W 4 /H 1 /CS /G /BPC 8 ID xxxx EI q Q'), true, 'no /L');
+  assert.equal(guessed('BI /W 4 /H 1 /CS /G /BPC 8 /L 2 ID xxxx EI q Q'), true, '/L that does not end at EI');
+});
+
+test('measureImageUses measures through an inline image of known length whose data holds "EI Q"', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const image = addImage(document, { width: 10, height: 10 });
+  const page = document.addPage([612, 792]);
+  page.node.set(PDFName.of('Resources'), document.context.obj({ XObject: { Im0: image } }));
+  page.node.set(PDFName.of('Contents'), document.context.register(document.context.stream(bytesOf(
+    'q 2 0 0 2 0 0 cm BI /W 2 /H 1 /CS /G /BPC 8 /L 9 ID \u0001 EI Q \u0002 EI q 100 0 0 100 0 0 cm /Im0 Do Q Q'))));
+  const { uses, unmeasured } = tools.measureImageUses(PDFLib, document);
+  assert.deepEqual(uses.get(String(image)), { width: 200, height: 200, page: 0 });
+  assert.equal(unmeasured.size, 0);
+});
+
+test('an image drawn where an inline image\'s end was guessed keeps its size, so a wrong guess cannot shrink it', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const image = addImage(document, { width: 10, height: 10 });
+  const page = document.addPage([612, 792]);
+  page.node.set(PDFName.of('Resources'), document.context.obj({ XObject: { Im0: image } }));
+  page.node.set(PDFName.of('Contents'), document.context.register(document.context.stream(bytesOf(
+    'q 50 0 0 50 0 0 cm /Im0 Do Q BI /W 2 /H 1 /CS /G /BPC 8 ID \u0001 EI q 600 0 0 600 0 0 cm /Im0 Do Q'))));
+  const { unmeasured } = tools.measureImageUses(PDFLib, document);
+  assert.ok(unmeasured.has(String(image)));
+});
+
+test('an image drawn deeper than the nesting limit is unmeasured, not sized by a smaller use', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const image = addImage(document, { width: 10, height: 10 });
+  let inner = document.context.register(document.context.stream(bytesOf('q 500 0 0 500 0 0 cm /Pic Do Q'), {
+    Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 500, 500], Resources: { XObject: { Pic: image } }
+  }));
+  for (let level = 0; level < 15; level += 1) {
+    inner = document.context.register(document.context.stream(bytesOf('/F Do'), {
+      Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 500, 500], Resources: { XObject: { F: inner } }
+    }));
+  }
+  const page = document.addPage([612, 792]);
+  page.node.set(PDFName.of('Resources'), document.context.obj({ XObject: { Pic: image, F: inner } }));
+  page.node.set(PDFName.of('Contents'), document.context.register(document.context.stream(bytesOf('q 20 0 0 20 0 0 cm /Pic Do Q /F Do'))));
+  const { unmeasured } = tools.measureImageUses(PDFLib, document);
+  assert.ok(unmeasured.has(String(image)));
+});
+
+test('reduceImagePlan leaves a JPG with /ColorTransform alone, and keeps the size of an image whose soft mask has /Matte', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const big = { width: 120, height: 120 };
+  const matteMask = addImage(document, { ...big, space: 'DeviceGray', extra: { Matte: [0, 0, 0] } });
+  const plan = {
+    jpeg: addImage(document, { ...big, filter: 'DCTDecode', data: noise(40000), extra: { DecodeParms: { ColorTransform: 0 } } }),
+    matted: addImage(document, { ...big, extra: { SMask: matteMask } })
+  };
+  pageDrawing(document, Object.entries(plan).map(([name, ref]) => ({ ref, name, matrix: [36, 0, 0, 36, 0, 0] })));
+  const result = tools.reduceImagePlan(PDFLib, document, tools.measureImageUses(PDFLib, document), tools.PDF_SIZE_PRESETS[1]);
+  const byRef = new Map(result.map((item) => [String(item.ref), item]));
+
+  assert.equal(byRef.get(String(plan.jpeg)).reason, tools.REDUCE_SKIP.other);
+  const matted = byRef.get(String(plan.matted));
+  assert.equal(matted.action, 'resave');
+  assert.equal(matted.use, null);
+  assert.equal(matted.target.scaled, false, 'drawn half an inch square, but kept at 120 x 120');
+});
+
+test('compressPlainStreams leaves a stream with a stray /DecodeParms and no filter as it is', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const stray = document.context.register(document.context.stream(bytesOf('0 '.repeat(500)), { DecodeParms: { Predictor: 12, Columns: 4 } }));
+  document.catalog.set(PDFName.of('Stray'), stray);
+  assert.equal(tools.compressPlainStreams(PDFLib, document), 0);
+  assert.equal(document.context.lookup(stray).dict.get(PDFName.of('Filter')), undefined);
+});
