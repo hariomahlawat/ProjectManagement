@@ -29,6 +29,7 @@ The findings are about phones, unusual but valid PDFs, and the Reduce size measu
 | 7 | Organise thumbnails are never released, so a 1,000-page merge holds about 185 MB of canvases |
 | 8 | Reduce size re-saves a JPG with `/DecodeParms /ColorTransform`, which can change its colours (plausible) |
 | 9 | On a phone, a swipe on the Organise and Images grids may start a drag instead of scrolling (check on a phone) |
+| 10 | Found while checking PR 2: the page does not load the PRISM confirm dialog, so every confirmation (white-out, large files, opening another PDF) falls back to the browser's `confirm()` box; Photo Tools is the same |
 
 ## Low
 
@@ -65,14 +66,15 @@ Each PR is checked on a phone, in the Dark theme and with the keyboard, and adds
 | PR | Scope | Findings |
 | --- | --- | --- |
 | 1 | This plan | — |
-| 2 | Sign & annotate on phones and in the editor: scroll and zoom, refit on turn, primary pointer only, text kept on the page, Choose another file, toolbar Delete focus, revoke object URLs, show a page that failed to draw | 1, 6, Low (Sign & annotate) |
+| 2 | Built, #3184. Sign & annotate on phones and in the editor: scroll and zoom, refit on turn, primary pointer only, text kept on the page, Choose another file, toolbar Delete focus, revoke object URLs, show a page that failed to draw | 1, 6, Low (Sign & annotate) |
 | 3 | Page geometry: corners in any order, `/Rotate` not a multiple of 90 read as 0, `/UserUnit` in watermark and page numbers, en dash in ranges | 2, Low (Geometry) |
 | 4 | Reduce size measuring: `#xx` names, inline images by `/L`, depth limit marks unmeasured, JPG `ColorTransform` left as is, `/Matte` masks, stray `/DecodeParms` | 3, 8, Low (Reduce size, measuring) |
 | 5 | Forms and split: AcroForm settings from kept files merged, page and parent-field actions tagged, a page used twice | 4, 5, Low (Forms) |
 | 6 | Organise and Images: release thumbnails, touch drag delay, card roles, Dark buttons, busy announcement, Back while working | 7, 9, Low (Screens) |
 | 7 | Reduce size search and signing: search reaches 72 dpi and says so truthfully, fewer tries kept, no search when the budget is 0, `/SigFlags`, a worker that dies | Low (Reduce size, search) |
 | 8 | Contract test covers the CSS, partials, workers and `import()` | Low (Contract test) |
-| 9 | Owner decisions on layers and bookmarks | For the owner |
+| 9 | The PRISM confirm dialog on PDF Tools and Photo Tools | 10 |
+| 10 | Owner decisions on layers and bookmarks | For the owner |
 
 Reduce size PR 4 (Scan mode) in [pdf-tools-reduce-size.md](pdf-tools-reduce-size.md) is separate
 and waits for these fixes.
