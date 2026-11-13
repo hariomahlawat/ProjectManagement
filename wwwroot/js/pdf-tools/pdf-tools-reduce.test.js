@@ -648,6 +648,30 @@ test('reducePdf stops between pictures when cancelled, and makes no file', async
   assert.equal(encoder.calls.length, 1, 'stopped after the picture in hand');
 });
 
+test('reducePdf makes no file when Stop comes while the file is being saved', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const one = addImage(document, { width: 300, height: 300 });
+  pageDrawing(document, [{ ref: one, name: 'A', matrix: [72, 0, 0, 72, 0, 0] }]);
+  const original = await document.save();
+  // Every check before the last save sees "not stopped"; Stop is pressed while the file is saved.
+  const controller = new AbortController();
+  const realSave = PDFLib.PDFDocument.prototype.save;
+  let saves = 0;
+  PDFLib.PDFDocument.prototype.save = async function (...args) {
+    saves += 1;
+    const output = await realSave.apply(this, args);
+    if (saves >= 2) controller.abort();
+    return output;
+  };
+  try {
+    await assert.rejects(
+      tools.reducePdf(PDFLib, original, { encodeImage: sizedEncoder().encodeImage, signal: controller.signal }),
+      (error) => error.code === 'cancelled');
+  } finally {
+    PDFLib.PDFDocument.prototype.save = realSave;
+  }
+});
+
 test('reducePdf names the page of the largest re-saved picture, leaving out a JPG with its own orientation', async () => {
   const document = await PDFLib.PDFDocument.create();
   const small = addImage(document, { width: 300, height: 300 });

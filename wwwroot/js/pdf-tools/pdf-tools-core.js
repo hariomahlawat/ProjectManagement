@@ -2072,6 +2072,8 @@
     // The search is over: now objects nothing refers to can go, which only makes the file smaller.
     removeUnreachableObjects(PDFLib, document);
     output = await save(document);
+    // Saving gives the page its turn, so Stop may have been pressed meanwhile: then there is no file.
+    stopIfCancelled();
 
     // 4. What was done.
     report.resaved = result.chosen.size;

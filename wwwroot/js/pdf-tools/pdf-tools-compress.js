@@ -158,7 +158,9 @@
   function runOnPage(bytes, options, onProgress) {
     const controller = new AbortController();
     return {
-      promise: core.reducePdf(PDFLib, bytes, { ...options, encodeImage: encoder.encodeImage, onProgress, signal: controller.signal }),
+      // Once Stop is pressed, no result is used, however late the work ends.
+      promise: core.reducePdf(PDFLib, bytes, { ...options, encodeImage: encoder.encodeImage, onProgress, signal: controller.signal })
+        .then((result) => { if (controller.signal.aborted) throw stopped(); return result; }),
       stop: () => controller.abort()
     };
   }
