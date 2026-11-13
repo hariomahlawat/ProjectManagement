@@ -17,6 +17,8 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/tools-shared/prism-confirm-standalone.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pdf-tools.css" asp-append-version="true" />
     <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
 </head>
@@ -521,6 +523,9 @@
         </div>
     </div>
 
+    @* The PRISM confirmation dialog, as on every other page (docs/ux/confirm-dialogs.md). *@
+    <partial name="_PrismConfirmDialog" />
+    <script src="~/js/components/prism-confirm-dialog.js" asp-append-version="true"></script>
     <script src="~/lib/pdf-lib/1.17.1/dist/pdf-lib.min.js"></script>
     <script src="~/lib/sortable/1.15.2/Sortable.min.js"></script>
     <script src="~/js/tools-shared/zip-writer.js" asp-append-version="true"></script>

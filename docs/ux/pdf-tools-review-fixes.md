@@ -73,7 +73,7 @@ Each PR is checked on a phone, in the Dark theme and with the keyboard, and adds
 | 6 | Organise and Images: release thumbnails, touch drag delay, card roles, Dark buttons, busy announcement, Back while working | 7, 9, Low (Screens) |
 | 7 | Reduce size search and signing: search reaches 72 dpi and says so truthfully, fewer tries kept, no search when the budget is 0, `/SigFlags`, a worker that dies | Low (Reduce size, search) |
 | 8 | Contract test covers the CSS, partials, workers and `import()` | Low (Contract test) |
-| 9 | The PRISM confirm dialog on PDF Tools and Photo Tools | 10 |
+| 9 | Built. The PRISM confirm dialog on PDF Tools (Photo Tools asks no questions, so it needs none) | 10 |
 | 10 | Owner decisions on layers and bookmarks | For the owner |
 
 Reduce size PR 4 (Scan mode) in [pdf-tools-reduce-size.md](pdf-tools-reduce-size.md) is separate

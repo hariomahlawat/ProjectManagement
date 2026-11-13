@@ -29,6 +29,9 @@ public sealed class PrismConfirmLayoutContractTests
             .Where(path => !path.EndsWith(Path.Combine("Shared", "_Layout.cshtml"), StringComparison.OrdinalIgnoreCase))
             .Where(path => File.ReadAllText(path).Contains("_PrismConfirmDialog", StringComparison.Ordinal)
                 && !path.EndsWith("_PrismConfirmDialog.cshtml", StringComparison.OrdinalIgnoreCase))
+            // A standalone page with its own shell (Layout = null, such as PDF Tools) does not
+            // get the layout's dialog, so it renders the one dialog itself.
+            .Where(path => !File.ReadAllText(path).Contains("Layout = null;", StringComparison.Ordinal))
             .Select(path => Path.GetRelativePath(root, path))
             .ToArray();
 
