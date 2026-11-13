@@ -332,12 +332,89 @@ test('merging two filled copies of a form keeps each copy\'s answers apart', asy
   const clashed = (await PDFLib.PDFDocument.load(clash)).getForm().getFields().map((field) => `${field.getName()}=${field.getText()}`);
   assert.deepEqual(clashed.sort(), ['name (2)=B2', 'name (3)=B1', 'name=A']);
 
-  // The second file's page used twice: both copies of its renamed field share the one new name.
+  // The second file's page used twice: both copies of its renamed field are one field, with a
+  // widget on each copy of the page.
   const repeated = await tools.assemblePages(PDFLib, [plain, both], [
     { source: 0, index: 0 }, { source: 1, index: 0 }, { source: 1, index: 0 }
   ]);
-  const repeatedNames = (await PDFLib.PDFDocument.load(repeated)).getForm().getFields().map((field) => field.getName()).sort();
-  assert.deepEqual(repeatedNames, ['name', 'name (2)', 'name (2)', 'name (3)', 'name (3)']);
+  const repeatedFields = (await PDFLib.PDFDocument.load(repeated)).getForm().getFields();
+  assert.deepEqual(repeatedFields.map((field) => field.getName()).sort(), ['name', 'name (2)', 'name (3)']);
+  assert.deepEqual(repeatedFields.map((field) => field.acroField.getWidgets().length).sort(), [1, 2, 2]);
+});
+
+test('a page used twice keeps one field with a widget on each copy, so both show one answer', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const page = document.addPage([300, 300]);
+  const field = document.getForm().createTextField('applicant.name');
+  field.setText('Asha');
+  field.addToPage(page, { x: 10, y: 10 });
+  const pdf = await document.save();
+
+  const twice = await PDFLib.PDFDocument.load(await tools.assemblePages(PDFLib, [pdf], [{ source: 0, index: 0 }, { source: 0, index: 0 }]));
+  const fields = twice.getForm().getFields();
+  assert.deepEqual(fields.map((item) => item.getName()), ['applicant.name']);
+  const widgets = fields[0].acroField.getWidgets();
+  assert.equal(widgets.length, 2);
+  const pageRefs = twice.getPages().map((item) => String(item.ref));
+  assert.deepEqual(widgets.map((widget) => String(widget.P())).sort(), [...pageRefs].sort(), 'one widget on each copy of the page');
+  assert.equal(twice.getForm().getTextField('applicant.name').getText(), 'Asha');
+});
+
+test('merged forms take their settings from the files whose fields were kept', async () => {
+  const formFile = async (name, { da, needAppearances, font }) => {
+    const document = await PDFLib.PDFDocument.create();
+    const page = document.addPage([300, 300]);
+    document.getForm().createTextField(name).addToPage(page, { x: 10, y: 10 });
+    const acroForm = document.catalog.lookup(PDFLib.PDFName.of('AcroForm'));
+    acroForm.set(PDFLib.PDFName.of('DA'), PDFLib.PDFString.of(da));
+    if (needAppearances) acroForm.set(PDFLib.PDFName.of('NeedAppearances'), PDFLib.PDFBool.True);
+    acroForm.set(PDFLib.PDFName.of('DR'), document.context.obj({ Font: { [font]: document.context.obj({ Type: 'Font', Subtype: 'Type1', BaseFont: 'Helvetica' }) } }));
+    document.addPage([300, 300]); // a page without fields
+    return document.save();
+  };
+  const a = await formFile('a', { da: '/FA 0 Tf 0 g', font: 'FA' });
+  const b = await formFile('b', { da: '/FB 0 Tf 0 g', needAppearances: true, font: 'FB' });
+
+  const formOf = async (bytes) => (await PDFLib.PDFDocument.load(bytes)).catalog.lookup(PDFLib.PDFName.of('AcroForm'));
+  const both = await formOf(await tools.assemblePages(PDFLib, [a, b], [{ source: 0, index: 0 }, { source: 1, index: 0 }]));
+  assert.equal(both.lookup(PDFLib.PDFName.of('DA')).decodeText(), '/FA 0 Tf 0 g');
+  assert.equal(both.lookup(PDFLib.PDFName.of('NeedAppearances')).asBoolean(), true, 'set when any file sets it');
+  const fonts = both.lookup(PDFLib.PDFName.of('DR')).lookup(PDFLib.PDFName.of('Font'));
+  assert.deepEqual(fonts.keys().map(String).sort(), ['/FA', '/FB'], 'both files\' fonts');
+
+  // File A's form page dropped: only B's fields are kept, so only B's settings apply.
+  const onlyB = await formOf(await tools.assemblePages(PDFLib, [a, b], [{ source: 0, index: 1 }, { source: 1, index: 0 }]));
+  assert.equal(onlyB.lookup(PDFLib.PDFName.of('DA')).decodeText(), '/FB 0 Tf 0 g');
+  assert.deepEqual(onlyB.lookup(PDFLib.PDFName.of('DR')).lookup(PDFLib.PDFName.of('Font')).keys().map(String), ['/FB']);
+});
+
+test('splitPdf keeps a page\'s own actions and a field\'s actions, re-pointed or dropped with their page', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const pages = [0, 1, 2].map(() => document.addPage([300, 300]));
+  const goTo = (page) => document.context.obj({ S: 'GoTo', D: [page.ref, 'Fit'] });
+  // Page 1, on opening, goes to page 3; on closing, to page 1 itself.
+  pages[0].node.set(PDFLib.PDFName.of('AA'), document.context.obj({ O: goTo(pages[2]), C: goTo(pages[0]) }));
+  // A field on page 2 whose parent field has a GoTo action to page 1.
+  const field = document.getForm().createTextField('group.item');
+  field.addToPage(pages[1], { x: 10, y: 10 });
+  const group = document.getForm().getFields()[0].acroField.getParent();
+  group.dict.set(PDFLib.PDFName.of('AA'), document.context.obj({ F: goTo(pages[0]) }));
+  group.dict.set(PDFLib.PDFName.of('A'), goTo(pages[1]));
+  const pdf = await document.save();
+
+  const [first, second, whole] = await tools.splitPdf(PDFLib, pdf, [[0], [1], [0, 1, 2]]);
+  const actions = async (bytes, index) => (await PDFLib.PDFDocument.load(bytes)).getPage(index).node.lookup(PDFLib.PDFName.of('AA'));
+
+  const own = await actions(first, 0);
+  assert.equal(own.get(PDFLib.PDFName.of('O')), undefined, 'the action to a dropped page is dropped');
+  assert.ok(own.get(PDFLib.PDFName.of('C')), 'the action to the page itself is kept');
+  assert.ok((await actions(whole, 0)).get(PDFLib.PDFName.of('O')), 'kept when its page is kept');
+
+  const parentOf = async (bytes) => (await PDFLib.PDFDocument.load(bytes)).getForm().getFields()[0].acroField.getParent().dict;
+  const alone = await parentOf(second);
+  assert.equal(alone.get(PDFLib.PDFName.of('AA')), undefined, 'the field action to a dropped page is dropped');
+  assert.ok(alone.get(PDFLib.PDFName.of('A')), 'the field action to its own page is kept');
+  assert.ok((await parentOf(whole)).get(PDFLib.PDFName.of('AA')));
 });
 
 test('splitPdf reads the file once and still keeps every part to its own pages', async () => {
