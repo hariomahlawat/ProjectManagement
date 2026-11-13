@@ -479,7 +479,8 @@
     renderSummary();
   }
 
-  function download() {
+  function download(event) {
+    if (shared.isRepeatClick(event)) return;
     const done = photos.filter(photo => photo.status === 'done');
     if (!done.length) return;
     const names = core.outputNames(
