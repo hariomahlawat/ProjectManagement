@@ -81,6 +81,32 @@ public sealed class PdfToolsPageContractTests
     }
 
     /// <summary>
+    /// The page has its own shell (Layout = null), so it brings the PRISM confirmation dialog
+    /// itself; without it every question (white-out, a large file, opening another PDF) would
+    /// fall back to the browser's own confirm() box.
+    /// </summary>
+    [Fact]
+    public void PdfTools_AsksInThePrismConfirmDialog()
+    {
+        var root = FindProjectRoot();
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Pdf", "Index.cshtml"));
+
+        Assert.Contains("<partial name=\"_PrismConfirmDialog\" />", page, StringComparison.Ordinal);
+        Assert.Contains("src=\"~/js/components/prism-confirm-dialog.js\"", page, StringComparison.Ordinal);
+        Assert.Contains("href=\"~/css/components/prism-confirm-dialog.css\"", page, StringComparison.Ordinal);
+        Assert.Contains("href=\"~/css/tools-shared/prism-confirm-standalone.css\"", page, StringComparison.Ordinal);
+        // site.css is not loaded here, so every --pm-* token the dialog's stylesheet uses must be
+        // given by the standalone stylesheet.
+        var dialogCss = File.ReadAllText(Path.Combine(root, "wwwroot", "css", "components", "prism-confirm-dialog.css"));
+        var standalone = File.ReadAllText(Path.Combine(root, "wwwroot", "css", "tools-shared", "prism-confirm-standalone.css"));
+        var used = Regex.Matches(dialogCss, @"var\((--pm-[a-z0-9-]+)").Select(match => match.Groups[1].Value).Distinct();
+        foreach (var token in used)
+        {
+            Assert.Contains($"{token}:", standalone, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     /// Every file of the tool, not only a list: each script in the folder (a new one is covered
     /// without editing this test), the shared ZIP writer, the stylesheet and the page and its
     /// partials. None may name an address on another site, open a network channel, or load code

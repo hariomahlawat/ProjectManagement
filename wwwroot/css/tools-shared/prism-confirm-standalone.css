@@ -1,0 +1,20 @@
+/* The PRISM confirmation dialog (components/prism-confirm-dialog.css) on a standalone tool page
+   such as PDF Tools, which does not load site.css. The dialog is drawn from the --pm-* site
+   tokens; here they are given from Bootstrap's theme colours, which follow Light and Dark. They
+   are set on :root because the dialog's own glass, scrim and shadow colours are built there from
+   them; the tool's own stylesheet uses Bootstrap's variables, not --pm-*, so nothing else changes. */
+:root {
+    --pm-text-strong: var(--bs-emphasis-color);
+    --pm-text: var(--bs-body-color);
+    --pm-text-secondary: var(--bs-secondary-color);
+    --pm-text-muted: var(--bs-secondary-color);
+    --pm-text-inverted: var(--bs-white);
+    --pm-card: var(--bs-body-bg);
+    --pm-page-bg: var(--bs-tertiary-bg);
+    --pm-primary: var(--bs-primary);
+    --pm-primary-strong: var(--bs-primary-text-emphasis);
+    --pm-danger: var(--bs-danger);
+    --pm-warning: var(--bs-warning);
+    --pm-warning-strong: var(--bs-warning-text-emphasis);
+    --pm-success: var(--bs-success);
+}
