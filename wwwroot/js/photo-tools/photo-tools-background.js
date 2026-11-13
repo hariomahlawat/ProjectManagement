@@ -100,6 +100,7 @@
   let colours = null;
   let openRun = 0;
   let pickRun = 0;
+  let maskRequest = null;
   let display = { width: 0, height: 0 };
 
   // ---------------------------------------------------------------------------
@@ -144,8 +145,8 @@
     credit.textContent = available && status.attribution ? status.attribution : '';
   }
 
-  /** Sends a copy of the photo and gives back the model's mask at the work size. */
-  async function fetchMask(source, size) {
+  /** Sends a copy of the photo and gives back the model's mask at the work size. `signal` cancels it. */
+  async function fetchMask(source, size, signal) {
     const side = Math.min(WORK_SIDE, (status && status.maximumSide) || WORK_SIDE);
     const sent = core.resizeDimensions(size.width, size.height, { type: 'longest', value: side });
     const copy = shared.drawPhoto(source, sent.width, sent.height, { opaque: true });
@@ -156,9 +157,11 @@
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': JPEG.mime, Accept: 'image/png', 'X-CSRF-TOKEN': csrfToken() },
-        body: bytes
+        body: bytes,
+        signal
       });
-    } catch {
+    } catch (error) {
+      if (signal && signal.aborted) throw error;
       throw new core.PhotoToolError('network', 'The PRISM server could not be reached. Check the connection and try again.');
     }
     if (!response.ok) {
@@ -237,6 +240,11 @@
       return;
     }
     const mine = ++openRun;
+    // The earlier photo's mask is no longer wanted: its request is cancelled, which also stops the
+    // server working on it, so the server's queue is not filled with photos already replaced.
+    if (maskRequest) maskRequest.abort();
+    const request = new AbortController();
+    maskRequest = request;
     if (full && full !== source && typeof full.close === 'function') full.close();
     full = source;
     fileName = file.name;
@@ -255,7 +263,7 @@
     render();
     setBusy('Finding the subject…');
     try {
-      const mask = await fetchMask(source, size);
+      const mask = await fetchMask(source, size, request.signal);
       if (mine !== openRun) return;
       background = core.cutoutBackground(pixels.data, mask, work.width, work.height);
       // The subject's colours are read once; every stroke on this photo uses them.

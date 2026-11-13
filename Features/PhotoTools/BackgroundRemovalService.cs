@@ -108,6 +108,14 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
         {
             await _turn.WaitAsync(timeout.Token);
             entered = true;
+            // The approval is checked again now: the model may have been replaced while this
+            // photo waited its turn.
+            readiness = _readiness.Check();
+            if (!readiness.IsReady || readiness.ModelPath is null)
+            {
+                return new(BackgroundRemovalOutcome.Unavailable, ModelState: readiness.State);
+            }
+
             var stopwatch = Stopwatch.StartNew();
             using var photo = new SKBitmap(new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
             var decoded = codec.GetPixels(photo.Info, photo.GetPixels());
@@ -117,7 +125,8 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
             }
 
             // ONNX Runtime blocks while it works; it runs on a pool thread so the request thread is free.
-            var mask = await Task.Run(() => _segmenter.Segment(photo, readiness.ModelPath, timeout.Token), timeout.Token);
+            var approved = readiness;
+            var mask = await Task.Run(() => _segmenter.Segment(photo, approved, timeout.Token), timeout.Token);
             var png = EncodeMask(mask);
             _logger.LogInformation(
                 "Background removed for a {Width} x {Height} photo in {ElapsedMilliseconds} ms.",
@@ -133,6 +142,11 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
         catch (OnnxRuntimeException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             return new(BackgroundRemovalOutcome.TimedOut);
+        }
+        catch (BackgroundModelChangedException)
+        {
+            // Swapped between the check and the load: not used until it is checked again.
+            return new(BackgroundRemovalOutcome.Unavailable, ModelState: _readiness.Check().State);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

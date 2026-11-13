@@ -10,8 +10,21 @@ public sealed record BackgroundMask(int Width, int Height, byte[] Alpha);
 
 public interface IBackgroundSegmenter
 {
-    /// <summary>Finds the subject of a photo. The model must be ready (see <see cref="IBackgroundModelReadinessService"/>).</summary>
-    BackgroundMask Segment(SKBitmap photo, string modelPath, CancellationToken cancellationToken);
+    /// <summary>
+    /// Finds the subject of a photo with the approved model <paramref name="model"/> (from
+    /// <see cref="IBackgroundModelReadinessService"/>). Throws <see cref="BackgroundModelChangedException"/>
+    /// when the file is no longer the one that was approved.
+    /// </summary>
+    BackgroundMask Segment(SKBitmap photo, BackgroundModelReadiness model, CancellationToken cancellationToken);
+}
+
+/// <summary>The model file changed after its checksum was checked; it is not used until checked again.</summary>
+public sealed class BackgroundModelChangedException : Exception
+{
+    public BackgroundModelChangedException()
+        : base("The background removal model file changed after it was checked.")
+    {
+    }
 }
 
 /// <summary>
@@ -35,13 +48,19 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public BackgroundMask Segment(SKBitmap photo, string modelPath, CancellationToken cancellationToken)
+    public BackgroundMask Segment(SKBitmap photo, BackgroundModelReadiness approved, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(photo);
+        ArgumentNullException.ThrowIfNull(approved);
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!approved.IsReady || approved.ModelPath is null)
+        {
+            throw new BackgroundModelChangedException();
+        }
+
         var options = _options.CurrentValue;
         var model = options.Model;
-        var loaded = Acquire(modelPath, options);
+        var loaded = Acquire(approved, options);
         try
         {
             var session = loaded.Session;
@@ -80,13 +99,15 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
     }
 
     /// <summary>
-    /// The loaded model for this file and these settings, loading it when the file or the
-    /// settings changed (the model can be replaced without a restart). A model being replaced is
-    /// released only once no photo is using it.
+    /// The loaded model for this approved file and these settings, loading it when the file or
+    /// the settings changed (the model can be replaced without a restart). Only the very file that
+    /// was approved is loaded: one that differs in size or time from it has been swapped since its
+    /// checksum was checked. A model being replaced is released only once no photo is using it.
     /// </summary>
-    private LoadedModel Acquire(string path, BackgroundRemovalOptions options)
+    private LoadedModel Acquire(BackgroundModelReadiness approved, BackgroundRemovalOptions options)
     {
-        var key = KeyFor(path, options);
+        var path = approved.ModelPath!;
+        var key = KeyFor(approved, options);
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -94,6 +115,12 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
             {
                 _loaded.Users += 1;
                 return _loaded;
+            }
+
+            var file = new FileInfo(path);
+            if (!file.Exists || file.Length != approved.Length || file.LastWriteTimeUtc != approved.LastWriteUtc)
+            {
+                throw new BackgroundModelChangedException();
             }
 
             var fresh = new LoadedModel(Load(path, options), key) { Users = 1 };
@@ -123,16 +150,15 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
         }
     }
 
-    /// <summary>What a loaded model stands for: the file (path, size, time, approved checksum) and the settings it was checked against.</summary>
-    private static string KeyFor(string path, BackgroundRemovalOptions options)
+    /// <summary>What a loaded model stands for: the approved file (path, size, time, checksum) and the settings it was checked against.</summary>
+    private static string KeyFor(BackgroundModelReadiness approved, BackgroundRemovalOptions options)
     {
-        var file = new FileInfo(path);
         var model = options.Model;
         return string.Join(
             '|',
-            path,
-            file.Exists ? file.Length : -1,
-            file.Exists ? file.LastWriteTimeUtc.Ticks : 0,
+            approved.ModelPath,
+            approved.Length,
+            approved.LastWriteUtc.Ticks,
             model.Sha256?.Trim().ToLowerInvariant(),
             model.InputName,
             model.OutputName,

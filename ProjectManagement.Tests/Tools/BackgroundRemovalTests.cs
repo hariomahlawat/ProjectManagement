@@ -203,6 +203,70 @@ public sealed class BackgroundRemovalTests : IDisposable
     }
 
     [Fact]
+    public async Task MaskAsync_ACancelledPhotoGivesUpItsPlaceInTheQueue()
+    {
+        var options = EnabledOptions();
+        options.MaximumConcurrent = 1;
+        options.MaximumWaiting = 1;
+        var segmenter = new HeldSegmenter();
+        var service = new BackgroundRemovalService(
+            Monitor(options), ReadinessFor(options), segmenter, NullLogger<BackgroundRemovalService>.Instance);
+        var photo = Png(8, 8, (_, _) => SKColors.Red);
+
+        var first = service.MaskAsync(photo, CancellationToken.None);
+        await segmenter.Started.Task;
+        using var replaced = new CancellationTokenSource();
+        var cancelled = service.MaskAsync(photo, replaced.Token);
+        replaced.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
+
+        // Its place is free again: the next photo waits instead of being told the server is busy.
+        var next = service.MaskAsync(photo, CancellationToken.None);
+        segmenter.Release.SetResult();
+        Assert.Equal(BackgroundRemovalOutcome.Done, (await first).Outcome);
+        Assert.Equal(BackgroundRemovalOutcome.Done, (await next).Outcome);
+    }
+
+    [Fact]
+    public async Task MaskAsync_ChecksTheApprovalAgainAfterWaitingItsTurn()
+    {
+        var options = EnabledOptions();
+        options.MaximumConcurrent = 1;
+        var segmenter = new HeldSegmenter();
+        var service = new BackgroundRemovalService(
+            Monitor(options), ReadinessFor(options), segmenter, NullLogger<BackgroundRemovalService>.Instance);
+        var photo = Png(8, 8, (_, _) => SKColors.Red);
+
+        var first = service.MaskAsync(photo, CancellationToken.None);
+        await segmenter.Started.Task;
+        var queued = service.MaskAsync(photo, CancellationToken.None);
+
+        // While the second photo waits, the model is replaced by a file that is not approved.
+        var target = Path.Combine(_folder, "red-channel-mask.onnx");
+        File.WriteAllBytes(target, File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "TestData", "PhotoTools", "green-channel-mask.onnx")).Concat(new byte[] { 0 }).ToArray());
+        File.SetLastWriteTimeUtc(target, DateTime.UtcNow.AddMinutes(1));
+
+        segmenter.Release.SetResult();
+        Assert.Equal(BackgroundRemovalOutcome.Done, (await first).Outcome);
+        var refused = await queued;
+        Assert.Equal(BackgroundRemovalOutcome.Unavailable, refused.Outcome);
+        Assert.Equal(BackgroundModelState.ChecksumMismatch, refused.ModelState);
+    }
+
+    [Fact]
+    public void Segment_RefusesAFileChangedSinceItWasApproved()
+    {
+        var options = EnabledOptions();
+        var approved = ReadinessFor(options).Check();
+        Assert.True(approved.IsReady);
+        File.SetLastWriteTimeUtc(approved.ModelPath!, DateTime.UtcNow.AddMinutes(5));
+
+        using var segmenter = new OnnxBackgroundSegmenter(Monitor(options), NullLogger<OnnxBackgroundSegmenter>.Instance);
+        using var photo = new SKBitmap(8, 8);
+        Assert.Throws<BackgroundModelChangedException>(() => segmenter.Segment(photo, approved, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task MaskAsync_StopsAPhotoThatTakesTooLong()
     {
         var options = EnabledOptions();
@@ -309,7 +373,7 @@ public sealed class BackgroundRemovalTests : IDisposable
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool HonourCancellation { get; init; }
 
-        public BackgroundMask Segment(SKBitmap photo, string modelPath, CancellationToken cancellationToken)
+        public BackgroundMask Segment(SKBitmap photo, BackgroundModelReadiness model, CancellationToken cancellationToken)
         {
             Started.TrySetResult();
             if (HonourCancellation)

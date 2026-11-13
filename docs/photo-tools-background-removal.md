@@ -129,6 +129,11 @@ much weaker than BRIA's models and is only for testing the pipeline.
   wait their turn, and when `MaximumWaiting` are already waiting the answer is "busy".
 - A photo that takes longer than `TimeoutSeconds` is stopped inside ONNX Runtime, not just
   abandoned.
+- When a user changes photo before the mask arrives, the browser cancels the earlier request and
+  the server stops working on it, so replaced photos do not fill the queue.
+- The approval (file and checksum) is checked again when a photo's turn comes, and only the very
+  file whose checksum was checked is loaded; a model replaced while photos wait is not used until
+  it is approved.
 - Memory: the model stays loaded once used (RMBG-2.0 is about 1 GB on disk). It is loaded again
   only when its file or path changes.
 

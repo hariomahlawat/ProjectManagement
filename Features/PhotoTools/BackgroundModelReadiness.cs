@@ -13,7 +13,16 @@ public enum BackgroundModelState
     ChecksumMismatch
 }
 
-public sealed record BackgroundModelReadiness(BackgroundModelState State, string? ModelPath)
+/// <summary>
+/// Whether the model can be used and, when it can, which file was approved: its path, and the size
+/// and time of the file whose SHA-256 was checked, so the model loader can refuse a file swapped in
+/// after the check.
+/// </summary>
+public sealed record BackgroundModelReadiness(
+    BackgroundModelState State,
+    string? ModelPath,
+    long Length = 0,
+    DateTime LastWriteUtc = default)
 {
     public bool IsReady => State == BackgroundModelState.Ready;
 }
@@ -73,13 +82,13 @@ public sealed class BackgroundModelReadinessService : IBackgroundModelReadinessS
             return new(BackgroundModelState.ChecksumNotConfigured, path);
         }
 
-        var actual = HashOf(file);
+        var (actual, length, written) = HashOf(file);
         return actual == expected
-            ? new(BackgroundModelState.Ready, path)
+            ? new(BackgroundModelState.Ready, path, length, written)
             : new(BackgroundModelState.ChecksumMismatch, path);
     }
 
-    private string HashOf(FileInfo file)
+    private (string Hash, long Length, DateTime Written) HashOf(FileInfo file)
     {
         lock (_gate)
         {
@@ -88,13 +97,13 @@ public sealed class BackgroundModelReadinessService : IBackgroundModelReadinessS
                 && known.Length == file.Length
                 && known.Written == file.LastWriteTimeUtc)
             {
-                return known.Hash;
+                return (known.Hash, known.Length, known.Written);
             }
 
             using var stream = file.OpenRead();
             var hash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
             _checked = (file.FullName, file.Length, file.LastWriteTimeUtc, hash);
-            return hash;
+            return (hash, file.Length, file.LastWriteTimeUtc);
         }
     }
 }
