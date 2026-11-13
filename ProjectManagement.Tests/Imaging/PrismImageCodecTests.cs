@@ -69,6 +69,20 @@ public sealed class PrismImageCodecTests
     }
 
     [Fact]
+    public void DecodeAsStored_ignores_the_rotation_and_keeps_the_stored_pixels()
+    {
+        var bytes = WithExifOrientation(
+            Encode(TwoHalves(60, 40, SKColors.Red, SKColors.Blue), SKEncodedImageFormat.Jpeg),
+            orientation: 6);
+
+        using var stored = PrismImageCodec.DecodeAsStored(bytes);
+
+        Assert.Equal((60, 40), (stored.Width, stored.Height));
+        AssertMostly(stored.GetPixel(8, 20), red: true);
+        AssertMostly(stored.GetPixel(52, 20), red: false);
+    }
+
+    [Fact]
     public void DecodeOriented_leaves_an_upright_photo_as_it_is()
     {
         var bytes = Encode(TwoHalves(60, 40, SKColors.Red, SKColors.Blue), SKEncodedImageFormat.Png);

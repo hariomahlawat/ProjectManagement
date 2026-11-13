@@ -121,6 +121,19 @@ public static class PrismImageCodec
     /// </summary>
     /// <exception cref="PrismImageException">The image cannot be decoded, or is too large.</exception>
     public static SKBitmap DecodeOriented(ReadOnlyMemory<byte> bytes, long maximumPixels = DefaultMaxPixels)
+        => Decode(bytes, maximumPixels, applyOrientation: true);
+
+    /// <summary>
+    /// Decodes the image exactly as its pixels are stored, ignoring any EXIF orientation.
+    /// For measuring pixels, not for showing a photo: use <see cref="DecodeOriented"/> for
+    /// anything a person will look at. The same pixel limit applies. The caller owns the
+    /// returned bitmap.
+    /// </summary>
+    /// <exception cref="PrismImageException">The image cannot be decoded, or is too large.</exception>
+    public static SKBitmap DecodeAsStored(ReadOnlyMemory<byte> bytes, long maximumPixels = DefaultMaxPixels)
+        => Decode(bytes, maximumPixels, applyOrientation: false);
+
+    private static SKBitmap Decode(ReadOnlyMemory<byte> bytes, long maximumPixels, bool applyOrientation)
     {
         if (bytes.IsEmpty)
         {
@@ -164,7 +177,7 @@ public static class PrismImageCodec
                 }
 
                 var origin = codec.EncodedOrigin;
-                if (origin == SKEncodedOrigin.TopLeft)
+                if (!applyOrientation || origin == SKEncodedOrigin.TopLeft)
                 {
                     source = null;
                     return decoded;
