@@ -12,11 +12,24 @@
     max-width: 1320px;
 }
 
-/* Six tools: two by two, one column on a phone. */
+/* Six tools in two even rows of three, as wide as the PDF Tools home (the tools themselves use
+   the wider .phot-main); two across on a tablet and one on a phone. */
 .phot-grid {
-    max-width: 760px;
+    max-width: 1180px;
     margin: 0 auto;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 991.98px) {
+    .phot-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 575.98px) {
+    .phot-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 /* ---------- Tool header ---------- */
