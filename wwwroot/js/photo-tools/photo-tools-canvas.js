@@ -132,7 +132,24 @@
     });
   }
 
+  /**
+   * True for the pointer that should draw or drag: the first finger or pen, or the left mouse
+   * button. A second finger and a right or middle click are left alone.
+   */
+  function isMainPointer(event) {
+    return event.isPrimary && (event.pointerType !== 'mouse' || event.button === 0);
+  }
+
+  /**
+   * True for the second and later clicks of a double click, so a double-clicked Download saves
+   * one file, not two. A key press counts as a first click.
+   */
+  function isRepeatClick(event) {
+    return Boolean(event) && event.detail > 1;
+  }
+
   window.PrismPhotoCanvas = Object.freeze({
-    showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, canvasToBytes
+    showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, canvasToBytes,
+    isMainPointer, isRepeatClick
   });
 })();

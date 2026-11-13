@@ -541,14 +541,16 @@
     }
   }
 
+  // One pointer draws at a time: a second finger or a right-click does not add to the mark.
   photoBox.addEventListener('pointerdown', (event) => {
     if (!current || showingOriginal || (tool !== 'markup' && tool !== 'hide')) return;
+    if ((drawing && !drawing.keys) || !shared.isMainPointer(event)) return;
     event.preventDefault();
     keyPoint = null;
     const point = roundPoint(photoPoint(event));
     if (placeAt(point)) return;
     photoBox.setPointerCapture(event.pointerId);
-    drawing = { hide: tool === 'hide', from: point, to: point, points: [point] };
+    drawing = { pointer: event.pointerId, hide: tool === 'hide', from: point, to: point, points: [point] };
   });
 
   // Keyboard: a cross on the photo stands in for the pointer. Enter presses where the cross is.
@@ -618,18 +620,18 @@
   // A mark started with the keyboard follows the cross only: a mouse passing over the photo
   // must not change it.
   photoBox.addEventListener('pointermove', (event) => {
-    if (!drawing || drawing.keys) return;
+    if (!drawing || drawing.keys || event.pointerId !== drawing.pointer) return;
     drawing.to = roundPoint(photoPoint(event));
     drawing.points.push(drawing.to);
     layout();
   });
 
-  photoBox.addEventListener('pointerup', () => {
-    if (drawing && !drawing.keys) finishDrawing();
+  photoBox.addEventListener('pointerup', (event) => {
+    if (drawing && !drawing.keys && event.pointerId === drawing.pointer) finishDrawing();
   });
 
-  photoBox.addEventListener('pointercancel', () => {
-    if (!drawing || drawing.keys) return;
+  photoBox.addEventListener('pointercancel', (event) => {
+    if (!drawing || drawing.keys || event.pointerId !== drawing.pointer) return;
     drawing = null;
     layout();
   });
@@ -712,16 +714,17 @@
 
   let drag = null;
 
+  // One pointer moves the crop: a second finger would otherwise make it jump.
   cropBox.addEventListener('pointerdown', (event) => {
-    if (!crop) return;
+    if (!crop || drag || !shared.isMainPointer(event)) return;
     event.preventDefault();
     cropBox.focus({ preventScroll: true });
     cropBox.setPointerCapture(event.pointerId);
-    drag = { handle: event.target.dataset.handle || null, from: photoPoint(event), start: { ...crop } };
+    drag = { pointer: event.pointerId, handle: event.target.dataset.handle || null, from: photoPoint(event), start: { ...crop } };
   });
 
   cropBox.addEventListener('pointermove', (event) => {
-    if (!drag) return;
+    if (!drag || event.pointerId !== drag.pointer) return;
     const point = photoPoint(event);
     const size = currentSize();
     crop = drag.handle
@@ -731,7 +734,9 @@
   });
 
   for (const type of ['pointerup', 'pointercancel']) {
-    cropBox.addEventListener(type, () => { drag = null; });
+    cropBox.addEventListener(type, (event) => {
+      if (drag && event.pointerId === drag.pointer) drag = null;
+    });
   }
 
   cropBox.addEventListener('keydown', (event) => {
@@ -1119,8 +1124,8 @@
     queueSave();
   });
 
-  downloadButton.addEventListener('click', () => {
-    if (!saved || working) return;
+  downloadButton.addEventListener('click', (event) => {
+    if (!saved || working || shared.isRepeatClick(event)) return;
     shared.saveBlob(new Blob([saved.bytes], { type: saved.type.mime }), `${core.baseName(fileName)}-edited.${saved.type.extension}`);
   });
 

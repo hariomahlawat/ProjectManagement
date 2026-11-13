@@ -653,7 +653,7 @@
   }
 
   photoBox.addEventListener('pointerdown', (event) => {
-    if (!cutout || busy || showOriginal || stroke || !event.isPrimary) return;
+    if (!cutout || busy || showOriginal || stroke || !shared.isMainPointer(event)) return;
     event.preventDefault();
     const box = photoBox.getBoundingClientRect();
     ring = { x: event.clientX - box.left, y: event.clientY - box.top };
