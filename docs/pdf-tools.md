@@ -132,8 +132,13 @@ page it has shown. A released page is drawn again when it comes back.
 
 ## Possible later phases
 
-Server-side processing would be needed for real compression and password protect/unlock
-(qpdf, Apache-2.0), Office-to-PDF (LibreOffice) and OCR. These would receive users' files on
+A **Reduce size** tool is planned in the browser, with no upload
+([ux/pdf-tools-reduce-size.md](ux/pdf-tools-reduce-size.md)); it re-saves images and removes
+duplicated content, and does not need the server.
+
+Server-side processing would be needed for password protect/unlock (qpdf, Apache-2.0),
+Office-to-PDF (LibreOffice) and OCR, and for font subsetting if the browser tool proves
+insufficient. These would receive users' files on
 the server, so they need size limits, immediate temporary-file deletion, no retention,
 antiforgery protection and sandboxed converter processes. Avoid AGPL tools (iText,
 Ghostscript) unless the licence has been reviewed.
