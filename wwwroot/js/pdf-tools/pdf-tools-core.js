@@ -1477,9 +1477,12 @@
               return;
             }
             const before = uses.get(key);
+            const larger = !before || width * height > before.width * before.height;
             uses.set(key, {
               width: Math.max(width, before ? before.width : 0),
-              height: Math.max(height, before ? before.height : 0)
+              height: Math.max(height, before ? before.height : 0),
+              // The page of the largest use, where a before-and-after preview shows it best.
+              page: larger ? currentPage : before.page
             });
           } else if (subtype === '/Form' && !stack.has(key)) {
             const form = context.lookup(ref);
@@ -1495,7 +1498,9 @@
       });
     };
 
-    for (const page of document.getPages()) {
+    let currentPage = 0;
+    for (const [pageIndex, page] of document.getPages().entries()) {
+      currentPage = pageIndex;
       const node = page.node;
       const resources = node.Resources();
       const userUnit = node.lookupMaybe(PDFName.of('UserUnit'), PDFNumber);
@@ -1648,9 +1653,9 @@
         return skip(REDUCE_SKIP.other);
       }
 
-      const use = measured.unmeasured.has(key) ? null : measured.uses.get(key);
+      const use = measured.unmeasured.has(key) ? null : measured.uses.get(key) || null;
       const target = reduceTarget(width, height, use, preset.dpi);
-      return { ...plan, action: 'resave', source, grey: space === '/DeviceGray', target };
+      return { ...plan, action: 'resave', source, grey: space === '/DeviceGray', use, target };
     });
   }
 
@@ -1826,9 +1831,75 @@
   }
 
   const SIGNED_PDF_MESSAGE = 'This PDF is digitally signed. Making it smaller would break the signature, so it was not changed.';
+  const CANCELLED_MESSAGE = 'Stopped. No file was made.';
+
+  // A size target is reached by lowering the quality first and the resolution after, never below
+  // this resolution or this quality.
+  const REDUCE_MIN_DPI = 72;
+  const REDUCE_LOWEST_QUALITY = 0.35;
 
   /**
-   * Makes a PDF smaller. options: { preset: 'screen' | 'standard' | 'print', encodeImage, onProgress }.
+   * "2" + "MB" → 2097152. Null when the value is not a positive number. A comma is a decimal point
+   * ("1,5" MB), except in a number written with thousands ("1,000" KB), which is not 1 KB.
+   */
+  function parseSizeLimit(value, unit) {
+    const text = String(value ?? '').trim();
+    const plain = /^\d{1,3}(,\d{3})+$/.test(text) ? text.replace(/,/g, '') : text.replace(',', '.');
+    const number = Number(plain);
+    if (!plain || !Number.isFinite(number) || number <= 0) return null;
+    const factor = String(unit).toUpperCase() === 'MB' ? 1024 * 1024 : 1024;
+    return Math.round(number * factor);
+  }
+
+  /**
+   * Finds the settings that keep the pictures within `budget` bytes, best-looking first.
+   * `measure(dpi, quality)` re-saves every picture at those settings and resolves to an attempt
+   * with its total `bytes`. The quality is searched first at the starting resolution; only when the
+   * lowest quality is still too big is the resolution stepped down, never below `minDpi`.
+   * Resolves to the chosen attempt with `reached`; when nothing fits, the smallest one tried.
+   */
+  async function searchReduceSettings({ dpi, quality, budget, measure, minDpi = REDUCE_MIN_DPI, lowestQuality = REDUCE_LOWEST_QUALITY }) {
+    let smallest = null;
+    const keep = (attempt) => {
+      if (!smallest || attempt.bytes < smallest.bytes) smallest = attempt;
+      return attempt;
+    };
+    let current = dpi;
+    for (let round = 0; round < 8; round += 1) {
+      const top = keep(await measure(current, quality));
+      if (top.bytes <= budget) return { ...top, reached: true };
+      const floor = keep(await measure(current, Math.min(quality, lowestQuality)));
+      if (floor.bytes <= budget) {
+        let found = floor;
+        let low = Math.min(quality, lowestQuality);
+        let high = quality;
+        for (let step = 0; step < 4; step += 1) {
+          const middle = (low + high) / 2;
+          const attempt = keep(await measure(current, middle));
+          if (attempt.bytes <= budget) {
+            found = attempt;
+            low = middle;
+          } else {
+            high = middle;
+          }
+        }
+        return { ...found, reached: true };
+      }
+      if (current <= minDpi) break;
+      // Picture size follows the pixel count, so aim a little under with the square root.
+      const scale = budget > 0 ? Math.sqrt(budget / floor.bytes) * 0.95 : 0;
+      current = Math.max(minDpi, Math.round(current * Math.min(0.9, Math.max(0.5, scale))));
+    }
+    return { ...smallest, reached: false };
+  }
+
+  /**
+   * Makes a PDF smaller. options:
+   *   preset       'screen' | 'standard' | 'print'
+   *   targetBytes  optional size to keep the file under
+   *   encodeImage  see below
+   *   onProgress   ({ step, done, total }) for each picture re-saved; `step` counts the attempts
+   *   signal       an AbortSignal; stops between pictures with a 'cancelled' error
    *
    * encodeImage({ source: 'jpeg', bytes } | { source: 'pixels', data, channels },
    *             width, height, targetWidth, targetHeight, quality, grey)
@@ -1841,89 +1912,196 @@
   async function reducePdf(PDFLib, bytes, options) {
     const settings = options || {};
     const preset = PDF_SIZE_PRESETS.find((item) => item.key === settings.preset) || PDF_SIZE_PRESETS[1];
+    const targetBytes = settings.targetBytes > 0 ? settings.targetBytes : null;
+    const stopIfCancelled = () => {
+      if (settings.signal && settings.signal.aborted) throw new PdfToolError('cancelled', CANCELLED_MESSAGE);
+    };
     const document = await loadPdf(PDFLib, bytes);
     if (isSignedPdf(PDFLib, document)) throw new PdfToolError('signed', SIGNED_PDF_MESSAGE);
     const { PDFName, PDFRawStream } = PDFLib;
     const context = document.context;
 
+    // 1. Lossless clean-up, before any picture is touched.
     const report = {
       preset: preset.key,
       merged: deduplicateObjects(PDFLib, document),
+      thumbnails: dropPageThumbnails(PDFLib, document),
+      compressed: compressPlainStreams(PDFLib, document),
       resaved: 0,
       resized: 0,
       skipped: {},
-      compressed: 0,
-      thumbnails: 0,
-      pdfA: claimsPdfA(PDFLib, document)
+      pdfA: claimsPdfA(PDFLib, document),
+      previewPage: null,
+      target: null
     };
-    const count = (reason) => { report.skipped[reason] = (report.skipped[reason] || 0) + 1; };
+    removeUnreachableObjects(PDFLib, document);
 
+    // 2. Which pictures can be re-saved. The same at every resolution; only their sizes change.
     const plan = reduceImagePlan(PDFLib, document, measureImageUses(PDFLib, document), preset);
-    plan.filter((image) => image.action === 'skip').forEach((image) => count(image.reason));
+    const fixedSkips = {};
+    plan.filter((image) => image.action === 'skip').forEach((image) => {
+      fixedSkips[image.reason] = (fixedSkips[image.reason] || 0) + 1;
+    });
     const work = plan.filter((image) => image.action === 'resave');
     // Keys the old dictionary keeps; the new stream sets its own size, colour and filter.
     const REPLACED = new Set(['/Length', '/Filter', '/DecodeParms', '/Width', '/Height', '/ColorSpace', '/BitsPerComponent', '/DL']);
+    let step = 0;
 
-    for (const [index, image] of work.entries()) {
-      settings.onProgress?.(index + 1, work.length);
-      let input;
-      if (image.source === 'jpeg') {
-        input = { source: 'jpeg', bytes: image.stream.contents };
-      } else {
-        const pixels = decodeImagePixels(PDFLib, image);
-        if (!pixels) { count(REDUCE_SKIP.other); continue; }
-        input = { source: 'pixels', ...pixels };
-      }
-      let encoded = null;
-      try {
-        encoded = await settings.encodeImage({
-          ...input,
-          width: image.width,
-          height: image.height,
-          targetWidth: image.target.width,
-          targetHeight: image.target.height,
-          quality: preset.quality,
-          grey: image.grey
-        });
-      } catch {
-        encoded = null;
-      }
-      if (!encoded) { count(REDUCE_SKIP.other); continue; }
+    // Each setting is re-saved once; the search may ask for it again.
+    const attempts = new Map();
 
-      const candidates = [];
-      const base = (colourSpace) => {
-        const dict = context.obj({});
-        for (const [key, value] of image.stream.dict.entries()) {
-          if (!REPLACED.has(String(key))) dict.set(key, value);
+    /** Re-saves every picture at one resolution and quality. Nothing is put in the file yet. */
+    const attempt = async (dpi, quality) => {
+      const key = `${dpi}|${quality}`;
+      if (attempts.has(key)) return attempts.get(key);
+      const made = await resaveAll(dpi, quality);
+      attempts.set(key, made);
+      return made;
+    };
+
+    const resaveAll = async (dpi, quality) => {
+      step += 1;
+      const chosen = new Map();
+      const skipped = {};
+      let imageBytes = 0;
+      let resized = 0;
+      for (const [index, image] of work.entries()) {
+        stopIfCancelled();
+        settings.onProgress?.({ step, done: index + 1, total: work.length });
+        const target = reduceTarget(image.width, image.height, image.use, dpi);
+        let input = null;
+        if (image.source === 'jpeg') {
+          input = { source: 'jpeg', bytes: image.stream.contents };
+        } else {
+          const pixels = decodeImagePixels(PDFLib, image);
+          if (pixels) input = { source: 'pixels', ...pixels };
         }
-        dict.set(PDFName.of('Width'), context.obj(image.target.width));
-        dict.set(PDFName.of('Height'), context.obj(image.target.height));
-        dict.set(PDFName.of('ColorSpace'), PDFName.of(colourSpace));
-        dict.set(PDFName.of('BitsPerComponent'), context.obj(8));
-        return dict;
-      };
-      if (encoded.jpeg && encoded.jpeg.length) {
-        const dict = base('DeviceRGB');
-        dict.set(PDFName.of('Filter'), PDFName.of('DCTDecode'));
-        candidates.push(PDFRawStream.of(dict, encoded.jpeg));
+        let encoded = null;
+        if (input) {
+          try {
+            encoded = await settings.encodeImage({
+              ...input,
+              width: image.width,
+              height: image.height,
+              targetWidth: target.width,
+              targetHeight: target.height,
+              quality,
+              grey: image.grey
+            });
+          } catch {
+            encoded = null;
+          }
+        }
+        stopIfCancelled();
+        if (!encoded) {
+          skipped[REDUCE_SKIP.other] = (skipped[REDUCE_SKIP.other] || 0) + 1;
+          imageBytes += image.size;
+          continue;
+        }
+        const candidates = [];
+        const base = (colourSpace) => {
+          const dict = context.obj({});
+          for (const [key, value] of image.stream.dict.entries()) {
+            if (!REPLACED.has(String(key))) dict.set(key, value);
+          }
+          dict.set(PDFName.of('Width'), context.obj(target.width));
+          dict.set(PDFName.of('Height'), context.obj(target.height));
+          dict.set(PDFName.of('ColorSpace'), PDFName.of(colourSpace));
+          dict.set(PDFName.of('BitsPerComponent'), context.obj(8));
+          return dict;
+        };
+        if (encoded.jpeg && encoded.jpeg.length) {
+          const dict = base('DeviceRGB');
+          dict.set(PDFName.of('Filter'), PDFName.of('DCTDecode'));
+          candidates.push(PDFRawStream.of(dict, encoded.jpeg));
+        }
+        if (image.grey && encoded.grey && encoded.grey.length === target.width * target.height) {
+          const stream = context.flateStream(encoded.grey, {});
+          for (const [key, value] of base('DeviceGray').entries()) stream.dict.set(key, value);
+          candidates.push(stream);
+        }
+        candidates.sort((a, b) => a.getContentsSize() - b.getContentsSize());
+        const best = candidates[0];
+        if (!best || best.getContentsSize() >= image.size * REDUCE_KEEP_RATIO) {
+          skipped[REDUCE_SKIP.notSmaller] = (skipped[REDUCE_SKIP.notSmaller] || 0) + 1;
+          imageBytes += image.size;
+          continue;
+        }
+        chosen.set(image, best);
+        imageBytes += best.getContentsSize();
+        if (target.scaled) resized += 1;
       }
-      if (image.grey && encoded.grey && encoded.grey.length === image.target.width * image.target.height) {
-        const stream = context.flateStream(encoded.grey, {});
-        for (const [key, value] of base('DeviceGray').entries()) stream.dict.set(key, value);
-        candidates.push(stream);
+      return { dpi, quality, bytes: imageBytes, chosen, skipped, resized };
+    };
+
+    /**
+     * Puts one attempt's pictures in the file (and the others back as they were) and saves it.
+     * Nothing is pruned here: an object only an original picture refers to (its /DecodeParms, say)
+     * looks unused while a new picture stands in its place, but a later round decodes the original
+     * again and needs it. Pruning comes once, after the search; it only makes the file smaller.
+     */
+    const saveWith = async (chosen) => {
+      for (const image of work) context.assign(image.ref, chosen.get(image) || image.stream);
+      return save(document);
+    };
+
+    // 3. Settings: the preset, or the best-looking ones that keep the file under the target.
+    let result;
+    let output;
+    if (targetBytes && work.length) {
+      // Everything but the pictures being re-saved stays as it is now, so the file's size is that
+      // part plus the pictures; the pictures' share is the budget. That is an estimate: a new
+      // picture's dictionary and the file's tables add a little, so a file the estimate says fits
+      // can still come out over. Then the overshoot, and a little more, comes off the budget and
+      // the search runs again (settings already tried are not re-saved again).
+      const fixedBytes = (await save(document)).length - work.reduce((sum, image) => sum + image.size, 0);
+      let budget = targetBytes - fixedBytes;
+      for (let round = 0; round < 4; round += 1) {
+        result = await searchReduceSettings({ dpi: preset.dpi, quality: preset.quality, budget, measure: attempt });
+        stopIfCancelled();
+        output = await saveWith(result.chosen);
+        if (output.length <= targetBytes || !result.reached) break;
+        budget -= output.length - targetBytes + Math.max(256, Math.round(targetBytes * 0.002));
       }
-      candidates.sort((a, b) => a.getContentsSize() - b.getContentsSize());
-      const best = candidates[0];
-      if (!best || best.getContentsSize() >= image.size * REDUCE_KEEP_RATIO) { count(REDUCE_SKIP.notSmaller); continue; }
-      context.assign(image.ref, best);
-      report.resaved += 1;
-      if (image.target.scaled) report.resized += 1;
+    } else {
+      result = await attempt(preset.dpi, preset.quality);
+      stopIfCancelled();
+      output = await saveWith(result.chosen);
     }
 
-    report.compressed = compressPlainStreams(PDFLib, document);
-    report.thumbnails = dropPageThumbnails(PDFLib, document);
+    // The search is over: now objects nothing refers to can go, which only makes the file smaller.
     removeUnreachableObjects(PDFLib, document);
-    const output = await save(document);
+    output = await save(document);
+    // Saving gives the page its turn, so Stop may have been pressed meanwhile: then there is no file.
+    stopIfCancelled();
+
+    // 4. What was done.
+    report.resaved = result.chosen.size;
+    report.resized = result.resized;
+    report.dpi = result.dpi;
+    report.quality = result.quality;
+    report.skipped = { ...fixedSkips };
+    for (const [reason, count] of Object.entries(result.skipped)) {
+      report.skipped[reason] = (report.skipped[reason] || 0) + count;
+    }
+    // The page of the largest re-saved picture, for a before-and-after preview. A JPG with its own
+    // orientation is left out: the browser's PDF preview turns it, so the two would not match.
+    const largest = Array.from(result.chosen.keys())
+      .filter((image) => image.use && Number.isInteger(image.use.page))
+      .filter((image) => image.source !== 'jpeg' || jpegOrientation(image.stream.contents) === 1)
+      .sort((a, b) => b.size - a.size)[0];
+    report.previewPage = largest ? largest.use.page : null;
+
+    if (targetBytes) {
+      report.target = {
+        bytes: targetBytes,
+        reached: output.length <= targetBytes,
+        dpi: result.dpi,
+        quality: result.quality,
+        // Missed with the lowest settings this tool uses, not for want of trying them.
+        atLowest: result.dpi <= REDUCE_MIN_DPI
+      };
+    }
     if (output.length >= bytes.length) {
       return { bytes, unchanged: true, report };
     }
@@ -1970,6 +2148,10 @@
     PDF_SIZE_PRESETS,
     REDUCE_SKIP,
     SIGNED_PDF_MESSAGE,
+    REDUCE_MIN_DPI,
+    REDUCE_LOWEST_QUALITY,
+    parseSizeLimit,
+    searchReduceSettings,
     contentOperators,
     measureImageUses,
     reduceTarget,

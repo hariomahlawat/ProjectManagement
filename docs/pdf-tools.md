@@ -50,7 +50,7 @@ pdf.js is an ES module (`.mjs`), served by ASP.NET Core's default content types.
 | PDF to images | PNG or JPG at 72/150/300 dpi, optional page range; several pages download as a ZIP. A page over 24 million pixels at the chosen dpi (A2 and larger at 300 dpi) is made at the highest dpi that fits, and the result says which pages and at about what dpi. |
 | Watermark | Text, position, angle, size, colour, transparency, optional page range. |
 | Page numbers & header/footer | Number formats with `{n}`, `{total}` (the last number used: three pages starting at 5 read "Page 5 of 7"), `{date}`; position, first number, skip cover page, header/footer text. A number field left blank uses its default. |
-| Reduce size | Makes a PDF smaller in the browser: repeated fonts and pictures stored once, pictures re-saved at the size they are shown (Screen 100 dpi, Standard 150 dpi, Print 220 dpi), plain parts compressed, page thumbnails left out. Text, links, form fields and bookmarks keep working. Signed PDFs are refused. A file that would not get smaller is never offered as a saving. See "How Reduce size works" below. |
+| Reduce size | Makes a PDF smaller in the browser: repeated fonts and pictures stored once, pictures re-saved at the size they are shown (Screen 100 dpi, Standard 150 dpi, Print 220 dpi), plain parts compressed, page thumbnails left out. Text, links, form fields and bookmarks keep working. Optionally **Keep under** a size (500 KB, 1 MB, 2 MB, 5 MB or typed), remembered in this browser. The work runs in a background worker and can be stopped. The result shows a page before and after. Signed PDFs are refused. A file that would not get smaller is never offered as a saving. See "How Reduce size works" below. |
 | Sign & annotate | Text, signature (draw, type or upload), image, highlight, box and white-out; drag to move, corner handle to resize, or use the keyboard. Items are flattened into the page on save. While White-out is chosen or used, the screen says that it does not remove the covered text, and saving asks first. |
 
 When pages are dropped (Split, extract, delete), they are removed from the saved file, not just
@@ -149,9 +149,42 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
   Acrobat) never do. The page decodes a copy whose orientation says "as stored"
   (`jpegClearOrientation`), so an upside-down or mirrored tag cannot turn or flip a photo. A
   picture whose decoded size differs from the PDF's is left as it is.
+- **Order of work.** The lossless clean-up runs first (`deduplicateObjects`, thumbnails left out,
+  `compressPlainStreams`, unreferenced objects left out); only then are pictures chosen and
+  re-saved, so each picture is compared with what is really stored.
+- **Keep under a size.** `parseSizeLimit` reads the size (KB or MB; "1,5" is 1.5 and "1,000" is a
+  thousand). The file is saved once after the clean-up to find what everything except the
+  pictures being re-saved takes; the rest is the pictures' budget. `searchReduceSettings` then
+  tries the preset, then searches the quality (down to 0.35) at the preset's resolution, and only
+  when that is still too big steps the resolution down (by the square root of the shortfall,
+  never below 72 dpi) and searches again. Each try re-saves every picture without putting it in
+  the file; the best-looking try that fits is used, or the smallest one when nothing fits. The
+  budget is an estimate (a new picture's dictionary and the file's tables add a little), so the
+  saved file is checked against the target; when it is over, the overshoot comes off the budget
+  and the search runs again, reusing the settings already tried (up to four rounds). The result
+  says it is under the size, with the resolution and quality used, or says in amber that it could
+  not be made smaller, naming 72 dpi as the lowest only when that is where the search ended.
+  The size and its unit are remembered in this browser only (`localStorage`,
+  `prism.pdfTools.reduce`).
+- **In the background.** The work runs in a worker (`pdf-tools-compress-worker.js`), so a large
+  PDF does not freeze the page. The page gives the worker the addresses of the very scripts it
+  loaded, versioned as loaded (`asp-append-version`), and the worker's own address is versioned
+  with `IFileVersionProvider`, so after a deployment the worker never runs older code than the
+  page. Pictures are re-encoded with `OffscreenCanvas` (`pdf-tools-encode.js`, shared with the
+  page). A browser without workers or `OffscreenCanvas`, or a worker that cannot start, does the
+  same work on the page instead; the result is the same file. The worker is a script file on this
+  site, as the Content-Security-Policy (`script-src 'self'`, no `worker-src`) requires.
+- **Stop.** While the work runs, the "Working…" box has a Stop button (outside the inert page, and
+  given the focus). It ends the worker at once, or, on the page, stops between pictures
+  (`signal`). No file is made, and the screen says so.
 - **The result** gives the size before and after, what was done and what was left. When the file
   would not be smaller, no file is made and the screen says so. A file that says it is PDF/A is
   made smaller with a warning that it may no longer meet PDF/A.
+- **A page before and after.** The page where the largest re-saved picture is drawn is shown from
+  both files at the same size, with a line to drag between them and a 2× zoom. A page whose
+  picture is a JPG with its own EXIF orientation is not chosen, because pdf.js in the browser
+  turns such a photo and the two would not match (see "Known limits"). The preview is drawn after
+  the work, so the page is not kept busy for it.
 
 ## Code map
 
@@ -163,7 +196,9 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
 | `wwwroot/js/pdf-tools/pdf-tools-core.test.js` | Node tests, part of `npm test`. |
 | `wwwroot/js/pdf-tools/pdf-tools-app.js` | Shell, routing (`#tool`), and the six form-based tools. |
 | `wwwroot/js/pdf-tools/pdf-tools-annotate.js` | Sign & annotate editor. |
-| `wwwroot/js/pdf-tools/pdf-tools-compress.js` | Reduce size: the screen and the canvas re-encoding of a picture. The rules are in the core. |
+| `wwwroot/js/pdf-tools/pdf-tools-compress.js` | Reduce size: the screen, Keep under, running the work in the worker or on the page, Stop, the result and the page before and after. The rules are in the core. |
+| `wwwroot/js/pdf-tools/pdf-tools-encode.js` | Reduce size: re-encoding one picture smaller with a canvas (`OffscreenCanvas` where there is one), on the page and in the worker. |
+| `wwwroot/js/pdf-tools/pdf-tools-compress-worker.js` | Reduce size in a background worker: loads the page's own scripts and runs `reducePdf`. |
 | `wwwroot/js/pdf-tools/pdf-tools-reduce.test.js` | Node tests for Reduce size, part of `npm test`. |
 | `wwwroot/css/pdf-tools.css` | Styles; Bootstrap theme variables only, so Light and Dark both work. |
 

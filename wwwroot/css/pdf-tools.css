@@ -546,6 +546,119 @@
     font-size: 0.9rem;
 }
 
+/* Keep under: the size field, its unit and quick sizes. */
+.pdft-optional {
+    color: var(--pdft-muted);
+    font-weight: 400;
+}
+
+.pdft-keep__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.pdft-keep__value {
+    width: 8rem;
+}
+
+.pdft-keep__quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+}
+
+.pdft-keep__quick .btn[aria-pressed="true"],
+.pdft-keep .btn-group .btn[aria-pressed="true"] {
+    color: var(--bs-white);
+    background: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
+.pdft-keep__quick .btn-link[aria-pressed="true"] {
+    color: var(--bs-primary);
+    background: transparent;
+    border-color: transparent;
+    font-weight: 600;
+}
+
+.pdft-keep__hint {
+    margin: 0.5rem 0 0;
+    color: var(--pdft-muted);
+    font-size: 0.9rem;
+}
+
+/* A page before and after, with a line to drag between them. */
+.pdft-compare {
+    width: 100%;
+    max-width: 36rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.pdft-compare__title {
+    margin: 0;
+    font-weight: 600;
+    text-align: center;
+}
+
+.pdft-compare__frame {
+    overflow: auto;
+    max-height: 70vh;
+    border: 1px solid var(--pdft-border);
+    border-radius: 8px;
+    background: var(--bs-white);
+}
+
+.pdft-compare__frame canvas {
+    display: block;
+}
+
+/* The canvases and the line share this box, the size of the page drawn, so the line and the cut
+   between before and after are measured from the same width, zoomed in or not. */
+.pdft-compare__page {
+    position: relative;
+    width: max-content;
+}
+
+.pdft-compare__after {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.pdft-compare__line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--bs-primary);
+    pointer-events: none;
+}
+
+.pdft-compare__labels {
+    display: flex;
+    justify-content: space-between;
+    color: var(--pdft-muted);
+    font-size: 0.85rem;
+}
+
+.pdft-compare .form-check {
+    align-self: center;
+    text-align: left;
+}
+
+.pdft-compare__slider {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.9rem;
+}
+
 /* ---------- Result ---------- */
 
 .pdft-result__detail {
