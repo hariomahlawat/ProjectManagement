@@ -20,8 +20,12 @@ test('formatBytes uses B, KB and MB of 1,000 and rounds up', () => {
   assert.equal(tools.formatBytes(50000), '50 KB');
   assert.equal(tools.formatBytes(50001), '51 KB');
   assert.equal(tools.formatBytes(51300), '52 KB');
+  // MB to the nearest 0.1 MB.
   assert.equal(tools.formatBytes(999999), '1.0 MB');
-  assert.equal(tools.formatBytes(1000001), '1.1 MB');
+  assert.equal(tools.formatBytes(1000001), '1.0 MB');
+  assert.equal(tools.formatBytes(1012857), '1.0 MB');
+  assert.equal(tools.formatBytes(1050000), '1.1 MB');
+  assert.equal(tools.formatBytes(1049999), '1.0 MB');
 });
 
 test('parseTargetBytes reads KB and MB of 1,000 and rejects nonsense', () => {

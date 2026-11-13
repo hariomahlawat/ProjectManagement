@@ -43,14 +43,16 @@
   const MB = 1000 * 1000;
 
   /**
-   * A file size for people. Rounded up, never down: a file shown as "50 KB" is at most 50 KB,
-   * so it is never shown as fitting a limit it is over.
+   * A file size for people. KB are rounded up, never down: a file shown as "50 KB" is at most
+   * 50 KB, so it is never shown as fitting the KB limits forms ask for. MB are shown to the
+   * nearest 0.1 MB (owner decision, 13 Nov 2026): rounding up there overstated a photo of
+   * 1,012,857 bytes as "1.1 MB".
    */
   function formatBytes(bytes) {
     if (bytes < KB) return `${bytes} B`;
     const kilobytes = Math.ceil(bytes / KB);
     if (kilobytes < KB) return `${kilobytes} KB`;
-    return `${(Math.ceil(bytes / (MB / 10)) / 10).toFixed(1)} MB`;
+    return `${(Math.round(bytes / (MB / 10)) / 10).toFixed(1)} MB`;
   }
 
   /**
