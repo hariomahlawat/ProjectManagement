@@ -16,12 +16,15 @@
     --pw-glass-mix: 76%;
     --pw-rim: color-mix(in srgb, var(--pm-text-inverted) 85%, transparent);
     --pw-shadow: color-mix(in srgb, var(--pm-text-strong) 28%, transparent);
+    /* Anniversary gold: amber deepened just enough to read as large type on the light card. */
+    --pw-gold: color-mix(in srgb, var(--pm-accent-amber) 60%, var(--pm-accent-gold-dark));
 }
 
 :root[data-bs-theme="dark"] {
     --pw-glass-mix: 72%;
     --pw-rim: color-mix(in srgb, var(--pm-text-strong) 18%, transparent);
     --pw-shadow: color-mix(in srgb, var(--pm-page-bg) 85%, transparent);
+    --pw-gold: var(--pm-accent-amber);
 }
 
 .prism-wish__sky {
@@ -49,9 +52,9 @@
 }
 
 .prism-wish[data-kind="anniversary"] {
-    --pw-1: var(--pm-accent-gold-dark);
+    --pw-1: var(--pw-gold);
     --pw-2: var(--pm-accent-pink);
-    --pw-3: var(--pm-accent-gold-dark);
+    --pw-3: var(--pw-gold);
 }
 
 .prism-wish[hidden],
@@ -136,7 +139,7 @@
 }
 
 .prism-wish-mark[data-kind="anniversary"] {
-    color: var(--pm-accent-gold-dark);
+    color: var(--pw-gold);
 }
 
 .prism-wish-mark:hover {
