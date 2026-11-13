@@ -237,6 +237,8 @@
 
     // ---- the card -----------------------------------------------------------------------------
     const isOpen = () => !wish.hidden;
+    // The card or the sky is still on screen: a click or Esc closes whatever is left.
+    const isShowing = () => isOpen() || run !== null;
 
     function closeCard() {
         window.clearTimeout(closeTimer);
@@ -262,7 +264,8 @@
 
         wish.hidden = false;
         window.requestAnimationFrame(() => window.requestAnimationFrame(() => wish.classList.add("is-on")));
-        closeTimer = window.setTimeout(closeCard, SHOW_SECONDS * 1000);
+        // After seven seconds the card and the sky leave together.
+        closeTimer = window.setTimeout(dismiss, SHOW_SECONDS * 1000);
 
         if (reduceMotion()) return;
         sky.hidden = false;
@@ -298,13 +301,13 @@
     // The click that closes the wish still does whatever it was aimed at.
     document.addEventListener("click", event => {
         if (mark && mark.contains(event.target)) return;
-        if (isOpen()) dismiss();
+        if (isShowing()) dismiss();
     }, true);
     document.addEventListener("keydown", event => {
-        if (event.key === "Escape" && isOpen()) dismiss();
+        if (event.key === "Escape" && isShowing()) dismiss();
     });
     document.addEventListener("fullscreenchange", () => {
-        if (document.fullscreenElement && isOpen()) dismiss();
+        if (document.fullscreenElement && isShowing()) dismiss();
     });
     window.addEventListener("resize", () => {
         if (run) resize();
