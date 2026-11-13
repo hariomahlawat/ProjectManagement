@@ -25,6 +25,12 @@
   const dialog = $('[data-signature-dialog]', section);
 
   const MAX_PAGE_WIDTH = 900;
+  // Pages this far outside the window are drawn ahead of scrolling; further than this they are
+  // released again, so a long PDF does not keep a full-size picture of every page it has shown.
+  const KEEP_MARGIN = '1500px 0px';
+  const STEP = 2;
+  const BIG_STEP = 10;
+  const WHITEOUT_WARNING = 'White-out only covers what is under it. The covered text stays in the file and can still be selected, copied or searched, so do not use it to hide private information.';
   const MIN_SIZE = 6;
   const SHAPE_DEFAULTS = {
     highlight: { width: 140, height: 18, colour: '#ffeb3b' },
@@ -39,7 +45,8 @@
   let pendingPlacement = null; // { type: 'signature' | 'image', image }
   let signature = null; // last signature, reused within this tab only
   let nextId = 1;
-  const thumbnails = ui.createThumbnailQueue();
+  const whiteoutNote = $('[data-annotate-whiteout-note]', section);
+  if (whiteoutNote) whiteoutNote.textContent = WHITEOUT_WARNING;
 
   // ---------------------------------------------------------------------------
   // Tool selection
@@ -64,9 +71,17 @@
       image: 'Click on a page to place the image',
       highlight: 'Drag across the text to highlight',
       rect: 'Drag to draw a box',
-      whiteout: 'Drag over content to cover it'
+      whiteout: 'Drag over content to cover it with white'
     };
     summary.textContent = hints[activeTool] || '';
+    if (whiteoutNote) {
+      whiteoutNote.hidden = activeTool !== 'whiteout' && !items.some((item) => item.type === 'whiteout');
+    }
+    // A page can be reached with the Tab key while a tool waits to be placed on it.
+    const placing = activeTool !== 'select';
+    for (const page of current?.pages || []) {
+      page.overlay.tabIndex = placing ? 0 : -1;
+    }
   }
 
   toolButtons.forEach((button) => button.addEventListener('click', () => {
@@ -379,10 +394,16 @@
   }
 
   function removeItem(item) {
+    const page = pageOf(item);
+    const hadFocus = item.element.contains(document.activeElement);
     item.element.remove();
     items = items.filter((candidate) => candidate !== item);
     if (selected === item) select(null);
     updateSummary();
+    // Keep the keyboard on the page rather than dropping it to the top of the document.
+    if (hadFocus && page) {
+      page.overlay.focus({ preventScroll: true });
+    }
   }
 
   function startEditing(item) {
@@ -450,6 +471,16 @@
       element.append(handle);
     }
 
+    element.tabIndex = 0;
+    element.setAttribute('role', 'group');
+    element.setAttribute('aria-roledescription', 'item');
+    element.setAttribute('aria-label', `${ITEM_NAMES[item.signature ? 'signature' : item.type] || 'Item'} on page ${pageIndex + 1}`);
+    element.setAttribute('aria-describedby', keyHelp.id);
+    element.addEventListener('focus', () => {
+      if (selected !== item) select(item);
+    });
+    element.addEventListener('keydown', (event) => onItemKey(event, item));
+
     page.overlay.append(element);
     items.push(item);
     paintItem(item);
@@ -459,6 +490,51 @@
     }
     updateSummary();
     return item;
+  }
+
+  const ITEM_NAMES = {
+    text: 'Text',
+    image: 'Image',
+    signature: 'Signature',
+    highlight: 'Highlight',
+    rect: 'Box',
+    whiteout: 'White-out'
+  };
+  const keyHelp = document.createElement('p');
+  keyHelp.id = 'pdftAnnotateKeys';
+  keyHelp.className = 'visually-hidden';
+  keyHelp.textContent = 'Arrow keys move it, with Shift in bigger steps. Alt and the arrow keys change its size. Enter edits text. Delete removes it.';
+  editor.before(keyHelp);
+
+  /** Moves or resizes the item that has the keyboard focus. */
+  function onItemKey(event, item) {
+    if (item.editing || event.target !== item.element) return;
+    const moves = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    const move = moves[event.key];
+    if (event.key === 'Enter' && item.type === 'text') {
+      event.preventDefault();
+      startEditing(item);
+      return;
+    }
+    if (!move) return;
+    event.preventDefault();
+    const step = event.shiftKey ? BIG_STEP : STEP;
+    if (event.altKey && item.type !== 'text') {
+      const ratio = item.width / item.height;
+      item.width = Math.max(MIN_SIZE, item.width + move[0] * step);
+      item.height = item.type === 'image'
+        ? item.width / ratio
+        : Math.max(MIN_SIZE, item.height + move[1] * step);
+      if (item.type === 'image' && move[1]) {
+        item.height = Math.max(MIN_SIZE, item.height + move[1] * step);
+        item.width = item.height * ratio;
+      }
+    } else {
+      item.left += move[0] * step;
+      item.top += move[1] * step;
+    }
+    clampToPage(item);
+    paintItem(item);
   }
 
   function clampToPage(item) {
@@ -520,6 +596,30 @@
       return;
     }
     event.preventDefault();
+    placeAt(pageIndex, x, y, event);
+  }
+
+  /**
+   * The keyboard's way to place: Enter or Space on a page puts the waiting tool in the middle of
+   * the part of the page that is on the screen. The item then has the focus and moves with the
+   * arrow keys.
+   */
+  function onOverlayKey(event, pageIndex) {
+    if (event.target !== current.pages[pageIndex].overlay || activeTool === 'select') return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    const page = current.pages[pageIndex];
+    const box = page.overlay.getBoundingClientRect();
+    const top = Math.max(box.top, 0);
+    const bottom = Math.min(box.bottom, window.innerHeight);
+    const x = page.width / 2;
+    const y = bottom > top ? ((top + bottom) / 2 - box.top) / page.scale : page.height / 2;
+    placeAt(pageIndex, x, y, null);
+  }
+
+  function placeAt(pageIndex, x, y, event) {
+    const page = current.pages[pageIndex];
+    const fromKeyboard = !event;
 
     if (activeTool === 'text') {
       const item = createItem(pageIndex, {
@@ -552,17 +652,38 @@
         height,
         imageBytes: image.bytes,
         imageType: image.type,
-        url: image.url
+        url: image.url,
+        signature: activeTool === 'signature'
       });
       clampToPage(item);
       paintItem(item);
       select(item);
       if (activeTool === 'image') pendingPlacement = null;
       setTool('select');
+      if (fromKeyboard) item.element.focus();
       return;
     }
 
     if (SHAPE_DEFAULTS[activeTool]) {
+      if (fromKeyboard) {
+        const type = activeTool;
+        const defaults = SHAPE_DEFAULTS[type];
+        const item = createItem(pageIndex, {
+          type,
+          left: x - defaults.width / 2,
+          top: y - defaults.height / 2,
+          width: defaults.width,
+          height: defaults.height,
+          color: type === 'highlight' ? defaults.colour : colourInput.value
+        });
+        clampToPage(item);
+        paintItem(item);
+        select(item);
+        if (type !== 'highlight') setTool('select');
+        item.element.focus();
+        updateSummary();
+        return;
+      }
       drawShape(event, pageIndex, x, y);
     }
   }
@@ -607,6 +728,7 @@
         paintItem(item);
       }
       if (type !== 'highlight') setTool('select');
+      updateSummary();
     };
     overlay.addEventListener('pointermove', move);
     overlay.addEventListener('pointerup', end);
@@ -617,9 +739,70 @@
   // Loading and saving
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // Drawing pages
+  //
+  // A page is drawn when it comes near the window and its picture is released when it moves
+  // far away; it is drawn again if it comes back. One page is drawn at a time.
+  // ---------------------------------------------------------------------------
+
+  let observer = null;
+  const queue = [];
+  let drawing = false;
+
+  function want(page) {
+    page.near = true;
+    if (page.drawn || page.queued) return;
+    page.queued = true;
+    queue.push(page);
+    pump();
+  }
+
+  function release(page) {
+    page.near = false;
+    if (!page.drawn) return;
+    page.drawn = false;
+    // Zero size frees the picture; the sheet keeps its size, so nothing on the page moves.
+    page.canvas.width = 0;
+    page.canvas.height = 0;
+    page.pdfPage.cleanup();
+  }
+
+  async function pump() {
+    if (drawing) return;
+    drawing = true;
+    const generation = current;
+    try {
+      while (queue.length) {
+        const page = queue.shift();
+        page.queued = false;
+        if (!page.near || page.drawn || current !== generation) continue;
+        try {
+          await ui.renderPage(page.pdfPage, page.canvas, { width: page.width * page.scale });
+          page.drawn = true;
+          // It may have scrolled away while it was being drawn.
+          if (!page.near) release(page);
+        } catch (error) {
+          console.warn('PDF Tools: page could not be drawn', error);
+        }
+      }
+    } finally {
+      drawing = false;
+    }
+  }
+
   async function buildPages() {
     const available = Math.min(MAX_PAGE_WIDTH, Math.max(280, editor.clientWidth - 32));
     const pages = [];
+    observer = 'IntersectionObserver' in window
+      ? new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          const page = entry.target.__page;
+          if (entry.isIntersecting) want(page);
+          else release(page);
+        });
+      }, { rootMargin: KEEP_MARGIN })
+      : null;
     for (let index = 0; index < current.render.numPages; index += 1) {
       const pdfPage = await current.render.getPage(index + 1);
       const viewport = pdfPage.getViewport({ scale: 1 });
@@ -636,25 +819,40 @@
       sheet.style.height = `${height * scale}px`;
       const canvas = document.createElement('canvas');
       canvas.setAttribute('aria-hidden', 'true');
+      // No picture until the page is drawn (a new canvas would otherwise hold a 300 x 150 one).
+      canvas.width = 0;
+      canvas.height = 0;
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
       const overlay = document.createElement('div');
       overlay.className = 'pdft-overlay';
+      overlay.tabIndex = -1;
+      overlay.setAttribute('role', 'group');
+      overlay.setAttribute('aria-label', `Page ${index + 1} of ${current.render.numPages}. Press Enter to place the chosen tool here.`);
       overlay.addEventListener('pointerdown', (event) => onOverlayPointerDown(event, index));
+      overlay.addEventListener('keydown', (event) => onOverlayKey(event, index));
       const label = document.createElement('div');
       label.className = 'pdft-sheet__label';
       label.textContent = `Page ${index + 1} of ${current.render.numPages}`;
       sheet.append(canvas, overlay);
       editor.append(sheet, label);
 
-      pages.push({ index, width, height, scale, overlay });
-      thumbnails.observe(sheet, async () => {
-        await ui.renderPage(pdfPage, canvas, { width: width * scale });
-      });
+      const page = { index, width, height, scale, overlay, canvas, pdfPage, drawn: false, queued: false, near: false };
+      pages.push(page);
+      if (observer) {
+        sheet.__page = page;
+        observer.observe(sheet);
+      } else {
+        want(page);
+      }
     }
     return pages;
   }
 
   function reset() {
-    thumbnails.reset();
+    observer?.disconnect();
+    observer = null;
+    queue.length = 0;
     current?.render?.destroy();
     current = null;
     items = [];
@@ -679,9 +877,20 @@
         updateSummary();
       });
     },
-    onRun() {
+    async onRun() {
       if (!current) return;
       if (selected) stopEditing(selected);
+      if (items.some((item) => item.type === 'whiteout')) {
+        const go = await ui.askConfirm({
+          tone: 'warning',
+          icon: 'bi-eye',
+          title: 'The covered text is still in the file',
+          message: `${WHITEOUT_WARNING} Save anyway?`,
+          confirmText: 'Save anyway',
+          cancelText: 'Go back'
+        });
+        if (!go) return;
+      }
       ui.withBusy('Saving PDF…', async () => {
         const annotations = items.map((item) => ({
           page: item.page,

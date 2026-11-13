@@ -397,6 +397,18 @@
     border-color: var(--bs-primary);
 }
 
+.pdft-page:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+/* Picked up with the keyboard, to be moved with the arrow keys. */
+.pdft-page.is-lifted {
+    transform: scale(1.04);
+    border-color: var(--bs-primary);
+    box-shadow: 0 0.5rem 1.25rem color-mix(in srgb, var(--bs-black) 25%, transparent);
+}
+
 .pdft-page.sortable-ghost {
     opacity: 0.4;
 }
@@ -458,6 +470,17 @@
 }
 
 /* ---------- Result ---------- */
+
+.pdft-result__warning {
+    max-width: 36rem;
+    margin: 0;
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid var(--bs-warning-border-subtle);
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+    text-align: center;
+}
 
 .pdft-result {
     display: flex;
@@ -577,6 +600,23 @@
 .pdft-item.is-selected {
     outline: 2px dashed var(--bs-primary);
     outline-offset: 2px;
+}
+
+.pdft-item:focus-visible,
+.pdft-overlay:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+/* White-out does not remove what it covers; this says so while it is in use. */
+.pdft-annotate-warning {
+    margin: 0 0 0.75rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid var(--bs-warning-border-subtle);
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+    font-size: 0.9rem;
 }
 
 .pdft-item__text {

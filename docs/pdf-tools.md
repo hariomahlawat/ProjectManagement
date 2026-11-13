@@ -44,13 +44,13 @@ pdf.js is an ES module (`.mjs`), served by ASP.NET Core's default content types.
 
 | Tool | What it does |
 | --- | --- |
-| Organise & merge | Combine PDFs; drag to reorder; rotate, delete, select pages; save all or only the selected pages (extract). Form fields on the kept pages stay fillable (same-named fields from different files merge). |
-| Split PDF | By page ranges (`1-3, 5, 8-`), every page, or every N pages. Several outputs download as one ZIP. |
-| Images to PDF | JPG/PNG embedded as-is (JPEG EXIF orientation respected); WEBP/GIF/BMP re-encoded to PNG. Page size A4/A3/Letter/Legal or image size, orientation and margin. |
-| PDF to images | PNG or JPG at 72/150/300 dpi, optional page range; several pages download as a ZIP. |
+| Organise & merge | Combine PDFs; drag to reorder (or use the keyboard, below); rotate, delete, select pages; save all or only the selected pages (extract). Form fields on the kept pages stay fillable. A field whose name an earlier file already uses is renamed "name (2)", so two filled copies of the same form keep their own answers. |
+| Split PDF | By page ranges (`1-3, 5, 8-`), every page, or every N pages. Several outputs download as one ZIP. The file is read once for all the parts. |
+| Images to PDF | JPG/PNG embedded as-is (JPEG EXIF orientation respected); WEBP/GIF/BMP re-encoded to PNG. A JPG whose orientation also mirrors it (some front cameras) is drawn by the browser and saved as a JPG again, so it is not flipped. Page size A4/A3/Letter/Legal or image size, orientation and margin. |
+| PDF to images | PNG or JPG at 72/150/300 dpi, optional page range; several pages download as a ZIP. A page over 24 million pixels at the chosen dpi (A2 and larger at 300 dpi) is made at the highest dpi that fits, and the result says which pages and at about what dpi. |
 | Watermark | Text, position, angle, size, colour, transparency, optional page range. |
-| Page numbers & header/footer | Number formats with `{n}`, `{total}`, `{date}`; position, first number, skip cover page, header/footer text. |
-| Sign & annotate | Text, signature (draw, type or upload), image, highlight, box and white-out; drag to move, corner handle to resize. Items are flattened into the page on save. |
+| Page numbers & header/footer | Number formats with `{n}`, `{total}` (the last number used: three pages starting at 5 read "Page 5 of 7"), `{date}`; position, first number, skip cover page, header/footer text. A number field left blank uses its default. |
+| Sign & annotate | Text, signature (draw, type or upload), image, highlight, box and white-out; drag to move, corner handle to resize, or use the keyboard. Items are flattened into the page on save. While White-out is chosen or used, the screen says that it does not remove the covered text, and saving asks first. |
 
 When pages are dropped (Split, extract, delete), they are removed from the saved file, not just
 hidden:
@@ -71,6 +71,22 @@ out the page's `/UserUnit` that pdf.js includes in its viewport, so saved items 
 preview on large-format pages too. Coordinates are mapped against the visible page box (the
 CropBox clipped to the MediaBox, as pdf.js renders it), not the raw CropBox.
 
+### Keyboard
+
+- **Organise & merge, Images to PDF.** Each card can be reached with Tab. Space or Enter picks it
+  up, the arrow keys move it, Space or Enter puts it down, Escape puts it back. Each step is
+  announced to screen readers.
+- **Sign & annotate.** With a tool chosen, a page can be reached with Tab; Enter or Space places
+  the item in the middle of the part of the page on the screen. An item has the focus once it is
+  placed (or with Tab): the arrow keys move it (Shift for bigger steps), Alt and the arrow keys
+  change its size, Enter edits text and Delete removes it.
+
+### Memory in Sign & annotate
+
+Pages are drawn when they come near the window and their pictures are released when they are
+far from it (`KEEP_MARGIN`), so a long PDF holds only a few full-size pages at a time, not every
+page it has shown. A released page is drawn again when it comes back.
+
 ## Code map
 
 | File | Role |
@@ -88,10 +104,12 @@ CropBox clipped to the MediaBox, as pdf.js renders it), not the raw CropBox.
 - Password-protected or edit-restricted PDFs are refused with a clear message (pdf-lib cannot
   decrypt them).
 - Added text uses the standard PDF Helvetica font, so it supports Latin characters only;
-  other scripts (for example Devanagari) are rejected with a clear message.
+  other scripts (for example Devanagari) and symbols such as the rupee sign are rejected. The
+  message quotes the text, names the character and the page, and suggests "Rs." for the rupee.
 - Existing text in a PDF cannot be edited; white-out plus new text is the supported pattern.
   White-out covers content visually; it does not remove the underlying text from the file,
-  so it is not a redaction tool.
+  so it is not a redaction tool. The screen says so while White-out is chosen or on the page,
+  and saving a file with White-out asks for confirmation first.
 - Everything is held in browser memory, so very large files depend on the user's computer.
   Files over 200 MB ask for confirmation first.
 

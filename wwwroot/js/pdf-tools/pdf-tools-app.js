@@ -171,10 +171,13 @@
     const ratio = scale ? 1 : Math.min(window.devicePixelRatio || 1, 2);
     let pixelScale = cssScale * ratio;
     const pixels = base.width * base.height * pixelScale * pixelScale;
+    // 1 when the page is drawn at the resolution asked for; less when it had to be lowered.
+    let resolution = 1;
     if (pixels > maxPixels) {
       // Lower only the backing-store resolution: the displayed size must stay as requested
       // so the annotate overlay, sized from the same width, stays aligned with the page.
-      pixelScale *= Math.sqrt(maxPixels / pixels);
+      resolution = Math.sqrt(maxPixels / pixels);
+      pixelScale *= resolution;
     }
     const viewport = page.getViewport({ scale: pixelScale });
     canvas.width = Math.max(1, Math.floor(viewport.width));
@@ -187,7 +190,7 @@
     context.fillStyle = background;
     context.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvasContext: context, viewport }).promise;
-    return { viewport, scale: cssScale };
+    return { viewport, scale: cssScale, resolution };
   }
 
   /** Renders thumbnails one at a time as they scroll into view, to bound memory use. */
@@ -266,6 +269,7 @@
     const result = $('[data-result]', section);
     const resultName = $('[data-result-name]', result);
     const resultPreview = $('[data-result-preview]', result);
+    const resultWarning = $('[data-result-warning]', result);
     let output = null;
 
     const state = {
@@ -285,13 +289,17 @@
         clearError();
         onReset?.();
       },
-      /** Shows the finished file and downloads it. */
-      async finish(bytesOrBlob, fileName, mime) {
+      /** Shows the finished file and downloads it. `warning` is something the user should know about it. */
+      async finish(bytesOrBlob, fileName, mime, { warning } = {}) {
         const blob = bytesOrBlob instanceof Blob ? bytesOrBlob : new Blob([bytesOrBlob], { type: mime });
         output = { blob, fileName };
         workspace.hidden = true;
         result.hidden = false;
         resultName.textContent = `${fileName} · ${formatBytes(blob.size)}`;
+        if (resultWarning) {
+          resultWarning.textContent = warning || '';
+          resultWarning.hidden = !warning;
+        }
         resultPreview.hidden = true;
         saveBlob(blob, fileName);
         if (mime === 'application/pdf') {
@@ -361,6 +369,86 @@
     $('[data-action="start-over"]', result).addEventListener('click', () => state.reset());
 
     return state;
+  }
+
+  /**
+   * Lets the keyboard reorder the cards in a grid, as dragging does: Space or Enter on a card
+   * picks it up, the arrow keys move it, Space or Enter puts it down, Escape puts it back.
+   * Each step is announced. `onMove` runs after a card is put down in a new place.
+   */
+  function keyboardReorder(grid, { noun, describe, onMove }) {
+    const instructions = document.createElement('p');
+    instructions.className = 'visually-hidden';
+    instructions.id = `${grid.id || `pdft-grid-${Math.random().toString(36).slice(2)}`}-keys`;
+    instructions.textContent = `To move a ${noun} with the keyboard, press Space to pick it up, the arrow keys to move it, and Space again to put it down. Escape puts it back.`;
+    const live = document.createElement('p');
+    live.className = 'visually-hidden';
+    live.setAttribute('aria-live', 'assertive');
+    grid.after(instructions, live);
+
+    let lifted = null;
+    const cards = () => $$('.pdft-page', grid);
+    const where = (card) => `position ${cards().indexOf(card) + 1} of ${cards().length}`;
+    const say = (text) => { live.textContent = text; };
+
+    function drop(card, cancelled) {
+      if (lifted?.card !== card) return;
+      const { from } = lifted;
+      lifted = null;
+      card.classList.remove('is-lifted');
+      if (cancelled) {
+        const list = cards().filter((item) => item !== card);
+        grid.insertBefore(card, list[from] || null);
+        card.focus();
+        say(`${describe(card)} put back at ${where(card)}.`);
+        return;
+      }
+      say(`${describe(card)} put down at ${where(card)}.`);
+      if (cards().indexOf(card) !== from) onMove();
+    }
+
+    return {
+      /** Makes a new card reachable with the Tab key. */
+      prepare(card) {
+        card.tabIndex = 0;
+        card.setAttribute('aria-describedby', instructions.id);
+        card.addEventListener('blur', () => drop(card, false));
+      },
+      handle(event) {
+        const card = event.target;
+        if (!card.classList?.contains('pdft-page')) return;
+        if (event.key === ' ' || event.key === 'Enter') {
+          event.preventDefault();
+          if (lifted) {
+            drop(card, false);
+          } else {
+            lifted = { card, from: cards().indexOf(card) };
+            card.classList.add('is-lifted');
+            say(`${describe(card)} picked up, ${where(card)}. Use the arrow keys to move it.`);
+          }
+        } else if (event.key === 'Escape' && lifted?.card === card) {
+          event.preventDefault();
+          drop(card, true);
+        } else if (lifted?.card === card && /^Arrow(Left|Right|Up|Down)$/.test(event.key)) {
+          event.preventDefault();
+          const list = cards();
+          const index = list.indexOf(card);
+          const back = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
+          const next = back ? index - 1 : index + 1;
+          if (next < 0 || next >= list.length) {
+            say(`${describe(card)} is already ${back ? 'first' : 'last'}.`);
+            return;
+          }
+          // Moving the focused card in the page loses focus in some browsers; the blur must not drop it.
+          const keep = lifted;
+          lifted = null;
+          grid.insertBefore(card, back ? list[next] : list[next].nextSibling);
+          card.focus();
+          lifted = keep;
+          say(`${where(card)}.`);
+        }
+      }
+    };
   }
 
   function fileSummary(section, file, pageCount) {
@@ -498,6 +586,8 @@
       );
 
       card.append(thumb, select, label, actions);
+      card.setAttribute('aria-label', `${source.name}, page ${page.index + 1}`);
+      keys.prepare(card);
       thumbnails.observe(card, async () => {
         const pdfPage = await source.render.getPage(page.index + 1);
         // Fit the longest side so the thumbnail still fits its square frame when rotated.
@@ -522,6 +612,12 @@
         onEnd: syncOrderFromDom
       });
     }
+    const keys = keyboardReorder(grid, {
+      noun: 'page',
+      describe: (card) => $('.pdft-page__label', card).title || 'Page',
+      onMove: syncOrderFromDom
+    });
+    grid.addEventListener('keydown', keys.handle);
 
     const tool = createTool(section, {
       accept: isPdf,
@@ -669,12 +765,19 @@
         draggable: '.pdft-page',
         filter: 'button',
         preventOnFilter: false,
-        onEnd() {
-          const byId = new Map(images.map((image) => [String(image.id), image]));
-          images = $$('.pdft-page', grid).map((card) => byId.get(card.dataset.pageId)).filter(Boolean);
-        }
+        onEnd: syncOrder
       });
     }
+    function syncOrder() {
+      const byId = new Map(images.map((image) => [String(image.id), image]));
+      images = $$('.pdft-page', grid).map((card) => byId.get(card.dataset.pageId)).filter(Boolean);
+    }
+    const keys = keyboardReorder(grid, {
+      noun: 'image',
+      describe: (card) => $('.pdft-page__label', card).textContent || 'Image',
+      onMove: syncOrder
+    });
+    grid.addEventListener('keydown', keys.handle);
 
     const tool = createTool(section, {
       accept: (file) => file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp)$/i.test(file.name),
@@ -714,6 +817,8 @@
           });
           actions.append(remove);
           card.append(thumb, label, actions);
+          card.setAttribute('aria-label', file.name);
+          keys.prepare(card);
           grid.append(card);
         }
         updateSummary();
@@ -729,7 +834,7 @@
           const bytes = await core.imagesToPdf(PDFLib, prepared, {
             pageSize: options.pageSize,
             orientation: options.orientation,
-            margin: Number(options.margin)
+            margin: options.margin
           });
           const name = images.length === 1 ? core.baseName(images[0].file.name, 'images') : 'images';
           await state.finish(bytes, `${name}.pdf`, 'application/pdf');
@@ -742,11 +847,28 @@
       }
     });
 
-    /** JPG and PNG are embedded as-is; other formats are re-encoded to PNG by the browser. */
+    /**
+     * JPG and PNG are embedded as-is; other formats are re-encoded to PNG by the browser. A JPG
+     * whose hidden orientation also mirrors it (some front cameras) is drawn by the browser,
+     * which applies the mirroring, and saved as a JPG again; a plain turn is applied in the PDF.
+     */
     async function prepareImage(file) {
       const bytes = await readFile(file);
       const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8;
       const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+      if (isJpeg && core.jpegMirrored(bytes)) {
+        try {
+          const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          canvas.getContext('2d').drawImage(bitmap, 0, 0);
+          bitmap.close?.();
+          return { bytes: await canvasToBytes(canvas, 'image/jpeg', 0.92), type: 'jpg' };
+        } catch {
+          // Fall back to the photo as it is; only the mirroring is lost.
+        }
+      }
       if (isJpeg) return { bytes, type: 'jpg' };
       if (isPng) return { bytes, type: 'png' };
       try {
@@ -779,11 +901,14 @@
     const rendered = await openForRender(current.bytes);
     const canvas = document.createElement('canvas');
     const entries = [];
+    // Pages too large for this browser at the chosen dpi are drawn at a lower one, and listed.
+    const lowered = [];
     try {
       for (const [position, index] of indexes.entries()) {
         progress(`Rendering page ${index + 1} (${position + 1} of ${indexes.length})…`);
         const page = await rendered.getPage(index + 1);
-        await renderPage(page, canvas, { scale: dpi / 72 });
+        const { resolution } = await renderPage(page, canvas, { scale: dpi / 72 });
+        if (resolution < 1) lowered.push({ page: index + 1, dpi: Math.floor(dpi * resolution) });
         page.cleanup();
         entries.push({ name: `${base}-page-${index + 1}.${format}`, data: await canvasToBytes(canvas, mime, 0.92) });
       }
@@ -793,10 +918,18 @@
       canvas.height = 0;
     }
 
+    let warning = '';
+    if (lowered.length) {
+      const lowest = Math.min(...lowered.map((item) => item.dpi));
+      const which = lowered.length === 1
+        ? `Page ${lowered[0].page} is`
+        : `${lowered.length} pages (${lowered.slice(0, 5).map((item) => item.page).join(', ')}${lowered.length > 5 ? ', …' : ''}) are`;
+      warning = `${which} too large to make at ${dpi} dpi in this browser, so ${lowered.length === 1 ? 'it was' : 'they were'} made at about ${lowest} dpi${lowered.length === 1 ? '' : ' or more'}. Choose a lower dpi for an exact resolution.`;
+    }
     if (entries.length === 1) {
-      await tool.finish(entries[0].data, entries[0].name, mime);
+      await tool.finish(entries[0].data, entries[0].name, mime, { warning });
     } else {
-      await tool.finish(core.createZip(entries), `${base}-images.zip`, 'application/zip');
+      await tool.finish(core.createZip(entries), `${base}-images.zip`, 'application/zip', { warning });
     }
   });
 
@@ -807,10 +940,11 @@
   singlePdfTool('watermark', async (current, options, tool) => {
     const bytes = await core.addWatermark(PDFLib, current.bytes, {
       text: options.text,
-      fontSize: Number(options.fontSize),
-      opacity: Number(options.opacity),
+      // As typed: a blank field means the default (the core reads numbers from text).
+      fontSize: options.fontSize,
+      opacity: options.opacity,
       color: options.color,
-      angle: Number(options.angle),
+      angle: options.angle,
       position: options.position,
       pages: options.pages
     });
@@ -840,10 +974,11 @@
     ];
     const bytes = await core.addTextStamps(PDFLib, current.bytes, {
       stamps,
-      fontSize: Number(options.fontSize),
-      margin: Number(options.margin),
+      // As typed: a blank start number or size means the default, not 0.
+      fontSize: options.fontSize,
+      margin: options.margin,
       color: options.color,
-      startAt: Number(options.startAt),
+      startAt: options.startAt,
       skipFirst: options.skipFirst,
       pages: options.pages,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -858,6 +993,7 @@
   window.PrismPdfToolsUi = Object.freeze({
     $,
     $$,
+    askConfirm,
     createTool,
     withBusy,
     showError,
