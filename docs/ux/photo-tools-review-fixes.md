@@ -90,6 +90,6 @@ fixes.
 | 3 | Built, #3189. Accessibility (the tab title also follows Signature mode): focus and title on each screen, home cards as a real list of links (PDF Tools too), 44 px crop handles on touch, `aria-label` that matches the text, reduced motion | 3, 7, Low (Page) |
 | 4 | Core edge cases: alpha-weighted measuring (one shared helper), KB rounding and parsing (after owner question 2), unique output names, 16 px floor, canvas area cap, exact crop shape | 6, Low (Core) |
 | 5 | Wording and Signature: owner question 1, one name for blurring, sentence case, plain hints for pixels and file types, copies counter | 8, Low (Wording) |
-| 6 | Docs and contract test: correct both docs, read scripts from the page, check the CSS, more patterns, move the PDF test | 9, Low (Docs, Contract test) |
+| 6 | Built. Docs and contract test: correct both docs, read scripts from the page, check the CSS, more patterns, move the PDF test | 9, Low (Docs, Contract test) |
 | 7 | Speed and shared code: coalesce brush moves, one-step Redo, cancel Reduce size between tries, shared open/drop/save/hold helpers in `photo-tools-canvas.js` | Low (Screens, Duplication) |
 | 8 | Reduce size default, if the owner changes it (question 3) | — |

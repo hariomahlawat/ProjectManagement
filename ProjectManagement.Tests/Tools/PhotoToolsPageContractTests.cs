@@ -70,30 +70,64 @@ public sealed class PhotoToolsPageContractTests
         Assert.Contains("showView(currentView(), { focus: false })", app, StringComparison.Ordinal);
     }
 
+    // Ways a script could reach a server. Remove background is checked on its own, below.
+    private static readonly string[] NetworkCalls =
+    {
+        "fetch(", "XMLHttpRequest", "sendBeacon", "WebSocket", "EventSource", "importScripts", "import(", "new Worker("
+    };
+
     [Fact]
     public void Page_LoadsOnlyLocalAssetsAndNeverPostsPhotos()
     {
         var root = FindProjectRoot();
         var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Photo", "Index.cshtml"));
 
-        Assert.DoesNotMatch(new Regex(@"(src|href)\s*=\s*""(https?:)?//", RegexOptions.IgnoreCase), page);
+        Assert.DoesNotMatch(new Regex(@"(src|href)\s*=\s*[""'](https?:)?//", RegexOptions.IgnoreCase), page);
+        Assert.DoesNotMatch(new Regex(@"url\(\s*[""']?(https?:)?//", RegexOptions.IgnoreCase), page);
         Assert.DoesNotContain("<form", page, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Layout = null;", page, StringComparison.Ordinal);
 
-        foreach (var script in Scripts)
+        // Every asset the page names ships with the application.
+        var assets = Regex.Matches(page, @"(?:src|href)\s*=\s*[""']~/([^""'?#]+)[""']")
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+        Assert.NotEmpty(assets);
+        foreach (var asset in assets)
         {
-            var path = Path.Combine(root, script);
-            Assert.True(File.Exists(path), $"{script} must ship with the application.");
-            Assert.Contains(
-                "~/" + script.Replace(Path.DirectorySeparatorChar, '/')["wwwroot/".Length..],
-                page,
-                StringComparison.Ordinal);
+            Assert.True(File.Exists(Path.Combine(root, "wwwroot", asset)), $"~/{asset} must ship with the application.");
+        }
 
-            var source = File.ReadAllText(path);
-            Assert.DoesNotContain("fetch(", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("XMLHttpRequest", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("sendBeacon", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("WebSocket", source, StringComparison.Ordinal);
+        // The scripts are read from the page itself, so a script added later is checked too.
+        // Libraries under ~/lib/ are shipped as published and are not ours to scan.
+        var scripts = Regex.Matches(page, @"<script\b[^>]*\bsrc\s*=\s*[""']~/([^""'?#]+)[""']", RegexOptions.IgnoreCase)
+            .Select(match => match.Groups[1].Value)
+            .Where(script => !script.StartsWith("lib/", StringComparison.Ordinal))
+            .Where(script => script != BackgroundScript.Replace(Path.DirectorySeparatorChar, '/')["wwwroot/".Length..])
+            .ToArray();
+        foreach (var expected in Scripts)
+        {
+            Assert.Contains(expected.Replace(Path.DirectorySeparatorChar, '/')["wwwroot/".Length..], scripts);
+        }
+        foreach (var script in scripts)
+        {
+            var source = File.ReadAllText(Path.Combine(root, "wwwroot", script));
+            foreach (var call in NetworkCalls)
+            {
+                Assert.False(source.Contains(call, StringComparison.Ordinal), $"~/{script} must not use {call}");
+            }
+        }
+
+        // The page's own styles load nothing from elsewhere: no @import and no outside url().
+        var styles = Regex.Matches(page, @"<link\b[^>]*rel=""stylesheet""[^>]*href=""~/(css/[^""?#]+)""", RegexOptions.IgnoreCase)
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+        Assert.Contains("css/photo-tools.css", styles);
+        Assert.Contains("css/pdf-tools.css", styles);
+        foreach (var style in styles)
+        {
+            var css = File.ReadAllText(Path.Combine(root, "wwwroot", style));
+            Assert.DoesNotContain("@import", css, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotMatch(new Regex(@"url\(\s*[""']?(https?:)?//", RegexOptions.IgnoreCase), css);
         }
     }
 
@@ -133,17 +167,6 @@ public sealed class PhotoToolsPageContractTests
         var print = page.IndexOf("~/js/photo-tools/photo-tools-print.js", StringComparison.Ordinal);
 
         Assert.True(library >= 0 && library < print, "Print sheet needs pdf-lib loaded before photo-tools-print.js.");
-    }
-
-    [Fact]
-    public void PdfTools_LoadsTheSharedZipWriterBeforeItsCore()
-    {
-        var page = File.ReadAllText(Path.Combine(FindProjectRoot(), "Pages", "Tools", "Pdf", "Index.cshtml"));
-
-        var zip = page.IndexOf("~/js/tools-shared/zip-writer.js", StringComparison.Ordinal);
-        var core = page.IndexOf("~/js/pdf-tools/pdf-tools-core.js", StringComparison.Ordinal);
-
-        Assert.True(zip >= 0 && zip < core, "PDF Tools needs the shared ZIP writer loaded before pdf-tools-core.js.");
     }
 
     private static string FindProjectRoot()
