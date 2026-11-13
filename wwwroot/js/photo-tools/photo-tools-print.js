@@ -72,7 +72,7 @@
   // Null fills the sheet; a number is what the user asked for.
   let copies = null;
   let format = PDFLib ? 'pdf' : 'jpg';
-  let openRun = 0;
+  const opener = shared.latestPhotoOpener();
   // True while a sheet is being made, so Download cannot be pressed again until it is saved.
   let downloading = false;
 
@@ -295,27 +295,9 @@
   }
 
   async function openFile(file) {
-    shared.clearError();
-    if (!file) return;
-    if (!core.isSupportedPhoto(file.type, file.name)) {
-      shared.showError('Only JPG, PNG and WEBP photos can be used here. iPhone HEIC photos are not supported.');
-      return;
-    }
     // Only the photo chosen last is used: an earlier one that opens late is thrown away.
-    const mine = ++openRun;
-    let photo;
-    try {
-      photo = await shared.openPhoto(file);
-    } catch (error) {
-      if (mine === openRun) {
-        shared.showError(error instanceof core.PhotoToolError ? error.message : 'This photo could not be opened.');
-      }
-      return;
-    }
-    if (mine !== openRun) {
-      if (typeof photo.close === 'function') photo.close();
-      return;
-    }
+    const photo = await opener.open(file);
+    if (!photo) return;
     usePhoto(photo, file.name, false);
   }
 
@@ -380,7 +362,7 @@
   document.addEventListener('phot:print-sheet', (event) => {
     const { photo, name } = event.detail || {};
     if (!photo) return;
-    openRun += 1;
+    opener.cancel();
     shared.clearError();
     usePhoto(photo, name || 'photo.jpg', true);
     window.location.hash = 'sheet';
@@ -395,18 +377,7 @@
     input.value = '';
   });
 
-  for (const zone of $$('[data-drop]')) {
-    zone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      zone.classList.add('is-dragging');
-    });
-    zone.addEventListener('dragleave', () => zone.classList.remove('is-dragging'));
-    zone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      zone.classList.remove('is-dragging');
-      openFile(event.dataTransfer?.files?.[0]);
-    });
-  }
+  shared.wireDropZones($$('[data-drop]'), files => openFile(files[0]));
 
   fewerButton.addEventListener('click', () => {
     copies = Math.max(1, plan().positions.length - 1);

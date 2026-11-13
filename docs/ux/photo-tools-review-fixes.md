@@ -93,5 +93,5 @@ fixes.
 | 4 | Built, #3190. Core edge cases: alpha-weighted measuring (one shared helper), KB of 1,000 bytes, rounding up and parsing (decision 2), unique output names, 16 px floor, canvas area cap, exact crop shape | 6, Low (Core) |
 | 5 | Wording and Signature: a Signature card (decision 1), one name for blurring, sentence case, plain hints for pixels and file types, copies counter | 8, Low (Wording) |
 | 6 | Docs and contract test: correct both docs, read scripts from the page, check the CSS, more patterns, move the PDF test | 9, Low (Docs, Contract test) |
-| 7 | Speed and shared code: coalesce brush moves, one-step Redo, cancel Reduce size between tries, shared open/drop/save/hold helpers in `photo-tools-canvas.js` | Low (Screens, Duplication) |
+| 7 | Built. Speed and shared code: brush drawn once a frame, one-step Redo, Reduce size stops a stale photo between tries, shared open/drop/hold helpers in `photo-tools-canvas.js` (the debounced save and the dark-under-light overlay differ enough per tool to stay where they are) | Low (Screens, Duplication) |
 | 8 | Reduce size keeps the pixels unless the size cannot be reached otherwise (decision 3) | — |

@@ -639,18 +639,7 @@
     openFile(input.files && input.files[0]);
     input.value = '';
   });
-  for (const zone of $$('[data-drop]')) {
-    zone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      zone.classList.add('is-dragging');
-    });
-    zone.addEventListener('dragleave', () => zone.classList.remove('is-dragging'));
-    zone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      zone.classList.remove('is-dragging');
-      openFile(event.dataTransfer?.files?.[0]);
-    });
-  }
+  shared.wireDropZones($$('[data-drop]'), files => openFile(files[0]));
 
   photoBox.addEventListener('pointerdown', (event) => {
     if (!cutout || busy || showOriginal || stroke || !shared.isMainPointer(event)) return;
@@ -736,13 +725,7 @@
     renderControls();
     render();
   };
-  originalButton.addEventListener('pointerdown', () => holdOriginal(true));
-  for (const type of ['pointerup', 'pointerleave', 'pointercancel', 'blur', 'keyup']) {
-    originalButton.addEventListener(type, () => holdOriginal(false));
-  }
-  originalButton.addEventListener('keydown', (event) => {
-    if (event.key === ' ' || event.key === 'Enter') holdOriginal(true);
-  });
+  shared.wireHoldButton(originalButton, holdOriginal);
 
   for (const button of bgButtons) {
     button.addEventListener('click', () => {

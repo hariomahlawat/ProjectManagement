@@ -187,7 +187,14 @@
     }
   }
 
-  async function reducePhoto(photo, settings) {
+  // Thrown between two tries when the photo is no longer wanted as it is being made.
+  const STOPPED = Symbol('stopped');
+
+  /**
+   * Reduces one photo. `wanted()` is asked before every try: when the settings change or the
+   * photo is removed, the work stops there instead of finishing a result that is thrown away.
+   */
+  async function reducePhoto(photo, settings, wanted = () => true) {
     const source = await openPhoto(photo.file);
     try {
       const original = sizeOf(source);
@@ -196,6 +203,7 @@
       const type = core.outputType(photo.file.type, settings.format);
       let drawn = null;
       const encode = (width, height, quality) => {
+        if (!wanted()) throw STOPPED;
         if (!drawn || drawn.width !== width || drawn.height !== height) {
           drawn = drawPhoto(source, width, height, { greyscale: settings.greyscale, opaque: type.mime === 'image/jpeg' });
         }
@@ -252,7 +260,7 @@
         let result = null;
         let failure = null;
         try {
-          result = await reducePhoto(photo, readSettings());
+          result = await reducePhoto(photo, readSettings(), () => mine === run && photos.includes(photo));
         } catch (error) {
           failure = error;
         }
@@ -505,18 +513,7 @@
     fileInput.value = '';
   });
 
-  for (const zone of $$('[data-drop]', view)) {
-    zone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      zone.classList.add('is-dragging');
-    });
-    zone.addEventListener('dragleave', () => zone.classList.remove('is-dragging'));
-    zone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      zone.classList.remove('is-dragging');
-      addPhotos(Array.from(event.dataTransfer?.files || []));
-    });
-  }
+  shared.wireDropZones($$('[data-drop]', view), addPhotos);
 
   targetValue.addEventListener('input', settingsChanged);
   for (const button of unitButtons) {

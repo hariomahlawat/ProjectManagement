@@ -184,7 +184,7 @@
   let saved = null;
   let saveRun = 0;
   let saveTimer = null;
-  let openRun = 0;
+  const opener = shared.latestPhotoOpener();
   // False while the only changes since the photo was last made are brush strokes: the next save
   // lays them over the background change already found instead of finding it again, which on a
   // large photo takes seconds.
@@ -344,27 +344,9 @@
   }
 
   async function openFile(file) {
-    shared.clearError();
-    if (!file) return;
-    if (!core.isSupportedPhoto(file.type, file.name)) {
-      shared.showError('Only JPG, PNG and WEBP photos can be used here. iPhone HEIC photos are not supported.');
-      return;
-    }
     // Only the photo chosen last is used: an earlier one that opens late is thrown away.
-    const mine = ++openRun;
-    let source;
-    try {
-      source = await shared.openPhoto(file);
-    } catch (error) {
-      if (mine === openRun) {
-        shared.showError(error instanceof core.PhotoToolError ? error.message : 'This photo could not be opened.');
-      }
-      return;
-    }
-    if (mine !== openRun) {
-      if (typeof source.close === 'function') source.close();
-      return;
-    }
+    const source = await opener.open(file);
+    if (!source) return;
     // The photo it replaces can be large; free it now rather than whenever the browser gets to it.
     if (full && full !== source && typeof full.close === 'function') full.close();
     fileName = file.name;
@@ -744,11 +726,28 @@
   }
 
   /** Shows the fixes on the stage at once; the saved file follows shortly after. */
+  let fixesFrame = 0;
+
   function showFixes() {
+    if (fixesFrame) {
+      cancelAnimationFrame(fixesFrame);
+      fixesFrame = 0;
+    }
     if (shown && changedPixels && changedPixels.width === shown.width && changedPixels.height === shown.height) {
       composeFixes(shown.getContext('2d'));
     }
     draw();
+  }
+
+  // While painting, every move adds a point but the picture is made again at most once a frame:
+  // making it reads the whole photo, and a fast mouse sends many moves between two frames.
+  function queueFixes() {
+    if (!fixesFrame) {
+      fixesFrame = requestAnimationFrame(() => {
+        fixesFrame = 0;
+        showFixes();
+      });
+    }
   }
 
   /** A point on the stage (pixels from the stage's corner) as a point in the full photo. */
@@ -784,6 +783,8 @@
   function endStroke() {
     if (!stroke) return;
     stroke = null;
+    // The last moves are shown now, not on a frame that a hidden page may never draw.
+    if (fixesFrame) showFixes();
     renderBackground();
     queueSave(true);
   }
@@ -967,18 +968,7 @@
     input.value = '';
   });
 
-  for (const zone of $$('[data-drop]')) {
-    zone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      zone.classList.add('is-dragging');
-    });
-    zone.addEventListener('dragleave', () => zone.classList.remove('is-dragging'));
-    zone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      zone.classList.remove('is-dragging');
-      openFile(event.dataTransfer?.files?.[0]);
-    });
-  }
+  shared.wireDropZones($$('[data-drop]'), files => openFile(files[0]));
 
   // Drag with a mouse, pen or one finger; two fingers zoom.
   const pointers = new Map();
@@ -1016,7 +1006,7 @@
       ring = stagePoint(event);
       if (stroke && stroke.pointer === event.pointerId) {
         stroke.points.push(photoPointAt(ring.x, ring.y));
-        showFixes();
+        queueFixes();
       } else {
         draw();
       }
@@ -1168,13 +1158,7 @@
       draw();
     });
   }
-  bgCompare.addEventListener('pointerdown', () => seeOriginal(true));
-  bgCompare.addEventListener('keydown', (event) => {
-    if (event.key === ' ' || event.key === 'Enter') seeOriginal(true);
-  });
-  for (const type of ['pointerup', 'pointerleave', 'pointercancel', 'keyup', 'blur']) {
-    bgCompare.addEventListener(type, () => seeOriginal(false));
-  }
+  shared.wireHoldButton(bgCompare, seeOriginal);
 
   fixButton.addEventListener('click', () => {
     fixOn = !fixOn;
