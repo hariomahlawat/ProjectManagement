@@ -777,7 +777,26 @@
 .pdft-overlay {
     position: absolute;
     inset: 0;
+}
+
+/* With Select, a swipe on a page scrolls and two fingers zoom, as on any page. A tool that
+   places or draws keeps the touch for itself. */
+.pdft-editor:not([data-active-tool="select"]) .pdft-overlay {
     touch-action: none;
+}
+
+.pdft-sheet.is-failed::after {
+    content: attr(data-failed-text);
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    /* On the white sheet in both themes. */
+    color: var(--bs-gray-700);
+    text-align: center;
+    pointer-events: none;
 }
 
 .pdft-editor[data-active-tool="text"] .pdft-overlay { cursor: text; }
