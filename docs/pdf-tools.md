@@ -67,6 +67,21 @@ hidden:
   The same is done for a page's own actions (`/AA`, on opening or closing it) and for the actions
   of a field's parent fields (`/A`, `/AA`), so such files can be split.
 - Article-thread beads are dropped, and any object no longer referenced is deleted before saving.
+
+What Organise, extract and Split keep (owner decision, 13 Nov 2026: keep both):
+
+- **Layers** (`carryLayers`). Each kept file's layer settings (`/OCProperties`) are carried, naming
+  the same layer objects its pages use, so a layer that was off (a draft or print-only layer)
+  stays off. Merged files' settings are joined: all layers listed, the default view's on, off,
+  locked and panel order lists joined. A page used twice gets its own layer objects, listed with
+  their on/off state but not shown twice in the layer panel. Alternate views (`/Configs`) are not
+  carried.
+- **Bookmarks** (`carryBookmarks`). Each kept file's bookmarks are carried, in the order of the
+  files' pages, pointing at the page in the new file. A bookmark to a dropped page is dropped,
+  unless bookmarks under it still lead somewhere: then it stays as a heading without a link.
+  Named destinations are resolved, web links kept, and open or closed, colour and style kept.
+- **Page labels** are not carried: after reordering or dropping pages they would number the wrong
+  pages.
 - As a last check, if any page object other than the kept pages is still in the file, the tool
   refuses to save and says so, rather than leaking content the user removed.
 

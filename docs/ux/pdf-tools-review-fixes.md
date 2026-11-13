@@ -74,7 +74,7 @@ Each PR is checked on a phone, in the Dark theme and with the keyboard, and adds
 | 7 | Reduce size search and signing: search reaches 72 dpi and says so truthfully, fewer tries kept, no search when the budget is 0, `/SigFlags`, a worker that dies | Low (Reduce size, search) |
 | 8 | Contract test covers the CSS, partials, workers and `import()` | Low (Contract test) |
 | 9 | The PRISM confirm dialog on PDF Tools and Photo Tools | 10 |
-| 10 | Owner decisions on layers and bookmarks | For the owner |
+| 10 | Built. Owner decided 13 Nov: keep both. Layer settings and bookmarks to kept pages are carried; page labels are not | For the owner |
 
 Reduce size PR 4 (Scan mode) in [pdf-tools-reduce-size.md](pdf-tools-reduce-size.md) is separate
 and waits for these fixes.

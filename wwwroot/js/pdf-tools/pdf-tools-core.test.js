@@ -807,3 +807,127 @@ test('addTextStamps and addWatermark keep their size in points on a page with /U
   const marked = await tools.addWatermark(PDFLib, pdf, { text: 'DRAFT', fontSize: 40, angle: 0 });
   assert.match(await contentOf(marked, 0), /^\/\S+ 20 Tf$/m, '40 pt is 20 units');
 });
+
+// -----------------------------------------------------------------------------
+// Layers and bookmarks (review fix PR 10, owner: keep both)
+// -----------------------------------------------------------------------------
+
+/** A PDF whose pages draw on a layer that is off by default ("Draft") and one that is on. */
+async function layeredPdf() {
+  const document = await PDFLib.PDFDocument.create();
+  const context = document.context;
+  const draft = context.register(context.obj({ Type: 'OCG', Name: PDFLib.PDFHexString.fromText('Draft') }));
+  const main = context.register(context.obj({ Type: 'OCG', Name: PDFLib.PDFHexString.fromText('Main') }));
+  for (let i = 0; i < 2; i += 1) {
+    const page = document.addPage([200, 200]);
+    page.node.set(PDFLib.PDFName.of('Resources'), context.obj({ Properties: { D: draft, M: main } }));
+    page.node.set(PDFLib.PDFName.of('Contents'), context.register(context.stream('/OC /D BDC 0 0 10 10 re f EMC /OC /M BDC 20 20 10 10 re f EMC')));
+  }
+  document.catalog.set(PDFLib.PDFName.of('OCProperties'), context.obj({
+    OCGs: [draft, main],
+    D: { Name: PDFLib.PDFHexString.fromText('Default'), BaseState: 'ON', OFF: [draft], Order: [main, draft] }
+  }));
+  return document.save();
+}
+
+test('Organise and Split keep layers that were off, off', async () => {
+  const pdf = await layeredPdf();
+  const check = async (bytes) => {
+    const document = await PDFLib.PDFDocument.load(bytes);
+    const properties = document.catalog.lookup(PDFLib.PDFName.of('OCProperties'));
+    assert.ok(properties, 'the layer settings are carried');
+    const name = (ref) => document.context.lookup(ref).lookup(PDFLib.PDFName.of('Name')).decodeText();
+    const config = properties.lookup(PDFLib.PDFName.of('D'));
+    assert.deepEqual(config.lookup(PDFLib.PDFName.of('OFF')).asArray().map(name).slice(0, 1), ['Draft']);
+    // The page draws the very layer objects the settings name.
+    const used = document.getPage(0).node.Resources().lookup(PDFLib.PDFName.of('Properties')).get(PDFLib.PDFName.of('D'));
+    assert.ok(config.lookup(PDFLib.PDFName.of('OFF')).asArray().some((ref) => String(ref) === String(used)));
+    return { document, config, name };
+  };
+  await check(await tools.assemblePages(PDFLib, [pdf], [{ source: 0, index: 1 }, { source: 0, index: 0 }]));
+  const [part] = await tools.splitPdf(PDFLib, pdf, [[1]]);
+  await check(part);
+
+  // A page used twice: its second copy's layers are listed and off too, but not shown twice in the panel.
+  const twice = await check(await tools.assemblePages(PDFLib, [pdf], [{ source: 0, index: 0 }, { source: 0, index: 0 }]));
+  const groups = twice.document.catalog.lookup(PDFLib.PDFName.of('OCProperties')).lookup(PDFLib.PDFName.of('OCGs'));
+  assert.equal(groups.size(), 4);
+  assert.deepEqual(twice.config.lookup(PDFLib.PDFName.of('OFF')).asArray().map(twice.name), ['Draft', 'Draft']);
+  assert.equal(twice.config.lookup(PDFLib.PDFName.of('Order')).size(), 2);
+  const secondCopy = twice.document.getPage(1).node.Resources().lookup(PDFLib.PDFName.of('Properties')).get(PDFLib.PDFName.of('D'));
+  assert.ok(twice.config.lookup(PDFLib.PDFName.of('OFF')).asArray().some((ref) => String(ref) === String(secondCopy)), 'the second copy\'s Draft is off');
+});
+
+/** Three pages with bookmarks: Chapter 1 to p1 (1.1 to p2), Chapter 2 to p3 (closed; 2.1 to named "ch2"), Away to p2. */
+async function bookmarkedPdf(prefix = '') {
+  const document = await PDFLib.PDFDocument.create();
+  const context = document.context;
+  const pages = [0, 1, 2].map(() => document.addPage([200, 200]));
+  const dest = (page) => context.obj([page.ref, 'XYZ', 0, 200, null]);
+  document.catalog.set(PDFLib.PDFName.of('Dests'), context.obj({ ch2: context.obj([pages[2].ref, 'Fit']) }));
+  const root = context.nextRef();
+  const [c1, c11, c2, c21, away] = [0, 1, 2, 3, 4].map(() => context.nextRef());
+  const item = (title, extra) => context.obj({ Title: PDFLib.PDFHexString.fromText(prefix + title), ...extra });
+  context.assign(c1, item('Chapter 1', { Parent: root, Next: c2, First: c11, Last: c11, Count: 1, Dest: dest(pages[0]) }));
+  context.assign(c11, item('Section 1.1', { Parent: c1, Dest: dest(pages[1]) }));
+  context.assign(c2, item('Chapter 2', { Parent: root, Prev: c1, Next: away, First: c21, Last: c21, Count: -1, A: context.obj({ S: 'GoTo', D: dest(pages[2]) }) }));
+  context.assign(c21, item('Section 2.1', { Parent: c2, Dest: PDFLib.PDFName.of('ch2') }));
+  context.assign(away, item('Away', { Parent: root, Prev: c2, Dest: dest(pages[1]) }));
+  context.assign(root, context.obj({ Type: 'Outlines', First: c1, Last: away, Count: 4 }));
+  document.catalog.set(PDFLib.PDFName.of('Outlines'), root);
+  return document.save();
+}
+
+/** The outline as [title, page number or null, closed, children]. */
+async function outlineOf(bytes) {
+  const document = await PDFLib.PDFDocument.load(bytes);
+  const pageNumber = new Map(document.getPages().map((page, index) => [String(page.ref), index + 1]));
+  const read = (ref) => {
+    const list = [];
+    while (ref) {
+      const node = document.context.lookup(ref);
+      const dest = node.lookup(PDFLib.PDFName.of('Dest'));
+      const count = node.lookup(PDFLib.PDFName.of('Count'));
+      list.push([
+        node.lookup(PDFLib.PDFName.of('Title')).decodeText(),
+        dest ? pageNumber.get(String(dest.get(0))) ?? 'stray' : null,
+        Boolean(count && count.asNumber() < 0),
+        read(node.get(PDFLib.PDFName.of('First')))
+      ]);
+      ref = node.get(PDFLib.PDFName.of('Next'));
+    }
+    return list;
+  };
+  const outlines = document.catalog.lookup(PDFLib.PDFName.of('Outlines'));
+  return outlines ? read(outlines.get(PDFLib.PDFName.of('First'))) : null;
+}
+
+test('Organise keeps bookmarks that lead to kept pages, pointing at their new place', async () => {
+  const pdf = await bookmarkedPdf();
+  // Page 3 first, then page 1; page 2 dropped.
+  const output = await tools.assemblePages(PDFLib, [pdf], [{ source: 0, index: 2 }, { source: 0, index: 0 }]);
+  assert.deepEqual(await outlineOf(output), [
+    ['Chapter 1', 2, false, []],
+    ['Chapter 2', 1, true, [['Section 2.1', 1, false, []]]]
+  ]);
+  const text = await allObjectText(output);
+  assert.ok(!text.includes('Away') && !text.includes('Section 1.1'), 'bookmarks to the dropped page are gone from the file');
+
+  // Only page 2 kept: Chapter 1 stays as a heading (no link) because Section 1.1 under it leads somewhere.
+  const [middle] = await tools.splitPdf(PDFLib, pdf, [[1]]);
+  assert.deepEqual(await outlineOf(middle), [
+    ['Chapter 1', null, false, [['Section 1.1', 1, false, []]]],
+    ['Away', 1, false, []]
+  ]);
+});
+
+test('merged files keep each file\'s bookmarks, in the order of their pages', async () => {
+  const a = await bookmarkedPdf('A ');
+  const b = await bookmarkedPdf('B ');
+  const output = await tools.assemblePages(PDFLib, [a, b], [{ source: 1, index: 0 }, { source: 0, index: 0 }]);
+  assert.deepEqual((await outlineOf(output)).map(([title, page]) => [title, page]), [['B Chapter 1', 1], ['A Chapter 1', 2]]);
+  // A file without bookmarks or layers adds none.
+  const plain = await tools.assemblePages(PDFLib, [await makePdf([[100, 100]])], [{ source: 0, index: 0 }]);
+  assert.equal(await outlineOf(plain), null);
+  assert.equal((await PDFLib.PDFDocument.load(plain)).catalog.get(PDFLib.PDFName.of('OCProperties')), undefined);
+});
