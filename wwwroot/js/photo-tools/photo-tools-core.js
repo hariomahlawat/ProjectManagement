@@ -888,7 +888,7 @@
   // The three brushes for touching up a changed background, named as in common photo editors.
   // A stroke is drawn into a mask picture in its brush's colour channel, so a later stroke lies
   // over an earlier one.
-  //   refine   Refine Edge: only what still looks like the old background takes the new colour;
+  //   refine   Refine edge: only what still looks like the old background takes the new colour;
   //            hair, skin and clothes under the brush stay. For the rim left around hair.
   //   erase    Erase: everything under the brush takes the new colour. For something left
   //            standing in the background that does not look like the wall.
@@ -926,7 +926,7 @@
   }
 
   /**
-   * Reads a picture of brush strokes (red Restore, green Refine Edge, blue Erase; alpha is how
+   * Reads a picture of brush strokes (red Restore, green Refine edge, blue Erase; alpha is how
    * strongly) into one strength plane per brush, over the box the strokes cover, widened by
    * `feather` and softened by it when given. Null when nothing is painted.
    */
@@ -1126,18 +1126,18 @@
    * are RGBA of one size:
    *   pixels    the changed photo
    *   original  the photo before the change
-   *   mask      the strokes: red Restore, green Refine Edge, blue Erase; alpha is how strongly
+   *   mask      the strokes: red Restore, green Refine edge, blue Erase; alpha is how strongly
    *   colour    the new background colour [r, g, b]
    * options:
    *   width     the pictures' width in pixels
-   *   wall      the `wall` changeBackground returned; Refine Edge needs it to tell the old
-   *             background from the person (without it, Refine Edge acts as Erase)
+   *   wall      the `wall` changeBackground returned; Refine edge needs it to tell the old
+   *             background from the person (without it, Refine edge acts as Erase)
    *   feather   the radius in pixels over which every stroke's edge fades out (default none;
    *             a caller that draws soft strokes itself leaves it out)
    *   cell      the size in pixels of the squares the person's colours are read from
    *             (default twice the feather, at least 4)
    *
-   * Refine Edge treats each pixel as a mix of the person and the wall behind them, as hair over a
+   * Refine edge treats each pixel as a mix of the person and the wall behind them, as hair over a
    * wall is. The wall's colour there is known (`wall`); the person's colour is taken from the
    * nearby pixels that are clearly person (a small square around the pixel). How far the pixel
    * lies from the wall colour towards the person's colour is the person's share; the wall's share
@@ -1176,7 +1176,7 @@
         }
         const stay = Math.max(0, 1 - restore - refine - erase);
         const at = (y * width + x) * 4;
-        // Refine Edge: how much of the photo here was old wall. 1 is all wall, 0 all person.
+        // Refine edge: how much of the photo here was old wall. 1 is all wall, 0 all person.
         // Without the wall's colours it acts as Erase.
         let wallShare = 1;
         if (refine && wall) {
@@ -1390,7 +1390,7 @@
 
   /**
    * Refines the model's mask where it is unsure, in place: what the mask calls part subject is
-   * checked against its colour, as Refine Edge does. A pixel that looks like the background there
+   * checked against its colour, as Refine edge does. A pixel that looks like the background there
    * loses its share (wall seen between strands of hair, which the model blurs over); a mix of
    * subject and background (a strand) keeps the share its colour shows; a pixel with a colour of
    * its own keeps the model's value. The mask is never raised, only lowered, so the model's
@@ -1417,8 +1417,8 @@
   /**
    * The touch-up brushes on a cut-out's mask, in place of `alpha`, starting from the model's mask
    * `modelAlpha` each time (so Undo and Reset are exact). `mask` is the picture of the strokes
-   * (red Restore, green Refine Edge, blue Erase). Restore makes a pixel subject, Erase makes it
-   * background, and Refine Edge works out how much of it is subject from its colour: a mix of the
+   * (red Restore, green Refine edge, blue Erase). Restore makes a pixel subject, Erase makes it
+   * background, and Refine edge works out how much of it is subject from its colour: a mix of the
    * background colour there (`background`, from cutoutBackground) and the subject's colours near
    * it, as the passport brush does. options: width, cell (squares the subject's colours are read
    * from), colourAlpha (filled, when given, with how much of each pixel's colour is subject: the

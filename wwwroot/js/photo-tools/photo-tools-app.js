@@ -34,8 +34,12 @@
   const views = $$('[data-view]');
   let keepErrorOnce = false;
 
+  // Screens that open another screen in a set way: Signature is Passport photo in Signature mode.
+  const VIEW_ALIASES = { signature: 'passport' };
+
   function showView(name) {
-    const target = views.some(view => view.dataset.view === name) ? name : 'home';
+    const wanted = VIEW_ALIASES[name] || name;
+    const target = views.some(view => view.dataset.view === wanted) ? wanted : 'home';
     for (const view of views) {
       view.hidden = view.dataset.view !== target;
     }

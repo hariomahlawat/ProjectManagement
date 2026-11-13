@@ -89,7 +89,7 @@ fixes.
 | 2 | Built. Pointers and re-entry (also the brushes in Passport photo and Remove background ignore a right-click): primary pointer and left button only in Edit photo and Print sheet; Print sheet takes its settings before the first `await` and keeps Download off while working; one download at a time in every tool; Passport resets the brush screen on a new photo and catches Rotate failures | 1, 2, 4, 5, Low (double click) |
 | 3 | Accessibility: focus and title on each screen, home cards as a real list of links (PDF Tools too), 44 px crop handles on touch, `aria-label` that matches the text, reduced motion | 3, 7, Low (Page) |
 | 4 | Core edge cases: alpha-weighted measuring (one shared helper), KB rounding and parsing (after owner question 2), unique output names, 16 px floor, canvas area cap, exact crop shape | 6, Low (Core) |
-| 5 | Wording and Signature: owner question 1, one name for blurring, sentence case, plain hints for pixels and file types, copies counter | 8, Low (Wording) |
+| 5 | Built. Wording and Signature: a Signature card (decision 1), "Hide or blur", "Refine edge", plain hints for pixels and file types, labels that wrap on phones (the copies counter needed nothing: it is only seen with a photo) | 8, Low (Wording) |
 | 6 | Docs and contract test: correct both docs, read scripts from the page, check the CSS, more patterns, move the PDF test | 9, Low (Docs, Contract test) |
 | 7 | Speed and shared code: coalesce brush moves, one-step Redo, cancel Reduce size between tries, shared open/drop/save/hold helpers in `photo-tools-canvas.js` | Low (Screens, Duplication) |
 | 8 | Reduce size default, if the owner changes it (question 3) | — |

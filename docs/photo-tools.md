@@ -46,10 +46,10 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Tool | What it does |
 | --- | --- |
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none), smaller dimensions, save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
-| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. What the tool gets wrong is touched up with Refine Edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
+| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. What the tool gets wrong is touched up with Refine edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
-| Signature | The Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
-| Remove background | One photo, any background. The PRISM server's model (BRIA RMBG) finds the subject; the browser takes the old background's tint out of the soft edge, and the cut-out is saved see-through (PNG, WEBP), on a plain colour or on a blur of its own background (JPG, PNG, WEBP), at up to 4096 px. Refine Edge, Erase and Restore brushes touch up the edge. Off until an administrator installs the model; see [photo-tools-background-removal.md](photo-tools-background-removal.md). |
+| Signature | Its own card on the home screen (`#signature`), which opens the Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
+| Remove background | One photo, any background. The PRISM server's model (BRIA RMBG) finds the subject; the browser takes the old background's tint out of the soft edge, and the cut-out is saved see-through (PNG, WEBP), on a plain colour or on a blur of its own background (JPG, PNG, WEBP), at up to 4096 px. Refine edge, Erase and Restore brushes touch up the edge. Off until an administrator installs the model; see [photo-tools-background-removal.md](photo-tools-background-removal.md). |
 | Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Cover, Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
 
 Every step of the first build plan ([ux/photo-tools.md](ux/photo-tools.md)) is done, including
@@ -153,7 +153,7 @@ photo editors (Photoshop's Select and Mask, Canva, remove.bg):
 
 | Brush | What it does | For |
 | --- | --- | --- |
-| **Refine Edge** (the default) | Only what still looks like the old background takes the new colour. Hair, skin and clothes under the brush stay. | The rim of old wall left around hair and shoulders. |
+| **Refine edge** (the default) | Only what still looks like the old background takes the new colour. Hair, skin and clothes under the brush stay. | The rim of old wall left around hair and shoulders. |
 | **Erase** | Everything under the brush takes the new background colour. | Something left standing in the background that does not look like the wall. |
 | **Restore** | The photo as it was before the change comes back. | Part of the person that was given the new colour. |
 
@@ -174,7 +174,7 @@ step through them, as in Photoshop), Undo, Reset (removes every stroke) and Done
   of falling width around a solid core. The softness belongs to the stroke, so a stroke painted
   later with another brush size does not change the edge of an earlier one, and Undo of one
   stroke changes nothing else. A later stroke lies over an earlier one.
-- **How Refine Edge decides.** At the edge of a person a pixel is a mix of the person and the
+- **How Refine edge decides.** At the edge of a person a pixel is a mix of the person and the
   wall behind them, as thin hair over a wall is. The background change keeps the wall's colour
   at every spot (the grid of colours in step 3 above) and hands it to the brush
   (`changeBackground` returns it as `wall`, read with `wallColourAt`). Around the stroke, the
@@ -198,7 +198,7 @@ step through them, as in Photoshop), Undo, Reset (removes every stroke) and Done
   solid hair, skin and the edge between them are not changed. The first tenth of the way from
   the wall (grain on the wall) counts as wall. Where no person is near, only a pixel well away
   from the wall colour counts as person.
-- Refine Edge cannot tell a shirt of the wall's colour from the wall; Restore is there for that.
+- Refine edge cannot tell a shirt of the wall's colour from the wall; Restore is there for that.
 - The saved photo is made in three steps: the cropped photo with its clean-up, the background
   change, then the strokes (`applyBackgroundFixes`). The first two steps are kept, so a stroke
   shows on the stage at once without finding the background again; the file follows a moment

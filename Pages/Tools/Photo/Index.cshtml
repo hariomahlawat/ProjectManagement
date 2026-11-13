@@ -57,6 +57,11 @@
                     <span class="pdft-card__title">Passport photo</span>
                     <span class="pdft-card__text">Crop to an exact size with a face guide, make a plain background white, then save a file at the pixels and file size a form asks for.</span>
                 </a>
+                <a class="pdft-card" role="listitem" href="#signature">
+                    <span class="pdft-card__icon pdft-accent--indigo" aria-hidden="true"><i class="bi bi-pen"></i></span>
+                    <span class="pdft-card__title">Signature</span>
+                    <span class="pdft-card__text">Turn a photo of your signature into dark ink on clean white paper, at the pixels and file size a form asks for.</span>
+                </a>
                 <a class="pdft-card" role="listitem" href="#sheet">
                     <span class="pdft-card__icon pdft-accent--purple" aria-hidden="true"><i class="bi bi-printer"></i></span>
                     <span class="pdft-card__title">Print sheet</span>
@@ -75,7 +80,7 @@
                 <a class="pdft-card" role="listitem" href="#edit">
                     <span class="pdft-card__icon pdft-accent--green" aria-hidden="true"><i class="bi bi-crop"></i></span>
                     <span class="pdft-card__title">Edit photo</span>
-                    <span class="pdft-card__text">Crop, rotate, clean up, add a filter, mark up or blur part of one photo, with undo. Save it as JPG, PNG or WEBP.</span>
+                    <span class="pdft-card__text">Crop, rotate, clean up, add a filter, mark up, or hide or blur part of one photo, with undo. Save it as JPG, PNG or WEBP.</span>
                 </a>
             </div>
         </section>
@@ -210,7 +215,7 @@
                             </button>
                             <div class="phot-bgfix" data-bg-fix hidden>
                                 <div class="phot-segment phot-brushes" role="group" aria-label="Brush">
-                                    <button type="button" aria-pressed="true" data-bg-brush="refine"><i class="bi bi-magic" aria-hidden="true"></i> Refine Edge</button>
+                                    <button type="button" aria-pressed="true" data-bg-brush="refine"><i class="bi bi-magic" aria-hidden="true"></i> Refine edge</button>
                                     <button type="button" aria-pressed="false" data-bg-brush="erase"><i class="bi bi-eraser" aria-hidden="true"></i> Erase</button>
                                     <button type="button" aria-pressed="false" data-bg-brush="restore"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Restore</button>
                                 </div>
@@ -250,7 +255,7 @@
                                 <input type="text" inputmode="decimal" class="form-control" id="photOutLimit" maxlength="6" placeholder="No limit" data-out-limit />
                             </div>
                         </div>
-                        <p class="phot-hint">Change the pixels or the file size if a form asks for something else. It is saved as a JPG at 300 dpi.</p>
+                        <p class="phot-hint">Pixels (px) are the dots the photo is made of. Change them, or the file size, only if your form gives other numbers. It is saved as a JPG that prints at its true size.</p>
                         <p class="phot-result" data-passport-result aria-live="polite"></p>
                         <div class="phot-check" data-passport-check aria-live="polite" hidden>
                             <p class="phot-check__title" data-check-title></p>
@@ -385,9 +390,9 @@
                             <thead>
                                 <tr>
                                     <th scope="col">Photo</th>
-                                    <th scope="col" class="phot-num">Now</th>
-                                    <th scope="col" class="phot-num">After</th>
-                                    <th scope="col" class="phot-num">Dimensions after</th>
+                                    <th scope="col" class="phot-num">Size now</th>
+                                    <th scope="col" class="phot-num">Size after</th>
+                                    <th scope="col" class="phot-num">Pixels after</th>
                                     <th scope="col"><span class="visually-hidden">Remove</span></th>
                                 </tr>
                             </thead>
@@ -438,7 +443,7 @@
                     <div class="phot-panel">
                         <h2 class="phot-panel__title">Options</h2>
                         <div class="phot-field">
-                            <label for="photDimensions">Dimensions</label>
+                            <label for="photDimensions">Width and height</label>
                             <select class="form-select" id="photDimensions" data-dimensions>
                                 <option value="keep">Keep as they are</option>
                                 <option value="longest:1600" selected>Longest side 1600 px</option>
@@ -447,6 +452,7 @@
                                 <option value="percent:50">Half size</option>
                                 <option value="custom">Custom longest side</option>
                             </select>
+                            <p class="phot-hint">Pixels (px) are the dots the photo is made of. 1600 px across still looks sharp on any screen.</p>
                         </div>
                         <div class="phot-field" data-custom-side hidden>
                             <label for="photCustomSide">Longest side (px)</label>
@@ -455,10 +461,10 @@
                         <div class="phot-field">
                             <label for="photFormat">Save as</label>
                             <select class="form-select" id="photFormat" data-format>
-                                <option value="jpeg" selected>JPG (smallest)</option>
-                                <option value="same">Same as original</option>
-                                <option value="png">PNG</option>
-                                <option value="webp">WEBP</option>
+                                <option value="jpeg" selected>JPG (smallest, accepted everywhere)</option>
+                                <option value="same">Same type as the photo</option>
+                                <option value="png">PNG (keeps every pixel, larger)</option>
+                                <option value="webp">WEBP (small; some offices do not accept it)</option>
                             </select>
                         </div>
                         <p class="phot-hint phot-hint--warning" data-png-hint hidden>
@@ -563,7 +569,7 @@
                             <button type="button" aria-pressed="false" data-tool="adjust"><i class="bi bi-sliders" aria-hidden="true"></i> Adjust</button>
                             <button type="button" aria-pressed="false" data-tool="filters"><i class="bi bi-palette" aria-hidden="true"></i> Filters</button>
                             <button type="button" aria-pressed="false" data-tool="markup"><i class="bi bi-pencil-square" aria-hidden="true"></i> Mark up</button>
-                            <button type="button" aria-pressed="false" data-tool="hide"><i class="bi bi-eye-slash" aria-hidden="true"></i> Hide</button>
+                            <button type="button" aria-pressed="false" data-tool="hide"><i class="bi bi-eye-slash" aria-hidden="true"></i> Hide or blur</button>
                         </div>
 
                         <div class="phot-tool" data-tool-panel="crop">
@@ -688,9 +694,9 @@
                         <div class="phot-field">
                             <label for="photEditFormat">Save as</label>
                             <select class="form-select" id="photEditFormat" autocomplete="off" data-edit-format>
-                                <option value="jpeg">JPG</option>
-                                <option value="png">PNG</option>
-                                <option value="webp">WEBP</option>
+                                <option value="jpeg">JPG (smallest, accepted everywhere)</option>
+                                <option value="png">PNG (keeps every pixel, larger)</option>
+                                <option value="webp">WEBP (small; some offices do not accept it)</option>
                             </select>
                         </div>
                         <label class="phot-slider" for="photEditQuality" data-edit-quality-row>Quality
@@ -762,7 +768,7 @@
                             </div>
                         </div>
                         <p class="visually-hidden" role="status" data-remove-busy-status></p>
-                        <p class="phot-stage__hint">Check the edges, then paint with Refine Edge where hair or fur needs work.</p>
+                        <p class="phot-stage__hint">Check the edges, then paint with Refine edge where hair or fur needs work.</p>
                     </div>
                 </div>
 
@@ -792,7 +798,7 @@
                     <div class="phot-panel">
                         <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">2</span>Touch up</h2>
                         <div class="phot-segment phot-brushes" role="group" aria-label="Brush">
-                            <button type="button" aria-pressed="true" data-remove-brush="refine"><i class="bi bi-magic" aria-hidden="true"></i> Refine Edge</button>
+                            <button type="button" aria-pressed="true" data-remove-brush="refine"><i class="bi bi-magic" aria-hidden="true"></i> Refine edge</button>
                             <button type="button" aria-pressed="false" data-remove-brush="erase"><i class="bi bi-eraser" aria-hidden="true"></i> Erase</button>
                             <button type="button" aria-pressed="false" data-remove-brush="restore"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Restore</button>
                         </div>
