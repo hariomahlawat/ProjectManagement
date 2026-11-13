@@ -25,9 +25,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Tests.Fakes;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 namespace ProjectManagement.Tests;
 
@@ -677,11 +675,8 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
     private static async Task<MemoryStream> CreateImageStreamAsync(int width, int height)
     {
-        var stream = new MemoryStream();
-        using var image = new Image<Rgba32>(width, height, new Rgba32(80, 140, 220));
-        await image.SaveAsync(stream, new JpegEncoder { Quality = 90 });
-        stream.Position = 0;
-        return stream;
+        await Task.CompletedTask;
+        return TestImageFactory.SolidJpegStream(width, height, new SKColor(80, 140, 220));
     }
 
     private sealed class TestClock : IClock

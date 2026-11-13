@@ -39,10 +39,7 @@ using ProjectManagement.Services.Storage;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Text;
 using ProjectManagement.Tests.Fakes;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 using Xunit;
 using static ProjectManagement.Pages.Projects.Photos.EditModel;
 using static ProjectManagement.Pages.Projects.Photos.UploadModel;
@@ -548,11 +545,8 @@ public sealed class ProjectPhotoPageTests : IDisposable
 
     private static async Task<MemoryStream> CreateImageStreamAsync(int width, int height)
     {
-        var stream = new MemoryStream();
-        using var image = new Image<Rgba32>(width, height, new Rgba32(40, 120, 220, 255));
-        await image.SaveAsync(stream, new PngEncoder());
-        stream.Position = 0;
-        return stream;
+        await Task.CompletedTask;
+        return TestImageFactory.SolidPngStream(width, height, new SKColor(40, 120, 220, 255));
     }
 
     private static string CreateTempRoot()

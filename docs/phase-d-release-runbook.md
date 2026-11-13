@@ -322,7 +322,7 @@ Arbitrary down-migrations are **not** supported. Removing history rows is prohib
 | Health endpoint documented but absent | Confirmed (**C**) | No (runbook uses logs and SQL) | `offline-ws2022.md` and `production-checklist.md` corrected in this PR; implementing an endpoint is optional separate work |
 | **#2684** snapshot drift | Open | No for this release (no new migration) | Re-verified at `5ee16e9f` with a throwaway scaffold (discarded): adds `NotebookItemCollaborators`, drops `IX_ProjectIdeaComments_ProjectIdeaId`, alters `ProjectBrief`; nothing for proposals. There is no runtime risk. Fix in a **separate PR before the next scaffolded migration**: splice the snapshot, then decide on the redundant index |
 | **#2682** `ProjectBrief` 2500/3000 | Open | No (pre-existing; unchanged) | A brief of 2501–3000 characters fails to save. Smallest fix: lower `ProjectBriefMaxLength` to 2500 (no migration). Priority: next maintenance release |
-| `SixLabors.ImageSharp` 3.1.11 advisories (NU1902/NU1903 in the publish output) | Observation | Not a Phase D blocker | A pre-existing dependency; owners should assess separately for the offline LAN |
+| `SixLabors.ImageSharp` 3.1.11 advisories (NU1902/NU1903 in the publish output) | Observation | Not a Phase D blocker | Resolved November 2026: ImageSharp was removed and photo handling moved to SkiaSharp (`Services/Imaging/PrismImageCodec`) |
 
 ## G. Go/no-go checklist (none satisfied by this PR unless marked)
 
