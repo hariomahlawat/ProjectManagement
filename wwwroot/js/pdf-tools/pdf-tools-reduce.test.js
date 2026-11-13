@@ -856,3 +856,85 @@ test('compressPlainStreams leaves a stream with a stray /DecodeParms and no filt
   assert.equal(tools.compressPlainStreams(PDFLib, document), 0);
   assert.equal(document.context.lookup(stray).dict.get(PDFName.of('Filter')), undefined);
 });
+
+// -----------------------------------------------------------------------------
+// Review fixes (docs/ux/pdf-tools-review-fixes.md, PR 7)
+// -----------------------------------------------------------------------------
+
+test('searchReduceSettings reaches 72 dpi before it gives up, and goes there when stepping down stops helping', async () => {
+  // Most of the size cannot shrink (a large fixed part): each step down saves almost nothing.
+  const calls = [];
+  const measure = async (dpi, quality) => {
+    calls.push(dpi);
+    return { dpi, quality, bytes: 100000 + dpi * 10 };
+  };
+  // Just over the budget at every resolution, so each step is the largest allowed (0.9).
+  const found = await tools.searchReduceSettings({ dpi: 220, quality: 0.8, budget: 100500, measure });
+  assert.equal(found.reached, false);
+  assert.equal(found.dpi, 72, 'the smallest tried is at the lowest resolution');
+  assert.ok(calls.includes(72));
+  assert.ok(calls.length <= 6, `${calls.length} attempts: it jumps to 72 instead of creeping down`);
+});
+
+test('searchReduceSettings tries the lowest settings once when the budget is already used up', async () => {
+  const fake = fakeMeasure();
+  const found = await tools.searchReduceSettings({ dpi: 150, quality: 0.75, budget: -500, measure: fake.measure });
+  assert.deepEqual(fake.calls, [[72, 0.35]]);
+  assert.equal(found.reached, false);
+});
+
+test('searchReduceSettings hands back every attempt it can no longer choose', async () => {
+  const fake = fakeMeasure();
+  const released = new Set();
+  const all = new Set();
+  const measure = async (dpi, quality) => {
+    const attempt = await fake.measure(dpi, quality);
+    all.add(attempt);
+    return attempt;
+  };
+  const found = await tools.searchReduceSettings({ dpi: 150, quality: 0.75, budget: 4000, measure, release: (item) => released.add(item) });
+  assert.equal(found.reached, true);
+  const kept = [...all].filter((item) => !released.has(item));
+  assert.equal(kept.length, 1, 'only the chosen attempt still holds its pictures');
+  assert.equal(kept[0].bytes, found.bytes);
+});
+
+test('isSignedPdf also reads /SigFlags AppendOnly and a signature widget left out of the field list', async () => {
+  const appendOnly = await PDFLib.PDFDocument.create();
+  appendOnly.addPage();
+  appendOnly.catalog.set(PDFName.of('AcroForm'), appendOnly.context.obj({ Fields: [], SigFlags: 3 }));
+  assert.equal(tools.isSignedPdf(PDFLib, appendOnly), true);
+
+  const onlyExists = await PDFLib.PDFDocument.create();
+  onlyExists.addPage();
+  onlyExists.catalog.set(PDFName.of('AcroForm'), onlyExists.context.obj({ Fields: [], SigFlags: 1 }));
+  assert.equal(tools.isSignedPdf(PDFLib, onlyExists), false, 'SignaturesExist alone may be an empty field');
+
+  const stray = await PDFLib.PDFDocument.create();
+  const page = stray.addPage();
+  const value = stray.context.register(stray.context.obj({ Type: 'Sig', Filter: 'Adobe.PPKLite' }));
+  const field = stray.context.register(stray.context.obj({ FT: 'Sig', T: PDFLib.PDFString.of('Signed'), V: value }));
+  const widget = stray.context.register(stray.context.obj({ Type: 'Annot', Subtype: 'Widget', Parent: field, Rect: [0, 0, 0, 0] }));
+  page.node.set(PDFName.of('Annots'), stray.context.obj([widget]));
+  stray.catalog.set(PDFName.of('AcroForm'), stray.context.obj({ Fields: [] }));
+  assert.equal(tools.isSignedPdf(PDFLib, stray), true, 'found through the page and the widget\'s parent');
+});
+
+test('reducePdf says how many pictures keep their own size when a target is missed', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const photo = addImage(document, { width: 1200, height: 1200 });
+  const kept = addImage(document, { width: 1200, height: 1200, data: noise(1200 * 1200 * 3, 11) });
+  pageDrawing(document, [{ ref: photo, name: 'P', matrix: [288, 0, 0, 288, 0, 0] }]);
+  // The second picture is drawn only by a tiling pattern: where it is shown cannot be measured.
+  const pattern = document.context.register(document.context.stream(bytesOf('q 50 0 0 50 0 0 cm /K Do Q'), {
+    Type: 'Pattern', PatternType: 1, PaintType: 1, TilingType: 1, BBox: [0, 0, 50, 50], XStep: 50, YStep: 50,
+    Resources: { XObject: { K: kept } }
+  }));
+  const resources = document.getPage(0).node.lookup(PDFName.of('Resources'));
+  resources.set(PDFName.of('Pattern'), document.context.obj({ Pat: pattern }));
+  const original = await document.save();
+
+  const missed = await tools.reducePdf(PDFLib, original, { preset: 'standard', targetBytes: 10, encodeImage: sizedEncoder().encodeImage });
+  assert.equal(missed.report.target.reached, false);
+  assert.equal(missed.report.target.keptSize, 1);
+});

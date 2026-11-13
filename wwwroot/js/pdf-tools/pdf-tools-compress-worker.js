@@ -13,6 +13,8 @@ let loaded = false;
 self.onmessage = async (event) => {
   const message = event.data || {};
   if (message.type !== 'reduce') return;
+  // Tells the page it is still working, so a worker the browser ended can be told apart.
+  const alive = setInterval(() => self.postMessage({ type: 'alive' }), 5000);
   try {
     if (!loaded) {
       self.importScripts(...message.scripts);
@@ -37,5 +39,7 @@ self.onmessage = async (event) => {
       message: known ? error.message : 'This PDF could not be made smaller here.',
       loaded
     });
+  } finally {
+    clearInterval(alive);
   }
 };
