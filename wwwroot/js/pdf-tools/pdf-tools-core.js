@@ -1286,7 +1286,12 @@
         checked += 1;
         continue;
       }
-      if (c === 60 && bytes[at + 1] !== 60) { // <hex string>
+      if (c === 60 && bytes[at + 1] === 60) { // << a dictionary, as in "/Span << /MCID 0 >> BDC"
+        at += 2;
+        checked += 2;
+        continue;
+      }
+      if (c === 60) { // <hex string>
         at += 1;
         while (at < bytes.length && bytes[at] !== 62) {
           const h = bytes[at];

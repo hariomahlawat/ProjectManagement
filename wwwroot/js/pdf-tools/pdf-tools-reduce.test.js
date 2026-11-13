@@ -772,6 +772,8 @@ test('contentOperators skips inline-image data that holds "EI", by /L or by what
   // A string after the real EI may hold any byte; it is text, not image data.
   assert.deepEqual(read('BI /W 1 /H 1 /CS /G /BPC 8 ID \u0001 EI BT (é\u0003) Tj <00e9> Tj ET'), ['BT', 'Tj', 'Tj', 'ET']);
   assert.deepEqual(read('BI /W 1 /H 1 /CS /G /BPC 8 ID \u0001 EI % café\nq Q'), ['q', 'Q']);
+  // Tagged content right after the image: a dictionary, not a hex string.
+  assert.deepEqual(read('BI /W 1 /H 1 /CS /G /BPC 8 ID \u0001 EI /Span <</MCID 0>> BDC q Q EMC'), ['BDC', 'q', 'Q', 'EMC']);
 });
 
 test('measureImageUses measures through an inline image whose data holds "EI Q"', async () => {
