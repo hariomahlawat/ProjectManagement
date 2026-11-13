@@ -32,6 +32,14 @@ namespace ProjectManagement.Models
 
         public short? Year { get; set; }
 
+        /// <summary>
+        /// The PRISM account this celebration belongs to, when it is for someone who signs in.
+        /// Null for everyone else. PRISM wishes the linked person on the day. Not a foreign key:
+        /// an id whose account has gone simply reads as not linked.
+        /// </summary>
+        [StringLength(450)]
+        public string? UserId { get; set; }
+
         [Required]
         public string CreatedById { get; set; } = string.Empty;
 

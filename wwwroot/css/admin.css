@@ -2565,6 +2565,8 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     padding: .72rem .8rem;
     border-bottom: 1px solid var(--admin-border);
 }
+/* Celebrations has four filters; on a wide screen they sit on one line with the buttons. */
+.admin-master-filter-toolbar--celebrations { grid-template-columns: minmax(14rem, 1fr) repeat(5, auto); }
 .admin-master-filter-toolbar .admin-filter-toolbar__search { position: relative; }
 .admin-master-filter-toolbar .admin-filter-toolbar__search > i {
     position: absolute;

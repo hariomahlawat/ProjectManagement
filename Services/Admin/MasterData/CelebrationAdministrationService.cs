@@ -11,7 +11,11 @@ public sealed record CelebrationDirectoryRequest(
     string? Type,
     string? Window,
     int Page,
-    int PageSize);
+    int PageSize,
+    string? Link = null);
+
+/// <summary>An account a celebration can be linked to, as the picker shows it.</summary>
+public sealed record CelebrationUserOption(string Id, string Label);
 
 public sealed record CelebrationAdminRow(
     Guid Id,
@@ -24,7 +28,9 @@ public sealed record CelebrationAdminRow(
     short? Year,
     DateOnly NextOccurrence,
     int DaysAway,
-    DateTimeOffset UpdatedUtc);
+    DateTimeOffset UpdatedUtc,
+    string? LinkedUserLabel = null,
+    CelebrationUserOption? SuggestedUser = null);
 
 public sealed record CelebrationDirectoryResult(
     IReadOnlyList<CelebrationAdminRow> Rows,
@@ -38,7 +44,8 @@ public sealed record CelebrationDirectoryResult(
     int TotalPages,
     string Search,
     string Type,
-    string Window);
+    string Window,
+    string Link = "all");
 
 public sealed record CelebrationEditItem(
     Guid Id,
@@ -47,7 +54,8 @@ public sealed record CelebrationEditItem(
     string? SpouseName,
     byte Day,
     byte Month,
-    short? Year);
+    short? Year,
+    string? UserId = null);
 
 public sealed record CelebrationSaveCommand(
     Guid? Id,
@@ -57,7 +65,8 @@ public sealed record CelebrationSaveCommand(
     byte Day,
     byte Month,
     short? Year,
-    string ActorUserId);
+    string ActorUserId,
+    string? UserId = null);
 
 public interface ICelebrationAdministrationService
 {
@@ -65,6 +74,12 @@ public interface ICelebrationAdministrationService
     Task<CelebrationEditItem?> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<AdminOperationResult<Guid>> SaveAsync(CelebrationSaveCommand command, CancellationToken cancellationToken = default);
     Task<AdminOperationResult> DeleteAsync(Guid id, string actorUserId, CancellationToken cancellationToken = default);
+
+    /// <summary>The accounts a celebration can be linked to: people who can sign in today.</summary>
+    Task<IReadOnlyList<CelebrationUserOption>> ListLinkableUsersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Links one celebration to an account without changing anything else about it.</summary>
+    Task<AdminOperationResult> LinkAsync(Guid id, string userId, string actorUserId, CancellationToken cancellationToken = default);
 }
 
 public sealed class CelebrationAdministrationService : ICelebrationAdministrationService
@@ -95,6 +110,7 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         var search = request.Search?.Trim() ?? string.Empty;
         var type = NormalizeType(request.Type);
         var window = NormalizeWindow(request.Window);
+        var link = NormalizeLink(request.Link);
         var pageSize = Math.Clamp(request.PageSize <= 0 ? 25 : request.PageSize, 10, MaximumPageSize);
         var page = Math.Max(1, request.Page);
 
@@ -126,9 +142,20 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
                 item.Day,
                 item.Month,
                 item.Year,
-                item.UpdatedUtc
+                item.UpdatedUtc,
+                item.UserId
             })
             .ToListAsync(cancellationToken);
+
+        // An id whose account has gone, or can no longer sign in, reads as not linked.
+        var users = await ListLinkableUsersAsync(cancellationToken);
+        var userLabels = users.ToDictionary(user => user.Id, user => user.Label, StringComparer.Ordinal);
+        var taken = (await _db.Celebrations.AsNoTracking()
+                .Where(item => item.DeletedUtc == null && item.UserId != null)
+                .Select(item => new { item.UserId, item.EventType })
+                .ToListAsync(cancellationToken))
+            .Select(item => (item.UserId!, item.EventType))
+            .ToHashSet();
 
         var today = _time.TodayIst;
         var rows = entities.Select(item =>
@@ -144,6 +171,10 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
                 Year = item.Year
             };
             var next = CelebrationHelpers.NextOccurrenceLocal(model, today);
+            var linkedLabel = item.UserId != null && userLabels.TryGetValue(item.UserId, out var label) ? label : null;
+            var suggestion = linkedLabel is null
+                ? CelebrationUserMatcher.Suggest(item.Name, users.Where(user => !taken.Contains((user.Id, item.EventType))))
+                : null;
             return new CelebrationAdminRow(
                 item.Id,
                 item.EventType,
@@ -155,7 +186,9 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
                 item.Year,
                 next,
                 CelebrationHelpers.DaysAway(today, next),
-                item.UpdatedUtc);
+                item.UpdatedUtc,
+                linkedLabel,
+                suggestion);
         }).ToArray();
 
         var nextThirtyDays = rows.Count(item => item.DaysAway < 30);
@@ -167,6 +200,7 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
             "30" => rows.Where(item => item.DaysAway < 30),
             _ => rows
         };
+        if (link == "unlinked") filtered = filtered.Where(item => item.LinkedUserLabel is null);
 
         var ordered = filtered.OrderBy(item => item.NextOccurrence).ThenBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase).ToArray();
         var filteredCount = ordered.Length;
@@ -186,7 +220,8 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
             totalPages,
             search,
             type,
-            window);
+            window,
+            link);
     }
 
     public async Task<CelebrationEditItem?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
@@ -199,8 +234,41 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
                 item.SpouseName,
                 item.Day,
                 item.Month,
-                item.Year))
+                item.Year,
+                item.UserId))
             .SingleOrDefaultAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<CelebrationUserOption>> ListLinkableUsersAsync(CancellationToken cancellationToken = default)
+    {
+        var users = await _db.Users.AsNoTracking()
+            .Where(user => user.AccountKind == UserAccountKind.Human && !user.IsDisabled && !user.PendingDeletion)
+            .Select(user => new { user.Id, user.Rank, user.FullName, user.UserName })
+            .ToListAsync(cancellationToken);
+
+        return users
+            .Select(user => new CelebrationUserOption(user.Id, CelebrationUserMatcher.Label(user.Rank, user.FullName, user.UserName)))
+            .OrderBy(user => user.Label, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public async Task<AdminOperationResult> LinkAsync(
+        Guid id,
+        string userId,
+        string actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await GetAsync(id, cancellationToken);
+        if (item is null || string.IsNullOrWhiteSpace(userId))
+        {
+            return AdminOperationResult.Failure("The celebration could not be found.", "CelebrationNotFound");
+        }
+
+        var result = await SaveAsync(new CelebrationSaveCommand(
+            item.Id, item.EventType, item.Name, item.SpouseName, item.Day, item.Month, item.Year, actorUserId, userId), cancellationToken);
+        return result.Succeeded
+            ? AdminOperationResult.Success("Linked to the account.")
+            : AdminOperationResult.Failure(result.UserMessage ?? "The celebration could not be linked.", result.ErrorCode);
+    }
 
     public async Task<AdminOperationResult<Guid>> SaveAsync(
         CelebrationSaveCommand command,
@@ -235,6 +303,34 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         if (spouseName?.Length > 120)
         {
             return AdminOperationResult<Guid>.Failure("Spouse name must be 120 characters or fewer.", "CelebrationSpouseNameTooLong");
+        }
+
+        var linkedUserId = string.IsNullOrWhiteSpace(command.UserId) ? null : command.UserId.Trim();
+        if (linkedUserId is not null)
+        {
+            var canLink = await _db.Users.AsNoTracking().AnyAsync(
+                user => user.Id == linkedUserId
+                        && user.AccountKind == UserAccountKind.Human
+                        && !user.IsDisabled
+                        && !user.PendingDeletion,
+                cancellationToken);
+            if (!canLink)
+            {
+                return AdminOperationResult<Guid>.Failure("Choose an account from the list.", "CelebrationUserNotFound");
+            }
+
+            var alreadyLinked = await _db.Celebrations.AsNoTracking().AnyAsync(
+                item => item.DeletedUtc == null
+                        && item.UserId == linkedUserId
+                        && item.EventType == command.EventType
+                        && (command.Id == null || item.Id != command.Id),
+                cancellationToken);
+            if (alreadyLinked)
+            {
+                return AdminOperationResult<Guid>.Failure(
+                    $"This account already has {(command.EventType == CelebrationType.Anniversary ? "an anniversary" : "a birthday")} linked to it.",
+                    "CelebrationUserAlreadyLinked");
+            }
         }
 
         Celebration entity;
@@ -280,6 +376,7 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         entity.Day = command.Day;
         entity.Month = command.Month;
         entity.Year = command.Year;
+        entity.UserId = linkedUserId;
         entity.UpdatedUtc = _time.UtcNow;
 
         try
@@ -373,6 +470,7 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         item.Day,
         item.Month,
         item.Year,
+        item.UserId,
         item.UpdatedUtc,
         item.DeletedUtc
     };
@@ -384,6 +482,8 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         "anniversary" => "anniversary",
         _ => "all"
     };
+    private static string NormalizeLink(string? value) =>
+        string.Equals(value?.Trim(), "unlinked", StringComparison.OrdinalIgnoreCase) ? "unlinked" : "all";
     private static string NormalizeWindow(string? value) => value?.Trim().ToLowerInvariant() switch
     {
         "today" => "today",

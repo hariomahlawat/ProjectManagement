@@ -30,6 +30,7 @@ public sealed class EditModel : PageModel
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
+    public IReadOnlyList<CelebrationUserOption> Users { get; private set; } = Array.Empty<CelebrationUserOption>();
     public bool CanManageBirthdays { get; private set; }
     public bool CanManageAnniversaries { get; private set; }
     public bool CanManageBothTypes => CanManageBirthdays && CanManageAnniversaries;
@@ -71,7 +72,9 @@ public sealed class EditModel : PageModel
             SpouseName = item.SpouseName,
             Day = item.Day,
             Month = item.Month,
-            Year = item.Year
+            Year = item.Year,
+            // An account that can no longer sign in is not in the list, so it shows as not linked.
+            UserId = Users.Any(user => user.Id == item.UserId) ? item.UserId : null
         };
         return Page();
     }
@@ -105,7 +108,8 @@ public sealed class EditModel : PageModel
             Input.Day,
             Input.Month,
             Input.Year,
-            actor), cancellationToken);
+            actor,
+            Input.UserId), cancellationToken);
 
         if (!result.Succeeded)
         {
@@ -114,6 +118,7 @@ public sealed class EditModel : PageModel
                 "InvalidCelebrationDate" => "Input.Day",
                 "CelebrationNameRequired" or "CelebrationNameTooLong" => "Input.Name",
                 "CelebrationSpouseNameTooLong" => "Input.SpouseName",
+                "CelebrationUserNotFound" or "CelebrationUserAlreadyLinked" => "Input.UserId",
                 _ => string.Empty
             };
             ModelState.AddModelError(key, result.UserMessage ?? "The celebration could not be saved.");
@@ -128,6 +133,7 @@ public sealed class EditModel : PageModel
     {
         CanManageBirthdays = (await _authorization.AuthorizeAsync(User, Policies.Calendar.ManageBirthdays)).Succeeded;
         CanManageAnniversaries = (await _authorization.AuthorizeAsync(User, Policies.Calendar.ManageAnniversaries)).Succeeded;
+        Users = await _celebrations.ListLinkableUsersAsync(HttpContext.RequestAborted);
     }
 
     private async Task<bool> CanManageAsync(CelebrationType eventType) =>
@@ -142,5 +148,6 @@ public sealed class EditModel : PageModel
         [Range(1, 31)] public byte Day { get; set; }
         [Range(1, 12)] public byte Month { get; set; }
         [Range(1, 9999)] public short? Year { get; set; }
+        [StringLength(450), Display(Name = "PRISM account (optional)")] public string? UserId { get; set; }
     }
 }
