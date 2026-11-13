@@ -3135,6 +3135,11 @@ namespace ProjectManagement.Data
                 e.Property(x => x.EventType).ValueGeneratedNever();
                 e.Property(x => x.Name).IsRequired().HasMaxLength(120);
                 e.Property(x => x.SpouseName).HasMaxLength(120);
+                e.Property(x => x.UserId).HasMaxLength(450);
+                // One live birthday and one live anniversary per account, so the wish has one source.
+                e.HasIndex(x => new { x.UserId, x.EventType })
+                    .IsUnique()
+                    .HasFilter("\"UserId\" IS NOT NULL AND \"DeletedUtc\" IS NULL");
             });
 
             builder.Entity<AuthEvent>(e =>

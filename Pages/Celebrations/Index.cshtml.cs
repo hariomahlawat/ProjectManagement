@@ -29,6 +29,7 @@ public sealed class IndexModel : PageModel
 
     [BindProperty(SupportsGet = true)] public string Type { get; set; } = "all";
     [BindProperty(SupportsGet = true)] public string Window { get; set; } = "all";
+    [BindProperty(SupportsGet = true)] public string Link { get; set; } = "all";
     [BindProperty(SupportsGet = true, Name = "q")] public string? Search { get; set; }
     [BindProperty(SupportsGet = true, Name = "pageNumber")] public int PageNumber { get; set; } = 1;
     [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
@@ -58,11 +59,12 @@ public sealed class IndexModel : PageModel
     {
         await LoadPermissionsAsync();
         Result = await _celebrations.ListAsync(
-            new CelebrationDirectoryRequest(Search, Type, Window, PageNumber, PageSize),
+            new CelebrationDirectoryRequest(Search, Type, Window, PageNumber, PageSize, Link),
             cancellationToken);
         Search = Result.Search;
         Type = Result.Type;
         Window = Result.Window;
+        Link = Result.Link;
         PageNumber = Result.Page;
         PageSize = Result.PageSize;
         // Like Holidays, Celebrations leads back to the lists it belongs with (docs/ux/admin-review-fixes.md, PR 11).
@@ -85,7 +87,7 @@ public sealed class IndexModel : PageModel
         Header = new AdminPageHeaderModel
         {
             Title = "Celebrations",
-            Description = "Birthdays and anniversaries shown on the shared calendar. Changing them here does not change anyone's account.",
+            Description = "Birthdays and anniversaries shown on the shared calendar. Link one to a person's account and PRISM wishes them on the day.",
             Icon = "bi-stars",
             Actions = actions
         };
@@ -94,7 +96,7 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostDeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var item = await _celebrations.GetAsync(id, cancellationToken);
-        if (item is null) return RedirectToPage(new { Type, Window, q = Search, pageNumber = PageNumber, pageSize = PageSize });
+        if (item is null) return RedirectToPage(new { Type, Window, Link, q = Search, pageNumber = PageNumber, pageSize = PageSize });
 
         var authorization = await _authorization.AuthorizeAsync(User, Policies.Calendar.PolicyFor(item.EventType));
         if (!authorization.Succeeded) return Forbid();
@@ -104,7 +106,24 @@ public sealed class IndexModel : PageModel
 
         var result = await _celebrations.DeleteAsync(id, actorUserId, cancellationToken);
         TempData[result.Succeeded ? FlashMessageKeys.CelebrationsSuccess : FlashMessageKeys.CelebrationsError] = result.UserMessage;
-        return RedirectToPage(new { Type, Window, q = Search, pageNumber = PageNumber, pageSize = PageSize });
+        return RedirectToPage(new { Type, Window, Link, q = Search, pageNumber = PageNumber, pageSize = PageSize });
+    }
+
+    // One click on a suggested name links the entry to that account; nothing else about it changes.
+    public async Task<IActionResult> OnPostLinkAsync(Guid id, string userId, CancellationToken cancellationToken)
+    {
+        var item = await _celebrations.GetAsync(id, cancellationToken);
+        if (item is null) return RedirectToPage(new { Type, Window, Link, q = Search, pageNumber = PageNumber, pageSize = PageSize });
+
+        var authorization = await _authorization.AuthorizeAsync(User, Policies.Calendar.PolicyFor(item.EventType));
+        if (!authorization.Succeeded) return Forbid();
+
+        var actorUserId = _users.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(actorUserId)) return Forbid();
+
+        var result = await _celebrations.LinkAsync(id, userId, actorUserId, cancellationToken);
+        TempData[result.Succeeded ? FlashMessageKeys.CelebrationsSuccess : FlashMessageKeys.CelebrationsError] = result.UserMessage;
+        return RedirectToPage(new { Type, Window, Link, q = Search, pageNumber = PageNumber, pageSize = PageSize });
     }
 
     private async Task LoadPermissionsAsync()

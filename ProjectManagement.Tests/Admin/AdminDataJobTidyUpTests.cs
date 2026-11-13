@@ -369,7 +369,8 @@ public sealed class AdminDataJobTidyUpTests : IDisposable
         Assert.Contains("20261230080017_AddItProjectStageMovedAt", manifest);
         Assert.Contains("20261231080018_AddItProjectFinancialYears", manifest);
         Assert.Contains("20270101080019_AddItProjectRemarkType", manifest);
-        Assert.Equal("20270102080020_AddItProjectModuleAndOfficer", manifest[^1]);
+        Assert.Contains("20270102080020_AddItProjectModuleAndOfficer", manifest);
+        Assert.Equal("20270103080021_AddCelebrationUserLink", manifest[^1]);
     }
 
     // ---- helpers ---------------------------------------------------------------------------
