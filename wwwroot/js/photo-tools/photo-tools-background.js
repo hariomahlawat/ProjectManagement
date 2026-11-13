@@ -532,7 +532,10 @@
   // Save
   // ---------------------------------------------------------------------------
 
-  /** The cut-out at the saved size: the mask enlarged, the edge cleaned again at full size. */
+  /**
+   * The cut-out at the saved size: the mask enlarged, the edge cleaned again at full size with the
+   * same background estimate the screen used.
+   */
   function fullCutout(size) {
     if (size.width === work.width && size.height === work.height) {
       const colours = new Uint8ClampedArray(pixels.data);
@@ -552,7 +555,10 @@
     const largeGrey = largeContext.getImageData(0, 0, size.width, size.height).data;
     const largeAlpha = new Uint8ClampedArray(size.width * size.height);
     for (let i = 0; i < largeAlpha.length; i += 1) largeAlpha[i] = largeGrey[i * 4];
-    const field = core.cutoutBackground(data, largeAlpha, size.width, size.height);
+    // The background estimate made from the model's own mask, at this size: the touch-ups must
+    // not count as background (an erased bit of the subject is not old background), and the
+    // saved edges then match what the screen showed.
+    const field = core.scaleBackground(background, size.width / work.width);
     const colours = new Uint8ClampedArray(data);
     core.cutoutColours(colours, largeAlpha, size.width, field);
     return { colours, data, alpha: largeAlpha };

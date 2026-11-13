@@ -1436,3 +1436,15 @@ test('cutoutBackground with too little sure background for any square averages w
   assert.ok(Array.from(background.field).every(Number.isFinite), 'no square is left without a colour');
   assert.deepEqual(Array.from(tools.wallColourAt(background, 50, 50, [0, 0, 0])).map(Math.round), WALL);
 });
+
+test('scaleBackground gives the same colours at the same spot of a larger copy', () => {
+  const field = Float32Array.from([10, 10, 10, 200, 200, 200, 100, 100, 100, 50, 50, 50]);
+  const small = { field, cell: 10, columns: 2, rows: 2, limit: 14 };
+  const large = tools.scaleBackground(small, 3);
+  for (const [x, y] of [[0, 0], [7, 4], [15, 15], [19, 19]]) {
+    const a = tools.wallColourAt(small, x, y, [0, 0, 0]).map(value => value.toFixed(3));
+    const b = tools.wallColourAt(large, x * 3 + 1, y * 3 + 1, [0, 0, 0]).map(value => value.toFixed(3));
+    assert.deepEqual(b, a, `spot ${x},${y}`);
+  }
+  assert.equal(tools.scaleBackground(null, 2), null);
+});

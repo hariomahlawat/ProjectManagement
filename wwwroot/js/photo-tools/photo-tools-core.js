@@ -1316,6 +1316,16 @@
   }
 
   /**
+   * The same background estimate for a copy of the photo `scale` times larger (the saved photo,
+   * when the cut-out was made on a smaller copy). The colours stay where they were, so the saved
+   * file's edges match what the screen showed.
+   */
+  function scaleBackground(background, scale) {
+    if (!background) return null;
+    return { ...background, cell: background.cell * scale };
+  }
+
+  /**
    * The subject's own colours, with the old background's tint taken out of its soft edge, in
    * place of `pixels` (RGBA; alpha is set from the mask). A pixel at the edge is seen as
    * alpha × subject + (1 − alpha) × background, so the subject's colour there is
@@ -2257,6 +2267,7 @@
     passportChecks,
     BACKGROUND_BRUSHES,
     cutoutBackground,
+    scaleBackground,
     cutoutColours,
     cutoutOnto,
     cutoutPersonColours,
