@@ -1344,30 +1344,73 @@
     /**
      * Images can also be drawn by a tiling pattern, a Type 3 font's glyphs or a soft-mask group;
      * how large depends on where those are painted, which is not followed here. Every image they
-     * draw is unmeasured, so it keeps its pixel size even when a direct use is small.
+     * draw is unmeasured, so it keeps its pixel size even when a direct use is small. Their
+     * content is read for the images it draws, resolved in their own resources or, when they have
+     * none, in the enclosing ones (as viewers do). `seen` holds what was visited, so resources that
+     * lead back to themselves end.
      */
     const markIndirect = (resources, depth, seen) => {
-      if (depth > 12 || !(resources instanceof PDFDict)) return;
+      if (depth > 12 || !(resources instanceof PDFDict) || seen.has(resources)) return;
+      seen.add(resources);
+      const own = (holder) => {
+        const value = holder instanceof PDFStream ? holder.dict.lookup(PDFName.of('Resources')) : holder.lookup(PDFName.of('Resources'));
+        return value instanceof PDFDict ? value : resources;
+      };
       const patterns = lookupDict(resources, 'Pattern');
       for (const value of patterns ? patterns.values() : []) {
         const pattern = resolve(value);
-        if (pattern instanceof PDFStream) markAll(pattern.dict.lookup(PDFName.of('Resources')), depth + 1, seen);
+        if (pattern instanceof PDFStream) markDrawnBy([pattern], own(pattern), depth + 1, seen);
       }
       const fonts = lookupDict(resources, 'Font');
       for (const value of fonts ? fonts.values() : []) {
         const font = resolve(value);
-        if (font instanceof PDFDict && String(font.get(PDFName.of('Subtype'))) === '/Type3') {
-          markAll(font.lookup(PDFName.of('Resources')), depth + 1, seen);
-        }
+        if (!(font instanceof PDFDict) || String(font.get(PDFName.of('Subtype'))) !== '/Type3' || seen.has(font)) continue;
+        seen.add(font);
+        const procs = lookupDict(font, 'CharProcs');
+        const glyphs = procs ? procs.values().map(resolve).filter((item) => item instanceof PDFStream) : [];
+        markDrawnBy(glyphs, own(font), depth + 1, seen);
       }
       const states = lookupDict(resources, 'ExtGState');
       for (const value of states ? states.values() : []) {
         const state = resolve(value);
         const mask = state instanceof PDFDict ? resolve(state.get(PDFName.of('SMask'))) : undefined;
         const group = mask instanceof PDFDict ? resolve(mask.get(PDFName.of('G'))) : undefined;
-        if (group instanceof PDFStream) {
-          markAll(group.dict.lookup(PDFName.of('Resources')), depth + 1, seen);
+        if (group instanceof PDFStream) markDrawnBy([group], own(group), depth + 1, seen);
+      }
+    };
+
+    /** A form and everything it can draw is unmeasured. */
+    const markForm = (ref, resources, depth, seen) => {
+      const key = String(ref);
+      if (seen.has(key)) return;
+      seen.add(key);
+      const form = context.lookup(ref);
+      const formResources = form instanceof PDFStream ? form.dict.lookup(PDFName.of('Resources')) : undefined;
+      markAll(formResources instanceof PDFDict ? formResources : resources, depth + 1, seen);
+    };
+
+    /** The images these content streams draw (by name, in `resources`) are unmeasured. */
+    const markDrawnBy = (streams, resources, depth, seen) => {
+      if (depth > 12) return;
+      markIndirect(resources, depth, seen);
+      const names = new Map(xobjects(resources).map(([key, ref]) => [String(key), ref]));
+      for (const stream of streams) {
+        if (seen.has(stream)) continue;
+        seen.add(stream);
+        const bytes = streamBytes(PDFLib, stream);
+        if (!bytes) {
+          // Cannot be read: anything it could reach is treated as drawn.
+          markAll(resources, depth + 1, seen);
+          continue;
         }
+        contentOperators(bytes, (operator, operands) => {
+          if (operator !== 'Do' || typeof operands[operands.length - 1] !== 'string') return;
+          const ref = names.get(operands[operands.length - 1]);
+          if (!(ref instanceof PDFRef)) return;
+          const subtype = subtypeOf(ref);
+          if (subtype === '/Image') unmeasured.add(String(ref));
+          else if (subtype === '/Form') markForm(ref, resources, depth + 1, seen);
+        });
       }
     };
 
@@ -1376,14 +1419,10 @@
       if (depth > 12) return;
       markIndirect(resources, depth, seen);
       for (const [, ref] of xobjects(resources)) {
-        if (!(ref instanceof PDFRef) || seen.has(String(ref))) continue;
-        seen.add(String(ref));
+        if (!(ref instanceof PDFRef)) continue;
         const subtype = subtypeOf(ref);
         if (subtype === '/Image') unmeasured.add(String(ref));
-        else if (subtype === '/Form') {
-          const form = context.lookup(ref);
-          markAll(form.dict.lookup(PDFName.of('Resources')) || resources, depth + 1, seen);
-        }
+        else if (subtype === '/Form') markForm(ref, resources, depth + 1, seen);
       }
     };
 

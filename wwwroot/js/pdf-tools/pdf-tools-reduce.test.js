@@ -143,8 +143,10 @@ test('measureImageUses leaves images drawn by patterns, Type 3 glyphs and soft-m
     Type: 'Pattern', PatternType: 1, PaintType: 1, TilingType: 1, BBox: [0, 0, 432, 432], XStep: 432, YStep: 432,
     Resources: { XObject: { Img: shared } }
   }));
+  const glyphProc = document.context.register(document.context.stream(bytesOf('0 0 0 0 0 0 d1 /G Do')));
   const type3 = document.context.register(document.context.obj({
     Type: 'Font', Subtype: 'Type3', FontBBox: [0, 0, 1, 1], FontMatrix: [1, 0, 0, 1, 0, 0],
+    CharProcs: { g: glyphProc },
     Resources: { XObject: { G: glyph } }
   }));
   const maskGroup = document.context.register(document.context.stream(bytesOf('/M Do'), {
@@ -166,6 +168,49 @@ test('measureImageUses leaves images drawn by patterns, Type 3 glyphs and soft-m
   const plan = tools.reduceImagePlan(PDFLib, document, measured, tools.PDF_SIZE_PRESETS[1]);
   const sharedPlan = plan.find((item) => String(item.ref) === String(shared));
   assert.deepEqual(sharedPlan.target, { width: 600, height: 600, scaled: false }, 'kept at full size for its pattern use');
+});
+
+test('a Type 3 font without its own resources draws from the enclosing ones; only images its glyphs draw are unmeasured', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const shared = addImage(document, { width: 600, height: 600 });
+  const untouched = addImage(document, { width: 600, height: 600 });
+  // Glyph "a" draws /Img from the page's resources, six inches wide; glyph "b" draws nothing.
+  const glyphA = document.context.register(document.context.stream(bytesOf('432 0 0 0 0 0 d1 q 432 0 0 432 0 0 cm /Img Do Q')));
+  const glyphB = document.context.register(document.context.stream(bytesOf('500 0 0 0 0 0 d1 0 0 10 10 re f')));
+  const type3 = document.context.register(document.context.obj({
+    Type: 'Font', Subtype: 'Type3', FontBBox: [0, 0, 1, 1], FontMatrix: [1, 0, 0, 1, 0, 0],
+    CharProcs: { a: glyphA, b: glyphB }
+  }));
+  const page = document.addPage([612, 792]);
+  page.node.set(PDFName.of('Resources'), document.context.obj({ XObject: { Img: shared, Other: untouched }, Font: { T3: type3 } }));
+  page.node.set(PDFName.of('Contents'), document.context.register(document.context.stream(bytesOf(
+    'q 36 0 0 36 0 0 cm /Img Do Q q 36 0 0 36 100 0 cm /Other Do Q BT /T3 1 Tf (ab) Tj ET'))));
+
+  const measured = tools.measureImageUses(PDFLib, document);
+  assert.ok(measured.unmeasured.has(String(shared)), 'drawn by a glyph from the enclosing resources');
+  assert.ok(!measured.unmeasured.has(String(untouched)), 'an image no glyph draws is still measured');
+  const plan = tools.reduceImagePlan(PDFLib, document, measured, tools.PDF_SIZE_PRESETS[1]);
+  assert.deepEqual(plan.find((item) => String(item.ref) === String(shared)).target, { width: 600, height: 600, scaled: false });
+  assert.deepEqual(plan.find((item) => String(item.ref) === String(untouched)).target, { width: 75, height: 75, scaled: true });
+});
+
+test('measureImageUses ends on resources that lead back to themselves', async () => {
+  const document = await PDFLib.PDFDocument.create();
+  const image = addImage(document, { width: 600, height: 600 });
+  const resources = document.context.obj({ XObject: { Img: image } });
+  // A form and a Type 3 font that both draw from these same resources, and draw each other.
+  const glyph = document.context.register(document.context.stream(bytesOf('0 0 0 0 0 0 d1 /Self Do /Img Do')));
+  const font = document.context.register(document.context.obj({ Type: 'Font', Subtype: 'Type3', CharProcs: { g: glyph } }));
+  const form = document.context.register(document.context.stream(bytesOf('BT /T3 1 Tf (g) Tj ET /Self Do'), {
+    Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 1, 1]
+  }));
+  resources.set(PDFName.of('Font'), document.context.obj({ T3: font }));
+  resources.get(PDFName.of('XObject')).set(PDFName.of('Self'), form);
+  const page = document.addPage([612, 792]);
+  page.node.set(PDFName.of('Resources'), resources);
+  page.node.set(PDFName.of('Contents'), document.context.register(document.context.stream(bytesOf('/Self Do'))));
+  const measured = tools.measureImageUses(PDFLib, document);
+  assert.ok(measured.unmeasured.has(String(image)));
 });
 
 test('reduceTarget keeps enough pixels for the preset at the largest use, and never enlarges', () => {
