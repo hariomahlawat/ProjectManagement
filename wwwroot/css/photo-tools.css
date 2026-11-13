@@ -1343,6 +1343,17 @@
         height: 44px;
     }
 
+    /* The handle grows, the square drawn in it stays the same size. */
+    .phot-cropbox__handle {
+        width: 44px;
+        height: 44px;
+        margin: -22px 0 0 -22px;
+    }
+
+    .phot-cropbox__handle::after {
+        inset: 16px;
+    }
+
     .phot .form-check {
         display: flex;
         align-items: center;

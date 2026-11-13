@@ -48,6 +48,29 @@ public sealed class PhotoToolsPageContractTests
     }
 
     [Fact]
+    public void ToolCards_AreAnnouncedAsLinks()
+    {
+        // role="listitem" on a link hides that it is a link from screen readers.
+        var root = FindProjectRoot();
+        foreach (var tool in new[] { "Photo", "Pdf" })
+        {
+            var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", tool, "Index.cshtml"));
+            Assert.DoesNotMatch(new Regex(@"<a\b[^>]*role=""listitem""", RegexOptions.IgnoreCase), page);
+        }
+    }
+
+    [Fact]
+    public void ChangingScreens_NamesTheTabAndMovesFocusToTheHeading()
+    {
+        var root = FindProjectRoot();
+        var app = File.ReadAllText(Path.Combine(root, "wwwroot", "js", "photo-tools", "photo-tools-app.js"));
+
+        Assert.Contains("document.title", app, StringComparison.Ordinal);
+        Assert.Contains("heading.focus(", app, StringComparison.Ordinal);
+        Assert.Contains("showView(currentView(), { focus: false })", app, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Page_LoadsOnlyLocalAssetsAndNeverPostsPhotos()
     {
         var root = FindProjectRoot();

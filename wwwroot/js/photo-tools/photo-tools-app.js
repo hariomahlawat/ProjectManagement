@@ -37,15 +37,25 @@
   // Screens that open another screen in a set way: Signature is Passport photo in Signature mode.
   const VIEW_ALIASES = { signature: 'passport' };
 
-  function showView(name) {
+  function showView(name, { focus = true } = {}) {
     const wanted = VIEW_ALIASES[name] || name;
-    const target = views.some(view => view.dataset.view === wanted) ? wanted : 'home';
+    const target = views.find(view => view.dataset.view === wanted) || views.find(view => view.dataset.view === 'home');
     for (const view of views) {
-      view.hidden = view.dataset.view !== target;
+      view.hidden = view !== target;
     }
     if (!keepErrorOnce) clearError();
     keepErrorOnce = false;
+    const heading = $('h1', target);
+    document.title = target.dataset.view === 'home'
+      ? 'Photo Tools | PRISM ERP'
+      : `${heading?.textContent?.trim()} | Photo Tools`;
     window.scrollTo({ top: 0 });
+    // The screen changed under the keyboard: start on its heading, which is read out, so the
+    // next Tab is in the tool rather than back at the top of the page.
+    if (focus && heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
   }
 
   function currentView() {
@@ -541,5 +551,6 @@
   loadSettings();
   syncControls();
   render();
-  showView(currentView());
+  // On first load the page starts at the top as usual: nothing is focused for the user.
+  showView(currentView(), { focus: false });
 })();

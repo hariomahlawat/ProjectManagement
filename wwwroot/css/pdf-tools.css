@@ -139,6 +139,19 @@
     border-color: var(--bs-primary-border-subtle);
 }
 
+/* Cards and turned thumbnails do not move for people who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+    .pdft-card,
+    .pdft-page__thumb canvas {
+        transition: none;
+    }
+
+    .pdft-card:hover,
+    .pdft-card:focus-visible {
+        transform: none;
+    }
+}
+
 .pdft-card__icon {
     display: inline-grid;
     place-items: center;
