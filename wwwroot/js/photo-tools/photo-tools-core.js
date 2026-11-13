@@ -936,7 +936,10 @@
    *   width     the pictures' width in pixels
    *   wall      the `wall` changeBackground returned; Refine Edge needs it to tell the old
    *             background from the person (without it, Refine Edge acts as Erase)
-   *   feather   the radius in pixels over which a stroke's edge fades out (default none)
+   *   feather   the radius in pixels over which every stroke's edge fades out (default none;
+   *             a caller that draws soft strokes itself leaves it out)
+   *   cell      the size in pixels of the squares the person's colours are read from
+   *             (default twice the feather, at least 4)
    *
    * Refine Edge treats each pixel as a mix of the person and the wall behind them, as hair over a
    * wall is. The wall's colour there is known (`wall`); the person's colour is taken from the
@@ -1116,7 +1119,7 @@
     }
 
     const person = wall && planes[1].some(value => value > 0)
-      ? personColours(original, width, box, wall, Math.max(4, feather * 2))
+      ? personColours(original, width, box, wall, Math.max(4, Math.round(Number(options && options.cell) || feather * 2)))
       : null;
     const was = [0, 0, 0];
     for (let y = box.top; y < box.bottom; y += 1) {

@@ -162,16 +162,18 @@ step through them, as in Photoshop), Undo, Reset (removes every stroke) and Done
   photo it was painted on when the photo is moved, zoomed or straightened afterwards. A brush is
   a share of the crop frame's width (a radius of 2%, 4% or 8%), so it is the same size on any
   screen.
-- **The brush is soft.** A stroke fades out over about a third of its radius
-  (`featherPlane`, a box blur run twice across and twice down), so its edge never shows as a
-  line. A later stroke lies over an earlier one.
+- **The brush is soft.** Each stroke fades out over about a third of its own radius on each
+  side of its edge: it is drawn into the stroke picture as six nested, partly see-through strokes
+  of falling width around a solid core. The softness belongs to the stroke, so a stroke painted
+  later with another brush size does not change the edge of an earlier one, and Undo of one
+  stroke changes nothing else. A later stroke lies over an earlier one.
 - **How Refine Edge decides.** At the edge of a person a pixel is a mix of the person and the
   wall behind them, as thin hair over a wall is. The background change keeps the wall's colour
   at every spot (the grid of colours in step 3 above) and hands it to the brush
   (`changeBackground` returns it as `wall`, read with `wallColourAt`). Around the stroke, the
   pixels that are clearly not wall are collected in small squares, each split by brightness into
   a dark and a light group (hair and skin, say), and each group's average colour is kept
-  (`personColours`). Each pixel under the brush is then explained by the best-fitting mix
+  (`personColours`; the squares are about 3% of the photo's width). Each pixel under the brush is then explained by the best-fitting mix
   (`personShare`):
   - wall and one of the person's colours near it: a strand of hair over the wall. How far the
     pixel lies from the wall colour towards that colour is the person's share, and only the

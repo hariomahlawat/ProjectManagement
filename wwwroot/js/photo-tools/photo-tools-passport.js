@@ -87,8 +87,11 @@
   // screen. [ and ] step through them, as in common photo editors.
   const BRUSH_SHARES = { small: 0.02, medium: 0.04, large: 0.08 };
   const BRUSH_ORDER = ['small', 'medium', 'large'];
-  // How far in from its edge a stroke fades, as a share of its radius: a soft brush.
+  // How far a stroke's edge fades, as a share of its radius on each side of the edge: a soft
+  // brush. It is drawn as this many nested see-through strokes around a solid core.
   const BRUSH_SOFTNESS = 0.35;
+  const BRUSH_RINGS = 6;
+  const BRUSH_RING_ALPHA = 0.3;
   const BRUSH_HINTS = {
     refine: 'Paint over the old background left around hair or shoulders. Only what still looks like the old background takes the new colour; hair and skin under the brush stay.',
     erase: 'Paint over anything left in the background. Everything under the brush takes the new background colour.',
@@ -654,6 +657,11 @@
    * A picture of the brush strokes at the saved size, each in its brush's colour (red Restore,
    * green Refine Edge, blue Erase). The strokes are drawn through the same move, turn and zoom as
    * the photo, so they lie on the part of the photo they were painted on.
+   *
+   * Each stroke is soft on its own: it is drawn as a few nested strokes of falling width, each
+   * part see-through, then a solid core, so its edge fades over a share of its own radius. A
+   * stroke painted later, with another brush size, does not change the edge of an earlier one,
+   * and a later stroke lies over an earlier one.
    */
   function fixMask() {
     const mask = shared.newCanvas(size.width, size.height);
@@ -667,29 +675,32 @@
     context.translate(-fullSize.width / 2, -fullSize.height / 2);
     context.lineCap = 'round';
     context.lineJoin = 'round';
-    for (const fix of fixes) {
-      const colour = (core.BACKGROUND_BRUSHES[fix.kind] || core.BACKGROUND_BRUSHES.refine).mark;
-      context.strokeStyle = colour;
-      context.fillStyle = colour;
-      context.lineWidth = fix.radius * 2;
+    const paint = (fix, radius) => {
+      context.lineWidth = radius * 2;
       context.beginPath();
       if (fix.points.length === 1) {
-        context.arc(fix.points[0].x, fix.points[0].y, fix.radius, 0, Math.PI * 2);
+        context.arc(fix.points[0].x, fix.points[0].y, radius, 0, Math.PI * 2);
         context.fill();
       } else {
         context.moveTo(fix.points[0].x, fix.points[0].y);
         for (const point of fix.points.slice(1)) context.lineTo(point.x, point.y);
         context.stroke();
       }
+    };
+    for (const fix of fixes) {
+      const colour = (core.BACKGROUND_BRUSHES[fix.kind] || core.BACKGROUND_BRUSHES.refine).mark;
+      context.strokeStyle = colour;
+      context.fillStyle = colour;
+      // The soft edge spans from a share of the radius outside the brush's edge to as far inside.
+      const soft = fix.radius * BRUSH_SOFTNESS;
+      context.globalAlpha = BRUSH_RING_ALPHA;
+      for (let ring = 0; ring < BRUSH_RINGS; ring += 1) {
+        paint(fix, fix.radius + soft - (2 * soft * ring) / BRUSH_RINGS);
+      }
+      context.globalAlpha = 1;
+      paint(fix, Math.max(fix.radius * 0.1, fix.radius - soft));
     }
     return context.getImageData(0, 0, size.width, size.height);
-  }
-
-  /** How far in from its edge a stroke fades, in pixels of the saved photo: a share of the smallest brush used. */
-  function featherRadius() {
-    const zoomed = outputScale();
-    const smallest = Math.min(...fixes.map(fix => fix.radius)) * zoomed;
-    return Math.max(1, Math.round(smallest * BRUSH_SOFTNESS));
   }
 
   /** Writes the changed photo with the touch-up strokes laid over it. */
@@ -699,7 +710,8 @@
       core.applyBackgroundFixes(pixels.data, plain.data, fixMask().data, backgroundColour(), {
         width: pixels.width,
         wall,
-        feather: featherRadius()
+        // The squares Refine Edge reads the person's colours from: about 3% of the photo's width.
+        cell: Math.max(4, Math.round(pixels.width * 0.03))
       });
     }
     context.putImageData(pixels, 0, 0);
