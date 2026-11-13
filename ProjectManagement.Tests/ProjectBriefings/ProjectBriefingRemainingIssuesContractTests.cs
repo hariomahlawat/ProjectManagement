@@ -18,7 +18,7 @@ public sealed class ProjectBriefingRemainingIssuesContractTests
         Assert.Contains("new(12.0, 14.4, 4.0)", planner, StringComparison.Ordinal);
         Assert.Contains("BriefPages", composer, StringComparison.Ordinal);
         Assert.Contains("PrepareUpdateSheetPhoto", composer, StringComparison.Ordinal);
-        Assert.Contains(".Crop(crop)", composer, StringComparison.Ordinal);
+        Assert.Contains("PrismImageCodec.Crop(image, crop)", composer, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingUpdateSheetPlanner.EstimateSlideCount", dataService, StringComparison.Ordinal);
     }
 

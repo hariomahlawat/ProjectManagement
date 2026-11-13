@@ -926,9 +926,9 @@ public sealed class ProjectBriefingContractTests
     {
         var source = Read("ProjectBriefingPhotoLoader.cs");
 
-        Assert.Contains("Image.Identify", source, StringComparison.Ordinal);
-        Assert.Contains("ResizeMode.Crop", source, StringComparison.Ordinal);
-        Assert.Contains("new JpegEncoder", source, StringComparison.Ordinal);
+        Assert.Contains("PrismImageCodec.Identify", source, StringComparison.Ordinal);
+        Assert.Contains("PrismImageCodec.ResizeToCover", source, StringComparison.Ordinal);
+        Assert.Contains("PrismImageCodec.EncodeJpeg", source, StringComparison.Ordinal);
         Assert.Contains("master/", source, StringComparison.Ordinal);
         Assert.Contains("No PowerPoint-ready photograph was found", source, StringComparison.Ordinal);
     }

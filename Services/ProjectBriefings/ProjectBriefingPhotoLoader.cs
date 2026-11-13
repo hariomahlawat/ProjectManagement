@@ -4,9 +4,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Storage;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Processing;
+using ProjectManagement.Services.Imaging;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
@@ -132,40 +130,21 @@ public sealed class ProjectBriefingPhotoLoader : IProjectBriefingPhotoLoader
             try
             {
                 var source = await File.ReadAllBytesAsync(candidate.Path, cancellationToken);
-                using var image = Image.Load(source);
-                image.Mutate(context => context
-                    .AutoOrient()
-                    .BackgroundColor(Color.White)
-                    .Resize(new ResizeOptions
-                    {
-                        Size = new Size(1600, 900),
-                        Mode = ResizeMode.Crop,
-                        Position = AnchorPositionMode.Center
-                    }));
-
-                using var output = new MemoryStream();
-                image.Save(output, new JpegEncoder { Quality = 88 });
+                // Centre-cropped to fill 16:9. JPEG encoding lays any transparency on white.
+                using var image = PrismImageCodec.DecodeOriented(source);
+                using var slidePhoto = PrismImageCodec.ResizeToCover(image, 1600, 900);
                 return new ProjectBriefingPhotoContent(
                     projectId,
                     photoId,
-                    output.ToArray(),
+                    PrismImageCodec.EncodeJpeg(slidePhoto, 88),
                     "image/jpeg",
                     candidate.Variant);
             }
-            catch (UnknownImageFormatException exception)
+            catch (PrismImageException exception)
             {
                 _logger.LogWarning(
                     exception,
-                    "Briefing photo candidate has an unsupported format. ProjectId={ProjectId}, PhotoId={PhotoId}, Variant={Variant}",
-                    projectId,
-                    photoId,
-                    candidate.Variant);
-            }
-            catch (InvalidImageContentException exception)
-            {
-                _logger.LogWarning(
-                    exception,
-                    "Briefing photo candidate is unreadable. ProjectId={ProjectId}, PhotoId={PhotoId}, Variant={Variant}",
+                    "Briefing photo candidate is unreadable or has an unsupported format. ProjectId={ProjectId}, PhotoId={PhotoId}, Variant={Variant}",
                     projectId,
                     photoId,
                     candidate.Variant);
@@ -207,15 +186,15 @@ public sealed class ProjectBriefingPhotoLoader : IProjectBriefingPhotoLoader
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.ReadWrite | FileShare.Delete);
-                if (Image.Identify(stream) is not null)
+                using var buffer = new MemoryStream();
+                stream.CopyTo(buffer);
+                if (PrismImageCodec.Identify(buffer.ToArray()) is not null)
                 {
                     return (true, null);
                 }
             }
             catch (Exception exception) when (exception is IOException
-                                               or UnauthorizedAccessException
-                                               or UnknownImageFormatException
-                                               or InvalidImageContentException)
+                                               or UnauthorizedAccessException)
             {
                 _logger.LogDebug(
                     exception,

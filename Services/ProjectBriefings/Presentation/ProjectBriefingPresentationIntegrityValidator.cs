@@ -233,7 +233,9 @@ internal static class ProjectBriefingPresentationIntegrityValidator
         try
         {
             using var stream = imagePart.GetStream(FileMode.Open, FileAccess.Read);
-            using var image = SixLabors.ImageSharp.Image.Load(stream);
+            using var buffer = new MemoryStream();
+            stream.CopyTo(buffer);
+            using var image = ProjectManagement.Services.Imaging.PrismImageCodec.DecodeOriented(buffer.ToArray());
             if (image.Width <= 0 || image.Height <= 0)
             {
                 issues.Add($"Slide {slideNumber} image {imagePart.Uri} has invalid pixel dimensions.");
