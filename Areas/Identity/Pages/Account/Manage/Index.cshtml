@@ -208,6 +208,41 @@
             </div>
           }
         </div>
+        @if (!line.IsLinked && Model.PendingCelebration is { } pending && pending.Type == line.Type)
+        {
+          @* Nothing was added yet: the Calendar already has an entry on that date that may be theirs. *@
+          foreach (var match in pending.Matches)
+          {
+            <div class="account__row" role="alert">
+              <div class="account__row-copy">
+                <h3>Already on the Calendar?</h3>
+                <p>The Calendar already has <strong>@match.Name</strong> on @match.Day @System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(match.Month). Is this you? Nothing has been added yet.</p>
+              </div>
+              <div class="account__row-action">
+                <form method="post" asp-page-handler="ClaimCelebration">
+                  <input type="hidden" name="id" value="@match.Id" />
+                  <button type="submit" class="btn btn-sm btn-outline-primary">Yes, that's me</button>
+                </form>
+              </div>
+            </div>
+          }
+          <div class="account__row">
+            <div class="account__row-copy">
+              <p>If that is someone else, add your own @word on @pending.Day @System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(pending.Month).</p>
+            </div>
+            <div class="account__row-action">
+              <form method="post" asp-page-handler="SaveCelebration">
+                <input type="hidden" name="type" value="@pending.Type" />
+                <input type="hidden" name="day" value="@pending.Day" />
+                <input type="hidden" name="month" value="@pending.Month" />
+                <input type="hidden" name="year" value="@pending.Year" />
+                <input type="hidden" name="spouseName" value="@pending.SpouseName" />
+                <input type="hidden" name="addAnyway" value="true" />
+                <button type="submit" class="btn btn-sm btn-outline-secondary">No, add mine</button>
+              </form>
+            </div>
+          </div>
+        }
         <details class="account__report">
           <summary>
             <span>@(line.IsLinked ? $"Change my {word}" : line.Suggestion is not null ? $"No, add my own {word}" : $"Add my {word}")</span>

@@ -58,6 +58,25 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
         /// </summary>
         public IReadOnlyList<MyCelebrationLine> MyCelebrations { get; private set; } = Array.Empty<MyCelebrationLine>();
 
+        /// <summary>
+        /// What the person just tried to add, held back because the Calendar already has an entry
+        /// on that date that may be theirs. The page asks "Is this you?" before anything is added.
+        /// </summary>
+        public sealed record PendingCelebrationModel(
+            CelebrationType Type,
+            byte Day,
+            byte Month,
+            short? Year,
+            string? SpouseName,
+            IReadOnlyList<MyCelebrationSuggestion> Matches);
+
+        public PendingCelebrationModel? PendingCelebration { get; private set; }
+
+        // "Birthday|13|11|1975|spouse": what was typed, carried across the redirect. The matches
+        // are looked up again when the page is shown, never trusted from here.
+        [TempData]
+        public string? PendingCelebrationInput { get; set; }
+
         public IReadOnlyList<string> Roles { get; private set; } = Array.Empty<string>();
         public MediaUserPhotoIdentityLink? PhotoIdentity { get; private set; }
         public string UserInitials { get; private set; } = "U";
@@ -93,6 +112,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
             if (_myCelebrations is not null)
             {
                 MyCelebrations = await _myCelebrations.GetAsync(user.Id, HttpContext.RequestAborted);
+                PendingCelebration = await ReadPendingCelebrationAsync(user.Id);
             }
 
             // Only ever the signed-in user's own events: the id comes from the session.
@@ -119,11 +139,56 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
         }
 
         // Birthday and anniversary: always the signed-in person's own entry; the id comes from the session.
-        public Task<IActionResult> OnPostSaveCelebrationAsync(CelebrationType type, byte day, byte month, short? year, string? spouseName)
-            => ChangeMyCelebrationAsync((service, userId) =>
-                Enum.IsDefined(type)
-                    ? service.SaveAsync(userId, type, day, month, year, spouseName, HttpContext.RequestAborted)
-                    : Task.FromResult(AdminOperationResult.Failure("Choose Birthday or Anniversary.")));
+        public async Task<IActionResult> OnPostSaveCelebrationAsync(
+            CelebrationType type, byte day, byte month, short? year, string? spouseName, bool addAnyway = false)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user is null) return Challenge();
+            if (_myCelebrations is null) return RedirectToPage();
+            if (!Enum.IsDefined(type))
+            {
+                ErrorMessage = "Choose Birthday or Anniversary.";
+                return RedirectToPage();
+            }
+
+            var result = await _myCelebrations.SaveAsync(
+                user.Id, type, day, month, year, spouseName, HttpContext.RequestAborted, addAnyway);
+            if (result.Succeeded)
+            {
+                StatusMessage = result.UserMessage;
+            }
+            else if (result.ErrorCode == MyCelebrationService.PossibleDuplicateCode)
+            {
+                // Nothing was added. The page now asks whether the existing entry is theirs.
+                PendingCelebrationInput = string.Join('|', type, day, month, year?.ToString(CultureInfo.InvariantCulture), spouseName?.Replace('|', ' '));
+            }
+            else
+            {
+                ErrorMessage = result.UserMessage ?? "It could not be saved.";
+            }
+
+            return RedirectToPage(null, null, "celebrations");
+        }
+
+        private async Task<PendingCelebrationModel?> ReadPendingCelebrationAsync(string userId)
+        {
+            var parts = PendingCelebrationInput?.Split('|');
+            if (_myCelebrations is null
+                || parts is not { Length: 5 }
+                || !Enum.TryParse<CelebrationType>(parts[0], out var type)
+                || !Enum.IsDefined(type)
+                || !byte.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var day)
+                || !byte.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var month))
+            {
+                return null;
+            }
+
+            var matches = await _myCelebrations.FindPossibleDuplicatesAsync(userId, type, day, month, HttpContext.RequestAborted);
+            if (matches.Count == 0) return null;
+
+            short? year = short.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
+            return new PendingCelebrationModel(type, day, month, year, string.IsNullOrWhiteSpace(parts[4]) ? null : parts[4], matches);
+        }
 
         public Task<IActionResult> OnPostClaimCelebrationAsync(Guid id)
             => ChangeMyCelebrationAsync((service, userId) => service.ClaimAsync(userId, id, HttpContext.RequestAborted));

@@ -20,9 +20,14 @@ Calendar. If a birthday and an anniversary fall on the same day, the birthday is
 **My account** has a "Birthday and anniversary" section for every person's account:
 
 - **Is this you?** When an entry on Celebrations fits the person's name and no one else's, the
-  section offers it: "Yes, that's me" links it. No other entry can be linked from here.
+  section offers it: "Yes, that's me" links it. The only other entry that can be linked from here is a possible
+  duplicate on the date they type (below).
 - **Add my birthday / anniversary** creates a Celebrations entry already linked to the account,
   named with the person's rank and name.
+- **Already on the Calendar?** If an unlinked entry of the same kind falls on the date they type
+  and shares a word of their name (and is not clearly another person's), nothing is added yet:
+  the page asks "Is this you?". "Yes, that's me" links that entry; "No, add mine" adds theirs.
+  Two different people who share a birthday are not asked.
 - **Change** edits the date (and spouse name) of the linked entry. **Unlink** stops the wishes;
   the entry stays on the Calendar for the Celebrations managers to keep or delete.
 
