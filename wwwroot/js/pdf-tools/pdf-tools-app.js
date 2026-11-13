@@ -31,12 +31,15 @@
   const busyLayer = $('[data-busy]');
   const busyText = $('[data-busy-text]');
   const busyStop = $('[data-busy-stop]');
+  // Always in the page (not inside the hidden overlay), so screen readers read each message.
+  const busyAnnounce = $('[data-busy-announce]');
   let stopWork = null;
   // Outside the inert page, so Stop can be reached with the keyboard while the work runs.
   busyStop?.addEventListener('click', () => {
     if (!stopWork) return;
     busyStop.disabled = true;
     busyText.textContent = 'Stopping…';
+    if (busyAnnounce) busyAnnounce.textContent = 'Stopping…';
     stopWork();
   });
   const errorBox = $('[data-error]');
@@ -53,9 +56,11 @@
       busyText.textContent = message;
       busyLayer.hidden = false;
       if (main) main.inert = true;
+      if (busyAnnounce) busyAnnounce.textContent = message;
     } else {
       busyLayer.hidden = true;
       if (main) main.inert = false;
+      if (busyAnnounce) busyAnnounce.textContent = '';
     }
   }
 
@@ -264,28 +269,51 @@
     return { viewport, scale: cssScale, resolution };
   }
 
-  /** Renders thumbnails one at a time as they scroll into view, to bound memory use. */
+  /**
+   * Draws thumbnails one at a time as they come near the window and, with `release`, frees
+   * their pictures when they are far from it again (drawn again if they come back), so merging
+   * hundreds of pages holds only the thumbnails near the screen.
+   */
   function createThumbnailQueue() {
     const pending = [];
     let running = false;
     const observer = 'IntersectionObserver' in window
       ? new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            observer.unobserve(entry.target);
-            enqueue(entry.target.__thumbnailJob);
+          const state = entry.target.__thumbnail;
+          if (!state) return;
+          state.near = entry.isIntersecting;
+          if (state.near) want(state);
+          else if (state.drawn && state.release) {
+            state.drawn = false;
+            state.release();
           }
         });
-      }, { rootMargin: '400px' })
+      }, { rootMargin: '1200px 0px' })
       : null;
+
+    function want(state) {
+      if (state.drawn || state.queued) return;
+      state.queued = true;
+      pending.push(state);
+      pump();
+    }
 
     async function pump() {
       if (running) return;
       running = true;
       while (pending.length) {
-        const job = pending.shift();
+        const state = pending.shift();
+        state.queued = false;
+        if (!state.near || state.drawn) continue;
         try {
-          await job();
+          await state.draw();
+          state.drawn = true;
+          // It may have scrolled far away while it was drawn.
+          if (!state.near && state.release) {
+            state.drawn = false;
+            state.release();
+          }
         } catch (error) {
           console.warn('PDF Tools: thumbnail failed', error);
         }
@@ -293,21 +321,20 @@
       running = false;
     }
 
-    function enqueue(job) {
-      if (job) {
-        pending.push(job);
-        pump();
-      }
-    }
-
     return {
-      observe(element, job) {
+      observe(element, draw, release) {
+        const state = { draw, release, near: !observer, drawn: false, queued: false };
         if (observer) {
-          element.__thumbnailJob = job;
+          element.__thumbnail = state;
           observer.observe(element);
         } else {
-          enqueue(job);
+          want(state);
         }
+      },
+      /** Stops watching an element that was removed. */
+      forget(element) {
+        if (element.__thumbnail) element.__thumbnail.near = false;
+        observer?.unobserve(element);
       },
       reset() {
         pending.length = 0;
@@ -674,7 +701,7 @@
       const button = (icon, text, handler) => {
         const element = document.createElement('button');
         element.type = 'button';
-        element.className = 'btn btn-light btn-sm';
+        element.className = 'btn btn-sm pdft-card-btn';
         element.title = text;
         element.setAttribute('aria-label', `${text}: page ${page.index + 1} of ${source.name}`);
         element.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i>`;
@@ -686,6 +713,7 @@
         button('bi-arrow-clockwise', 'Rotate right', () => { page.rotate = (page.rotate + 90) % 360; applyRotation(card, page); }),
         button('bi-trash3', 'Delete', () => {
           pages = pages.filter((item) => item !== page);
+          thumbnails.forget(card);
           card.remove();
           updateSummary();
           if (pages.length === 0) {
@@ -695,6 +723,7 @@
       );
 
       card.append(thumb, select, label, actions);
+      card.setAttribute('role', 'listitem');
       card.setAttribute('aria-label', `${source.name}, page ${page.index + 1}`);
       keys.prepare(card);
       thumbnails.observe(card, async () => {
@@ -703,6 +732,10 @@
         const base = pdfPage.getViewport({ scale: 1 });
         await renderPage(pdfPage, canvas, { width: (THUMBNAIL_SIZE * base.width) / Math.max(base.width, base.height) });
         pdfPage.cleanup();
+      }, () => {
+        // Zero size frees the picture; its CSS size keeps the card's layout.
+        canvas.width = 0;
+        canvas.height = 0;
       });
       return card;
     }
@@ -718,6 +751,10 @@
         draggable: '.pdft-page',
         filter: 'button, input',
         preventOnFilter: false,
+        // On a touch screen a swipe scrolls; press and hold a card to drag it.
+        delay: 250,
+        delayOnTouchOnly: true,
+        touchStartThreshold: 6,
         onEnd: syncOrderFromDom
       });
     }
@@ -899,6 +936,10 @@
 
     if (window.Sortable) {
       window.Sortable.create(grid, {
+        // On a touch screen a swipe scrolls; press and hold a card to drag it.
+        delay: 250,
+        delayOnTouchOnly: true,
+        touchStartThreshold: 6,
         animation: 150,
         draggable: '.pdft-page',
         filter: 'button',
@@ -956,7 +997,7 @@
           actions.className = 'pdft-page__actions';
           const remove = document.createElement('button');
           remove.type = 'button';
-          remove.className = 'btn btn-light btn-sm';
+          remove.className = 'btn btn-sm pdft-card-btn';
           remove.title = 'Remove';
           remove.setAttribute('aria-label', `Remove ${file.name}`);
           remove.innerHTML = '<i class="bi bi-trash3" aria-hidden="true"></i>';
@@ -969,6 +1010,7 @@
           });
           actions.append(remove);
           card.append(thumb, label, actions);
+          card.setAttribute('role', 'listitem');
           card.setAttribute('aria-label', file.name);
           keys.prepare(card);
           grid.append(card);
@@ -1167,10 +1209,19 @@
 
   const views = $$('[data-view]');
 
+  let currentView = null;
+
   function route({ focus = true } = {}) {
     const name = (window.location.hash || '').replace(/^#/, '') || 'home';
+    // Back (or a link) while a file is being made would hide the tool under "Working…" and the
+    // file would still arrive. Stay on the tool; the address is put back as it was.
+    if (busy && currentView && name !== currentView) {
+      history.replaceState(null, '', currentView === 'home' ? window.location.pathname : `#${currentView}`);
+      return;
+    }
     const target = views.find((view) => view.dataset.view === name) || views.find((view) => view.dataset.view === 'home');
     views.forEach((view) => { view.hidden = view !== target; });
+    currentView = target.dataset.view;
     clearError();
     const heading = $('h1', target);
     document.title = target.dataset.view === 'home' ? 'PDF Tools | PRISM ERP' : `${heading?.textContent?.trim()} | PDF Tools`;

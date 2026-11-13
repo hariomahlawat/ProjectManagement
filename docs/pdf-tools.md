@@ -104,11 +104,24 @@ em dash or minus sign as a hyphen ("1–3", as Word writes it).
   keys (and Home, End) move between them, and each is linked to its panel. Draw needs a pointer;
   Type and Upload work from the keyboard.
 
-### Memory in Sign & annotate
+### Memory in Sign & annotate and Organise
 
 Pages are drawn when they come near the window and their pictures are released when they are
 far from it (`KEEP_MARGIN`), so a long PDF holds only a few full-size pages at a time, not every
-page it has shown. A released page is drawn again when it comes back.
+page it has shown. A released page is drawn again when it comes back. Organise does the same for
+its page thumbnails (`createThumbnailQueue`, about 1200px beyond the window), so merging hundreds
+of pages holds only the thumbnails near the screen.
+
+### Phones and screen readers
+
+- On a touch screen a swipe on the Organise or Images grid scrolls; press and hold a card to drag
+  it (`delayOnTouchOnly`).
+- The grids are lists and each card a list item with its name.
+- "Working…" and each step of it are read out from a live region that is always in the page, not
+  from inside the overlay that appears.
+- Pressing Back while a file is being made keeps the tool on the screen (the address is put back),
+  so the work is not hidden under "Working…".
+- The small buttons on page and image cards use the card's colours, in Light and Dark.
 
 ### How Reduce size works
 

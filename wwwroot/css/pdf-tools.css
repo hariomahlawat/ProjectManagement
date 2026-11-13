@@ -490,6 +490,18 @@
     border: 1px solid var(--pdft-border);
 }
 
+/* Small buttons on page and image cards: the card's own colours, in Light and Dark. */
+.pdft-card-btn {
+    background: var(--pdft-surface);
+    color: var(--bs-body-color);
+}
+
+.pdft-card-btn:hover,
+.pdft-card-btn:focus-visible {
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-emphasis-color);
+}
+
 /* ---------- Reduce size ---------- */
 
 .pdft-compress-about,
