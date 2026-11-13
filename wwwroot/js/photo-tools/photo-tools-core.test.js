@@ -1073,6 +1073,37 @@ test('Refine Edge keeps grey hair against a grey wall, where every colour lies o
   assert.deepEqual(rgbAt(changed, row.length, 6, 0), newColour, 'the wall changes');
 });
 
+test('a Refine Edge stroke is not changed by another stroke elsewhere', () => {
+  // A wall, a band of hair, and edge pixels beside it that the brush refines. A distant Erase dab
+  // must not change the refined pixels: the person's colours are read from the photo, not from
+  // the area the strokes happen to cover.
+  const wallGrey = [220, 220, 220];
+  const [width, height] = [40, 12];
+  const before = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const colour = x >= 10 && x < 14 ? [30, 25, 20] : x >= 14 && x < 17 ? [182, 181, 180] : wallGrey;
+      before.set([...colour, 255], (y * width + x) * 4);
+    }
+  }
+  const newColour = [100, 150, 255];
+  const refine = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y += 1) for (let x = 14; x < 17; x += 1) refine.set([0, 255, 0, 255], (y * width + x) * 4);
+  const alone = before.slice();
+  tools.applyBackgroundFixes(alone, before, refine, newColour, { width, wall: flatWall(wallGrey), cell: 4 });
+
+  const withDab = refine.slice();
+  withDab.set([0, 0, 255, 255], (0 * width + 1) * 4);
+  const together = before.slice();
+  tools.applyBackgroundFixes(together, before, withDab, newColour, { width, wall: flatWall(wallGrey), cell: 4 });
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 14; x < 17; x += 1) {
+      assert.deepEqual(rgbAt(together, width, x, y), rgbAt(alone, width, x, y), `refined pixel ${x},${y}`);
+    }
+  }
+});
+
 test('Refine Edge follows the colour the wall has at that spot', () => {
   // The wall is darker on the right. A pixel of that darker wall is still wall.
   const wall = { field: Float32Array.from([...WALL, ...WALL.map(value => value - 40)]), cell: 1, columns: 2, rows: 1, limit: 14 };

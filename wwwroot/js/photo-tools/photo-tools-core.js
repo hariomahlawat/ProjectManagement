@@ -957,21 +957,35 @@
    * group numbers the square so the two colours of one square can be paired; empty when no
    * person is near.
    */
-  function personColours(original, width, box, wall, cell) {
-    const columns = Math.ceil((box.right - box.left) / cell);
-    const rows = Math.ceil((box.bottom - box.top) / cell);
+  function personColours(original, width, height, box, wall, cell) {
+    // The squares are fixed to the photo, not to the strokes, and every square that a pixel of
+    // the box or its neighbours touches is read whole, so a pixel's person colours depend only on
+    // the photo near it: another stroke elsewhere, or its Undo, cannot change them.
+    const firstColumn = Math.max(0, Math.floor(box.left / cell) - 1);
+    const firstRow = Math.max(0, Math.floor(box.top / cell) - 1);
+    const lastColumn = Math.min(Math.ceil(width / cell) - 1, Math.floor((box.right - 1) / cell) + 1);
+    const lastRow = Math.min(Math.ceil(height / cell) - 1, Math.floor((box.bottom - 1) / cell) + 1);
+    const columns = lastColumn - firstColumn + 1;
+    const rows = lastRow - firstRow + 1;
+    const area = {
+      left: firstColumn * cell,
+      top: firstRow * cell,
+      right: Math.min(width, (lastColumn + 1) * cell),
+      bottom: Math.min(height, (lastRow + 1) * cell)
+    };
+    const areaWidth = area.right - area.left;
     const clear = wall.limit + BACKGROUND_EDGE_SOFTNESS;
     const was = [0, 0, 0];
-    const squareOf = (x, y) => Math.floor((y - box.top) / cell) * columns + Math.floor((x - box.left) / cell);
+    const squareOf = (x, y) => (Math.floor(y / cell) - firstRow) * columns + (Math.floor(x / cell) - firstColumn);
     // Which pixels are person, and the average brightness of the person in each square.
-    const isPerson = new Uint8Array((box.right - box.left) * (box.bottom - box.top));
+    const isPerson = new Uint8Array(areaWidth * (area.bottom - area.top));
     const light = new Float64Array(columns * rows * 2);
-    for (let y = box.top; y < box.bottom; y += 1) {
-      for (let x = box.left; x < box.right; x += 1) {
+    for (let y = area.top; y < area.bottom; y += 1) {
+      for (let x = area.left; x < area.right; x += 1) {
         const at = (y * width + x) * 4;
         wallColourAt(wall, x, y, was);
         if (backgroundDistance(original[at], original[at + 1], original[at + 2], was, BACKGROUND_STEP_LUMA) < clear) continue;
-        isPerson[(y - box.top) * (box.right - box.left) + (x - box.left)] = 1;
+        isPerson[(y - area.top) * areaWidth + (x - area.left)] = 1;
         const square = squareOf(x, y) * 2;
         light[square] += luminance(original, at);
         light[square + 1] += 1;
@@ -979,9 +993,9 @@
     }
     // The dark and the light group of each square.
     const sums = new Float64Array(columns * rows * 8);
-    for (let y = box.top; y < box.bottom; y += 1) {
-      for (let x = box.left; x < box.right; x += 1) {
-        if (!isPerson[(y - box.top) * (box.right - box.left) + (x - box.left)]) continue;
+    for (let y = area.top; y < area.bottom; y += 1) {
+      for (let x = area.left; x < area.right; x += 1) {
+        if (!isPerson[(y - area.top) * areaWidth + (x - area.left)]) continue;
         const at = (y * width + x) * 4;
         const square = squareOf(x, y);
         const middle = light[square * 2] / light[square * 2 + 1];
@@ -996,8 +1010,8 @@
     return {
       at(x, y) {
         found.length = 0;
-        const cx = Math.floor((x - box.left) / cell);
-        const cy = Math.floor((y - box.top) / cell);
+        const cx = Math.floor(x / cell) - firstColumn;
+        const cy = Math.floor(y / cell) - firstRow;
         for (let ny = cy - 1; ny <= cy + 1; ny += 1) {
           for (let nx = cx - 1; nx <= cx + 1; nx += 1) {
             if (nx < 0 || ny < 0 || nx >= columns || ny >= rows) continue;
@@ -1119,7 +1133,7 @@
     }
 
     const person = wall && planes[1].some(value => value > 0)
-      ? personColours(original, width, box, wall, Math.max(4, Math.round(Number(options && options.cell) || feather * 2)))
+      ? personColours(original, width, height, box, wall, Math.max(4, Math.round(Number(options && options.cell) || feather * 2)))
       : null;
     const was = [0, 0, 0];
     for (let y = box.top; y < box.bottom; y += 1) {
