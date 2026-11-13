@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Features.MediaLibrary.Services;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Accounts;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
 {
@@ -19,14 +20,32 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IMediaPersonUserLinkService _mediaPersonUserLinks;
+        private readonly IAccountSignInHistoryService _signInHistory;
+
+        /// <summary>How many recent sign-ins the page lists.</summary>
+        public const int RecentSignInCount = 5;
 
         public IndexModel(
             UserManager<ApplicationUser> userManager,
-            IMediaPersonUserLinkService mediaPersonUserLinks)
+            IMediaPersonUserLinkService mediaPersonUserLinks,
+            IAccountSignInHistoryService signInHistory)
         {
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _mediaPersonUserLinks = mediaPersonUserLinks ?? throw new ArgumentNullException(nameof(mediaPersonUserLinks));
+            _signInHistory = signInHistory ?? throw new ArgumentNullException(nameof(signInHistory));
         }
+
+        /// <summary>One row of the Recent sign-ins list.</summary>
+        /// <param name="When">Date and time in IST.</param>
+        /// <param name="Client">Browser and system in words.</param>
+        /// <param name="Ip">The address, when one was recorded.</param>
+        /// <param name="FromThisAddress">True when it came from the address this request came from.</param>
+        public sealed record SignInRow(string When, string Client, string? Ip, bool FromThisAddress);
+
+        /// <summary>The signed-in user's own latest sign-ins, newest first.</summary>
+        public IReadOnlyList<SignInRow> RecentSignIns { get; private set; } = Array.Empty<SignInRow>();
+
+        public int SignInLookbackDays => AccountSignInHistoryService.LookbackDays;
 
         public IReadOnlyList<string> Roles { get; private set; } = Array.Empty<string>();
         public MediaUserPhotoIdentityLink? PhotoIdentity { get; private set; }
@@ -59,6 +78,17 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
             PhotoIdentity = await _mediaPersonUserLinks.TryGetPhotoIdentityForUserAsync(
                 user.Id,
                 HttpContext.RequestAborted);
+
+            // Only ever the signed-in user's own events: the id comes from the session.
+            var currentAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var signIns = await _signInHistory.GetRecentAsync(user.Id, RecentSignInCount, HttpContext.RequestAborted);
+            RecentSignIns = signIns
+                .Select(signIn => new SignInRow(
+                    IstClock.ToIst(signIn.WhenUtc).ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture),
+                    signIn.Client,
+                    signIn.Ip,
+                    signIn.Ip is not null && string.Equals(signIn.Ip, currentAddress, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
 
             var roles = await _userManager.GetRolesAsync(user);
             Roles = roles

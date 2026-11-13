@@ -204,6 +204,38 @@
     </div>
   </section>
 
+  <section class="pm-card pm-shadow account__panel" aria-labelledby="accountSignIns">
+    <div class="account__row">
+      <div class="account__row-copy">
+        <h3 id="accountSignIns">Recent sign-ins</h3>
+        <p>Your last @ProjectManagement.Areas.Identity.Pages.Account.Manage.IndexModel.RecentSignInCount sign-ins in the past @Model.SignInLookbackDays days. If one of these was not you, change your password and tell the PRISM administrator.</p>
+      </div>
+    </div>
+    @if (Model.RecentSignIns.Count > 0)
+    {
+      <ol class="account__signins">
+        @foreach (var signIn in Model.RecentSignIns)
+        {
+          <li class="account__signin">
+            <span class="account__signin-when">@signIn.When</span>
+            <span class="account__signin-client">@signIn.Client</span>
+            <span class="account__signin-where">
+              @if (signIn.FromThisAddress)
+              {
+                <span class="account__chip">This computer</span>
+              }
+              <span class="account__signin-ip">@(signIn.Ip ?? "Address not recorded")</span>
+            </span>
+          </li>
+        }
+      </ol>
+    }
+    else
+    {
+      <p class="account__signins-empty">No sign-ins recorded in the past @Model.SignInLookbackDays days.</p>
+    }
+  </section>
+
   <form method="post" asp-area="Identity" asp-page="/Account/Logout" class="account__signout">
     <input type="hidden" name="returnUrl" value="/" />
     <button type="submit" class="btn btn-sm btn-outline-secondary">
