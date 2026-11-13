@@ -100,7 +100,8 @@ internal static class WorkspaceUpcomingEventQuery
                 .Where(celebration => celebration.DeletedUtc == null)
                 .ToListAsync(cancellationToken);
 
-            items.AddRange(BuildCelebrations(celebrations, windowStart, windowEnd, windowDays));
+            var accountNames = await ProjectManagement.Services.Celebrations.CelebrationAccountNames.LoadAsync(db, cancellationToken);
+            items.AddRange(BuildCelebrations(celebrations, windowStart, windowEnd, windowDays, accountNames));
         }
 
         var orderedItems = items
@@ -152,7 +153,8 @@ internal static class WorkspaceUpcomingEventQuery
         IEnumerable<Celebration> celebrations,
         DateTimeOffset windowStart,
         DateTimeOffset windowEnd,
-        int windowDays)
+        int windowDays,
+        IReadOnlyDictionary<string, string>? accountNames = null)
     {
         var localWindowStart = TimeZoneInfo.ConvertTime(windowStart, IstClock.TimeZone);
         var today = DateOnly.FromDateTime(localWindowStart.Date);
@@ -174,7 +176,7 @@ internal static class WorkspaceUpcomingEventQuery
 
             var isBirthday = celebration.EventType == CelebrationType.Birthday;
             var categoryLabel = isBirthday ? "Birthday" : "Anniversary";
-            var displayName = CelebrationHelpers.DisplayName(celebration);
+            var displayName = CelebrationHelpers.DisplayName(celebration, accountNames);
 
             yield return new WorkspaceUpcomingEventVm
             {

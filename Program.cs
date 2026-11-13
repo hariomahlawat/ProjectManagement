@@ -1619,7 +1619,8 @@ static string? ValidateCalendarEventRequest(CalendarEventDto dto)
 static IEnumerable<CalendarEventVm> BuildCelebrationOccurrences(
     IEnumerable<Celebration> celebrations,
     DateTimeOffset windowStart,
-    DateTimeOffset windowEnd)
+    DateTimeOffset windowEnd,
+    IReadOnlyDictionary<string, string>? accountNames = null)
 {
     var tz = IstClock.TimeZone;
     var startLocalDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(windowStart, tz).DateTime);
@@ -1653,7 +1654,7 @@ static IEnumerable<CalendarEventVm> BuildCelebrationOccurrences(
                 yield return new CalendarEventVm(
                     Id: $"celebration-{celebration.Id:N}-{occurrenceDate:yyyyMMdd}",
                     SeriesId: celebration.Id,
-                    Title: $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}",
+                    Title: $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration, accountNames)}",
                     Start: startUtc,
                     End: endUtc,
                     AllDay: true,
@@ -1739,7 +1740,8 @@ eventsApi.MapGet("", async (ApplicationDbContext db,
             .AsNoTracking()
             .Where(c => c.DeletedUtc == null)
             .ToListAsync();
-        list.AddRange(BuildCelebrationOccurrences(celebrations, start, end));
+        var accountNames = await ProjectManagement.Services.Celebrations.CelebrationAccountNames.LoadAsync(db);
+        list.AddRange(BuildCelebrationOccurrences(celebrations, start, end, accountNames));
     }
 
     // sort by start
@@ -2761,7 +2763,8 @@ eventsApi.MapPost("/celebrations/{id:guid}/task", async (Guid id,
     var today = DateOnly.FromDateTime(nowLocal.DateTime);
     var next = CelebrationHelpers.NextOccurrenceLocal(celebration, today);
     var dueLocal = CelebrationHelpers.ToLocalDateTime(next);
-    await todos.CreateAsync(userId, $"Wish {CelebrationHelpers.DisplayName(celebration)}", dueLocal);
+    var accountNames = await ProjectManagement.Services.Celebrations.CelebrationAccountNames.LoadAsync(db);
+    await todos.CreateAsync(userId, $"Wish {CelebrationHelpers.DisplayName(celebration, accountNames)}", dueLocal);
     return Results.Ok();
 }).RequireAuthorization();
 
@@ -2996,6 +2999,7 @@ app.MapGet("/celebrations/upcoming", async (HttpContext ctx, int? window, Applic
     var today = DateOnly.FromDateTime(nowLocal.DateTime);
     var win = window is 7 or 15 or 30 ? window.Value : 30;
     var items = await db.Celebrations.AsNoTracking().Where(x => x.DeletedUtc == null).ToListAsync();
+    var accountNames = await ProjectManagement.Services.Celebrations.CelebrationAccountNames.LoadAsync(db);
     var list = items.Select(c =>
     {
         var next = CelebrationHelpers.NextOccurrenceLocal(c, today);
@@ -3004,7 +3008,7 @@ app.MapGet("/celebrations/upcoming", async (HttpContext ctx, int? window, Applic
         {
             id = c.Id,
             eventType = c.EventType.ToString(),
-            name = CelebrationHelpers.DisplayName(c),
+            name = CelebrationHelpers.DisplayName(c, accountNames),
             nextOccurrenceLocal = next.ToString("yyyy-MM-dd"),
             daysAway
         };
@@ -3024,7 +3028,8 @@ app.MapPost("/celebrations/{id:guid}/task", async (Guid id, HttpContext ctx, App
     var today = DateOnly.FromDateTime(nowLocal.DateTime);
     var next = CelebrationHelpers.NextOccurrenceLocal(celebration, today);
     var dueLocal = CelebrationHelpers.ToLocalDateTime(next);
-    await todo.CreateAsync(uid, $"Wish {CelebrationHelpers.DisplayName(celebration)}", dueLocal);
+    var accountNames = await ProjectManagement.Services.Celebrations.CelebrationAccountNames.LoadAsync(db);
+    await todo.CreateAsync(uid, $"Wish {CelebrationHelpers.DisplayName(celebration, accountNames)}", dueLocal);
     return Results.Ok();
 }).RequireAuthorization();
 

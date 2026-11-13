@@ -26,6 +26,10 @@ Calendar. If a birthday and an anniversary fall on the same day, the birthday is
 - **Change** edits the date (and spouse name) of the linked entry. **Unlink** stops the wishes;
   the entry stays on the Calendar for the Celebrations managers to keep or delete.
 
+A linked entry is shown everywhere (Calendar, Dashboard, Workspace, the Celebrations list, the
+"Wish ..." task) under the account's rank and name, so a promotion shows at once; the name written
+on the entry is used only while it is not linked (`CelebrationHelpers.DisplayName`).
+
 There is one record of each date: the Celebrations entry. The account holds nothing, so My
 account and the Celebrations list can never disagree, and each change is in the same audit log.
 The server only ever reads or changes the entry linked to the signed-in account

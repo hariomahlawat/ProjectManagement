@@ -168,7 +168,8 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
                 SpouseName = item.SpouseName,
                 Day = item.Day,
                 Month = item.Month,
-                Year = item.Year
+                Year = item.Year,
+                UserId = item.UserId
             };
             var next = CelebrationHelpers.NextOccurrenceLocal(model, today);
             var linkedLabel = item.UserId != null && userLabels.TryGetValue(item.UserId, out var label) ? label : null;
@@ -178,7 +179,7 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
             return new CelebrationAdminRow(
                 item.Id,
                 item.EventType,
-                CelebrationHelpers.DisplayName(model),
+                CelebrationHelpers.DisplayName(model, userLabels),
                 item.Name,
                 item.SpouseName,
                 item.Day,
@@ -240,13 +241,9 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
 
     public async Task<IReadOnlyList<CelebrationUserOption>> ListLinkableUsersAsync(CancellationToken cancellationToken = default)
     {
-        var users = await _db.Users.AsNoTracking()
-            .Where(user => user.AccountKind == UserAccountKind.Human && !user.IsDisabled && !user.PendingDeletion)
-            .Select(user => new { user.Id, user.Rank, user.FullName, user.UserName })
-            .ToListAsync(cancellationToken);
-
-        return users
-            .Select(user => new CelebrationUserOption(user.Id, CelebrationUserMatcher.Label(user.Rank, user.FullName, user.UserName)))
+        var names = await ProjectManagement.Services.Celebrations.CelebrationAccountNames.LoadAsync(_db, cancellationToken);
+        return names
+            .Select(user => new CelebrationUserOption(user.Key, user.Value))
             .OrderBy(user => user.Label, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }

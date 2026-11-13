@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ProjectManagement.Models;
 using ProjectManagement.Infrastructure;
 
@@ -37,9 +38,22 @@ namespace ProjectManagement.Helpers
             return new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, offset);
         }
 
-        public static string DisplayName(Celebration c) =>
-            c.EventType == CelebrationType.Anniversary && !string.IsNullOrWhiteSpace(c.SpouseName)
-                ? $"{c.Name} & {c.SpouseName}"
+        public static string DisplayName(Celebration c) => DisplayName(c, null);
+
+        /// <summary>
+        /// The name shown for a celebration. An entry linked to an account shows that account's
+        /// rank and name (<paramref name="accountNames"/>, from CelebrationAccountNames.LoadAsync),
+        /// so a promotion or a corrected name shows everywhere at once; the name written on the
+        /// entry is used only while it is not linked.
+        /// </summary>
+        public static string DisplayName(Celebration c, IReadOnlyDictionary<string, string>? accountNames)
+        {
+            var name = c.UserId != null && accountNames != null && accountNames.TryGetValue(c.UserId, out var accountName)
+                ? accountName
                 : c.Name;
+            return c.EventType == CelebrationType.Anniversary && !string.IsNullOrWhiteSpace(c.SpouseName)
+                ? $"{name} & {c.SpouseName}"
+                : name;
+        }
     }
 }

@@ -63,6 +63,24 @@ public sealed class MyCelebrationServiceTests
         Assert.Equal((byte)3, line.Day);
     }
 
+    // The name is held once, on the account: a promotion shows on the list without editing the entry.
+    [Fact]
+    public async Task ALinkedEntry_IsListedUnderTheAccountsCurrentRankAndName()
+    {
+        await using var db = CreateDb();
+        var (_, admin) = Create(db);
+        await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Anniversary, "Lt Col Sharma", "Anita", 2, 12, null, "admin", Sharma));
+        await admin.SaveAsync(new CelebrationSaveCommand(null, CelebrationType.Birthday, "Mrs Verma", null, 3, 12, null, "admin"));
+
+        var user = await db.Users.SingleAsync(item => item.Id == Sharma);
+        user.Rank = "Brig";
+        await db.SaveChangesAsync();
+        var rows = (await admin.ListAsync(new CelebrationDirectoryRequest(null, null, null, 1, 25))).Rows;
+
+        Assert.Contains(rows, row => row.DisplayName == "Brig R Sharma & Anita" && row.Name == "Lt Col Sharma");
+        Assert.Contains(rows, row => row.DisplayName == "Mrs Verma");
+    }
+
     [Fact]
     public async Task AnEntryThatFitsOnlyMyName_IsOfferedToMe_AndToNoOneElse()
     {
