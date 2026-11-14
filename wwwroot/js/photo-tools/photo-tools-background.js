@@ -116,6 +116,7 @@
   let subjectColours = null;
   // The cut-out (RGBA, see-through where the mask says) and the blurred background.
   let cutout = null;
+  let errorWhenBack = null;  // an error from a cut-out that ended while another tool was shown
   let blurred = null;
 
   let backdrop = 'transparent';
@@ -358,6 +359,7 @@
   }
 
   function resetPhoto() {
+    errorWhenBack = null;
     maskRevision += 1;
     shared.setUnsaved('remove', false);
     work = null;
@@ -499,7 +501,7 @@
       workspace.hidden = true;
       changeButton.hidden = true;
       fileLabel.textContent = '';
-      shared.showError(error instanceof core.PhotoToolError ? error.message : 'The background could not be removed from this photo.');
+      showErrorHere(error instanceof core.PhotoToolError ? error.message : 'The background could not be removed from this photo.');
     } finally {
       clearTimeout(giveUp);
       if (mine === openRun) {
@@ -510,6 +512,16 @@
         renderControls();
         render();
       }
+    }
+  }
+
+  // The cut-out keeps going while another tool is shown, so its error is kept for this screen:
+  // shown now when Remove background is on screen, otherwise when the user comes back to it.
+  function showErrorHere(message) {
+    if (window.location.hash === '#remove') {
+      shared.showError(message);
+    } else {
+      errorWhenBack = message;
     }
   }
 
@@ -1091,6 +1103,12 @@
   const whenShown = () => {
     const hash = window.location.hash;
     if (hash === '#remove' || ((hash === '' || hash === '#') && !status)) loadStatus();
+    if (hash === '#remove' && errorWhenBack) {
+      const message = errorWhenBack;
+      errorWhenBack = null;
+      // After the page's own change of screen, which clears the error box.
+      setTimeout(() => shared.showError(message), 0);
+    }
     // Looking at another tool on this page does not stop a cut-out on its way: the server keeps
     // working and the result is here on coming back. Cancel, another photo, the time limit or
     // leaving the page still stop it.
