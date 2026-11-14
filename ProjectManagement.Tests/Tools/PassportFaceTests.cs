@@ -88,6 +88,41 @@ public sealed class PassportFaceTests
         Assert.Equal(PassportFaceOutcome.Found, (await second).Outcome);
     }
 
+    [Fact]
+    public async Task TryTakePlace_CountsUploadsStillArriving_AndGivesThePlaceBackOnce()
+    {
+        var service = ServiceWith(new FakeEngine { Face = SomeFace() });
+
+        var first = service.TryTakePlace();
+        var second = service.TryTakePlace();
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Null(service.TryTakePlace());
+        Assert.Equal(PassportFaceOutcome.Busy, (await service.LocateAsync(Jpeg(16, 16), CancellationToken.None)).Outcome);
+
+        first!.Dispose();
+        first.Dispose();
+        Assert.Equal(PassportFaceOutcome.Found, (await service.LocateAsync(Jpeg(16, 16), CancellationToken.None, second)).Outcome);
+        using var third = service.TryTakePlace();
+        Assert.NotNull(third);
+        Assert.Null(service.TryTakePlace());
+    }
+
+    [Fact]
+    public async Task Face_AnswersBusy_BeforeReadingThePhoto_WhenEveryPlaceIsTaken()
+    {
+        await using var host = await Host.StartAsync(new FakeEngine { Face = SomeFace() });
+        var service = host.Services.GetRequiredService<IPassportFaceService>();
+        using var a = service.TryTakePlace();
+        using var b = service.TryTakePlace();
+
+        var response = await host.Client.PostAsync(PhotoToolsApi.FacePath, Photo());
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.NotNull(response.Headers.RetryAfter);
+        Assert.Equal(0, host.Engine!.Calls);
+    }
+
     // ----- The endpoint -----
 
     [Fact]
@@ -221,6 +256,8 @@ public sealed class PassportFaceTests
         public HttpClient Client { get; }
 
         public FakeEngine? Engine { get; }
+
+        public IServiceProvider Services => _app.Services;
 
         public static async Task<Host> StartAsync(FakeEngine? engine, bool signedIn = true, bool antiforgeryPasses = true)
         {

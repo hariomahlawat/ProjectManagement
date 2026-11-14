@@ -33,8 +33,18 @@ public interface IPassportFaceService
     /// <summary>Whether the face detector is installed and ready.</summary>
     Task<bool> IsAvailableAsync(CancellationToken cancellationToken);
 
-    /// <summary>Finds the largest face in <paramref name="photoBytes"/>; the photo is used in memory only.</summary>
-    Task<PassportFaceResult> LocateAsync(byte[] photoBytes, CancellationToken cancellationToken);
+    /// <summary>
+    /// Takes one of the places for finding a face before the photo is read, or null when they are
+    /// all in use. A request holds it while its photo arrives, so slow uploads never hold more photos
+    /// in memory than there are places. Disposing it gives it back.
+    /// </summary>
+    IDisposable? TryTakePlace();
+
+    /// <summary>
+    /// Finds the largest face in <paramref name="photoBytes"/>; the photo is used in memory only.
+    /// Without a <paramref name="place"/> the service takes one itself.
+    /// </summary>
+    Task<PassportFaceResult> LocateAsync(byte[] photoBytes, CancellationToken cancellationToken, IDisposable? place = null);
 }
 
 /// <summary>
@@ -82,9 +92,37 @@ public sealed class PassportFaceService : IPassportFaceService
         }
     }
 
-    public async Task<PassportFaceResult> LocateAsync(byte[] photoBytes, CancellationToken cancellationToken)
+    public IDisposable? TryTakePlace() => _turn.Wait(0) ? new Place(_turn) : null;
+
+    /// <summary>A place for finding a face; given back once, however often it is disposed.</summary>
+    private sealed class Place(SemaphoreSlim turn) : IDisposable
+    {
+        private int _given;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _given, 1) == 0)
+            {
+                turn.Release();
+            }
+        }
+    }
+
+    public async Task<PassportFaceResult> LocateAsync(byte[] photoBytes, CancellationToken cancellationToken, IDisposable? place = null)
     {
         ArgumentNullException.ThrowIfNull(photoBytes);
+        var own = place is null ? TryTakePlace() : null;
+        if (place is null && own is null)
+        {
+            return new(PassportFaceOutcome.Busy);
+        }
+
+        using var _ = own;
+        return await LocateInPlaceAsync(photoBytes, cancellationToken);
+    }
+
+    private async Task<PassportFaceResult> LocateInPlaceAsync(byte[] photoBytes, CancellationToken cancellationToken)
+    {
         if (_engine is null || !await IsAvailableAsync(cancellationToken))
         {
             return new(PassportFaceOutcome.Unavailable);
@@ -117,11 +155,6 @@ public sealed class PassportFaceService : IPassportFaceService
             }
         }
 
-        if (!await _turn.WaitAsync(0, cancellationToken))
-        {
-            return new(PassportFaceOutcome.Busy);
-        }
-
         try
         {
             var stopwatch = Stopwatch.StartNew();
@@ -145,10 +178,6 @@ public sealed class PassportFaceService : IPassportFaceService
             // The photo itself is never logged.
             _logger.LogError(error, "Finding the face failed.");
             return new(PassportFaceOutcome.Failed);
-        }
-        finally
-        {
-            _turn.Release();
         }
     }
 }

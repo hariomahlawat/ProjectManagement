@@ -125,6 +125,14 @@ public static class PhotoToolsApi
             return Problem(StatusCodes.Status503ServiceUnavailable, FaceNotSetUpMessage);
         }
 
+        // A place is taken before the photo is read, as for the mask: a photo still arriving counts,
+        // so uploads never hold more photos in memory than there are places. Given back on every way out.
+        using var place = service.TryTakePlace();
+        if (place is null)
+        {
+            return Busy(httpContext);
+        }
+
         var sizeLimit = httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
         if (sizeLimit is { IsReadOnly: false })
         {
@@ -151,7 +159,7 @@ public static class PhotoToolsApi
             return Problem(StatusCodes.Status400BadRequest, "The photo did not arrive in full. Try again.");
         }
 
-        var result = await service.LocateAsync(photo, cancellationToken);
+        var result = await service.LocateAsync(photo, cancellationToken, place);
         return result.Outcome switch
         {
             PassportFaceOutcome.Found or PassportFaceOutcome.NoFace => Results.Ok(new
