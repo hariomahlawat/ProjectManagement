@@ -83,8 +83,11 @@ public sealed class BackgroundRemovalTests : IDisposable
             SynchronousHashLimitBytes = 1
         };
 
+        // The first check starts the hash and says so at once.
         Assert.Equal(BackgroundModelState.Checking, readiness.Check().State);
-        Assert.Equal(BackgroundModelState.Checking, readiness.Check().State);
+        // A second check while it runs says "checking" again, or "ready" if the tiny test model has
+        // already been hashed: it never starts a second hash or waits for the first.
+        Assert.Contains(readiness.Check().State, new[] { BackgroundModelState.Checking, BackgroundModelState.Ready });
         await readiness.HashingTask!;
 
         Assert.True(readiness.Check().IsReady);
