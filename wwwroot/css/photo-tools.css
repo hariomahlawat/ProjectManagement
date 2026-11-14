@@ -1051,11 +1051,26 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    flex-direction: column;
+    text-align: center;
     background: color-mix(in srgb, var(--bs-body-bg) 55%, transparent);
     color: var(--bs-body-color);
     font-weight: 600;
     cursor: progress;
     z-index: 5;
+}
+
+.phot-busy__line {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* A step that stopped (busy server, no connection, cancelled): the photo stays, with Try again. */
+.phot-busy--retry {
+    padding: 1rem;
+    background: color-mix(in srgb, var(--bs-body-bg) 85%, transparent);
+    cursor: default;
 }
 
 .phot-busy[hidden] {
@@ -1419,6 +1434,18 @@
 
 .phot-remove-status {
     margin-bottom: 1rem;
+}
+
+/* Remove background on a server where it is not set up: the card stays, dimmed, and says why. The
+   note itself is not dimmed, so it stays easy to read. */
+.pdft-card.is-off > :not(.pdft-card__note) {
+    opacity: 0.5;
+}
+
+.pdft-card__note {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
 }
 
 .phot-remove-privacy {
