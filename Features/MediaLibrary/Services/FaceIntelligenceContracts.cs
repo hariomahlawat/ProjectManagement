@@ -138,7 +138,11 @@ public interface IFaceLocationEngine
 {
     Task<FaceDetectorReadiness> DetectorReadinessAsync(CancellationToken cancellationToken);
 
-    Task<FaceLocation> LocateLargestFaceAsync(byte[] imageBytes, CancellationToken cancellationToken);
+    /// <summary>
+    /// The largest face. With <paramref name="waitForTurn"/>, waits at most that long for the
+    /// detector when the Photos library is using it, then throws <see cref="TimeoutException"/>.
+    /// </summary>
+    Task<FaceLocation> LocateLargestFaceAsync(byte[] imageBytes, CancellationToken cancellationToken, TimeSpan? waitForTurn = null);
 }
 
 public interface IFaceAnalysisEngine

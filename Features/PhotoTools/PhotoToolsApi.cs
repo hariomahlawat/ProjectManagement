@@ -45,6 +45,7 @@ public static class PhotoToolsApi
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
         services.Configure<BackgroundRemovalOptions>(configuration.GetSection(BackgroundRemovalOptions.SectionName));
+        services.Configure<PassportFaceOptions>(configuration.GetSection(PassportFaceOptions.SectionName));
         services.AddSingleton<IBackgroundModelReadinessService, BackgroundModelReadinessService>();
         services.AddSingleton<IBackgroundSegmenter, OnnxBackgroundSegmenter>();
         services.AddSingleton<IBackgroundRemovalService, BackgroundRemovalService>();
@@ -93,7 +94,7 @@ public static class PhotoToolsApi
     private static async Task<IResult> FaceAsync(
         HttpContext httpContext,
         IAntiforgery antiforgery,
-        IOptionsMonitor<BackgroundRemovalOptions> options,
+        IOptionsMonitor<PassportFaceOptions> options,
         CancellationToken cancellationToken)
     {
         NoStore(httpContext);
@@ -130,7 +131,7 @@ public static class PhotoToolsApi
         using var place = service.TryTakePlace();
         if (place is null)
         {
-            return Busy(httpContext);
+            return Busy(httpContext, FaceBusyMessage);
         }
 
         var sizeLimit = httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
@@ -140,7 +141,7 @@ public static class PhotoToolsApi
         }
 
         using var uploadDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        uploadDeadline.CancelAfter(UploadDeadline(settings));
+        uploadDeadline.CancelAfter(settings.EffectiveTimeout);
         byte[] photo;
         try
         {
@@ -174,7 +175,7 @@ public static class PhotoToolsApi
                 points = result.Face?.Points.Select(point => new[] { point.X, point.Y }).ToArray()
             }),
             PassportFaceOutcome.Unavailable => Problem(StatusCodes.Status503ServiceUnavailable, FaceNotSetUpMessage),
-            PassportFaceOutcome.Busy => Busy(httpContext),
+            PassportFaceOutcome.Busy => Busy(httpContext, FaceBusyMessage),
             PassportFaceOutcome.NotAPhoto => Problem(StatusCodes.Status415UnsupportedMediaType, "This file could not be read as a photo."),
             PassportFaceOutcome.TooLarge => Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send."),
             _ => Problem(StatusCodes.Status500InternalServerError, "The face could not be found in this photo.")
@@ -283,10 +284,12 @@ public static class PhotoToolsApi
     internal static TimeSpan UploadDeadline(BackgroundRemovalOptions options)
         => TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 600));
 
-    private static IResult Busy(HttpContext httpContext)
+    private const string FaceBusyMessage = "PRISM is placing other faces right now. Try again in a few seconds.";
+
+    private static IResult Busy(HttpContext httpContext, string message = "PRISM is removing other backgrounds right now. Try again in a few seconds.")
     {
         httpContext.Response.Headers.RetryAfter = "5";
-        return Problem(StatusCodes.Status503ServiceUnavailable, "PRISM is removing other backgrounds right now. Try again in a few seconds.");
+        return Problem(StatusCodes.Status503ServiceUnavailable, message);
     }
 
     /// <summary>
