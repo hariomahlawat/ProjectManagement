@@ -101,6 +101,11 @@
   let tool = 'crop';
   let crop = null;          // in pixels of `current`
   let tilt = 0;             // straighten not yet applied, degrees
+  // Download pressed with a change pending: the edit (its revision) to save once the change is
+  // applied, or null. Any other edit, Undo, Redo, another photo or a failed save clears it.
+  let downloadWhenReady = null;
+  // Counts every change to the photo on the screen (a step, Undo, Redo, another photo).
+  let revision = 0;
   let showingOriginal = false;
   let display = { width: 0, height: 0 };
 
@@ -244,6 +249,7 @@
 
   /** Called after the list of steps changes: fresh screen copy, fresh tool state, fresh file. */
   function changed() {
+    revision += 1;
     small = shrink(current);
     tilt = 0;
     straighten.value = '0';
@@ -270,11 +276,11 @@
    * before the work starts. Presses that come in meanwhile are ignored, so steps cannot overlap.
    */
   async function runStep(work, stepsToApply) {
-    if (!current) return;
+    if (!current) return false;
     if (working) {
       // Redrawn so a mark that was being dragged out does not stay on the screen.
       layout();
-      return;
+      return false;
     }
     working = true;
     // The prepared file is of the photo before this step: it must not be downloaded meanwhile
@@ -302,6 +308,7 @@
       undoButton.disabled = steps.length === 0;
       redoButton.disabled = undone.length === 0;
     }
+    return done;
   }
 
   /** Applies one step to the photo as it is now. False, with a message, when it cannot be made. */
@@ -374,6 +381,30 @@
   // Stage
   // ---------------------------------------------------------------------------
 
+  /**
+   * A straighten or adjustment the stage shows but that is not applied yet, as the step that would
+   * apply it, or null. Owner decision (14 Nov 2026): such a change is applied by itself on Download
+   * and on changing tool, so what is saved is always what the screen showed.
+   */
+  function pendingLook(forTool = tool) {
+    if (!current) return null;
+    if (forTool === 'rotate' && tilt) return { type: 'straighten', degrees: tilt };
+    if (forTool === 'adjust' && adjustChanged()) return { type: 'adjust', ...adjustValues() };
+    return null;
+  }
+
+  /** The line under Download says when the change on the screen is still to be applied. */
+  function renderPending() {
+    if (!current || working || !saved) return;
+    if (pendingLook()) {
+      resultLine.className = 'phot-result';
+      resultLine.textContent = 'The change on the screen is applied when you download or pick another tool.';
+    } else {
+      resultLine.className = 'phot-result is-ready';
+      resultLine.textContent = saved.ready;
+    }
+  }
+
   /** What the stage shows now: the original while it is held, a straighten preview, or the photo. */
   function shown() {
     if (showingOriginal) return originalSmall;
@@ -412,6 +443,8 @@
   // ---------------------------------------------------------------------------
 
   function setTool(next) {
+    // A straighten or adjustment shown but not applied is applied, not dropped.
+    const pending = next !== tool ? pendingLook(tool) : null;
     tool = next;
     for (const button of $$('[data-tool]')) {
       button.setAttribute('aria-pressed', String(button.dataset.tool === tool));
@@ -421,7 +454,8 @@
     }
     hint.textContent = HINTS[tool];
     if (!current) return;
-    // A straighten or crop that was not applied is dropped when the tool changes.
+    // A crop box that was not applied is dropped when the tool changes; a straighten or an
+    // adjustment is applied (pending, above).
     tilt = 0;
     straighten.value = '0';
     straightenValue.textContent = '0°';
@@ -434,6 +468,7 @@
     keyPoint = null;
     showMark();
     layout();
+    if (pending) addStep(pending);
   }
 
   // Mark up and hide --------------------------------------------------------------
@@ -858,18 +893,30 @@
       const output = opaque || current === original ? shared.drawPhoto(current, size.width, size.height, { opaque }) : current;
       const bytes = await shared.canvasToBytes(output, type, Number(quality.value) / 100);
       if (mine !== saveRun) return;
-      saved = { bytes, type };
+      saved = { bytes, type, ready: `Ready: ${size.width} × ${size.height} px, ${core.formatBytes(bytes.length)}, ${type.label}` };
       resultLine.className = 'phot-result is-ready';
-      resultLine.textContent = `Ready: ${size.width} × ${size.height} px, ${core.formatBytes(bytes.length)}, ${type.label}`;
+      resultLine.textContent = saved.ready;
       downloadButton.disabled = false;
+      renderPending();
+      if (downloadWhenReady !== null) {
+        const wanted = downloadWhenReady === revision;
+        downloadWhenReady = null;
+        if (wanted) downloadSaved();
+      }
     } catch (error) {
       if (mine !== saveRun) return;
       if (!(error instanceof core.PhotoToolError)) console.error(error);
+      // A file that could not be made is not downloaded later by a different save.
+      downloadWhenReady = null;
       saved = null;
       downloadButton.disabled = true;
       resultLine.className = 'phot-result is-problem';
       resultLine.textContent = error instanceof core.PhotoToolError ? error.message : 'The photo could not be saved. Try a smaller size.';
     }
+  }
+
+  function downloadSaved() {
+    shared.saveBlob(new Blob([saved.bytes], { type: saved.type.mime }), `${core.baseName(fileName)}-edited.${saved.type.extension}`);
   }
 
   /** The file is prepared again shortly after the last change. */
@@ -909,6 +956,9 @@
     if (!source) return;
     if (original && typeof original.close === 'function') original.close();
     photoGeneration += 1;
+    revision += 1;
+    // A download asked for on the last photo is not made of this one.
+    downloadWhenReady = null;
     fileName = file.name;
     original = source;
     originalSmall = shrink(original);
@@ -998,6 +1048,7 @@
   for (const slider of adjustSliders) {
     slider.addEventListener('input', () => {
       showAdjust();
+      renderPending();
       if (current) layout();
     });
   }
@@ -1006,6 +1057,7 @@
   });
   adjustReset.addEventListener('click', () => {
     resetAdjust();
+    renderPending();
     if (current) layout();
   });
 
@@ -1089,6 +1141,7 @@
     tilt = Number(straighten.value);
     straightenValue.textContent = `${tilt > 0 ? '+' : ''}${tilt}°`;
     straightenApply.disabled = !tilt;
+    renderPending();
     layout();
   });
   straightenApply.addEventListener('click', () => {
@@ -1120,7 +1173,19 @@
 
   downloadButton.addEventListener('click', (event) => {
     if (!saved || working || shared.isRepeatClick(event)) return;
-    shared.saveBlob(new Blob([saved.bytes], { type: saved.type.mime }), `${core.baseName(fileName)}-edited.${saved.type.extension}`);
+    const pending = pendingLook();
+    if (pending) {
+      // The change on the screen is applied first; the file is saved once it has been made again.
+      // Armed only once the step is made: a save that started before it (with the photo as it was)
+      // can never fulfil it, even when a hidden tab holds the step back.
+      const generation = photoGeneration;
+      addStep(pending).then((done) => {
+        // `revision` is now the edit this step made; Undo or another edit before its save moves it on.
+        if (done && generation === photoGeneration) downloadWhenReady = revision;
+      });
+      return;
+    }
+    downloadSaved();
   });
 
   // The stage has no size while its screen is hidden, and changes size with the window.
