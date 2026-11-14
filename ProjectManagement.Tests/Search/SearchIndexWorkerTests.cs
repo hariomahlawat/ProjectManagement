@@ -235,6 +235,22 @@ public sealed class SearchIndexWorkerTests
     }
 
     [Fact]
+    public async Task ProjectChange_ThatPicksUpAMovedIpr_RefreshesTheProjectTheIprLeft()
+    {
+        var harness = new Harness();
+        harness.Store.State = new SearchIndexActiveState(7, OwnVersion, harness.Time.Now);
+        harness.Builder.Dependents[11] = new[] { new SearchEntityRef("IprRecord", "5") };
+        harness.Store.IndexedParents["IprRecord/5"] = new[] { 10 };
+        harness.Builder.Projections["IprRecord/5"] = new[] { Projection("IprRecord", "5", parentProjectId: 11) };
+        harness.Store.Queue.Enqueue(new SearchIndexWorkItem(1, "Project", "11", 0));
+
+        Assert.True(await harness.Worker.RunOnceAsync(CancellationToken.None));
+
+        // Project 11 is current already; project 10 is refreshed before the IPR row moves.
+        Assert.Equal(new[] { "Project/11", "Project/10", "IprRecord/5" }, harness.Store.Replaced);
+    }
+
+    [Fact]
     public async Task OtherRecords_DoNotTouchTheirProjectRow()
     {
         var harness = new Harness();
