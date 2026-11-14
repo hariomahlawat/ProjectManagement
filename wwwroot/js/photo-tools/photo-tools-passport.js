@@ -67,6 +67,11 @@
   const bgAmount = $('[data-bg-amount]');
   const bgAmountValue = $('[data-bg-amount-value]');
   const bgCompare = $('[data-action="bg-original"]');
+  // The same button in the bar under the photo, for phones, where the panel is far below.
+  const bgCompareStage = $('[data-action="bg-original-stage"]');
+  const phoneBar = $('[data-phone-bar]');
+  const phoneChecks = $('[data-action="phone-checks"]');
+  const phoneDownload = $('[data-action="phone-download"]');
   const bgProblem = $('[data-bg-problem]');
   const checkBox = $('[data-passport-check]');
   const checkTitle = $('[data-check-title]');
@@ -831,6 +836,7 @@
       ? modelProblem || (usingModel ? undefined : BG_PROBLEMS[bgStatus])
       : undefined;
     bgCompare.hidden = !changed;
+    bgCompareStage.hidden = !changed;
     bgNote.hidden = !changed || usingModel;
     bgModelNote.hidden = !changed || !usingModel;
     bgProblem.hidden = !problem;
@@ -1785,6 +1791,34 @@
     });
   }
   shared.wireHoldButton(bgCompare, seeOriginal);
+  shared.wireHoldButton(bgCompareStage, seeOriginal);
+
+  /**
+   * The phone bar mirrors the Save panel: the checks' summary (a tap goes to the list) and
+   * Download, kept in step with them whatever changes them.
+   */
+  function renderPhoneBar() {
+    phoneBar.hidden = !full;
+    phoneDownload.disabled = downloadButton.disabled;
+    const count = checkList.children.length;
+    let summary = '';
+    if (!checkBox.hidden) summary = count ? `${count} ${count === 1 ? 'thing' : 'things'} to check` : 'No problems found';
+    else if (resultLine.textContent) summary = resultLine.textContent;
+    phoneChecks.textContent = summary;
+    phoneChecks.classList.toggle('has-problems', !checkBox.hidden && count > 0);
+    phoneChecks.disabled = checkBox.hidden;
+  }
+  new MutationObserver(renderPhoneBar).observe(downloadButton, { attributes: true, attributeFilter: ['disabled'] });
+  new MutationObserver(renderPhoneBar).observe(checkBox, { attributes: true, attributeFilter: ['hidden'] });
+  new MutationObserver(renderPhoneBar).observe(checkList, { childList: true });
+  new MutationObserver(renderPhoneBar).observe(resultLine, { childList: true, characterData: true, subtree: true });
+  phoneChecks.addEventListener('click', () => {
+    checkBox.scrollIntoView({ block: 'center' });
+  });
+  phoneDownload.addEventListener('click', (event) => {
+    if (shared.isRepeatClick(event)) return;
+    downloadButton.click();
+  });
 
   fixButton.addEventListener('click', () => {
     fixOn = !fixOn;
