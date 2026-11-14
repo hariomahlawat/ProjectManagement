@@ -69,6 +69,8 @@
   const format = $('[data-remove-format]');
   const resultLine = $('[data-remove-result]');
   const downloadButton = $('[data-action="download-remove"]');
+  // A copy of Download at the foot of the screen while this one is out of view.
+  shared.wireSaveBar($('[data-save-bar]'), downloadButton, { line: resultLine });
   const credit = $('[data-remove-credit]');
   const cancelButton = $('[data-action="remove-cancel"]');
   const retryBox = $('[data-remove-retry]');

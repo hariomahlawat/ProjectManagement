@@ -309,11 +309,12 @@
                         </div>
                     </div>
                 </aside>
-                @* Phones: the photo, the checks and Download are screens apart, so the checks' summary
-                   and Download stay at the foot of the screen. Hidden on wider screens. *@
-                <div class="phot-phonebar phot-phone-only" data-phone-bar hidden>
-                    <button type="button" class="btn btn-link phot-phonebar__checks" data-action="phone-checks"></button>
-                    <button type="button" class="btn btn-primary" data-action="phone-download" disabled>
+                @* The Save bar: the checks' summary and a copy of Download at the foot of the screen
+                   while the panel's own Download is out of view, on a laptop as on a phone
+                   (photo-tools-canvas.js, wireSaveBar). *@
+                <div class="phot-savebar" data-save-bar hidden>
+                    <button type="button" class="btn btn-link phot-savebar__checks" data-action="savebar-checks"></button>
+                    <button type="button" class="btn btn-primary" data-save-bar-download disabled>
                         <i class="bi bi-download" aria-hidden="true"></i> Download
                     </button>
                 </div>
@@ -405,6 +406,14 @@
                         </button>
                     </div>
                 </aside>
+                @* The Save bar: a copy of Download at the foot of the screen while the panel's own
+                   Download is out of view (photo-tools-canvas.js, wireSaveBar). *@
+                <div class="phot-savebar" data-save-bar hidden>
+                    <span class="phot-savebar__text" data-save-bar-text></span>
+                    <button type="button" class="btn btn-primary" data-save-bar-download disabled>
+                        <i class="bi bi-download" aria-hidden="true"></i> Download sheet
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -757,6 +766,14 @@
                         </p>
                     </div>
                 </aside>
+                @* The Save bar: a copy of Download at the foot of the screen while the panel's own
+                   Download is out of view (photo-tools-canvas.js, wireSaveBar). *@
+                <div class="phot-savebar" data-save-bar hidden>
+                    <span class="phot-savebar__text" data-save-bar-text></span>
+                    <button type="button" class="btn btn-primary" data-save-bar-download disabled>
+                        <i class="bi bi-download" aria-hidden="true"></i> Download photo
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -889,6 +906,14 @@
                         <p class="phot-hint phot-remove-credit" data-remove-credit hidden></p>
                     </div>
                 </aside>
+                @* The Save bar: a copy of Download at the foot of the screen while the panel's own
+                   Download is out of view (photo-tools-canvas.js, wireSaveBar). *@
+                <div class="phot-savebar" data-save-bar hidden>
+                    <span class="phot-savebar__text" data-save-bar-text></span>
+                    <button type="button" class="btn btn-primary" data-save-bar-download disabled>
+                        <i class="bi bi-download" aria-hidden="true"></i> Download
+                    </button>
+                </div>
             </div>
         </section>
 

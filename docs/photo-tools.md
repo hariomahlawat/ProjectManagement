@@ -441,10 +441,25 @@ step, so Undo takes it back.
 - **Keyboard.** The passport frame, the crop box and the photo under Mark up and Hide all work
   with the arrow keys and Enter; Ctrl+Z and Ctrl+Y undo and redo in the editor.
 - **Passport photo.** Place the face again sits in the bar under the photo with Rotate, at 44 px
-  on a phone. Where the layout is one column (900 px and narrower), Hold to see the original is also in that bar, and a bar at the foot of the screen keeps the checks' summary (a tap goes to the list) and Download in reach while the photo is moved. The note while the model works is in the Background panel, next to the colour or
+  on a phone. Where the layout is one column (900 px and narrower), Hold to see the original is also in that bar. The note while the model works is in the Background panel, next to the colour or
   Better edges that asked for it, so on a phone it is on the screen where the user tapped; it
   uses the theme's tertiary background, in Light and Dark. Focus moves from Better edges to the
   note, to Try again when the server is busy, and to the model's line when it is done.
+
+### Laptops and wide screens
+
+- **The photo stays in view.** Wider than 900 px, the photo column of Passport photo, Print
+  sheet, Edit photo and Remove background stays on the screen while the settings beside it are
+  scrolled (Reduce size is left out: its main column is a list that can be longer than the
+  screen). The photo grows with the height of the screen, from 640 px up to 960 px.
+- **Large screens.** From 1600 px wide the tools use up to 1680 px, with a settings column of
+  up to 420 px; the home cards keep their width.
+- **The Save bar.** On those four tools, while the panel's own Download is out of view and there
+  is something to download, a bar at the foot of the settings column holds a copy of Download
+  with the "Ready" line (Passport photo: the checks' summary, which goes to the list). It hides
+  while the real Download can be seen, so there is never a second Download in sight, and it
+  never covers the photo. Phones get the same bar across the screen. It is
+  `PrismPhotoCanvas.wireSaveBar` in `photo-tools-canvas.js`.
 
 ### While Remove background works
 
