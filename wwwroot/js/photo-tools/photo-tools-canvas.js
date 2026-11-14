@@ -262,9 +262,46 @@
     });
   }
 
+  /**
+   * The Save bar at the foot of a screen: a copy of the screen's Download, shown while the real
+   * button is out of view (long settings on a laptop, or a phone, where the photo and Download
+   * are a screen or more apart) and there is something to download. It hides while the real
+   * button can be seen, so there is never a second Download in sight. `line`, when given, is the "Ready: …" line whose words the bar repeats;
+   * `hide()` keeps the bar away (no photo yet); `render()` adds a screen's own parts. Returns the
+   * function that brings the bar up to date.
+   */
+  function wireSaveBar(bar, button, { line = null, hide = () => false, render = () => {} } = {}) {
+    const copy = bar.querySelector('[data-save-bar-download]');
+    const text = bar.querySelector('[data-save-bar-text]');
+    let buttonInView = false;
+
+    function update() {
+      bar.hidden = hide() || buttonInView || button.disabled;
+      copy.disabled = button.disabled;
+      if (text && line) text.textContent = line.textContent;
+      render();
+    }
+
+    if (typeof IntersectionObserver === 'function') {
+      // Seen in full: a button half under the bar counts as out of view, so the bar shows.
+      new IntersectionObserver((entries) => {
+        buttonInView = entries[entries.length - 1].intersectionRatio >= 0.99;
+        update();
+      }, { threshold: [0, 0.99, 1] }).observe(button);
+    }
+    new MutationObserver(update).observe(button, { attributes: true, attributeFilter: ['disabled'] });
+    if (line) new MutationObserver(update).observe(line, { childList: true, characterData: true, subtree: true });
+    copy.addEventListener('click', (event) => {
+      if (isRepeatClick(event)) return;
+      button.click();
+    });
+    update();
+    return update;
+  }
+
   window.PrismPhotoCanvas = Object.freeze({
     showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, canvasToBytes,
     isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton, rememberedChoices,
-    setUnsaved
+    setUnsaved, wireSaveBar
   });
 })();
