@@ -273,6 +273,9 @@ public sealed class SearchIndexWorker : BackgroundService
     /// refreshes the project rows it left and joined. Everything runs here, in this pass;
     /// nothing is queued, so a project and its dependents never queue each other in a loop.
     /// A failure fails the work item, and its retry repeats the whole set.
+    /// The projects a ToT or IPR row belongs to are refreshed before the row itself is
+    /// replaced: their summary is read from the source tables, and while the row is not yet
+    /// replaced the index still names the project it left, so a retry can find it again.
     /// </summary>
     internal async Task IndexWithDependentsAsync(
         ISearchIndexStore store,
@@ -288,18 +291,8 @@ public sealed class SearchIndexWorker : BackgroundService
             : Array.Empty<int>();
 
         var projections = await builder.BuildEntityAsync(entityType, entityKey, cancellationToken);
-        await store.ReplaceEntityAsync(entityType, entityKey, projections, version, cancellationToken);
 
-        if (string.Equals(entityType, "Project", StringComparison.Ordinal)
-            && int.TryParse(entityKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var projectId))
-        {
-            foreach (var dependent in await builder.FindProjectDependentsAsync(projectId, cancellationToken))
-            {
-                var rows = await builder.BuildEntityAsync(dependent.EntityType, dependent.EntityKey, cancellationToken);
-                await store.ReplaceEntityAsync(dependent.EntityType, dependent.EntityKey, rows, version, cancellationToken);
-            }
-        }
-        else if (summarisesProject)
+        if (summarisesProject)
         {
             var projects = projectsBefore
                 .Concat(projections.Where(row => row.ParentProjectId.HasValue).Select(row => row.ParentProjectId!.Value))
@@ -309,6 +302,18 @@ public sealed class SearchIndexWorker : BackgroundService
                 var key = parentId.ToString(CultureInfo.InvariantCulture);
                 var rows = await builder.BuildEntityAsync("Project", key, cancellationToken);
                 await store.ReplaceEntityAsync("Project", key, rows, version, cancellationToken);
+            }
+        }
+
+        await store.ReplaceEntityAsync(entityType, entityKey, projections, version, cancellationToken);
+
+        if (string.Equals(entityType, "Project", StringComparison.Ordinal)
+            && int.TryParse(entityKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var projectId))
+        {
+            foreach (var dependent in await builder.FindProjectDependentsAsync(projectId, cancellationToken))
+            {
+                var rows = await builder.BuildEntityAsync(dependent.EntityType, dependent.EntityKey, cancellationToken);
+                await store.ReplaceEntityAsync(dependent.EntityType, dependent.EntityKey, rows, version, cancellationToken);
             }
         }
     }

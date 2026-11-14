@@ -213,8 +213,25 @@ public sealed class SearchIndexWorkerTests
 
         Assert.True(await harness.Worker.RunOnceAsync(CancellationToken.None));
 
-        Assert.Equal(new[] { "IprRecord/5", "Project/10", "Project/11" }, harness.Store.Replaced);
+        // The projects first: until the IPR row is replaced, the index still names project 10.
+        Assert.Equal(new[] { "Project/10", "Project/11", "IprRecord/5" }, harness.Store.Replaced);
         Assert.Equal(new long[] { 1 }, harness.Store.Completed);
+    }
+
+    [Fact]
+    public async Task IprChange_WhoseOldProjectFailsToRefresh_KeepsItsOldRowForTheRetry()
+    {
+        var harness = new Harness();
+        harness.Store.State = new SearchIndexActiveState(7, OwnVersion, harness.Time.Now);
+        harness.Store.IndexedParents["IprRecord/5"] = new[] { 10 };
+        harness.Store.FailReplacing = "Project/10";
+        harness.Builder.Projections["IprRecord/5"] = new[] { Projection("IprRecord", "5", parentProjectId: 11) };
+        harness.Store.Queue.Enqueue(new SearchIndexWorkItem(1, "IprRecord", "5", 0));
+
+        await harness.Worker.RunOnceAsync(CancellationToken.None);
+
+        Assert.DoesNotContain("IprRecord/5", harness.Store.Replaced);
+        Assert.Equal(new long[] { 1 }, harness.Store.Failed);
     }
 
     [Fact]
@@ -495,9 +512,13 @@ public sealed class SearchIndexWorkerTests
         public Dictionary<string, int[]> IndexedParents { get; } = new(StringComparer.Ordinal);
         public List<string> Replaced { get; } = new();
 
+        public string? FailReplacing { get; set; }
+
         public Task ReplaceEntityAsync(string requestedEntityType, string requestedEntityKey, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken)
         {
-            Replaced.Add($"{requestedEntityType}/{requestedEntityKey}");
+            var key = $"{requestedEntityType}/{requestedEntityKey}";
+            if (key == FailReplacing) throw new InvalidOperationException("database unavailable");
+            Replaced.Add(key);
             return Task.CompletedTask;
         }
 

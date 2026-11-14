@@ -562,20 +562,21 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             record.FiledAtUtc,
             record.GrantedAtUtc,
             record.ProjectId,
-            // A repeat build or a trashed project is not shown as the record's project.
-            ProjectNotShown = record.Project != null && (record.Project.IsBuild || record.Project.IsDeleted),
+            ProjectIsBuild = record.Project != null && record.Project.IsBuild,
+            // A trashed project is not shown as the record's project either.
+            ProjectIsDeleted = record.Project != null && record.Project.IsDeleted,
             ProjectName = record.Project != null && !record.Project.IsBuild && !record.Project.IsDeleted ? record.Project.Name : null,
             Attachments = record.Attachments.Where(attachment => !attachment.IsArchived).Select(attachment => attachment.OriginalFileName).ToArray()
         }).ToListAsync(cancellationToken);
 
         var projectContexts = await LoadProjectContextsAsync(
-            rows.Where(row => row.ProjectId.HasValue && !row.ProjectNotShown).Select(row => row.ProjectId!.Value),
+            rows.Where(row => row.ProjectId.HasValue && !row.ProjectIsBuild && !row.ProjectIsDeleted).Select(row => row.ProjectId!.Value),
             cancellationToken);
         return rows.Select(row =>
         {
             var title = string.IsNullOrWhiteSpace(row.Title) ? row.IprFilingNumber : row.Title;
             var identifiers = Values(row.IprFilingNumber);
-            var effectiveProjectId = row.ProjectId.HasValue && !row.ProjectNotShown ? row.ProjectId : null;
+            var effectiveProjectId = row.ProjectId.HasValue && !row.ProjectIsBuild && !row.ProjectIsDeleted ? row.ProjectId : null;
             ProjectSearchContext? projectContext = null;
             if (effectiveProjectId.HasValue) projectContexts.TryGetValue(effectiveProjectId.Value, out projectContext);
             var contexts = Values(row.ProjectName, projectContext?.Category, projectContext?.TechnicalCategory, projectContext?.LifecycleStatus, projectContext?.CurrentStage)
