@@ -10,6 +10,59 @@
     return;
   }
 
+  // ---------------------------------------------------------------------------
+  // A tool that could not start says so, instead of showing an empty screen. The usual cause is
+  // a page and scripts from different versions of PRISM: an update part-way through, or a
+  // browser holding an old copy. Only errors while the page is loading count, and only from a
+  // Photo Tools script: an error later, while a tool is used, is the tool's own to report.
+  // ---------------------------------------------------------------------------
+
+  // Which screens each script starts. The shell (app) starts the page itself and Reduce size.
+  const SCRIPT_VIEWS = Object.freeze({
+    'photo-tools-app.js': ['home', 'reduce', 'passport', 'sheet', 'edit', 'remove'],
+    'photo-tools-passport.js': ['passport'],
+    'photo-tools-print.js': ['sheet'],
+    'photo-tools-editor.js': ['edit'],
+    'photo-tools-background.js': ['remove']
+  });
+  const COULD_NOT_START = 'This tool could not start. Reload the page (Ctrl+F5). If it happens again, PRISM may be part-way through an update: try again in a few minutes, or tell your PRISM administrator.';
+
+  /**
+   * The screens a failed script leaves without a working tool, from the error's file name and its
+   * stack: a screen's script that fails inside a shared helper (this file) is named only further
+   * down the stack.
+   */
+  function viewsForFailedScript(fileName, stack = '') {
+    const views = new Set();
+    const text = `${fileName || ''}\n${stack || ''}`;
+    for (const match of text.matchAll(/\/js\/photo-tools\/(photo-tools-[a-z]+\.js)/g)) {
+      for (const view of SCRIPT_VIEWS[match[1]] || []) views.add(view);
+    }
+    return [...views];
+  }
+
+  function markCouldNotStart(views) {
+    for (const name of views) {
+      const view = document.querySelector(`[data-view="${name}"]`);
+      if (!view || view.querySelector('[data-could-not-start]')) continue;
+      const note = document.createElement('div');
+      note.className = 'alert alert-danger';
+      note.setAttribute('role', 'alert');
+      note.dataset.couldNotStart = '';
+      note.textContent = COULD_NOT_START;
+      // Under the screen's heading row, above the tool.
+      const head = view.querySelector('.phot-head');
+      if (head) head.after(note); else view.prepend(note);
+    }
+  }
+
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('error', (event) => {
+      if (document.readyState === 'complete') return;
+      markCouldNotStart(viewsForFailedScript(event && event.filename, event && event.error && event.error.stack));
+    });
+  }
+
   function showError(message) {
     errorBox.textContent = message;
     errorBox.hidden = false;
@@ -302,6 +355,6 @@
   window.PrismPhotoCanvas = Object.freeze({
     showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, canvasToBytes,
     isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton, rememberedChoices,
-    setUnsaved, wireSaveBar
+    setUnsaved, wireSaveBar, viewsForFailedScript, markCouldNotStart
   });
 })();

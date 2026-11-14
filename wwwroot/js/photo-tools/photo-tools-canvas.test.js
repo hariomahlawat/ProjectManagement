@@ -23,6 +23,22 @@ test('isMainPointer takes the first finger or pen and the left mouse button only
   assert.equal(shared.isMainPointer({ isPrimary: true, pointerType: 'mouse', button: 1 }), false);
 });
 
+test('a Photo Tools script that fails while the page loads names the screens it leaves without a tool', () => {
+  const at = (file) => shared.viewsForFailedScript(`https://prism.lan/js/photo-tools/${file}?v=abc123`);
+  assert.deepEqual([...at('photo-tools-passport.js')], ['passport']);
+  assert.deepEqual([...at('photo-tools-background.js')], ['remove']);
+  assert.deepEqual([...at('photo-tools-print.js')], ['sheet']);
+  assert.deepEqual([...at('photo-tools-editor.js')], ['edit']);
+  assert.ok(at('photo-tools-app.js').includes('home'));
+  // Another page's script, or an error with no file, is not a Photo Tools screen that failed.
+  assert.deepEqual([...shared.viewsForFailedScript('https://prism.lan/js/site.js')], []);
+  assert.deepEqual([...shared.viewsForFailedScript(undefined)], []);
+  // Failing inside a shared helper: the screen is found further down the stack.
+  const stack = 'TypeError: x\n    at wireSaveBar (https://prism.lan/js/photo-tools/photo-tools-canvas.js?v=1:319:22)\n'
+    + '    at https://prism.lan/js/photo-tools/photo-tools-print.js?v=1:56:10';
+  assert.deepEqual([...shared.viewsForFailedScript('https://prism.lan/js/photo-tools/photo-tools-canvas.js?v=1', stack)], ['sheet']);
+});
+
 test('isRepeatClick skips the second click of a double click but not a key press', () => {
   assert.equal(shared.isRepeatClick({ detail: 1 }), false);
   assert.equal(shared.isRepeatClick({ detail: 0 }), false);

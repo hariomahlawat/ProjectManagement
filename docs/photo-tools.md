@@ -476,6 +476,17 @@ step, so Undo takes it back.
 - Until there is a cut-out (still working, or stopped with **Try again**), the brushes and brush
   sizes are off and "Check the edges…" under the photo is not shown.
 
+### When a tool cannot start
+
+The page and its scripts must come from the same version of PRISM. When they do not (an update
+part-way through, a browser holding an old copy, or a development server left running on an
+old build while the files change under it), a screen's script can stop while the page loads and
+leave an empty screen. `photo-tools-canvas.js` watches for an error from a Photo Tools script
+while the page is loading and puts a note under that screen's heading: "This tool could not
+start. Reload the page (Ctrl+F5). If it happens again, PRISM may be part-way through an update…".
+The screen is found from the error's file name and stack, so a screen's script that fails inside
+the shared helpers is still named. Errors after the page has loaded are left to the tools.
+
 ### How the target size is reached
 
 The pixels are kept as they are by default (owner decision, 13 Nov 2026): a photo is only made
