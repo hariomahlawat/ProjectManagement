@@ -13,6 +13,10 @@ public static class PhotoToolsApi
 {
     public const string StatusPath = "/api/photo-tools/background/status";
     public const string MaskPath = "/api/photo-tools/background/mask";
+    public const string FacePath = "/api/photo-tools/face";
+
+    public const string FaceNotSetUpMessage =
+        "Placing the face is not set up on this PRISM server. Place it by hand.";
 
     private static readonly HashSet<string> PhotoTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -44,6 +48,7 @@ public static class PhotoToolsApi
         services.AddSingleton<IBackgroundModelReadinessService, BackgroundModelReadinessService>();
         services.AddSingleton<IBackgroundSegmenter, OnnxBackgroundSegmenter>();
         services.AddSingleton<IBackgroundRemovalService, BackgroundRemovalService>();
+        services.AddSingleton<IPassportFaceService, PassportFaceService>();
         return services;
     }
 
@@ -52,17 +57,22 @@ public static class PhotoToolsApi
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapGet(StatusPath, Status).RequireAuthorization();
         endpoints.MapPost(MaskPath, MaskAsync).RequireAuthorization();
+        endpoints.MapPost(FacePath, FaceAsync).RequireAuthorization();
         return endpoints;
     }
 
-    private static IResult Status(
+    private static async Task<IResult> Status(
         HttpContext httpContext,
         IBackgroundRemovalService service,
-        IOptionsMonitor<BackgroundRemovalOptions> options)
+        IOptionsMonitor<BackgroundRemovalOptions> options,
+        CancellationToken cancellationToken)
     {
         NoStore(httpContext);
         var readiness = service.Readiness();
         var settings = options.CurrentValue;
+        // Placing the face is a separate, optional part (the Photos library's detector).
+        var face = httpContext.RequestServices.GetService<IPassportFaceService>();
+        var faceAvailable = face is not null && await face.IsAvailableAsync(cancellationToken);
         return Results.Ok(new
         {
             available = readiness.IsReady,
@@ -70,8 +80,105 @@ public static class PhotoToolsApi
             message = readiness.IsReady ? null : MessageFor(readiness.State),
             attribution = readiness.IsReady ? settings.Model.Attribution : null,
             maximumSide = settings.EffectiveSide,
-            maximumBytes = settings.EffectiveUploadBytes
+            maximumBytes = settings.EffectiveUploadBytes,
+            faceAvailable
         });
+    }
+
+    /// <summary>
+    /// Where the face is in one photo, for Passport photo. Signed in, with the antiforgery token,
+    /// the same type and size limits as the mask, and nothing stored: the answer is only the face's
+    /// box and five points, never cached.
+    /// </summary>
+    private static async Task<IResult> FaceAsync(
+        HttpContext httpContext,
+        IAntiforgery antiforgery,
+        IOptionsMonitor<BackgroundRemovalOptions> options,
+        CancellationToken cancellationToken)
+    {
+        NoStore(httpContext);
+        try
+        {
+            await antiforgery.ValidateRequestAsync(httpContext);
+        }
+        catch (AntiforgeryValidationException)
+        {
+            return Problem(StatusCodes.Status400BadRequest, "The request could not be validated. Reload the page and try again.");
+        }
+
+        var contentType = httpContext.Request.ContentType?.Split(';')[0].Trim();
+        if (contentType is null || !PhotoTypes.Contains(contentType))
+        {
+            return Problem(StatusCodes.Status415UnsupportedMediaType, "Send the photo as PNG, JPG or WEBP.");
+        }
+
+        var settings = options.CurrentValue;
+        var limit = settings.EffectiveUploadBytes;
+        if (httpContext.Request.ContentLength > limit)
+        {
+            return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
+        }
+
+        var service = httpContext.RequestServices.GetService<IPassportFaceService>();
+        if (service is null || !await service.IsAvailableAsync(cancellationToken))
+        {
+            return Problem(StatusCodes.Status503ServiceUnavailable, FaceNotSetUpMessage);
+        }
+
+        // A place is taken before the photo is read, as for the mask: a photo still arriving counts,
+        // so uploads never hold more photos in memory than there are places. Given back on every way out.
+        using var place = service.TryTakePlace();
+        if (place is null)
+        {
+            return Busy(httpContext);
+        }
+
+        var sizeLimit = httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (sizeLimit is { IsReadOnly: false })
+        {
+            sizeLimit.MaxRequestBodySize = limit;
+        }
+
+        using var uploadDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        uploadDeadline.CancelAfter(UploadDeadline(settings));
+        byte[] photo;
+        try
+        {
+            photo = await ReadBodyAsync(httpContext.Request.Body, httpContext.Request.ContentLength, limit, uploadDeadline.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return Problem(StatusCodes.Status408RequestTimeout, "The photo took too long to arrive. Try again.");
+        }
+        catch (Exception error) when (error is InvalidDataException or BadHttpRequestException)
+        {
+            return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
+        }
+        catch (EndOfStreamException)
+        {
+            return Problem(StatusCodes.Status400BadRequest, "The photo did not arrive in full. Try again.");
+        }
+
+        var result = await service.LocateAsync(photo, cancellationToken, place);
+        return result.Outcome switch
+        {
+            PassportFaceOutcome.Found or PassportFaceOutcome.NoFace => Results.Ok(new
+            {
+                found = result.Face is not null,
+                imageWidth = result.ImageWidth,
+                imageHeight = result.ImageHeight,
+                face = result.Face is { } face
+                    ? new { left = face.Left, top = face.Top, width = face.Width, height = face.Height, confidence = face.Confidence }
+                    : null,
+                // Right eye, left eye, nose tip, right and left corner of the mouth, as seen in the photo.
+                points = result.Face?.Points.Select(point => new[] { point.X, point.Y }).ToArray()
+            }),
+            PassportFaceOutcome.Unavailable => Problem(StatusCodes.Status503ServiceUnavailable, FaceNotSetUpMessage),
+            PassportFaceOutcome.Busy => Busy(httpContext),
+            PassportFaceOutcome.NotAPhoto => Problem(StatusCodes.Status415UnsupportedMediaType, "This file could not be read as a photo."),
+            PassportFaceOutcome.TooLarge => Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send."),
+            _ => Problem(StatusCodes.Status500InternalServerError, "The face could not be found in this photo.")
+        };
     }
 
     private static async Task<IResult> MaskAsync(
