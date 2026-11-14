@@ -106,3 +106,8 @@ tests.
 | 4 | Passport photo: the face placed and straightened on open, "Place the face again", the guide at about 75% head height, and checks from the real face |
 | 5 | Passport photo: the model when colour cannot cope and on Better edges, with the Remove background edge steps, brushes on the mask, waiting and Try again |
 | 6 | Phones, Dark theme, keyboard and the docs (`docs/photo-tools.md`, the install guides) |
+
+Status (14 Nov 2026): PRs 1 to 4 merged (#3213, #3214, #3215, #3216); PR 5 is #3217. PR 6 also
+moved the waiting note into the Background panel (on a phone it was off screen), made the model
+wait for the face to be placed before asking by itself, and asks the server again while it is
+still getting the model ready, so Better edges appears without reopening the photo.

@@ -9,16 +9,19 @@ describes what is built.
 
 ## Privacy and data contract
 
-- Every operation runs in the user's browser, with one exception: **Remove background** sends a
-  copy of the photo (at most 2048 px) to the PRISM server, whose model returns only a mask. The
-  server holds the photo in memory for that request and never writes, stores or logs it (see
+- Every operation runs in the user's browser, with two exceptions that use the PRISM server:
+  **Remove background** sends a copy of the photo (at most 2048 px), whose model returns only a
+  mask; and **Passport photo** sends a copy (at most 1600 px) to find where the face is, and, when
+  its colour method cannot change the background or the user presses Better edges, the same copy
+  as Remove background for the mask. The server holds the photo in memory for that request and
+  never writes, stores or logs it (see
   [photo-tools-background-removal.md](photo-tools-background-removal.md)). Photos are read with
   the File API, drawn on a canvas and downloaded with a `blob:` link.
 - Nothing is stored or retained by PRISM. The page model (`Pages/Tools/Photo/Index.cshtml.cs`)
-  has only `OnGet`; there is no form post, database table or migration. The only API is the
-  two Remove background endpoints (`Features/PhotoTools/PhotoToolsApi.cs`): status, and the
-  mask of one photo, both for signed-in users, the second also checked for the antiforgery
-  token.
+  has only `OnGet`; there is no form post, database table or migration. The only API is three
+  endpoints (`Features/PhotoTools/PhotoToolsApi.cs`): status, the mask of one photo, and where
+  the face is in one photo, all for signed-in users, the last two also checked for the
+  antiforgery token.
 - The page requires a signed-in user (`[Authorize]`), like the rest of PRISM.
 - Usage telemetry records only that the `photo-tools` module was opened
   (`ErpUsageModuleCatalog`), never file names or contents.
@@ -38,7 +41,8 @@ required, no handler other than `OnGet`, no form, every asset the page names shi
 no outside address in the page or its stylesheets (no `@import`, no outside `url()`), and no
 network call (`fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource`, `import()`,
 `importScripts`, `new Worker`) in any script the page loads, read from the page itself, but
-`photo-tools-background.js`, and that one only to the two Remove background endpoints.
+`photo-tools-background.js`, and that one only to the three PRISM endpoints. Passport photo asks
+the server only through it (`window.PrismPhotoServer`).
 
 ## Offline deployment
 
@@ -54,7 +58,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Tool | What it does |
 | --- | --- |
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none); the pixels are kept unless the size cannot be reached otherwise, or made fewer on request; save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
-| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). Drag, zoom, straighten (±15°) and rotate. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour. What the tool gets wrong is touched up with Refine edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
+| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). The face is placed for you when the PRISM server's face detector is set up: straightened, sized and centred on the guide. Drag, zoom, straighten (±15°) and rotate; Place the face again puts it back. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour; any other background uses Remove background's model when it is set up (by itself, or with Better edges). What the tool gets wrong is touched up with Refine edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
 | Signature | Its own card on the home screen (`#signature`), which opens the Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
 | Remove background | One photo, any background. The PRISM server's model (BRIA RMBG) finds the subject; the browser takes the old background's tint out of the soft edge, and the cut-out is saved see-through (PNG, WEBP), on a plain colour or on a blur of its own background (JPG, PNG, WEBP), at up to 4096 px. Refine edge, Erase and Restore brushes touch up the edge. Off until an administrator installs the model; see [photo-tools-background-removal.md](photo-tools-background-removal.md). |
@@ -91,14 +95,37 @@ of 13 Nov 2026 are planned in [ux/photo-tools-review-fixes.md](ux/photo-tools-re
   between the darkest and brightest half percent, and corrects most of a colour cast. The same
   correction is applied to the preview and the saved photo. It does not change the background;
   that is the Background choice below.
-- The face guide is an aid for placing the head. It is not a check against any authority's rules;
-  nor are the checks listed in step 3 (see below).
+- The face guide asks for the head (top of the head to chin) at about 75% of the photo's height:
+  its lines are at 8% and 83% (owner decision, 14 Nov 2026; Indian passport photos ask for 70 to
+  80%). It is an aid for placing the head, not a check against any authority's rules; nor are the
+  checks listed in step 3 (see below).
+
+### How the face is placed
+
+When a photo is opened in Photo mode, Passport photo sends its 1600 px screen copy to
+`POST /api/photo-tools/face`. The server runs only the Photos library's face detector (no
+recogniser, no record) and answers the largest face's box and five points, or "no face".
+`placeFace` in the core file then:
+
+- turns the photo so the eyes are level, within the ±15° the Straighten slider allows (in its
+  half degrees);
+- estimates the top of the head, because the detector's box ends at the brow: as far above the
+  eyes as the chin is below them, plus 5% for hair;
+- zooms (1 to 4 times) so the top of the head and the chin sit on the guide's two lines, and
+  moves the photo so the eyes are in the middle across.
+
+If the user moves, zooms or straightens before the answer arrives, the photo is left where they
+put it. **Place the face again** (shown when a face was found) puts it back. Opening another
+photo, turning it a quarter or switching from Signature back to Photo asks again. A face that is
+small in a wide photo stops at 4 times, and the checks then say the head is small. Without the
+face detector set up nothing is asked and the photo is placed by hand.
 
 ### How the background colour is changed
 
 Background (Keep, White, Light blue, or any colour) is a choice in step 2 of Passport photo. It
-finds the background by colour, starting from the edges of the photo. There is no model that
-knows what a person looks like, so it works on a plain wall or curtain and refuses anything else.
+first finds the background by colour, starting from the edges of the photo, which works on a plain
+wall or curtain and refuses anything else. Where that cannot cope, Remove background's model
+is used (see "When the model is used" below).
 
 It runs on the cropped photo at its saved size, after the lighting fix and brightness, so the new
 colour is exactly the colour chosen (`changeBackground` in the core file):
@@ -222,6 +249,30 @@ step through them, as in Photoshop), Undo, Reset (removes every stroke) and Done
   applied, while the background is set to Keep or cannot be changed. A change of background
   colour applies them in the new colour. Print sheet receives the photo with its strokes.
 
+### When the model is used
+
+Owner decision (14 Nov 2026): the colour method stays first, because a plain, evenly lit wall needs
+no wait and no place in the server's one-photo-at-a-time queue.
+
+- **By itself**, once per photo, when the colour method gives up on the placed photo (not plain
+  enough, no plain background found, or too much taken). It waits until the face has been placed,
+  so the whole photo shown for a moment on opening does not count.
+- **Better edges** asks for it on purpose (a shadowed wall, a white shirt on a white wall, loose
+  hair). It is shown only when Remove background is set up on the server.
+- It sends the same copy as Remove background (at most 2048 px) and makes the cut-out the same way
+  (the old background's tint taken out of hair and edges). The cut-out is kept with the photo and
+  placed with it, so moving the photo or changing the colour afterwards is instant and sends
+  nothing. Touch up edges (Refine edge, Erase, Restore) works on the model's mask.
+- While it works, a note in the Background panel says "Finding the person…", then "Still working"
+  with **Cancel** after 8 seconds. If the server is busy, too slow or out of reach, the photo
+  keeps the colour method's result and the note offers **Try again**. The photo can be moved
+  while it waits. A keyboard user who pressed Better edges is taken to the note, then to the line
+  that says the model was used.
+- The model keeps whatever it sees as the subject: a second person, or a machine the person stands
+  in front of, stays in the photo. The Erase brush takes it out.
+- Without Remove background set up, the colour method is used as before and Better edges is not
+  shown.
+
 ### Checks before saving a passport photo
 
 Under the file's size, step 3 lists what a form is likely to reject, or says "No problems
@@ -231,12 +282,14 @@ without a model that knows what a face looks like (`passportChecks` in the core 
 | Check | How it is measured | Warns when |
 | --- | --- | --- |
 | Detail | How many times the photo is enlarged to fill the frame | Over 1.2 times |
-| Head position | The person's outline from the background search (`findBackground`, `headOutline`): the first rows where the middle of the photo stays person | The head touches the top edge, or starts well above or below the guide's top line (10% of the height) |
-| Head size | The width of the outline across the rows where the face is | It fills more than 85% of the width, or under a third |
+| Face | The face detector, when it is set up | No face was found |
+| Head position | The face found by the detector (top of the head estimated as for placing it), or, without it, the person's outline from the background search (`findBackground`, `headOutline`) | The head touches the top edge, or starts well above or below the guide's top line (8% of the height); with the face found, also when the face is off the middle across |
+| Head size | The face found by the detector: top of the head to chin; or the width of the outline across the rows where the face is | With the face: well over or under the guide's 75%. With the outline: it fills more than 85% of the width, or under a third |
 | Background | The same reading of the edges that the background change uses | The edges are not plain, or the colour is not light. Not shown once the background has been replaced |
 | Light on the face | Average brightness inside the guide's oval | Very dark or washed out |
 
-- Head position and size need a background the tool can tell the person from. With a busy
+- With the face detector, head position and size are judged from the real face on any
+  background. Without it they need a background the tool can tell the person from; with a busy
   background they are not judged, and only the background warning shows.
 - The outline is the hair as well as the face, so "top of the head" means the top of the hair.
   A line along the edge of a scan, or a mark on the wall, is not taken for the head: the head
@@ -379,6 +432,11 @@ step, so Undo takes it back.
   text colour, because the stock grey is too faint on a dark surface.
 - **Keyboard.** The passport frame, the crop box and the photo under Mark up and Hide all work
   with the arrow keys and Enter; Ctrl+Z and Ctrl+Y undo and redo in the editor.
+- **Passport photo.** Place the face again sits in the bar under the photo with Rotate, at 44 px
+  on a phone. The note while the model works is in the Background panel, next to the colour or
+  Better edges that asked for it, so on a phone it is on the screen where the user tapped; it
+  uses the theme's tertiary background, in Light and Dark. Focus moves from Better edges to the
+  note, to Try again when the server is busy, and to the model's line when it is done.
 
 ### How the target size is reached
 
@@ -419,12 +477,12 @@ see-through areas with white.
 | `wwwroot/js/photo-tools/photo-tools-core.test.js` | Node tests, part of `npm test`. |
 | `wwwroot/js/photo-tools/photo-tools-canvas.js` | Browser helpers shared by the tools: open a photo, draw it at a new size, canvas to file bytes, save, show an error. |
 | `wwwroot/js/photo-tools/photo-tools-app.js` | Shell, routing (`#tool`) and Reduce size. |
-| `wwwroot/js/photo-tools/photo-tools-passport.js` | Passport photo and signature. Hands the finished photo to Print sheet. |
+| `wwwroot/js/photo-tools/photo-tools-passport.js` | Passport photo and signature: the face placed, the colour method and the model's cut-out, the checks. Hands the finished photo to Print sheet. |
 | `wwwroot/js/photo-tools/photo-tools-print.js` | Print sheet: preview, paper, copies, the saved PDF or JPG. |
 | `wwwroot/lib/pdf-lib/1.17.1/` | PDF library shared with PDF Tools; used here to write the print sheet PDF. |
 | `wwwroot/js/photo-tools/photo-tools-editor.js` | Edit photo. |
-| `wwwroot/js/photo-tools/photo-tools-background.js` | Remove background: asks the server for the mask, then the cut-out, brushes and saving. |
-| `Features/PhotoTools/` | Remove background on the server: settings, model check, ONNX Runtime, the queue and the two endpoints. |
+| `wwwroot/js/photo-tools/photo-tools-background.js` | Remove background: asks the server for the mask, then the cut-out, brushes and saving. The only script that talks to the server: it also lends Passport photo the status, the face and the mask (`window.PrismPhotoServer`). |
+| `Features/PhotoTools/` | The server side: Remove background (settings, model check, ONNX Runtime, the queue), the face for Passport photo (`PassportFaceService`, the Photos library's detector only), and the three endpoints. |
 | `wwwroot/js/tools-shared/zip-writer.js` | ZIP writer shared with PDF Tools. |
 | `wwwroot/css/photo-tools.css` | Photo Tools styles. The shell (top bar, home cards, drop zone) is shared with PDF Tools through `pdf-tools.css`. Bootstrap theme variables only, so Light and Dark both work. |
 
@@ -442,5 +500,6 @@ see-through areas with white.
 - Reduce size shows a small thumbnail of each photo once it has been opened; a photo still
   waiting shows an empty box.
 - Remove background needs the PRISM server and its installed model. When either is missing the
-  screen says so and the other tools are not affected. See
+  screen says so and the other tools are not affected. Passport photo then uses its colour method
+  only, and places the face only when the Photos library's face detector is installed. See
   [photo-tools-background-removal.md](photo-tools-background-removal.md) for its own limits.
