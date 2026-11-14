@@ -338,6 +338,48 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Empty((await host.SearchAsync("ospreyfalcon")).Results);
     }
 
+    // Triggers stamp a re-queue with NOW(), the start of the user's transaction. A change whose
+    // transaction began before the worker leased the record, but committed after the worker read
+    // it, used to be stamped earlier than the lease, and completing the item deleted it.
+    [SearchV2PostgresFact]
+    public async Task AChangeCommittedWhileItsRecordIsBeingIndexed_StaysQueued()
+    {
+        await using var host = _database.CreateHost();
+        var projectId = await host.SeedProjectAsync("Merlinhawk planner");
+        var key = projectId.ToString();
+        await host.ResetIndexStateAsync();
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+
+        await using var editor = await host.OpenConnectionAsync();
+        await using var edit = await editor.BeginTransactionAsync();
+        await using (var start = new NpgsqlCommand("SELECT now();", editor, edit))
+        {
+            await start.ExecuteScalarAsync();
+        }
+
+        SearchIndexWorkItem? item = null;
+        await host.WithStoreAsync(store => store.EnqueueAsync("Project", key, CancellationToken.None));
+        await host.WithStoreAsync(async store => item = await store.DequeueAsync(CancellationToken.None));
+        Assert.NotNull(item);
+
+        await using (var rename = new NpgsqlCommand($"""UPDATE "Projects" SET "Name" = 'Merlinhawk planner renamed' WHERE "Id" = {projectId};""", editor, edit))
+        {
+            await rename.ExecuteNonQueryAsync();
+        }
+
+        await edit.CommitAsync();
+        await host.WithStoreAsync(store => store.CompleteAsync(item!, CancellationToken.None));
+
+        Assert.Equal(1L, await host.ScalarAsync<long>(
+            $"""SELECT COUNT(*) FROM "SearchIndexWorkItems" WHERE "EntityType" = 'Project' AND "EntityKey" = '{key}' AND "Status" = 0;"""));
+
+        // An item nobody touched while it was leased is deleted as before.
+        await host.WithStoreAsync(async store => item = await store.DequeueAsync(CancellationToken.None));
+        await host.WithStoreAsync(store => store.CompleteAsync(item!, CancellationToken.None));
+        Assert.Equal(0L, await host.ScalarAsync<long>(
+            $"""SELECT COUNT(*) FROM "SearchIndexWorkItems" WHERE "EntityType" = 'Project' AND "EntityKey" = '{key}';"""));
+    }
+
     // Regression for 42P08 "could not determine data type of parameter $4": re-indexing any
     // record other than a project passes a null @projectId to "@projectId IS NOT NULL", which
     // PostgreSQL cannot type unless the parameter is. 27 work items failed this way on 23-25 Oct
@@ -777,6 +819,15 @@ internal sealed class SearchV2TestHost : IAsyncDisposable
         db.ProjectDocuments.Add(document);
         await db.SaveChangesAsync();
         return document.Id;
+    }
+
+    public async Task<NpgsqlConnection> OpenConnectionAsync()
+    {
+        using var scope = _services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var connection = new NpgsqlConnection(db.Database.GetConnectionString());
+        await connection.OpenAsync();
+        return connection;
     }
 
     public async Task<long> CountEntriesAsync(string entityType, string entityKey)
