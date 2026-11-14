@@ -53,11 +53,17 @@ public sealed record SearchProjection(
     IReadOnlyList<SearchProjectionPrincipal> Principals,
     string? MetadataJson = null);
 
+/// <param name="LeaseToken">
+/// The work-item row's version (PostgreSQL <c>xmin</c>) when it was leased. Completing the
+/// item deletes it only if the row is unchanged since, so a change queued while it was
+/// being indexed is never lost. Null for items not read from the database.
+/// </param>
 public sealed record SearchIndexWorkItem(
     long Id,
     string EntityType,
     string EntityKey,
-    int RetryCount);
+    int RetryCount,
+    string? LeaseToken = null);
 
 public sealed record SearchFailedIndexWorkItem(
     long Id,

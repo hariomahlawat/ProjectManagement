@@ -75,7 +75,7 @@ once PR 8 lands; until then searches fall back to Legacy during the rebuild).
 | --- | --- | --- |
 | 1 | This plan | — |
 | 2 | Index rows follow their project: Proliferation uses the counted-projects rule; processing `Project/<id>` also re-indexes its ToT and every row whose parent is that project; ToT/IPR/Proliferation changes also re-index their Project row; IPR and Training ignore trashed projects; `ProjectionVersion` 8; Postgres tests | M1, M2, L9, L13 (§4.6) |
-| 3 | No lost index updates: an additive migration replaces the enqueue function to stamp `clock_timestamp()`; test for the dequeue/commit race | M3 |
+| 3 | No lost index updates: completing a work item deletes it only if its row is unchanged since the lease (PostgreSQL `xmin`), so no migration is needed; test for the dequeue/commit race | M3 |
 | 4 | Limits: submitted searches need two characters, prefix/contains channels three; `SET LOCAL statement_timeout` inside the search transaction, answered as unavailable; tests | M4 |
 | 5 | Suggestions stop writing query-log rows (latency kept in process); Legacy-Fallback counts on the search-health dashboard | M6, L11 |
 | 6 | Page fixes: Show more double tap, Source chips and true banner wording, `role="status"` warnings, per-source icons and a type label on phones, tab scroll hint, filter sheet as a dialog, 44 px targets; `docs/ux/search.md` | M11–M15, L3, L6 |

@@ -20,7 +20,11 @@ public interface ISearchIndexStore
     Task ReplaceEntityAsync(string requestedEntityType, string requestedEntityKey, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken);
     Task EnqueueAsync(string entityType, string entityKey, CancellationToken cancellationToken);
     Task<SearchIndexWorkItem?> DequeueAsync(CancellationToken cancellationToken, string? entityType = null);
-    Task CompleteAsync(long workItemId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Finishes a leased item: deletes it, or returns it to Pending when its row changed after
+    /// the lease (the record was changed again while it was being indexed).
+    /// </summary>
+    Task CompleteAsync(SearchIndexWorkItem item, CancellationToken cancellationToken);
 
     /// <summary>
     /// Returns abandoned leases to Pending. Full-rebuild requests are excluded unless
@@ -315,12 +319,12 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 UPDATE "SearchIndexWorkItems" w
                 SET "Status" = 1, "StartedAtUtc" = NOW()
                 WHERE w."Id" = (SELECT "Id" FROM next_item)
-                RETURNING w."Id", w."EntityType", w."EntityKey", w."RetryCount";
+                RETURNING w."Id", w."EntityType", w."EntityKey", w."RetryCount", w.xmin::text;
                 """;
             Add(command, "entityType", entityType);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken)) return null;
-            return new SearchIndexWorkItem(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3));
+            return new SearchIndexWorkItem(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3), reader.GetString(4));
         }
         catch (Exception ex) when (IsSchemaUnavailable(ex))
         {
@@ -332,11 +336,36 @@ public sealed class SearchIndexStore : ISearchIndexStore
         }
     }
 
-    public Task CompleteAsync(long workItemId, CancellationToken cancellationToken) =>
-        _db.Database.ExecuteSqlInterpolatedAsync($"""
+    public Task CompleteAsync(SearchIndexWorkItem item, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        var workItemId = item.Id;
+        if (item.LeaseToken is null)
+        {
+            return _db.Database.ExecuteSqlInterpolatedAsync($"""
+                DELETE FROM "SearchIndexWorkItems"
+                WHERE "Id" = {workItemId}
+                  AND ("StartedAtUtc" IS NULL OR "RequestedAtUtc" <= "StartedAtUtc");
+
+                UPDATE "SearchIndexWorkItems"
+                SET "Status" = 0,
+                    "StartedAtUtc" = NULL,
+                    "NextAttemptAtUtc" = NOW(),
+                    "LastError" = NULL
+                WHERE "Id" = {workItemId}
+                  AND "RequestedAtUtc" > "StartedAtUtc";
+                """, cancellationToken);
+        }
+
+        // Any write to the row after the lease (a trigger re-queueing the record, a rebuild
+        // request, stale-lease recovery) gives it a new xmin. Timestamps cannot be used: the
+        // triggers stamp NOW(), the start of the user's transaction, which can be earlier than
+        // the lease even though the change commits after the worker read the old data.
+        var token = item.LeaseToken;
+        return _db.Database.ExecuteSqlInterpolatedAsync($"""
             DELETE FROM "SearchIndexWorkItems"
             WHERE "Id" = {workItemId}
-              AND ("StartedAtUtc" IS NULL OR "RequestedAtUtc" <= "StartedAtUtc");
+              AND xmin::text = {token};
 
             UPDATE "SearchIndexWorkItems"
             SET "Status" = 0,
@@ -344,8 +373,9 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 "NextAttemptAtUtc" = NOW(),
                 "LastError" = NULL
             WHERE "Id" = {workItemId}
-              AND "RequestedAtUtc" > "StartedAtUtc";
+              AND xmin::text <> {token};
             """, cancellationToken);
+    }
 
     public Task<int> RecoverStaleWorkItemsAsync(TimeSpan leaseTimeout, CancellationToken cancellationToken, bool includeFullRebuildRequests = false)
     {
@@ -415,8 +445,8 @@ public sealed class SearchIndexStore : ISearchIndexStore
             VALUES ({FullRebuildEntityType}, 'active', NOW(), 0, 0, NOW(), {note})
             ON CONFLICT ("EntityType", "EntityKey") DO UPDATE SET
                 "RequestedAtUtc" = NOW(),
-                -- Preserve an in-flight lease. CompleteAsync will observe the newer
-                -- RequestedAtUtc and return the row to Pending after the current build.
+                -- Preserve an in-flight lease. CompleteAsync sees the row changed since the
+                -- lease and returns it to Pending after the current build.
                 "Status" = CASE WHEN "SearchIndexWorkItems"."Status" = 1 THEN 1 ELSE 0 END,
                 "RetryCount" = CASE WHEN "SearchIndexWorkItems"."Status" = 1 THEN "SearchIndexWorkItems"."RetryCount" ELSE 0 END,
                 "NextAttemptAtUtc" = NOW(),

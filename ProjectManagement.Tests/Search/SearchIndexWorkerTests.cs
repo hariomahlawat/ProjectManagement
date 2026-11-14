@@ -395,9 +395,9 @@ public sealed class SearchIndexWorkerTests
             return Task.FromResult(0);
         }
 
-        public Task CompleteAsync(long workItemId, CancellationToken cancellationToken)
+        public Task CompleteAsync(SearchIndexWorkItem item, CancellationToken cancellationToken)
         {
-            Completed.Add(workItemId);
+            Completed.Add(item.Id);
             return Task.CompletedTask;
         }
 

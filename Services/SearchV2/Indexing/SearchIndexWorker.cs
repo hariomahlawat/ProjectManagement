@@ -248,7 +248,7 @@ public sealed class SearchIndexWorker : BackgroundService
                     var builder = scope.ServiceProvider.GetRequiredService<ISearchProjectionBuilder>();
                     var projections = await builder.BuildEntityAsync(item.EntityType, item.EntityKey, cancellationToken);
                     await store.ReplaceEntityAsync(item.EntityType, item.EntityKey, projections, _options.ProjectionVersion, cancellationToken);
-                    await store.CompleteAsync(item.Id, cancellationToken);
+                    await store.CompleteAsync(item, cancellationToken);
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
                 {
@@ -320,7 +320,7 @@ public sealed class SearchIndexWorker : BackgroundService
             case RebuildOutcome.Succeeded:
             case RebuildOutcome.Superseded:
                 // A newer process's generation satisfies the request.
-                await store.CompleteAsync(item.Id, cancellationToken);
+                await store.CompleteAsync(item, cancellationToken);
                 break;
             case RebuildOutcome.Failed:
                 await store.FailAsync(item.Id, "Full Search V2 rebuild failed. Review application logs for the underlying exception.", cancellationToken);
