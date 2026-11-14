@@ -369,9 +369,19 @@
     return Math.min(MAX_ZOOM_EVER, Math.max(MAX_ZOOM, MAX_ENLARGED / enlargedAtOne));
   }
 
-  /** The zoom slider reaches this photo's limit. */
+  /**
+   * The zoom slider reaches this photo's limit. When a new size or angle lowers the limit below
+   * the zoom in use, the photo is zoomed out to it, so the slider, the screen and the saved
+   * photo agree.
+   */
   function renderZoomRange() {
-    const max = String(Math.round(zoomLimit() * 100));
+    const limit = zoomLimit();
+    if (zoomFactor > limit) {
+      zoomFactor = limit;
+      place();
+      queueSave();
+    }
+    const max = String(Math.round(limit * 100));
     if (zoom.max !== max) zoom.max = max;
     zoom.value = String(Math.round(zoomFactor * 100));
   }
@@ -542,15 +552,17 @@
       maxAngle: 15 * Math.PI / 180,
       maxZoom
     });
-    let placement = placeAt(zoomLimit());
+    const first = zoomLimit();
+    let placement = placeAt(first);
     if (placement) {
-      // Straightening enlarges the photo a little, so the limit is worked out again at the
-      // angle it will be turned by, and the face placed again if that limit is lower.
+      // The limit depends on the angle (straightening enlarges the photo a little), so it is
+      // worked out again at the angle the face will be turned by, and the face placed again
+      // with it when it differs, higher or lower, from the limit at the angle shown now.
       const was = angle;
       angle = placement.angle;
       const limit = zoomLimit();
       angle = was;
-      if (limit < placement.zoom) placement = placeAt(limit);
+      if (Math.abs(limit - first) > 1e-6) placement = placeAt(limit);
     }
     if (!placement) {
       // On its side: Rotate first (a quarter turn opens the photo again and asks again).
