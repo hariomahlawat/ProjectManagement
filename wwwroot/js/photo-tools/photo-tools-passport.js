@@ -181,6 +181,10 @@
 
   let size = { width: core.PASSPORT_SIZES[0].width, height: core.PASSPORT_SIZES[0].height };
   let customOpen = false;
+  // Kept in this browser: per mode the size (or the custom size) and the KB limit, and the
+  // background colour. Whether Photo or Signature opens is decided by the card the user picked.
+  const remembered = shared.rememberedChoices('passport');
+  let restoring = false;
   let saved = null;
   let saveRun = 0;
   let saveTimer = null;
@@ -409,6 +413,53 @@
     renderSizes();
     layout();
     queueSave();
+    rememberChoices();
+  }
+
+  /** Keeps this mode's size, custom size and KB limit, and the background, for the next visit. */
+  function rememberChoices() {
+    if (restoring) return;
+    const all = remembered.load() || {};
+    all[mode] = {
+      width: size.width,
+      height: size.height,
+      customOpen,
+      customWidth: customWidth.value,
+      customHeight: customHeight.value,
+      customUnit: customUnit.value,
+      limit: outLimit.value.trim()
+    };
+    if (mode === 'photo') all.background = background;
+    remembered.save(all);
+  }
+
+  /** Puts back what was kept for this mode. Anything that no longer fits is left at the default. */
+  function restoreChoices() {
+    const all = remembered.load();
+    const kept = all && all[mode];
+    if (!kept) return;
+    restoring = true;
+    try {
+      if (typeof kept.limit === 'string' && kept.limit.length <= 6) outLimit.value = kept.limit;
+      const pixels = value => Number.isInteger(value) && value >= MIN_PIXELS && value <= MAX_PIXELS;
+      if (kept.customOpen && typeof kept.customWidth === 'string' && typeof kept.customHeight === 'string'
+        && Array.from(customUnit.options).some(option => option.value === kept.customUnit)) {
+        customWidth.value = kept.customWidth;
+        customHeight.value = kept.customHeight;
+        customUnit.value = kept.customUnit;
+        customOpen = true;
+        customChanged();
+      } else if (pixels(kept.width) && pixels(kept.height)) {
+        setSize(kept.width, kept.height);
+      }
+      if (mode === 'photo' && typeof all.background === 'string'
+        && (all.background === '' || /^#[0-9a-f]{6}$/i.test(all.background))) {
+        if (/^#[0-9a-f]{6}$/i.test(all.background)) bgColour.value = all.background;
+        setBackground(all.background);
+      }
+    } finally {
+      restoring = false;
+    }
   }
 
   function buildSizes() {
@@ -464,6 +515,7 @@
     renderSizes();
     layout();
     queueSave();
+    rememberChoices();
   }
 
   /**
@@ -510,7 +562,14 @@
     customUnit.value = 'mm';
     buildSizes();
     if (preview) rebuildPreview();
-    setSize(words.sizes[0].width, words.sizes[0].height);
+    // The default size first, without keeping it: it must not replace what was kept for this mode.
+    restoring = true;
+    try {
+      setSize(words.sizes[0].width, words.sizes[0].height);
+    } finally {
+      restoring = false;
+    }
+    restoreChoices();
   }
 
   // ---------------------------------------------------------------------------
@@ -575,6 +634,7 @@
     if (!colour) bgStatus = null;
     renderBackground();
     if (full) queueSave();
+    rememberChoices();
   }
 
   function backgroundColour() {
@@ -1198,7 +1258,10 @@
       pixelsChanged();
     });
   }
-  outLimit.addEventListener('input', queueSave);
+  outLimit.addEventListener('input', () => {
+    queueSave();
+    rememberChoices();
+  });
 
   downloadButton.addEventListener('click', (event) => {
     if (!saved || shared.isRepeatClick(event)) return;
@@ -1214,5 +1277,6 @@
   renderSizes();
   renderSheet();
   renderBackground();
+  restoreChoices();
   modeFromAddress();
 })();

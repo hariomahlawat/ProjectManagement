@@ -110,6 +110,12 @@
   let blurred = null;
 
   let backdrop = 'transparent';
+  // Kept in this browser: the background (see-through, a colour or the blur) and the file type.
+  const remembered = shared.rememberedChoices('remove');
+
+  function rememberChoices() {
+    remembered.save({ backdrop, format: format.value });
+  }
   let brush = 'refine';
   let brushSize = 'medium';
   let strokes = [];
@@ -923,18 +929,34 @@
       backdrop = button.dataset.removeBg;
       renderControls();
       render();
+      rememberChoices();
     });
   }
   bgColour.addEventListener('input', () => {
     backdrop = bgColour.value;
     renderControls();
     render();
+    rememberChoices();
   });
   bgColour.addEventListener('click', () => {
     backdrop = bgColour.value;
     renderControls();
     render();
+    rememberChoices();
   });
+  format.addEventListener('change', rememberChoices);
+
+  (function restoreChoices() {
+    const kept = remembered.load();
+    if (!kept) return;
+    const known = bgButtons.some(button => button.dataset.removeBg === kept.backdrop);
+    if (known || (typeof kept.backdrop === 'string' && /^#[0-9a-f]{6}$/i.test(kept.backdrop))) {
+      backdrop = kept.backdrop;
+      if (!known) bgColour.value = kept.backdrop;
+    }
+    // Set before the controls are drawn: JPG is then refused again if See-through came back.
+    if (Array.from(format.options).some(option => option.value === kept.format)) format.value = kept.format;
+  })();
   for (const button of brushButtons) {
     button.addEventListener('click', () => {
       brush = button.dataset.removeBrush;

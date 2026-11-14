@@ -884,9 +884,18 @@
     saveTimer = setTimeout(save, SETTLE_MS);
   }
 
+  // Kept in this browser once the user has picked them: the file type and the quality. Until then
+  // a photo is saved in its own type, as before.
+  const remembered = shared.rememberedChoices('edit');
+
+  function rememberChoices() {
+    remembered.save({ format: format.value, quality: Number(quality.value) });
+  }
+
   function formatChanged() {
     const type = chosenType();
     qualityRow.hidden = !type.lossy;
+    rememberChoices();
     queueSave();
   }
 
@@ -908,7 +917,15 @@
     undone = [];
     const size = shared.sizeOf(source);
     fileLabel.textContent = `${file.name} · ${size.width} × ${size.height} px · ${core.formatBytes(file.size)}`;
-    format.value = Object.keys(core.TYPES).find(key => core.TYPES[key] === core.outputType(file.type, 'same')) || 'jpeg';
+    const kept = remembered.load();
+    const keptFormat = kept && Array.from(format.options).some(option => option.value === kept.format) ? kept.format : null;
+    format.value = keptFormat
+      || Object.keys(core.TYPES).find(key => core.TYPES[key] === core.outputType(file.type, 'same'))
+      || 'jpeg';
+    if (kept && Number(kept.quality) >= Number(quality.min) && Number(kept.quality) <= Number(quality.max)) {
+      quality.value = String(kept.quality);
+      qualityValue.textContent = quality.value;
+    }
     qualityRow.hidden = !chosenType().lossy;
     emptyDrop.hidden = true;
     workspace.hidden = false;
@@ -1097,6 +1114,7 @@
   format.addEventListener('change', formatChanged);
   quality.addEventListener('input', () => {
     qualityValue.textContent = quality.value;
+    rememberChoices();
     queueSave();
   });
 
