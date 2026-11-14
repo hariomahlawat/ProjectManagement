@@ -231,6 +231,8 @@
     const off = Boolean(status) && !status.available && !PASSING_STATES.has(status.state) && status.state !== 'signed-out' && 'state' in status;
     homeCard.classList.toggle('is-off', off);
     homeCardNote.hidden = !off;
+    // Other screens' Continue in buttons do not offer a tool that is not set up.
+    for (const button of document.querySelectorAll('[data-send-to="remove"]')) button.hidden = off;
     if (off) {
       homeCardNote.id = homeCardNote.id || 'photRemoveCardNote';
       homeCard.setAttribute('aria-describedby', homeCardNote.id);
@@ -899,7 +901,12 @@
     canvasToFree.height = 0;
   }
 
-  async function download() {
+  /**
+   * Makes the file of the cut-out as the screen shows it and downloads it, or, with `sendTo`,
+   * opens it in that tool instead (Continue in). Sending is not saving: the work here still
+   * counts as unsaved.
+   */
+  async function download(sendTo = null, sendLabel = '') {
     if (!cutout || busy) return;
     shared.clearError();
     // Everything the file is made from is taken now. Another photo may be opened while it is made:
@@ -944,13 +951,23 @@
       const bytes = await shared.canvasToBytes(picture, job.type, 0.92);
       release(picture);
       const suffix = job.backdrop === 'transparent' ? 'cutout' : 'new-background';
-      shared.saveBlob(new Blob([bytes], { type: job.type.mime }), `${core.baseName(job.fileName)}-${suffix}.${job.type.extension}`);
-      // Only when the file holds the mask on the screen: a stroke, Undo or Reset made while it was
-      // being made is still unsaved.
-      if (job.revision === maskRevision) shared.setUnsaved('remove', false);
-      if (current()) {
-        resultLine.className = 'phot-result is-ready';
-        resultLine.textContent = `Saved: ${size.width} × ${size.height} px, ${core.formatBytes(bytes.length)}, ${job.type.label}.`;
+      const name = `${core.baseName(job.fileName)}-${suffix}.${job.type.extension}`;
+      const made = `${size.width} × ${size.height} px, ${core.formatBytes(bytes.length)}, ${job.type.label}`;
+      if (sendTo) {
+        if (current()) {
+          resultLine.className = 'phot-result is-ready';
+          resultLine.textContent = `Opened in ${sendLabel}: ${made}.`;
+        }
+        shared.sendPhoto(sendTo, new File([bytes], name, { type: job.type.mime }));
+      } else {
+        shared.saveBlob(new Blob([bytes], { type: job.type.mime }), name);
+        // Only when the file holds the mask on the screen: a stroke, Undo or Reset made while it was
+        // being made is still unsaved.
+        if (job.revision === maskRevision) shared.setUnsaved('remove', false);
+        if (current()) {
+          resultLine.className = 'phot-result is-ready';
+          resultLine.textContent = `Saved: ${made}.`;
+        }
       }
     } catch (error) {
       if (!(error instanceof core.PhotoToolError)) console.error(error);
@@ -1118,7 +1135,9 @@
       render();
     });
   }
-  downloadButton.addEventListener('click', download);
+  downloadButton.addEventListener('click', () => download());
+  // Continue in another tool: the file Download would save, opened there.
+  shared.wireSendButtons(view, downloadButton, (screen, label) => download(screen, label));
   cancelButton.addEventListener('click', () => {
     if (!maskRequest) return;
     cancelledByUser = true;

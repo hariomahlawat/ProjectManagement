@@ -760,6 +760,26 @@
                         <button type="button" class="btn btn-primary btn-lg" data-action="download-edit" disabled>
                             <i class="bi bi-download" aria-hidden="true"></i> Download photo
                         </button>
+                        @* Continue in another tool: the photo Download would save, opened there
+                           (photo-tools-canvas.js, sendPhoto). *@
+                        <div class="phot-next phot-continue" role="group" aria-labelledby="photEditContinueTitle">
+                            <p class="phot-continue__title" id="photEditContinueTitle">Continue in another tool</p>
+                            <div class="phot-continue__buttons">
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-send-to="passport" disabled>
+                                    <i class="bi bi-person-bounding-box" aria-hidden="true"></i> Passport photo
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-send-to="remove" disabled>
+                                    <i class="bi bi-person-square" aria-hidden="true"></i> Remove background
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-send-to="reduce" disabled>
+                                    <i class="bi bi-arrows-angle-contract" aria-hidden="true"></i> Reduce size
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-send-to="sheet" disabled>
+                                    <i class="bi bi-printer" aria-hidden="true"></i> Print sheet
+                                </button>
+                            </div>
+                            <p class="phot-hint">Opens the photo there as Download would save it. This screen keeps its work.</p>
+                        </div>
                         <p class="phot-hint">
                             <i class="bi bi-geo-alt" aria-hidden="true"></i>
                             Location and camera details hidden in a photo are always left out of the saved file.
@@ -899,6 +919,26 @@
                         <button type="button" class="btn btn-primary btn-lg" data-action="download-remove" disabled>
                             <i class="bi bi-download" aria-hidden="true"></i> Download
                         </button>
+                        @* Continue in another tool: the photo Download would save, opened there
+                           (photo-tools-canvas.js, sendPhoto). *@
+                        <div class="phot-next phot-continue" role="group" aria-labelledby="photRemoveContinueTitle">
+                            <p class="phot-continue__title" id="photRemoveContinueTitle">Continue in another tool</p>
+                            <div class="phot-continue__buttons">
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-send-to="edit" disabled>
+                                    <i class="bi bi-crop" aria-hidden="true"></i> Edit photo
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-send-to="passport" disabled>
+                                    <i class="bi bi-person-bounding-box" aria-hidden="true"></i> Passport photo
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-send-to="reduce" disabled>
+                                    <i class="bi bi-arrows-angle-contract" aria-hidden="true"></i> Reduce size
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-send-to="sheet" disabled>
+                                    <i class="bi bi-printer" aria-hidden="true"></i> Print sheet
+                                </button>
+                            </div>
+                            <p class="phot-hint">Opens the photo there as Download would save it. This screen keeps its work.</p>
+                        </div>
                         <p class="phot-hint">
                             <i class="bi bi-shield-lock" aria-hidden="true"></i>
                             The photo was sent to the PRISM server only to find the person or object. It is not stored there. Location and camera details are left out of the saved file.
