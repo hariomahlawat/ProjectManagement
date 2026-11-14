@@ -437,6 +437,8 @@
   function restoreChoices() {
     const all = remembered.load();
     const kept = all && all[mode];
+    // Each mode has its own limit: start from "No limit", so Signature never inherits Photo's.
+    outLimit.value = '';
     if (!kept) return;
     restoring = true;
     try {
