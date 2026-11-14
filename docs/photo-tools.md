@@ -29,7 +29,7 @@ describes what is built.
   is never in the saved file. The page says so.
 - Each screen's last choices are remembered in that browser's `localStorage` only, under
   `prism.photoTools.<screen>`: Reduce size (target, width and height with the exact size and its fit, file type, black and
-  white),
+  white, the watermark with its text),
   Passport photo (per Photo or Signature: the size or custom size and the KB limit; and the
   background colour), Print sheet (paper, PDF or JPG, cut lines), Edit photo (file type and
   quality, once picked) and Remove background (background and file type). Photos are never kept,
@@ -59,7 +59,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 
 | Tool | What it does |
 | --- | --- |
-| Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none); the pixels are kept unless the size cannot be reached otherwise, or made fewer on request, or set to an exact width and height (crop to fill, or fit inside with a white border); save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
+| Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none); the pixels are kept unless the size cannot be reached otherwise, or made fewer on request, or set to an exact width and height (crop to fill, or fit inside with a white border); save as JPG, PNG, WEBP or the original type, optional black and white, optional watermark. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). The face is placed for you when the PRISM server's face detector is set up: straightened, sized and centred on the guide. Drag, zoom, straighten (±15°) and rotate; Place the face again puts it back. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, 630 × 810 px for online forms that ask for pixels (the shape of 35 × 45 mm; no one portal is named), custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour; any other background uses Remove background's model when it is set up (by itself, or with Better edges). What the tool gets wrong is touched up with Refine edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
 | ID card copy | Its own tool (`#idcard`). The front and back of a card, 85.6 × 54 mm (Aadhaar, PAN, a driving licence, a bank card), on one A4 page at true size, the front above the back. Each side is dragged and zoomed so only the card is printed, and turned a quarter when it was photographed on its side. Wide or upright card, a thin outline, black and white. One side alone can be saved. Saved as a PDF whose page is A4 (recommended), or one JPG at 300 dpi. |
@@ -525,6 +525,26 @@ how a photo of another shape is made to fit.
   the boxes says so in amber.
 - `core.exactFit` works out the part of the photo to read and where it goes; `drawExact` in
   `photo-tools-canvas.js` draws it. Both are tested in Node (`exactFit`, `parseExactSide`).
+
+### Watermark (Reduce size)
+
+A **Watermark** panel in Reduce size puts a line of text on every photo, such as "For official
+use only" or a name and date (plan: [ux/photo-tools-more.md](ux/photo-tools-more.md)).
+
+- **Add a watermark** is off by default. When on: **Text** (up to 60 characters; empty adds
+  nothing), **Place** (Bottom right, Bottom left, Centre, or Across the photo, repeated at a
+  slant) and **Strength** (Light, Strong).
+- White letters with a soft dark edge, so the text reads on light and dark photos alike.
+- The size is a share of the photo's shorter side (4.5%, or 6% across), so it looks the same on a
+  small and a large photo; text too long for the photo is made smaller to fit.
+- It is drawn after the size and black and white are applied, so it stays sharp and keeps its
+  size whatever the photo was reduced to. It counts toward the file size like the rest of the
+  photo.
+- A watermarked photo is not compared with the original's size: it is not tried again at a lower
+  quality to get under it, and is never marked "not smaller" (the original has no watermark, so
+  "use the original" would be the wrong advice).
+- `core.watermarkPlan` works out the size, place and repeat steps (tested in Node);
+  `drawWatermark` in `photo-tools-canvas.js` draws it.
 
 ### Pasting a photo
 
