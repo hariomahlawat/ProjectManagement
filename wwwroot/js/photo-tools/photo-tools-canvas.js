@@ -166,6 +166,23 @@
     return canvas;
   }
 
+  /**
+   * Draws a photo at an exact size from a plan made by core.exactFit: the part of the photo in
+   * plan.area goes to plan.place, and any space left round it is white.
+   */
+  function drawExact(source, plan, options) {
+    const { place } = plan;
+    const filled = place.x === 0 && place.y === 0 && place.width === plan.width && place.height === plan.height;
+    if (filled) return drawPhoto(source, plan.width, plan.height, { ...options, area: plan.area });
+    const inner = drawPhoto(source, place.width, place.height, { ...options, area: plan.area });
+    const canvas = newCanvas(plan.width, plan.height);
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, plan.width, plan.height);
+    context.drawImage(inner, place.x, place.y);
+    return canvas;
+  }
+
   function canvasToBytes(canvas, type, quality) {
     return new Promise((resolve, reject) => {
       canvas.toBlob(async (blob) => {
@@ -464,7 +481,7 @@
   }
 
   window.PrismPhotoCanvas = Object.freeze({
-    showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, canvasToBytes,
+    showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, drawExact, canvasToBytes,
     isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton, rememberedChoices,
     setUnsaved, wireSaveBar, viewsForFailedScript, markCouldNotStart, receivePhotos, pastedName,
     sendPhoto, wireSendButtons
