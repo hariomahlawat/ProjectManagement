@@ -105,6 +105,11 @@
   const exactHeight = $('[data-exact-height]', view);
   const exactFit = $('[data-exact-fit]', view);
   const exactHint = $('[data-exact-hint]', view);
+  const watermarkOn = $('[data-watermark-on]', view);
+  const watermarkFields = $('[data-watermark-fields]', view);
+  const watermarkText = $('[data-watermark-text]', view);
+  const watermarkPlace = $('[data-watermark-place]', view);
+  const strengthButtons = $$('[data-watermark-strength]', view);
   const format = $('[data-format]', view);
   const greyscale = $('[data-greyscale]', view);
   const pngHint = $('[data-png-hint]', view);
@@ -114,6 +119,7 @@
   let nextId = 1;
   let selectedId = null;
   let unit = 'KB';
+  let watermarkStrength = 'light';
   let run = 0;
   let working = false;
   let settleTimer = null;
@@ -137,6 +143,12 @@
       if (saved.exactFit === 'fill' || saved.exactFit === 'fit') exactFit.value = saved.exactFit;
       if ($$('option', format).some(option => option.value === saved.format)) format.value = saved.format;
       greyscale.checked = saved.greyscale === true;
+      watermarkOn.checked = saved.watermarkOn === true;
+      if (typeof saved.watermarkText === 'string') {
+        watermarkText.value = saved.watermarkText.slice(0, core.WATERMARK_MAX_LENGTH);
+      }
+      if (core.WATERMARK_PLACES.includes(saved.watermarkPlace)) watermarkPlace.value = saved.watermarkPlace;
+      if (Object.hasOwn(core.WATERMARK_STRENGTH, saved.watermarkStrength)) watermarkStrength = saved.watermarkStrength;
     } catch {
       // Settings are a convenience; the defaults in the page are used instead.
     }
@@ -154,7 +166,11 @@
         exactHeight: Number(exactHeight.value),
         exactFit: exactFit.value,
         format: format.value,
-        greyscale: greyscale.checked
+        greyscale: greyscale.checked,
+        watermarkOn: watermarkOn.checked,
+        watermarkText: watermarkText.value,
+        watermarkPlace: watermarkPlace.value,
+        watermarkStrength
       }));
     } catch {
       // Private windows may refuse storage; nothing depends on it.
@@ -181,7 +197,11 @@
       targetText: `${targetValue.value.trim()} ${unit}`,
       resize,
       format: format.value,
-      greyscale: greyscale.checked
+      greyscale: greyscale.checked,
+      // Off, or on with no text yet: nothing is added.
+      watermark: watermarkOn.checked && watermarkText.value.trim()
+        ? { text: watermarkText.value.trim(), place: watermarkPlace.value, strength: watermarkStrength }
+        : null
     };
   }
 
@@ -195,6 +215,10 @@
     }
     customSide.hidden = dimensions.value !== 'custom';
     exactField.hidden = dimensions.value !== 'exact';
+    watermarkFields.hidden = !watermarkOn.checked;
+    for (const button of strengthButtons) {
+      button.setAttribute('aria-pressed', String(button.dataset.watermarkStrength === watermarkStrength));
+    }
     const exactBad = [exactWidth, exactHeight].filter(input => !core.parseExactSide(input.value));
     for (const input of [exactWidth, exactHeight]) {
       input.classList.toggle('is-invalid', exactBad.includes(input));
@@ -251,6 +275,8 @@
           drawn = exact
             ? shared.drawExact(source, exact, drawOptions)
             : drawPhoto(source, width, height, drawOptions);
+          // After the size and black and white, so the text stays sharp and keeps its size.
+          if (settings.watermark) shared.drawWatermark(drawn, settings.watermark);
         }
         return canvasToBytes(drawn, type, quality);
       };
@@ -264,8 +290,11 @@
         fixedSize: Boolean(exact)
       });
       // A photo that was already small can come out bigger at top quality. Saved in its own
-      // type, a lower quality at the same dimensions gets it under the original.
-      const under = core.retryUnderOriginal({
+      // type, a lower quality at the same dimensions gets it under the original. With a
+      // watermark the photo is not the original any more, so it is not held to its size, and
+      // "use the original" would be the wrong advice.
+      const comparable = !settings.watermark;
+      const under = comparable && core.retryUnderOriginal({
         resultBytes: result.bytes.length,
         originalBytes: photo.file.size,
         lossy: type.lossy,
@@ -282,7 +311,7 @@
         });
         if (again.reached) result = { ...again, reached: result.reached };
       }
-      return { ...result, type, bigger: result.bytes.length >= photo.file.size };
+      return { ...result, type, bigger: comparable && result.bytes.length >= photo.file.size };
     } finally {
       if (typeof source.close === 'function') source.close();
     }
@@ -581,13 +610,23 @@
       settingsChanged();
     });
   }
-  for (const control of [dimensions, customSideValue, exactFit, format, greyscale]) {
+  for (const control of [dimensions, customSideValue, exactFit, format, greyscale, watermarkOn, watermarkPlace]) {
     control.addEventListener('change', settingsChanged);
   }
   // Typed sizes count once the user stops typing, as the file size does.
-  for (const input of [exactWidth, exactHeight]) {
+  for (const input of [exactWidth, exactHeight, watermarkText]) {
     input.addEventListener('input', settingsChanged);
   }
+  for (const button of strengthButtons) {
+    button.addEventListener('click', () => {
+      watermarkStrength = button.dataset.watermarkStrength;
+      settingsChanged();
+    });
+  }
+  // Turning the watermark on puts the cursor in its text box, which is what is wanted next.
+  watermarkOn.addEventListener('change', () => {
+    if (watermarkOn.checked && !watermarkText.value.trim()) watermarkText.focus();
+  });
   compareSlider.addEventListener('input', placeCompareLine);
   downloadButton.addEventListener('click', download);
 

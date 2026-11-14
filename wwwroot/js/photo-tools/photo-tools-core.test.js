@@ -109,6 +109,39 @@ test('exactFit fit inside keeps the whole photo with an even border', () => {
   }
 });
 
+test('watermarkPlan sizes the mark from the shorter side and places it in a corner', () => {
+  const plan = tools.watermarkPlan({ width: 4000, height: 3000, place: 'bottom-right', textWidth100: 500 });
+  assert.equal(plan.fontSize, 135);
+  assert.deepEqual([plan.x, plan.y, plan.align, plan.baseline], [3910, 2910, 'right', 'bottom']);
+  const left = tools.watermarkPlan({ width: 4000, height: 3000, place: 'bottom-left', textWidth100: 500 });
+  assert.deepEqual([left.x, left.align], [90, 'left']);
+  // The same share on a small photo.
+  assert.equal(tools.watermarkPlan({ width: 400, height: 300, place: 'centre', textWidth100: 100 }).fontSize, 14);
+  // Never below 12 px for a tiny photo with short text.
+  assert.equal(tools.watermarkPlan({ width: 100, height: 60, place: 'centre', textWidth100: 50 }).fontSize, 12);
+});
+
+test('watermarkPlan makes long text smaller to fit the photo', () => {
+  // 60 characters: about 4000 px wide at 100 px.
+  const plan = tools.watermarkPlan({ width: 1200, height: 800, place: 'bottom-right', textWidth100: 4000 });
+  const textWidth = plan.fontSize * 40;
+  assert.ok(textWidth <= 1200 - 24 * 2, `text ${textWidth}px`);
+  assert.ok(plan.fontSize < 36);
+  const across = tools.watermarkPlan({ width: 1200, height: 800, place: 'across', textWidth100: 4000 });
+  assert.ok(across.fontSize * 40 <= 800 * 0.8);
+});
+
+test('watermarkPlan across the photo repeats round the centre at a slant', () => {
+  const plan = tools.watermarkPlan({ width: 1200, height: 800, place: 'across', textWidth100: 400 });
+  assert.equal(plan.fontSize, 48);
+  assert.deepEqual([plan.x, plan.y, plan.align, plan.baseline], [600, 400, 'center', 'middle']);
+  assert.ok(plan.angle < 0);
+  assert.equal(plan.stepX, Math.round(48 * 4 + 48 * 3));
+  assert.equal(plan.stepY, 192);
+  assert.equal(plan.reach, Math.ceil(Math.hypot(1200, 800) / 2));
+  assert.deepEqual(tools.WATERMARK_PLACES, ['bottom-right', 'bottom-left', 'centre', 'across']);
+});
+
 test('outputType follows the choice, or the original where it can be written', () => {
   assert.equal(tools.outputType('image/png', 'jpeg').extension, 'jpg');
   assert.equal(tools.outputType('image/png', 'same').extension, 'png');
