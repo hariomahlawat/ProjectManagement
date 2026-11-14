@@ -75,6 +75,16 @@ and in the Dark theme, and adds tests where the code can be tested.
 
 PRs 2 to 6 are independent of each other; 7 to 10 can follow in any order.
 
+Status (14 Nov 2026): PRs 2 to 10 are #3220 to #3228.
+
+- **L10:** Undo and Reset are now one pair in the Touch up panel on both screens. The rest of the
+  difference stays on purpose: Passport photo needs a separate painting mode because dragging there
+  moves the photo; Remove background has nothing else to drag, so it always paints.
+- **L11, not done:** tests for the screen races (`findFace`, `findSubject`, `saveRun`) need the
+  screens running in a browser, and the repository has no browser test harness. Each race fixed in
+  PRs 3 to 9 was checked live instead. The multi-size face search is not tested without the face
+  models.
+
 ## Owner decisions (14 Nov 2026)
 
 The owner agreed with the recommendations and asked for all ten PRs:

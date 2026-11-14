@@ -391,7 +391,7 @@ step, so Undo takes it back.
 | Sharpen | Pushes each pixel away from the average of its neighbours (`sharpenPixels`). |
 
 - **Adjust** has four sliders from -50 to 50 (brightness, contrast, colour, warmth) with a live
-  preview; zero changes nothing (`adjustPixels`). Nothing is applied until Apply is pressed.
+  preview; zero changes nothing (`adjustPixels`). An adjustment or a straighten shown on the screen but not yet applied is applied by itself on Download (the file is saved once it is made) and on picking another tool, so what is saved is always what the screen showed (owner decision, 14 Nov 2026); the line under Download says so meanwhile. A crop box that was not applied is still dropped on changing tool.
 - **Filters** are six fixed recipes (black and white, sepia, warm, cool, vivid, faded), each
   shown on a small copy of the photo as it is now (`FILTERS`, `filterPixels`).
 - Measurements (the lighting range, the paper level) are taken from the full-size photo the step
@@ -441,7 +441,7 @@ step, so Undo takes it back.
 - **Keyboard.** The passport frame, the crop box and the photo under Mark up and Hide all work
   with the arrow keys and Enter; Ctrl+Z and Ctrl+Y undo and redo in the editor.
 - **Passport photo.** Place the face again sits in the bar under the photo with Rotate, at 44 px
-  on a phone. The note while the model works is in the Background panel, next to the colour or
+  on a phone. Where the layout is one column (900 px and narrower), Hold to see the original is also in that bar, and a bar at the foot of the screen keeps the checks' summary (a tap goes to the list) and Download in reach while the photo is moved. The note while the model works is in the Background panel, next to the colour or
   Better edges that asked for it, so on a phone it is on the screen where the user tapped; it
   uses the theme's tertiary background, in Light and Dark. Focus moves from Better edges to the
   note, to Try again when the server is busy, and to the model's line when it is done.

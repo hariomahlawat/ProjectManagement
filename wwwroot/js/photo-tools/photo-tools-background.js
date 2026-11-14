@@ -92,6 +92,9 @@
 
   let status = null;
   let statusLoading = null;
+  let statusAt = 0;
+  const STATUS_FRESH_MS = 5000;
+  const STATUS_RECHECK_MS = 10000;
 
   // The photo: `full` a copy at most SAVE_SIDE (the largest saved size; a 48 MP original is not
   // kept), `work` the copy the cut-out is made on, `pixels` its RGBA.
@@ -148,21 +151,29 @@
   }
 
   /**
-   * Whether Remove background is set up on the server. Only a "ready" answer is kept: a failed
-   * request, or "not set up", is asked again the next time the screen opens or a photo is chosen,
-   * so a server that is back, or a model an administrator has just installed, is found without
-   * reloading the page.
+   * Whether Remove background is set up on the server, and its limits. Only a "ready" answer is
+   * kept, and only for `maxAge` ms (5 s by default): a new photo here or in Passport photo asks
+   * again, so a changed limit, the tool turned off, or face models an administrator has just
+   * installed are found without reloading the page. A failed request, or "not set up", is always
+   * asked again.
    */
-  function loadStatus() {
-    if (status && status.available) return Promise.resolve(status);
+  function loadStatus(maxAge = STATUS_FRESH_MS) {
+    if (status && status.available && Date.now() - statusAt < maxAge) return Promise.resolve(status);
     if (!statusLoading) {
-      statusLoading = fetch(STATUS_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      // A status request that stalls is given up after a few seconds, so the next one asks the
+      // server again instead of waiting on it for good.
+      const stalled = new AbortController();
+      const giveUp = setTimeout(() => stalled.abort(), STATUS_RECHECK_MS);
+      statusLoading = fetch(STATUS_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: stalled.signal })
         .then((response) => {
           if (response.status === 401) return { available: false, state: 'signed-out', message: SIGNED_OUT };
           return response.ok ? response.json() : null;
         })
         .catch(() => null)
         .then((answer) => {
+          // The time limit covers reading the answer too.
+          clearTimeout(giveUp);
+          statusAt = Date.now();
           status = answer || {
             available: false,
             message: 'The PRISM server could not be reached. Check the connection and open this screen again.'
@@ -218,6 +229,36 @@
     }
   }
 
+  /**
+   * `promise`'s answer, or null when it takes longer than `ms`; rejects at once (AbortError) when
+   * `signal` is aborted, so a step waiting on it can still be cancelled.
+   */
+  function whileWanted(promise, signal, ms) {
+    return new Promise((resolve, reject) => {
+      const aborted = () => {
+        clearTimeout(timer);
+        reject(new DOMException('The request was cancelled.', 'AbortError'));
+      };
+      const timer = setTimeout(() => {
+        if (signal) signal.removeEventListener('abort', aborted);
+        resolve(null);
+      }, ms);
+      if (signal) {
+        if (signal.aborted) {
+          aborted();
+          return;
+        }
+        signal.addEventListener('abort', aborted, { once: true });
+      }
+      const settle = (value) => {
+        clearTimeout(timer);
+        if (signal) signal.removeEventListener('abort', aborted);
+        resolve(value);
+      };
+      promise.then(settle, () => settle(null));
+    });
+  }
+
   /** Sends a copy of the photo and gives back the model's mask at the work size. `signal` cancels it. */
   function fetchMask(source, size, signal) {
     return requestMask(source, size, work, signal);
@@ -228,11 +269,13 @@
    * enlarged to `into`'s size, one byte per pixel. Throws PhotoToolError 'retry' for what passes
    * (busy, too slow, no connection), 'signed-out', or 'server' for a photo the server cannot use.
    */
-  async function requestMask(source, size, into, signal) {
+  async function requestMask(source, size, into, signal, again = false) {
     const side = Math.min(WORK_SIDE, (status && status.maximumSide) || WORK_SIDE);
     const sent = core.resizeDimensions(size.width, size.height, { type: 'longest', value: side });
     const copy = shared.drawPhoto(source, sent.width, sent.height, { opaque: true });
     const bytes = await shared.canvasToBytes(copy, JPEG, 0.92);
+    // Up to 16 MB each: given back now rather than whenever the browser gets to it.
+    release(copy);
     let response;
     try {
       response = await fetch(MASK_URL, {
@@ -248,6 +291,17 @@
     }
     if (response.status === 401) {
       throw new core.PhotoToolError('signed-out', SIGNED_OUT);
+    }
+    if ((response.status === 413 || response.status === 503) && !again) {
+      // The server's limits may have changed since its status was read (an administrator lowered
+      // the largest side, or turned the tool off): read it again, and try once more at the new
+      // size when that is what changed.
+      // Cancel (or the request's own time limit) still works while the status is read, and a
+      // status that does not come is not waited for long.
+      const fresh = await whileWanted(loadStatus(0), signal, STATUS_RECHECK_MS);
+      if (response.status === 413 && fresh && fresh.available && fresh.maximumSide && fresh.maximumSide < side) {
+        return requestMask(source, size, into, signal, true);
+      }
     }
     if (!response.ok) {
       let message = 'The background could not be removed from this photo.';
@@ -269,6 +323,7 @@
     context.drawImage(mask, 0, 0, into.width, into.height);
     if (typeof mask.close === 'function') mask.close();
     const data = context.getImageData(0, 0, into.width, into.height).data;
+    release(scaled);
     const result = new Uint8ClampedArray(into.width * into.height);
     for (let i = 0; i < result.length; i += 1) result[i] = data[i * 4];
     return result;
@@ -1072,7 +1127,9 @@
    * background works at (at most 2048 px), one byte per pixel. Throws as requestMask does.
    */
   async function maskFor(source, signal) {
-    await loadStatus();
+    // The status (for the server's largest side) may be read again first: Cancel and the caller's
+    // time limit still work meanwhile, and a status that does not come is not waited for long.
+    await whileWanted(loadStatus(), signal, STATUS_RECHECK_MS);
     const size = shared.sizeOf(source);
     const into = core.resizeDimensions(size.width, size.height, { type: 'longest', value: WORK_SIDE });
     const alpha = await requestMask(source, size, into, signal);

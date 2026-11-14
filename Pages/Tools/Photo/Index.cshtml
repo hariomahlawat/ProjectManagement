@@ -140,6 +140,9 @@
                                 <input type="range" class="form-range" id="photStraighten" min="-15" max="15" step="0.5" value="0" data-straighten />
                                 <span class="phot-stage__value" data-straighten-value>0°</span>
                             </label>
+                            <button type="button" class="btn btn-outline-light btn-sm phot-phone-only" data-action="bg-original-stage" hidden>
+                                <i class="bi bi-eye" aria-hidden="true"></i> Hold to see the original
+                            </button>
                             <button type="button" class="btn btn-outline-light btn-sm" data-action="rotate">
                                 <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Rotate
                             </button>
@@ -306,6 +309,14 @@
                         </div>
                     </div>
                 </aside>
+                @* Phones: the photo, the checks and Download are screens apart, so the checks' summary
+                   and Download stay at the foot of the screen. Hidden on wider screens. *@
+                <div class="phot-phonebar phot-phone-only" data-phone-bar hidden>
+                    <button type="button" class="btn btn-link phot-phonebar__checks" data-action="phone-checks"></button>
+                    <button type="button" class="btn btn-primary" data-action="phone-download" disabled>
+                        <i class="bi bi-download" aria-hidden="true"></i> Download
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -781,9 +792,6 @@
                 <div class="phot-layout__main">
                     <div class="phot-stage">
                         <div class="phot-stage__bar phot-stage__bar--tools">
-                            <button type="button" class="btn btn-outline-light btn-sm" data-action="remove-undo" aria-label="Undo the last stroke" disabled>
-                                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> <span class="d-none d-sm-inline">Undo</span>
-                            </button>
                             <button type="button" class="btn btn-outline-light btn-sm" data-action="remove-original" disabled>
                                 <i class="bi bi-eye" aria-hidden="true"></i>
                                 <span class="d-none d-sm-inline">Hold to see the original</span><span class="d-sm-none">Hold for original</span>
@@ -853,7 +861,11 @@
                                 <button type="button" aria-pressed="false" data-remove-size-choice="large" title="Larger: ]">Large</button>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-outline-secondary" data-action="remove-reset" disabled>Reset</button>
+                        @* The same pair, in the same place, as Passport photo's Touch up edges. *@
+                        <div class="phot-bgfix__row">
+                            <button type="button" class="btn btn-outline-secondary" data-action="remove-undo" aria-label="Undo the last stroke" disabled>Undo</button>
+                            <button type="button" class="btn btn-outline-secondary" data-action="remove-reset" disabled>Reset</button>
+                        </div>
                     </div>
 
                     <div class="phot-panel">
