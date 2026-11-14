@@ -536,7 +536,7 @@ use only" or a name and date (plan: [ux/photo-tools-more.md](ux/photo-tools-more
   slant) and **Strength** (Light, Strong).
 - White letters with a soft dark edge, so the text reads on light and dark photos alike.
 - The size is a share of the photo's shorter side (4.5%, or 6% across), so it looks the same on a
-  small and a large photo; text too long for the photo is made smaller to fit.
+  small and a large photo; text too long for the photo is made smaller to fit, with no lower limit, so it is never cut off.
 - It is drawn after the size and black and white are applied, so it stays sharp and keeps its
   size whatever the photo was reduced to. It counts toward the file size like the rest of the
   photo.

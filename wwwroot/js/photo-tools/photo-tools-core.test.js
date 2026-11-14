@@ -129,6 +129,14 @@ test('watermarkPlan makes long text smaller to fit the photo', () => {
   assert.ok(plan.fontSize < 36);
   const across = tools.watermarkPlan({ width: 1200, height: 800, place: 'across', textWidth100: 4000 });
   assert.ok(across.fontSize * 40 <= 800 * 0.8);
+  // A small photo with long text: all of the text still fits, however small it has to be.
+  for (const place of ['bottom-right', 'bottom-left', 'centre']) {
+    const small = tools.watermarkPlan({ width: 200, height: 150, place, textWidth100: 4000 });
+    const width = small.fontSize * 40;
+    assert.ok(width <= 200 - 6 * 2 + 1e-9, `${place}: ${width}px`);
+    if (place === 'bottom-right') assert.ok(small.x - width >= 0);
+    if (place === 'centre') assert.ok(small.x - width / 2 >= 0);
+  }
 });
 
 test('watermarkPlan across the photo repeats round the centre at a slant', () => {
