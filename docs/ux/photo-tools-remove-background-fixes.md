@@ -101,7 +101,7 @@ Each PR adds tests for what it fixes and is checked live with the real model on 
 | PR | Scope | Findings |
 | --- | --- | --- |
 | 1 | This plan | — |
-| 2 | Memory and processor: no ONNX memory arena (or shrink it after each photo), free the model when the tool is switched off or not used for a while, threads at most half the cores and no spin-waiting, `MaximumConcurrent × IntraOpThreads` kept under the core count, measured time and memory written in the guide | 1, 2 |
+| 2 | Built. Memory and processor: no ONNX memory arena (or shrink it after each photo), free the model when the tool is switched off or not used for a while, threads at most half the cores and no spin-waiting, `MaximumConcurrent × IntraOpThreads` kept under the core count, measured time and memory written in the guide | 1, 2 |
 | 3 | Requests: the "busy" check before the photo is read, a buffer sized from the declared length (no double copy), only JPG/PNG/WEBP decoded, bounds on `MaximumSide` and `MaximumUploadBytes` (clamped, never a start-up failure), endpoint tests | 3, Low (format, bounds) |
 | 4 | Status and errors: a user's cancel is not an error; I/O errors while hashing become a status; hashing once, in the background, with a "checking" state; a failed load is remembered and shown as "model-invalid"; the native library checked when the status is asked; tests with the tiny model | 5, 10, Low (hashing) |
 | 5 | The screen when off or busy: dimmed home card "Not set up on this server" (decision 2), no drop hint or privacy line while off, "checking" state, the photo kept with Try again after busy, timeout or network errors, a "still working" message after a few seconds and a Cancel button, 401 told as "sign in again" | 4, 8, 9, Low (checking, messages) |
