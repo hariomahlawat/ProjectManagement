@@ -115,12 +115,20 @@ function initLoadMore(root) {
   root.addEventListener('click', async (event) => {
     const link = event.target instanceof Element ? event.target.closest('a[data-search-load-more]') : null;
     if (!(link instanceof HTMLAnchorElement) || event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) return;
+    // A second tap while the next page loads must not follow the link: that would open the
+    // next page on its own and drop the list built up so far.
+    if (link.getAttribute('aria-disabled') === 'true') {
+      event.preventDefault();
+      return;
+    }
     const url = sameOriginUrl(link.href);
     const results = root.querySelector('[data-search-results]');
-    if (!url || !(results instanceof HTMLElement) || link.getAttribute('aria-disabled') === 'true') return;
+    if (!url || !(results instanceof HTMLElement)) return;
 
     event.preventDefault();
-    const label = link.textContent;
+    // Keep the label's icon, not just its text.
+    const label = Array.from(link.childNodes, (node) => node.cloneNode(true));
+    const restoreLabel = () => link.replaceChildren(...label.map((node) => node.cloneNode(true)));
     link.setAttribute('aria-disabled', 'true');
     link.textContent = 'Loading more results…';
     results.setAttribute('aria-busy', 'true');
@@ -147,7 +155,7 @@ function initLoadMore(root) {
       const nextLink = page.querySelector('[data-search-pagination] a[data-search-load-more]');
       if (nextLink instanceof HTMLAnchorElement && nav instanceof HTMLElement) {
         link.href = nextLink.getAttribute('href') || link.href;
-        link.textContent = label;
+        restoreLabel();
         link.removeAttribute('aria-disabled');
       } else {
         nav?.remove();
@@ -502,7 +510,26 @@ function initFilterPanel(details) {
   const close = ({ discard = false, returnFocus = false } = {}) => {
     if (discard) revert();
     details.open = false;
+    // The toggle event comes later; the button must stop being inert before it takes focus.
+    setSheetModal(false);
     if (returnFocus) summary.focus();
+  };
+
+  // On phones the panel is a bottom sheet over the page: a modal dialog, with everything
+  // else inert so Tab and a screen reader stay inside it.
+  let inerted = [];
+  const setSheetModal = (modal) => {
+    inerted.forEach((node) => { node.inert = false; });
+    inerted = [];
+    if (modal) {
+      form.setAttribute('role', 'dialog');
+      form.setAttribute('aria-modal', 'true');
+      inerted = pageOutside(form);
+      inerted.forEach((node) => { node.inert = true; });
+    } else {
+      form.removeAttribute('role');
+      form.removeAttribute('aria-modal');
+    }
   };
 
   // Clicking away keeps unapplied choices on screen rather than silently dropping them.
@@ -531,6 +558,7 @@ function initFilterPanel(details) {
 
   details.addEventListener('toggle', () => {
     document.documentElement.classList.toggle('pm-gs-filter-sheet-open', details.open && narrow.matches);
+    setSheetModal(details.open && narrow.matches);
     if (details.open) {
       refresh();
       if (narrow.matches) {
@@ -579,6 +607,39 @@ function initFilterPanel(details) {
   refresh();
 }
 
+/**
+ * The elements to make inert so that only `keep` (and what it contains) can be reached:
+ * the siblings of `keep` and of each of its ancestors up to <body>, skipping the backdrop.
+ */
+export function pageOutside(keep) {
+  const nodes = [];
+  for (let node = keep; node && node.parentElement && node !== document.body; node = node.parentElement) {
+    for (const sibling of node.parentElement.children) {
+      if (sibling === node || sibling.inert || sibling.matches('script, style, [data-filter-dismiss]')) continue;
+      nodes.push(sibling);
+    }
+  }
+  return nodes;
+}
+
+// -----------------------------------------------------------------------------
+// Category tabs: show that more are hidden off the edge
+// -----------------------------------------------------------------------------
+
+function initTabs(root) {
+  const tabs = root.querySelector('[data-search-tabs]');
+  if (!(tabs instanceof HTMLElement)) return;
+  const update = () => {
+    const more = tabs.scrollWidth - tabs.clientWidth - tabs.scrollLeft > 2;
+    tabs.classList.toggle('has-more', more);
+  };
+  // The chosen category stays in view on a narrow screen.
+  tabs.querySelector('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  tabs.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  update();
+}
+
 function initFilters(root) {
   root.querySelectorAll('[data-search-filter]').forEach((details) => {
     if (details instanceof HTMLDetailsElement) initFilterPanel(details);
@@ -596,6 +657,7 @@ function boot() {
   initRecentSearches(root);
   initClickTelemetry(root);
   initLoadMore(root);
+  initTabs(root);
   initFilters(root);
 }
 
