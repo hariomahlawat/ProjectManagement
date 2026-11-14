@@ -115,6 +115,34 @@ public sealed class BackgroundRemovalEndpointTests
         Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
         Assert.Equal(SomePhoto, host.Service.LastPhoto);
+        Assert.Equal(0, host.Service.PlacesHeld);
+    }
+
+    [Fact]
+    public async Task Mask_GivesItsPlaceBack_WhenThePhotoNeverArrivesInFull()
+    {
+        await using var host = await Host.StartAsync();
+        var content = new StreamContent(new CutShortStream(SomePhoto, declared: 100));
+        content.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        content.Headers.ContentLength = 100;
+
+        try
+        {
+            await host.Client.PostAsync(PhotoToolsApi.MaskPath, content);
+        }
+        catch (HttpRequestException)
+        {
+            // The test server may report the cut-short body to the client as well.
+        }
+
+        Assert.Equal(0, host.Service.PhotosReceived);
+        Assert.Equal(0, host.Service.PlacesHeld);
+    }
+
+    /// <summary>A body that ends before its declared length, as an upload that stalls and drops.</summary>
+    private sealed class CutShortStream(byte[] data, int declared) : MemoryStream(data)
+    {
+        public override long Length => declared;
     }
 
     [Theory]
@@ -240,13 +268,32 @@ public sealed class BackgroundRemovalEndpointTests
         public BackgroundModelReadiness Readiness() =>
             new(Ready ? BackgroundModelState.Ready : BackgroundModelState.Disabled, Ready ? "model.onnx" : null);
 
-        public bool HasRoom() => Room;
+        public int PlacesHeld { get; private set; }
+
+        public IDisposable? TryTakePlace()
+        {
+            if (!Room)
+            {
+                return null;
+            }
+
+            PlacesHeld += 1;
+            return new Given(this);
+        }
 
         public Task<BackgroundRemovalResult> MaskAsync(byte[] photoBytes, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("The endpoint must take its place before reading the photo.");
+
+        public Task<BackgroundRemovalResult> MaskAsync(byte[] photoBytes, IDisposable place, CancellationToken cancellationToken)
         {
             PhotosReceived += 1;
             LastPhoto = photoBytes;
             return Task.FromResult(new BackgroundRemovalResult(BackgroundRemovalOutcome.Done, new byte[] { 0x89, 0x50, 0x4E, 0x47 }, 2, 2));
+        }
+
+        private sealed class Given(FakeService owner) : IDisposable
+        {
+            public void Dispose() => owner.PlacesHeld -= 1;
         }
     }
 }

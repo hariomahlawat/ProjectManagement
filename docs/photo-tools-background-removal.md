@@ -145,7 +145,9 @@ much weaker than BRIA's models and is only for testing the pipeline.
 - Only `MaximumConcurrent` photos run at once, each with at most `IntraOpThreads` threads; others
   wait their turn, and when `MaximumWaiting` are already waiting the answer is "busy". "Busy" and
   "not set up" are answered before the photo is read, so a full queue never holds photos in
-  memory; a photo that is read goes straight into one array of its declared size.
+  memory. A request takes its place in the queue before its photo is read and keeps it while the
+  photo arrives, so slow uploads count against `MaximumWaiting` too; the photo goes straight into
+  one array of its declared size.
 - Only JPG, PNG and WEBP are decoded, whatever type the request names.
 - A photo that takes longer than `TimeoutSeconds` is stopped inside ONNX Runtime, not just
   abandoned.

@@ -204,6 +204,34 @@ public sealed class BackgroundRemovalTests : IDisposable
     }
 
     [Fact]
+    public async Task TryTakePlace_CountsPhotosStillArriving_AndGivesThePlaceBackOnce()
+    {
+        var options = EnabledOptions();
+        options.MaximumConcurrent = 1;
+        options.MaximumWaiting = 0;
+        var service = ServiceFor(options);
+
+        // One place in all: a second upload is busy while the first is still arriving.
+        var first = service.TryTakePlace();
+        Assert.NotNull(first);
+        Assert.Null(service.TryTakePlace());
+        Assert.Equal(BackgroundRemovalOutcome.Busy, (await service.MaskAsync(Png(8, 8, (_, _) => SKColors.Red), CancellationToken.None)).Outcome);
+
+        // Giving it back twice frees one place, not two.
+        first!.Dispose();
+        first.Dispose();
+        var again = service.TryTakePlace();
+        Assert.NotNull(again);
+        Assert.Null(service.TryTakePlace());
+
+        // MaskAsync with a place gives it back when the photo is done.
+        var done = await service.MaskAsync(Png(8, 8, (_, _) => SKColors.Red), again!, CancellationToken.None);
+        Assert.Equal(BackgroundRemovalOutcome.Done, done.Outcome);
+        using var next = service.TryTakePlace();
+        Assert.NotNull(next);
+    }
+
+    [Fact]
     public async Task MaskAsync_AnswersBusy_WhenTooManyPhotosWait()
     {
         var options = EnabledOptions();

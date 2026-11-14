@@ -92,13 +92,15 @@ public static class PhotoToolsApi
         }
 
         // Answered before the photo is read: a server that is not set up, or whose queue is full,
-        // never holds the photo in memory first.
+        // never holds the photo in memory first. The place is taken now, so a photo still arriving
+        // counts against the queue, and given back on every way out.
         if (!service.Readiness().IsReady)
         {
             return Problem(StatusCodes.Status503ServiceUnavailable, NotSetUpMessage);
         }
 
-        if (!service.HasRoom())
+        using var place = service.TryTakePlace();
+        if (place is null)
         {
             return Busy(httpContext);
         }
@@ -127,7 +129,7 @@ public static class PhotoToolsApi
             return Problem(StatusCodes.Status400BadRequest, "The photo did not arrive in full. Try again.");
         }
 
-        var result = await service.MaskAsync(photo, cancellationToken);
+        var result = await service.MaskAsync(photo, place, cancellationToken);
         switch (result.Outcome)
         {
             case BackgroundRemovalOutcome.Done:
