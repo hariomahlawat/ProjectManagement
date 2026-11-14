@@ -442,8 +442,14 @@
     try {
       if (typeof kept.limit === 'string' && kept.limit.length <= 6) outLimit.value = kept.limit;
       const pixels = value => Number.isInteger(value) && value >= MIN_PIXELS && value <= MAX_PIXELS;
-      if (kept.customOpen && typeof kept.customWidth === 'string' && typeof kept.customHeight === 'string'
-        && Array.from(customUnit.options).some(option => option.value === kept.customUnit)) {
+      // A custom size is put back only if it still makes a usable size: one left half-typed when
+      // the choices were kept must not block the download next time. The last good size is used
+      // instead.
+      const customUsable = kept.customOpen && typeof kept.customWidth === 'string' && typeof kept.customHeight === 'string'
+        && Array.from(customUnit.options).some(option => option.value === kept.customUnit)
+        && pixels(core.lengthToPixels(kept.customWidth, kept.customUnit))
+        && pixels(core.lengthToPixels(kept.customHeight, kept.customUnit));
+      if (customUsable) {
         customWidth.value = kept.customWidth;
         customHeight.value = kept.customHeight;
         customUnit.value = kept.customUnit;
