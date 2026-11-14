@@ -80,6 +80,9 @@
   const FINDING = 'Finding the person or object…';
   const STILL_WORKING = 'Still working. The first photo after the PRISM server starts can take up to a minute.';
   const SLOW_AFTER_MS = 8000;
+  // The browser gives up on a mask after this long, in case the connection stalls without an
+  // answer: longer than the server's own limits (upload, then the work) so they answer first.
+  const MASK_GIVE_UP_MS = 180000;
   const CHECK_AGAIN_MS = 10000;
   const SIGNED_OUT = 'Your PRISM session has ended. Reload the page and sign in again.';
   // States that will pass without anyone doing anything: the card is not dimmed for these.
@@ -88,7 +91,8 @@
   let status = null;
   let statusLoading = null;
 
-  // The photo: `full` as opened, `work` the copy the cut-out is made on, `pixels` its RGBA.
+  // The photo: `full` a copy at most SAVE_SIDE (the largest saved size; a 48 MP original is not
+  // kept), `work` the copy the cut-out is made on, `pixels` its RGBA.
   let fileName = '';
   let full = null;
   let work = null;
@@ -124,6 +128,8 @@
   let slowTimer = 0;
   let checkTimer = 0;
   let cancelledByUser = false;
+  let maskPending = false;
+  let maskTimedOut = false;
 
   // ---------------------------------------------------------------------------
   // Server
@@ -311,11 +317,15 @@
       return;
     }
     const mine = ++openRun;
-    if (full && full !== source && typeof full.close === 'function') full.close();
-    full = source;
+    const size = shared.sizeOf(source);
+    // Only what can be saved is kept: a copy no larger than SAVE_SIDE. The original (190 MB for a
+    // 48 MP photo) is closed at once. A save still running keeps its own reference to the copy it
+    // started with, so the earlier copy is left to the browser rather than cleared here.
+    const keep = core.resizeDimensions(size.width, size.height, { type: 'longest', value: SAVE_SIDE });
+    full = shared.drawPhoto(source, keep.width, keep.height, {});
+    if (typeof source.close === 'function') source.close();
     fileName = file.name;
     resetPhoto();
-    const size = shared.sizeOf(source);
     fileLabel.textContent = `${file.name} · ${size.width} × ${size.height} px`;
     emptyDrop.hidden = true;
     workspace.hidden = false;
@@ -324,7 +334,7 @@
     resultLine.textContent = '';
 
     const workSize = core.resizeDimensions(size.width, size.height, { type: 'longest', value: WORK_SIDE });
-    work = shared.drawPhoto(source, workSize.width, workSize.height, {});
+    work = shared.drawPhoto(full, workSize.width, workSize.height, {});
     pixels = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, work.width, work.height);
     render();
     await findSubject(mine);
@@ -342,6 +352,12 @@
     const request = new AbortController();
     maskRequest = request;
     cancelledByUser = false;
+    maskTimedOut = false;
+    maskPending = true;
+    const giveUp = setTimeout(() => {
+      maskTimedOut = true;
+      request.abort();
+    }, MASK_GIVE_UP_MS);
     retryBox.hidden = true;
     shared.clearError();
     const source = full;
@@ -379,6 +395,10 @@
         showRetry('Stopped. The photo is still here.');
         return;
       }
+      if (maskTimedOut) {
+        showRetry('No answer came from the PRISM server in time. The photo is still here.');
+        return;
+      }
       if (error instanceof core.PhotoToolError && error.code === 'retry') {
         showRetry(error.message);
         return;
@@ -391,7 +411,9 @@
       fileLabel.textContent = '';
       shared.showError(error instanceof core.PhotoToolError ? error.message : 'The background could not be removed from this photo.');
     } finally {
+      clearTimeout(giveUp);
       if (mine === openRun) {
+        maskPending = false;
         clearTimeout(slowTimer);
         cancelButton.hidden = true;
         setBusy('');
@@ -470,6 +492,14 @@
       }
     };
     for (const fix of strokes) {
+      // A stroke nowhere near this part cannot change it: painting stays quick however many
+      // strokes there are.
+      const reach = fix.radius * (1 + BRUSH_SOFTNESS) + 2;
+      const box = fix.bounds;
+      if (box && (box.right + reach < region.left || box.left - reach > region.right
+        || box.bottom + reach < region.top || box.top - reach > region.bottom)) {
+        continue;
+      }
       const colour = (core.BACKGROUND_BRUSHES[fix.kind] || core.BACKGROUND_BRUSHES.refine).mark;
       context.strokeStyle = colour;
       context.fillStyle = colour;
@@ -564,8 +594,23 @@
     };
   }
 
+  /** Adds a point to a stroke and widens the box it covers. */
+  function addPoint(fix, point) {
+    fix.points.push(point);
+    const box = fix.bounds;
+    fix.bounds = box
+      ? {
+          left: Math.min(box.left, point.x),
+          top: Math.min(box.top, point.y),
+          right: Math.max(box.right, point.x),
+          bottom: Math.max(box.bottom, point.y)
+        }
+      : { left: point.x, top: point.y, right: point.x, bottom: point.y };
+  }
+
   function startStroke(at) {
-    stroke = { kind: brush, radius: brushRadius(), points: [at] };
+    stroke = { kind: brush, radius: brushRadius(), points: [], bounds: null };
+    addPoint(stroke, at);
     strokes.push(stroke);
     rebuildSoon(strokeArea(at, at, stroke.radius));
   }
@@ -666,24 +711,28 @@
    * The cut-out at the saved size: the mask enlarged, the edge cleaned again at full size with the
    * same background estimate the screen used.
    */
-  function fullCutout(size) {
-    if (size.width === work.width && size.height === work.height) {
-      const colours = new Uint8ClampedArray(pixels.data);
-      core.cutoutColours(colours, colourAlpha, size.width, background, null, alpha);
-      return { colours, data: pixels.data, alpha };
+  function fullCutout(job, size) {
+    const { work: small, alpha: maskAlpha, colourAlpha: maskColour } = job;
+    if (size.width === small.width && size.height === small.height) {
+      const colours = new Uint8ClampedArray(job.pixels);
+      core.cutoutColours(colours, maskColour, size.width, job.background, null, maskAlpha);
+      return { colours };
     }
-    const photo = shared.drawPhoto(full, size.width, size.height, {});
+    const photo = shared.drawPhoto(job.photo, size.width, size.height, {});
     const data = photo.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, size.width, size.height).data;
-    const maskSmall = shared.newCanvas(work.width, work.height);
-    const grey = new Uint8ClampedArray(work.width * work.height * 4);
+    release(photo);
+    const maskSmall = shared.newCanvas(small.width, small.height);
+    const grey = new Uint8ClampedArray(small.width * small.height * 4);
     // Both are enlarged together: red holds the mask after the touch-ups, green the colour share.
-    for (let i = 0; i < alpha.length; i += 1) grey.set([alpha[i], colourAlpha[i], 0, 255], i * 4);
-    maskSmall.getContext('2d').putImageData(new ImageData(grey, work.width, work.height), 0, 0);
+    for (let i = 0; i < maskAlpha.length; i += 1) grey.set([maskAlpha[i], maskColour[i], 0, 255], i * 4);
+    maskSmall.getContext('2d').putImageData(new ImageData(grey, small.width, small.height), 0, 0);
     const maskLarge = shared.newCanvas(size.width, size.height);
     const largeContext = maskLarge.getContext('2d', { willReadFrequently: true });
     largeContext.imageSmoothingQuality = 'high';
     largeContext.drawImage(maskSmall, 0, 0, size.width, size.height);
+    release(maskSmall);
     const largeGrey = largeContext.getImageData(0, 0, size.width, size.height).data;
+    release(maskLarge);
     const largeAlpha = new Uint8ClampedArray(size.width * size.height);
     const largeColourAlpha = new Uint8ClampedArray(size.width * size.height);
     for (let i = 0; i < largeAlpha.length; i += 1) {
@@ -693,44 +742,75 @@
     // The background estimate made from the model's own mask, at this size: the touch-ups must
     // not count as background (an erased bit of the subject is not old background), and the
     // saved edges then match what the screen showed.
-    const field = core.scaleBackground(background, size.width / work.width);
-    const colours = new Uint8ClampedArray(data);
-    core.cutoutColours(colours, largeColourAlpha, size.width, field, null, largeAlpha);
-    return { colours, data, alpha: largeAlpha };
+    const field = core.scaleBackground(job.background, size.width / small.width);
+    // The photo's own pixels become the cut-out's colours: no second copy of them is made.
+    core.cutoutColours(data, largeColourAlpha, size.width, field, null, largeAlpha);
+    return { colours: data };
+  }
+
+  /** Gives a temporary canvas's memory back at once instead of when the browser gets round to it. */
+  function release(canvasToFree) {
+    canvasToFree.width = 0;
+    canvasToFree.height = 0;
   }
 
   async function download() {
     if (!cutout || busy) return;
     shared.clearError();
+    // Everything the file is made from is taken now. Another photo may be opened while it is made:
+    // the file is still this photo's, under its name, and the other photo's screen is left alone.
+    const job = {
+      run: openRun,
+      photo: full,
+      work,
+      pixels: pixels.data,
+      alpha: new Uint8ClampedArray(alpha),
+      colourAlpha: new Uint8ClampedArray(colourAlpha),
+      background,
+      blurred,
+      backdrop,
+      colour: backdropColour(),
+      type: core.TYPES[format.value] || core.TYPES.png,
+      fileName
+    };
     setBusy('Making the file…');
-    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    // A moment for "Making the file…" to show. A timer, not an animation frame: a page in a tab
+    // that is not showing gets no frames, and the save would wait until it is shown again.
+    await new Promise(resolve => setTimeout(resolve, 30));
+    const current = () => job.run === openRun;
     try {
-      const size = savedSize();
-      const made = fullCutout(size);
-      const colours = made.colours;
-      if (backdropColour()) {
-        core.cutoutOnto(colours, backdropColour().match(/[0-9a-f]{2}/gi).map(part => parseInt(part, 16)));
-      } else if (backdrop === 'blur') {
+      const size = core.resizeDimensions(job.photo.width, job.photo.height, { type: 'longest', value: SAVE_SIDE });
+      const { colours } = fullCutout(job, size);
+      if (job.colour) {
+        core.cutoutOnto(colours, job.colour.match(/[0-9a-f]{2}/gi).map(part => parseInt(part, 16)));
+      } else if (job.backdrop === 'blur') {
         const behind = shared.newCanvas(size.width, size.height);
         const behindContext = behind.getContext('2d', { willReadFrequently: true });
         behindContext.imageSmoothingQuality = 'high';
-        behindContext.drawImage(blurred, 0, 0, size.width, size.height);
+        behindContext.drawImage(job.blurred, 0, 0, size.width, size.height);
         core.cutoutOnto(colours, behindContext.getImageData(0, 0, size.width, size.height).data);
+        release(behind);
       }
-      const type = core.TYPES[format.value] || core.TYPES.png;
+      // A JPG is only offered on a colour or the blur, where every pixel is already solid, so the
+      // picture is saved as it is, without another full-size copy.
       const picture = shared.newCanvas(size.width, size.height);
       picture.getContext('2d').putImageData(new ImageData(colours, size.width, size.height), 0, 0);
-      const output = type === JPEG ? shared.drawPhoto(picture, size.width, size.height, { opaque: true }) : picture;
-      const bytes = await shared.canvasToBytes(output, type, 0.92);
-      const suffix = backdrop === 'transparent' ? 'cutout' : 'new-background';
-      shared.saveBlob(new Blob([bytes], { type: type.mime }), `${core.baseName(fileName)}-${suffix}.${type.extension}`);
-      resultLine.className = 'phot-result is-ready';
-      resultLine.textContent = `Saved: ${size.width} × ${size.height} px, ${core.formatBytes(bytes.length)}, ${type.label}.`;
+      const bytes = await shared.canvasToBytes(picture, job.type, 0.92);
+      release(picture);
+      const suffix = job.backdrop === 'transparent' ? 'cutout' : 'new-background';
+      shared.saveBlob(new Blob([bytes], { type: job.type.mime }), `${core.baseName(job.fileName)}-${suffix}.${job.type.extension}`);
+      if (current()) {
+        resultLine.className = 'phot-result is-ready';
+        resultLine.textContent = `Saved: ${size.width} × ${size.height} px, ${core.formatBytes(bytes.length)}, ${job.type.label}.`;
+      }
     } catch (error) {
       if (!(error instanceof core.PhotoToolError)) console.error(error);
-      shared.showError(error instanceof core.PhotoToolError ? error.message : 'The file could not be made. The photo may be too large for this browser.');
+      if (current()) {
+        shared.showError(error instanceof core.PhotoToolError ? error.message : 'The file could not be made. The photo may be too large for this browser.');
+      }
     } finally {
-      setBusy('');
+      // A newer photo has its own busy state ("Finding the person or object…"): it is not cleared.
+      if (current()) setBusy('');
     }
   }
 
@@ -765,15 +845,20 @@
     const box = photoBox.getBoundingClientRect();
     ring = { x: event.clientX - box.left, y: event.clientY - box.top };
     if (stroke && stroke.pointer === event.pointerId) {
+      // A mouse that moves with no button held was let go somewhere the release was not seen.
+      if (event.pointerType === 'mouse' && event.buttons === 0) {
+        endStroke();
+        return;
+      }
       const last = stroke.points[stroke.points.length - 1];
       const next = workPointAt(event);
-      stroke.points.push(next);
+      addPoint(stroke, next);
       rebuildSoon(strokeArea(last, next, stroke.radius));
     } else {
       render();
     }
   });
-  for (const type of ['pointerup', 'pointercancel']) {
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     photoBox.addEventListener(type, (event) => {
       if (stroke && stroke.pointer === event.pointerId) endStroke();
     });
@@ -879,6 +964,12 @@
   const whenShown = () => {
     const hash = window.location.hash;
     if (hash === '#remove' || ((hash === '' || hash === '#') && !status)) loadStatus();
+    // Leaving the screen stops a mask still on its way, so it does not hold the server's place;
+    // the photo waits with Try again for when the user comes back.
+    if (hash !== '#remove' && maskPending && maskRequest) {
+      cancelledByUser = true;
+      maskRequest.abort();
+    }
   };
   window.addEventListener('hashchange', whenShown);
   new ResizeObserver(render).observe(stage);
