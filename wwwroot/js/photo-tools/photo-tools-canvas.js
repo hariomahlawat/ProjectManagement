@@ -218,8 +218,34 @@
     }
   }
 
+  /**
+   * Choices a screen keeps between visits, in this browser only (local storage): never the photos,
+   * never sent anywhere. Reading or writing never throws: a private window or a full store simply
+   * means nothing is remembered.
+   */
+  function rememberedChoices(name) {
+    const key = `prism.photoTools.${name}`;
+    return Object.freeze({
+      load() {
+        try {
+          const value = JSON.parse(window.localStorage.getItem(key) || 'null');
+          return value && typeof value === 'object' ? value : null;
+        } catch {
+          return null;
+        }
+      },
+      save(value) {
+        try {
+          window.localStorage.setItem(key, JSON.stringify(value));
+        } catch {
+          // Storage is a convenience; nothing depends on it.
+        }
+      }
+    });
+  }
+
   window.PrismPhotoCanvas = Object.freeze({
     showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, canvasToBytes,
-    isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton
+    isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton, rememberedChoices
   });
 })();
