@@ -101,9 +101,11 @@
   let tool = 'crop';
   let crop = null;          // in pixels of `current`
   let tilt = 0;             // straighten not yet applied, degrees
-  // Download pressed with a change pending: the photo (its generation) to save once the change is
-  // applied, or null. Another photo opened, or a failed save, clears it.
+  // Download pressed with a change pending: the edit (its revision) to save once the change is
+  // applied, or null. Any other edit, Undo, Redo, another photo or a failed save clears it.
   let downloadWhenReady = null;
+  // Counts every change to the photo on the screen (a step, Undo, Redo, another photo).
+  let revision = 0;
   let showingOriginal = false;
   let display = { width: 0, height: 0 };
 
@@ -247,6 +249,7 @@
 
   /** Called after the list of steps changes: fresh screen copy, fresh tool state, fresh file. */
   function changed() {
+    revision += 1;
     small = shrink(current);
     tilt = 0;
     straighten.value = '0';
@@ -896,7 +899,7 @@
       downloadButton.disabled = false;
       renderPending();
       if (downloadWhenReady !== null) {
-        const wanted = downloadWhenReady === photoGeneration;
+        const wanted = downloadWhenReady === revision;
         downloadWhenReady = null;
         if (wanted) downloadSaved();
       }
@@ -953,6 +956,7 @@
     if (!source) return;
     if (original && typeof original.close === 'function') original.close();
     photoGeneration += 1;
+    revision += 1;
     // A download asked for on the last photo is not made of this one.
     downloadWhenReady = null;
     fileName = file.name;
@@ -1176,7 +1180,8 @@
       // can never fulfil it, even when a hidden tab holds the step back.
       const generation = photoGeneration;
       addStep(pending).then((done) => {
-        if (done && generation === photoGeneration) downloadWhenReady = generation;
+        // `revision` is now the edit this step made; Undo or another edit before its save moves it on.
+        if (done && generation === photoGeneration) downloadWhenReady = revision;
       });
       return;
     }
