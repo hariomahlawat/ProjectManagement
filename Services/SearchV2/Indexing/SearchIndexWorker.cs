@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Services.SearchV2.Models;
 
@@ -246,8 +247,7 @@ public sealed class SearchIndexWorker : BackgroundService
                 try
                 {
                     var builder = scope.ServiceProvider.GetRequiredService<ISearchProjectionBuilder>();
-                    var projections = await builder.BuildEntityAsync(item.EntityType, item.EntityKey, cancellationToken);
-                    await store.ReplaceEntityAsync(item.EntityType, item.EntityKey, projections, _options.ProjectionVersion, cancellationToken);
+                    await IndexWithDependentsAsync(store, builder, item.EntityType, item.EntityKey, cancellationToken);
                     await store.CompleteAsync(item, cancellationToken);
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
@@ -261,6 +261,55 @@ public sealed class SearchIndexWorker : BackgroundService
         if (rebuildRequest is not null)
         {
             await ProcessRebuildRequestAsync(rebuildRequest, allowDowngrade: false, cancellationToken);
+        }
+    }
+
+    // Records whose changes alter their project's own row (its ToT and IPR summary).
+    private static readonly HashSet<string> ProjectSummarySources = new(StringComparer.Ordinal) { "ProjectTot", "IprRecord" };
+
+    /// <summary>
+    /// Re-indexes a record and the rows that copy its data. A project takes its dependent
+    /// rows from other modules with it (name, stage, trash and archive). A ToT or IPR change
+    /// refreshes the project rows it left and joined. Everything runs here, in this pass;
+    /// nothing is queued, so a project and its dependents never queue each other in a loop.
+    /// A failure fails the work item, and its retry repeats the whole set.
+    /// </summary>
+    internal async Task IndexWithDependentsAsync(
+        ISearchIndexStore store,
+        ISearchProjectionBuilder builder,
+        string entityType,
+        string entityKey,
+        CancellationToken cancellationToken)
+    {
+        var version = _options.ProjectionVersion;
+        var summarisesProject = ProjectSummarySources.Contains(entityType);
+        var projectsBefore = summarisesProject
+            ? await store.GetIndexedParentProjectIdsAsync(entityType, entityKey, version, cancellationToken)
+            : Array.Empty<int>();
+
+        var projections = await builder.BuildEntityAsync(entityType, entityKey, cancellationToken);
+        await store.ReplaceEntityAsync(entityType, entityKey, projections, version, cancellationToken);
+
+        if (string.Equals(entityType, "Project", StringComparison.Ordinal)
+            && int.TryParse(entityKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var projectId))
+        {
+            foreach (var dependent in await builder.FindProjectDependentsAsync(projectId, cancellationToken))
+            {
+                var rows = await builder.BuildEntityAsync(dependent.EntityType, dependent.EntityKey, cancellationToken);
+                await store.ReplaceEntityAsync(dependent.EntityType, dependent.EntityKey, rows, version, cancellationToken);
+            }
+        }
+        else if (summarisesProject)
+        {
+            var projects = projectsBefore
+                .Concat(projections.Where(row => row.ParentProjectId.HasValue).Select(row => row.ParentProjectId!.Value))
+                .Distinct();
+            foreach (var parentId in projects)
+            {
+                var key = parentId.ToString(CultureInfo.InvariantCulture);
+                var rows = await builder.BuildEntityAsync("Project", key, cancellationToken);
+                await store.ReplaceEntityAsync("Project", key, rows, version, cancellationToken);
+            }
         }
     }
 
