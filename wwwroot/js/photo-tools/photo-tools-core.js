@@ -161,7 +161,9 @@
     // slanted mark is not cut at both ends).
     const room = across ? shorter * 0.8 : width - margin * 2;
     if (perPixel > 0 && fontSize * perPixel > room) {
-      fontSize = Math.max(8, Math.floor(room / perPixel));
+      // No lower limit: on a small photo all of the text, however small, is better than a part
+      // of it cut off at the edge.
+      fontSize = Math.max(1, room / perPixel);
     }
     if (across) {
       const textWidth = fontSize * perPixel;
