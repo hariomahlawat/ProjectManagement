@@ -40,7 +40,14 @@ async function loadPage({ narrow = false } = {}) {
     pretendToBeVisual: true,
   });
   const { window } = dom;
-  window.matchMedia = () => ({ matches: narrow, addEventListener() {}, removeEventListener() {} });
+  const media = {
+    matches: narrow,
+    listeners: [],
+    addEventListener(type, listener) { if (type === 'change') this.listeners.push(listener); },
+    removeEventListener() {},
+    set(value) { this.matches = value; this.listeners.forEach((listener) => listener({ matches: value })); },
+  };
+  window.matchMedia = () => media;
   for (const name of ['window', 'document', 'Element', 'HTMLElement', 'HTMLAnchorElement', 'HTMLInputElement', 'HTMLDetailsElement', 'HTMLFormElement', 'DOMParser', 'FormData', 'Event', 'MouseEvent', 'KeyboardEvent', 'Node', 'location', 'localStorage', 'navigator']) {
     Object.defineProperty(globalThis, name, { configurable: true, writable: true, value: window[name] });
   }
@@ -53,7 +60,7 @@ async function loadPage({ narrow = false } = {}) {
     .replace("'../navigation/search-combobox.js'", "'../navigation/search-combobox.mjs'");
   fs.writeFileSync(path.join(root, 'pages', 'search.mjs'), source);
   const module = await import(pathToFileURL(path.join(root, 'pages', 'search.mjs')).href);
-  return { window, document: window.document, module };
+  return { window, document: window.document, module, media };
 }
 
 test('a second tap on Show more while it loads does not follow the link', async () => {
@@ -65,6 +72,26 @@ test('a second tap on Show more while it loads does not follow the link', async 
   more.dispatchEvent(click);
 
   assert.equal(click.defaultPrevented, true);
+});
+
+test('rotating to a wide screen while the sheet is open gives the page back, and back again', async () => {
+  const { window, document, media } = await loadPage({ narrow: true });
+  const details = document.querySelector('[data-search-filter]');
+  const form = document.querySelector('[data-search-filter-form]');
+  details.open = true;
+  details.dispatchEvent(new window.Event('toggle'));
+  assert.equal(document.getElementById('siteHeader').inert, true);
+
+  media.set(false);
+
+  assert.equal(document.getElementById('siteHeader').inert, false);
+  assert.equal(form.hasAttribute('aria-modal'), false);
+  assert.equal(document.documentElement.classList.contains('pm-gs-filter-sheet-open'), false);
+
+  media.set(true);
+
+  assert.equal(document.getElementById('siteHeader').inert, true);
+  assert.equal(form.getAttribute('aria-modal'), 'true');
 });
 
 test('the page outside the filter sheet is everything but the sheet and its backdrop', async () => {

@@ -556,9 +556,17 @@ function initFilterPanel(details) {
     if (event.target instanceof HTMLInputElement && event.target.type === 'date') refresh();
   });
 
-  details.addEventListener('toggle', () => {
+  // Rotating a phone (or resizing) while the panel is open switches between the sheet and
+  // the desktop popover: keep the modal state and the page scroll lock in step.
+  const syncSheet = () => {
     document.documentElement.classList.toggle('pm-gs-filter-sheet-open', details.open && narrow.matches);
     setSheetModal(details.open && narrow.matches);
+  };
+  if (typeof narrow.addEventListener === 'function') narrow.addEventListener('change', syncSheet);
+  else narrow.addListener?.(syncSheet);
+
+  details.addEventListener('toggle', () => {
+    syncSheet();
     if (details.open) {
       refresh();
       if (narrow.matches) {
