@@ -91,11 +91,38 @@
     }
 
     // "Matched in Title" repeats what the highlighted title already shows; only say where
-    // the match was when it is somewhere the reader cannot see.
+    // the match was when it is somewhere the reader cannot see, in plain words.
     string? MatchEvidence(SearchResult hit) =>
         string.IsNullOrWhiteSpace(hit.MatchedField) || hit.MatchedField.Contains("Title", StringComparison.OrdinalIgnoreCase)
             ? null
-            : hit.MatchedField;
+            : PlainEvidence(hit.MatchedField);
+
+    string PlainEvidence(string field)
+    {
+        var parts = field.Split(" + ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(PlainField)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return parts.Length switch
+        {
+            0 => field,
+            1 => parts[0],
+            _ => $"{string.Join(", ", parts[..^1])} and {parts[^1]}"
+        };
+    }
+
+    // Field labels come from the index ("Project Brief", "structured details"); keep acronyms
+    // such as IPR or ARPP and lower-case the rest.
+    string PlainField(string label) => label switch
+    {
+        "related terminology" => "a related term",
+        "similar terminology" => "similar wording",
+        "similar title" => "a title spelt like it",
+        "structured details" => "the record's details",
+        "Name" => "a name",
+        _ => "the " + string.Join(' ', label.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => word.Count(char.IsUpper) > 1 ? word : word.ToLowerInvariant()))
+    };
 
     string BuildUrl(
         string query,
@@ -182,7 +209,7 @@
 {
     <section class="pm-gs-hero" aria-labelledby="searchTitle">
         <h1 id="searchTitle" class="pm-gs-hero__title">Search PRISM</h1>
-        <p class="pm-gs-hero__tag">Find projects, documents, FFC, IPR, activities, visits, training, ToT, proliferation and ARPP records.</p>
+        <p class="pm-gs-hero__tag">Find projects, documents and records across PRISM.</p>
 
         <form method="get" asp-area="Common" asp-page="/Search/Index" class="pm-gs-search" role="search" aria-label="Search PRISM">
             <i class="bi bi-search pm-gs-search__icon" aria-hidden="true"></i>
@@ -200,12 +227,7 @@
             <button class="btn btn-primary pm-gs-search__btn" type="submit">Search</button>
         </form>
 
-        <div class="pm-gs-hero__hints">
-            <span>Try</span>
-            <a href="?q=AURA">AURA</a>
-            <a href="?q=ARPP">ARPP</a>
-            <a href="?q=autonomous+surveillance">autonomous surveillance</a>
-        </div>
+        <p class="pm-gs-hero__hints">Search by name, acronym, case number, file number or a word you expect in the title.</p>
 
         <div class="pm-gs-recent" data-search-recent hidden>
             <h2 class="pm-gs-recent__title">Recent searches</h2>
@@ -244,7 +266,8 @@ else
                 <nav class="pm-gs-tabs" aria-label="Result categories" data-search-tabs>
                     <a class="pm-gs-tab @(selectedCategory is null ? "is-active" : string.Empty)"
                        href="@BuildUrl(Model.Q!, null)"
-                       aria-current="@(selectedCategory is null ? "page" : null)">All <span class="pm-gs-tab__count">@Model.Search.TotalHits.ToString("N0", CultureInfo.InvariantCulture)</span></a>
+                       aria-current="@(selectedCategory is null ? "page" : null)"
+                       title="Each project counts once here, with its ToT, IPR and other linked records">All <span class="pm-gs-tab__count">@Model.Search.TotalHits.ToString("N0", CultureInfo.InvariantCulture)</span></a>
                     @foreach (var facet in orderedCategoryFacets)
                     {
                         var isActive = string.Equals(selectedCategory, facet.Value, StringComparison.OrdinalIgnoreCase);

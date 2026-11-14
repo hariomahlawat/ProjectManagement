@@ -243,3 +243,44 @@ test('helpers: same-origin check, prefix highlight and OS shortcut label', async
   assert.equal(shortcutLabel({ platform: 'MacIntel' }), '⌘K');
   assert.equal(shortcutLabel({ userAgentData: { platform: 'Windows' } }), 'Ctrl K');
 });
+
+test('opening a suggested record does not save the half-typed text as a recent search', async () => {
+  const { createSearchCombobox, readRecentSearches } = await loadModule();
+  const { window, document } = createDom();
+  const input = document.getElementById('q');
+  createSearchCombobox(input, { fetchImpl: () => jsonResponse(suggestions), debounceMs: 0, navigate: () => {} });
+
+  await typeQuery(window, input, 'aur');
+  key(window, input, 'ArrowDown');
+  key(window, input, 'Enter');
+
+  assert.deepEqual(readRecentSearches(window), []);
+});
+
+test('the row under the pointer becomes the one highlighted row', async () => {
+  const { createSearchCombobox } = await loadModule();
+  const { window, document } = createDom();
+  const input = document.getElementById('q');
+  const { listbox } = createSearchCombobox(input, { fetchImpl: () => jsonResponse(suggestions), debounceMs: 0 });
+
+  await typeQuery(window, input, 'aura');
+  key(window, input, 'ArrowDown');
+  const options = Array.from(listbox.querySelectorAll('[role="option"]'));
+  options[1].dispatchEvent(new window.Event('pointermove', { bubbles: true }));
+
+  assert.equal(input.getAttribute('aria-activedescendant'), options[1].id);
+  assert.deepEqual(options.map((option) => option.classList.contains('is-active')), [false, true, false]);
+});
+
+test('focus leaving the search box closes the suggestions', async () => {
+  const { createSearchCombobox } = await loadModule();
+  const { window, document } = createDom();
+  const input = document.getElementById('q');
+  createSearchCombobox(input, { fetchImpl: () => jsonResponse(suggestions), debounceMs: 0 });
+
+  await typeQuery(window, input, 'aura');
+  assert.equal(input.getAttribute('aria-expanded'), 'true');
+  document.getElementById('outside').focus();
+
+  assert.equal(input.getAttribute('aria-expanded'), 'false');
+});
