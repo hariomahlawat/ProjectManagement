@@ -101,7 +101,9 @@
   let tool = 'crop';
   let crop = null;          // in pixels of `current`
   let tilt = 0;             // straighten not yet applied, degrees
-  let downloadWhenReady = false; // Download pressed with a change pending: save once it is applied
+  // Download pressed with a change pending: the photo (its generation) to save once the change is
+  // applied, or null. Another photo opened, or a failed save, clears it.
+  let downloadWhenReady = null;
   let showingOriginal = false;
   let display = { width: 0, height: 0 };
 
@@ -893,13 +895,16 @@
       resultLine.textContent = saved.ready;
       downloadButton.disabled = false;
       renderPending();
-      if (downloadWhenReady) {
-        downloadWhenReady = false;
-        downloadSaved();
+      if (downloadWhenReady !== null) {
+        const wanted = downloadWhenReady === photoGeneration;
+        downloadWhenReady = null;
+        if (wanted) downloadSaved();
       }
     } catch (error) {
       if (mine !== saveRun) return;
       if (!(error instanceof core.PhotoToolError)) console.error(error);
+      // A file that could not be made is not downloaded later by a different save.
+      downloadWhenReady = null;
       saved = null;
       downloadButton.disabled = true;
       resultLine.className = 'phot-result is-problem';
@@ -948,6 +953,8 @@
     if (!source) return;
     if (original && typeof original.close === 'function') original.close();
     photoGeneration += 1;
+    // A download asked for on the last photo is not made of this one.
+    downloadWhenReady = null;
     fileName = file.name;
     original = source;
     originalSmall = shrink(original);
@@ -1165,9 +1172,9 @@
     const pending = pendingLook();
     if (pending) {
       // The change on the screen is applied first; the file is saved once it has been made again.
-      downloadWhenReady = true;
+      downloadWhenReady = photoGeneration;
       addStep(pending).then((done) => {
-        if (done === false) downloadWhenReady = false;
+        if (done === false) downloadWhenReady = null;
       });
       return;
     }
