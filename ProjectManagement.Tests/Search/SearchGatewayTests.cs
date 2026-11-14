@@ -30,6 +30,35 @@ public sealed class SearchGatewayTests
         Assert.Equal(new long[] { 40 }, harness.Latency.Recorded);
     }
 
+    [Theory]
+    [InlineData("a")]
+    [InlineData(" 7 ")]
+    [InlineData("a -")]
+    public async Task OneCharacterSearch_IsTooShort_AndRunsNoEngine(string query)
+    {
+        var harness = new Harness(new SearchV2Options { ServeV2 = true, ShadowMode = true, ShadowSampleRate = 1 });
+
+        var response = await harness.Gateway.SearchAsync(new SearchRequest(query), User(), CancellationToken.None);
+
+        Assert.True(response.IsTooShort);
+        Assert.False(response.IsUnavailable);
+        Assert.Empty(response.Results);
+        Assert.Equal(0, harness.Engine.SearchCalls);
+        Assert.Equal(0, harness.Legacy.Calls);
+        Assert.Empty(harness.Shadow.Jobs);
+    }
+
+    [Fact]
+    public async Task TwoCharacterSearch_Runs()
+    {
+        var harness = new Harness(new SearchV2Options { ServeV2 = true });
+
+        var response = await harness.Gateway.SearchAsync(new SearchRequest("ir"), User(), CancellationToken.None);
+
+        Assert.False(response.IsTooShort);
+        Assert.Equal(1, harness.Engine.SearchCalls);
+    }
+
     [Fact]
     public async Task ServingV2_WithSampling_DispatchesShadowOffTheRequestPath()
     {

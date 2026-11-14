@@ -120,4 +120,13 @@ public sealed class SearchV2Options
 
     [Range(120, 1200)]
     public int MaxSnippetCharacters { get; set; } = 420;
+
+    /// <summary>
+    /// PostgreSQL statement time limit for one search or suggestion statement, applied with
+    /// SET LOCAL inside its read transaction. A search that runs out of time fails like any
+    /// other failed query (the gateway answers from the basic engine or says search is
+    /// unavailable) instead of holding a connection and a CPU core.
+    /// </summary>
+    [Range(1, 120)]
+    public int QueryTimeoutSeconds { get; set; } = 10;
 }

@@ -140,7 +140,8 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
             transaction,
             _options.CorrectionCandidateTrigramThreshold,
             _options.CorrectionCandidateTrigramThreshold,
-            cancellationToken);
+            cancellationToken,
+            _options.QueryTimeoutSeconds);
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;

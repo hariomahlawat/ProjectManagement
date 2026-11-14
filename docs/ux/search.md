@@ -53,6 +53,8 @@ uses it through `navigation/global-search.js` (loaded by `site.js`); the Search 
   a **First results** link. If the index changed since the previous page (`StaleCursor`), the
   engine restarts from the first result and the page says so in a blue `role="status"` notice;
   **Show more** opens that page instead of appending results the reader has already seen.
+- **Too short.** A search with fewer than two letters or digits runs no engine and says
+  "Type at least two letters or digits" instead of "No results".
 - **Zero results.** Offers the did-you-mean search (filters kept), **Remove all filters**,
   **Search all categories**, recent searches and search tips.
 - **Filters panel.** Anchored under the Filters button; header and Apply/Clear stay visible

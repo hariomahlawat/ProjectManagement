@@ -632,6 +632,13 @@ else
                     <section class="pm-gs-nores" aria-labelledby="searchNoResultsTitle">
                         <div class="pm-gs-nores__icon" aria-hidden="true"><i class="bi bi-search"></i></div>
                         <div class="pm-gs-nores__body">
+                            @if (search.IsTooShort)
+                            {
+                                <h2 id="searchNoResultsTitle">Type at least two letters or digits</h2>
+                                <p class="pm-gs-nores__hint">One character matches almost everything. Add a letter or two, or search by an acronym, case number or file number.</p>
+                            }
+                            else
+                            {
                             <h2 id="searchNoResultsTitle">No results for “@Model.Q”@(selectedCategory is null ? string.Empty : $" in {CategoryLabel(selectedCategory)}")@(activeFilterCount > 0 ? " with these filters" : string.Empty)</h2>
 
                             @if (activeFilterCount > 0 || selectedCategory is not null || !string.IsNullOrWhiteSpace(search.CorrectedQuery))
@@ -657,6 +664,7 @@ else
                                 <li>Search by a project acronym, case number or file number.</li>
                                 <li>Use a word you expect in the title, such as a place or an organisation.</li>
                             </ul>
+                            }
 
                             <div class="pm-gs-recent" data-search-recent hidden>
                                 <h3 class="pm-gs-recent__title">Recent searches</h3>
