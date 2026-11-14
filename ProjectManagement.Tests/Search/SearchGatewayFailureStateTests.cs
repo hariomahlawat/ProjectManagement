@@ -79,6 +79,7 @@ public sealed class SearchGatewayFailureStateTests
             new StubAccess(),
             new NoShadow(),
             new NoLatency(),
+            new SearchSuggestionLatencyRecorder(),
             options,
             NullLogger<SearchGateway>.Instance);
     }

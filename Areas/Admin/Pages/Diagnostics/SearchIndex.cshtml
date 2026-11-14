@@ -61,6 +61,28 @@
     }
 </section>
 
+<section class="admin-panel mt-3" aria-labelledby="searchUsageTitle">
+    <header class="admin-panel__header">
+        <div><h2 id="searchUsageTitle">Last 24 hours</h2></div>
+    </header>
+    @if (Model.Usage.Searches == 0)
+    {
+        <p class="text-muted mb-0">Nobody has searched in the last 24 hours.</p>
+    }
+    else
+    {
+        <div class="admin-health-facts">
+            <article class="admin-health-fact"><span class="admin-health-fact__icon"><i class="bi bi-search" aria-hidden="true"></i></span><div><small>Searches</small><strong>@Model.Usage.Searches.ToString("N0")</strong><span>@(Model.Usage.TypicalMilliseconds is double typical ? $"Usually answered in {typical:N0} ms" : "Answer time not known")</span></div></article>
+            <article class="admin-health-fact"><span class="admin-health-fact__icon"><i class="bi @(Model.Usage.FallbackSearches > 0 ? "bi-exclamation-triangle" : "bi-check-circle")" aria-hidden="true"></i></span><div><small>Answered with basic results</small><strong>@Model.Usage.FallbackSearches.ToString("N0")</strong><span>@(Model.Usage.FallbackSearches > 0 ? "The full search could not answer these, so people saw fewer results" : "The full search answered every search")</span></div></article>
+            <article class="admin-health-fact"><span class="admin-health-fact__icon"><i class="bi bi-slash-circle" aria-hidden="true"></i></span><div><small>Found nothing</small><strong>@((Model.Usage.NoResultShare ?? 0).ToString("P0"))</strong><span>Of all searches</span></div></article>
+        </div>
+    }
+    @if (Model.Usage.SuggestionTypicalMilliseconds is double suggestion)
+    {
+        <p class="text-muted small mt-2 mb-0">Suggestions under the search box usually appear in @suggestion.ToString("N0") ms (measured since this server last started).</p>
+    }
+</section>
+
 @* Technical detail stays one click away (docs/ux/admin-review-fixes.md, PR 10). *@
 <details class="admin-panel admin-more-panel mt-3" @(Model.InspectionRequested ? "open" : null)>
     <summary><h2>Technical details: why results come in this order</h2></summary>

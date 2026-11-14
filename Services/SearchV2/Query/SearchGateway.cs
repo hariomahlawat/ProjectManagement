@@ -32,6 +32,7 @@ public sealed class SearchGateway : ISearchGateway
     private readonly ISearchAccessContextFactory _accessFactory;
     private readonly ISearchShadowDispatcher _shadow;
     private readonly ISearchEngineLatencyRecorder _engineLatency;
+    private readonly ISearchSuggestionLatencyRecorder _suggestionLatency;
     private readonly SearchV2Options _options;
     private readonly ILogger<SearchGateway> _logger;
 
@@ -44,9 +45,11 @@ public sealed class SearchGateway : ISearchGateway
         ISearchAccessContextFactory accessFactory,
         ISearchShadowDispatcher shadow,
         ISearchEngineLatencyRecorder engineLatency,
+        ISearchSuggestionLatencyRecorder suggestionLatency,
         IOptions<SearchV2Options> options,
         ILogger<SearchGateway> logger)
     {
+        _suggestionLatency = suggestionLatency ?? throw new ArgumentNullException(nameof(suggestionLatency));
         _v2 = v2 ?? throw new ArgumentNullException(nameof(v2));
         _legacy = legacy ?? throw new ArgumentNullException(nameof(legacy));
         _normalizer = normalizer ?? throw new ArgumentNullException(nameof(normalizer));
@@ -228,14 +231,9 @@ public sealed class SearchGateway : ISearchGateway
         {
             var suggestions = await _v2.SuggestAsync(query, user, limit, cancellationToken);
             stopwatch.Stop();
-            await SafeQueryLogAsync(
-                query?.Trim() ?? string.Empty,
-                user,
-                suggestions.Count,
-                stopwatch.ElapsedMilliseconds,
-                "V2-Suggest",
-                null,
-                cancellationToken);
+            // Timed in process only: a query-log row per pause in typing would keep fragments
+            // of what people type for the retention period and add a write per keystroke.
+            _suggestionLatency.Record(stopwatch.ElapsedMilliseconds);
             return suggestions;
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)

@@ -211,6 +211,12 @@ public sealed class AuditLogWhoDidWhatTests
             DataJson = dataJson
         };
 
+    private sealed class NoSearchUsage : ProjectManagement.Services.SearchV2.Analytics.ISearchUsageReader
+    {
+        public Task<ProjectManagement.Services.SearchV2.Analytics.SearchUsageSummary> ReadAsync(TimeSpan window, CancellationToken cancellationToken) =>
+            Task.FromResult(ProjectManagement.Services.SearchV2.Analytics.SearchUsageSummary.Empty);
+    }
+
     private static (SearchIndexModel Page, RecordingAudit Audit, RecordingStoreProxy Store) CreateSearchIndexPage()
     {
         var store = DispatchProxy.Create<ISearchIndexStore, RecordingStoreProxy>();
@@ -220,7 +226,8 @@ public sealed class AuditLogWhoDidWhatTests
             new AllowAll(),
             DispatchProxy.Create<ISearchV2Engine, RecordingStoreProxy>(),
             Options.Create(new SearchV2Options()),
-            audit)
+            audit,
+            new NoSearchUsage())
         {
             PageContext = new PageContext
             {
