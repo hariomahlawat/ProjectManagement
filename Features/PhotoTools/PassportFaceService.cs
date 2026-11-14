@@ -164,6 +164,8 @@ public sealed class PassportFaceService : IPassportFaceService
         {
             var stopwatch = Stopwatch.StartNew();
             var located = await _engine.LocateLargestFaceAsync(photoBytes, timeLimit.Token, options.EffectiveDetectorWait);
+            // An engine that could not stop in time still must not answer late as if on time.
+            timeLimit.Token.ThrowIfCancellationRequested();
             _logger.LogInformation(
                 "Face located for a {Width} x {Height} photo in {ElapsedMilliseconds} ms ({Found}).",
                 located.ImageWidth,

@@ -263,6 +263,9 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
             EnsureWithinPixelLimit(encoded);
             using var bitmap = SKBitmap.Decode(encoded)
                 ?? throw new InvalidDataException("The image could not be decoded for finding the face.");
+            // One detector pass runs to the end once started (well under a second); the caller's
+            // time limit is checked before each pass and before answering, so a late answer is
+            // never given as if it were on time.
             // A passport photo is mostly face: at the Photos library's usual size (up to 1600 px) such
             // a face is too large for the detector to see. Both small copies are looked at (a small
             // face found at 640 px, such as a poster behind, must not hide the real one found at
@@ -274,6 +277,8 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
                 {
                     break;
                 }
+
+                cancellationToken.ThrowIfCancellationRequested();
 
                 selected.AddRange(FaceGeometry.NonMaximumSuppression(
                     Detect(bitmap, _options.Classification.FacePresenceMinimumConfidence, dimension),
@@ -295,6 +300,7 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
                 .OrderByDescending(item => item.Rectangle.Width * item.Rectangle.Height)
                 .ThenByDescending(item => item.Detection.Confidence)
                 .FirstOrDefault();
+            cancellationToken.ThrowIfCancellationRequested();
             if (best is null)
             {
                 return new FaceLocation(bitmap.Width, bitmap.Height, null);

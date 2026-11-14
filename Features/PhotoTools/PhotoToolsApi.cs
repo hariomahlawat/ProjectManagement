@@ -140,12 +140,14 @@ public static class PhotoToolsApi
             sizeLimit.MaxRequestBodySize = limit;
         }
 
-        using var uploadDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        uploadDeadline.CancelAfter(settings.EffectiveTimeout);
+        // One time limit for the whole request, upload and finding the face together, while it holds
+        // a place.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(settings.EffectiveTimeout);
         byte[] photo;
         try
         {
-            photo = await ReadBodyAsync(httpContext.Request.Body, httpContext.Request.ContentLength, limit, uploadDeadline.Token);
+            photo = await ReadBodyAsync(httpContext.Request.Body, httpContext.Request.ContentLength, limit, deadline.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -160,7 +162,17 @@ public static class PhotoToolsApi
             return Problem(StatusCodes.Status400BadRequest, "The photo did not arrive in full. Try again.");
         }
 
-        var result = await service.LocateAsync(photo, cancellationToken, place);
+        PassportFaceResult result;
+        try
+        {
+            result = await service.LocateAsync(photo, deadline.Token, place);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The request's time limit ran out while the face was being found.
+            return Busy(httpContext, FaceBusyMessage);
+        }
+
         return result.Outcome switch
         {
             PassportFaceOutcome.Found or PassportFaceOutcome.NoFace => Results.Ok(new

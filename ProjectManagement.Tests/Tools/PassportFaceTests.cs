@@ -100,6 +100,10 @@ public sealed class PassportFaceTests
         var result = await ServiceWith(slow, o => o.TimeoutSeconds = 2).LocateAsync(Jpeg(16, 16), CancellationToken.None);
         Assert.Equal(PassportFaceOutcome.Busy, result.Outcome);
         Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(10));
+
+        // An engine that cannot stop mid-pass and answers after the limit: still busy, never late "found".
+        var stubborn = new FakeEngine { Face = SomeFace(), IgnoringCancellation = TimeSpan.FromSeconds(3) };
+        Assert.Equal(PassportFaceOutcome.Busy, (await ServiceWith(stubborn, o => o.TimeoutSeconds = 2).LocateAsync(Jpeg(16, 16), CancellationToken.None)).Outcome);
     }
 
     [Fact]
@@ -244,6 +248,7 @@ public sealed class PassportFaceTests
         public LocatedFace? Face { get; init; }
         public TaskCompletionSource? Hold { get; init; }
         public bool DetectorBusy { get; init; }
+        public TimeSpan IgnoringCancellation { get; init; }
         public TimeSpan? LastWait;
         public int Calls;
 
@@ -263,6 +268,12 @@ public sealed class PassportFaceTests
             if (Hold is not null)
             {
                 await Hold.Task.WaitAsync(cancellationToken);
+            }
+
+            if (IgnoringCancellation > TimeSpan.Zero)
+            {
+                // Like a detector pass that runs to the end once started.
+                await Task.Delay(IgnoringCancellation, CancellationToken.None);
             }
 
             using var bitmap = SKBitmap.Decode(imageBytes);
