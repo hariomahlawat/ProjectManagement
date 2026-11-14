@@ -24,7 +24,12 @@ describes what is built.
   (`ErpUsageModuleCatalog`), never file names or contents.
 - A saved photo is re-drawn, so the hidden data in the original (GPS location, camera details)
   is never in the saved file. The page says so.
-- The last Reduce size settings are remembered in that browser's `localStorage` only.
+- Each screen's last choices are remembered in that browser's `localStorage` only, under
+  `prism.photoTools.<screen>`: Reduce size (target, width and height, file type, black and white),
+  Passport photo (per Photo or Signature: the size or custom size and the KB limit; and the
+  background colour), Print sheet (paper, PDF or JPG, cut lines), Edit photo (file type and
+  quality, once picked) and Remove background (background and file type). Photos are never kept,
+  and a choice that no longer fits is ignored.
 - A photo dropped anywhere on the page outside a drop zone is ignored, so the browser does not
   open it in place of the page and lose the work on every screen (as in PDF Tools).
 

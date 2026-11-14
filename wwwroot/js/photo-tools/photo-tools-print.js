@@ -72,6 +72,21 @@
   // Null fills the sheet; a number is what the user asked for.
   let copies = null;
   let format = PDFLib ? 'pdf' : 'jpg';
+  // Kept in this browser: the paper, PDF or JPG, and the cut lines.
+  const remembered = shared.rememberedChoices('sheet');
+
+  function rememberChoices() {
+    remembered.save({ paper: sheet.key, format, cutLines: cutLines.checked });
+  }
+
+  (function restoreChoices() {
+    const kept = remembered.load();
+    if (!kept) return;
+    const paper = core.SHEET_SIZES.find(item => item.key === kept.paper);
+    if (paper) sheet = paper;
+    if (kept.format === 'jpg' || (kept.format === 'pdf' && PDFLib)) format = kept.format;
+    if (typeof kept.cutLines === 'boolean') cutLines.checked = kept.cutLines;
+  })();
   const opener = shared.latestPhotoOpener();
   // True while a sheet is being made, so Download cannot be pressed again until it is saved.
   let downloading = false;
@@ -236,6 +251,7 @@
     choices(papers, core.SHEET_SIZES, sheet, (option) => {
       sheet = option;
       copies = null;
+      rememberChoices();
       render();
     });
     origin.textContent = fromPassport ? 'From Passport photo' : 'From your file';
@@ -393,7 +409,10 @@
     copies = null;
     render();
   });
-  cutLines.addEventListener('change', render);
+  cutLines.addEventListener('change', () => {
+    rememberChoices();
+    render();
+  });
 
   // The small picture of the copy is dragged to choose which part of the photo is printed.
   // Only one pointer drags: a second finger or a right-click is ignored.
@@ -444,6 +463,7 @@
   for (const button of formatButtons) {
     button.addEventListener('click', () => {
       format = button.dataset.sheetFormat;
+      rememberChoices();
       render();
     });
   }
