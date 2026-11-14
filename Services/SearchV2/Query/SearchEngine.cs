@@ -153,7 +153,8 @@ public sealed class SearchEngine : ISearchV2Engine
                     transaction,
                     _options.FuzzyThreshold,
                     _options.FuzzyWordSimilarityThreshold,
-                    cancellationToken);
+                    cancellationToken,
+                    _options.QueryTimeoutSeconds);
 
                 await using var command = connection.CreateCommand();
                 command.Transaction = transaction;
@@ -357,6 +358,8 @@ public sealed class SearchEngine : ISearchV2Engine
     {
         var terms = SearchQueryTerms.Create(normalized, Array.Empty<string>(), Array.Empty<string>());
         await using var command = connection.CreateCommand();
+        // Runs outside a transaction, so the time limit is the command's own.
+        command.CommandTimeout = _options.QueryTimeoutSeconds;
         var scope = BuildScopeSql(command, access, null, null, null, null, null, null, null, null);
         var scopeWhere = ScopeWhere(scope);
         // Every candidate branch is an index-backed predicate (pattern btree on LEFT(title),
@@ -494,21 +497,38 @@ public sealed class SearchEngine : ISearchV2Engine
     /// govern the GIN-indexed operators for this transaction only (pooled connections
     /// are not affected).
     /// </summary>
+    /// <summary>
+    /// Sets the pg_trgm thresholds and, when given, the statement time limit for the rest of
+    /// this transaction only (set_config(..., true) is SET LOCAL), so a pooled connection is
+    /// never left changed.
+    /// </summary>
     internal static async Task SetTrigramThresholdsAsync(
         DbConnection connection,
         DbTransaction transaction,
         double similarityThreshold,
         double wordSimilarityThreshold,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? statementTimeoutSeconds = null)
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = """
-            SELECT set_config('pg_trgm.similarity_threshold', @similarity, true),
-                   set_config('pg_trgm.word_similarity_threshold', @wordSimilarity, true);
-            """;
+        command.CommandText = statementTimeoutSeconds is > 0
+            ? """
+                SELECT set_config('pg_trgm.similarity_threshold', @similarity, true),
+                       set_config('pg_trgm.word_similarity_threshold', @wordSimilarity, true),
+                       set_config('statement_timeout', @statementTimeout, true);
+                """
+            : """
+                SELECT set_config('pg_trgm.similarity_threshold', @similarity, true),
+                       set_config('pg_trgm.word_similarity_threshold', @wordSimilarity, true);
+                """;
         Add(command, "similarity", Math.Clamp(similarityThreshold, 0d, 1d).ToString("0.###", CultureInfo.InvariantCulture));
         Add(command, "wordSimilarity", Math.Clamp(wordSimilarityThreshold, 0d, 1d).ToString("0.###", CultureInfo.InvariantCulture));
+        if (statementTimeoutSeconds is > 0)
+        {
+            Add(command, "statementTimeout", (statementTimeoutSeconds.Value * 1000).ToString(CultureInfo.InvariantCulture));
+        }
+
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -677,6 +697,7 @@ public sealed class SearchEngine : ISearchV2Engine
                    'title_phrase'::text AS channel, 3.6::double precision AS weight
             FROM "SearchEntries" e
             WHERE {scopeWhere}
+              AND @containsLike <> ''
               AND e."NormalizedTitle" LIKE @containsLike
               AND e."NormalizedTitle" <> @exact
               AND STRPOS(' ' || e."NormalizedTitle" || ' ', ' ' || @exact || ' ') > 0
@@ -1431,6 +1452,8 @@ internal sealed record SearchQueryTerms(
     string FuzzyLead,
     string SnippetAnchor)
 {
+    internal const int MinimumPartialMatchCharacters = 3;
+
     public static SearchQueryTerms Create(
         NormalizedSearchQuery query,
         IEnumerable<string> aliasPhrases,
@@ -1447,14 +1470,17 @@ internal sealed record SearchQueryTerms(
             .ToArray();
         var indexedPrefix = exact.Length > 160 ? exact[..160] : exact;
         var exactTitles = new[] { exact }.Concat(exactVariants).Distinct(StringComparer.Ordinal).ToArray();
+        // Below three characters the trigram index cannot serve '%x%', and 'x':* matches
+        // almost every entry; whole-token and title-prefix (btree) channels still run.
+        var longEnoughForPartialMatches = exact.Length >= MinimumPartialMatchCharacters;
 
         return new SearchQueryTerms(
             exact,
             SearchQueryNormalizer.BuildTokenTsQuery(exact),
-            SearchQueryNormalizer.BuildPrefixTsQuery(exact),
+            longEnoughForPartialMatches ? SearchQueryNormalizer.BuildPrefixTsQuery(exact) : string.Empty,
             SearchQueryNormalizer.EscapeLike(exact) + "%",
             SearchQueryNormalizer.EscapeLike(indexedPrefix) + "%",
-            "%" + SearchQueryNormalizer.EscapeLike(exact) + "%",
+            longEnoughForPartialMatches ? "%" + SearchQueryNormalizer.EscapeLike(exact) + "%" : string.Empty,
             identifierKey,
             identifierKey.Length >= 3 ? SearchQueryNormalizer.EscapeLike(identifierKey) + "%" : string.Empty,
             identifierKey.Length >= 2 && identifierKey.All(char.IsDigit) ? identifierKey : string.Empty,

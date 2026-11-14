@@ -146,8 +146,12 @@ public sealed record SearchGatewayResponse(
     bool FellBackToLegacy = false,
     SearchV2ExecutionStatus V2ExecutionStatus = SearchV2ExecutionStatus.Disabled,
     string? V2DiagnosticId = null,
-    bool IsUnavailable = false)
+    bool IsUnavailable = false,
+    bool IsTooShort = false)
 {
+    /// <summary>The fewest letters or digits a search must have before any engine runs it.</summary>
+    public const int MinimumQueryCharacters = 2;
+
     /// <summary>
     /// Search V2 should have served this user but could not, so the bounded Legacy engine
     /// answered instead: results may be incomplete and advanced filters are not applied.

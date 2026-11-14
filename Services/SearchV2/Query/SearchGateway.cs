@@ -73,6 +73,12 @@ public sealed class SearchGateway : ISearchGateway
             return SearchGatewayResponse.Empty(string.Empty);
         }
 
+        // One letter matches nearly every record in both engines; ask for more instead.
+        if (normalized.Exact.Count(char.IsLetterOrDigit) < SearchGatewayResponse.MinimumQueryCharacters)
+        {
+            return SearchGatewayResponse.Empty(normalized.Original) with { IsTooShort = true };
+        }
+
         var stopwatch = Stopwatch.StartNew();
         var serveV2ToUser = ShouldServeV2(user);
 

@@ -9,6 +9,24 @@ namespace ProjectManagement.Tests.Search;
 
 public sealed class SearchV2QueryTests
 {
+    [Theory]
+    [InlineData("ir", false)]
+    [InlineData("ab", false)]
+    [InlineData("abc", true)]
+    [InlineData("radar", true)]
+    public void PartialMatchChannels_NeedThreeCharacters(string query, bool expectPartial)
+    {
+        var normalized = new SearchQueryNormalizer().Normalize(query);
+
+        var terms = SearchQueryTerms.Create(normalized, Array.Empty<string>(), Array.Empty<string>());
+
+        Assert.Equal(expectPartial, terms.ContainsLike.Length > 0);
+        Assert.Equal(expectPartial, terms.PrefixTsQuery.Length > 0);
+        // Whole-token and title-prefix (btree) matching still run for short searches.
+        Assert.NotEmpty(terms.ExactTokenTsQuery);
+        Assert.StartsWith(query, terms.PrefixLike, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Normalizer_IsDeterministicAndDatabaseIndependent()
     {

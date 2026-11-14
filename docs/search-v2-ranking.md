@@ -16,6 +16,11 @@ Identifiers also get a separator-insensitive `IdentifierKey` term (`PRJ-0042`,
 `PRJ0042` and `prj 42` all become `prj42`). Letter/digit spelling variants
 (`T90` / `T-90`) are tried as alternative exact titles and alias phrases.
 
+Short searches: the gateway answers a search with fewer than two letters or digits with
+`IsTooShort` and runs no engine. Contains (`%x%`) and word-prefix (`x:*`) matching need
+three characters, because below that the trigram index cannot serve them and they match
+almost every entry; whole-word and title-prefix matching still run for two.
+
 tsqueries are built from whole quoted tokens so PostgreSQL's parser tokenises the
 query exactly as it tokenised the indexed text.
 

@@ -137,6 +137,7 @@ This document explains how the application performs OCR and full-text search (FT
 | `FullReconciliationMinutes` | `1440` | Scheduled full rebuild interval. |
 | `FullRebuildRetryMinutes` | `15` | Wait after a failed automatic rebuild (doubles, capped at 4×). |
 | `QueryLogRetentionDays` | `90` | Applies to query, click and shadow rows. |
+| `QueryTimeoutSeconds` | `10` | PostgreSQL time limit for one search, suggestion or did-you-mean statement (`SET LOCAL statement_timeout`, or the command timeout for suggestions). A search that runs out of time fails like any failed query. |
 | `FuzzyThreshold`, `FuzzyWordSimilarityThreshold` | `0.28`, `0.5` | pg_trgm `similarity` / per-token `word_similarity` floors for the trigram fallback, applied with `SET LOCAL` per search. |
 
 - **Integration tests.** `ProjectManagement.Tests/Search/SearchV2PostgresIntegrationTests.cs` runs only when `PRISM_SEARCHV2_TEST_CONNECTION` names a PostgreSQL server; it then creates, migrates and drops a disposable `prism_test_searchv2_*` database. Without the variable the tests are reported as skipped. CI runs them in the `Production Database Migration Gate` workflow.

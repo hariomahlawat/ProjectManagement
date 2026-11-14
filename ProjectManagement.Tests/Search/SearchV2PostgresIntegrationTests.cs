@@ -428,6 +428,44 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
     }
 
     [SearchV2PostgresFact]
+    public async Task TwoLetterSearch_StillFindsATitleThatStartsWithIt_AndAWholeWord()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9301", "Projects", "Projects", "IR seeker upgrade", null),
+            host.Entry("Project", "9302", "Projects", "Projects", "Thermal IR camera", null),
+            host.Entry("Project", "9303", "Projects", "Projects", "Firing range trainer", null));
+
+        var response = await host.SearchAsync("ir");
+
+        Assert.Equal(SearchV2ExecutionStatus.Success, response.ExecutionStatus);
+        var keys = response.Results.Select(result => result.EntityKey).ToArray();
+        Assert.Contains("9301", keys);
+        Assert.Contains("9302", keys);
+        // "Firing" only contains "ir"; two letters are too few for a contains match.
+        Assert.DoesNotContain("9303", keys);
+    }
+
+    [SearchV2PostgresFact]
+    public async Task SearchStatement_RunsUnderTheConfiguredTimeLimit()
+    {
+        await using var host = _database.CreateHost(services =>
+            services.PostConfigure<SearchV2Options>(options => options.QueryTimeoutSeconds = 7));
+        await using var connection = await host.OpenConnectionAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        await SearchEngine.SetTrigramThresholdsAsync(connection, transaction, 0.3, 0.5, CancellationToken.None, 7);
+        await using var show = new NpgsqlCommand("SHOW statement_timeout;", connection, transaction);
+        var inside = (string?)await show.ExecuteScalarAsync();
+        await transaction.RollbackAsync();
+        await using var after = new NpgsqlCommand("SHOW statement_timeout;", connection);
+        var outside = (string?)await after.ExecuteScalarAsync();
+
+        Assert.Equal("7s", inside);
+        Assert.NotEqual("7s", outside);
+    }
+
+    [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {
         await using var host = _database.CreateHost(services =>
