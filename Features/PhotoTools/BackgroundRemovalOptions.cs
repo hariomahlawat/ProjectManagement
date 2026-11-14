@@ -40,6 +40,19 @@ public sealed class BackgroundRemovalOptions
 
     /// <summary>How long one photo may take, waiting included, before the server gives up.</summary>
     public int TimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// <see cref="MaximumUploadBytes"/> kept between 1 MB and 64 MB, so a mistyped setting can
+    /// neither refuse every photo nor let one request hold hundreds of megabytes. Never a
+    /// start-up failure: a value outside the range is simply used at its nearest end.
+    /// </summary>
+    public long EffectiveUploadBytes => Math.Clamp(MaximumUploadBytes, 1L * 1024 * 1024, 64L * 1024 * 1024);
+
+    /// <summary><see cref="MaximumSide"/> kept between 256 and 4096 px (a 4096 px photo is 64 MB decoded).</summary>
+    public int EffectiveSide => Math.Clamp(MaximumSide, 256, 4096);
+
+    /// <summary><see cref="MaximumWaiting"/> kept between 0 and 32.</summary>
+    public int EffectiveWaiting => Math.Clamp(MaximumWaiting, 0, 32);
 }
 
 /// <summary>

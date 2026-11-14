@@ -29,6 +29,13 @@ public interface IBackgroundRemovalService
 
     /// <summary>Finds the subject of the photo in <paramref name="photoBytes"/> and returns its mask as a greyscale PNG.</summary>
     Task<BackgroundRemovalResult> MaskAsync(byte[] photoBytes, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether a photo sent now would get a place in the queue. Asked before the photo is read,
+    /// so a full queue answers "busy" without holding the photo in memory first; the place itself
+    /// is taken in <see cref="MaskAsync"/>.
+    /// </summary>
+    bool HasRoom();
 }
 
 /// <summary>
@@ -65,6 +72,8 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
 
     public BackgroundModelReadiness Readiness() => _readiness.Check();
 
+    public bool HasRoom() => Volatile.Read(ref _waiting) < _options.CurrentValue.EffectiveWaiting + _concurrent;
+
     public async Task<BackgroundRemovalResult> MaskAsync(byte[] photoBytes, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(photoBytes);
@@ -80,7 +89,7 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
             return new(BackgroundRemovalOutcome.NotAPhoto);
         }
 
-        if (photoBytes.Length > options.MaximumUploadBytes)
+        if (photoBytes.Length > options.EffectiveUploadBytes)
         {
             return new(BackgroundRemovalOutcome.TooLarge);
         }
@@ -88,17 +97,19 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
         // The size is read from the file's header before any pixels are decoded.
         using var data = SKData.CreateCopy(photoBytes);
         using var codec = SKCodec.Create(data);
-        if (codec is null || codec.Info.Width <= 0 || codec.Info.Height <= 0)
+        // Only the three types the page sends are decoded, whatever the request said it was.
+        if (codec is null || codec.Info.Width <= 0 || codec.Info.Height <= 0
+            || codec.EncodedFormat is not (SKEncodedImageFormat.Jpeg or SKEncodedImageFormat.Png or SKEncodedImageFormat.Webp))
         {
             return new(BackgroundRemovalOutcome.NotAPhoto);
         }
 
-        if (Math.Max(codec.Info.Width, codec.Info.Height) > options.MaximumSide)
+        if (Math.Max(codec.Info.Width, codec.Info.Height) > options.EffectiveSide)
         {
             return new(BackgroundRemovalOutcome.TooLarge);
         }
 
-        if (Interlocked.Increment(ref _waiting) > Math.Max(0, options.MaximumWaiting) + _concurrent)
+        if (Interlocked.Increment(ref _waiting) > options.EffectiveWaiting + _concurrent)
         {
             Interlocked.Decrement(ref _waiting);
             return new(BackgroundRemovalOutcome.Busy);

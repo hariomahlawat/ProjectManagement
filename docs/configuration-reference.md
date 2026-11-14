@@ -175,7 +175,7 @@ must match `Model:Sha256`. The full list of keys, the model values and the insta
 | `PhotoTools:BackgroundRemoval:Model:FileName` | `background_removal_bria_rmbg_2.0.onnx` | The model file. |
 | `PhotoTools:BackgroundRemoval:Model:Sha256` | empty | Required SHA-256 of the file. |
 | `PhotoTools:BackgroundRemoval:IntraOpThreads` | `6` | Processor threads one photo may use. |
-| `PhotoTools:BackgroundRemoval:MaximumConcurrent` / `MaximumWaiting` | `1` / `4` | Photos at once, and waiting, before "busy". |
+| `PhotoTools:BackgroundRemoval:MaximumConcurrent` / `MaximumWaiting` | `1` / `4` | Photos at once (1 to 4), and waiting (0 to 32), before "busy". |
 | `PhotoTools:BackgroundRemoval:TimeoutSeconds` | `60` | Longest time for one photo. |
 
 ## Background services

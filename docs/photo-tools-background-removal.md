@@ -92,9 +92,9 @@ Section `PhotoTools:BackgroundRemoval` (defaults in `appsettings.json`, code in
 | `ModelRoot` | empty | Folder holding the model file; a relative path is under the content root. |
 | `IntraOpThreads` | `6` | Processor threads one photo may use. Kept well under the server's cores (16) so the rest of PRISM stays responsive. |
 | `MaximumConcurrent` | `1` | Photos processed at the same time (1 to 4). Read when PRISM starts: a change needs a restart. |
-| `MaximumWaiting` | `4` | Photos that may wait; beyond this the answer is "busy, try again in a few seconds". |
-| `MaximumUploadBytes` | `20971520` | Largest request (20 MB). |
-| `MaximumSide` | `2048` | Longest side of the copy the browser sends. The model works at 1024 px; a larger copy only costs transfer. |
+| `MaximumWaiting` | `4` | Photos that may wait (0 to 32); beyond this the answer is "busy, try again in a few seconds", given before the photo is read. |
+| `MaximumUploadBytes` | `20971520` | Largest request (20 MB). Kept between 1 MB and 64 MB: a value outside is used at its nearest end, never a start-up failure. |
+| `MaximumSide` | `2048` | Longest side of the copy the browser sends (256 to 4096 px). The model works at 1024 px; a larger copy only costs transfer. |
 | `TimeoutSeconds` | `60` | How long one photo may take, waiting included; then it is stopped. |
 | `Model:FileName` | `background_removal_bria_rmbg_2.0.onnx` | The file in `ModelRoot`. |
 | `Model:Sha256` | empty | Lower-case SHA-256 of the file. **Required**: the model is not used without it, or when it does not match. |
@@ -137,7 +137,10 @@ much weaker than BRIA's models and is only for testing the pipeline.
   memory at its peak after a photo. The cut-outs were very good. Until that memory is released
   after each photo (and the time is brought down), the tool stays off in production.
 - Only `MaximumConcurrent` photos run at once, each with at most `IntraOpThreads` threads; others
-  wait their turn, and when `MaximumWaiting` are already waiting the answer is "busy".
+  wait their turn, and when `MaximumWaiting` are already waiting the answer is "busy". "Busy" and
+  "not set up" are answered before the photo is read, so a full queue never holds photos in
+  memory; a photo that is read goes straight into one array of its declared size.
+- Only JPG, PNG and WEBP are decoded, whatever type the request names.
 - A photo that takes longer than `TimeoutSeconds` is stopped inside ONNX Runtime, not just
   abandoned.
 - When a user changes photo before the mask arrives, the browser cancels the earlier request and

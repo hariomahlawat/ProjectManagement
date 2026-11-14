@@ -57,8 +57,8 @@ public static class PhotoToolsApi
             state = StateName(readiness.State),
             message = readiness.IsReady ? null : NotSetUpMessage,
             attribution = readiness.IsReady ? settings.Model.Attribution : null,
-            maximumSide = settings.MaximumSide,
-            maximumBytes = settings.MaximumUploadBytes
+            maximumSide = settings.EffectiveSide,
+            maximumBytes = settings.EffectiveUploadBytes
         });
     }
 
@@ -85,10 +85,22 @@ public static class PhotoToolsApi
             return Problem(StatusCodes.Status415UnsupportedMediaType, "Send the photo as PNG, JPG or WEBP.");
         }
 
-        var limit = options.CurrentValue.MaximumUploadBytes;
+        var limit = options.CurrentValue.EffectiveUploadBytes;
         if (httpContext.Request.ContentLength > limit)
         {
             return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
+        }
+
+        // Answered before the photo is read: a server that is not set up, or whose queue is full,
+        // never holds the photo in memory first.
+        if (!service.Readiness().IsReady)
+        {
+            return Problem(StatusCodes.Status503ServiceUnavailable, NotSetUpMessage);
+        }
+
+        if (!service.HasRoom())
+        {
+            return Busy(httpContext);
         }
 
         var sizeLimit = httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
@@ -100,7 +112,7 @@ public static class PhotoToolsApi
         byte[] photo;
         try
         {
-            photo = await ReadBodyAsync(httpContext.Request.Body, limit, cancellationToken);
+            photo = await ReadBodyAsync(httpContext.Request.Body, httpContext.Request.ContentLength, limit, cancellationToken);
         }
         catch (InvalidDataException)
         {
@@ -109,6 +121,10 @@ public static class PhotoToolsApi
         catch (BadHttpRequestException)
         {
             return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
+        }
+        catch (EndOfStreamException)
+        {
+            return Problem(StatusCodes.Status400BadRequest, "The photo did not arrive in full. Try again.");
         }
 
         var result = await service.MaskAsync(photo, cancellationToken);
@@ -121,8 +137,7 @@ public static class PhotoToolsApi
             case BackgroundRemovalOutcome.Unavailable:
                 return Problem(StatusCodes.Status503ServiceUnavailable, NotSetUpMessage);
             case BackgroundRemovalOutcome.Busy:
-                httpContext.Response.Headers.RetryAfter = "5";
-                return Problem(StatusCodes.Status503ServiceUnavailable, "PRISM is removing other backgrounds right now. Try again in a few seconds.");
+                return Busy(httpContext);
             case BackgroundRemovalOutcome.NotAPhoto:
                 return Problem(StatusCodes.Status415UnsupportedMediaType, "This file could not be read as a photo.");
             case BackgroundRemovalOutcome.TooLarge:
@@ -134,8 +149,32 @@ public static class PhotoToolsApi
         }
     }
 
-    private static async Task<byte[]> ReadBodyAsync(Stream body, long limit, CancellationToken cancellationToken)
+    private static IResult Busy(HttpContext httpContext)
     {
+        httpContext.Response.Headers.RetryAfter = "5";
+        return Problem(StatusCodes.Status503ServiceUnavailable, "PRISM is removing other backgrounds right now. Try again in a few seconds.");
+    }
+
+    /// <summary>
+    /// Reads the photo. With a declared length (as the page always sends) it goes straight into one
+    /// array of that size, with no growing buffer and no second copy; without one it is read in
+    /// pieces up to the limit.
+    /// </summary>
+    private static async Task<byte[]> ReadBodyAsync(Stream body, long? declaredLength, long limit, CancellationToken cancellationToken)
+    {
+        if (declaredLength is > 0 and var length && length <= limit)
+        {
+            var exact = new byte[length];
+            await body.ReadExactlyAsync(exact, cancellationToken);
+            // More than was declared is refused rather than silently cut.
+            if (await body.ReadAsync(new byte[1], cancellationToken) > 0)
+            {
+                throw new InvalidDataException("The request body is longer than its declared length.");
+            }
+
+            return exact;
+        }
+
         using var buffer = new MemoryStream();
         var chunk = new byte[81920];
         int read;
