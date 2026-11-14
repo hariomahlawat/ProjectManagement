@@ -32,9 +32,10 @@
             <span class="pdft-brand__mark" aria-hidden="true"><i class="bi bi-image"></i></span>
             <span class="pdft-brand__text">Photo Tools <span>by PRISM</span></span>
         </a>
-        <span class="pdft-privacy" title="Your photos are changed in this browser. Only Remove background sends a copy to the PRISM server, to find the subject; nothing is stored there.">
+        <span class="pdft-privacy" title="Your photos are changed in this browser. Only Remove background sends a copy to the PRISM server, to find the person or object; nothing is stored there.">
             <i class="bi bi-shield-lock" aria-hidden="true"></i>
             <span>Photos are not saved in PRISM</span>
+            <span class="visually-hidden">. Your photos are changed in this browser. Only Remove background sends a copy to the PRISM server, to find the person or object; nothing is stored there.</span>
         </span>
         <a class="pdft-topbar__back" asp-page="/Dashboard/Index">
             <i class="bi bi-box-arrow-up-left" aria-hidden="true"></i>
@@ -49,7 +50,7 @@
         <section class="pdft-view" data-view="home" aria-labelledby="photHomeTitle">
             <div class="pdft-hero">
                 <h1 id="photHomeTitle">What do you want to do with your photo?</h1>
-                <p>Everything happens in this browser, except Remove background, which asks the PRISM server to find the subject. Nothing is saved in PRISM; you download the result.</p>
+                <p>Everything happens in this browser, except Remove background, which asks the PRISM server to find the person or object. Nothing is saved in PRISM; you download the result.</p>
             </div>
             <div class="pdft-grid phot-grid">
                 <a class="pdft-card" href="#passport">
@@ -200,7 +201,7 @@
                                     <span class="phot-bgchoice__dot" aria-hidden="true"></span> Light blue
                                 </button>
                                 <label class="phot-bgchoice" data-bg-other>
-                                    <input type="color" value="#e6ecf2" data-bg-colour aria-label="Another background colour" autocomplete="off" />
+                                    <input type="color" value="#e6ecf2" data-bg-colour aria-label="Other background colour" autocomplete="off" />
                                     Other
                                 </label>
                             </div>
@@ -741,7 +742,7 @@
                 <p class="pdft-drop__hint" data-remove-ready-only>or drop a photo here. JPG, PNG or WEBP. A person, an animal or an object; any background.</p>
                 <p class="pdft-drop__hint phot-remove-privacy" data-remove-ready-only>
                     <i class="bi bi-shield-lock" aria-hidden="true"></i>
-                    A copy of the photo is sent to the PRISM server to find the subject. It is not stored.
+                    A copy of the photo is sent to the PRISM server to find the person or object. It is not stored.
                 </p>
             </div>
 
@@ -778,7 +779,7 @@
                             </div>
                         </div>
                         <p class="visually-hidden" role="status" data-remove-busy-status></p>
-                        <p class="phot-stage__hint">Check the edges, then paint with Refine edge where hair or fur needs work.</p>
+                        <p class="phot-stage__hint">Check the edges. Where hair or fur needs work, drag on the photo to paint with Refine edge.</p>
                     </div>
                 </div>
 
@@ -796,7 +797,7 @@
                                 <span class="phot-bgchoice__dot" aria-hidden="true"></span> Light blue
                             </button>
                             <label class="phot-bgchoice" data-remove-bg-other>
-                                <input type="color" value="#e6ecf2" data-remove-bg-colour aria-label="Another background colour" autocomplete="off" />
+                                <input type="color" value="#e6ecf2" data-remove-bg-colour aria-label="Other background colour" autocomplete="off" />
                                 Other
                             </label>
                             <button type="button" class="phot-bgchoice" aria-pressed="false" data-remove-bg="blur">
@@ -821,7 +822,7 @@
                                 <button type="button" aria-pressed="false" data-remove-size-choice="large" title="Larger: ]">Large</button>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-outline-secondary" data-action="remove-reset" disabled>Reset all touch-ups</button>
+                        <button type="button" class="btn btn-outline-secondary" data-action="remove-reset" disabled>Reset</button>
                     </div>
 
                     <div class="phot-panel">
@@ -833,13 +834,14 @@
                                 <option value="jpeg">JPG (no see-through areas)</option>
                             </select>
                         </label>
+                        <p class="phot-hint" data-remove-jpeg-hint>For a JPG, choose White, Light blue, Other or Blur first.</p>
                         <p class="phot-result" data-remove-result aria-live="polite"></p>
                         <button type="button" class="btn btn-primary btn-lg" data-action="download-remove" disabled>
                             <i class="bi bi-download" aria-hidden="true"></i> Download
                         </button>
                         <p class="phot-hint">
                             <i class="bi bi-shield-lock" aria-hidden="true"></i>
-                            The photo was sent to the PRISM server only to find the subject. It is not stored there. Location and camera details are left out of the saved file.
+                            The photo was sent to the PRISM server only to find the person or object. It is not stored there. Location and camera details are left out of the saved file.
                         </p>
                         <p class="phot-hint phot-remove-credit" data-remove-credit hidden></p>
                     </div>

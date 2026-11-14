@@ -76,7 +76,27 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
         _turn = new SemaphoreSlim(_concurrent, _concurrent);
     }
 
-    public BackgroundModelReadiness Readiness() => _readiness.Check();
+    /// <summary>
+    /// The file check, then what only the model loader knows: whether ONNX Runtime can run here and
+    /// whether this file recently failed to load.
+    /// </summary>
+    public BackgroundModelReadiness Readiness()
+    {
+        var readiness = _readiness.Check();
+        if (!readiness.IsReady)
+        {
+            return readiness;
+        }
+
+        if (!_segmenter.RuntimeAvailable)
+        {
+            return readiness with { State = BackgroundModelState.RuntimeMissing };
+        }
+
+        return _segmenter.HasFailedToLoad(readiness)
+            ? readiness with { State = BackgroundModelState.ModelInvalid }
+            : readiness;
+    }
 
     public IDisposable? TryTakePlace()
     {
@@ -119,7 +139,7 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
         ArgumentNullException.ThrowIfNull(photoBytes);
         ArgumentNullException.ThrowIfNull(place);
         var options = _options.CurrentValue;
-        var readiness = _readiness.Check();
+        var readiness = Readiness();
         if (!readiness.IsReady || readiness.ModelPath is null)
         {
             return new(BackgroundRemovalOutcome.Unavailable, ModelState: readiness.State);
@@ -159,7 +179,7 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
             entered = true;
             // The approval is checked again now: the model may have been replaced while this
             // photo waited its turn.
-            readiness = _readiness.Check();
+            readiness = Readiness();
             if (!readiness.IsReady || readiness.ModelPath is null)
             {
                 return new(BackgroundRemovalOutcome.Unavailable, ModelState: readiness.State);
@@ -192,10 +212,21 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
         {
             return new(BackgroundRemovalOutcome.TimedOut);
         }
+        catch (OnnxRuntimeException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The user changed photo or left: ONNX Runtime was told to stop. Not an error.
+            _logger.LogDebug("Background removal stopped because the request was cancelled.");
+            throw new OperationCanceledException(cancellationToken);
+        }
         catch (BackgroundModelChangedException)
         {
             // Swapped between the check and the load: not used until it is checked again.
-            return new(BackgroundRemovalOutcome.Unavailable, ModelState: _readiness.Check().State);
+            return new(BackgroundRemovalOutcome.Unavailable, ModelState: Readiness().State);
+        }
+        catch (BackgroundModelLoadException)
+        {
+            // Logged once by the loader when it failed; refused at once until it may be tried again.
+            return new(BackgroundRemovalOutcome.Unavailable, ModelState: BackgroundModelState.ModelInvalid);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

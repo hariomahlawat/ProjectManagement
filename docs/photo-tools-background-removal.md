@@ -37,6 +37,19 @@ The user-facing description is in [photo-tools.md](photo-tools.md).
 - Location and camera details never reach the server: the copy is redrawn on a canvas first.
 - The page says that a copy is sent to the PRISM server and is not stored.
 
+## Server prerequisites
+
+- **ONNX Runtime's native library** ships with PRISM: the published output holds
+  `runtimes/win-x64/native/onnxruntime.dll` (ONNX Runtime 1.20.1). Check it is there after
+  publishing; nothing is downloaded at run time.
+- **The Microsoft Visual C++ runtime** (2015-2022, x64) must be installed on a Windows server; ONNX
+  Runtime's library needs it. Without it the status is `runtime-missing`. Install it from the
+  offline installer kept with the server's other prerequisites.
+- **Memory:** about 6 GB free for each photo processed at the same time (see "Load on the
+  server").
+- **Processor:** any x64 processor; no graphics card. All photos together use at most half the
+  processors.
+
 ## Installing the model
 
 The weights are not in source control, as with the face models. BRIA publishes them on Hugging
@@ -66,8 +79,13 @@ on a computer with Internet access and copied to the server.
    `FileName` and the SHA-256 of the RMBG-2.0 file downloaded on 13 Nov 2026
    (`5b486f08200f513f460da46dd701db5fbb47d79b4be4b708a19444bcd4e79958`, 1,024,331,469 bytes), and
    since 14 Nov 2026 the production values in "Production" below, with `Enabled` `true`.
-5. Open Photo Tools, Remove background. No warning means it is ready. An administrator can also
-   open `/api/photo-tools/background/status` while signed in: `"state": "ready"`.
+5. Open Photo Tools, Remove background. A minute after a start the model's checksum has been
+   worked out ("checking" until then); no warning then means the file and settings are accepted.
+   An administrator can also open `/api/photo-tools/background/status` while signed in:
+   `"state": "ready"`.
+6. Remove the background from one test photo, and check the server log for
+   `Background removed for a … photo in … ms.` Only this proves the model loads with these
+   settings: a wrong model value shows as `model-invalid` after the first photo, not before.
 
 Settings are re-read while PRISM runs, and the model is loaded on the first photo, so a restart
 is not needed; the one exception is `MaximumConcurrent`, which is read when PRISM starts.
@@ -177,7 +195,8 @@ status is `model-missing`: the home card is dimmed and the rest of PRISM is not 
 - A photo that takes longer than `TimeoutSeconds` is stopped inside ONNX Runtime, not just
   abandoned.
 - When a user changes photo before the mask arrives, the browser cancels the earlier request and
-  the server stops working on it, so replaced photos do not fill the queue.
+  the server stops working on it, so replaced photos do not fill the queue. This is logged at Debug level only, never
+  as an error.
 - The approval (file and checksum) is checked again when a photo's turn comes, and only the very
   file whose checksum was checked is loaded; a model replaced while photos wait is not used until
   it is approved.
@@ -205,12 +224,21 @@ status is `model-missing`: the home card is dimmed and the rest of PRISM is not 
 | `model-missing` | The file is not where the settings say. | Copy it, or correct `ModelRoot` / `Model:FileName`. |
 | `checksum-not-configured` | `Model:Sha256` is empty. | Set it to the file's SHA-256. |
 | `checksum-mismatch` | The file's SHA-256 differs. | The file is not the approved one, or the setting is wrong. |
+| `checking` | The SHA-256 of a large model is being worked out in the background (about a minute for 1 GB after a start or a change). | Wait; the screen says to open it again in a minute. |
+| `model-unreadable` | The file cannot be read, for example while it is still being copied. Tried again 30 seconds later, or at once when the file changes. | Let the copy finish. |
+| `model-invalid` | The file passed its checksum but could not be loaded with these settings (input names or size, a damaged file). Logged once as an error; not tried again for 5 minutes or until the file or settings change. | Read the server log; correct the model values. |
+| `runtime-missing` | ONNX Runtime's native library cannot be loaded on this server. | Check that the published output holds `runtimes/win-x64/native/onnxruntime.dll` and that the Visual C++ runtime is installed. |
 | `ready` | All good. | |
 
 ## Rollback
 
-Set `PhotoTools:BackgroundRemoval:Enabled` to `false`. The screen then says it is not set up;
-nothing else changes. No database or stored data is involved.
+Set `PhotoTools:BackgroundRemoval:Enabled` to `false`. The screen then says it is not set up and
+the home card is dimmed; nothing else changes. No database or stored data is involved.
+
+- The settings are re-read without a restart. The loaded model leaves memory within half a minute
+  of `Enabled` being set to `false` (it is checked every 30 seconds).
+- A browser that already had the screen open keeps its Choose button until the screen is opened
+  again; its next photo is answered "not set up".
 
 ## Limits
 
