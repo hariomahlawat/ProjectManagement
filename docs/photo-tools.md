@@ -481,6 +481,24 @@ step, so Undo takes it back.
   90 seconds it stops waiting and the server's note gets the focus, as for a tool that cannot be
   used. A later photo takes the place of a held one.
 
+### Pasting a photo
+
+Every tool screen takes a photo pasted with Ctrl+V: a screenshot, or an image copied from a
+page, Word, a chat or a folder (plan: [ux/photo-tools-more.md](ux/photo-tools-more.md)).
+
+- One `paste` listener for the page, in `photo-tools-canvas.js`. Each screen registers the
+  function its drop area uses (`receivePhotos`), so a pasted photo has the same file-type check
+  and the same "only the photo chosen last counts" as a chosen one, and replaces the photo on the
+  screen in the same way. Signature pastes into Passport photo's screen.
+- Reduce size takes all the files pasted; the other screens take the first.
+- A paste into a text field (a size, a mark's text) is the field's own. The home screen ignores a
+  paste. A paste with no file on the clipboard (only text) says "There is no photo on the
+  clipboard to paste…" instead of doing nothing.
+- A copied file keeps its name. A screenshot or an image copied from a page comes as `image.png`
+  or with no name and is named `pasted-photo.png` (`.jpg`, `.webp` by its type), numbered when
+  there are several (`pastedName`).
+- Nothing pasted leaves the browser, as for a chosen photo.
+
 ### When a tool cannot start
 
 The page and its scripts must come from the same version of PRISM. When they do not (an update

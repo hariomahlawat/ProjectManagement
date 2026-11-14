@@ -352,9 +352,77 @@
     return update;
   }
 
+  // ---------------------------------------------------------------------------
+  // Photos given to a screen other than by its Choose button or drop area: pasted with Ctrl+V.
+  // Each screen says which function takes its photos (the one its drop area uses), so a pasted
+  // photo goes through the same checks as a chosen one. One listener serves the whole page.
+  // ---------------------------------------------------------------------------
+
+  const receivers = new Map();
+  // Screens that open another screen in a set way (VIEW_ALIASES in photo-tools-app.js).
+  const SCREEN_OF = Object.freeze({ signature: 'passport' });
+  const NOTHING_PASTED = 'There is no photo on the clipboard to paste. Copy a photo, or take a screenshot (Windows key + Shift + S), then press Ctrl+V here.';
+
+  /** `take(files)` gets the photos given to `screen` (a data-view name), as a list of files. */
+  function receivePhotos(screen, take) {
+    receivers.set(screen, take);
+  }
+
+  function shownScreen() {
+    const name = window.location.hash.replace(/^#/, '') || 'home';
+    return SCREEN_OF[name] || name;
+  }
+
+  /**
+   * The name a pasted file is saved under later. A copied file keeps its own name; a screenshot
+   * or an image copied from a page comes as "image.png" or with no name, and gets a plain one.
+   */
+  function pastedName(name, type, index, count) {
+    if (name && !/^image\.[a-z]+$/i.test(name)) return name;
+    const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[type] || 'png';
+    return count > 1 ? `pasted-photo-${index + 1}.${extension}` : `pasted-photo.${extension}`;
+  }
+
+  /** The files on a clipboard, named. Whether each is a photo the screen can use is the screen's check. */
+  function pastedFiles(clipboard) {
+    if (!clipboard) return [];
+    let files = Array.from(clipboard.items || [])
+      .filter(item => item.kind === 'file')
+      .map(item => item.getAsFile())
+      .filter(Boolean);
+    // Some browsers fill only the file list.
+    if (!files.length) files = Array.from(clipboard.files || []);
+    return files.map((file, index) => {
+      const name = pastedName(file.name, file.type, index, files.length);
+      return name === file.name ? file : new File([file], name, { type: file.type, lastModified: Date.now() });
+    });
+  }
+
+  /** A paste into something that takes text: a size, a mark's text. That paste is the field's own. */
+  function isTextField(target) {
+    return Boolean(target && typeof target.closest === 'function' && target.closest(
+      'textarea, select, [contenteditable=""], [contenteditable="true"], '
+      + 'input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="file"]):not([type="color"])'));
+  }
+
+  if (typeof document.addEventListener === 'function') {
+    document.addEventListener('paste', (event) => {
+      if (isTextField(event.target)) return;
+      const take = receivers.get(shownScreen());
+      if (!take) return;
+      event.preventDefault();
+      const files = pastedFiles(event.clipboardData);
+      if (!files.length) {
+        showError(NOTHING_PASTED);
+        return;
+      }
+      take(files);
+    });
+  }
+
   window.PrismPhotoCanvas = Object.freeze({
     showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, canvasToBytes,
     isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton, rememberedChoices,
-    setUnsaved, wireSaveBar, viewsForFailedScript, markCouldNotStart
+    setUnsaved, wireSaveBar, viewsForFailedScript, markCouldNotStart, receivePhotos, pastedName
   });
 })();

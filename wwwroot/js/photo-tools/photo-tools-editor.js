@@ -1023,6 +1023,8 @@
   });
 
   shared.wireDropZones($$('[data-drop]'), files => openFile(files[0]));
+  // A photo pasted with Ctrl+V is taken as a chosen one.
+  shared.receivePhotos('edit', files => openFile(files[0]));
 
   for (const button of $$('[data-tool]')) {
     button.addEventListener('click', () => setTool(button.dataset.tool));

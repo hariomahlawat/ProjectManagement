@@ -526,6 +526,8 @@
   });
 
   shared.wireDropZones($$('[data-drop]', view), addPhotos);
+  // Photos pasted with Ctrl+V: all of them, as when several are dropped.
+  shared.receivePhotos('reduce', addPhotos);
 
   targetValue.addEventListener('input', settingsChanged);
   for (const button of unitButtons) {

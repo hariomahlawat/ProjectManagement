@@ -39,6 +39,70 @@ test('a Photo Tools script that fails while the page loads names the screens it 
   assert.deepEqual([...shared.viewsForFailedScript('https://prism.lan/js/photo-tools/photo-tools-canvas.js?v=1', stack)], ['sheet']);
 });
 
+// ----- Paste a photo (PR 2 of docs/ux/photo-tools-more.md) -----
+
+// A page whose paste listener a test can fire, on the screen named by `hash`.
+function loadWithPaste(hash) {
+  const listeners = {};
+  const errorBox = { textContent: '', hidden: true, scrollIntoView() {} };
+  const window = { PrismPhotoTools: {}, location: { hash } };
+  const context = {
+    window,
+    File,
+    document: {
+      querySelector: () => errorBox,
+      addEventListener(type, handler) { listeners[type] = handler; }
+    }
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'photo-tools-canvas.js'), 'utf8'), context);
+  const paste = (files, target = { closest: () => null }) => {
+    let prevented = false;
+    listeners.paste({
+      target,
+      preventDefault() { prevented = true; },
+      clipboardData: { items: files.map(file => ({ kind: 'file', getAsFile: () => file })), files: [] }
+    });
+    return prevented;
+  };
+  return { shared: window.PrismPhotoCanvas, errorBox, paste };
+}
+
+test('pastedName keeps a copied file\'s name and names a screenshot plainly', () => {
+  assert.equal(shared.pastedName('IMG_2041.jpg', 'image/jpeg', 0, 1), 'IMG_2041.jpg');
+  assert.equal(shared.pastedName('image.png', 'image/png', 0, 1), 'pasted-photo.png');
+  assert.equal(shared.pastedName('', 'image/jpeg', 0, 1), 'pasted-photo.jpg');
+  assert.equal(shared.pastedName(undefined, 'image/webp', 1, 2), 'pasted-photo-2.webp');
+});
+
+test('a pasted photo goes to the screen shown, through the function its drop area uses', () => {
+  const { shared: page, paste } = loadWithPaste('#edit');
+  const got = [];
+  page.receivePhotos('edit', files => got.push(...files.map(file => file.name)));
+  page.receivePhotos('remove', () => assert.fail('another screen gets nothing'));
+  const screenshot = new File(['x'], 'image.png', { type: 'image/png' });
+  assert.equal(paste([screenshot]), true);
+  assert.deepEqual(got, ['pasted-photo.png']);
+});
+
+test('Signature takes a paste as Passport photo; home, text fields and empty clipboards behave', () => {
+  const signature = loadWithPaste('#signature');
+  let taken = 0;
+  signature.shared.receivePhotos('passport', () => { taken += 1; });
+  signature.paste([new File(['x'], 'sign.jpg', { type: 'image/jpeg' })]);
+  assert.equal(taken, 1);
+  // Typing in a size box: the paste is the box's own.
+  const inField = signature.paste([new File(['x'], 'a.jpg', { type: 'image/jpeg' })], { closest: () => ({}) });
+  assert.equal(inField, false);
+  assert.equal(taken, 1);
+  // Nothing on the clipboard but text: the screen says so.
+  assert.equal(signature.paste([]), true);
+  assert.equal(signature.errorBox.hidden, false);
+  assert.match(signature.errorBox.textContent, /no photo on the clipboard/);
+
+  const home = loadWithPaste('');
+  assert.equal(home.paste([new File(['x'], 'a.jpg', { type: 'image/jpeg' })]), false, 'the home screen ignores a paste');
+});
+
 test('isRepeatClick skips the second click of a double click but not a key press', () => {
   assert.equal(shared.isRepeatClick({ detail: 1 }), false);
   assert.equal(shared.isRepeatClick({ detail: 0 }), false);
