@@ -1718,7 +1718,11 @@
   });
 
   $('[data-action="rotate"]').addEventListener('click', rotateQuarter);
-  placeFaceButton.addEventListener('click', applyFace);
+  placeFaceButton.addEventListener('click', () => {
+    // Asked for by the user, so it is a change to keep (the placement on opening is not).
+    applyFace();
+    shared.setUnsaved('passport', true);
+  });
   faceRetryButton.addEventListener('click', () => {
     // Asked for: the photo is placed when the face is found, even if it was moved meanwhile.
     touched = false;
