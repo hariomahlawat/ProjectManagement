@@ -68,6 +68,22 @@
   const resultLine = $('[data-remove-result]');
   const downloadButton = $('[data-action="download-remove"]');
   const credit = $('[data-remove-credit]');
+  const cancelButton = $('[data-action="remove-cancel"]');
+  const retryBox = $('[data-remove-retry]');
+  const retryText = $('[data-remove-retry-text]');
+  const retryButton = $('[data-action="remove-retry"]');
+  const readyOnly = $$('[data-remove-ready-only]');
+  // The home screen's card, outside this screen: dimmed when the tool is not set up.
+  const homeCard = document.querySelector('[data-remove-card]');
+  const homeCardNote = document.querySelector('[data-remove-card-note]');
+
+  const FINDING = 'Finding the person or object…';
+  const STILL_WORKING = 'Still working. The first photo after the PRISM server starts can take up to a minute.';
+  const SLOW_AFTER_MS = 8000;
+  const CHECK_AGAIN_MS = 10000;
+  const SIGNED_OUT = 'Your PRISM session has ended. Reload the page and sign in again.';
+  // States that will pass without anyone doing anything: the card is not dimmed for these.
+  const PASSING_STATES = new Set(['checking', 'model-unreadable']);
 
   let status = null;
   let statusLoading = null;
@@ -105,6 +121,9 @@
   let pickRun = 0;
   let maskRequest = null;
   let display = { width: 0, height: 0 };
+  let slowTimer = 0;
+  let checkTimer = 0;
+  let cancelledByUser = false;
 
   // ---------------------------------------------------------------------------
   // Server
@@ -124,7 +143,10 @@
     if (status && status.available) return Promise.resolve(status);
     if (!statusLoading) {
       statusLoading = fetch(STATUS_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-        .then(response => (response.ok ? response.json() : null))
+        .then((response) => {
+          if (response.status === 401) return { available: false, state: 'signed-out', message: SIGNED_OUT };
+          return response.ok ? response.json() : null;
+        })
         .catch(() => null)
         .then((answer) => {
           status = answer || {
@@ -133,19 +155,53 @@
           };
           statusLoading = null;
           renderStatus();
+          checkAgainSoon();
           return status;
         });
+      // Says "checking" until the answer comes.
+      renderStatus();
     }
     return statusLoading;
   }
 
+  /** While the server is getting ready, it is asked again every few seconds the screen is open. */
+  function checkAgainSoon() {
+    clearTimeout(checkTimer);
+    if (!status || status.available || !PASSING_STATES.has(status.state)) return;
+    checkTimer = setTimeout(() => {
+      if (window.location.hash === '#remove') loadStatus();
+    }, CHECK_AGAIN_MS);
+  }
+
   function renderStatus() {
     const available = Boolean(status && status.available);
-    statusBox.hidden = !status || available;
-    statusBox.textContent = status && !available ? status.message : '';
+    const checking = Boolean(statusLoading) && !status;
+    statusBox.hidden = available || (!status && !checking);
+    statusBox.classList.toggle('alert-warning', Boolean(status) && !available);
+    statusBox.classList.toggle('alert-secondary', checking);
+    statusBox.textContent = checking
+      ? 'Checking that Remove background is available…'
+      : status && !available ? status.message : '';
     chooseButton.disabled = !available;
+    // While the tool cannot be used, the drop hint and privacy note would only promise it.
+    for (const element of readyOnly) element.hidden = !available;
     credit.hidden = !(available && status.attribution);
     credit.textContent = available && status.attribution ? status.attribution : '';
+    renderHomeCard();
+  }
+
+  /** Dims the home card, with a note, when the server says the tool is not set up. */
+  function renderHomeCard() {
+    if (!homeCard || !homeCardNote) return;
+    const off = Boolean(status) && !status.available && !PASSING_STATES.has(status.state) && status.state !== 'signed-out' && 'state' in status;
+    homeCard.classList.toggle('is-off', off);
+    homeCardNote.hidden = !off;
+    if (off) {
+      homeCardNote.id = homeCardNote.id || 'photRemoveCardNote';
+      homeCard.setAttribute('aria-describedby', homeCardNote.id);
+    } else {
+      homeCard.removeAttribute('aria-describedby');
+    }
   }
 
   /** Sends a copy of the photo and gives back the model's mask at the work size. `signal` cancels it. */
@@ -165,7 +221,10 @@
       });
     } catch (error) {
       if (signal && signal.aborted) throw error;
-      throw new core.PhotoToolError('network', 'The PRISM server could not be reached. Check the connection and try again.');
+      throw new core.PhotoToolError('retry', 'The PRISM server could not be reached. Check the connection and try again.');
+    }
+    if (response.status === 401) {
+      throw new core.PhotoToolError('signed-out', SIGNED_OUT);
     }
     if (!response.ok) {
       let message = 'The background could not be removed from this photo.';
@@ -175,7 +234,9 @@
       } catch {
         // The plain message above is used.
       }
-      throw new core.PhotoToolError('server', message);
+      // Busy, too slow, or the server briefly unavailable: worth trying the same photo again.
+      const passing = response.status === 503 || response.status === 408 || response.status === 502 || response.status === 504;
+      throw new core.PhotoToolError(passing ? 'retry' : 'server', message);
     }
     const mask = await createImageBitmap(await response.blob());
     // The mask is enlarged to the work size by the browser, which blends between its pixels.
@@ -223,7 +284,13 @@
     shared.clearError();
     if (!file) return;
     const ready = await loadStatus();
-    if (!ready.available) return;
+    if (!ready.available) {
+      // A photo dropped while the tool cannot be used is not ignored without a word: the note
+      // that says why gets the focus, so it is read out again.
+      statusBox.tabIndex = -1;
+      statusBox.focus();
+      return;
+    }
     if (!core.isSupportedPhoto(file.type, file.name)) {
       shared.showError('Only JPG, PNG and WEBP photos can be used here. iPhone HEIC photos are not supported.');
       return;
@@ -244,11 +311,6 @@
       return;
     }
     const mine = ++openRun;
-    // The earlier photo's mask is no longer wanted: its request is cancelled, which also stops the
-    // server working on it, so the server's queue is not filled with photos already replaced.
-    if (maskRequest) maskRequest.abort();
-    const request = new AbortController();
-    maskRequest = request;
     if (full && full !== source && typeof full.close === 'function') full.close();
     full = source;
     fileName = file.name;
@@ -265,7 +327,33 @@
     work = shared.drawPhoto(source, workSize.width, workSize.height, {});
     pixels = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, work.width, work.height);
     render();
-    setBusy('Finding the subject…');
+    await findSubject(mine);
+  }
+
+  /**
+   * Asks the server for the photo's mask and makes the cut-out. A step that stops for a reason that
+   * passes (busy, too slow, no connection, or the user pressed Cancel) keeps the photo on screen
+   * with Try again; only a photo the server cannot use takes the screen back to "Choose a photo".
+   */
+  async function findSubject(mine) {
+    // The earlier photo's mask is no longer wanted: its request is cancelled, which also stops the
+    // server working on it, so the server's queue is not filled with photos already replaced.
+    if (maskRequest) maskRequest.abort();
+    const request = new AbortController();
+    maskRequest = request;
+    cancelledByUser = false;
+    retryBox.hidden = true;
+    shared.clearError();
+    const source = full;
+    const size = shared.sizeOf(source);
+    setBusy(FINDING);
+    clearTimeout(slowTimer);
+    slowTimer = setTimeout(() => {
+      if (mine !== openRun || !busy) return;
+      busyText.textContent = STILL_WORKING;
+      busyStatus.textContent = STILL_WORKING;
+      cancelButton.hidden = false;
+    }, SLOW_AFTER_MS);
     try {
       const mask = await fetchMask(source, size, request.signal);
       if (mine !== openRun) return;
@@ -287,6 +375,14 @@
       resultLine.textContent = `Ready. The saved photo will be ${saved.width} × ${saved.height} px.`;
     } catch (error) {
       if (mine !== openRun) return;
+      if (cancelledByUser) {
+        showRetry('Stopped. The photo is still here.');
+        return;
+      }
+      if (error instanceof core.PhotoToolError && error.code === 'retry') {
+        showRetry(error.message);
+        return;
+      }
       if (!(error instanceof core.PhotoToolError)) console.error(error);
       resetPhoto();
       emptyDrop.hidden = false;
@@ -296,11 +392,21 @@
       shared.showError(error instanceof core.PhotoToolError ? error.message : 'The background could not be removed from this photo.');
     } finally {
       if (mine === openRun) {
+        clearTimeout(slowTimer);
+        cancelButton.hidden = true;
         setBusy('');
         renderControls();
         render();
       }
     }
+  }
+
+  /** Keeps the photo on screen with the reason it stopped and a Try again button. */
+  function showRetry(message) {
+    retryText.textContent = message;
+    retryBox.hidden = false;
+    busyStatus.textContent = message;
+    retryButton.focus({ preventScroll: true });
   }
 
   /**
@@ -758,10 +864,21 @@
     });
   }
   downloadButton.addEventListener('click', download);
+  cancelButton.addEventListener('click', () => {
+    if (!maskRequest) return;
+    cancelledByUser = true;
+    maskRequest.abort();
+  });
+  retryButton.addEventListener('click', () => {
+    if (!full || busy) return;
+    findSubject(openRun);
+  });
 
-  // The status is asked for when this screen is first shown.
+  // The status is asked for when this screen is shown, and once on the home screen so its card
+  // can say when the tool is not set up.
   const whenShown = () => {
-    if (window.location.hash === '#remove') loadStatus();
+    const hash = window.location.hash;
+    if (hash === '#remove' || ((hash === '' || hash === '#') && !status)) loadStatus();
   };
   window.addEventListener('hashchange', whenShown);
   new ResizeObserver(render).observe(stage);

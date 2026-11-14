@@ -182,6 +182,24 @@ public sealed class PhotoToolsPageContractTests
         Assert.Contains("'#signature': 'signature'", passport, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RemoveBackground_SaysWhenItIsOff_AndKeepsThePhotoWhenAStepStops()
+    {
+        // Owner decision (14 Nov 2026): when the tool is off, the home card is dimmed and says
+        // "Not set up on this server". A busy, slow or cancelled step keeps the photo with Try again.
+        var root = FindProjectRoot();
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Photo", "Index.cshtml"));
+        var script = File.ReadAllText(Path.Combine(root, "wwwroot", "js", "photo-tools", "photo-tools-background.js"));
+
+        Assert.Contains("data-remove-card", page, StringComparison.Ordinal);
+        Assert.Contains(">Not set up on this server<", page, StringComparison.Ordinal);
+        Assert.Contains("data-action=\"remove-retry\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-action=\"remove-cancel\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-remove-ready-only", page, StringComparison.Ordinal);
+        Assert.Contains("showRetry(", script, StringComparison.Ordinal);
+        Assert.Contains("response.status === 401", script, StringComparison.Ordinal);
+    }
+
     private static string FindProjectRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

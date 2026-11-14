@@ -72,10 +72,11 @@
                     <span class="pdft-card__title">Reduce size</span>
                     <span class="pdft-card__text">Get under a size such as 100 KB, for one photo or many.</span>
                 </a>
-                <a class="pdft-card" href="#remove">
+                <a class="pdft-card" href="#remove" data-remove-card>
                     <span class="pdft-card__icon pdft-accent--teal" aria-hidden="true"><i class="bi bi-person-square"></i></span>
                     <span class="pdft-card__title">Remove background</span>
                     <span class="pdft-card__text">Cut out a person or object and put it on a new background.</span>
+                    <span class="pdft-card__note" data-remove-card-note hidden>Not set up on this server</span>
                 </a>
                 <a class="pdft-card" href="#edit">
                     <span class="pdft-card__icon pdft-accent--green" aria-hidden="true"><i class="bi bi-crop"></i></span>
@@ -737,8 +738,8 @@
                 <button type="button" class="btn btn-primary btn-lg pdft-drop__button" data-action="choose-photo">
                     <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose a photo
                 </button>
-                <p class="pdft-drop__hint">or drop a photo here. JPG, PNG or WEBP. A person, an animal or an object; any background.</p>
-                <p class="pdft-drop__hint phot-remove-privacy">
+                <p class="pdft-drop__hint" data-remove-ready-only>or drop a photo here. JPG, PNG or WEBP. A person, an animal or an object; any background.</p>
+                <p class="pdft-drop__hint phot-remove-privacy" data-remove-ready-only>
                     <i class="bi bi-shield-lock" aria-hidden="true"></i>
                     A copy of the photo is sent to the PRISM server to find the subject. It is not stored.
                 </p>
@@ -763,8 +764,17 @@
                                 <canvas class="phot-edit__canvas" data-remove-canvas></canvas>
                             </div>
                             <div class="phot-busy" data-remove-busy hidden>
-                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                                <span data-remove-busy-text>Finding the subject…</span>
+                                <span class="phot-busy__line">
+                                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                    <span data-remove-busy-text>Finding the person or object…</span>
+                                </span>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="remove-cancel" hidden>Cancel</button>
+                            </div>
+                            <div class="phot-busy phot-busy--retry" data-remove-retry hidden>
+                                <span data-remove-retry-text></span>
+                                <button type="button" class="btn btn-primary btn-sm" data-action="remove-retry">
+                                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Try again
+                                </button>
                             </div>
                         </div>
                         <p class="visually-hidden" role="status" data-remove-busy-status></p>
