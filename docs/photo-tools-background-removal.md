@@ -90,7 +90,8 @@ Section `PhotoTools:BackgroundRemoval` (defaults in `appsettings.json`, code in
 | --- | --- | --- |
 | `Enabled` | `false` | Turns the tool on. While off, the screen says it is not set up. |
 | `ModelRoot` | empty | Folder holding the model file; a relative path is under the content root. |
-| `IntraOpThreads` | `6` | Processor threads one photo may use. Kept well under the server's cores (16) so the rest of PRISM stays responsive. |
+| `IntraOpThreads` | `6` | Processor threads one photo may use. Whatever is set, all photos together never use more than half the server's processors (`ThreadsFor`), so the rest of PRISM stays responsive. |
+| `ModelIdleMinutes` | `10` | Minutes the model stays in memory after its last photo; then it is released and loaded again on the next photo (which then takes longer). `0` keeps it loaded. |
 | `MaximumConcurrent` | `1` | Photos processed at the same time (1 to 4). Read when PRISM starts: a change needs a restart. |
 | `MaximumWaiting` | `4` | Photos that may wait; beyond this the answer is "busy, try again in a few seconds". |
 | `MaximumUploadBytes` | `20971520` | Largest request (20 MB). |
@@ -136,6 +137,11 @@ much weaker than BRIA's models and is only for testing the pipeline.
   process held **6.1 GB of memory, with 18.9 GB committed**: ONNX Runtime keeps its working
   memory at its peak after a photo. The cut-outs were very good. Until that memory is released
   after each photo (and the time is brought down), the tool stays off in production.
+- **After the memory fix (same computer, 14 Nov 2026):** while a photo is processed the PRISM
+  process peaks at about **6.5 to 7.5 GB**, and goes back to **about 2.2 GB** when it is done; it
+  no longer grows from photo to photo. The first photo after a start (or after the model was
+  released) took 45 s, model loading included; the next took **29 s**. A server running
+  Remove background therefore needs about 6 GB free for each photo processed at the same time.
 - Only `MaximumConcurrent` photos run at once, each with at most `IntraOpThreads` threads; others
   wait their turn, and when `MaximumWaiting` are already waiting the answer is "busy".
 - A photo that takes longer than `TimeoutSeconds` is stopped inside ONNX Runtime, not just
@@ -145,8 +151,13 @@ much weaker than BRIA's models and is only for testing the pipeline.
 - The approval (file and checksum) is checked again when a photo's turn comes, and only the very
   file whose checksum was checked is loaded; a model replaced while photos wait is not used until
   it is approved.
-- Memory: the model stays loaded once used (RMBG-2.0 is about 1 GB on disk). It is loaded again
-  only when its file or path changes.
+- Memory: ONNX Runtime's memory arena is off, so the working memory of a photo is given back
+  when the photo is done instead of staying at its peak. The model itself stays loaded while it
+  is used (RMBG-2.0 is about 1 GB on disk, about 2.2 GB for the whole PRISM process once loaded),
+  is released after `ModelIdleMinutes` without a photo, and is released at once when `Enabled`
+  is set to `false`. It is loaded again when its file or path changes.
+- Processor: threads do not spin while they wait, and all photos together use at most half the
+  processors.
 
 ## Endpoints
 

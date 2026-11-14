@@ -18,10 +18,18 @@ public sealed class BackgroundRemovalOptions
     public BackgroundModelOptions Model { get; set; } = new();
 
     /// <summary>
-    /// Threads one inference may use. Kept well under the server's cores so the rest of PRISM
-    /// stays responsive while a photo is processed.
+    /// Threads one inference may use. Whatever is set, all photos together never use more than
+    /// half the server's processors, so the rest of PRISM stays responsive while photos are
+    /// processed (see <see cref="OnnxBackgroundSegmenter.ThreadsFor"/>).
     /// </summary>
     public int IntraOpThreads { get; set; } = 6;
+
+    /// <summary>
+    /// Minutes the loaded model stays in memory after its last photo; then it is released and
+    /// loaded again on the next photo. 0 keeps it loaded. The model also leaves memory as soon as
+    /// <see cref="Enabled"/> is turned off.
+    /// </summary>
+    public int ModelIdleMinutes { get; set; } = 10;
 
     /// <summary>Photos processed at the same time (1 to 4). Read when PRISM starts: a change needs a restart.</summary>
     public int MaximumConcurrent { get; set; } = 1;
