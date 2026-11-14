@@ -189,8 +189,9 @@ much weaker than BRIA's models and is only for testing the pipeline.
 
 | Endpoint | Who | Answers |
 | --- | --- | --- |
-| `GET /api/photo-tools/background/status` | Signed-in users | `available`, `state`, a message when not ready, the credit, the size limits. |
+| `GET /api/photo-tools/background/status` | Signed-in users | `available`, `state`, a message when not ready, the credit, the size limits, and `faceAvailable` (whether the face can be placed in Passport photo). |
 | `POST /api/photo-tools/background/mask` | Signed-in users, with the `X-CSRF-TOKEN` header | The mask as a greyscale PNG (`X-Mask-Width`, `X-Mask-Height`), or a JSON `message`: 400 (token), 413 (too large), 415 (not a photo), 503 (not set up, busy, or took too long), 500. |
+| `POST /api/photo-tools/face` | Signed-in users, with the `X-CSRF-TOKEN` header | For Passport photo: `found`, the photo's size, the largest face's box and five points (right eye, left eye, nose tip, right and left mouth corner, as seen in the photo), or a JSON `message`: 400, 408, 413, 415, 503 (not set up or busy), 500. Same type and size limits as the mask; runs only the Photos library's face **detector** (no recogniser, no record, nothing about People); nothing stored, only size and time logged; `no-store`. Off when the face models are not installed (see the Photos library's face model settings). Smaller copies (640, then 320 px) are tried first, because a passport photo's face is too large for the detector at its usual 1600 px. |
 
 ### Status states
 

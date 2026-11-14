@@ -111,6 +111,8 @@ public static class MediaLibraryServiceCollectionExtensions
             provider.GetRequiredService<OnnxFaceAnalysisEngine>());
         services.AddSingleton<IFacePresenceAnalysisEngine>(provider =>
             provider.GetRequiredService<OnnxFaceAnalysisEngine>());
+        services.AddSingleton<IFaceLocationEngine>(provider =>
+            provider.GetRequiredService<OnnxFaceAnalysisEngine>());
         services.AddScoped<IFaceCandidateSearchService, FaceCandidateSearchService>();
         services.AddScoped<IFaceCandidateSuggestionService, FaceCandidateSuggestionService>();
         services.AddScoped<IFaceCandidateRefreshQueueService, FaceCandidateRefreshQueueService>();

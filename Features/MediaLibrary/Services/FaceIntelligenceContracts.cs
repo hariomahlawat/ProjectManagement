@@ -114,6 +114,33 @@ public interface IFacePresenceAnalysisEngine
     Task<FacePresenceResult> AnalysePresenceAsync(byte[] imageBytes, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// The largest face in a photo: its box and its five points, in the photo's own pixels. The
+/// points are in the detector's order (right eye, left eye, nose tip, right and left corner of
+/// the mouth, as seen in the photo).
+/// </summary>
+public sealed record LocatedFace(
+    double Left,
+    double Top,
+    double Width,
+    double Height,
+    double Confidence,
+    IReadOnlyList<FacePoint> Points);
+
+/// <summary>The photo's size, and its largest face or null when there is none.</summary>
+public sealed record FaceLocation(int ImageWidth, int ImageHeight, LocatedFace? Face);
+
+/// <summary>
+/// Finds where a face is, with the detector only: no recogniser, no thumbnail, no record. Used by
+/// Photo Tools to place a passport photo; independent of People.
+/// </summary>
+public interface IFaceLocationEngine
+{
+    Task<FaceDetectorReadiness> DetectorReadinessAsync(CancellationToken cancellationToken);
+
+    Task<FaceLocation> LocateLargestFaceAsync(byte[] imageBytes, CancellationToken cancellationToken);
+}
+
 public interface IFaceAnalysisEngine
 {
     Task<IReadOnlyList<DetectedFaceData>> AnalyseAsync(byte[] imageBytes, CancellationToken cancellationToken);

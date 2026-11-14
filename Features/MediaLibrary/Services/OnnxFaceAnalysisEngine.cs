@@ -11,7 +11,7 @@ namespace ProjectManagement.Features.MediaLibrary.Services;
 /// Local ONNX face pipeline. Supported detector and embedder layouts are explicit;
 /// arbitrary model files are never interpreted heuristically.
 /// </summary>
-public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceAnalysisEngine, IDisposable
+public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceAnalysisEngine, IFaceLocationEngine, IDisposable
 {
     private static readonly IReadOnlyList<FacePoint> SFaceDestinationLandmarks = new[]
     {
@@ -214,6 +214,92 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
         }
     }
 
+    public Task<FaceDetectorReadiness> DetectorReadinessAsync(CancellationToken cancellationToken)
+        => _readiness.CheckDetectorAsync(cancellationToken);
+
+    /// <summary>
+    /// The largest face and its five points, with the detector only (the same detector and
+    /// confidence as face presence). Nothing is kept: no embedding, thumbnail or record.
+    /// </summary>
+    public async Task<FaceLocation> LocateLargestFaceAsync(
+        byte[] imageBytes,
+        CancellationToken cancellationToken)
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(OnnxFaceAnalysisEngine));
+        }
+        ArgumentNullException.ThrowIfNull(imageBytes);
+        if (imageBytes.Length == 0)
+        {
+            throw new InvalidDataException("The image is empty.");
+        }
+
+        var readiness = await _readiness.CheckDetectorAsync(cancellationToken);
+        if (!readiness.IsReady || string.IsNullOrWhiteSpace(readiness.DetectorPath))
+        {
+            throw new InvalidOperationException(readiness.Message);
+        }
+
+        await EnsureDetectorSessionAsync(readiness.DetectorPath, cancellationToken);
+        await _analysisGate.WaitAsync(cancellationToken);
+        try
+        {
+            using var encoded = SKData.CreateCopy(imageBytes);
+            EnsureWithinPixelLimit(encoded);
+            using var bitmap = SKBitmap.Decode(encoded)
+                ?? throw new InvalidDataException("The image could not be decoded for finding the face.");
+            // A passport photo is mostly face: at the Photos library's usual size (up to 1600 px) such
+            // a face is too large for the detector to see. Smaller copies are tried first, then the
+            // usual size for a photo where the face is small.
+            IReadOnlyList<RawFaceDetection> selected = Array.Empty<RawFaceDetection>();
+            foreach (var dimension in new int?[] { 640, 320, null })
+            {
+                selected = FaceGeometry.NonMaximumSuppression(
+                    Detect(bitmap, _options.Classification.FacePresenceMinimumConfidence, dimension),
+                    detection => detection.Rectangle,
+                    detection => detection.Confidence,
+                    _options.People.NonMaximumSuppressionThreshold,
+                    _options.People.MaximumFacesPerAsset);
+                if (selected.Any(detection => detection.Landmarks is { Count: >= 5 }))
+                {
+                    break;
+                }
+            }
+
+            var best = selected
+                .Select(detection => new
+                {
+                    Detection = detection,
+                    Rectangle = FaceGeometry.ClampRectangle(detection.Rectangle, bitmap.Width, bitmap.Height)
+                })
+                .Where(item => item.Rectangle.Width > 0 && item.Rectangle.Height > 0
+                    && item.Detection.Landmarks is { Count: >= 5 })
+                .OrderByDescending(item => item.Rectangle.Width * item.Rectangle.Height)
+                .ThenByDescending(item => item.Detection.Confidence)
+                .FirstOrDefault();
+            if (best is null)
+            {
+                return new FaceLocation(bitmap.Width, bitmap.Height, null);
+            }
+
+            return new FaceLocation(
+                bitmap.Width,
+                bitmap.Height,
+                new LocatedFace(
+                    best.Rectangle.Left,
+                    best.Rectangle.Top,
+                    best.Rectangle.Width,
+                    best.Rectangle.Height,
+                    best.Detection.Confidence,
+                    best.Detection.Landmarks!.Take(5).ToArray()));
+        }
+        finally
+        {
+            _analysisGate.Release();
+        }
+    }
+
     /// <summary>
     /// Reads only the image header and rejects dimensions above the configured pixel limit
     /// before SKBitmap.Decode allocates a full-size buffer.
@@ -228,20 +314,21 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
             _options.Processing.MaxImagePixels);
     }
 
-    private IReadOnlyList<RawFaceDetection> Detect(SKBitmap source, double minimumConfidence)
+    private IReadOnlyList<RawFaceDetection> Detect(SKBitmap source, double minimumConfidence, int? maximumDimension = null)
     {
         var model = _options.People.Detector;
         return model.Adapter.Equals("YuNet", StringComparison.OrdinalIgnoreCase)
-            ? DetectYuNet(source, model, minimumConfidence)
+            ? DetectYuNet(source, model, minimumConfidence, maximumDimension)
             : DetectDecoded(source, model, minimumConfidence);
     }
 
     private IReadOnlyList<RawFaceDetection> DetectYuNet(
         SKBitmap source,
         FaceModelOptions model,
-        double minimumConfidence)
+        double minimumConfidence,
+        int? maximumDimension = null)
     {
-        var prepared = PrepareYuNetInput(source);
+        var prepared = PrepareYuNetInput(source, maximumDimension);
         using var inputBitmap = prepared.Bitmap;
         var tensor = ToTensor(inputBitmap, model);
         using var results = _detector!.Run(new[]
@@ -461,9 +548,9 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
         return aligned;
     }
 
-    private PreparedInput PrepareYuNetInput(SKBitmap source)
+    private PreparedInput PrepareYuNetInput(SKBitmap source, int? maximumDimensionOverride = null)
     {
-        var maximumDimension = Math.Max(320, _options.People.InferenceMaxDimension);
+        var maximumDimension = Math.Max(320, maximumDimensionOverride ?? _options.People.InferenceMaxDimension);
         var scale = Math.Min(1d, maximumDimension / (double)Math.Max(source.Width, source.Height));
         var scaledWidth = Math.Max(1, (int)Math.Round(source.Width * scale));
         var scaledHeight = Math.Max(1, (int)Math.Round(source.Height * scale));
