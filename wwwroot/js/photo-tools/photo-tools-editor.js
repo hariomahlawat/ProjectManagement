@@ -937,7 +937,8 @@
     shared.saveBlob(new Blob([saved.bytes], { type: saved.type.mime }), `${core.baseName(fileName)}-edited.${saved.type.extension}`);
     // The file holds the steps on the screen: Undo or Redo back to them is not unsaved work.
     lastDownloaded = steps.slice();
-    shared.setUnsaved('edit', false);
+    // Worked out again, not cleared: a slider moved while the file was being made is still unsaved.
+    renderUnsaved();
   }
 
   /** The file is prepared again shortly after the last change. */
