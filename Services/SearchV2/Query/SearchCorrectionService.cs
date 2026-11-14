@@ -148,9 +148,9 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
         var authorization = SearchAuthorizationSql.Build(command, access);
         command.CommandText = $"""
             WITH state AS MATERIALIZED (
-                SELECT "ActiveGeneration" AS generation
+                SELECT "ActiveGeneration" AS generation, "IndexVersion" AS version
                 FROM "SearchIndexState"
-                WHERE "Id" = 1 AND "IndexVersion" = @indexVersion
+                WHERE "Id" = 1 AND "IndexVersion" BETWEEN @minIndexVersion AND @indexVersion
             )
             SELECT q.token AS input, c.token, c.frequency, c.authority, c.trigram_similarity
             FROM unnest(@tokens) AS q(token)
@@ -165,7 +165,7 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
                   AND LENGTH(v."Token") >= @minTokenLength
                   AND ABS(LENGTH(v."Token") - LENGTH(q.token)) <= @maxLengthDelta
                   AND e."Generation" = (SELECT generation FROM state)
-                  AND e."IndexVersion" = @indexVersion
+                  AND e."IndexVersion" = (SELECT version FROM state)
                   {authorization}
                 GROUP BY v."Token"
                 HAVING v."Token" = q.token
@@ -182,6 +182,7 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
             """;
 
         Add(command, "indexVersion", _options.ProjectionVersion);
+        Add(command, "minIndexVersion", _options.MinimumServableProjectionVersion);
         Add(command, "tokens", tokens);
         Add(command, "minTokenLength", _options.CorrectionMinTokenLength);
         Add(command, "maxLengthDelta", _options.CorrectionMaxLengthDelta);

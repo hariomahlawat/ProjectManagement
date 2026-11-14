@@ -96,15 +96,17 @@ public sealed class SearchEngine : ISearchV2Engine
 
         // Cheap readiness probe (one primary-key row). Entry/work-item counts belong to the
         // administrative health page, not to every committed search.
+        // The active index may be one projection version older while this build's own is
+        // being built after a deployment; it keeps answering until the new one is swapped in.
         var indexState = await _store.GetActiveStateAsync(cancellationToken);
-        var activeGeneration = indexState.HasActiveGeneration && indexState.IndexVersion == _options.ProjectionVersion
-            ? indexState.ActiveGeneration
-            : 0;
+        var servedVersion = _options.ServableIndexVersion(indexState);
+        var activeGeneration = servedVersion.HasValue ? indexState.ActiveGeneration : 0;
         if (activeGeneration <= 0)
         {
             _logger.LogDebug(
-                "Search V2 index is not ready for ProjectionVersion {ProjectionVersion}.",
-                _options.ProjectionVersion);
+                "Search V2 index is not ready for ProjectionVersion {ProjectionVersion} (active {ActiveVersion}).",
+                _options.ProjectionVersion,
+                indexState.IndexVersion);
             return SearchResponse.NotReady(normalized.Original, SearchV2ExecutionStatus.IndexNotReady);
         }
 
@@ -171,6 +173,7 @@ public sealed class SearchEngine : ISearchV2Engine
                     request.DateTo);
                 command.CommandText = BuildSearchSql(sqlParts, request.IncludeDetailedFacets);
                 Add(command, "indexVersion", _options.ProjectionVersion);
+                Add(command, "minIndexVersion", _options.MinimumServableProjectionVersion);
                 Add(command, "exact", terms.Exact);
                 Add(command, "exactTitles", terms.ExactTitles);
                 Add(command, "exactTitlePrefixes", terms.IndexedExactTitles);
@@ -324,7 +327,12 @@ public sealed class SearchEngine : ISearchV2Engine
         CancellationToken cancellationToken)
     {
         var normalized = _normalizer.Normalize(query);
-        if (!_options.Enabled || normalized.Exact.Length < 2 || !await _store.IsReadyAsync(_options.ProjectionVersion, cancellationToken))
+        if (!_options.Enabled || normalized.Exact.Length < 2)
+        {
+            return Array.Empty<SearchSuggestion>();
+        }
+
+        if (_options.ServableIndexVersion(await _store.GetActiveStateAsync(cancellationToken)) is null)
         {
             return Array.Empty<SearchSuggestion>();
         }
@@ -367,9 +375,9 @@ public sealed class SearchEngine : ISearchV2Engine
         // the union of candidate ids.
         command.CommandText = $"""
             WITH state AS MATERIALIZED (
-                SELECT "ActiveGeneration" AS generation
+                SELECT "ActiveGeneration" AS generation, "IndexVersion" AS version
                 FROM "SearchIndexState"
-                WHERE "Id" = 1 AND "IndexVersion" = @indexVersion
+                WHERE "Id" = 1 AND "IndexVersion" BETWEEN @minIndexVersion AND @indexVersion
             ), candidate_ids AS (
                 SELECT e."Id"
                 FROM "SearchEntries" e
@@ -464,6 +472,7 @@ public sealed class SearchEngine : ISearchV2Engine
             LIMIT @take;
             """;
         Add(command, "indexVersion", _options.ProjectionVersion);
+        Add(command, "minIndexVersion", _options.MinimumServableProjectionVersion);
         Add(command, "exact", terms.Exact);
         Add(command, "exactTokenTsQuery", terms.ExactTokenTsQuery);
         Add(command, "prefixTsQuery", terms.PrefixTsQuery);
@@ -615,7 +624,7 @@ public sealed class SearchEngine : ISearchV2Engine
             .Any(channel => channel is not ("title_fuzzy" or "fuzzy"));
 
     private static string ScopeWhere(SearchSqlScope scope) =>
-        $"""e."Generation" = (SELECT generation FROM state) AND e."IndexVersion" = @indexVersion {scope.AuthorizationClause}""";
+        $"""e."Generation" = (SELECT generation FROM state) AND e."IndexVersion" = (SELECT version FROM state) {scope.AuthorizationClause}""";
 
     private static string BuildSearchSql(SearchSqlScope scope, bool includeDetailedFacets)
     {
@@ -639,9 +648,9 @@ public sealed class SearchEngine : ISearchV2Engine
         //   5 any-field simple FTS        6 English body FTS, alias FTS        7 trigram fallback
         return $"""
         WITH state AS MATERIALIZED (
-            SELECT "ActiveGeneration" AS generation
+            SELECT "ActiveGeneration" AS generation, "IndexVersion" AS version
             FROM "SearchIndexState"
-            WHERE "Id" = 1 AND "IndexVersion" = @indexVersion
+            WHERE "Id" = 1 AND "IndexVersion" BETWEEN @minIndexVersion AND @indexVersion
         ), exact_identifier AS (
             SELECT e."Id", 0 AS tier,
                    ROW_NUMBER() OVER (ORDER BY e."EventDateUtc" DESC NULLS LAST, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,

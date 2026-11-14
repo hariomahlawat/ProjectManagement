@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ProjectManagement.Services.SearchV2.Models;
 
 namespace ProjectManagement.Services.SearchV2;
 
@@ -97,6 +98,23 @@ public sealed class SearchV2Options
     /// </summary>
     [Range(1, int.MaxValue)]
     public int ProjectionVersion { get; set; } = 8;
+
+    /// <summary>
+    /// The oldest projection version this build still serves. After a deployment that bumps
+    /// <see cref="ProjectionVersion"/>, the previous index keeps answering searches until the
+    /// new one is built and swapped in, instead of every search falling back to the basic
+    /// engine. Raise it only when this build can no longer read rows of an older projection.
+    /// </summary>
+    [Range(1, int.MaxValue)]
+    public int MinimumServableProjectionVersion { get; set; } = 7;
+
+    /// <summary>The projection version of <paramref name="state"/>'s active index if this build may serve it.</summary>
+    public int? ServableIndexVersion(SearchIndexActiveState state) =>
+        state.HasActiveGeneration
+        && state.IndexVersion <= ProjectionVersion
+        && state.IndexVersion >= MinimumServableProjectionVersion
+            ? state.IndexVersion
+            : null;
 
     [Range(5, 3600)]
     public int WorkerIntervalSeconds { get; set; } = 15;

@@ -485,6 +485,63 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.NotEqual("7s", outside);
     }
 
+    // After a deployment that bumps ProjectionVersion, the previous index keeps answering
+    // until the new one is built, instead of every search falling back to the basic engine.
+    [SearchV2PostgresFact]
+    public async Task AnIndexOneProjectionVersionOlder_KeepsServingUntilTheNewOneIsBuilt()
+    {
+        await using var host = _database.CreateHost(services =>
+            services.PostConfigure<SearchV2Options>(options => options.MinimumServableProjectionVersion = options.ProjectionVersion - 1));
+        var older = host.ProjectionVersion - 1;
+        var entry = host.Entry("Project", "9401", "Projects", "Projects", "Lammergeier optics suite", null) with { IndexVersion = older };
+        await host.WithStoreAsync(store => store.ReplaceFullGenerationAsync(new[] { entry }, older, CancellationToken.None, allowDowngrade: true));
+
+        var response = await host.SearchAsync("lammergeier");
+        var suggestions = await host.SuggestAsync("lammer");
+
+        Assert.Equal(SearchV2ExecutionStatus.Success, response.ExecutionStatus);
+        Assert.Contains(response.Results, result => result.EntityKey == "9401");
+        Assert.Contains(suggestions, suggestion => suggestion.Title == "Lammergeier optics suite");
+    }
+
+    // The readiness probe and the search statement are separate reads. If the worker swaps
+    // in the new version between them, the statement must read the new index, not find none.
+    [SearchV2PostgresFact]
+    public async Task ASwapToTheNewVersionAfterTheReadinessProbe_IsStillServed()
+    {
+        await using var host = _database.CreateHost(services =>
+        {
+            services.PostConfigure<SearchV2Options>(options => options.MinimumServableProjectionVersion = options.ProjectionVersion - 1);
+            services.AddScoped<ISearchIndexStore>(provider => SwapAfterProbeStore.Create(new SearchIndexStore(provider.GetRequiredService<ApplicationDbContext>())));
+        });
+        var older = host.ProjectionVersion - 1;
+        var oldEntry = host.Entry("Project", "9403", "Projects", "Projects", "Gyrfalcon optics suite", null) with { IndexVersion = older };
+        await host.WithStoreAsync(store => store.ReplaceFullGenerationAsync(new[] { oldEntry }, older, CancellationToken.None, allowDowngrade: true));
+        SwapAfterProbeStore.NextVersion = host.ProjectionVersion;
+        SwapAfterProbeStore.NextGeneration = new[] { host.Entry("Project", "9403", "Projects", "Projects", "Gyrfalcon optics suite", null) };
+
+        var response = await host.SearchAsync("gyrfalcon");
+
+        Assert.Equal(SearchV2ExecutionStatus.Success, response.ExecutionStatus);
+        Assert.Contains(response.Results, result => result.EntityKey == "9403");
+        Assert.Equal(host.ProjectionVersion, (await host.ReadStateAsync()).IndexVersion);
+    }
+
+    [SearchV2PostgresFact]
+    public async Task AnIndexOlderThanTheOldestServableVersion_IsNotServed()
+    {
+        await using var host = _database.CreateHost(services =>
+            services.PostConfigure<SearchV2Options>(options => options.MinimumServableProjectionVersion = options.ProjectionVersion));
+        var older = host.ProjectionVersion - 1;
+        var entry = host.Entry("Project", "9402", "Projects", "Projects", "Bateleur optics suite", null) with { IndexVersion = older };
+        await host.WithStoreAsync(store => store.ReplaceFullGenerationAsync(new[] { entry }, older, CancellationToken.None, allowDowngrade: true));
+
+        var response = await host.SearchAsync("bateleur");
+
+        Assert.Equal(SearchV2ExecutionStatus.IndexNotReady, response.ExecutionStatus);
+        Assert.Empty(await host.SuggestAsync("batel"));
+    }
+
     [SearchV2PostgresFact]
     public async Task UsageSummary_CountsSearchesAndFallbacks_AndIgnoresSuggestionRows()
     {
@@ -998,5 +1055,38 @@ internal sealed class SearchV2TestHost : IAsyncDisposable
 
         public Task<SearchAccessContext> CreateAsync(ClaimsPrincipal user, CancellationToken cancellationToken) =>
             Task.FromResult(new SearchAccessContext("search-tester", Array.Empty<string>(), Policies));
+    }
+}
+
+/// <summary>
+/// A store that, once armed, swaps in a new generation right after the engine's readiness
+/// probe has read the old one, as the indexing worker could between two reads.
+/// </summary>
+public class SwapAfterProbeStore : System.Reflection.DispatchProxy
+{
+    public static SearchProjection[]? NextGeneration;
+    public static int NextVersion;
+
+    private ISearchIndexStore _inner = null!;
+
+    public static ISearchIndexStore Create(ISearchIndexStore inner)
+    {
+        var proxy = Create<ISearchIndexStore, SwapAfterProbeStore>();
+        ((SwapAfterProbeStore)(object)proxy)._inner = inner;
+        return proxy;
+    }
+
+    protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args)
+    {
+        var result = targetMethod!.Invoke(_inner, args);
+        if (targetMethod.Name == nameof(ISearchIndexStore.GetActiveStateAsync) && NextGeneration is { } next)
+        {
+            NextGeneration = null;
+            var probed = ((Task<SearchIndexActiveState>)result!).GetAwaiter().GetResult();
+            _inner.ReplaceFullGenerationAsync(next, NextVersion, CancellationToken.None).GetAwaiter().GetResult();
+            return Task.FromResult(probed);
+        }
+
+        return result;
     }
 }
