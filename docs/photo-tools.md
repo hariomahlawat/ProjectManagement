@@ -112,13 +112,20 @@ recogniser, no record) and answers the largest face's box and five points, or "n
   half degrees);
 - estimates the top of the head, because the detector's box ends at the brow: as far above the
   eyes as the chin is below them, plus 5% for hair;
-- zooms (1 to 4 times) so the top of the head and the chin sit on the guide's two lines, and
-  moves the photo so the eyes are in the middle across.
+- zooms so the top of the head and the chin sit on the guide's two lines, and moves the photo
+  so the eyes are in the middle across.
+
+Zoom goes to 4 times on any photo, and further on a photo with pixels to spare: up to where the
+saved photo would be enlarged 1.15 times (just short of where the Detail check warns), and never past 12 times.
+The Zoom slider reaches the same limit. The mouse wheel scrolls the page; Ctrl with the wheel,
+or a pinch on a touchpad, zooms.
 
 If the user moves, zooms or straightens before the answer arrives, the photo is left where they
 put it. **Place the face again** (shown when a face was found) puts it back. Opening another
-photo, turning it a quarter or switching from Signature back to Photo asks again. A face that is
-small in a wide photo stops at 4 times, and the checks then say the head is small. Without the
+photo, turning it a quarter or switching from Signature back to Photo asks again. A head that stays
+smaller than the guide at the limit (a photo taken from too far away) has its top on the top line
+rather than its middle in the middle, and the checks say the person is too far away instead of
+"zoom in". Without the
 face detector set up nothing is asked and the photo is placed by hand.
 
 While the server looks, the bar under the photo says "Placing the face…". The request is cancelled
@@ -291,8 +298,8 @@ without a model that knows what a face looks like (`passportChecks` in the core 
 | Detail | How many times the photo is enlarged to fill the frame | Over 1.2 times |
 | Face | The face detector, when it is set up | No face was found |
 | Head position | The face found by the detector (top of the head estimated as for placing it), or, without it, the person's outline from the background search (`findBackground`, `headOutline`) | The head touches the top edge, or starts well above or below the guide's top line (8% of the height); with the face found, also when the face is off the middle across |
-| Head size | The face found by the detector: top of the head to chin; or the width of the outline across the rows where the face is | With the face: well over or under the guide's 75%. With the outline: it fills more than 85% of the width, or under a third |
-| Background | The same reading of the edges that the background change uses | The edges are not plain, or the colour is not light. Not shown once the background has been replaced |
+| Head size | The face found by the detector: top of the head to chin; or the width of the outline across the rows where the face is | With the face: well over or under the guide's 75% (at the zoom limit the advice is a closer photo, not "zoom in"). With the outline: it fills more than 85% of the width, or under a third |
+| Background | The same reading of the edges that the background change uses | The edges are not plain, or the colour is not light. Once the background has been replaced, the edges of the finished photo are read instead: when they are still not plain (the model took part of the scene for the person), it says parts of the old background are left |
 | Light on the face | Average brightness inside the guide's oval | Very dark or washed out |
 
 - With the face detector, head position and size are judged from the real face on any

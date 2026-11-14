@@ -17,7 +17,12 @@
 
   const PREVIEW_SIDE = 1600;
   const FRAME_MARGIN = 28;
+  // Zoom goes to 4 times at least; further on a photo with pixels to spare, up to where the saved
+  // photo would be enlarged 1.15 times (just short of the 1.2 where the checks warn it may look
+  // soft), and never past 12 times.
   const MAX_ZOOM = 4;
+  const MAX_ENLARGED = 1.15;
+  const MAX_ZOOM_EVER = 12;
   const MIN_PIXELS = 50;
   const MAX_PIXELS = 4000;
   const SETTLE_MS = 300;
@@ -312,6 +317,7 @@
     canvas.width = Math.round(width * ratio);
     canvas.height = Math.round(height * ratio);
     place();
+    renderZoomRange();
     draw();
   }
 
@@ -352,8 +358,23 @@
     queueSave();
   }
 
+  /** How far this photo may be zoomed: see MAX_ZOOM. Does not depend on the size of the screen. */
+  function zoomLimit() {
+    if (!base || !full || !frame.width) return MAX_ZOOM;
+    const enlargedAtOne = outputScale() / zoomFactor;
+    if (!(enlargedAtOne > 0)) return MAX_ZOOM;
+    return Math.min(MAX_ZOOM_EVER, Math.max(MAX_ZOOM, MAX_ENLARGED / enlargedAtOne));
+  }
+
+  /** The zoom slider reaches this photo's limit. */
+  function renderZoomRange() {
+    const max = String(Math.round(zoomLimit() * 100));
+    if (zoom.max !== max) zoom.max = max;
+    zoom.value = String(Math.round(zoomFactor * 100));
+  }
+
   function setZoom(value) {
-    zoomFactor = Math.min(MAX_ZOOM, Math.max(1, value));
+    zoomFactor = Math.min(zoomLimit(), Math.max(1, value));
     zoom.value = String(Math.round(zoomFactor * 100));
     moved();
   }
@@ -509,15 +530,25 @@
   /** Places the photo so the face is on the guide: eyes level, head between the lines, centred. */
   function applyFace() {
     if (!faceFound || !base || !frame.width) return;
-    const placement = core.placeFace({
+    const placeAt = (maxZoom) => core.placeFace({
       imageWidth: base.width,
       imageHeight: base.height,
       frameWidth: frame.width,
       frameHeight: frame.height,
       face: faceFound,
       maxAngle: 15 * Math.PI / 180,
-      maxZoom: MAX_ZOOM
+      maxZoom
     });
+    let placement = placeAt(zoomLimit());
+    if (placement) {
+      // Straightening enlarges the photo a little, so the limit is worked out again at the
+      // angle it will be turned by, and the face placed again if that limit is lower.
+      const was = angle;
+      angle = placement.angle;
+      const limit = zoomLimit();
+      angle = was;
+      if (limit < placement.zoom) placement = placeAt(limit);
+    }
     if (!placement) {
       // On its side: Rotate first (a quarter turn opens the photo again and asks again).
       faceState = 'sideways';
@@ -531,7 +562,7 @@
     straighten.value = String(degrees);
     straightenValue.textContent = `${degrees > 0 ? '+' : ''}${degrees}°`;
     zoomFactor = placement.zoom;
-    zoom.value = String(Math.round(zoomFactor * 100));
+    renderZoomRange();
     offset = { x: placement.x, y: placement.y };
     touched = false;
     place();
@@ -971,7 +1002,8 @@
       colour: measured.colour,
       replaced: bgStatus === core.BACKGROUND_STATUS.changed,
       enlarged: outputScale(),
-      face: faceForChecks()
+      face: faceForChecks(),
+      atZoomLimit: zoomFactor >= zoomLimit() - 0.01
     });
     checkBox.hidden = false;
     checkBox.classList.toggle('has-problems', problems.length > 0);
@@ -1663,8 +1695,10 @@
     });
   }
 
+  // The wheel scrolls the page, as everywhere else; Ctrl with the wheel zooms, and so does a
+  // pinch on a touchpad (the browser sends it as a wheel with Ctrl held).
   crop.addEventListener('wheel', (event) => {
-    if (!base) return;
+    if (!base || !event.ctrlKey) return;
     event.preventDefault();
     setZoom(zoomFactor * Math.exp(-event.deltaY * 0.0015));
   }, { passive: false });
