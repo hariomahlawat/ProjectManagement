@@ -85,6 +85,55 @@
     return scaleDimensions(width, height, scale);
   }
 
+  const EXACT_SIDE = Object.freeze({ min: 16, max: 10000 });
+
+  /** A side typed for Exact width and height, or null when it is not a whole number in range. */
+  function parseExactSide(value) {
+    const text = String(value ?? '').trim();
+    if (!/^\d+$/.test(text)) return null;
+    const side = Number(text);
+    return side >= EXACT_SIDE.min && side <= EXACT_SIDE.max ? side : null;
+  }
+
+  /**
+   * How a photo of width × height is made exactly target.width × target.height.
+   * 'fill' crops the edges that do not fit, evenly from the centre; 'fit' keeps the whole photo
+   * and leaves the spare space as a border. Returns the part of the photo to read (`area`) and
+   * where on the new photo it is drawn (`place`). A smaller photo is made larger.
+   */
+  function exactFit(width, height, target, fit) {
+    const out = { width: target.width, height: target.height };
+    if (fit === 'fit') {
+      const scale = Math.min(target.width / width, target.height / height);
+      const drawn = scaleDimensions(width, height, scale);
+      drawn.width = Math.min(drawn.width, target.width);
+      drawn.height = Math.min(drawn.height, target.height);
+      return {
+        ...out,
+        area: { x: 0, y: 0, width, height },
+        place: {
+          x: Math.floor((target.width - drawn.width) / 2),
+          y: Math.floor((target.height - drawn.height) / 2),
+          width: drawn.width,
+          height: drawn.height
+        }
+      };
+    }
+    const scale = Math.max(target.width / width, target.height / height);
+    const areaWidth = Math.min(width, Math.max(1, Math.round(target.width / scale)));
+    const areaHeight = Math.min(height, Math.max(1, Math.round(target.height / scale)));
+    return {
+      ...out,
+      area: {
+        x: Math.floor((width - areaWidth) / 2),
+        y: Math.floor((height - areaHeight) / 2),
+        width: areaWidth,
+        height: areaHeight
+      },
+      place: { x: 0, y: 0, width: target.width, height: target.height }
+    };
+  }
+
   function scaleDimensions(width, height, scale) {
     return {
       width: Math.max(1, Math.round(width * scale)),
@@ -2463,6 +2512,9 @@
     formatBytes,
     parseTargetBytes,
     resizeDimensions,
+    EXACT_SIDE,
+    parseExactSide,
+    exactFit,
     scaleDimensions,
     outputType,
     isSupportedPhoto,

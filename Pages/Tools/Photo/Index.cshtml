@@ -77,7 +77,7 @@
                 <a class="pdft-card" href="#reduce">
                     <span class="pdft-card__icon pdft-accent--orange" aria-hidden="true"><i class="bi bi-arrows-angle-contract"></i></span>
                     <span class="pdft-card__title">Reduce size</span>
-                    <span class="pdft-card__text">Get under a size such as 100 KB, for one photo or many.</span>
+                    <span class="pdft-card__text">Get under a size such as 100 KB, or set exact pixels, for one photo or many.</span>
                 </a>
                 <a class="pdft-card" href="#remove" data-remove-card>
                     <span class="pdft-card__icon pdft-accent--teal" aria-hidden="true"><i class="bi bi-person-square"></i></span>
@@ -630,12 +630,32 @@
                                 <option value="longest:800">Longest side 800 px</option>
                                 <option value="percent:50">Half size</option>
                                 <option value="custom">Custom longest side</option>
+                                <option value="exact">Exact width and height</option>
                             </select>
                             <p class="phot-hint">Pixels (px) are the dots the photo is made of. 1600 px across still looks sharp on any screen.</p>
                         </div>
                         <div class="phot-field" data-custom-side hidden>
                             <label for="photCustomSide">Longest side (px)</label>
                             <input type="number" class="form-control" id="photCustomSide" min="16" max="20000" step="1" value="1024" data-custom-side-value />
+                        </div>
+                        <div class="phot-field" data-exact hidden>
+                            <div class="phot-exact">
+                                <div>
+                                    <label for="photExactWidth">Width (px)</label>
+                                    <input type="number" class="form-control" id="photExactWidth" min="16" max="10000" step="1" value="600" inputmode="numeric" data-exact-width aria-describedby="photExactHint" />
+                                </div>
+                                <span class="phot-exact__times" aria-hidden="true">×</span>
+                                <div>
+                                    <label for="photExactHeight">Height (px)</label>
+                                    <input type="number" class="form-control" id="photExactHeight" min="16" max="10000" step="1" value="400" inputmode="numeric" data-exact-height aria-describedby="photExactHint" />
+                                </div>
+                            </div>
+                            <label class="phot-exact__fit-label" for="photExactFit">A photo of another shape</label>
+                            <select class="form-select" id="photExactFit" data-exact-fit>
+                                <option value="fill" selected>Crop to fill</option>
+                                <option value="fit">Fit inside, white border</option>
+                            </select>
+                            <p class="phot-hint" id="photExactHint" data-exact-hint>Every photo comes out at exactly this size. Crop to fill cuts the edges evenly; Fit inside keeps the whole photo. A smaller photo is made larger.</p>
                         </div>
                         <div class="phot-field">
                             <label for="photFormat">Save as</label>

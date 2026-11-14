@@ -59,6 +59,46 @@ test('resizeDimensions keeps the shape and never enlarges', () => {
   assert.deepEqual(tools.resizeDimensions(4000, 3000, { type: 'percent', value: 250 }), { width: 4000, height: 3000 });
 });
 
+test('parseExactSide takes whole numbers from 16 to 10000 only', () => {
+  assert.equal(tools.parseExactSide('600'), 600);
+  assert.equal(tools.parseExactSide(' 16 '), 16);
+  assert.equal(tools.parseExactSide('10000'), 10000);
+  for (const bad of ['', '15', '10001', '12.5', '-40', 'abc', null, undefined]) {
+    assert.equal(tools.parseExactSide(bad), null, String(bad));
+  }
+});
+
+test('exactFit crop to fill cuts the edges evenly and fills the size', () => {
+  // A wide photo into a square: the sides are cut.
+  assert.deepEqual(tools.exactFit(4000, 3000, { width: 600, height: 600 }, 'fill'), {
+    width: 600, height: 600,
+    area: { x: 500, y: 0, width: 3000, height: 3000 },
+    place: { x: 0, y: 0, width: 600, height: 600 }
+  });
+  // A tall photo into a wide size: the top and bottom are cut.
+  const tall = tools.exactFit(3000, 4000, { width: 600, height: 400 }, 'fill');
+  assert.deepEqual(tall.area, { x: 0, y: 1000, width: 3000, height: 2000 });
+  // A small photo is made larger.
+  const small = tools.exactFit(300, 200, { width: 600, height: 400 }, 'fill');
+  assert.deepEqual(small.area, { x: 0, y: 0, width: 300, height: 200 });
+  assert.deepEqual(small.place, { x: 0, y: 0, width: 600, height: 400 });
+});
+
+test('exactFit fit inside keeps the whole photo with an even border', () => {
+  const wide = tools.exactFit(4000, 3000, { width: 600, height: 600 }, 'fit');
+  assert.deepEqual(wide.area, { x: 0, y: 0, width: 4000, height: 3000 });
+  assert.deepEqual(wide.place, { x: 0, y: 75, width: 600, height: 450 });
+  const tall = tools.exactFit(3000, 4000, { width: 600, height: 400 }, 'fit');
+  assert.deepEqual(tall.place, { x: 150, y: 0, width: 300, height: 400 });
+  // Same shape: no border.
+  assert.deepEqual(tools.exactFit(1200, 800, { width: 600, height: 400 }, 'fit').place, { x: 0, y: 0, width: 600, height: 400 });
+  // Never wider or taller than the size, whatever the rounding.
+  for (const [w, h] of [[1001, 999], [7, 3], [3, 7], [10000, 17]]) {
+    const plan = tools.exactFit(w, h, { width: 333, height: 211 }, 'fit');
+    assert.ok(plan.place.x + plan.place.width <= 333 && plan.place.y + plan.place.height <= 211, `${w}x${h}`);
+  }
+});
+
 test('outputType follows the choice, or the original where it can be written', () => {
   assert.equal(tools.outputType('image/png', 'jpeg').extension, 'jpg');
   assert.equal(tools.outputType('image/png', 'same').extension, 'png');

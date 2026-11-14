@@ -28,7 +28,8 @@ describes what is built.
 - A saved photo is re-drawn, so the hidden data in the original (GPS location, camera details)
   is never in the saved file. The page says so.
 - Each screen's last choices are remembered in that browser's `localStorage` only, under
-  `prism.photoTools.<screen>`: Reduce size (target, width and height, file type, black and white),
+  `prism.photoTools.<screen>`: Reduce size (target, width and height with the exact size and its fit, file type, black and
+  white),
   Passport photo (per Photo or Signature: the size or custom size and the KB limit; and the
   background colour), Print sheet (paper, PDF or JPG, cut lines), Edit photo (file type and
   quality, once picked) and Remove background (background and file type). Photos are never kept,
@@ -58,7 +59,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 
 | Tool | What it does |
 | --- | --- |
-| Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none); the pixels are kept unless the size cannot be reached otherwise, or made fewer on request; save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
+| Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none); the pixels are kept unless the size cannot be reached otherwise, or made fewer on request, or set to an exact width and height (crop to fill, or fit inside with a white border); save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). The face is placed for you when the PRISM server's face detector is set up: straightened, sized and centred on the guide. Drag, zoom, straighten (±15°) and rotate; Place the face again puts it back. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, 630 × 810 px for online forms that ask for pixels (the shape of 35 × 45 mm; no one portal is named), custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour; any other background uses Remove background's model when it is set up (by itself, or with Better edges). What the tool gets wrong is touched up with Refine edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
 | ID card copy | Its own tool (`#idcard`). The front and back of a card, 85.6 × 54 mm (Aadhaar, PAN, a driving licence, a bank card), on one A4 page at true size, the front above the back. Each side is dragged and zoomed so only the card is printed, and turned a quarter when it was photographed on its side. Wide or upright card, a thin outline, black and white. One side alone can be saved. Saved as a PDF whose page is A4 (recommended), or one JPG at 300 dpi. |
@@ -506,6 +507,24 @@ step, so Undo takes it back.
   the server is asked again every 2 seconds, and the photo opens when it answers ready. After
   90 seconds it stops waiting and the server's note gets the focus, as for a tool that cannot be
   used. A later photo takes the place of a held one.
+
+### Exact width and height (Reduce size)
+
+**Width and height** has an **Exact width and height** choice (plan:
+[ux/photo-tools-more.md](ux/photo-tools-more.md)): Width and Height, 16 to 10,000 px each, and
+how a photo of another shape is made to fit.
+
+- **Crop to fill** (the default) fills the size and cuts the edges that do not fit evenly, from
+  the centre. **Fit inside, white border** keeps the whole photo and fills the spare space white.
+- Every photo comes out at exactly that size; a smaller photo is made larger. This is the only
+  way Reduce size makes a photo larger.
+- With a file size limit too, only the quality is lowered (`encodeToTarget` with `fixedSize`),
+  never the pixels. A photo still over the limit is shown in amber, and the note says to choose
+  fewer pixels or a larger size.
+- Until both boxes hold whole numbers in range the size is not used, and the hint under
+  the boxes says so in amber.
+- `core.exactFit` works out the part of the photo to read and where it goes; `drawExact` in
+  `photo-tools-canvas.js` draws it. Both are tested in Node (`exactFit`, `parseExactSide`).
 
 ### Pasting a photo
 
