@@ -177,6 +177,14 @@
   let offset = { x: 0, y: 0 };
   let angle = 0;
   let zoomFactor = 1;
+  // Where the face detector found the face, in `base`'s pixels: undefined when it was not asked
+  // (not set up, Signature, or no answer), false when it found none, else { box, points }.
+  let faceFound;
+  // True once the user has moved, zoomed or straightened this photo: a face found after that
+  // does not move it again ("Place the face again" does).
+  let touched = false;
+  let faceRun = 0;
+  const placeFaceButton = $('[data-action="place-face"]');
   let frame = { width: 0, height: 0, left: 0, top: 0 };
 
   let size = { width: core.PASSPORT_SIZES[0].width, height: core.PASSPORT_SIZES[0].height };
@@ -268,6 +276,7 @@
   }
 
   function moved() {
+    touched = true;
     place();
     draw();
     queueSave();
@@ -341,6 +350,91 @@
     frame = { width: 0, height: 0, left: 0, top: 0 };
     layout();
     queueSave();
+    touched = false;
+    findFace();
+  }
+
+  // ---------------------------------------------------------------------------
+  // The face placed for you
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Asks the PRISM server where the face is (Photo mode only, when the Photos library's face
+   * detector is set up) and, unless the user has already moved the photo, places it so the face
+   * sits on the guide. Without the detector nothing changes: the photo is placed by hand.
+   */
+  async function findFace() {
+    const mine = ++faceRun;
+    faceFound = undefined;
+    renderFace();
+    const server = window.PrismPhotoServer;
+    if (!server || mode !== 'photo' || !base) return;
+    const status = await server.status();
+    if (mine !== faceRun || !status || !status.faceAvailable) return;
+    const answer = await server.locateFace(base);
+    if (mine !== faceRun || !answer || mode !== 'photo') return;
+    if (!answer.found) {
+      faceFound = false;
+    } else {
+      // The copy sent is `base` itself, so the answer is in its pixels already.
+      const ratio = base.width / Math.max(1, answer.imageWidth);
+      faceFound = {
+        box: {
+          left: answer.box.left * ratio,
+          top: answer.box.top * ratio,
+          width: answer.box.width * ratio,
+          height: answer.box.height * ratio
+        },
+        points: answer.points.map(([x, y]) => [x * ratio, y * ratio])
+      };
+      if (!touched) applyFace();
+    }
+    renderFace();
+    queueSave(true);
+  }
+
+  /** Places the photo so the face is on the guide: eyes level, head between the lines, centred. */
+  function applyFace() {
+    if (!faceFound || !base || !frame.width) return;
+    const placement = core.placeFace({
+      imageWidth: base.width,
+      imageHeight: base.height,
+      frameWidth: frame.width,
+      frameHeight: frame.height,
+      face: faceFound,
+      maxAngle: 15 * Math.PI / 180,
+      maxZoom: MAX_ZOOM
+    });
+    // The straighten slider moves in half degrees; the photo is turned by exactly what it shows.
+    const degrees = Math.round(placement.angle * 180 / Math.PI * 2) / 2;
+    angle = degrees * Math.PI / 180;
+    straighten.value = String(degrees);
+    straightenValue.textContent = `${degrees > 0 ? '+' : ''}${degrees}°`;
+    zoomFactor = placement.zoom;
+    zoom.value = String(Math.round(zoomFactor * 100));
+    offset = { x: placement.x, y: placement.y };
+    touched = false;
+    place();
+    draw();
+    queueSave();
+  }
+
+  function renderFace() {
+    placeFaceButton.hidden = !(faceFound && mode === 'photo');
+  }
+
+  /** Where the face is in the finished photo, for the checks: shares, false or undefined. */
+  function faceForChecks() {
+    if (mode !== 'photo' || faceFound === undefined) return undefined;
+    if (faceFound === false) return false;
+    return core.faceShares({
+      imageWidth: base.width,
+      imageHeight: base.height,
+      frameWidth: frame.width,
+      frameHeight: frame.height,
+      placement: { angle, scale: scale(), x: offset.x, y: offset.y },
+      face: faceFound
+    });
   }
 
   async function openFile(file) {
@@ -511,6 +605,8 @@
     buildSizes();
     if (preview) rebuildPreview();
     setSize(words.sizes[0].width, words.sizes[0].height);
+    // Signature has no face; back in Photo the face is asked for again (and placed if untouched).
+    if (base) findFace();
   }
 
   // ---------------------------------------------------------------------------
@@ -631,7 +727,8 @@
       plain: measured.plain,
       colour: measured.colour,
       replaced: bgStatus === core.BACKGROUND_STATUS.changed,
-      enlarged: outputScale()
+      enlarged: outputScale(),
+      face: faceForChecks()
     });
     checkBox.hidden = false;
     checkBox.classList.toggle('has-problems', problems.length > 0);
@@ -1095,6 +1192,7 @@
   });
 
   $('[data-action="rotate"]').addEventListener('click', rotateQuarter);
+  placeFaceButton.addEventListener('click', applyFace);
 
   guideToggle.addEventListener('change', () => {
     guide.hidden = mode !== 'photo' || !guideToggle.checked;

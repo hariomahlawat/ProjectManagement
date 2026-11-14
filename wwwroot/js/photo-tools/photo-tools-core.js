@@ -811,8 +811,92 @@
   // A few things that can be measured without knowing what a face looks like. They are a guide
   // for the user, not a check against any authority's rules, and the screen says so.
 
-  // Where the face guide on the screen draws its lines, as shares of the photo's height.
-  const PASSPORT_GUIDE = Object.freeze({ top: 0.10, chin: 0.78 });
+  // Where the face guide on the screen draws its lines, as shares of the photo's height. The head
+  // (top of the head to chin) is 75% of the photo's height: Indian passport photos ask for 70 to
+  // 80% (owner decision, 14 Nov 2026).
+  const PASSPORT_GUIDE = Object.freeze({ top: 0.08, chin: 0.83 });
+
+  // The face detector's box ends near the brow, so the top of the head is estimated: about as far
+  // above the eyes as the chin is below them, a little more for hair.
+  const CROWN_ABOVE_EYES = 1.05;
+
+  /** A point turned by `angle` (radians) about (cx, cy). */
+  function turnAbout(point, cx, cy, angle) {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const dx = point.x - cx;
+    const dy = point.y - cy;
+    return { x: dx * cos - dy * sin, y: dx * sin + dy * cos };
+  }
+
+  /**
+   * The head's key points from the face detector's answer, in the photo's pixels: the middle of
+   * the eyes, the chin (the bottom of the box below the eyes) and the estimated top of the head.
+   * `face` is { box: { left, top, width, height }, points: [[x, y] × 5] } (right eye, left eye,
+   * nose tip, mouth corners, as seen in the photo).
+   */
+  function headPoints(face) {
+    const [first, second] = face.points;
+    const eyes = { x: (first[0] + second[0]) / 2, y: (first[1] + second[1]) / 2 };
+    const chin = { x: eyes.x, y: face.box.top + face.box.height };
+    const crown = {
+      x: eyes.x,
+      y: eyes.y - (chin.y - eyes.y) * CROWN_ABOVE_EYES
+    };
+    const tilt = Math.atan2(second[1] - first[1], second[0] - first[0]);
+    return { eyes, chin, crown, tilt };
+  }
+
+  /**
+   * Where to put a photo so its face sits on the passport guide: the eyes level (within
+   * ±`maxAngle`), the top of the head on the top line and the chin on the chin line, and the face
+   * in the middle across. Returns the screen's placement { angle, zoom, x, y }: the photo's turn
+   * (radians), its zoom past "just fills the frame" (1 to maxZoom), and its centre's distance from
+   * the frame's centre (frame pixels; the screen still keeps the frame filled). When the face is
+   * too large to fit even at zoom 1, the head is centred between the lines instead.
+   */
+  function placeFace({ imageWidth, imageHeight, frameWidth, frameHeight, face, maxAngle = Math.PI / 12, maxZoom = 4, guide = PASSPORT_GUIDE }) {
+    const head = headPoints(face);
+    const angle = Math.min(maxAngle, Math.max(-maxAngle, -head.tilt));
+    const cx = imageWidth / 2;
+    const cy = imageHeight / 2;
+    const crown = turnAbout(head.crown, cx, cy, angle);
+    const chin = turnAbout(head.chin, cx, cy, angle);
+    const eyes = turnAbout(head.eyes, cx, cy, angle);
+    const headHeight = Math.max(1, chin.y - crown.y);
+    const cover = coverScale(imageWidth, imageHeight, frameWidth, frameHeight, angle);
+    const wanted = (guide.chin - guide.top) * frameHeight / headHeight;
+    const zoom = Math.min(maxZoom, Math.max(1, wanted / cover));
+    const scale = cover * zoom;
+    const headMiddle = (crown.y + chin.y) / 2;
+    return {
+      angle,
+      zoom,
+      x: -eyes.x * scale,
+      y: ((guide.top + guide.chin) / 2 - 0.5) * frameHeight - headMiddle * scale
+    };
+  }
+
+  /**
+   * Where the face is in the finished photo, as shares of its height and width: the estimated top
+   * of the head, the chin, and the middle across. `placement` is the screen's { angle, scale, x, y }.
+   */
+  function faceShares({ imageWidth, imageHeight, frameWidth, frameHeight, placement, face }) {
+    const head = headPoints(face);
+    const cx = imageWidth / 2;
+    const cy = imageHeight / 2;
+    const at = (point) => {
+      const turned = turnAbout(point, cx, cy, placement.angle);
+      return {
+        x: 0.5 + (turned.x * placement.scale + placement.x) / frameWidth,
+        y: 0.5 + (turned.y * placement.scale + placement.y) / frameHeight
+      };
+    };
+    const crown = at(head.crown);
+    const chin = at(head.chin);
+    const eyes = at(head.eyes);
+    return { crown: crown.y, chin: chin.y, centre: eyes.x };
+  }
 
   /**
    * Where the person's outline starts and how wide the head is, from a background mask:
@@ -867,8 +951,11 @@
    *   plain, colour          measureBackground's verdict and colour for that photo
    *   replaced               the background was given a new colour
    *   enlarged               how many times the photo is enlarged to fill the frame (1 or less is none)
+   *   face                   where the face detector found the face (faceShares), false when it
+   *                          found none, or undefined when it could not be asked: then the head is
+   *                          judged from the background's outline, as before
    */
-  function passportChecks({ pixels, width, height, found, plain, colour, replaced, enlarged }) {
+  function passportChecks({ pixels, width, height, found, plain, colour, replaced, enlarged, face }) {
     const problems = [];
     const guide = PASSPORT_GUIDE;
 
@@ -879,7 +966,31 @@
       });
     }
 
-    const outline = found && found.status === BACKGROUND_STATUS.changed ? headOutline(found.mask, width, height) : null;
+    if (face === false) {
+      problems.push({ key: 'no-face', text: 'No face was found in this photo. Check it is a clear, front-facing photo of one person.' });
+    } else if (face) {
+      // The real face: the top of the head and the chin against the guide's lines.
+      const share = face.chin - face.crown;
+      if (face.crown <= 0.01) {
+        problems.push({ key: 'head-cut', text: 'The top of the head touches the edge or is cut off. Move the photo down or zoom out.' });
+      } else if (face.crown < guide.top - 0.04) {
+        problems.push({ key: 'head-high', text: 'The head is high in the frame. Move the photo down so the top of the head is near the line.' });
+      } else if (face.crown > guide.top + 0.06) {
+        problems.push({ key: 'head-low', text: 'The head is low in the frame. Move the photo up so the top of the head is near the line.' });
+      }
+      if (share > (guide.chin - guide.top) + 0.08) {
+        problems.push({ key: 'head-large', text: 'The head is larger than the guide. Zoom out so the chin is on the lower line.' });
+      } else if (share < (guide.chin - guide.top) - 0.09) {
+        problems.push({ key: 'head-small', text: 'The head is smaller than the guide. Zoom in so the head fills the space between the lines.' });
+      }
+      if (Math.abs(face.centre - 0.5) > 0.08) {
+        problems.push({ key: 'face-side', text: 'The face is not in the middle. Move the photo sideways so the face is inside the oval.' });
+      }
+    }
+
+    const outline = face === undefined && found && found.status === BACKGROUND_STATUS.changed
+      ? headOutline(found.mask, width, height)
+      : null;
     if (outline) {
       if (outline.top <= 0.01) {
         problems.push({ key: 'head-cut', text: 'The top of the head touches the edge or is cut off. Move the photo down or zoom out.' });
@@ -2326,6 +2437,8 @@
     PASSPORT_GUIDE,
     headOutline,
     passportChecks,
+    placeFace,
+    faceShares,
     BACKGROUND_BRUSHES,
     cutoutBackground,
     scaleBackground,

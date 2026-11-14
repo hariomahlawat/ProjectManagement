@@ -512,12 +512,14 @@
     pointer-events: none;
 }
 
+/* The guide: the head (top of the head to chin) is 75% of the photo's height, as
+   PASSPORT_GUIDE in photo-tools-core.js says. */
 .phot-crop__oval {
     position: absolute;
-    left: 21%;
-    top: 10%;
-    width: 58%;
-    height: 68%;
+    left: 19%;
+    top: 8%;
+    width: 62%;
+    height: 75%;
     border: 2px dashed var(--bs-warning);
     border-radius: 50%;
 }
@@ -529,8 +531,8 @@
     border-top: 1px dashed var(--bs-warning);
 }
 
-.phot-crop__rule--top { top: 10%; }
-.phot-crop__rule--chin { top: 78%; }
+.phot-crop__rule--top { top: 8%; }
+.phot-crop__rule--chin { top: 83%; }
 
 .phot-crop__label {
     position: absolute;
@@ -543,8 +545,8 @@
     font-weight: 700;
 }
 
-.phot-crop__label--top { top: calc(10% - 1.4rem); }
-.phot-crop__label--chin { top: calc(78% + 0.3rem); }
+.phot-crop__label--top { top: calc(8% - 1.4rem); }
+.phot-crop__label--chin { top: calc(83% + 0.3rem); }
 
 .phot-stage__bar--tools {
     justify-content: flex-start;

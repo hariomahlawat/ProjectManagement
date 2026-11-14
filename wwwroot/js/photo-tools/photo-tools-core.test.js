@@ -1244,12 +1244,13 @@ test('headOutline finds where the head starts and how wide it is', () => {
 
 test('passportChecks finds nothing wrong with a well placed photo', () => {
   assert.deepEqual(checksFor({}), []);
-  assert.equal(tools.PASSPORT_GUIDE.top, 0.1);
+  assert.equal(tools.PASSPORT_GUIDE.top, 0.08);
+  assert.equal(tools.PASSPORT_GUIDE.chin, 0.83);
 });
 
 test('passportChecks reports head position and size', () => {
   assert.deepEqual(checksFor({ top: 0 }), ['head-cut']);
-  assert.deepEqual(checksFor({ top: 0.03 }), ['head-high']);
+  assert.deepEqual(checksFor({ top: 0.01 }), ['head-high']);
   assert.deepEqual(checksFor({ top: 0.25 }), ['head-low']);
   assert.deepEqual(checksFor({ wide: 0.95 }), ['head-large']);
   assert.deepEqual(checksFor({ wide: 0.25 }), ['head-small']);
@@ -1558,4 +1559,49 @@ test('with the pixels kept, a size is reached by quality first and pixels only w
   const small = await tools.encodeToTarget({ encode, lossy: true, width: 4000, height: 3000, targetBytes: 100000 });
   assert.equal(small.reached, true);
   assert.ok(small.width < 4000);
+});
+
+// ----- The face placed (PR 4 of docs/ux/photo-tools-passport-done-for-you.md) -----
+
+// A face as the detector answers: eyes 40 px apart at y 300, the box from y 250 to 430.
+function detectedFace(tiltDegrees = 0) {
+  const t = tiltDegrees * Math.PI / 180;
+  const eye = (dx) => [400 + dx * Math.cos(t), 300 + dx * Math.sin(t)];
+  return { box: { left: 340, top: 250, width: 120, height: 180 }, points: [eye(-20), eye(20), [400, 340], [385, 380], [415, 380]] };
+}
+
+test('placeFace puts the head between the guide lines, the eyes level and the face in the middle', () => {
+  const frame = { frameWidth: 350, frameHeight: 450 };
+  const face = detectedFace(5);
+  const placement = tools.placeFace({ imageWidth: 800, imageHeight: 1000, ...frame, face });
+  assert.ok(Math.abs(placement.angle + 5 * Math.PI / 180) < 1e-9, 'turned to make the eyes level');
+  assert.ok(placement.zoom >= 1 && placement.zoom <= 4);
+  const scale = tools.coverScale(800, 1000, 350, 450, placement.angle) * placement.zoom;
+  const shares = tools.faceShares({ imageWidth: 800, imageHeight: 1000, ...frame, face, placement: { angle: placement.angle, scale, x: placement.x, y: placement.y } });
+  assert.ok(Math.abs(shares.crown - tools.PASSPORT_GUIDE.top) < 0.01, `crown ${shares.crown}`);
+  assert.ok(Math.abs(shares.chin - tools.PASSPORT_GUIDE.chin) < 0.01, `chin ${shares.chin}`);
+  assert.ok(Math.abs(shares.centre - 0.5) < 0.01, `centre ${shares.centre}`);
+});
+
+test('placeFace keeps the turn within the straighten range and the zoom at 1 or more', () => {
+  const tilted = tools.placeFace({ imageWidth: 800, imageHeight: 1000, frameWidth: 350, frameHeight: 450, face: detectedFace(40) });
+  assert.ok(Math.abs(tilted.angle) <= Math.PI / 12 + 1e-9);
+  // A face filling the whole photo cannot be made smaller than "just fills the frame".
+  const huge = { box: { left: 0, top: 0, width: 800, height: 1000 }, points: [[300, 400], [500, 400], [400, 550], [340, 700], [460, 700]] };
+  assert.equal(tools.placeFace({ imageWidth: 800, imageHeight: 1000, frameWidth: 350, frameHeight: 450, face: huge }).zoom, 1);
+});
+
+test('passportChecks judges the head from the real face when there is one', () => {
+  const run = (face) => tools.passportChecks({
+    pixels: new Uint8ClampedArray(100 * 130 * 4).fill(150), width: 100, height: 130,
+    found: null, plain: true, colour: [240, 240, 240], replaced: false, enlarged: 0.6, face
+  }).map(problem => problem.key);
+  assert.deepEqual(run({ crown: 0.08, chin: 0.83, centre: 0.5 }), []);
+  assert.deepEqual(run({ crown: 0.0, chin: 0.75, centre: 0.5 }), ['head-cut']);
+  assert.deepEqual(run({ crown: 0.02, chin: 0.80, centre: 0.5 }), ['head-high']);
+  assert.deepEqual(run({ crown: 0.16, chin: 0.90, centre: 0.5 }), ['head-low']);
+  assert.deepEqual(run({ crown: 0.08, chin: 0.98, centre: 0.5 }), ['head-large']);
+  assert.deepEqual(run({ crown: 0.09, chin: 0.72, centre: 0.5 }), ['head-small']);
+  assert.deepEqual(run({ crown: 0.08, chin: 0.83, centre: 0.62 }), ['face-side']);
+  assert.deepEqual(run(false), ['no-face']);
 });

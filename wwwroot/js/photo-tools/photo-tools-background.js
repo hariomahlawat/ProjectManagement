@@ -17,6 +17,7 @@
 
   const STATUS_URL = '/api/photo-tools/background/status';
   const MASK_URL = '/api/photo-tools/background/mask';
+  const FACE_URL = '/api/photo-tools/face';
   // The cut-out is worked on at this size; the saved photo is made again at full size.
   const WORK_SIDE = 2048;
   // The largest saved photo, so memory stays reasonable in any browser.
@@ -978,6 +979,40 @@
   };
   window.addEventListener('hashchange', whenShown);
   new ResizeObserver(render).observe(stage);
+
+  /**
+   * Where the face is in a photo, for Passport photo: { found, imageWidth, imageHeight, box, points }
+   * in the canvas's pixels, or null when the server cannot say (not set up, busy, no connection).
+   * The same rules as the mask: a JPG copy, the antiforgery token, nothing stored.
+   */
+  async function locateFace(canvas, signal) {
+    const bytes = await shared.canvasToBytes(canvas, JPEG, 0.9);
+    let response;
+    try {
+      response = await fetch(FACE_URL, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': JPEG.mime, Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+        body: bytes,
+        signal
+      });
+    } catch {
+      return null;
+    }
+    if (!response.ok) return null;
+    const answer = await response.json().catch(() => null);
+    if (!answer) return null;
+    return {
+      found: Boolean(answer.found && answer.face && Array.isArray(answer.points) && answer.points.length >= 5),
+      imageWidth: answer.imageWidth,
+      imageHeight: answer.imageHeight,
+      box: answer.face ? { left: answer.face.left, top: answer.face.top, width: answer.face.width, height: answer.face.height } : null,
+      points: answer.points || null
+    };
+  }
+
+  // Passport photo asks the PRISM server through here, so this stays the only script that does.
+  window.PrismPhotoServer = Object.freeze({ status: loadStatus, locateFace });
 
   renderControls();
   whenShown();
