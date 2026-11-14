@@ -1096,7 +1096,9 @@
    * background works at (at most 2048 px), one byte per pixel. Throws as requestMask does.
    */
   async function maskFor(source, signal) {
-    await loadStatus();
+    // The status (for the server's largest side) may be read again first: Cancel and the caller's
+    // time limit still work meanwhile, and a status that does not come is not waited for long.
+    await whileWanted(loadStatus(), signal, STATUS_RECHECK_MS);
     const size = shared.sizeOf(source);
     const into = core.resizeDimensions(size.width, size.height, { type: 'longest', value: WORK_SIDE });
     const alpha = await requestMask(source, size, into, signal);
