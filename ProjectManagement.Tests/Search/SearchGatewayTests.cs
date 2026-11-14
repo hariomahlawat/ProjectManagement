@@ -60,6 +60,18 @@ public sealed class SearchGatewayTests
     }
 
     [Fact]
+    public async Task Suggestions_AreTimedInProcess_AndWriteNoQueryLogRow()
+    {
+        var harness = new Harness(new SearchV2Options { ServeV2 = true });
+
+        await harness.Gateway.SuggestAsync("pina", User(), 6, CancellationToken.None);
+
+        Assert.Empty(harness.Analytics.QueryEngines);
+        Assert.Single(harness.SuggestionLatency.Recorded);
+        Assert.Empty(harness.Latency.Recorded);
+    }
+
+    [Fact]
     public async Task ServingV2_WithSampling_DispatchesShadowOffTheRequestPath()
     {
         var harness = new Harness(new SearchV2Options { ServeV2 = true, ShadowMode = true, ShadowSampleRate = 1 });
@@ -166,6 +178,7 @@ public sealed class SearchGatewayTests
                 Access,
                 Shadow,
                 Latency,
+                SuggestionLatency,
                 Options.Create(options),
                 NullLogger<SearchGateway>.Instance);
         }
@@ -176,6 +189,7 @@ public sealed class SearchGatewayTests
         public FakeAccess Access { get; } = new();
         public FakeShadow Shadow { get; } = new();
         public FakeLatency Latency { get; } = new();
+        public FakeSuggestionLatency SuggestionLatency { get; } = new();
         public SearchGateway Gateway { get; }
     }
 
@@ -254,6 +268,15 @@ public sealed class SearchGatewayTests
     }
 
     private sealed class FakeLatency : ISearchEngineLatencyRecorder
+    {
+        public List<long> Recorded { get; } = new();
+
+        public void Record(long milliseconds) => Recorded.Add(milliseconds);
+
+        public SearchLatencySnapshot Snapshot(TimeSpan window) => SearchLatencySnapshot.Empty;
+    }
+
+    private sealed class FakeSuggestionLatency : ISearchSuggestionLatencyRecorder
     {
         public List<long> Recorded { get; } = new();
 

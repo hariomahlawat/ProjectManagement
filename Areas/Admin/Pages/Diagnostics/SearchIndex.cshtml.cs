@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.SearchV2;
+using ProjectManagement.Services.SearchV2.Analytics;
 using ProjectManagement.Services.SearchV2.Indexing;
 using ProjectManagement.Services.SearchV2.Models;
 using ProjectManagement.Services.SearchV2.Query;
@@ -20,6 +21,7 @@ public sealed class SearchIndexModel : PageModel
     private readonly ISearchV2Engine _engine;
     private readonly SearchV2Options _options;
     private readonly IAdminAuditService _audit;
+    private readonly ISearchUsageReader _usage;
 
     public const string RebuildRequestedAction = "SearchIndex.RebuildRequested";
     public const string RetryRequestedAction = "SearchIndex.RetryRequested";
@@ -29,8 +31,10 @@ public sealed class SearchIndexModel : PageModel
         IAuthorizationService authorization,
         ISearchV2Engine engine,
         IOptions<SearchV2Options> options,
-        IAdminAuditService audit)
+        IAdminAuditService audit,
+        ISearchUsageReader usage)
     {
+        _usage = usage ?? throw new ArgumentNullException(nameof(usage));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
@@ -40,6 +44,7 @@ public sealed class SearchIndexModel : PageModel
 
     public SearchIndexHealth Health { get; private set; } = new(false, 0, 0, 0, 0, 0, null, null, null);
     public IReadOnlyList<SearchFailedIndexWorkItem> FailedItems { get; private set; } = Array.Empty<SearchFailedIndexWorkItem>();
+    public SearchUsageSummary Usage { get; private set; } = SearchUsageSummary.Empty;
     public int ConfiguredProjectionVersion => _options.ProjectionVersion;
     public int SearchSchemaVersion => _options.IndexVersion;
     public bool CanMaintain { get; private set; }
@@ -118,6 +123,7 @@ public sealed class SearchIndexModel : PageModel
     {
         Health = await _store.GetHealthAsync(cancellationToken);
         FailedItems = await _store.GetFailedItemsAsync(25, cancellationToken);
+        Usage = await _usage.ReadAsync(TimeSpan.FromHours(24), cancellationToken);
         CanMaintain = await CanMaintainAsync();
     }
 

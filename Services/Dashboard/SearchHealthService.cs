@@ -10,8 +10,6 @@ using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Models;
 using ProjectManagement.ViewModels.Dashboard;
-using ProjectManagement.Services.SearchV2.Analytics;
-using ProjectManagement.Services.SearchV2.Indexing;
 
 namespace ProjectManagement.Services.Dashboard;
 
@@ -27,17 +25,12 @@ public sealed class SearchHealthService : ISearchHealthService
     private static readonly TimeSpan WorkerActivityWindow = TimeSpan.FromMinutes(10);
 
     private readonly ApplicationDbContext _db;
-    private readonly ISearchIndexStore _searchIndexStore;
-    private readonly ISearchEngineLatencyRecorder _engineLatency;
 
-    public SearchHealthService(
-        ApplicationDbContext db,
-        ISearchIndexStore searchIndexStore,
-        ISearchEngineLatencyRecorder engineLatency)
+    // Search V2 index and query figures are on Admin › Diagnostics › Search index; the
+    // dashboard shows only the searchable documents and OCR progress.
+    public SearchHealthService(ApplicationDbContext db)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
-        _searchIndexStore = searchIndexStore ?? throw new ArgumentNullException(nameof(searchIndexStore));
-        _engineLatency = engineLatency ?? throw new ArgumentNullException(nameof(engineLatency));
     }
 
     public async Task<SearchHealthVm> GetAsync(CancellationToken cancellationToken)
@@ -165,10 +158,6 @@ public sealed class SearchHealthService : ISearchHealthService
         var trendValues = BuildTrend(trendStartDate, docRepoTrend, projectDocsTrend);
         var oldestPending = MinNonNull(docRepoPendingOldest, projectDocPendingOldest);
         var lastAttempt = MaxNonNull(docRepoLastAttempt, projectDocLastAttempt);
-        var searchIndexHealth = await _searchIndexStore.GetHealthAsync(cancellationToken).ConfigureAwait(false);
-        var searchQueryHealth = await ReadPercentileContMetricsAsync("V2", cancellationToken).ConfigureAwait(false);
-        var engineQueryHealth = await ReadEngineLatencyAsync(cancellationToken).ConfigureAwait(false);
-        var suggestionHealth = await ReadPercentileContMetricsAsync("V2-Suggest", cancellationToken).ConfigureAwait(false);
         // END SECTION
 
         return new SearchHealthVm
@@ -178,26 +167,6 @@ public sealed class SearchHealthService : ISearchHealthService
             ProjectDocumentsSearchable = projectDocsSearchable,
             ProjectReportsSearchable = projectReportsSearchable,
             IncludeProjectReports = projectReportsSearchable > 0,
-            SearchIndex = new SearchIndexHealthSnapshot
-            {
-                IsReady = searchIndexHealth.IsReady,
-                ActiveGeneration = searchIndexHealth.ActiveGeneration,
-                IndexVersion = searchIndexHealth.IndexVersion,
-                EntryCount = searchIndexHealth.EntryCount,
-                PendingItems = searchIndexHealth.PendingItems,
-                FailedItems = searchIndexHealth.FailedItems,
-                LastFullRebuildUtc = searchIndexHealth.LastFullRebuildUtc,
-                LastReconciliationUtc = searchIndexHealth.LastReconciliationUtc,
-                QueryCount24Hours = searchQueryHealth.QueryCount,
-                P50LatencyMs = searchQueryHealth.P50LatencyMs,
-                P95LatencyMs = searchQueryHealth.P95LatencyMs,
-                EngineP50LatencyMs = engineQueryHealth.P50LatencyMs,
-                EngineP95LatencyMs = engineQueryHealth.P95LatencyMs,
-                SuggestionP50LatencyMs = suggestionHealth.P50LatencyMs,
-                SuggestionP95LatencyMs = suggestionHealth.P95LatencyMs,
-                ZeroResultRate = searchQueryHealth.ZeroResultRate,
-                LastError = searchIndexHealth.LastError
-            },
             Ocr = ocrSnapshot,
             OcrCompletionsTrend = trendValues,
             OldestPendingLabel = FormatPendingAge(oldestPending),
@@ -205,64 +174,6 @@ public sealed class SearchHealthService : ISearchHealthService
         };
     }
 
-
-    private async Task<SearchQueryHealthMetrics> ReadEngineLatencyAsync(CancellationToken cancellationToken)
-    {
-        // Engine-only latency is now held in process (one query-log row per search).
-        // Rows logged as "V2-Engine" by earlier builds still cover the first 24 hours
-        // after an upgrade or restart.
-        var snapshot = _engineLatency.Snapshot(TimeSpan.FromHours(24));
-        if (snapshot.Count > 0)
-        {
-            return new SearchQueryHealthMetrics(snapshot.Count, snapshot.P50Ms, snapshot.P95Ms, null);
-        }
-
-        return await ReadPercentileContMetricsAsync("V2-Engine", cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<SearchQueryHealthMetrics> ReadPercentileContMetricsAsync(string engine, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _db.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-            await using var command = _db.Database.GetDbConnection().CreateCommand();
-            command.CommandText = """
-                SELECT COUNT(*)::bigint,
-                       (percentile_cont(0.50) WITHIN GROUP (ORDER BY "LatencyMs"))::double precision AS p50,
-                       (percentile_cont(0.95) WITHIN GROUP (ORDER BY "LatencyMs"))::double precision AS p95,
-                       AVG(CASE WHEN "ZeroResult" THEN 1.0 ELSE 0.0 END)::double precision AS zero_result_rate
-                FROM "SearchQueryLogs"
-                WHERE "Engine" = @engine
-                  AND "SearchedAtUtc" >= NOW() - INTERVAL '24 hours';
-                """;
-            var parameter = command.CreateParameter();
-            parameter.ParameterName = "@engine";
-            parameter.Value = engine;
-            command.Parameters.Add(parameter);
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) return SearchQueryHealthMetrics.Empty;
-
-            var count = reader.GetInt64(0);
-            return new SearchQueryHealthMetrics(
-                count,
-                reader.IsDBNull(1) ? null : Convert.ToDouble(reader.GetValue(1), CultureInfo.InvariantCulture),
-                reader.IsDBNull(2) ? null : Convert.ToDouble(reader.GetValue(2), CultureInfo.InvariantCulture),
-                reader.IsDBNull(3) ? null : Convert.ToDouble(reader.GetValue(3), CultureInfo.InvariantCulture));
-        }
-        catch (DbException)
-        {
-            return SearchQueryHealthMetrics.Empty;
-        }
-        finally
-        {
-            try { await _db.Database.CloseConnectionAsync().ConfigureAwait(false); } catch { }
-        }
-    }
-
-    private sealed record SearchQueryHealthMetrics(long QueryCount, double? P50LatencyMs, double? P95LatencyMs, double? ZeroResultRate)
-    {
-        public static SearchQueryHealthMetrics Empty { get; } = new(0, null, null, null);
-    }
 
     // SECTION: Helpers
     private static List<int> BuildTrend(

@@ -13,6 +13,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.SearchV2;
+using ProjectManagement.Services.SearchV2.Analytics;
 using ProjectManagement.Services.SearchV2.Indexing;
 using ProjectManagement.Services.SearchV2.Models;
 using ProjectManagement.Services.SearchV2.Query;
@@ -482,6 +483,30 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
 
         Assert.Equal("7s", inside);
         Assert.NotEqual("7s", outside);
+    }
+
+    [SearchV2PostgresFact]
+    public async Task UsageSummary_CountsSearchesAndFallbacks_AndIgnoresSuggestionRows()
+    {
+        await using var host = _database.CreateHost();
+        await host.ExecuteAsync("""
+            DELETE FROM "SearchQueryLogs";
+            INSERT INTO "SearchQueryLogs" ("Query", "SearchedAtUtc", "UserContextCategory", "ResultCount", "LatencyMs", "Engine", "ZeroResult", "CorrectionOffered") VALUES
+                ('radar', NOW(), 'Test', 4, 100, 'V2', FALSE, FALSE),
+                ('sonar', NOW(), 'Test', 0, 300, 'V2', TRUE, FALSE),
+                ('aura', NOW(), 'Test', 2, 500, 'Legacy-Fallback', FALSE, FALSE),
+                ('pin', NOW(), 'Test', 3, 9000, 'V2-Suggest', FALSE, FALSE),
+                ('old', NOW() - INTERVAL '3 days', 'Test', 1, 50, 'V2', FALSE, FALSE);
+            """);
+
+        using var scope = host.Services.CreateScope();
+        var summary = await scope.ServiceProvider.GetRequiredService<ISearchUsageReader>()
+            .ReadAsync(TimeSpan.FromHours(24), CancellationToken.None);
+
+        Assert.Equal(3, summary.Searches);
+        Assert.Equal(1, summary.FallbackSearches);
+        Assert.Equal(300, summary.TypicalMilliseconds);
+        Assert.Equal(1d / 3, summary.NoResultShare!.Value, 3);
     }
 
     [SearchV2PostgresFact]
