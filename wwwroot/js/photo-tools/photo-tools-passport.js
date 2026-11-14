@@ -115,6 +115,7 @@
   const MODEL_STILL_WORKING = 'Still working. The PRISM server does one photo at a time, so this can take a minute.';
   const MODEL_SLOW_AFTER_MS = 8000;
   const MODEL_GIVE_UP_MS = 180000;
+  const MODEL_CHECK_AGAIN_MS = 10000;
   // What the colour method says when it could not change the background: the model is asked then.
   const COLOUR_GAVE_UP = new Set([
     core.BACKGROUND_STATUS.busy,
@@ -206,6 +207,8 @@
   let modelRun = 0;
   let modelSlowTimer = 0;
   let modelGiveUpTimer = 0;
+  let modelCheckTimer = 0;
+  let focusModelNote = false;
   // The model is asked by itself once per photo; after that only Better edges or Try again ask.
   let modelAutoTried = false;
   // Why the last request stopped: something that passes (Try again), or a plain problem.
@@ -224,6 +227,8 @@
   // does not move it again ("Place the face again" does).
   let touched = false;
   let faceRun = 0;
+  // True while the face detector is being asked for this photo.
+  let faceAsking = false;
   const placeFaceButton = $('[data-action="place-face"]');
   let frame = { width: 0, height: 0, left: 0, top: 0 };
 
@@ -412,31 +417,45 @@
   async function findFace() {
     const mine = ++faceRun;
     faceFound = undefined;
+    faceAsking = false;
     renderFace();
     const server = window.PrismPhotoServer;
     if (!server || mode !== 'photo' || !base) return;
-    const status = await server.status();
-    if (mine !== faceRun || !status || !status.faceAvailable) return;
-    const answer = await server.locateFace(base);
-    if (mine !== faceRun || !answer || mode !== 'photo') return;
-    if (!answer.found) {
-      faceFound = false;
-    } else {
-      // The copy sent is `base` itself, so the answer is in its pixels already.
-      const ratio = base.width / Math.max(1, answer.imageWidth);
-      faceFound = {
-        box: {
-          left: answer.box.left * ratio,
-          top: answer.box.top * ratio,
-          width: answer.box.width * ratio,
-          height: answer.box.height * ratio
-        },
-        points: answer.points.map(([x, y]) => [x * ratio, y * ratio])
-      };
-      if (!touched) applyFace();
+    // Until the face is placed, the frame shows a crop the user will not keep: the colour method
+    // may give up on it, and the model must not be asked for that.
+    faceAsking = true;
+    let placed = false;
+    try {
+      const status = await server.status();
+      if (mine !== faceRun || !status || !status.faceAvailable) return;
+      const answer = await server.locateFace(base);
+      if (mine !== faceRun || !answer || mode !== 'photo') return;
+      if (!answer.found) {
+        faceFound = false;
+      } else {
+        // The copy sent is `base` itself, so the answer is in its pixels already.
+        const ratio = base.width / Math.max(1, answer.imageWidth);
+        faceFound = {
+          box: {
+            left: answer.box.left * ratio,
+            top: answer.box.top * ratio,
+            width: answer.box.width * ratio,
+            height: answer.box.height * ratio
+          },
+          points: answer.points.map(([x, y]) => [x * ratio, y * ratio])
+        };
+        if (!touched) applyFace();
+      }
+      renderFace();
+      queueSave(true);
+      placed = true;
+    } finally {
+      if (mine === faceRun) {
+        faceAsking = false;
+        // No new save was queued: the last one's answer stands, so the model may be asked now.
+        if (!placed) askModelIfColourGaveUp();
+      }
     }
-    renderFace();
-    queueSave(true);
   }
 
   /** Places the photo so the face is on the guide: eyes level, head between the lines, centred. */
@@ -1088,12 +1107,22 @@
       && Boolean(full) && Boolean(background) && model === null;
   }
 
-  /** Whether Remove background is set up on this server; asked again with each photo. */
+  /**
+   * Whether Remove background is set up on this server; asked again with each photo, and every
+   * few seconds while the server is still getting the model ready (just after it starts), so
+   * Better edges appears without opening the photo again.
+   */
   function checkModel() {
     const server = window.PrismPhotoServer;
     if (!server) return;
+    clearTimeout(modelCheckTimer);
+    const run = modelRun;
     server.status().then((status) => {
+      if (run !== modelRun) return;
       modelReady = Boolean(status && status.available);
+      if (!modelReady && status && status.state === 'checking' && full) {
+        modelCheckTimer = setTimeout(checkModel, MODEL_CHECK_AGAIN_MS);
+      }
       renderBackground();
       // The answer can come after the colour method has already given up on this photo.
       askModelIfColourGaveUp();
@@ -1102,6 +1131,7 @@
 
   /** The colour method could not change this background: the model is asked, once by itself. */
   function askModelIfColourGaveUp() {
+    if (faceAsking) return;
     if (background && COLOUR_GAVE_UP.has(bgStatus) && !modelAutoTried && canAskModel()) {
       modelAutoTried = true;
       askModel();
@@ -1117,6 +1147,7 @@
     clearTimeout(modelGiveUpTimer);
     model = null;
     modelAutoTried = false;
+    focusModelNote = false;
     modelRetry = '';
     modelProblem = '';
   }
@@ -1144,7 +1175,11 @@
       ask.timedOut = true;
       ask.request.abort();
     }, MODEL_GIVE_UP_MS);
+    // Better edges hides itself once pressed: keyboard focus moves to the note that says what is
+    // happening, rather than being dropped.
+    const fromButton = document.activeElement === bgModelButton;
     renderBackground();
+    if (fromButton) bgWait.focus({ preventScroll: true });
     const source = full;
     try {
       const answer = await window.PrismPhotoServer.mask(source, ask.request.signal);
@@ -1170,8 +1205,12 @@
         clearTimeout(modelSlowTimer);
         clearTimeout(modelGiveUpTimer);
         modelAsk = null;
+        // Focus follows the note it was on (a keyboard user who pressed Better edges or Cancel).
+        const followed = bgWait.contains(document.activeElement);
         renderBackground();
         if (model) {
+          // The note about the model shows once the photo is made again; focus goes to it then.
+          focusModelNote = followed;
           queueSave();
         } else if (modelRetry && bgRetry.hidden === false) {
           bgRetryButton.focus({ preventScroll: true });
@@ -1352,6 +1391,10 @@
       renderBackground();
       renderChecks(output);
       draw();
+      if (focusModelNote && !bgModelNote.hidden) {
+        focusModelNote = false;
+        bgModelNote.focus({ preventScroll: true });
+      }
       askModelIfColourGaveUp();
       // The photo and its checks are shown either way; only the file waits for a usable limit.
       if (limitText && !targetBytes) {

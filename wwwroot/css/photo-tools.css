@@ -1080,13 +1080,17 @@
 }
 
 /* Passport photo: the photo stays movable while the PRISM server finds the person, so the note
-   sits under the stage instead of over it. */
+   sits in the Background panel, next to what asked for it (a colour, or Better edges), instead of
+   over the photo. On a phone that is also where the user is looking. */
 .phot-busy--inline {
     position: static;
     flex-direction: row;
     flex-wrap: wrap;
-    padding: 0.5rem 1rem;
-    background: color-mix(in srgb, var(--bs-body-bg) 85%, transparent);
+    justify-content: flex-start;
+    text-align: start;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-tertiary-bg);
     cursor: default;
 }
 

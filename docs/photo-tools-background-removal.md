@@ -29,6 +29,14 @@ The user-facing description is in [photo-tools.md](photo-tools.md).
      background (JPG, PNG, WEBP), at up to 4096 px; the mask is enlarged to that size and the
      edge cleaned again at full size.
 
+### Passport photo uses it too
+
+Passport photo asks for the same mask when its colour method cannot change a background, or when
+the user presses Better edges (owner decision, 14 Nov 2026): once per photo, the same copy, the same
+queue and the same cut-out steps as above. A plain-wall photo never reaches the server for this.
+Each such photo is one more request in the one-at-a-time queue; see "Load on the server". The
+screen side is described in [photo-tools.md](photo-tools.md) ("When the model is used").
+
 ### Privacy
 
 - The photo is held in the server's memory for the one request and dropped. It is never
@@ -250,3 +258,6 @@ the home card is dimmed; nothing else changes. No database or stored data is inv
   Refine edge brush does.
 - The saved photo is at most 4096 px on its longest side.
 - Some offices do not accept a photo with a changed background.
+- The model keeps whatever it sees as the subject: a second person, or the machine a person stands
+  in front of, stays in the cut-out. The Erase brush takes it out, in Remove background and in
+  Passport photo.
