@@ -94,6 +94,7 @@
   let statusLoading = null;
   let statusAt = 0;
   const STATUS_FRESH_MS = 5000;
+  const STATUS_RECHECK_MS = 10000;
 
   // The photo: `full` a copy at most SAVE_SIDE (the largest saved size; a 48 MP original is not
   // kept), `work` the copy the cut-out is made on, `pixels` its RGBA.
@@ -222,6 +223,36 @@
     }
   }
 
+  /**
+   * `promise`'s answer, or null when it takes longer than `ms`; rejects at once (AbortError) when
+   * `signal` is aborted, so a step waiting on it can still be cancelled.
+   */
+  function whileWanted(promise, signal, ms) {
+    return new Promise((resolve, reject) => {
+      const aborted = () => {
+        clearTimeout(timer);
+        reject(new DOMException('The request was cancelled.', 'AbortError'));
+      };
+      const timer = setTimeout(() => {
+        if (signal) signal.removeEventListener('abort', aborted);
+        resolve(null);
+      }, ms);
+      if (signal) {
+        if (signal.aborted) {
+          aborted();
+          return;
+        }
+        signal.addEventListener('abort', aborted, { once: true });
+      }
+      const settle = (value) => {
+        clearTimeout(timer);
+        if (signal) signal.removeEventListener('abort', aborted);
+        resolve(value);
+      };
+      promise.then(settle, () => settle(null));
+    });
+  }
+
   /** Sends a copy of the photo and gives back the model's mask at the work size. `signal` cancels it. */
   function fetchMask(source, size, signal) {
     return requestMask(source, size, work, signal);
@@ -259,7 +290,9 @@
       // The server's limits may have changed since its status was read (an administrator lowered
       // the largest side, or turned the tool off): read it again, and try once more at the new
       // size when that is what changed.
-      const fresh = await loadStatus(0);
+      // Cancel (or the request's own time limit) still works while the status is read, and a
+      // status that does not come is not waited for long.
+      const fresh = await whileWanted(loadStatus(0), signal, STATUS_RECHECK_MS);
       if (response.status === 413 && fresh && fresh.available && fresh.maximumSide && fresh.maximumSide < side) {
         return requestMask(source, size, into, signal, true);
       }
