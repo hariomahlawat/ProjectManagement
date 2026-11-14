@@ -61,6 +61,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none); the pixels are kept unless the size cannot be reached otherwise, or made fewer on request; save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
 | Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). The face is placed for you when the PRISM server's face detector is set up: straightened, sized and centred on the guide. Drag, zoom, straighten (±15°) and rotate; Place the face again puts it back. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, 630 × 810 px for online forms that ask for pixels (the shape of 35 × 45 mm; no one portal is named), custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour; any other background uses Remove background's model when it is set up (by itself, or with Better edges). What the tool gets wrong is touched up with Refine edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
+| ID card copy | Its own tool (`#idcard`). The front and back of a card, 85.6 × 54 mm (Aadhaar, PAN, a driving licence, a bank card), on one A4 page at true size, the front above the back. Each side is dragged and zoomed so only the card is printed, and turned a quarter when it was photographed on its side. Wide or upright card, a thin outline, black and white. One side alone can be saved. Saved as a PDF whose page is A4 (recommended), or one JPG at 300 dpi. |
 | Signature | Its own card on the home screen (`#signature`), which opens the Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
 | Remove background | One photo, any background. The PRISM server's model (BRIA RMBG) finds the subject; the browser takes the old background's tint out of the soft edge, and the cut-out is saved see-through (PNG, WEBP), on a plain colour or on a blur of its own background (JPG, PNG, WEBP), at up to 4096 px. Refine edge, Erase and Restore brushes touch up the edge. Off until an administrator installs the model; see [photo-tools-background-removal.md](photo-tools-background-removal.md). |
 | Edit photo | One photo: crop (any shape or a fixed one), turn left or right, flip, straighten (±15°), resize in pixels. One-press clean-ups (auto enhance, fix colour cast, even out lighting, clean document, reduce noise, sharpen), sliders for brightness, contrast, colour and warmth, and six filters shown on the photo. Mark up (box, circle, arrow, pen, text, numbered markers; six colours, three sizes) and Cover, Blur or Pixelate to hide an area. Undo and redo, and hold a button to see the original. Saved as JPG, PNG or WEBP with a quality setting. |
@@ -350,6 +351,31 @@ without a model that knows what a face looks like (`passportChecks` in the core 
 - A PDF page of the right size still depends on the print dialog: "fit to page" on other paper
   scales it. The screen says to print at actual size.
 
+### How an ID card copy is made
+
+Plan: [ux/photo-tools-more.md](ux/photo-tools-more.md).
+
+- The page is `core.idCardLayout(tall)`: A4 upright (2480 × 3508 px at 300 dpi), the card
+  1011 × 638 px (85.6 × 54 mm) or turned upright, centred across, 25 mm from the top and 12 mm
+  between the front and the back. Both cards sit in the top half, which leaves room below to sign
+  or write "self-attested".
+- Each side is taken from its photo as Print sheet takes a copy of another shape (`coverCrop`,
+  `dragCover`): the largest piece at the card's shape, zoomed up to 3× and dragged on the side's
+  picture, or moved with the arrow keys (plus and minus zoom). **Turn** turns the photo a quarter to
+  the right and starts the placing again.
+- Photos come from the side's own **Choose** button or drop area, or are dropped or pasted on the
+  page: two photos fill the front and the back; one goes to the first side without a photo, else to
+  the side last worked on.
+- On the screen a side without a photo is a dashed box with its name; the file leaves it out, so
+  one side alone can be downloaded.
+- **Black and white** makes the cards grey (`toGreyscale`), like a photocopy. The outline is a
+  thin grey line outside each card, drawn as lines in the PDF.
+- The PDF is one A4 page from the same page plan as Print sheet (`sheetPdfPlan`), each card stored
+  once as a JPG at its true size. The JPG is the whole page at 300 dpi. Both are named
+  `id-card-copy`.
+- The card's shape, PDF or JPG, the outline and black and white are remembered in this browser
+  (`rememberedChoices('idcard')`).
+
 ### How a signature is cleaned
 
 - **Clean paper** is on by default. `measurePaper` reads the whole photo once: the paper is the
@@ -573,7 +599,8 @@ see-through areas with white.
 | `wwwroot/js/photo-tools/photo-tools-app.js` | Shell, routing (`#tool`) and Reduce size. |
 | `wwwroot/js/photo-tools/photo-tools-passport.js` | Passport photo and signature: the face placed, the colour method and the model's cut-out, the checks. Hands the finished photo to Print sheet. |
 | `wwwroot/js/photo-tools/photo-tools-print.js` | Print sheet: preview, paper, copies, the saved PDF or JPG. |
-| `wwwroot/lib/pdf-lib/1.17.1/` | PDF library shared with PDF Tools; used here to write the print sheet PDF. |
+| `wwwroot/js/photo-tools/photo-tools-idcard.js` | ID card copy: the two sides, the A4 preview, the saved PDF or JPG. |
+| `wwwroot/lib/pdf-lib/1.17.1/` | PDF library shared with PDF Tools; used here to write the print sheet and ID card copy PDFs. |
 | `wwwroot/js/photo-tools/photo-tools-editor.js` | Edit photo. |
 | `wwwroot/js/photo-tools/photo-tools-background.js` | Remove background: asks the server for the mask, then the cut-out, brushes and saving. The only script that talks to the server: it also lends Passport photo the status, the face and the mask (`window.PrismPhotoServer`). |
 | `Features/PhotoTools/` | The server side: Remove background (settings, model check, ONNX Runtime, the queue), the face for Passport photo (`PassportFaceService`, the Photos library's detector only), and the three endpoints. |

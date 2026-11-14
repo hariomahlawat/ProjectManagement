@@ -1091,6 +1091,62 @@
     color: var(--bs-emphasis-color);
 }
 
+/* ---------- ID card copy: one panel for each side of the card ---------- */
+
+.phot-cardside.is-dragging,
+.phot-stage.is-dragging .phot-paper {
+    outline: 2px dashed var(--pdft-brand);
+    outline-offset: 2px;
+}
+
+.phot-cardside__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.85rem;
+    border: 2px dashed var(--pdft-border);
+    border-radius: 8px;
+}
+
+.phot-cardside__photo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.phot-cardside__thumb {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 220px;
+    object-fit: contain;
+    border: 1px solid var(--pdft-border);
+    border-radius: 6px;
+    cursor: grab;
+    touch-action: none;
+}
+
+.phot-cardside__thumb:active {
+    cursor: grabbing;
+}
+
+.phot-cardside__thumb:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.phot-cardside__file {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.phot-cardside__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
 .phot-copies {
     display: flex;
     flex-wrap: wrap;

@@ -19,9 +19,10 @@
 
   // Which screens each script starts. The shell (app) starts the page itself and Reduce size.
   const SCRIPT_VIEWS = Object.freeze({
-    'photo-tools-app.js': ['home', 'reduce', 'passport', 'sheet', 'edit', 'remove'],
+    'photo-tools-app.js': ['home', 'reduce', 'passport', 'sheet', 'idcard', 'edit', 'remove'],
     'photo-tools-passport.js': ['passport'],
     'photo-tools-print.js': ['sheet'],
+    'photo-tools-idcard.js': ['idcard'],
     'photo-tools-editor.js': ['edit'],
     'photo-tools-background.js': ['remove']
   });
