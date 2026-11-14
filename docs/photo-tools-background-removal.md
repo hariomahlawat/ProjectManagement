@@ -46,21 +46,26 @@ on a computer with Internet access and copied to the server.
 1. On the model page (`briaai/RMBG-2.0`, or `briaai/RMBG-1.4`), sign in, accept the terms, read
    the licence, and download the ONNX file (`onnx/model.onnx`, the full-precision file, which is
    the right one for a processor without a graphics card).
-2. Copy it to a folder on the PRISM server outside the web root, for example
-   `F:/ProjectManagementData/photo-models/`.
+2. Copy it, renamed `background_removal_bria_rmbg_2.0.onnx`, into the folder that holds PRISM's other models, outside the
+   web root: `F:/ProjectManagementData/media-models/` in production (beside the face models),
+   `D:/ProjectManagementData/media-models/` on a development computer. The descriptive name keeps
+   it from being confused with, or overwritten by, another model's `model.onnx`.
 3. Work out its SHA-256:
 
    ```powershell
-   (Get-FileHash -Algorithm SHA256 F:\ProjectManagementData\photo-models\model.onnx).Hash.ToLower()
+   (Get-FileHash -Algorithm SHA256 F:\ProjectManagementData\media-models\background_removal_bria_rmbg_2.0.onnx).Hash.ToLower()
    ```
 
    ```bash
-   sha256sum /srv/prism/photo-models/model.onnx
+   sha256sum /srv/prism/media-models/background_removal_bria_rmbg_2.0.onnx
    ```
 
 4. Set the settings below (in `appsettings.Production.json` or the environment), at least
    `Enabled`, `ModelRoot`, `Model:FileName` and `Model:Sha256`, and check the model values in the
-   table against the model page.
+   table against the model page. `appsettings.Production.json` already holds `ModelRoot`,
+   `FileName` and the SHA-256 of the RMBG-2.0 file downloaded on 13 Nov 2026
+   (`5b486f08200f513f460da46dd701db5fbb47d79b4be4b708a19444bcd4e79958`, 1,024,331,469 bytes), with
+   `Enabled` left `false`: see "Measured on a development computer" below before turning it on.
 5. Open Photo Tools, Remove background. No warning means it is ready. An administrator can also
    open `/api/photo-tools/background/status` while signed in: `"state": "ready"`.
 
@@ -72,7 +77,8 @@ is not needed; the one exception is `MaximumConcurrent`, which is read when PRIS
 BRIA RMBG weights are licensed for **non-commercial use** (RMBG-2.0: CC BY-NC 4.0; RMBG-1.4:
 BRIA's own non-commercial licence). The owner decided on 13 Nov 2026 that this organisation's
 use, as a non-commercial, non-profit organisation, fits the licence. The licence asks for
-credit: the screen shows `Model:Attribution` ("Background removal by BRIA RMBG") under the
+credit: the screen shows `Model:Attribution` ("Background removal powered by BRIA RMBG-2.0 (CC BY-NC 4.0)", wording chosen by the owner on
+14 Nov 2026) under the
 download button. Read the licence again when downloading a new version; the terms are BRIA's.
 
 ## Settings
@@ -90,10 +96,10 @@ Section `PhotoTools:BackgroundRemoval` (defaults in `appsettings.json`, code in
 | `MaximumUploadBytes` | `20971520` | Largest request (20 MB). |
 | `MaximumSide` | `2048` | Longest side of the copy the browser sends. The model works at 1024 px; a larger copy only costs transfer. |
 | `TimeoutSeconds` | `60` | How long one photo may take, waiting included; then it is stopped. |
-| `Model:FileName` | `model.onnx` | The file in `ModelRoot`. |
+| `Model:FileName` | `background_removal_bria_rmbg_2.0.onnx` | The file in `ModelRoot`. |
 | `Model:Sha256` | empty | Lower-case SHA-256 of the file. **Required**: the model is not used without it, or when it does not match. |
 | `Model:Key`, `Version`, `License`, `Publisher` | BRIA RMBG 2.0 | Recorded and logged when the model loads. |
-| `Model:Attribution` | "Background removal by BRIA RMBG" | Credit shown on the screen. |
+| `Model:Attribution` | "Background removal powered by BRIA RMBG-2.0 (CC BY-NC 4.0)" | Credit shown on the screen. Do not leave it empty: the licence asks for credit. |
 | `Model:InputName`, `OutputName` | empty | Tensor names; empty takes the only input and the first output. |
 | `Model:InputWidth`, `InputHeight` | `1024` | The model's input size. |
 | `Model:Mean`, `Model:Std` | ImageNet | Per channel: `(pixel / 255 − Mean) / Std`. |
@@ -122,9 +128,14 @@ much weaker than BRIA's models and is only for testing the pipeline.
 
 ## Load on the server
 
-- A photo is processed on the processor only (no graphics card is needed). With RMBG-2.0 a photo
-  is expected to take a few seconds on a 16-core server; measure on the real server after
-  installing. The first photo after a start also loads the model.
+- A photo is processed on the processor only (no graphics card is needed). The first photo
+  after a start also loads the model. Measure on the real server after installing.
+- **Measured on a development computer (14 Nov 2026):** the full-precision RMBG-2.0 file above,
+  on an Intel Core i7-10750H (6 cores, 12 threads) with `IntraOpThreads` 6, took about
+  **44 seconds per photo**, the first and later ones alike, and after two photos the PRISM
+  process held **6.1 GB of memory, with 18.9 GB committed**: ONNX Runtime keeps its working
+  memory at its peak after a photo. The cut-outs were very good. Until that memory is released
+  after each photo (and the time is brought down), the tool stays off in production.
 - Only `MaximumConcurrent` photos run at once, each with at most `IntraOpThreads` threads; others
   wait their turn, and when `MaximumWaiting` are already waiting the answer is "busy".
 - A photo that takes longer than `TimeoutSeconds` is stopped inside ONNX Runtime, not just
