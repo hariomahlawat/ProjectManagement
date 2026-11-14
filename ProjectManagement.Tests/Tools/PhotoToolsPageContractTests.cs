@@ -200,6 +200,25 @@ public sealed class PhotoToolsPageContractTests
         Assert.Contains("response.status === 401", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RemoveBackground_SaveAndBrush_StaySafeAndLight()
+    {
+        // PR 6 of docs/ux/photo-tools-remove-background-fixes.md.
+        var root = FindProjectRoot();
+        var script = File.ReadAllText(Path.Combine(root, "wwwroot", "js", "photo-tools", "photo-tools-background.js"));
+
+        // The save takes what it needs first and leaves a newer photo's screen alone.
+        Assert.Contains("const job = {", script, StringComparison.Ordinal);
+        Assert.Contains("job.run === openRun", script, StringComparison.Ordinal);
+        // It does not wait for an animation frame, which a hidden tab never gets.
+        Assert.DoesNotContain("requestAnimationFrame(() => setTimeout", script, StringComparison.Ordinal);
+        // A mask request has a browser-side limit and is stopped when the screen is left.
+        Assert.Contains("MASK_GIVE_UP_MS", script, StringComparison.Ordinal);
+        Assert.Contains("hash !== '#remove' && maskPending", script, StringComparison.Ordinal);
+        // A stroke ends when its pointer is lost.
+        Assert.Contains("'lostpointercapture'", script, StringComparison.Ordinal);
+    }
+
     private static string FindProjectRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
