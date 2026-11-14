@@ -52,6 +52,8 @@
   const fitNote = $('[data-sheet-fit]');
   const cutLines = $('[data-sheet-cut]');
   const downloadButton = $('[data-action="download-sheet"]');
+  // A copy of Download at the foot of the screen while this one is out of view.
+  shared.wireSaveBar($('[data-save-bar]'), downloadButton);
   const downloadLabel = $('[data-sheet-download-label]');
   const formats = $('[data-sheet-formats]');
   const formatButtons = $$('[data-sheet-format]');

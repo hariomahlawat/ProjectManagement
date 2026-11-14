@@ -54,6 +54,8 @@
   const busyBox = $('[data-edit-busy]');
   const busyStatus = $('[data-edit-busy-status]');
   const downloadButton = $('[data-action="download-edit"]');
+  // A copy of Download at the foot of the screen while this one is out of view.
+  shared.wireSaveBar($('[data-save-bar]'), downloadButton, { line: resultLine });
 
   const cleanups = $('[data-cleanups]');
   const adjustSliders = $$('[data-adjust]');

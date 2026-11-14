@@ -6,10 +6,26 @@
     --pdft-brand: var(--bs-primary);
     --phot-stage: var(--bs-dark);
     --phot-stage-text: var(--bs-light);
+    /* The height of the photo in Passport photo, Print sheet, Edit photo and Remove background,
+       and the width of the settings column; both grow on wider screens (below). */
+    --phot-photo-height: clamp(340px, 62vh, 640px);
+    --phot-side: minmax(300px, 380px);
 }
 
 .phot-main {
     max-width: 1320px;
+}
+
+/* Large screens: the tools grow with the screen, so the photo is not a small island in the
+   middle of a wide monitor. The home cards keep their own width (.phot-grid). */
+@media (min-width: 1600px) {
+    .phot {
+        --phot-side: minmax(340px, 420px);
+    }
+
+    .phot-main {
+        max-width: 1680px;
+    }
 }
 
 /* Six tools in two even rows of three, as wide as the PDF Tools home (the tools themselves use
@@ -73,7 +89,7 @@
 
 .phot-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    grid-template-columns: minmax(0, 1fr) var(--phot-side);
     gap: 1.25rem;
     align-items: start;
 }
@@ -443,8 +459,28 @@
     }
 }
 
-/* Passport photo on a phone: the checks' summary and Download stay at the foot of the screen. */
-.phot-phonebar {
+/* Wider screens: the photo grows with the height of the screen (up to 960px) instead of
+   stopping at 640px, and, where the screen is tall enough for all of it, stays in view while
+   the settings beside it are scrolled. Reduce size is left out: its main column is a list of
+   photos that can be longer than the screen. */
+@media (min-width: 900.02px) {
+    .phot {
+        --phot-photo-height: max(clamp(340px, 62vh, 640px), min(calc(100vh - 20rem), 960px));
+    }
+}
+
+@media (min-width: 900.02px) and (min-height: 760px) {
+    .pdft-view:not([data-view="reduce"]) .phot-layout__main {
+        position: sticky;
+        top: 4.5rem;
+    }
+}
+
+/* The Save bar: the checks' summary (Passport photo) or the "Ready" line, and a copy of
+   Download, at the foot of the screen while the panel's own Download is out of view and there
+   is something to download. */
+.phot-savebar {
+    grid-column: 1 / -1;
     position: sticky;
     bottom: 0;
     z-index: 4;
@@ -458,19 +494,44 @@
     box-shadow: var(--bs-box-shadow-sm);
 }
 
-.phot-phonebar[hidden] {
+.phot-savebar[hidden] {
     display: none;
 }
 
-.phot-phonebar__checks {
+.phot-savebar > .btn-primary {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.phot-savebar__text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.phot-savebar__checks {
     padding-inline: 0;
     text-align: start;
     color: var(--bs-body-color);
     font-weight: 600;
 }
 
-.phot-phonebar__checks.has-problems {
+.phot-savebar__checks.has-problems {
     color: var(--bs-warning-text-emphasis);
+}
+
+/* Beside the photo the bar belongs to the settings column, so it never covers the photo, and
+   floats a little above the foot of the screen, as a card. */
+@media (min-width: 900.02px) {
+    .phot-savebar {
+        grid-column: 2;
+        bottom: 0.75rem;
+        border: 1px solid var(--pdft-border);
+        border-radius: var(--pdft-radius);
+        padding: 0.6rem 0.75rem 0.6rem 1.25rem;
+    }
 }
 
 @media (max-width: 575.98px) {
@@ -518,7 +579,7 @@
 
 .phot-crop {
     position: relative;
-    height: clamp(340px, 62vh, 640px);
+    height: var(--phot-photo-height);
     overflow: hidden;
     cursor: grab;
     touch-action: none;
@@ -947,7 +1008,7 @@
 /* The paper is drawn to scale on the dark stage. */
 .phot-paper {
     position: relative;
-    height: clamp(340px, 62vh, 640px);
+    height: var(--phot-photo-height);
 }
 
 .phot-paper__canvas {
@@ -1077,7 +1138,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: clamp(340px, 62vh, 640px);
+    height: var(--phot-photo-height);
     padding: 20px;
     overflow: hidden;
 }
