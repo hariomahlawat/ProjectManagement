@@ -875,12 +875,19 @@
     const wanted = (guide.chin - guide.top) * frameHeight / headHeight;
     const zoom = Math.min(maxZoom, Math.max(1, wanted / cover));
     const scale = cover * zoom;
+    // A head that stays smaller than the guide even at the most zoom (a photo taken from too far
+    // away) has the top of the head on the top line, not the middle of the head in the middle:
+    // the photo then shows what a form looks at first, and only "too small" is left to say.
+    const tooFar = wanted / cover > maxZoom;
     const headMiddle = (crown.y + chin.y) / 2;
     return {
       angle,
       zoom,
+      tooFar,
       x: -eyes.x * scale,
-      y: ((guide.top + guide.chin) / 2 - 0.5) * frameHeight - headMiddle * scale
+      y: tooFar
+        ? (guide.top - 0.5) * frameHeight - crown.y * scale
+        : ((guide.top + guide.chin) / 2 - 0.5) * frameHeight - headMiddle * scale
     };
   }
 
@@ -961,8 +968,10 @@
    *   face                   where the face detector found the face (faceShares), false when it
    *                          found none, or undefined when it could not be asked: then the head is
    *                          judged from the background's outline, as before
+   *   atZoomLimit            the photo is already zoomed in as far as it goes, so "zoom in" cannot
+   *                          be the advice for a small head
    */
-  function passportChecks({ pixels, width, height, found, plain, colour, replaced, enlarged, face }) {
+  function passportChecks({ pixels, width, height, found, plain, colour, replaced, enlarged, face, atZoomLimit = false }) {
     const problems = [];
     const guide = PASSPORT_GUIDE;
 
@@ -988,7 +997,9 @@
       if (share > (guide.chin - guide.top) + 0.08) {
         problems.push({ key: 'head-large', text: 'The head is larger than the guide. Zoom out so the chin is on the lower line.' });
       } else if (share < (guide.chin - guide.top) - 0.09) {
-        problems.push({ key: 'head-small', text: 'The head is smaller than the guide. Zoom in so the head fills the space between the lines.' });
+        problems.push(atZoomLimit
+          ? { key: 'head-small', text: 'The person is too far away in this photo: even zoomed in fully, the head is smaller than the guide. Use a photo taken closer.' }
+          : { key: 'head-small', text: 'The head is smaller than the guide. Zoom in so the head fills the space between the lines.' });
       }
       if (Math.abs(face.centre - 0.5) > 0.08) {
         problems.push({ key: 'face-side', text: 'The face is not in the middle. Move the photo sideways so the face is inside the oval.' });
@@ -1013,7 +1024,14 @@
       }
     }
 
-    if (!replaced) {
+    if (replaced) {
+      // A new colour is put only where the old background was found: when the person was taken
+      // for more than the person (a wall unit, a car, a crowd), the old background is still
+      // around the edges of the finished photo.
+      if (!measureBackground(pixels, width, height).plain) {
+        problems.push({ key: 'background-left', text: 'Parts of the old background are still at the edges. Paint them out with Touch up edges, or use a photo taken against a plain wall.' });
+      }
+    } else {
       if (!plain) {
         problems.push({ key: 'background-busy', text: 'The edges of the photo are not a plain background. Most forms ask for a plain white or light background with some space around the head.' });
       } else if (0.299 * colour[0] + 0.587 * colour[1] + 0.114 * colour[2] < 150) {

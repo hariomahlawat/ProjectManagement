@@ -1270,6 +1270,39 @@ test('passportChecks reports the background, unless it was replaced', () => {
   assert.deepEqual(checksFor({ plain: false, replaced: true }), []);
 });
 
+test('passportChecks looks at the finished edges when the background was replaced', () => {
+  // The new colour went round the person, but a busy scene was kept at the sides.
+  const [w, h] = [100, 130];
+  const pixels = new Uint8ClampedArray(w * h * 4).fill(150);
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const at = (y * w + x) * 4;
+      const stripe = (x + y) % 6 < 3 ? 30 : 230;
+      pixels[at] = pixels[at + 1] = pixels[at + 2] = stripe;
+    }
+  }
+  const keys = tools.passportChecks({
+    pixels, width: w, height: h, found: null, plain: true, colour: [240, 240, 240],
+    replaced: true, enlarged: 0.6
+  }).map(problem => problem.key);
+  assert.ok(keys.includes('background-left'), keys.join());
+});
+
+test('passportChecks does not say "zoom in" when the photo is zoomed in as far as it goes', () => {
+  const face = { crown: 0.08, chin: 0.5, centre: 0.5 };
+  const base = {
+    pixels: new Uint8ClampedArray(100 * 130 * 4).fill(150), width: 100, height: 130, found: null,
+    plain: true, colour: [240, 240, 240], replaced: false, enlarged: 0.6, face
+  };
+  const [canZoom] = tools.passportChecks(base);
+  assert.equal(canZoom.key, 'head-small');
+  assert.match(canZoom.text, /Zoom in/);
+  const [atLimit] = tools.passportChecks({ ...base, atZoomLimit: true });
+  assert.equal(atLimit.key, 'head-small');
+  assert.doesNotMatch(atLimit.text, /Zoom in/);
+  assert.match(atLimit.text, /too far away/);
+});
+
 test('passportChecks reports an enlarged photo and a dark or washed-out face', () => {
   assert.deepEqual(checksFor({ enlarged: 1.1 }), [], 'a little is not worth a warning');
   assert.deepEqual(checksFor({ enlarged: 1.64 }), ['enlarged']);
@@ -1584,6 +1617,21 @@ test('placeFace puts the head between the guide lines, the eyes level and the fa
   assert.ok(Math.abs(shares.crown - tools.PASSPORT_GUIDE.top) < 0.01, `crown ${shares.crown}`);
   assert.ok(Math.abs(shares.chin - tools.PASSPORT_GUIDE.chin) < 0.01, `chin ${shares.chin}`);
   assert.ok(Math.abs(shares.centre - 0.5) < 0.01, `centre ${shares.centre}`);
+});
+
+test('placeFace puts the top of a head that stays too small on the top line', () => {
+  const frame = { frameWidth: 350, frameHeight: 450 };
+  // A small face in a large photo: 4 times is not enough to fill the guide.
+  const face = { box: { left: 1990, top: 500, width: 20, height: 30 }, points: [[1997, 510], [2003, 510], [2000, 515], [1998, 520], [2002, 520]] };
+  const placement = tools.placeFace({ imageWidth: 4000, imageHeight: 5000, ...frame, face, maxAngle: 0 });
+  assert.equal(placement.tooFar, true);
+  assert.equal(placement.zoom, 4);
+  const scale = tools.coverScale(4000, 5000, 350, 450, placement.angle) * placement.zoom;
+  const shares = tools.faceShares({ imageWidth: 4000, imageHeight: 5000, ...frame, face, placement: { angle: placement.angle, scale, x: placement.x, y: placement.y } });
+  assert.ok(Math.abs(shares.crown - tools.PASSPORT_GUIDE.top) < 0.01, `crown ${shares.crown}`);
+  assert.ok(shares.chin < tools.PASSPORT_GUIDE.chin, 'the head is still small');
+  // A face that fits is not "too far".
+  assert.equal(tools.placeFace({ imageWidth: 800, imageHeight: 1000, ...frame, face: detectedFace(0) }).tooFar, false);
 });
 
 test('placeFace leaves a photo on its side for Rotate', () => {
