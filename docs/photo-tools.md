@@ -120,6 +120,12 @@ photo, turning it a quarter or switching from Signature back to Photo asks again
 small in a wide photo stops at 4 times, and the checks then say the head is small. Without the
 face detector set up nothing is asked and the photo is placed by hand.
 
+While the server looks, the bar under the photo says "Placing the face…". The request is cancelled
+when the photo, its quarter turn or the mode changes, so an old request never holds one of the
+server's places. A busy answer is tried once more after 2 seconds; after that, or after 20 seconds,
+the bar says the face could not be placed, with **Try again**. A photo whose eye line is more than
+30° off level (on its side) is not turned a few degrees and zoomed: the bar asks for Rotate.
+
 ### How the background colour is changed
 
 Background (Keep, White, Light blue, or any colour) is a choice in step 2 of Passport photo. It

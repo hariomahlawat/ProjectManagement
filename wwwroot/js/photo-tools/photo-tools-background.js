@@ -1013,8 +1013,10 @@
 
   /**
    * Where the face is in a photo, for Passport photo: { found, imageWidth, imageHeight, box, points }
-   * in the canvas's pixels, or null when the server cannot say (not set up, busy, no connection).
-   * The same rules as the mask: a JPG copy, the antiforgery token, nothing stored.
+   * in the canvas's pixels. When the server cannot say, { problem: 'busy' } (its places are taken,
+   * worth trying again shortly) or { problem: 'failed' } (not set up, no connection, an error);
+   * null only when `signal` cancelled it. The same rules as the mask: a JPG copy, the antiforgery
+   * token, nothing stored.
    */
   async function locateFace(canvas, signal) {
     const bytes = await shared.canvasToBytes(canvas, JPEG, 0.9);
@@ -1028,11 +1030,12 @@
         signal
       });
     } catch {
-      return null;
+      return signal && signal.aborted ? null : { problem: 'failed' };
     }
-    if (!response.ok) return null;
+    if (response.status === 503 && response.headers.get('Retry-After')) return { problem: 'busy' };
+    if (!response.ok) return { problem: 'failed' };
     const answer = await response.json().catch(() => null);
-    if (!answer) return null;
+    if (!answer) return signal && signal.aborted ? null : { problem: 'failed' };
     return {
       found: Boolean(answer.found && answer.face && Array.isArray(answer.points) && answer.points.length >= 5),
       imageWidth: answer.imageWidth,
