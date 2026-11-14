@@ -106,21 +106,7 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
             return null;
         }
 
-        return new Place(this);
-    }
-
-    /// <summary>A place in the queue; given back once, however often it is disposed.</summary>
-    private sealed class Place(BackgroundRemovalService owner) : IDisposable
-    {
-        private int _given;
-
-        public void Dispose()
-        {
-            if (Interlocked.Exchange(ref _given, 1) == 0)
-            {
-                Interlocked.Decrement(ref owner._waiting);
-            }
-        }
+        return new PhotoToolsPlace(() => Interlocked.Decrement(ref _waiting));
     }
 
     public async Task<BackgroundRemovalResult> MaskAsync(byte[] photoBytes, CancellationToken cancellationToken)
