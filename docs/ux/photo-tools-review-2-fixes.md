@@ -75,16 +75,14 @@ and in the Dark theme, and adds tests where the code can be tested.
 
 PRs 2 to 6 are independent of each other; 7 to 10 can follow in any order.
 
-## For the owner
+## Owner decisions (14 Nov 2026)
 
-1. **Edit photo, pending changes (PR 7):** apply them by themselves on Download and on changing
-   tool (recommended: what users expect), or keep Apply and say "Press Apply first"?
-2. **Online form size (PR 9):** which pixel size? Passport Seva's upload is often quoted as
-   630 × 810 px, but this is not confirmed from the official site; a "Pixels" custom size with a
-   KB limit already exists.
-3. **Hand-offs between tools:** the review asks for "Continue in…" buttons (Remove background →
-   Edit photo → Reduce size, and a KB limit in Edit photo). Not in this plan; a plan of its own if
-   wanted.
-4. **Closing the gap with paid services:** deeper checks (eyes open, glasses, shadow on the face)
-   from the face points, and taking the photo with the computer's camera. Not in this plan; worth
-   a plan of its own if the office would use them.
+The owner agreed with the recommendations and asked for all ten PRs:
+
+1. **Edit photo, pending changes (PR 7):** applied by themselves on Download and on changing
+   tool.
+2. **Online form size (PR 9):** a 630 × 810 px size labelled for online uploads, without naming
+   any one portal (the figure is common for Indian portals but not confirmed from an official
+   page); "Pixels" stays for anything else.
+3. **Hand-offs between tools** and **4. deeper checks and camera capture:** separate plans, after
+   this one.
