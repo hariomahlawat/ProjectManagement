@@ -10,6 +10,20 @@ namespace ProjectManagement.Tests.Search;
 public sealed class SearchV2QueryTests
 {
     [Theory]
+    [InlineData(true, 8, 8)]
+    [InlineData(true, 7, 7)]
+    [InlineData(true, 6, null)]
+    [InlineData(true, 9, null)]
+    [InlineData(false, 8, null)]
+    public void ServableIndexVersion_IsThisBuildsVersionOrAnOlderOneDownToTheFloor(bool hasActive, int activeVersion, int? expected)
+    {
+        var options = new SearchV2Options { ProjectionVersion = 8, MinimumServableProjectionVersion = 7 };
+        var state = new SearchIndexActiveState(hasActive ? 12 : 0, activeVersion, null);
+
+        Assert.Equal(expected, options.ServableIndexVersion(state));
+    }
+
+    [Theory]
     [InlineData("ir", false)]
     [InlineData("ab", false)]
     [InlineData("abc", true)]

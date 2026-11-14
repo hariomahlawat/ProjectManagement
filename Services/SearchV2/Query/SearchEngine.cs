@@ -96,15 +96,17 @@ public sealed class SearchEngine : ISearchV2Engine
 
         // Cheap readiness probe (one primary-key row). Entry/work-item counts belong to the
         // administrative health page, not to every committed search.
+        // The active index may be one projection version older while this build's own is
+        // being built after a deployment; it keeps answering until the new one is swapped in.
         var indexState = await _store.GetActiveStateAsync(cancellationToken);
-        var activeGeneration = indexState.HasActiveGeneration && indexState.IndexVersion == _options.ProjectionVersion
-            ? indexState.ActiveGeneration
-            : 0;
-        if (activeGeneration <= 0)
+        var servedVersion = _options.ServableIndexVersion(indexState);
+        var activeGeneration = servedVersion.HasValue ? indexState.ActiveGeneration : 0;
+        if (activeGeneration <= 0 || servedVersion is not int indexVersion)
         {
             _logger.LogDebug(
-                "Search V2 index is not ready for ProjectionVersion {ProjectionVersion}.",
-                _options.ProjectionVersion);
+                "Search V2 index is not ready for ProjectionVersion {ProjectionVersion} (active {ActiveVersion}).",
+                _options.ProjectionVersion,
+                indexState.IndexVersion);
             return SearchResponse.NotReady(normalized.Original, SearchV2ExecutionStatus.IndexNotReady);
         }
 
@@ -170,7 +172,7 @@ public sealed class SearchEngine : ISearchV2Engine
                     request.DateFrom,
                     request.DateTo);
                 command.CommandText = BuildSearchSql(sqlParts, request.IncludeDetailedFacets);
-                Add(command, "indexVersion", _options.ProjectionVersion);
+                Add(command, "indexVersion", indexVersion);
                 Add(command, "exact", terms.Exact);
                 Add(command, "exactTitles", terms.ExactTitles);
                 Add(command, "exactTitlePrefixes", terms.IndexedExactTitles);
@@ -256,7 +258,7 @@ public sealed class SearchEngine : ISearchV2Engine
                 // valid results already read (and push the gateway to Legacy fallback).
                 try
                 {
-                    correctedQuery = await _corrections.TryCorrectAsync(connection, normalized, access, cancellationToken);
+                    correctedQuery = await _corrections.TryCorrectAsync(connection, normalized, access, indexVersion, cancellationToken);
                 }
                 catch (Exception correctionEx) when (!cancellationToken.IsCancellationRequested)
                 {
@@ -324,7 +326,12 @@ public sealed class SearchEngine : ISearchV2Engine
         CancellationToken cancellationToken)
     {
         var normalized = _normalizer.Normalize(query);
-        if (!_options.Enabled || normalized.Exact.Length < 2 || !await _store.IsReadyAsync(_options.ProjectionVersion, cancellationToken))
+        if (!_options.Enabled || normalized.Exact.Length < 2)
+        {
+            return Array.Empty<SearchSuggestion>();
+        }
+
+        if (_options.ServableIndexVersion(await _store.GetActiveStateAsync(cancellationToken)) is not int indexVersion)
         {
             return Array.Empty<SearchSuggestion>();
         }
@@ -336,7 +343,7 @@ public sealed class SearchEngine : ISearchV2Engine
             // Autocomplete runs on every keystroke, so it never invokes spelling correction:
             // a bounded trigram title branch inside the single indexed query covers typos.
             await _db.Database.OpenConnectionAsync(cancellationToken);
-            return await ReadSuggestionsAsync(_db.Database.GetDbConnection(), normalized, access, take, cancellationToken);
+            return await ReadSuggestionsAsync(_db.Database.GetDbConnection(), normalized, access, take, indexVersion, cancellationToken);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -354,6 +361,7 @@ public sealed class SearchEngine : ISearchV2Engine
         NormalizedSearchQuery normalized,
         SearchAccessContext access,
         int take,
+        int indexVersion,
         CancellationToken cancellationToken)
     {
         var terms = SearchQueryTerms.Create(normalized, Array.Empty<string>(), Array.Empty<string>());
@@ -463,7 +471,7 @@ public sealed class SearchEngine : ISearchV2Engine
             ORDER BY priority, entity_priority, fuzzy_score DESC, "UpdatedAtUtc" DESC, "Id"
             LIMIT @take;
             """;
-        Add(command, "indexVersion", _options.ProjectionVersion);
+        Add(command, "indexVersion", indexVersion);
         Add(command, "exact", terms.Exact);
         Add(command, "exactTokenTsQuery", terms.ExactTokenTsQuery);
         Add(command, "prefixTsQuery", terms.PrefixTsQuery);

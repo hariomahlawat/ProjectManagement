@@ -18,6 +18,7 @@ public static class SearchV2ServiceCollectionExtensions
             .Bind(configuration.GetSection(SearchV2Options.SectionName))
             .ValidateDataAnnotations()
             .Validate(options => options.MaxPageSize >= options.PageSize, "Search:V2:MaxPageSize must be greater than or equal to PageSize.")
+            .Validate(options => options.MinimumServableProjectionVersion <= options.ProjectionVersion, "Search:V2:MinimumServableProjectionVersion must not be greater than ProjectionVersion.")
             .ValidateOnStart();
 
         services.AddSingleton<ISearchQueryNormalizer, SearchQueryNormalizer>();

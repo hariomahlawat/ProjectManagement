@@ -484,6 +484,40 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.NotEqual("7s", outside);
     }
 
+    // After a deployment that bumps ProjectionVersion, the previous index keeps answering
+    // until the new one is built, instead of every search falling back to the basic engine.
+    [SearchV2PostgresFact]
+    public async Task AnIndexOneProjectionVersionOlder_KeepsServingUntilTheNewOneIsBuilt()
+    {
+        await using var host = _database.CreateHost(services =>
+            services.PostConfigure<SearchV2Options>(options => options.MinimumServableProjectionVersion = options.ProjectionVersion - 1));
+        var older = host.ProjectionVersion - 1;
+        var entry = host.Entry("Project", "9401", "Projects", "Projects", "Lammergeier optics suite", null) with { IndexVersion = older };
+        await host.WithStoreAsync(store => store.ReplaceFullGenerationAsync(new[] { entry }, older, CancellationToken.None, allowDowngrade: true));
+
+        var response = await host.SearchAsync("lammergeier");
+        var suggestions = await host.SuggestAsync("lammer");
+
+        Assert.Equal(SearchV2ExecutionStatus.Success, response.ExecutionStatus);
+        Assert.Contains(response.Results, result => result.EntityKey == "9401");
+        Assert.Contains(suggestions, suggestion => suggestion.Title == "Lammergeier optics suite");
+    }
+
+    [SearchV2PostgresFact]
+    public async Task AnIndexOlderThanTheOldestServableVersion_IsNotServed()
+    {
+        await using var host = _database.CreateHost(services =>
+            services.PostConfigure<SearchV2Options>(options => options.MinimumServableProjectionVersion = options.ProjectionVersion));
+        var older = host.ProjectionVersion - 1;
+        var entry = host.Entry("Project", "9402", "Projects", "Projects", "Bateleur optics suite", null) with { IndexVersion = older };
+        await host.WithStoreAsync(store => store.ReplaceFullGenerationAsync(new[] { entry }, older, CancellationToken.None, allowDowngrade: true));
+
+        var response = await host.SearchAsync("bateleur");
+
+        Assert.Equal(SearchV2ExecutionStatus.IndexNotReady, response.ExecutionStatus);
+        Assert.Empty(await host.SuggestAsync("batel"));
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {
@@ -679,7 +713,7 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
 
     private sealed class ThrowingCorrectionService : ISearchCorrectionService
     {
-        public Task<string?> TryCorrectAsync(DbConnection connection, NormalizedSearchQuery query, SearchAccessContext access, CancellationToken cancellationToken) =>
+        public Task<string?> TryCorrectAsync(DbConnection connection, NormalizedSearchQuery query, SearchAccessContext access, int indexVersion, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("correction vocabulary unavailable");
     }
 }
