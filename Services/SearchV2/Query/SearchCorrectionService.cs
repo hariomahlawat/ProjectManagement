@@ -15,10 +15,12 @@ public sealed record SearchCorrectionCandidate(
 
 public interface ISearchCorrectionService
 {
+    /// <param name="indexVersion">Projection version of the active index being served.</param>
     Task<string?> TryCorrectAsync(
         DbConnection connection,
         NormalizedSearchQuery query,
         SearchAccessContext access,
+        int indexVersion,
         CancellationToken cancellationToken);
 }
 
@@ -49,6 +51,7 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
         DbConnection connection,
         NormalizedSearchQuery query,
         SearchAccessContext access,
+        int indexVersion,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -86,6 +89,7 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
             connection,
             eligible.Select(index => normalizedTokens[index]).Distinct(StringComparer.Ordinal).ToArray(),
             access,
+            indexVersion,
             cancellationToken);
 
         var replacements = new Dictionary<int, string>();
@@ -129,6 +133,7 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
         DbConnection connection,
         string[] tokens,
         SearchAccessContext access,
+        int indexVersion,
         CancellationToken cancellationToken)
     {
         // "SearchVocabularyTerms" is maintained per SearchEntry by database triggers from the
@@ -181,7 +186,7 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
             ) c;
             """;
 
-        Add(command, "indexVersion", _options.ProjectionVersion);
+        Add(command, "indexVersion", indexVersion);
         Add(command, "tokens", tokens);
         Add(command, "minTokenLength", _options.CorrectionMinTokenLength);
         Add(command, "maxLengthDelta", _options.CorrectionMaxLengthDelta);
