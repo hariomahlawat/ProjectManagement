@@ -499,6 +499,28 @@ page, Word, a chat or a folder (plan: [ux/photo-tools-more.md](ux/photo-tools-mo
   there are several (`pastedName`).
 - Nothing pasted leaves the browser, as for a chosen photo.
 
+### Continuing in another tool
+
+A finished photo goes on to another tool without being downloaded and chosen again. Under
+Download, **Continue in another tool** has a button for each tool it can go to:
+
+| From | To |
+| --- | --- |
+| Edit photo | Passport photo, Remove background, Reduce size, Print sheet |
+| Remove background | Edit photo, Passport photo, Reduce size, Print sheet |
+| Passport photo | Print sheet (its own button, with the photo at its print size) |
+
+- The photo sent is the file Download would save: the same type, quality and name. In Edit photo
+  a change still pending (a slider, a straighten) is applied first, as Download does
+  (`withSavedFile`).
+- The buttons are on while Download is (`wireSendButtons`). `sendPhoto(screen, file)` shows the
+  other screen first and then gives it the file through the same function a paste uses
+  (`receivePhotos`), so it is opened exactly as a chosen photo, and replaces the photo there.
+- Sending is not saving: the screen it came from keeps its work, which still counts as unsaved.
+- Remove background is not offered while it is not set up on the server.
+- Reduce size has no row: it is usually the last step. Passport photo keeps only Print sheet: its
+  own KB limit does what Reduce size would.
+
 ### When a tool cannot start
 
 The page and its scripts must come from the same version of PRISM. When they do not (an update

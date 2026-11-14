@@ -103,8 +103,9 @@
   let tool = 'crop';
   let crop = null;          // in pixels of `current`
   let tilt = 0;             // straighten not yet applied, degrees
-  // Download pressed with a change pending: the edit (its revision) to save once the change is
-  // applied, or null. Any other edit, Undo, Redo, another photo or a failed save clears it.
+  // Download or a Continue in button pressed with a change pending: the edit (its revision) to
+  // save once the change is applied and what to do with the file then, or null. Any other edit,
+  // Undo, Redo, another photo or a failed save clears it.
   let downloadWhenReady = null;
   // Counts every change to the photo on the screen (a step, Undo, Redo, another photo).
   let revision = 0;
@@ -418,7 +419,7 @@
     if (!current || working || !saved) return;
     if (pendingLook()) {
       resultLine.className = 'phot-result';
-      resultLine.textContent = 'The change on the screen is applied when you download or pick another tool.';
+      resultLine.textContent = 'The change on the screen is applied when you download, continue in another tool, or pick another tool here.';
     } else {
       resultLine.className = 'phot-result is-ready';
       resultLine.textContent = saved.ready;
@@ -919,9 +920,9 @@
       downloadButton.disabled = false;
       renderPending();
       if (downloadWhenReady !== null) {
-        const wanted = downloadWhenReady === revision;
+        const { revision: wanted, action } = downloadWhenReady;
         downloadWhenReady = null;
-        if (wanted) downloadSaved();
+        if (wanted === revision) action();
       }
     } catch (error) {
       if (mine !== saveRun) return;
@@ -935,8 +936,12 @@
     }
   }
 
+  function savedName() {
+    return `${core.baseName(fileName)}-edited.${saved.type.extension}`;
+  }
+
   function downloadSaved() {
-    shared.saveBlob(new Blob([saved.bytes], { type: saved.type.mime }), `${core.baseName(fileName)}-edited.${saved.type.extension}`);
+    shared.saveBlob(new Blob([saved.bytes], { type: saved.type.mime }), savedName());
     // The file holds the steps on the screen: Undo or Redo back to them is not unsaved work.
     lastDownloaded = steps.slice();
     // Worked out again, not cleared: a slider moved while the file was being made is still unsaved.
@@ -1199,21 +1204,37 @@
     queueSave();
   });
 
-  downloadButton.addEventListener('click', (event) => {
-    if (!saved || working || shared.isRepeatClick(event)) return;
+  /**
+   * Does `action` with the file of the photo as the screen shows it. A change still pending is
+   * applied first, and the action waits for the file to be made again.
+   */
+  function withSavedFile(action) {
+    if (!saved || working) return;
     const pending = pendingLook();
     if (pending) {
-      // The change on the screen is applied first; the file is saved once it has been made again.
       // Armed only once the step is made: a save that started before it (with the photo as it was)
       // can never fulfil it, even when a hidden tab holds the step back.
       const generation = photoGeneration;
       addStep(pending).then((done) => {
         // `revision` is now the edit this step made; Undo or another edit before its save moves it on.
-        if (done && generation === photoGeneration) downloadWhenReady = revision;
+        if (done && generation === photoGeneration) downloadWhenReady = { revision, action };
       });
       return;
     }
-    downloadSaved();
+    action();
+  }
+
+  downloadButton.addEventListener('click', (event) => {
+    if (shared.isRepeatClick(event)) return;
+    withSavedFile(downloadSaved);
+  });
+
+  // Continue in another tool: the file Download would save, opened there. Sending is not saving,
+  // so the work here still counts as unsaved.
+  shared.wireSendButtons(view, downloadButton, (screen) => {
+    withSavedFile(() => {
+      shared.sendPhoto(screen, new File([saved.bytes], savedName(), { type: saved.type.mime }));
+    });
   });
 
   // The stage has no size while its screen is hidden, and changes size with the window.

@@ -420,9 +420,52 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Hand-offs: a finished photo goes on to another tool without being downloaded and chosen again.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Shows `screen` and gives it `file`, as if it had been chosen there. The photo is handed over
+   * once the screen is shown, after the page has switched to it (a screen with two modes, such as
+   * Passport photo and Signature, picks its mode from the address first). False when the screen
+   * takes no photos.
+   */
+  function sendPhoto(screen, file) {
+    const take = receivers.get(screen);
+    if (!take) return false;
+    if (window.location.hash === `#${screen}`) {
+      take([file]);
+      return true;
+    }
+    window.addEventListener('hashchange', () => take([file]), { once: true });
+    window.location.hash = screen;
+    return true;
+  }
+
+  /**
+   * The "Continue in" buttons under a screen's Download (`[data-send-to]` in `host`). They are on
+   * while Download is, and a press calls `send(screen, label)` to make the photo Download would
+   * save and hand it on with sendPhoto.
+   */
+  function wireSendButtons(host, downloadButton, send) {
+    const buttons = Array.from(host.querySelectorAll('[data-send-to]'));
+    const update = () => {
+      for (const button of buttons) button.disabled = downloadButton.disabled;
+    };
+    new MutationObserver(update).observe(downloadButton, { attributes: true, attributeFilter: ['disabled'] });
+    for (const button of buttons) {
+      button.addEventListener('click', (event) => {
+        if (button.disabled || isRepeatClick(event)) return;
+        send(button.dataset.sendTo, button.textContent.trim());
+      });
+    }
+    update();
+  }
+
   window.PrismPhotoCanvas = Object.freeze({
     showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, canvasToBytes,
     isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton, rememberedChoices,
-    setUnsaved, wireSaveBar, viewsForFailedScript, markCouldNotStart, receivePhotos, pastedName
+    setUnsaved, wireSaveBar, viewsForFailedScript, markCouldNotStart, receivePhotos, pastedName,
+    sendPhoto, wireSendButtons
   });
 })();

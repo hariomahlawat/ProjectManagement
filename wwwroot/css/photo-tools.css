@@ -839,6 +839,18 @@
     border-top: 1px solid var(--bs-border-color);
 }
 
+/* Continue in another tool: small buttons that open the finished photo in another tool. */
+.phot-continue__title {
+    margin: 0;
+    font-weight: 600;
+}
+
+.phot-continue__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
 /* ---------- Passport photo: background colour ---------- */
 
 .phot-bg {

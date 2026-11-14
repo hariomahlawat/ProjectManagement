@@ -103,6 +103,46 @@ test('Signature takes a paste as Passport photo; home, text fields and empty cli
   assert.equal(home.paste([new File(['x'], 'a.jpg', { type: 'image/jpeg' })]), false, 'the home screen ignores a paste');
 });
 
+// ----- Hand-offs between tools (PR 3 of docs/ux/photo-tools-more.md) -----
+
+test('sendPhoto shows the screen first, then gives it the photo', () => {
+  const windowListeners = {};
+  const window = {
+    PrismPhotoTools: {},
+    location: { hash: '#edit' },
+    addEventListener(type, handler) { (windowListeners[type] ||= []).push(handler); }
+  };
+  const context = { window, document: { querySelector: () => ({}) } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'photo-tools-canvas.js'), 'utf8'), context);
+  const page = window.PrismPhotoCanvas;
+  const got = [];
+  page.receivePhotos('reduce', files => got.push(window.location.hash, files[0].name));
+
+  assert.equal(page.sendPhoto('reduce', { name: 'a-edited.jpg' }), true);
+  assert.equal(window.location.hash, 'reduce');
+  assert.deepEqual(got, [], 'nothing is given before the screen is shown');
+  for (const handler of windowListeners.hashchange) handler();
+  assert.deepEqual(got, ['reduce', 'a-edited.jpg']);
+  assert.equal(page.sendPhoto('nowhere', { name: 'x.jpg' }), false, 'a screen that takes no photos');
+});
+
+test('Continue in buttons follow Download and are wired on Edit photo and Remove background', () => {
+  const page = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'Pages', 'Tools', 'Photo', 'Index.cshtml'), 'utf8');
+  const section = name => page.slice(page.indexOf(`data-view="${name}"`), page.indexOf('</section>', page.indexOf(`data-view="${name}"`)));
+  const targets = name => [...section(name).matchAll(/data-send-to="([a-z]+)"/g)].map(match => match[1]);
+  assert.deepEqual(targets('edit'), ['passport', 'remove', 'reduce', 'sheet']);
+  assert.deepEqual(targets('remove'), ['edit', 'passport', 'reduce', 'sheet']);
+  // A screen never offers itself.
+  assert.ok(!targets('edit').includes('edit') && !targets('remove').includes('remove'));
+  for (const file of ['photo-tools-editor.js', 'photo-tools-background.js']) {
+    assert.match(fs.readFileSync(path.join(__dirname, file), 'utf8'), /shared\.wireSendButtons\(view, downloadButton,/, file);
+  }
+  // Every tool a button sends to takes photos.
+  const receivers = ['photo-tools-app.js', 'photo-tools-passport.js', 'photo-tools-print.js', 'photo-tools-editor.js', 'photo-tools-background.js']
+    .flatMap(file => [...fs.readFileSync(path.join(__dirname, file), 'utf8').matchAll(/receivePhotos\('([a-z]+)'/g)].map(match => match[1]));
+  for (const target of [...targets('edit'), ...targets('remove')]) assert.ok(receivers.includes(target), target);
+});
+
 test('isRepeatClick skips the second click of a double click but not a key press', () => {
   assert.equal(shared.isRepeatClick({ detail: 1 }), false);
   assert.equal(shared.isRepeatClick({ detail: 0 }), false);
