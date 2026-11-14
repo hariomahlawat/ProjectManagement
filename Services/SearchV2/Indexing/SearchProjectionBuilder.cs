@@ -26,7 +26,18 @@ public interface ISearchProjectionBuilder
 {
     Task<IReadOnlyList<SearchProjection>> BuildAllAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<SearchProjection>> BuildEntityAsync(string entityType, string entityKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records from other modules whose index rows carry this project's name, stage or
+    /// visibility: its ToT, IPR, Proliferation, Training, FFC and ARPP rows. They are
+    /// re-indexed with the project, so a rename, stage change, trash or archive reaches
+    /// them at once instead of at the next full rebuild.
+    /// </summary>
+    Task<IReadOnlyList<SearchEntityRef>> FindProjectDependentsAsync(int projectId, CancellationToken cancellationToken);
 }
+
+/// <summary>An indexed record, named as its work items and index rows name it.</summary>
+public readonly record struct SearchEntityRef(string EntityType, string EntityKey);
 
 public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
 {
@@ -103,6 +114,46 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 => await BuildArppAsync(arppId, cancellationToken),
             _ => Array.Empty<SearchProjection>()
         };
+    }
+
+    public async Task<IReadOnlyList<SearchEntityRef>> FindProjectDependentsAsync(int projectId, CancellationToken cancellationToken)
+    {
+        var dependents = new List<SearchEntityRef>
+        {
+            // Keyed by project id; the builder decides whether the ToT is still eligible.
+            new("ProjectTot", projectId.ToString(CultureInfo.InvariantCulture))
+        };
+
+        dependents.AddRange((await _db.IprRecords.AsNoTracking()
+                .Where(row => row.ProjectId == projectId)
+                .Select(row => row.Id)
+                .ToListAsync(cancellationToken))
+            .Select(id => new SearchEntityRef("IprRecord", id.ToString(CultureInfo.InvariantCulture))));
+        dependents.AddRange((await _db.ProliferationGranularEntries.AsNoTracking()
+                .Where(row => row.ProjectId == projectId)
+                .Select(row => row.Id)
+                .ToListAsync(cancellationToken))
+            .Select(id => new SearchEntityRef("ProliferationGranular", id.ToString())));
+        dependents.AddRange((await _db.TrainingProjects.AsNoTracking()
+                .Where(row => row.ProjectId == projectId)
+                .Select(row => row.TrainingId)
+                .Distinct()
+                .ToListAsync(cancellationToken))
+            .Select(id => new SearchEntityRef("Training", id.ToString())));
+        dependents.AddRange((await _db.FfcProjects.AsNoTracking()
+                .Where(row => row.LinkedProjectId == projectId)
+                .Select(row => row.FfcRecordId)
+                .Distinct()
+                .ToListAsync(cancellationToken))
+            .Select(id => new SearchEntityRef("FfcRecord", id.ToString(CultureInfo.InvariantCulture))));
+        dependents.AddRange((await _db.ArppEntries.AsNoTracking()
+                .Where(row => row.ProjectId == projectId)
+                .Select(row => row.ArppIssueId)
+                .Distinct()
+                .ToListAsync(cancellationToken))
+            .Select(id => new SearchEntityRef("ArppIssue", id.ToString(CultureInfo.InvariantCulture))));
+
+        return dependents;
     }
 
     private async Task<IReadOnlyList<SearchProjection>> BuildProjectsAsync(
@@ -512,18 +563,20 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             record.GrantedAtUtc,
             record.ProjectId,
             ProjectIsBuild = record.Project != null && record.Project.IsBuild,
-            ProjectName = record.Project != null && !record.Project.IsBuild ? record.Project.Name : null,
+            // A trashed project is not shown as the record's project either.
+            ProjectIsDeleted = record.Project != null && record.Project.IsDeleted,
+            ProjectName = record.Project != null && !record.Project.IsBuild && !record.Project.IsDeleted ? record.Project.Name : null,
             Attachments = record.Attachments.Where(attachment => !attachment.IsArchived).Select(attachment => attachment.OriginalFileName).ToArray()
         }).ToListAsync(cancellationToken);
 
         var projectContexts = await LoadProjectContextsAsync(
-            rows.Where(row => row.ProjectId.HasValue && !row.ProjectIsBuild).Select(row => row.ProjectId!.Value),
+            rows.Where(row => row.ProjectId.HasValue && !row.ProjectIsBuild && !row.ProjectIsDeleted).Select(row => row.ProjectId!.Value),
             cancellationToken);
         return rows.Select(row =>
         {
             var title = string.IsNullOrWhiteSpace(row.Title) ? row.IprFilingNumber : row.Title;
             var identifiers = Values(row.IprFilingNumber);
-            var effectiveProjectId = row.ProjectId.HasValue && !row.ProjectIsBuild ? row.ProjectId : null;
+            var effectiveProjectId = row.ProjectId.HasValue && !row.ProjectIsBuild && !row.ProjectIsDeleted ? row.ProjectId : null;
             ProjectSearchContext? projectContext = null;
             if (effectiveProjectId.HasValue) projectContexts.TryGetValue(effectiveProjectId.Value, out projectContext);
             var contexts = Values(row.ProjectName, projectContext?.Category, projectContext?.TechnicalCategory, projectContext?.LifecycleStatus, projectContext?.CurrentStage)
@@ -726,7 +779,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             row.CreatedAtUtc,
             row.LastModifiedAtUtc,
             Type = row.TrainingType != null ? row.TrainingType.Name : null,
-            Projects = row.ProjectLinks.Where(link => link.Project != null).Select(link => link.Project!.Name).ToArray(),
+            Projects = row.ProjectLinks.Where(link => link.Project != null && !link.Project.IsDeleted).Select(link => link.Project!.Name).ToArray(),
             ProjectIds = row.ProjectLinks.Select(link => link.ProjectId).ToArray(),
             Trainees = row.Trainees.Select(trainee => trainee.Rank + " " + trainee.Name + " " + trainee.UnitName + " " + trainee.ArmyNumber).ToArray()
         }).ToListAsync(cancellationToken);
@@ -833,8 +886,12 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
     {
         // ViewProliferationTracker readers only ever see Approved entries; pending and
         // rejected entries belong to the submit/approve workflow (ProliferationController).
+        // Entries of trashed or archived projects drop out, as they do from the tracker's
+        // totals and its project page (ProliferationProjectEligibility.CountedProjects).
+        var countedProjectIds = ProliferationProjectEligibility.CountedProjects(_db.Projects).Select(project => project.Id);
         var query = _db.ProliferationGranularEntries.AsNoTracking()
-            .Where(row => row.ApprovalStatus == ApprovalStatus.Approved);
+            .Where(row => row.ApprovalStatus == ApprovalStatus.Approved)
+            .Where(row => countedProjectIds.Contains(row.ProjectId));
         if (recordId.HasValue) query = query.Where(row => row.Id == recordId.Value);
         var rows = await query.Select(row => new
         {

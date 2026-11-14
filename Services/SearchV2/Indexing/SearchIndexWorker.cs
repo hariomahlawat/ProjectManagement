@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Services.SearchV2.Models;
 
@@ -246,8 +247,7 @@ public sealed class SearchIndexWorker : BackgroundService
                 try
                 {
                     var builder = scope.ServiceProvider.GetRequiredService<ISearchProjectionBuilder>();
-                    var projections = await builder.BuildEntityAsync(item.EntityType, item.EntityKey, cancellationToken);
-                    await store.ReplaceEntityAsync(item.EntityType, item.EntityKey, projections, _options.ProjectionVersion, cancellationToken);
+                    await IndexWithDependentsAsync(store, builder, item.EntityType, item.EntityKey, cancellationToken);
                     await store.CompleteAsync(item, cancellationToken);
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
@@ -262,6 +262,90 @@ public sealed class SearchIndexWorker : BackgroundService
         {
             await ProcessRebuildRequestAsync(rebuildRequest, allowDowngrade: false, cancellationToken);
         }
+    }
+
+    // Records whose changes alter their project's own row (its ToT and IPR summary).
+    private static readonly HashSet<string> ProjectSummarySources = new(StringComparer.Ordinal) { "ProjectTot", "IprRecord" };
+
+    /// <summary>
+    /// Re-indexes a record and the rows that copy its data. A project takes its dependent
+    /// rows from other modules with it (name, stage, trash and archive). A ToT or IPR change
+    /// refreshes the project rows it left and joined. Everything runs here, in this pass;
+    /// nothing is queued, so a project and its dependents never queue each other in a loop.
+    /// A failure fails the work item, and its retry repeats the whole set.
+    /// </summary>
+    internal async Task IndexWithDependentsAsync(
+        ISearchIndexStore store,
+        ISearchProjectionBuilder builder,
+        string entityType,
+        string entityKey,
+        CancellationToken cancellationToken)
+    {
+        if (ProjectSummarySources.Contains(entityType))
+        {
+            await IndexWithItsProjectsAsync(store, builder, entityType, entityKey, alreadyCurrentProjectId: null, cancellationToken);
+            return;
+        }
+
+        await ReplaceAsync(store, builder, entityType, entityKey, cancellationToken);
+
+        if (string.Equals(entityType, "Project", StringComparison.Ordinal)
+            && int.TryParse(entityKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var projectId))
+        {
+            foreach (var dependent in await builder.FindProjectDependentsAsync(projectId, cancellationToken))
+            {
+                if (ProjectSummarySources.Contains(dependent.EntityType))
+                {
+                    // An IPR that has just moved here from another project must refresh that
+                    // project too, or its old project keeps the IPR in its summary.
+                    await IndexWithItsProjectsAsync(store, builder, dependent.EntityType, dependent.EntityKey, projectId, cancellationToken);
+                }
+                else
+                {
+                    await ReplaceAsync(store, builder, dependent.EntityType, dependent.EntityKey, cancellationToken);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Re-indexes a ToT or IPR row and the project rows it left and joined. The projects are
+    /// refreshed first: their summary is read from the source tables, and while the row is not
+    /// yet replaced the index still names the project it left, so a retry can find it again.
+    /// </summary>
+    private async Task IndexWithItsProjectsAsync(
+        ISearchIndexStore store,
+        ISearchProjectionBuilder builder,
+        string entityType,
+        string entityKey,
+        int? alreadyCurrentProjectId,
+        CancellationToken cancellationToken)
+    {
+        var version = _options.ProjectionVersion;
+        var projectsBefore = await store.GetIndexedParentProjectIdsAsync(entityType, entityKey, version, cancellationToken);
+        var projections = await builder.BuildEntityAsync(entityType, entityKey, cancellationToken);
+
+        var projects = projectsBefore
+            .Concat(projections.Where(row => row.ParentProjectId.HasValue).Select(row => row.ParentProjectId!.Value))
+            .Where(id => id != alreadyCurrentProjectId)
+            .Distinct();
+        foreach (var parentId in projects)
+        {
+            await ReplaceAsync(store, builder, "Project", parentId.ToString(CultureInfo.InvariantCulture), cancellationToken);
+        }
+
+        await store.ReplaceEntityAsync(entityType, entityKey, projections, version, cancellationToken);
+    }
+
+    private async Task ReplaceAsync(
+        ISearchIndexStore store,
+        ISearchProjectionBuilder builder,
+        string entityType,
+        string entityKey,
+        CancellationToken cancellationToken)
+    {
+        var rows = await builder.BuildEntityAsync(entityType, entityKey, cancellationToken);
+        await store.ReplaceEntityAsync(entityType, entityKey, rows, _options.ProjectionVersion, cancellationToken);
     }
 
     /// <summary>Processes one pending administrator rebuild request. Returns false when none was pending.</summary>

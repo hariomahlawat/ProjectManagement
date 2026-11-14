@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -378,6 +379,24 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         await host.WithStoreAsync(store => store.CompleteAsync(item!, CancellationToken.None));
         Assert.Equal(0L, await host.ScalarAsync<long>(
             $"""SELECT COUNT(*) FROM "SearchIndexWorkItems" WHERE "EntityType" = 'Project' AND "EntityKey" = '{key}';"""));
+    }
+
+    [SearchV2PostgresFact]
+    public async Task TrashingAProject_TakesItsProliferationRowOutInTheSameWorkerPass()
+    {
+        await using var host = _database.CreateHost();
+        var projectId = await host.SeedProjectAsync("Gyrfalcon trainer");
+        var entryId = await host.SeedApprovedProliferationAsync(projectId);
+        await host.ResetIndexStateAsync();
+
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+        Assert.Equal(1, await host.CountEntriesAsync("ProliferationGranular", entryId.ToString()));
+
+        await host.ExecuteAsync($"""UPDATE "Projects" SET "IsDeleted" = TRUE WHERE "Id" = {projectId};""");
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+
+        Assert.Equal(0, await host.CountEntriesAsync("ProliferationGranular", entryId.ToString()));
+        Assert.Equal(0L, await host.ScalarAsync<long>("""SELECT COUNT(*) FROM "SearchIndexWorkItems" WHERE "Status" = 3;"""));
     }
 
     // Regression for 42P08 "could not determine data type of parameter $4": re-indexing any
@@ -828,6 +847,31 @@ internal sealed class SearchV2TestHost : IAsyncDisposable
         var connection = new NpgsqlConnection(db.Database.GetConnectionString());
         await connection.OpenAsync();
         return connection;
+    }
+
+    public async Task<Guid> SeedApprovedProliferationAsync(int projectId)
+    {
+        using var scope = _services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var submitterId = await EnsureUserAsync(db);
+        var now = DateTime.UtcNow;
+        var entry = new ProliferationGranular
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            Source = ProliferationSource.Sdd,
+            UnitName = "Field unit",
+            ProliferationDate = new DateOnly(2026, 6, 1),
+            Quantity = 2,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = submitterId,
+            CreatedOnUtc = now,
+            LastUpdatedOnUtc = now,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+        db.ProliferationGranularEntries.Add(entry);
+        await db.SaveChangesAsync();
+        return entry.Id;
     }
 
     public async Task<long> CountEntriesAsync(string entityType, string entityKey)

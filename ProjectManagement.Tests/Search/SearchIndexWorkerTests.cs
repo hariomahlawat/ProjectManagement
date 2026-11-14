@@ -176,6 +176,102 @@ public sealed class SearchIndexWorkerTests
     }
 
     [Fact]
+    public async Task ProjectChange_ReindexesItsDependentRowsInTheSamePass()
+    {
+        var harness = new Harness();
+        harness.Store.State = new SearchIndexActiveState(7, OwnVersion, harness.Time.Now);
+        harness.Builder.Dependents[42] = new[]
+        {
+            new SearchEntityRef("ProjectTot", "42"),
+            new SearchEntityRef("ProliferationGranular", "8f0c5a43-31b6-4d55-9a37-5b1b0f6c2d11"),
+            new SearchEntityRef("Training", "3e1f9a2b-7c44-4f0e-8b9d-2a6c5d4e3f10")
+        };
+        harness.Store.Queue.Enqueue(new SearchIndexWorkItem(1, "Project", "42", 0));
+
+        Assert.True(await harness.Worker.RunOnceAsync(CancellationToken.None));
+
+        Assert.Equal(
+            new[]
+            {
+                "Project/42",
+                "ProjectTot/42",
+                "ProliferationGranular/8f0c5a43-31b6-4d55-9a37-5b1b0f6c2d11",
+                "Training/3e1f9a2b-7c44-4f0e-8b9d-2a6c5d4e3f10"
+            },
+            harness.Store.Replaced);
+        Assert.Equal(new long[] { 1 }, harness.Store.Completed);
+    }
+
+    [Fact]
+    public async Task IprChange_RefreshesTheProjectItLeftAndTheProjectItJoined()
+    {
+        var harness = new Harness();
+        harness.Store.State = new SearchIndexActiveState(7, OwnVersion, harness.Time.Now);
+        harness.Store.IndexedParents["IprRecord/5"] = new[] { 10 };
+        harness.Builder.Projections["IprRecord/5"] = new[] { Projection("IprRecord", "5", parentProjectId: 11) };
+        harness.Store.Queue.Enqueue(new SearchIndexWorkItem(1, "IprRecord", "5", 0));
+
+        Assert.True(await harness.Worker.RunOnceAsync(CancellationToken.None));
+
+        // The projects first: until the IPR row is replaced, the index still names project 10.
+        Assert.Equal(new[] { "Project/10", "Project/11", "IprRecord/5" }, harness.Store.Replaced);
+        Assert.Equal(new long[] { 1 }, harness.Store.Completed);
+    }
+
+    [Fact]
+    public async Task IprChange_WhoseOldProjectFailsToRefresh_KeepsItsOldRowForTheRetry()
+    {
+        var harness = new Harness();
+        harness.Store.State = new SearchIndexActiveState(7, OwnVersion, harness.Time.Now);
+        harness.Store.IndexedParents["IprRecord/5"] = new[] { 10 };
+        harness.Store.FailReplacing = "Project/10";
+        harness.Builder.Projections["IprRecord/5"] = new[] { Projection("IprRecord", "5", parentProjectId: 11) };
+        harness.Store.Queue.Enqueue(new SearchIndexWorkItem(1, "IprRecord", "5", 0));
+
+        await harness.Worker.RunOnceAsync(CancellationToken.None);
+
+        Assert.DoesNotContain("IprRecord/5", harness.Store.Replaced);
+        Assert.Equal(new long[] { 1 }, harness.Store.Failed);
+    }
+
+    [Fact]
+    public async Task ProjectChange_ThatPicksUpAMovedIpr_RefreshesTheProjectTheIprLeft()
+    {
+        var harness = new Harness();
+        harness.Store.State = new SearchIndexActiveState(7, OwnVersion, harness.Time.Now);
+        harness.Builder.Dependents[11] = new[] { new SearchEntityRef("IprRecord", "5") };
+        harness.Store.IndexedParents["IprRecord/5"] = new[] { 10 };
+        harness.Builder.Projections["IprRecord/5"] = new[] { Projection("IprRecord", "5", parentProjectId: 11) };
+        harness.Store.Queue.Enqueue(new SearchIndexWorkItem(1, "Project", "11", 0));
+
+        Assert.True(await harness.Worker.RunOnceAsync(CancellationToken.None));
+
+        // Project 11 is current already; project 10 is refreshed before the IPR row moves.
+        Assert.Equal(new[] { "Project/11", "Project/10", "IprRecord/5" }, harness.Store.Replaced);
+    }
+
+    [Fact]
+    public async Task OtherRecords_DoNotTouchTheirProjectRow()
+    {
+        var harness = new Harness();
+        harness.Store.State = new SearchIndexActiveState(7, OwnVersion, harness.Time.Now);
+        harness.Builder.Projections["Training/7"] = new[] { Projection("Training", "7", parentProjectId: 10) };
+        harness.Store.Queue.Enqueue(new SearchIndexWorkItem(1, "Training", "7", 0));
+
+        Assert.True(await harness.Worker.RunOnceAsync(CancellationToken.None));
+
+        Assert.Equal(new[] { "Training/7" }, harness.Store.Replaced);
+    }
+
+    private static SearchProjection Projection(string entityType, string key, int? parentProjectId) =>
+        new(
+            entityType, key, entityType, key, parentProjectId,
+            "IPR", "Trackers", "Title", "title", null, $"/{entityType}/{key}",
+            null, null, null, null, "title", null, null, null, DateTimeOffset.UtcNow,
+            SearchVisibilityMode.Authenticated, null, null, OwnVersion,
+            Array.Empty<SearchProjectionTerm>(), Array.Empty<SearchProjectionPrincipal>(), "{}");
+
+    [Fact]
     public async Task RequestedRebuild_IsReleasedWithoutCountingAnAttempt_WhenAnotherProcessIsRebuilding()
     {
         var harness = new Harness();
@@ -311,11 +407,21 @@ public sealed class SearchIndexWorkerTests
             return Task.FromResult<IReadOnlyList<SearchProjection>>(Array.Empty<SearchProjection>());
         }
 
+        public Dictionary<int, SearchEntityRef[]> Dependents { get; } = new();
+        public Dictionary<string, SearchProjection[]> Projections { get; } = new(StringComparer.Ordinal);
+        public List<string> Built { get; } = new();
+
         public Task<IReadOnlyList<SearchProjection>> BuildEntityAsync(string entityType, string entityKey, CancellationToken cancellationToken)
         {
             BuildEntityCalls++;
-            return Task.FromResult<IReadOnlyList<SearchProjection>>(Array.Empty<SearchProjection>());
+            Built.Add($"{entityType}/{entityKey}");
+            return Task.FromResult<IReadOnlyList<SearchProjection>>(
+                Projections.TryGetValue($"{entityType}/{entityKey}", out var rows) ? rows : Array.Empty<SearchProjection>());
         }
+
+        public Task<IReadOnlyList<SearchEntityRef>> FindProjectDependentsAsync(int projectId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SearchEntityRef>>(
+                Dependents.TryGetValue(projectId, out var dependents) ? dependents : Array.Empty<SearchEntityRef>());
     }
 
     internal sealed class FakeCoordinator : ISearchIndexCoordinator
@@ -419,8 +525,22 @@ public sealed class SearchIndexWorkerTests
             return Task.CompletedTask;
         }
 
-        public Task ReplaceEntityAsync(string requestedEntityType, string requestedEntityKey, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
+        public Dictionary<string, int[]> IndexedParents { get; } = new(StringComparer.Ordinal);
+        public List<string> Replaced { get; } = new();
+
+        public string? FailReplacing { get; set; }
+
+        public Task ReplaceEntityAsync(string requestedEntityType, string requestedEntityKey, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken)
+        {
+            var key = $"{requestedEntityType}/{requestedEntityKey}";
+            if (key == FailReplacing) throw new InvalidOperationException("database unavailable");
+            Replaced.Add(key);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<int>> GetIndexedParentProjectIdsAsync(string entityType, string entityKey, int indexVersion, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<int>>(
+                IndexedParents.TryGetValue($"{entityType}/{entityKey}", out var ids) ? ids : Array.Empty<int>());
 
         public Task<bool> IsReadyAsync(int indexVersion, CancellationToken cancellationToken) =>
             Task.FromResult(State.HasActiveGeneration && State.IndexVersion == indexVersion);

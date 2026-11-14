@@ -19,6 +19,12 @@ public interface ISearchIndexStore
     Task ReplaceFullGenerationAsync(IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken, bool allowDowngrade = false);
     Task ReplaceEntityAsync(string requestedEntityType, string requestedEntityKey, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken);
     Task EnqueueAsync(string entityType, string entityKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The projects the active index rows of this record belong to (none when it is not
+    /// indexed). Read before a record is replaced, so a project it has just left is known.
+    /// </summary>
+    Task<IReadOnlyList<int>> GetIndexedParentProjectIdsAsync(string entityType, string entityKey, int indexVersion, CancellationToken cancellationToken);
     Task<SearchIndexWorkItem?> DequeueAsync(CancellationToken cancellationToken, string? entityType = null);
     /// <summary>
     /// Finishes a leased item: deletes it, or returns it to Pending when its row changed after
@@ -278,6 +284,36 @@ public sealed class SearchIndexStore : ISearchIndexStore
         {
             await transaction.RollbackAsync(cancellationToken);
             throw;
+        }
+        finally
+        {
+            await SafeCloseAsync();
+        }
+    }
+
+    public async Task<IReadOnlyList<int>> GetIndexedParentProjectIdsAsync(
+        string entityType,
+        string entityKey,
+        int indexVersion,
+        CancellationToken cancellationToken)
+    {
+        await _db.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await using var command = _db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = """
+                SELECT DISTINCT e."ParentProjectId"
+                FROM "SearchEntries" e
+                JOIN "SearchIndexState" s ON s."Id" = 1 AND s."ActiveGeneration" = e."Generation" AND s."IndexVersion" = @version
+                WHERE e."EntityType" = @entityType AND e."EntityKey" = @entityKey AND e."ParentProjectId" IS NOT NULL;
+                """;
+            Add(command, "version", indexVersion);
+            Add(command, "entityType", entityType);
+            Add(command, "entityKey", entityKey);
+            var ids = new List<int>();
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) ids.Add(reader.GetInt32(0));
+            return ids;
         }
         finally
         {
