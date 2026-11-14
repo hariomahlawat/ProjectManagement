@@ -169,6 +169,14 @@
                     <legend>How small</legend>
                     <div class="pdft-presets" data-compress-presets></div>
                 </fieldset>
+                <fieldset class="pdft-options pdft-scan">
+                    <legend>Scan mode</legend>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="pdftScanMode" data-compress-scan aria-describedby="pdftScanNote" />
+                        <label class="form-check-label" for="pdftScanMode">Turn every page into a picture</label>
+                    </div>
+                    <p class="pdft-scan__note" id="pdftScanNote">For scanned papers: the smallest, most even file. The text can no longer be selected or searched, and links, form fields and bookmarks are removed. Saving asks first.</p>
+                </fieldset>
                 <fieldset class="pdft-options pdft-keep">
                     <legend><label for="pdftKeepUnder">Keep under</label> <span class="pdft-optional">(optional)</span></legend>
                     <div class="pdft-keep__row">

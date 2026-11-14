@@ -504,6 +504,12 @@
 
 /* ---------- Reduce size ---------- */
 
+.pdft-scan__note {
+    margin: 0.5rem 0 0;
+    color: var(--pdft-muted);
+    font-size: 0.875rem;
+}
+
 .pdft-compress-about,
 .pdft-compress-outcome {
     margin: 0 0 1rem;

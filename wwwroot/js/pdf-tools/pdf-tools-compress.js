@@ -26,6 +26,9 @@
   const unitButtons = $$('[data-compress-unit]', section);
   const quickButtons = $$('[data-compress-quick]', section);
   const resultBox = $('[data-result]', section);
+  // Scan mode: never on by default and not remembered; saving asks first.
+  const scanSwitch = $('[data-compress-scan]', section);
+  const SCAN_WARNING = 'The text can no longer be selected or searched, and links, form fields and bookmarks are removed. The original file is not changed.';
   // Below this share of the file, pictures are not what makes it large.
   const MOSTLY_TEXT_SHARE = 0.25;
   const STORAGE_KEY = 'prism.pdfTools.reduce';
@@ -239,6 +242,87 @@
     };
   }
 
+  /**
+   * Scan mode, on the page: pdf.js draws each page (it needs the page's canvas), at the resolution
+   * asked for, one page at a time. Stopped between pages.
+   */
+  function runScan(bytes, options, onProgress) {
+    const controller = new AbortController();
+    let rendered = null;
+    let closed = false;
+    const close = () => {
+      closed = true;
+      rendered?.destroy();
+      rendered = null;
+    };
+    const encodePage = async (index, dpi, quality) => {
+      if (!rendered) {
+        const opened = await ui.openForRender(bytes);
+        // Stopped while it was opening: the run has already ended, so close this copy here.
+        if (closed || controller.signal.aborted) {
+          opened.destroy();
+          throw stopped();
+        }
+        rendered = opened;
+      }
+      const page = await rendered.getPage(index + 1);
+      const canvas = document.createElement('canvas');
+      try {
+        // pdf.js includes the page's turn and /UserUnit: this is the page as it is seen.
+        const base = page.getViewport({ scale: 1 });
+        // A very large page is drawn lower than asked (the browser's canvas limit); say so.
+        const { resolution } = await ui.renderPage(page, canvas, { scale: dpi / 72 });
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+        if (!blob) return null;
+        const jpeg = new Uint8Array(await blob.arrayBuffer());
+        return {
+          widthPt: base.width,
+          heightPt: base.height,
+          pixelWidth: canvas.width,
+          pixelHeight: canvas.height,
+          jpeg,
+          grey: greyPixels(canvas),
+          dpi: resolution < 1 ? Math.floor(dpi * resolution) : dpi
+        };
+      } finally {
+        page.cleanup();
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+    };
+    // Stop ends the run at once, even in the middle of drawing a large page: the drawing is
+    // abandoned (pdf.js's copy of the document is closed) and no result is used.
+    let cancel;
+    const cancelled = new Promise((resolve, reject) => { cancel = () => reject(stopped()); });
+    const work = core.scanPdf(PDFLib, bytes, { ...options, encodePage, onProgress, signal: controller.signal })
+      .then((result) => { if (controller.signal.aborted) throw stopped(); return result; });
+    work.catch(() => {}); // after Stop, its own end is not reported
+    return {
+      promise: Promise.race([work, cancelled]).finally(close),
+      stop() {
+        controller.abort();
+        cancel();
+      }
+    };
+  }
+
+  /** The page's grey pixels when it has no colour (a few stray coloured pixels allowed), else null. */
+  function greyPixels(canvas) {
+    const { width, height } = canvas;
+    const data = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, width, height).data;
+    const grey = new Uint8Array(width * height);
+    const allowed = Math.floor(width * height * 0.001);
+    let coloured = 0;
+    for (let i = 0, j = 0; j < grey.length; i += 4, j += 1) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (Math.max(r, g, b) - Math.min(r, g, b) > 16 && ++coloured > allowed) return null;
+      grey[j] = Math.round((r + g + b) / 3);
+    }
+    return grey;
+  }
+
   // ---------------------------------------------------------------------------
   // What the result says
   // ---------------------------------------------------------------------------
@@ -257,6 +341,11 @@
   function resultDetail(before, after, report) {
     const saved = before - after;
     const parts = [`${ui.formatBytes(before)} → ${ui.formatBytes(after)}, ${Math.round((saved / before) * 100)}% smaller.`];
+    if (report.scan) {
+      if (report.target && report.target.reached) parts.push(`Under ${limitWords}.`);
+      parts.push(`${plural(report.pages, ['page', 'pages'])} turned into pictures at ${report.dpi} dpi, quality ${Math.round(report.quality * 100)}%${report.greyPages ? ` (${report.greyPages} kept in grey)` : ''}.`);
+      return parts.join(' ');
+    }
     if (report.target && report.target.reached) {
       parts.push(`Under ${limitWords}, with pictures at ${report.target.dpi} dpi and quality ${Math.round(report.target.quality * 100)}%.`);
     }
@@ -282,6 +371,17 @@
       warnings.push(report.target.atLowest
         ? `This is the smallest this tool can make it: ${ui.formatBytes(after)}, which is over ${limitWords}. Pictures are at ${report.target.dpi} dpi, the lowest it goes.${kept} Splitting the PDF into parts may help.`
         : `This could not be made smaller than ${ui.formatBytes(after)}, which is over ${limitWords}.${kept} Splitting the PDF into parts may help.`);
+    }
+    if (report.scan) {
+      warnings.push('Every page is now a picture: the text cannot be selected or searched, and links, form fields and bookmarks were removed.');
+      const lowered = report.lowered || [];
+      if (lowered.length) {
+        const lowest = Math.min(...lowered.map((item) => item.dpi));
+        const which = lowered.length === 1
+          ? `Page ${lowered[0].page} is`
+          : `${lowered.length} pages (${lowered.slice(0, 5).map((item) => item.page).join(', ')}${lowered.length > 5 ? ', …' : ''}) are`;
+        warnings.push(`${which} too large to draw at ${report.dpi} dpi in this browser, so ${lowered.length === 1 ? 'it was' : 'they were'} drawn at about ${lowest} dpi${lowered.length === 1 ? '' : ' or more'}.`);
+      }
     }
     if (report.pdfA) {
       warnings.push('This file said it was PDF/A. After the change it may no longer meet PDF/A, so check before sending it where PDF/A is required.');
@@ -354,7 +454,7 @@
         await ui.renderPage(await rendered.getPage(page + 1), canvas, { width });
       }
       if (mine !== compareRun) return;
-      compareTitle.textContent = `Page ${page + 1}, where the largest picture is, before and after`;
+      compareTitle.textContent = compared.title || `Page ${page + 1}, where the largest picture is, before and after`;
       compare.hidden = false;
       placeLine();
     } catch {
@@ -394,8 +494,19 @@
         }
       });
     },
-    onRun(options, state) {
+    async onRun(options, state) {
       if (!current) return;
+      if (scanSwitch?.checked) {
+        const go = await ui.askConfirm({
+          tone: 'warning',
+          icon: 'bi-file-earmark-image',
+          title: 'Turn every page into a picture?',
+          message: SCAN_WARNING,
+          confirmText: 'Turn into pictures',
+          cancelText: 'Go back'
+        });
+        if (!go) return;
+      }
       say(outcome, '');
       clearCompare();
       const targetBytes = readTarget();
@@ -406,14 +517,16 @@
       }
       limitWords = targetBytes ? targetText() : '';
       const { file, bytes } = current;
+      const scan = Boolean(scanSwitch?.checked);
       let job = null;
-      ui.withBusy('Reducing size…', async (progress) => {
+      ui.withBusy(scan ? 'Turning pages into pictures…' : 'Reducing size…', async (progress) => {
+        const thing = scan ? 'page' : 'picture';
         const onProgress = ({ step, done, total }) => {
           progress(step > 1
-            ? `Trying smaller settings to fit under ${limitWords} (try ${step}): picture ${done} of ${total}…`
-            : `Re-saving picture ${done} of ${total}…`);
+            ? `Trying smaller settings to fit under ${limitWords} (try ${step}): ${thing} ${done} of ${total}…`
+            : `${scan ? 'Drawing' : 'Re-saving'} ${thing} ${done} of ${total}…`);
         };
-        const run = canUseWorker() ? runInWorker : runOnPage;
+        const run = scan ? runScan : canUseWorker() ? runInWorker : runOnPage;
         job = run(bytes, { preset: options.mode, targetBytes: targetBytes || undefined }, onProgress);
         let result;
         try {
@@ -432,12 +545,17 @@
           ui.moveFocus(outcome);
           return;
         }
-        await state.finish(result.bytes, `${core.baseName(file.name)}-smaller.pdf`, 'application/pdf', {
+        await state.finish(result.bytes, `${core.baseName(file.name)}-${scan ? 'scanned' : 'smaller'}.pdf`, 'application/pdf', {
           detail: resultDetail(bytes.length, result.bytes.length, result.report),
           warning: resultWarning(result.bytes.length, result.report)
         });
         if (Number.isInteger(result.report.previewPage)) {
-          compared = { before: bytes, after: result.bytes, page: result.report.previewPage };
+          compared = {
+            before: bytes,
+            after: result.bytes,
+            page: result.report.previewPage,
+            title: scan ? `Page ${result.report.previewPage + 1}, before and after` : null
+          };
           // After the work, not part of it: the page is not kept busy for a convenience.
           setTimeout(drawCompare, 0);
         }

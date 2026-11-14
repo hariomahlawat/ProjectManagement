@@ -938,3 +938,114 @@ test('reducePdf says how many pictures keep their own size when a target is miss
   assert.equal(missed.report.target.reached, false);
   assert.equal(missed.report.target.keptSize, 1);
 });
+
+// -----------------------------------------------------------------------------
+// Scan mode (docs/ux/pdf-tools-reduce-size.md, PR 4)
+// -----------------------------------------------------------------------------
+
+/** A text PDF big enough that pictures of its pages are smaller: pages with lots of text and a large picture. */
+async function scanSource({ pages = 2, title = 'Scanned letter' } = {}) {
+  const document = await PDFLib.PDFDocument.create();
+  document.setTitle(title);
+  document.setAuthor('Records cell');
+  const font = await document.embedFont(PDFLib.StandardFonts.Helvetica);
+  for (let i = 0; i < pages; i += 1) {
+    const page = document.addPage(i === 1 ? [842, 595] : [595, 842]);
+    page.drawText(`SELECTABLE TEXT ${i + 1}`, { x: 40, y: 500, size: 20, font });
+  }
+  const picture = addImage(document, { width: 900, height: 900 });
+  pageDrawing(document, [{ ref: picture, name: 'P', matrix: [500, 0, 0, 500, 0, 0] }]);
+  return document.save();
+}
+
+/** Stands in for drawing a page with pdf.js: a "JPG" whose size follows the pixels and quality. */
+function fakePages(sizes, { grey = () => null } = {}) {
+  const calls = [];
+  const encodePage = async (index, dpi, quality) => {
+    calls.push([index, dpi, Math.round(quality * 100) / 100]);
+    const [widthPt, heightPt] = sizes[index];
+    const pixelWidth = Math.round((widthPt / 72) * dpi);
+    const pixelHeight = Math.round((heightPt / 72) * dpi);
+    const jpeg = new Uint8Array(Math.max(200, Math.round(pixelWidth * pixelHeight * quality * 0.02))).fill(0x7a);
+    return { widthPt, heightPt, pixelWidth, pixelHeight, jpeg, grey: grey(index, pixelWidth * pixelHeight) };
+  };
+  return { encodePage, calls };
+}
+
+test('scanPdf makes each page one picture at its true size, keeps the title and leaves the text out', async () => {
+  const original = await scanSource();
+  const pages = fakePages([[595, 842], [842, 595], [595, 842]]);
+  const result = await tools.scanPdf(PDFLib, original, { preset: 'standard', encodePage: pages.encodePage });
+  assert.equal(result.unchanged, false);
+  assert.ok(result.bytes.length < original.length);
+  assert.deepEqual(pages.calls.map(([index, dpi, quality]) => [index, dpi, quality]), [[0, 150, 0.75], [1, 150, 0.75], [2, 150, 0.75]]);
+
+  const output = await PDFLib.PDFDocument.load(result.bytes);
+  assert.deepEqual(output.getPages().map((page) => [Math.round(page.getWidth()), Math.round(page.getHeight())]), [[595, 842], [842, 595], [595, 842]]);
+  assert.equal(output.getTitle(), 'Scanned letter');
+  assert.equal(output.getAuthor(), 'Records cell');
+  const images = (await imageStreams(result.bytes));
+  assert.equal(images.length, 3, 'one picture per page');
+  assert.deepEqual(images.map((stream) => String(stream.dict.get(PDFName.of('Filter')))), ['/DCTDecode', '/DCTDecode', '/DCTDecode']);
+  const text = Buffer.from(result.bytes).toString('latin1');
+  assert.ok(!text.includes('SELECTABLE TEXT'), 'no text is left in the file');
+  assert.equal(output.catalog.get(PDFName.of('AcroForm')), undefined);
+  assert.deepEqual({ scan: result.report.scan, pages: result.report.pages, dpi: result.report.dpi }, { scan: true, pages: 3, dpi: 150 });
+});
+
+test('scanPdf reports pages that had to be drawn below the resolution asked for', async () => {
+  const original = await scanSource();
+  const pages = fakePages([[595, 842], [842, 595], [595, 842]]);
+  const encodePage = async (index, dpi, quality) => ({ ...(await pages.encodePage(index, dpi, quality)), dpi: index === 2 ? 118.7 : dpi });
+  const result = await tools.scanPdf(PDFLib, original, { preset: 'print', encodePage });
+  assert.equal(result.report.dpi, 220);
+  assert.deepEqual(result.report.lowered, [{ page: 3, dpi: 118 }]);
+
+  const plain = await tools.scanPdf(PDFLib, original, { preset: 'print', encodePage: fakePages([[595, 842], [842, 595], [595, 842]]).encodePage });
+  assert.deepEqual(plain.report.lowered, []);
+});
+
+test('scanPdf keeps a grey page grey when grey pixels are smaller than its JPG', async () => {
+  const original = await scanSource();
+  const pages = fakePages([[595, 842], [842, 595], [595, 842]], { grey: (index, count) => (index === 1 ? new Uint8Array(count).fill(250) : null) });
+  const result = await tools.scanPdf(PDFLib, original, { preset: 'screen', encodePage: pages.encodePage });
+  const filters = (await imageStreams(result.bytes)).map((stream) => `${stream.dict.get(PDFName.of('ColorSpace'))} ${stream.dict.get(PDFName.of('Filter'))}`);
+  assert.deepEqual(filters.sort(), ['/DeviceGray /FlateDecode', '/DeviceRGB /DCTDecode', '/DeviceRGB /DCTDecode']);
+  assert.equal(result.report.greyPages, 1);
+});
+
+test('scanPdf keeps a file under a size by lowering quality and then resolution', async () => {
+  const original = await scanSource();
+  const sizes = [[595, 842], [842, 595], [595, 842]];
+  const plain = await tools.scanPdf(PDFLib, original, { preset: 'standard', encodePage: fakePages(sizes).encodePage });
+  const target = Math.round(plain.bytes.length * 0.4);
+  const result = await tools.scanPdf(PDFLib, original, { preset: 'standard', targetBytes: target, encodePage: fakePages(sizes).encodePage });
+  assert.ok(result.bytes.length <= target, `${result.bytes.length} <= ${target}`);
+  assert.equal(result.report.target.reached, true);
+  assert.ok(result.report.target.quality < 0.75 || result.report.target.dpi < 150);
+
+  const missed = await tools.scanPdf(PDFLib, original, { preset: 'standard', targetBytes: 50, encodePage: fakePages(sizes).encodePage });
+  assert.equal(missed.report.target.reached, false);
+  assert.equal(missed.report.target.dpi, 72);
+});
+
+test('scanPdf offers no file when pictures would not be smaller, stops when asked, and refuses a signed PDF', async () => {
+  const tiny = await PDFLib.PDFDocument.create();
+  tiny.addPage([100, 100]);
+  const small = await tiny.save();
+  const big = fakePages([[100, 100]]);
+  const huge = async (...args) => ({ ...(await big.encodePage(...args)), jpeg: new Uint8Array(small.length * 2).fill(1) });
+  const unchanged = await tools.scanPdf(PDFLib, small, { encodePage: huge });
+  assert.equal(unchanged.unchanged, true);
+  assert.equal(unchanged.bytes, small);
+
+  const controller = new AbortController();
+  const stopping = fakePages([[595, 842], [842, 595], [595, 842]]);
+  const encodePage = async (...args) => { controller.abort(); return stopping.encodePage(...args); };
+  await assert.rejects(tools.scanPdf(PDFLib, await scanSource(), { encodePage, signal: controller.signal }), { code: 'cancelled' });
+
+  const signed = await PDFLib.PDFDocument.create();
+  signed.addPage();
+  signed.catalog.set(PDFName.of('Perms'), signed.context.obj({ DocMDP: signed.context.obj({}) }));
+  await assert.rejects(tools.scanPdf(PDFLib, await signed.save(), { encodePage: fakePages([[595, 842]]).encodePage }), { code: 'signed' });
+});
