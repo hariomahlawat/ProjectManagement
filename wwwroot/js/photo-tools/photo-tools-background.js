@@ -160,13 +160,19 @@
   function loadStatus(maxAge = STATUS_FRESH_MS) {
     if (status && status.available && Date.now() - statusAt < maxAge) return Promise.resolve(status);
     if (!statusLoading) {
-      statusLoading = fetch(STATUS_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      // A status request that stalls is given up after a few seconds, so the next one asks the
+      // server again instead of waiting on it for good.
+      const stalled = new AbortController();
+      const giveUp = setTimeout(() => stalled.abort(), STATUS_RECHECK_MS);
+      statusLoading = fetch(STATUS_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: stalled.signal })
         .then((response) => {
           if (response.status === 401) return { available: false, state: 'signed-out', message: SIGNED_OUT };
           return response.ok ? response.json() : null;
         })
         .catch(() => null)
         .then((answer) => {
+          // The time limit covers reading the answer too.
+          clearTimeout(giveUp);
           statusAt = Date.now();
           status = answer || {
             available: false,
