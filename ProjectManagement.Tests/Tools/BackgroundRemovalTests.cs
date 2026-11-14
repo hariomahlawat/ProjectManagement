@@ -141,6 +141,38 @@ public sealed class BackgroundRemovalTests : IDisposable
         Assert.Equal(BackgroundModelState.RuntimeMissing, service.Readiness().State);
     }
 
+    [Fact]
+    public async Task HasFailedToLoad_AnswersAtOnce_WhileAModelIsLoading()
+    {
+        // The loader holds its lock for a whole load (up to a minute for 1 GB); a status or upload
+        // request asking whether the model failed must not wait for it.
+        var options = EnabledOptions();
+        var approved = ReadinessFor(options).Check();
+        using var segmenter = new OnnxBackgroundSegmenter(Monitor(options), NullLogger<OnnxBackgroundSegmenter>.Instance);
+        var loaderLock = typeof(OnnxBackgroundSegmenter)
+            .GetField("_gate", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(segmenter)!;
+        using var held = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var loading = Task.Run(() =>
+        {
+            lock (loaderLock)
+            {
+                held.Set();
+                release.Wait(TimeSpan.FromSeconds(10));
+            }
+        });
+        held.Wait();
+
+        var answer = Task.Run(() => segmenter.HasFailedToLoad(approved));
+        var finished = await Task.WhenAny(answer, Task.Delay(TimeSpan.FromSeconds(2)));
+
+        release.Set();
+        await loading;
+        Assert.Same(answer, finished);
+        Assert.False(await answer);
+    }
+
     [Theory]
     [InlineData(BackgroundModelState.Checking, "getting ready")]
     [InlineData(BackgroundModelState.FileUnreadable, "cannot read")]

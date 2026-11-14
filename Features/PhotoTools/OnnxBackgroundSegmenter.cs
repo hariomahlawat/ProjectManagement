@@ -60,6 +60,9 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
     private readonly int _concurrent;
     private LoadedModel? _loaded;
     private bool _disposed;
+    // The last failed load. It has its own short lock: _gate is held for the whole of a load (up to
+    // a minute for a 1 GB model), and a status or upload request must not wait on that to read it.
+    private readonly object _failedGate = new();
     private (string Key, DateTime FailedUtc, string Message)? _failed;
     private static readonly TimeSpan FailedLoadRetry = TimeSpan.FromMinutes(5);
     private static readonly Lazy<bool> Runtime = new(() =>
@@ -87,9 +90,17 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
         }
 
         var key = KeyFor(approved, _options.CurrentValue);
-        lock (_gate)
+        return RecentFailure(key) is not null;
+    }
+
+    /// <summary>The message of a load of <paramref name="key"/> that failed recently, or null.</summary>
+    private string? RecentFailure(string key)
+    {
+        lock (_failedGate)
         {
-            return _failed is { } failed && failed.Key == key && DateTime.UtcNow - failed.FailedUtc < FailedLoadRetry;
+            return _failed is { } failed && failed.Key == key && DateTime.UtcNow - failed.FailedUtc < FailedLoadRetry
+                ? failed.Message
+                : null;
         }
     }
 
@@ -238,9 +249,9 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
                 throw new BackgroundModelChangedException();
             }
 
-            if (_failed is { } failed && failed.Key == key && DateTime.UtcNow - failed.FailedUtc < FailedLoadRetry)
+            if (RecentFailure(key) is { } failure)
             {
-                throw new BackgroundModelLoadException(failed.Message);
+                throw new BackgroundModelLoadException(failure);
             }
 
             InferenceSession session;
@@ -252,12 +263,20 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
             {
                 // Logged once here; later photos are refused at once until the file or settings
                 // change or a few minutes pass, instead of loading 1 GB again for each one.
-                _failed = (key, DateTime.UtcNow, error.Message);
+                lock (_failedGate)
+                {
+                    _failed = (key, DateTime.UtcNow, error.Message);
+                }
+
                 _logger.LogError(error, "The background removal model could not be loaded. It is not tried again for {Minutes} minutes or until its file or settings change.", (int)FailedLoadRetry.TotalMinutes);
                 throw new BackgroundModelLoadException(error.Message, error);
             }
 
-            _failed = null;
+            lock (_failedGate)
+            {
+                _failed = null;
+            }
+
             var fresh = new LoadedModel(session, key) { Users = 1 };
             if (_loaded is not null)
             {
