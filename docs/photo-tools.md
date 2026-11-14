@@ -468,6 +468,14 @@ step, so Undo takes it back.
   never covers the photo. Phones get the same bar across the screen. It is
   `PrismPhotoCanvas.wireSaveBar` in `photo-tools-canvas.js`.
 
+### While Remove background works
+
+- Looking at another tool on the page does not stop the cut-out: the server keeps working and the
+  result is there on coming back. **Cancel**, another photo, the time limit
+  (`PhotoTools:BackgroundRemoval:TimeoutSeconds`) or leaving the page stop it.
+- Until there is a cut-out (still working, or stopped with **Try again**), the brushes and brush
+  sizes are off and "Check the edges…" under the photo is not shown.
+
 ### How the target size is reached
 
 The pixels are kept as they are by default (owner decision, 13 Nov 2026): a photo is only made

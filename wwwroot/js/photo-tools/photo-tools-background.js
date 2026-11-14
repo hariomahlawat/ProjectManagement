@@ -74,6 +74,8 @@
   const credit = $('[data-remove-credit]');
   const cancelButton = $('[data-action="remove-cancel"]');
   const retryBox = $('[data-remove-retry]');
+  // "Check the edges…": only once there is a cut-out to check.
+  const stageHint = $('[data-remove-hint]');
   const retryText = $('[data-remove-retry-text]');
   const retryButton = $('[data-action="remove-retry"]');
   const readyOnly = $$('[data-remove-ready-only]');
@@ -114,6 +116,7 @@
   let subjectColours = null;
   // The cut-out (RGBA, see-through where the mask says) and the blurred background.
   let cutout = null;
+  let errorWhenBack = null;  // an error from a cut-out that ended while another tool was shown
   let blurred = null;
 
   let backdrop = 'transparent';
@@ -356,6 +359,7 @@
   }
 
   function resetPhoto() {
+    errorWhenBack = null;
     maskRevision += 1;
     shared.setUnsaved('remove', false);
     work = null;
@@ -451,6 +455,9 @@
     const source = full;
     const size = shared.sizeOf(source);
     setBusy(FINDING);
+    // A photo that replaced a finished cut-out has none yet: the brushes go off and the hint
+    // goes away now, not when this request ends.
+    renderControls();
     clearTimeout(slowTimer);
     slowTimer = setTimeout(() => {
       if (mine !== openRun || !busy) return;
@@ -497,7 +504,7 @@
       workspace.hidden = true;
       changeButton.hidden = true;
       fileLabel.textContent = '';
-      shared.showError(error instanceof core.PhotoToolError ? error.message : 'The background could not be removed from this photo.');
+      showErrorHere(error instanceof core.PhotoToolError ? error.message : 'The background could not be removed from this photo.');
     } finally {
       clearTimeout(giveUp);
       if (mine === openRun) {
@@ -508,6 +515,16 @@
         renderControls();
         render();
       }
+    }
+  }
+
+  // The cut-out keeps going while another tool is shown, so its error is kept for this screen:
+  // shown now when Remove background is on screen, otherwise when the user comes back to it.
+  function showErrorHere(message) {
+    if (window.location.hash === '#remove') {
+      shared.showError(message);
+    } else {
+      errorWhenBack = message;
     }
   }
 
@@ -735,8 +752,17 @@
     bgOther.classList.toggle('is-pressed', !preset);
     // The colour picker is not a button, so its name says when it is the one chosen.
     bgColour.setAttribute('aria-label', preset ? 'Other background colour' : 'Other background colour, chosen');
-    for (const button of brushButtons) button.setAttribute('aria-pressed', String(button.dataset.removeBrush === brush));
-    for (const button of sizeButtons) button.setAttribute('aria-pressed', String(button.dataset.removeSizeChoice === brushSize));
+    // The brushes touch up a cut-out: before there is one (still working, or stopped with Try
+    // again) there is nothing for them to do.
+    for (const button of brushButtons) {
+      button.setAttribute('aria-pressed', String(button.dataset.removeBrush === brush));
+      button.disabled = !cutout;
+    }
+    for (const button of sizeButtons) {
+      button.setAttribute('aria-pressed', String(button.dataset.removeSizeChoice === brushSize));
+      button.disabled = !cutout;
+    }
+    stageHint.hidden = !cutout;
     brushHint.textContent = BRUSH_HINTS[brush];
     undoButton.disabled = !strokes.length;
     resetButton.disabled = !strokes.length;
@@ -1080,12 +1106,15 @@
   const whenShown = () => {
     const hash = window.location.hash;
     if (hash === '#remove' || ((hash === '' || hash === '#') && !status)) loadStatus();
-    // Leaving the screen stops a mask still on its way, so it does not hold the server's place;
-    // the photo waits with Try again for when the user comes back.
-    if (hash !== '#remove' && maskPending && maskRequest) {
-      cancelledByUser = true;
-      maskRequest.abort();
+    if (hash === '#remove' && errorWhenBack) {
+      const message = errorWhenBack;
+      errorWhenBack = null;
+      // After the page's own change of screen, which clears the error box.
+      setTimeout(() => shared.showError(message), 0);
     }
+    // Looking at another tool on this page does not stop a cut-out on its way: the server keeps
+    // working and the result is here on coming back. Cancel, another photo, the time limit or
+    // leaving the page still stop it.
   };
   window.addEventListener('hashchange', whenShown);
   new ResizeObserver(render).observe(stage);
