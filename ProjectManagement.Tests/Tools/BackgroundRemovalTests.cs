@@ -289,6 +289,74 @@ public sealed class BackgroundRemovalTests : IDisposable
         Assert.Throws<BackgroundModelChangedException>(() => segmenter.Segment(photo, approved, CancellationToken.None));
     }
 
+    // ----- Memory and processor (PR 2 of docs/ux/photo-tools-remove-background-fixes.md) -----
+
+    [Theory]
+    [InlineData(6, 1, 12, 6)]   // the default on a 12-thread computer: half the threads
+    [InlineData(6, 1, 4, 2)]    // a small server: never more than half its processors
+    [InlineData(6, 2, 16, 4)]   // two photos at once share half of 16
+    [InlineData(6, 4, 2, 1)]    // always at least one
+    [InlineData(0, 1, 16, 1)]   // a setting of 0 still gives one
+    [InlineData(3, 9, 64, 3)]   // more than 4 photos at once counts as 4; the setting is the most
+    public void ThreadsFor_KeepsAllPhotosTogetherUnderHalfTheProcessors(int setting, int concurrent, int processors, int expected)
+    {
+        var options = new BackgroundRemovalOptions { IntraOpThreads = setting, MaximumConcurrent = concurrent };
+        Assert.Equal(expected, OnnxBackgroundSegmenter.ThreadsFor(options, processors));
+    }
+
+    [Fact]
+    public void ReleaseIdle_FreesTheModelAfterTheIdleTime_AndNotBefore()
+    {
+        var options = EnabledOptions();
+        options.ModelIdleMinutes = 10;
+        var approved = ReadinessFor(options).Check();
+        using var segmenter = new OnnxBackgroundSegmenter(Monitor(options), NullLogger<OnnxBackgroundSegmenter>.Instance);
+        using var photo = new SKBitmap(8, 8);
+
+        segmenter.Segment(photo, approved, CancellationToken.None);
+        Assert.True(segmenter.IsModelLoaded);
+
+        segmenter.ReleaseIdle(DateTime.UtcNow.AddMinutes(5));
+        Assert.True(segmenter.IsModelLoaded);
+
+        segmenter.ReleaseIdle(DateTime.UtcNow.AddMinutes(11));
+        Assert.False(segmenter.IsModelLoaded);
+
+        // The next photo loads it again.
+        segmenter.Segment(photo, approved, CancellationToken.None);
+        Assert.True(segmenter.IsModelLoaded);
+    }
+
+    [Fact]
+    public void ReleaseIdle_FreesTheModelAtOnce_WhenTheToolIsTurnedOff()
+    {
+        var options = EnabledOptions();
+        var approved = ReadinessFor(options).Check();
+        using var segmenter = new OnnxBackgroundSegmenter(Monitor(options), NullLogger<OnnxBackgroundSegmenter>.Instance);
+        using var photo = new SKBitmap(8, 8);
+        segmenter.Segment(photo, approved, CancellationToken.None);
+
+        options.Enabled = false;
+        segmenter.ReleaseIdle(DateTime.UtcNow);
+
+        Assert.False(segmenter.IsModelLoaded);
+    }
+
+    [Fact]
+    public void ReleaseIdle_WithZeroMinutes_KeepsTheModelWhileTheToolIsOn()
+    {
+        var options = EnabledOptions();
+        options.ModelIdleMinutes = 0;
+        var approved = ReadinessFor(options).Check();
+        using var segmenter = new OnnxBackgroundSegmenter(Monitor(options), NullLogger<OnnxBackgroundSegmenter>.Instance);
+        using var photo = new SKBitmap(8, 8);
+        segmenter.Segment(photo, approved, CancellationToken.None);
+
+        segmenter.ReleaseIdle(DateTime.UtcNow.AddDays(1));
+
+        Assert.True(segmenter.IsModelLoaded);
+    }
+
     [Fact]
     public async Task MaskAsync_StopsAPhotoThatTakesTooLong()
     {

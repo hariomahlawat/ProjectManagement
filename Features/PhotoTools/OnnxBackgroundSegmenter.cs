@@ -29,14 +29,20 @@ public sealed class BackgroundModelChangedException : Exception
 
 /// <summary>
 /// Runs the approved segmentation model with ONNX Runtime on the server's processor. The model is
-/// loaded on first use and kept; it is loaded again when its file or its settings change. One
-/// inference uses at most <see cref="BackgroundRemovalOptions.IntraOpThreads"/> threads.
+/// loaded on first use and kept while it is used; it is loaded again when its file or its settings
+/// change, and released after <see cref="BackgroundRemovalOptions.ModelIdleMinutes"/> without a
+/// photo or when the tool is turned off. ONNX Runtime's memory arena is off, so the working memory
+/// of a photo (gigabytes for RMBG-2.0) goes back after the photo instead of staying at its peak,
+/// and the threads are limited by <see cref="ThreadsFor"/>.
 /// </summary>
 public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
 {
+    private static readonly TimeSpan IdleCheckInterval = TimeSpan.FromSeconds(30);
+
     private readonly IOptionsMonitor<BackgroundRemovalOptions> _options;
     private readonly ILogger<OnnxBackgroundSegmenter> _logger;
     private readonly object _gate = new();
+    private readonly Timer _idleTimer;
     private LoadedModel? _loaded;
     private bool _disposed;
 
@@ -46,6 +52,63 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _idleTimer = new Timer(_ => ReleaseIdle(DateTime.UtcNow), null, IdleCheckInterval, IdleCheckInterval);
+    }
+
+    /// <summary>
+    /// Threads for one photo: the setting, but never more than half the server's processors shared
+    /// between the photos that may run at once, and at least one.
+    /// </summary>
+    public static int ThreadsFor(BackgroundRemovalOptions options, int processorCount)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var budget = Math.Max(1, processorCount / 2);
+        var share = Math.Max(1, budget / Math.Clamp(options.MaximumConcurrent, 1, 4));
+        return Math.Clamp(options.IntraOpThreads, 1, share);
+    }
+
+    /// <summary>True while a model is held in memory (for tests and the status page).</summary>
+    public bool IsModelLoaded
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _loaded is not null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Releases the loaded model when no photo is using it and it has not been used for
+    /// <see cref="BackgroundRemovalOptions.ModelIdleMinutes"/>, or when the tool is turned off.
+    /// Called every 30 seconds; <paramref name="nowUtc"/> is given so tests can move time on.
+    /// </summary>
+    public void ReleaseIdle(DateTime nowUtc)
+    {
+        var options = _options.CurrentValue;
+        lock (_gate)
+        {
+            if (_disposed || _loaded is null || _loaded.Users > 0)
+            {
+                return;
+            }
+
+            var idle = nowUtc - _loaded.LastUsedUtc;
+            var timedOut = options.ModelIdleMinutes > 0 && idle >= TimeSpan.FromMinutes(options.ModelIdleMinutes);
+            if (options.Enabled && !timedOut)
+            {
+                return;
+            }
+
+            _loaded.Session.Dispose();
+            _loaded = null;
+            _logger.LogInformation(
+                options.Enabled
+                    ? "Released the background removal model from memory after {IdleMinutes} minutes without a photo."
+                    : "Released the background removal model from memory because Remove background was turned off.",
+                (int)idle.TotalMinutes);
+        }
     }
 
     public BackgroundMask Segment(SKBitmap photo, BackgroundModelReadiness approved, CancellationToken cancellationToken)
@@ -143,6 +206,7 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
         lock (_gate)
         {
             loaded.Users -= 1;
+            loaded.LastUsedUtc = DateTime.UtcNow;
             if (loaded.Retired && loaded.Users == 0)
             {
                 loaded.Session.Dispose();
@@ -166,23 +230,32 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
             model.InputHeight,
             string.Join(',', model.ChannelMean()),
             string.Join(',', model.ChannelStd()),
-            options.IntraOpThreads);
+            ThreadsFor(options, Environment.ProcessorCount));
     }
 
     private InferenceSession Load(string path, BackgroundRemovalOptions options)
     {
+        var threads = ThreadsFor(options, Environment.ProcessorCount);
         using var sessionOptions = new Microsoft.ML.OnnxRuntime.SessionOptions
         {
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
             ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
             InterOpNumThreads = 1,
-            IntraOpNumThreads = Math.Clamp(options.IntraOpThreads, 1, Math.Max(1, Environment.ProcessorCount))
+            IntraOpNumThreads = threads,
+            // Without the arena each photo's working memory is freed when the photo is done; with it,
+            // ONNX Runtime kept its peak (18.9 GB committed after two photos with RMBG-2.0).
+            EnableCpuMemArena = false,
+            EnableMemoryPattern = false
         };
+        // Threads wait without spinning between steps, so an idle photo thread uses no processor.
+        sessionOptions.AddSessionConfigEntry("session.intra_op.allow_spinning", "0");
+        sessionOptions.AddSessionConfigEntry("session.inter_op.allow_spinning", "0");
         _logger.LogInformation(
-            "Loading the background removal model {ModelKey} {ModelVersion} from {ModelPath}.",
+            "Loading the background removal model {ModelKey} {ModelVersion} from {ModelPath} with {Threads} threads.",
             options.Model.Key,
             options.Model.Version,
-            path);
+            path,
+            threads);
         var session = new InferenceSession(path, sessionOptions);
         try
         {
@@ -199,6 +272,7 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
 
     public void Dispose()
     {
+        _idleTimer.Dispose();
         lock (_gate)
         {
             _disposed = true;
@@ -221,6 +295,7 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
         public string Key { get; } = key;
         public int Users { get; set; }
         public bool Retired { get; set; }
+        public DateTime LastUsedUtc { get; set; } = DateTime.UtcNow;
     }
 }
 
