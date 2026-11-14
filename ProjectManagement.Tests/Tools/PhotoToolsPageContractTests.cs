@@ -250,9 +250,12 @@ public sealed class PhotoToolsPageContractTests
         Assert.Contains("job.run === openRun", script, StringComparison.Ordinal);
         // It does not wait for an animation frame, which a hidden tab never gets.
         Assert.DoesNotContain("requestAnimationFrame(() => setTimeout", script, StringComparison.Ordinal);
-        // A mask request has a browser-side limit and is stopped when the screen is left.
+        // A mask request has a browser-side limit. Looking at another tool on the page does not
+        // stop it (the result is there on coming back); its error waits for this screen.
         Assert.Contains("MASK_GIVE_UP_MS", script, StringComparison.Ordinal);
-        Assert.Contains("hash !== '#remove' && maskPending", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("hash !== '#remove' && maskPending", script, StringComparison.Ordinal);
+        Assert.Contains("showErrorHere(", script, StringComparison.Ordinal);
+        Assert.Contains("errorWhenBack", script, StringComparison.Ordinal);
         // A stroke ends when its pointer is lost.
         Assert.Contains("'lostpointercapture'", script, StringComparison.Ordinal);
     }
