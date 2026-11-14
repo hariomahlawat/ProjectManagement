@@ -154,7 +154,8 @@ much weaker than BRIA's models and is only for testing the pipeline.
 - A photo that takes longer than `TimeoutSeconds` is stopped inside ONNX Runtime, not just
   abandoned.
 - When a user changes photo before the mask arrives, the browser cancels the earlier request and
-  the server stops working on it, so replaced photos do not fill the queue.
+  the server stops working on it, so replaced photos do not fill the queue. This is logged at Debug level only, never
+  as an error.
 - The approval (file and checksum) is checked again when a photo's turn comes, and only the very
   file whose checksum was checked is loaded; a model replaced while photos wait is not used until
   it is approved.
@@ -182,6 +183,10 @@ much weaker than BRIA's models and is only for testing the pipeline.
 | `model-missing` | The file is not where the settings say. | Copy it, or correct `ModelRoot` / `Model:FileName`. |
 | `checksum-not-configured` | `Model:Sha256` is empty. | Set it to the file's SHA-256. |
 | `checksum-mismatch` | The file's SHA-256 differs. | The file is not the approved one, or the setting is wrong. |
+| `checking` | The SHA-256 of a large model is being worked out in the background (about a minute for 1 GB after a start or a change). | Wait; the screen says to open it again in a minute. |
+| `model-unreadable` | The file cannot be read, for example while it is still being copied. Tried again 30 seconds later, or at once when the file changes. | Let the copy finish. |
+| `model-invalid` | The file passed its checksum but could not be loaded with these settings (input names or size, a damaged file). Logged once as an error; not tried again for 5 minutes or until the file or settings change. | Read the server log; correct the model values. |
+| `runtime-missing` | ONNX Runtime's native library cannot be loaded on this server. | Check that the published output holds `runtimes/win-x64/native/onnxruntime.dll` and that the Visual C++ runtime is installed. |
 | `ready` | All good. | |
 
 ## Rollback
