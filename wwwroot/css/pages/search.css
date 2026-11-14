@@ -167,24 +167,9 @@
     align-items: center;
     justify-content: center;
     gap: .45rem;
-    margin-top: 1.1rem;
+    margin: 1.1rem 0 0;
     color: var(--pm-text-secondary);
     font-size: .875rem;
-}
-
-.pm-gs-hero__hints a {
-    padding: .2rem .7rem;
-    border: 1px solid var(--pm-border);
-    border-radius: 999px;
-    background: var(--pm-surface-subtle);
-    color: var(--pm-text);
-    text-decoration: none;
-}
-
-.pm-gs-hero__hints a:hover,
-.pm-gs-hero__hints a:focus-visible {
-    border-color: var(--pm-primary);
-    color: var(--pm-primary-strong);
 }
 
 /* Recent searches (landing and zero results) ------------------------------- */

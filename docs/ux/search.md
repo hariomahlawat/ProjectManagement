@@ -23,13 +23,26 @@ uses it through `navigation/global-search.js` (loaded by `site.js`); the Search 
   text is set with `textContent`; nothing from the server is parsed as HTML.
 - **Recent searches.** The last six searches are kept in this browser only (`localStorage`,
   key `prism.search.recent`), shown when the box is empty and on the landing and zero-result
-  pages, with a **Clear recent searches** row. Blocked storage is ignored silently.
+  pages, with a **Clear recent searches** row. Blocked storage is ignored silently. Opening a
+  suggested record is not a search, so it adds nothing to the list.
+- **One highlighted row.** The row under the pointer becomes the active row, so the pointer
+  and the arrow keys never highlight two rows. Focus leaving the search box without a click
+  (a screen reader, a script) closes the list.
 - **Shortcuts.** Ctrl+K (⌘K on Apple devices; the hint follows the platform) and `/` outside a
   text field focus the visible search box. Where the top-bar box is hidden (narrow screens),
   Ctrl+K opens the Search page.
 
+## Landing page
+
+The empty Search page has the search box, one line on how to search (name, acronym, case
+number, file number or a word in the title) and the reader's recent searches. It shows no
+fixed example searches, because they may not match what this reader can see.
+
 ## Results page
 
+- **Category tabs.** The **All** count counts each project once, with its ToT, IPR and other
+  linked records folded under it, so the category counts can add up to more; the All tab's
+  tooltip says so.
 - **Headings and landmarks.** One `<main>` (the layout's). A visually hidden `h1`
   ("Search results for …"), each result title is an `h2`. The tab title reads
   `“query” – 512 results – Search`. The result count is a `role="status"`; the active
@@ -47,7 +60,8 @@ uses it through `navigation/global-search.js` (loaded by `site.js`); the Search 
   FFC, IPR, activity, visit, social media, training, ToT, proliferation, ARPP; PDFs show a PDF
   icon; kept, smaller, on phones), title (link), subtitle, three-line snippet, and a details row:
   source, parent project (from the indexed match fields), status, date, file type, and where
-  the match was found when it was not the title. Separators come from CSS, so a missing field
+  the match was found when it was not the title, in plain words ("Found in the project brief
+  and the description", "Found in a related term"). Separators come from CSS, so a missing field
   never leaves a stray dot. Query latency is shown only to users who can open the admin
   Search diagnostics (`AdminPolicies.SecurityView`) or in Development.
 - **More results.** "Showing 1–20 of 512 results". **Show more results** appends the next

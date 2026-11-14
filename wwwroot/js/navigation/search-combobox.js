@@ -301,6 +301,10 @@ export function createSearchCombobox(input, options = {}) {
     option.append(iconWrap, text);
     option.addEventListener('pointerdown', (event) => event.preventDefault());
     option.addEventListener('click', () => activate(option));
+    option.addEventListener('pointermove', () => {
+      const index = optionNodes.indexOf(option);
+      if (index >= 0 && index !== activeIndex) setActive(index);
+    });
     optionNodes.push(option);
     return option;
   };
@@ -479,7 +483,8 @@ export function createSearchCombobox(input, options = {}) {
     if (option.dataset.url) {
       const url = sameOriginUrl(option.dataset.url, win.location);
       if (!url) return;
-      rememberSearch(input.value, win);
+      // Opening a suggested record is not a search: the half-typed text ("aur") would only
+      // push real searches out of the recent list.
       close();
       navigate(url);
       return;
@@ -565,6 +570,10 @@ export function createSearchCombobox(input, options = {}) {
 
   doc.addEventListener('pointerdown', (event) => {
     if (!form.contains(event.target)) close();
+  });
+
+  form.addEventListener('focusout', (event) => {
+    if (!(event.relatedTarget instanceof win.Node) || !form.contains(event.relatedTarget)) close();
   });
 
   setClearState();
