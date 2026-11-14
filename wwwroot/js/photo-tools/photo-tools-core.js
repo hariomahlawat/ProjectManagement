@@ -137,6 +137,62 @@
     };
   }
 
+  const WATERMARK_PLACES = Object.freeze(['bottom-right', 'bottom-left', 'centre', 'across']);
+  const WATERMARK_MAX_LENGTH = 60;
+  // How see-through the letters are: Light can be read without hiding the photo.
+  const WATERMARK_STRENGTH = Object.freeze({ light: 0.45, strong: 0.8 });
+
+  /**
+   * Where and how large a watermark is drawn on a photo of width × height. `textWidth100` is the
+   * text's width when drawn 100 px high, measured by the caller (the width grows with the size).
+   * The size is a share of the shorter side, so the mark looks the same on a small and a large
+   * photo; text too long for the photo is made smaller to fit.
+   *
+   * Returns { fontSize, x, y, align, baseline } for one mark, and for 'across' also the angle and
+   * the steps between the repeated marks (drawn round the centre).
+   */
+  function watermarkPlan({ width, height, place, textWidth100 }) {
+    const across = place === 'across';
+    const shorter = Math.min(width, height);
+    let fontSize = Math.max(12, Math.round(shorter * (across ? 0.06 : 0.045)));
+    const margin = Math.max(6, Math.round(shorter * 0.03));
+    const perPixel = Math.max(0, Number(textWidth100) || 0) / 100;
+    // Never wider than the photo less its margins (across: than 80% of its shorter side, so a
+    // slanted mark is not cut at both ends).
+    const room = across ? shorter * 0.8 : width - margin * 2;
+    if (perPixel > 0 && fontSize * perPixel > room) {
+      // No lower limit: on a small photo all of the text, however small, is better than a part
+      // of it cut off at the edge.
+      fontSize = Math.max(1, room / perPixel);
+    }
+    if (across) {
+      const textWidth = fontSize * perPixel;
+      return {
+        fontSize,
+        x: width / 2,
+        y: height / 2,
+        align: 'center',
+        baseline: 'middle',
+        angle: -Math.PI / 6,
+        stepX: Math.round(textWidth + fontSize * 3),
+        stepY: Math.round(fontSize * 4),
+        // Enough repeats each way to cover the corners once turned.
+        reach: Math.ceil(Math.hypot(width, height) / 2)
+      };
+    }
+    if (place === 'centre') {
+      return { fontSize, x: width / 2, y: height / 2, align: 'center', baseline: 'middle' };
+    }
+    const left = place === 'bottom-left';
+    return {
+      fontSize,
+      x: left ? margin : width - margin,
+      y: height - margin,
+      align: left ? 'left' : 'right',
+      baseline: 'bottom'
+    };
+  }
+
   function scaleDimensions(width, height, scale) {
     return {
       width: Math.max(1, Math.round(width * scale)),
@@ -2518,6 +2574,10 @@
     EXACT_SIDE,
     parseExactSide,
     exactFit,
+    WATERMARK_PLACES,
+    WATERMARK_MAX_LENGTH,
+    WATERMARK_STRENGTH,
+    watermarkPlan,
     scaleDimensions,
     outputType,
     isSupportedPhoto,
