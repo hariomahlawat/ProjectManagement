@@ -50,7 +50,7 @@ public sealed class BackgroundModelOptions
 {
     public string Key { get; set; } = "bria-rmbg";
     public string Version { get; set; } = "2.0";
-    public string FileName { get; set; } = "model.onnx";
+    public string FileName { get; set; } = "background_removal_bria_rmbg_2.0.onnx";
 
     /// <summary>Lower-case hex SHA-256 of the file. Required: the model is not used without it.</summary>
     public string Sha256 { get; set; } = string.Empty;
@@ -59,7 +59,7 @@ public sealed class BackgroundModelOptions
     public string Publisher { get; set; } = "BRIA AI";
 
     /// <summary>Credit shown with the tool, as the model's licence asks.</summary>
-    public string Attribution { get; set; } = "Background removal by BRIA RMBG";
+    public string Attribution { get; set; } = "Background removal powered by BRIA RMBG-2.0 (CC BY-NC 4.0)";
 
     /// <summary>Input tensor name; empty takes the model's only input.</summary>
     public string InputName { get; set; } = string.Empty;
