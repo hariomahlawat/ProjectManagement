@@ -2726,7 +2726,8 @@
    *   targetBytes  optional size to keep the file under (the same search as reducePdf)
    *   encodePage   (index, dpi, quality) → { widthPt, heightPt, pixelWidth, pixelHeight,
    *                jpeg: Uint8Array (colour JPG), grey: Uint8Array | null (8-bit grey pixels, given
-   *                only when the page has no colour) }. The page draws it with pdf.js.
+   *                only when the page has no colour), dpi: optional, the resolution actually drawn
+   *                when a very large page had to be drawn lower }. The page draws it with pdf.js.
    *   onProgress   ({ step, done, total }) for each page; `step` counts the tries
    *   signal       an AbortSignal; stops between pages with a 'cancelled' error
    *
@@ -2769,7 +2770,8 @@
           }
         }
         pictureBytes += data.length;
-        pages.push({ kind, data, widthPt: page.widthPt, heightPt: page.heightPt, pixelWidth: page.pixelWidth, pixelHeight: page.pixelHeight });
+        const drawnDpi = page.dpi > 0 && page.dpi < dpi ? Math.floor(page.dpi) : dpi;
+        pages.push({ index, kind, data, drawnDpi, widthPt: page.widthPt, heightPt: page.heightPt, pixelWidth: page.pixelWidth, pixelHeight: page.pixelHeight });
       }
       return { dpi, quality, bytes: pictureBytes, pages };
     };
@@ -2838,6 +2840,8 @@
       preset: preset.key,
       pages: total,
       greyPages: result.pages.filter((page) => page.kind === 'grey').length,
+      // Pages too large for the browser at this resolution, drawn lower: [{ page (1-based), dpi }].
+      lowered: result.pages.filter((page) => page.drawnDpi < result.dpi).map((page) => ({ page: page.index + 1, dpi: page.drawnDpi })),
       dpi: result.dpi,
       quality: result.quality,
       previewPage: 0,

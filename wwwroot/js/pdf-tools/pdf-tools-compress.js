@@ -249,18 +249,41 @@
   function runScan(bytes, options, onProgress) {
     const controller = new AbortController();
     let rendered = null;
+    let closed = false;
+    const close = () => {
+      closed = true;
+      rendered?.destroy();
+      rendered = null;
+    };
     const encodePage = async (index, dpi, quality) => {
-      if (!rendered) rendered = await ui.openForRender(bytes);
+      if (!rendered) {
+        const opened = await ui.openForRender(bytes);
+        // Stopped while it was opening: the run has already ended, so close this copy here.
+        if (closed || controller.signal.aborted) {
+          opened.destroy();
+          throw stopped();
+        }
+        rendered = opened;
+      }
       const page = await rendered.getPage(index + 1);
       const canvas = document.createElement('canvas');
       try {
         // pdf.js includes the page's turn and /UserUnit: this is the page as it is seen.
         const base = page.getViewport({ scale: 1 });
-        await ui.renderPage(page, canvas, { scale: dpi / 72 });
+        // A very large page is drawn lower than asked (the browser's canvas limit); say so.
+        const { resolution } = await ui.renderPage(page, canvas, { scale: dpi / 72 });
         const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
         if (!blob) return null;
         const jpeg = new Uint8Array(await blob.arrayBuffer());
-        return { widthPt: base.width, heightPt: base.height, pixelWidth: canvas.width, pixelHeight: canvas.height, jpeg, grey: greyPixels(canvas) };
+        return {
+          widthPt: base.width,
+          heightPt: base.height,
+          pixelWidth: canvas.width,
+          pixelHeight: canvas.height,
+          jpeg,
+          grey: greyPixels(canvas),
+          dpi: resolution < 1 ? Math.floor(dpi * resolution) : dpi
+        };
       } finally {
         page.cleanup();
         canvas.width = 0;
@@ -275,7 +298,7 @@
       .then((result) => { if (controller.signal.aborted) throw stopped(); return result; });
     work.catch(() => {}); // after Stop, its own end is not reported
     return {
-      promise: Promise.race([work, cancelled]).finally(() => rendered?.destroy()),
+      promise: Promise.race([work, cancelled]).finally(close),
       stop() {
         controller.abort();
         cancel();
@@ -351,6 +374,14 @@
     }
     if (report.scan) {
       warnings.push('Every page is now a picture: the text cannot be selected or searched, and links, form fields and bookmarks were removed.');
+      const lowered = report.lowered || [];
+      if (lowered.length) {
+        const lowest = Math.min(...lowered.map((item) => item.dpi));
+        const which = lowered.length === 1
+          ? `Page ${lowered[0].page} is`
+          : `${lowered.length} pages (${lowered.slice(0, 5).map((item) => item.page).join(', ')}${lowered.length > 5 ? ', …' : ''}) are`;
+        warnings.push(`${which} too large to draw at ${report.dpi} dpi in this browser, so ${lowered.length === 1 ? 'it was' : 'they were'} drawn at about ${lowest} dpi${lowered.length === 1 ? '' : ' or more'}.`);
+      }
     }
     if (report.pdfA) {
       warnings.push('This file said it was PDF/A. After the change it may no longer meet PDF/A, so check before sending it where PDF/A is required.');

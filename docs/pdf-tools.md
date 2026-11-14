@@ -252,8 +252,11 @@ in `pdf-tools-reduce.test.js`; the page only re-encodes pixels with a canvas (`e
   the title, author and subject are kept. Keep under uses the same search as above, from the
   preset down to 72 dpi, drawing every page again for each try. It runs on the page, not in the
   worker, because pdf.js draws on the page's canvas; Stop ends it at once, even in the middle of
-  a large page. The result says how many pages became pictures, at what resolution, and warns
-  that the text is gone; the preview shows page 1 before and after. The file is named
+  a large page (a copy of the file still opening when Stop is pressed is closed as soon as it
+  opens). A page too large for the browser's canvas (over 24 million pixels) is drawn lower,
+  as in PDF to pictures, and the result names it and the resolution it got. The result says how
+  many pages became pictures, at what resolution, and warns that the text is gone; the preview
+  shows page 1 before and after. The file is named
   `name-scanned.pdf`. A file that would not get smaller is not offered, as above.
 
 ## Code map

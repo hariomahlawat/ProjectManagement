@@ -993,6 +993,18 @@ test('scanPdf makes each page one picture at its true size, keeps the title and 
   assert.deepEqual({ scan: result.report.scan, pages: result.report.pages, dpi: result.report.dpi }, { scan: true, pages: 3, dpi: 150 });
 });
 
+test('scanPdf reports pages that had to be drawn below the resolution asked for', async () => {
+  const original = await scanSource();
+  const pages = fakePages([[595, 842], [842, 595], [595, 842]]);
+  const encodePage = async (index, dpi, quality) => ({ ...(await pages.encodePage(index, dpi, quality)), dpi: index === 2 ? 118.7 : dpi });
+  const result = await tools.scanPdf(PDFLib, original, { preset: 'print', encodePage });
+  assert.equal(result.report.dpi, 220);
+  assert.deepEqual(result.report.lowered, [{ page: 3, dpi: 118 }]);
+
+  const plain = await tools.scanPdf(PDFLib, original, { preset: 'print', encodePage: fakePages([[595, 842], [842, 595], [595, 842]]).encodePage });
+  assert.deepEqual(plain.report.lowered, []);
+});
+
 test('scanPdf keeps a grey page grey when grey pixels are smaller than its JPG', async () => {
   const original = await scanSource();
   const pages = fakePages([[595, 842], [842, 595], [595, 842]], { grey: (index, count) => (index === 1 ? new Uint8Array(count).fill(250) : null) });
