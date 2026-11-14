@@ -24,6 +24,18 @@ public static class PhotoToolsApi
     public const string NotSetUpMessage =
         "Remove background is not set up on this PRISM server yet. Ask your PRISM administrator.";
 
+    /// <summary>What the screen says for each state in which the tool cannot be used.</summary>
+    public static string MessageFor(BackgroundModelState state) => state switch
+    {
+        BackgroundModelState.Checking =>
+            "Remove background is getting ready on the PRISM server. Open this screen again in a minute.",
+        BackgroundModelState.FileUnreadable =>
+            "Remove background cannot read its model file right now. Try again in a minute, or ask your PRISM administrator.",
+        BackgroundModelState.ModelInvalid or BackgroundModelState.RuntimeMissing =>
+            "Remove background is not working on this PRISM server. Ask your PRISM administrator to check the server log.",
+        _ => NotSetUpMessage
+    };
+
     public static IServiceCollection AddPhotoTools(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -55,7 +67,7 @@ public static class PhotoToolsApi
         {
             available = readiness.IsReady,
             state = StateName(readiness.State),
-            message = readiness.IsReady ? null : NotSetUpMessage,
+            message = readiness.IsReady ? null : MessageFor(readiness.State),
             attribution = readiness.IsReady ? settings.Model.Attribution : null,
             maximumSide = settings.EffectiveSide,
             maximumBytes = settings.EffectiveUploadBytes
@@ -94,9 +106,10 @@ public static class PhotoToolsApi
         // Answered before the photo is read: a server that is not set up, or whose queue is full,
         // never holds the photo in memory first. The place is taken now, so a photo still arriving
         // counts against the queue, and given back on every way out.
-        if (!service.Readiness().IsReady)
+        var readiness = service.Readiness();
+        if (!readiness.IsReady)
         {
-            return Problem(StatusCodes.Status503ServiceUnavailable, NotSetUpMessage);
+            return Problem(StatusCodes.Status503ServiceUnavailable, MessageFor(readiness.State));
         }
 
         using var place = service.TryTakePlace();
@@ -145,7 +158,7 @@ public static class PhotoToolsApi
                 httpContext.Response.Headers["X-Mask-Height"] = result.Height.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 return Results.File(result.MaskPng!, "image/png");
             case BackgroundRemovalOutcome.Unavailable:
-                return Problem(StatusCodes.Status503ServiceUnavailable, NotSetUpMessage);
+                return Problem(StatusCodes.Status503ServiceUnavailable, MessageFor(result.ModelState ?? BackgroundModelState.Disabled));
             case BackgroundRemovalOutcome.Busy:
                 return Busy(httpContext);
             case BackgroundRemovalOutcome.NotAPhoto:
@@ -220,6 +233,10 @@ public static class PhotoToolsApi
         BackgroundModelState.FileMissing => "model-missing",
         BackgroundModelState.ChecksumNotConfigured => "checksum-not-configured",
         BackgroundModelState.ChecksumMismatch => "checksum-mismatch",
+        BackgroundModelState.Checking => "checking",
+        BackgroundModelState.FileUnreadable => "model-unreadable",
+        BackgroundModelState.ModelInvalid => "model-invalid",
+        BackgroundModelState.RuntimeMissing => "runtime-missing",
         _ => "unknown"
     };
 }

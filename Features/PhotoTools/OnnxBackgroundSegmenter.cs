@@ -16,7 +16,19 @@ public interface IBackgroundSegmenter
     /// when the file is no longer the one that was approved.
     /// </summary>
     BackgroundMask Segment(SKBitmap photo, BackgroundModelReadiness model, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// True when this approved file, with the current settings, recently failed to load; it is not
+    /// loaded again (1 GB each time) until the file or settings change or a few minutes pass.
+    /// </summary>
+    bool HasFailedToLoad(BackgroundModelReadiness approved) => false;
+
+    /// <summary>Whether ONNX Runtime's native library can be loaded on this server.</summary>
+    bool RuntimeAvailable => true;
 }
+
+/// <summary>The approved model could not be loaded (wrong settings, a damaged file); not retried at once.</summary>
+public sealed class BackgroundModelLoadException(string message, Exception? inner = null) : Exception(message, inner);
 
 /// <summary>The model file changed after its checksum was checked; it is not used until checked again.</summary>
 public sealed class BackgroundModelChangedException : Exception
@@ -48,6 +60,38 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
     private readonly int _concurrent;
     private LoadedModel? _loaded;
     private bool _disposed;
+    private (string Key, DateTime FailedUtc, string Message)? _failed;
+    private static readonly TimeSpan FailedLoadRetry = TimeSpan.FromMinutes(5);
+    private static readonly Lazy<bool> Runtime = new(() =>
+    {
+        try
+        {
+            _ = OrtEnv.Instance();
+            return true;
+        }
+        catch (Exception error) when (error is DllNotFoundException or TypeInitializationException
+            or BadImageFormatException or EntryPointNotFoundException or OnnxRuntimeException)
+        {
+            return false;
+        }
+    });
+
+    public bool RuntimeAvailable => Runtime.Value;
+
+    public bool HasFailedToLoad(BackgroundModelReadiness approved)
+    {
+        ArgumentNullException.ThrowIfNull(approved);
+        if (!approved.IsReady)
+        {
+            return false;
+        }
+
+        var key = KeyFor(approved, _options.CurrentValue);
+        lock (_gate)
+        {
+            return _failed is { } failed && failed.Key == key && DateTime.UtcNow - failed.FailedUtc < FailedLoadRetry;
+        }
+    }
 
     public OnnxBackgroundSegmenter(
         IOptionsMonitor<BackgroundRemovalOptions> options,
@@ -194,7 +238,27 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
                 throw new BackgroundModelChangedException();
             }
 
-            var fresh = new LoadedModel(Load(path, options), key) { Users = 1 };
+            if (_failed is { } failed && failed.Key == key && DateTime.UtcNow - failed.FailedUtc < FailedLoadRetry)
+            {
+                throw new BackgroundModelLoadException(failed.Message);
+            }
+
+            InferenceSession session;
+            try
+            {
+                session = Load(path, options);
+            }
+            catch (Exception error) when (error is not OutOfMemoryException)
+            {
+                // Logged once here; later photos are refused at once until the file or settings
+                // change or a few minutes pass, instead of loading 1 GB again for each one.
+                _failed = (key, DateTime.UtcNow, error.Message);
+                _logger.LogError(error, "The background removal model could not be loaded. It is not tried again for {Minutes} minutes or until its file or settings change.", (int)FailedLoadRetry.TotalMinutes);
+                throw new BackgroundModelLoadException(error.Message, error);
+            }
+
+            _failed = null;
+            var fresh = new LoadedModel(session, key) { Users = 1 };
             if (_loaded is not null)
             {
                 _loaded.Retired = true;
