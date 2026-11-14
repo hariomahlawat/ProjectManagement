@@ -37,6 +37,19 @@ The user-facing description is in [photo-tools.md](photo-tools.md).
 - Location and camera details never reach the server: the copy is redrawn on a canvas first.
 - The page says that a copy is sent to the PRISM server and is not stored.
 
+## Server prerequisites
+
+- **ONNX Runtime's native library** ships with PRISM: the published output holds
+  `runtimes/win-x64/native/onnxruntime.dll` (ONNX Runtime 1.20.1). Check it is there after
+  publishing; nothing is downloaded at run time.
+- **The Microsoft Visual C++ runtime** (2015-2022, x64) must be installed on a Windows server; ONNX
+  Runtime's library needs it. Without it the status is `runtime-missing`. Install it from the
+  offline installer kept with the server's other prerequisites.
+- **Memory:** about 6 GB free for each photo processed at the same time (see "Load on the
+  server").
+- **Processor:** any x64 processor; no graphics card. All photos together use at most half the
+  processors.
+
 ## Installing the model
 
 The weights are not in source control, as with the face models. BRIA publishes them on Hugging
@@ -64,10 +77,15 @@ on a computer with Internet access and copied to the server.
    `Enabled`, `ModelRoot`, `Model:FileName` and `Model:Sha256`, and check the model values in the
    table against the model page. `appsettings.Production.json` already holds `ModelRoot`,
    `FileName` and the SHA-256 of the RMBG-2.0 file downloaded on 13 Nov 2026
-   (`5b486f08200f513f460da46dd701db5fbb47d79b4be4b708a19444bcd4e79958`, 1,024,331,469 bytes), with
-   `Enabled` left `false`: see "Measured on a development computer" below before turning it on.
-5. Open Photo Tools, Remove background. No warning means it is ready. An administrator can also
-   open `/api/photo-tools/background/status` while signed in: `"state": "ready"`.
+   (`5b486f08200f513f460da46dd701db5fbb47d79b4be4b708a19444bcd4e79958`, 1,024,331,469 bytes), and
+   since 14 Nov 2026 the production values in "Production" below, with `Enabled` `true`.
+5. Open Photo Tools, Remove background. A minute after a start the model's checksum has been
+   worked out ("checking" until then); no warning then means the file and settings are accepted.
+   An administrator can also open `/api/photo-tools/background/status` while signed in:
+   `"state": "ready"`.
+6. Remove the background from one test photo, and check the server log for
+   `Background removed for a … photo in … ms.` Only this proves the model loads with these
+   settings: a wrong model value shows as `model-invalid` after the first photo, not before.
 
 Settings are re-read while PRISM runs, and the model is loaded on the first photo, so a restart
 is not needed; the one exception is `MaximumConcurrent`, which is read when PRISM starts.
@@ -142,6 +160,29 @@ much weaker than BRIA's models and is only for testing the pipeline.
   no longer grows from photo to photo. The first photo after a start (or after the model was
   released) took 45 s, model loading included; the next took **29 s**. A server running
   Remove background therefore needs about 6 GB free for each photo processed at the same time.
+
+### Production
+
+The production server has 36 processors and 65 GB of memory, and no graphics card (owner, 14 Nov
+2026). The owner chose **one photo at a time, the others queued**. `appsettings.Production.json`
+therefore sets:
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| `Enabled` | `true` | Turned on once the memory fix and the request limits were in. |
+| `MaximumConcurrent` | `1` | One photo at a time. |
+| `MaximumWaiting` | `4` | Up to four more wait their turn; a fifth is told the server is busy, and keeps its photo with Try again. |
+| `IntraOpThreads` | `12` | More threads for the one photo, so the queue moves faster. PRISM never gives it more than half the processors (18 of 36), so most of the server stays free. |
+| `TimeoutSeconds` | `120` | The limit includes waiting in the queue: at 15 to 30 s a photo, the last of five must still finish. |
+
+At most about 7.5 GB is in use while a photo runs and about 2.2 GB once the model is loaded, well
+within 65 GB; the model leaves memory after 10 minutes without a photo. The time per photo on
+this server has **not been measured yet**: it is expected to be shorter than the 29 s above, with
+twice the threads. After the first photos, read the times in the server log
+(`Background removed for a … photo in … ms`) and adjust `IntraOpThreads` if needed.
+
+Until `background_removal_bria_rmbg_2.0.onnx` is in `F:/ProjectManagementData/media-models/`, the
+status is `model-missing`: the home card is dimmed and the rest of PRISM is not affected.
 - Only `MaximumConcurrent` photos run at once, each with at most `IntraOpThreads` threads; others
   wait their turn, and when `MaximumWaiting` are already waiting the answer is "busy". "Busy" and
   "not set up" are answered before the photo is read, so a full queue never holds photos in
@@ -191,8 +232,13 @@ much weaker than BRIA's models and is only for testing the pipeline.
 
 ## Rollback
 
-Set `PhotoTools:BackgroundRemoval:Enabled` to `false`. The screen then says it is not set up;
-nothing else changes. No database or stored data is involved.
+Set `PhotoTools:BackgroundRemoval:Enabled` to `false`. The screen then says it is not set up and
+the home card is dimmed; nothing else changes. No database or stored data is involved.
+
+- The settings are re-read without a restart. The loaded model leaves memory within half a minute
+  of `Enabled` being set to `false` (it is checked every 30 seconds).
+- A browser that already had the screen open keeps its Choose button until the screen is opened
+  again; its next photo is answered "not set up".
 
 ## Limits
 

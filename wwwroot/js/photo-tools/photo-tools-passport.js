@@ -601,6 +601,7 @@
       button.setAttribute('aria-pressed', String(button.dataset.bg === background));
     }
     bgOther.classList.toggle('is-pressed', !preset);
+    bgColour.setAttribute('aria-label', preset ? 'Other background colour' : 'Other background colour, chosen');
     for (const button of bgButtons) {
       const dot = button.querySelector('.phot-bgchoice__dot');
       if (dot) dot.style.setProperty('--phot-swatch', button.dataset.bg);

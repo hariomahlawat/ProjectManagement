@@ -32,9 +32,9 @@
   const BRUSH_RINGS = 6;
   const BRUSH_RING_ALPHA = 0.3;
   const BRUSH_HINTS = {
-    refine: 'Paint along hair, fur or a soft edge. What looks like the old background goes; strands and edges stay.',
-    erase: 'Paint over anything that should not be in the cut-out.',
-    restore: 'Paint where part of the subject was taken away. It comes back.'
+    refine: 'Drag on the photo to paint along hair, fur or a soft edge. What looks like the old background goes; strands and edges stay.',
+    erase: 'Drag on the photo to paint over anything that should not be in the cut-out.',
+    restore: 'Drag on the photo to paint where part of the person or object was taken away. It comes back.'
   };
   const JPEG = core.TYPES.jpeg;
 
@@ -60,6 +60,7 @@
   const originalButton = $('[data-action="remove-original"]');
   const bgButtons = $$('[data-remove-bg]');
   const bgOther = $('[data-remove-bg-other]');
+  const jpegHint = $('[data-remove-jpeg-hint]');
   const bgColour = $('[data-remove-bg-colour]');
   const brushButtons = $$('[data-remove-brush]');
   const brushHint = $('[data-remove-brush-hint]');
@@ -650,6 +651,8 @@
     }
     const preset = bgButtons.some(button => button.dataset.removeBg === backdrop);
     bgOther.classList.toggle('is-pressed', !preset);
+    // The colour picker is not a button, so its name says when it is the one chosen.
+    bgColour.setAttribute('aria-label', preset ? 'Other background colour' : 'Other background colour, chosen');
     for (const button of brushButtons) button.setAttribute('aria-pressed', String(button.dataset.removeBrush === brush));
     for (const button of sizeButtons) button.setAttribute('aria-pressed', String(button.dataset.removeSizeChoice === brushSize));
     brushHint.textContent = BRUSH_HINTS[brush];
@@ -660,6 +663,8 @@
     const jpeg = format.querySelector('option[value="jpeg"]');
     jpeg.disabled = backdrop === 'transparent';
     if (jpeg.disabled && format.value === 'jpeg') format.value = 'png';
+    // Says why JPG cannot be picked, instead of leaving it greyed out without a reason.
+    jpegHint.hidden = !jpeg.disabled;
     downloadButton.disabled = busy || !cutout;
     sizeLabel.textContent = work ? `${savedSize().width} × ${savedSize().height} px` : '';
     photoBox.classList.toggle('is-clear', backdrop === 'transparent' && !showOriginal);
