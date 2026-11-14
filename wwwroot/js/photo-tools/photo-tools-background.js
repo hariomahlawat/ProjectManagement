@@ -455,6 +455,9 @@
     const source = full;
     const size = shared.sizeOf(source);
     setBusy(FINDING);
+    // A photo that replaced a finished cut-out has none yet: the brushes go off and the hint
+    // goes away now, not when this request ends.
+    renderControls();
     clearTimeout(slowTimer);
     slowTimer = setTimeout(() => {
       if (mine !== openRun || !busy) return;
