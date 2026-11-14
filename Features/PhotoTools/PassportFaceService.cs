@@ -55,16 +55,14 @@ public interface IPassportFaceService
 /// </summary>
 public sealed class PassportFaceService : IPassportFaceService
 {
-    private const int AtOnce = 2;
-
     private readonly IFaceLocationEngine? _engine;
-    private readonly IOptionsMonitor<BackgroundRemovalOptions> _options;
+    private readonly IOptionsMonitor<PassportFaceOptions> _options;
     private readonly ILogger<PassportFaceService> _logger;
-    private readonly SemaphoreSlim _turn = new(AtOnce, AtOnce);
+    private readonly SemaphoreSlim _turn;
 
     public PassportFaceService(
         IServiceProvider services,
-        IOptionsMonitor<BackgroundRemovalOptions> options,
+        IOptionsMonitor<PassportFaceOptions> options,
         ILogger<PassportFaceService> logger)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -72,6 +70,9 @@ public sealed class PassportFaceService : IPassportFaceService
         _engine = services.GetService<IFaceLocationEngine>();
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        // The number of places is read once: a running server keeps the count it started with.
+        var atOnce = _options.CurrentValue.EffectiveConcurrent;
+        _turn = new SemaphoreSlim(atOnce, atOnce);
     }
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken)
@@ -155,10 +156,16 @@ public sealed class PassportFaceService : IPassportFaceService
             }
         }
 
+        // One face may take this long in all; past it the answer is "busy", and the page lets the
+        // user place it by hand. A caller who leaves still cancels it at once.
+        using var timeLimit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeLimit.CancelAfter(options.EffectiveTimeout);
         try
         {
             var stopwatch = Stopwatch.StartNew();
-            var located = await _engine.LocateLargestFaceAsync(photoBytes, cancellationToken);
+            var located = await _engine.LocateLargestFaceAsync(photoBytes, timeLimit.Token, options.EffectiveDetectorWait);
+            // An engine that could not stop in time still must not answer late as if on time.
+            timeLimit.Token.ThrowIfCancellationRequested();
             _logger.LogInformation(
                 "Face located for a {Width} x {Height} photo in {ElapsedMilliseconds} ms ({Found}).",
                 located.ImageWidth,
@@ -172,6 +179,16 @@ public sealed class PassportFaceService : IPassportFaceService
         catch (InvalidDataException)
         {
             return new(PassportFaceOutcome.NotAPhoto);
+        }
+        catch (TimeoutException)
+        {
+            _logger.LogInformation("The face detector was busy with the Photos library; answered busy.");
+            return new(PassportFaceOutcome.Busy);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Finding the face took longer than {Seconds} s; answered busy.", options.EffectiveTimeout.TotalSeconds);
+            return new(PassportFaceOutcome.Busy);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {

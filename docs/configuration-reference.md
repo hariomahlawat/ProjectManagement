@@ -179,6 +179,20 @@ must match `Model:Sha256`. The full list of keys, the model values and the insta
 | `PhotoTools:BackgroundRemoval:MaximumConcurrent` / `MaximumWaiting` | `1` / `4` | Photos at once (1 to 4), and waiting (0 to 32), before "busy". |
 | `PhotoTools:BackgroundRemoval:TimeoutSeconds` | `60` | Longest time for one photo. |
 
+## Photo Tools: placing the face in Passport photo
+
+`PhotoTools:PassportFace` limits the face endpoint (`POST /api/photo-tools/face`). It is on whenever
+the Photos library's face detector is installed; there is no switch of its own. The defaults are
+the limits it had before it had settings (shared with Remove background, two at once), so a server
+without this section behaves as before.
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `PhotoTools:PassportFace:MaximumConcurrent` | `2` | Faces found at once (1 to 16); any more are answered "busy" before the photo is read. Read once at startup. |
+| `PhotoTools:PassportFace:MaximumUploadBytes` / `MaximumSide` | 20 MB / `2048` | The largest photo accepted. The page sends a 1600 px JPG. |
+| `PhotoTools:PassportFace:TimeoutSeconds` | `15` | Longest time for one face, upload included (2 to 120); longer is answered "busy". |
+| `PhotoTools:PassportFace:DetectorWaitSeconds` | `5` | How long to wait while People indexing is using the detector (1 to 60) before answering "busy". |
+
 ## Background services
 
 No additional configuration is required for hosted services beyond the keys listed above, but note the following runtime behaviour:

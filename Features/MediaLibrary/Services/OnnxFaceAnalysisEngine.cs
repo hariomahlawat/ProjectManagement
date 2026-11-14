@@ -223,7 +223,8 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
     /// </summary>
     public async Task<FaceLocation> LocateLargestFaceAsync(
         byte[] imageBytes,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TimeSpan? waitForTurn = null)
     {
         if (_disposed)
         {
@@ -242,29 +243,50 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
         }
 
         await EnsureDetectorSessionAsync(readiness.DetectorPath, cancellationToken);
-        await _analysisGate.WaitAsync(cancellationToken);
+        // The same detector serves People indexing. A caller in a hurry (a passport photo someone is
+        // waiting for) says how long it may wait, rather than queueing behind a backlog.
+        if (waitForTurn is { } wait)
+        {
+            if (!await _analysisGate.WaitAsync(wait, cancellationToken))
+            {
+                throw new TimeoutException("The face detector is busy.");
+            }
+        }
+        else
+        {
+            await _analysisGate.WaitAsync(cancellationToken);
+        }
+
         try
         {
             using var encoded = SKData.CreateCopy(imageBytes);
             EnsureWithinPixelLimit(encoded);
             using var bitmap = SKBitmap.Decode(encoded)
                 ?? throw new InvalidDataException("The image could not be decoded for finding the face.");
+            // One detector pass runs to the end once started (well under a second); the caller's
+            // time limit is checked before each pass and before answering, so a late answer is
+            // never given as if it were on time.
             // A passport photo is mostly face: at the Photos library's usual size (up to 1600 px) such
-            // a face is too large for the detector to see. Smaller copies are tried first, then the
-            // usual size for a photo where the face is small.
-            IReadOnlyList<RawFaceDetection> selected = Array.Empty<RawFaceDetection>();
+            // a face is too large for the detector to see. Both small copies are looked at (a small
+            // face found at 640 px, such as a poster behind, must not hide the real one found at
+            // 320 px), and the usual size only for a photo where neither found one.
+            var selected = new List<RawFaceDetection>();
             foreach (var dimension in new int?[] { 640, 320, null })
             {
-                selected = FaceGeometry.NonMaximumSuppression(
+                if (dimension is null && selected.Count > 0)
+                {
+                    break;
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                selected.AddRange(FaceGeometry.NonMaximumSuppression(
                     Detect(bitmap, _options.Classification.FacePresenceMinimumConfidence, dimension),
                     detection => detection.Rectangle,
                     detection => detection.Confidence,
                     _options.People.NonMaximumSuppressionThreshold,
-                    _options.People.MaximumFacesPerAsset);
-                if (selected.Any(detection => detection.Landmarks is { Count: >= 5 }))
-                {
-                    break;
-                }
+                    _options.People.MaximumFacesPerAsset)
+                    .Where(detection => detection.Landmarks is { Count: >= 5 }));
             }
 
             var best = selected
@@ -278,6 +300,7 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceA
                 .OrderByDescending(item => item.Rectangle.Width * item.Rectangle.Height)
                 .ThenByDescending(item => item.Detection.Confidence)
                 .FirstOrDefault();
+            cancellationToken.ThrowIfCancellationRequested();
             if (best is null)
             {
                 return new FaceLocation(bitmap.Width, bitmap.Height, null);

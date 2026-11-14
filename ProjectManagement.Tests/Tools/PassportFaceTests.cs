@@ -89,6 +89,37 @@ public sealed class PassportFaceTests
     }
 
     [Fact]
+    public async Task LocateAsync_AnswersBusy_WhenTheDetectorIsTakenOrTooSlow_AndSaysHowLongToWait()
+    {
+        var waiting = new FakeEngine { Face = SomeFace(), DetectorBusy = true };
+        Assert.Equal(PassportFaceOutcome.Busy, (await ServiceWith(waiting, o => o.DetectorWaitSeconds = 3).LocateAsync(Jpeg(16, 16), CancellationToken.None)).Outcome);
+        Assert.Equal(TimeSpan.FromSeconds(3), waiting.LastWait);
+
+        var slow = new FakeEngine { Face = SomeFace(), Hold = new TaskCompletionSource() };
+        var started = DateTime.UtcNow;
+        var result = await ServiceWith(slow, o => o.TimeoutSeconds = 2).LocateAsync(Jpeg(16, 16), CancellationToken.None);
+        Assert.Equal(PassportFaceOutcome.Busy, result.Outcome);
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(10));
+
+        // An engine that cannot stop mid-pass and answers after the limit: still busy, never late "found".
+        var stubborn = new FakeEngine { Face = SomeFace(), IgnoringCancellation = TimeSpan.FromSeconds(3) };
+        Assert.Equal(PassportFaceOutcome.Busy, (await ServiceWith(stubborn, o => o.TimeoutSeconds = 2).LocateAsync(Jpeg(16, 16), CancellationToken.None)).Outcome);
+    }
+
+    [Fact]
+    public void Options_KeepTheLimitsTheFaceHadBefore_AndClampOddValues()
+    {
+        var defaults = new PassportFaceOptions();
+        Assert.Equal(2, defaults.EffectiveConcurrent);
+        Assert.Equal(20L * 1024 * 1024, defaults.EffectiveUploadBytes);
+        Assert.Equal(2048, defaults.EffectiveSide);
+        var odd = new PassportFaceOptions { MaximumConcurrent = 0, TimeoutSeconds = 0, DetectorWaitSeconds = 999 };
+        Assert.Equal(1, odd.EffectiveConcurrent);
+        Assert.Equal(TimeSpan.FromSeconds(2), odd.EffectiveTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(60), odd.EffectiveDetectorWait);
+    }
+
+    [Fact]
     public async Task TryTakePlace_CountsUploadsStillArriving_AndGivesThePlaceBackOnce()
     {
         var service = ServiceWith(new FakeEngine { Face = SomeFace() });
@@ -182,7 +213,7 @@ public sealed class PassportFaceTests
         10, 8, 20, 24, 0.95,
         new[] { new FacePoint(15, 15), new FacePoint(25, 15), new FacePoint(20, 20), new FacePoint(16, 26), new FacePoint(24, 26) });
 
-    private static PassportFaceService ServiceWith(FakeEngine? engine, Action<BackgroundRemovalOptions>? configure = null)
+    private static PassportFaceService ServiceWith(FakeEngine? engine, Action<PassportFaceOptions>? configure = null)
     {
         var services = new ServiceCollection();
         if (engine is not null)
@@ -190,7 +221,7 @@ public sealed class PassportFaceTests
             services.AddSingleton<IFaceLocationEngine>(engine);
         }
 
-        var options = new BackgroundRemovalOptions();
+        var options = new PassportFaceOptions();
         configure?.Invoke(options);
         return new PassportFaceService(services.BuildServiceProvider(), new FixedMonitor(options), NullLogger<PassportFaceService>.Instance);
     }
@@ -216,18 +247,33 @@ public sealed class PassportFaceTests
         public bool Ready { get; init; } = true;
         public LocatedFace? Face { get; init; }
         public TaskCompletionSource? Hold { get; init; }
+        public bool DetectorBusy { get; init; }
+        public TimeSpan IgnoringCancellation { get; init; }
+        public TimeSpan? LastWait;
         public int Calls;
 
         public Task<FaceDetectorReadiness> DetectorReadinessAsync(CancellationToken cancellationToken)
             => Task.FromResult(new FaceDetectorReadiness(true, Ready, Ready ? FaceReadinessState.Ready : FaceReadinessState.ModelsMissing,
                 Ready ? "Ready" : "Missing", Ready ? "detector.onnx" : null, DateTimeOffset.UtcNow, Array.Empty<FaceReadinessCheck>()));
 
-        public async Task<FaceLocation> LocateLargestFaceAsync(byte[] imageBytes, CancellationToken cancellationToken)
+        public async Task<FaceLocation> LocateLargestFaceAsync(byte[] imageBytes, CancellationToken cancellationToken, TimeSpan? waitForTurn = null)
         {
             Interlocked.Increment(ref Calls);
+            LastWait = waitForTurn;
+            if (DetectorBusy)
+            {
+                throw new TimeoutException("The face detector is busy.");
+            }
+
             if (Hold is not null)
             {
-                await Hold.Task;
+                await Hold.Task.WaitAsync(cancellationToken);
+            }
+
+            if (IgnoringCancellation > TimeSpan.Zero)
+            {
+                // Like a detector pass that runs to the end once started.
+                await Task.Delay(IgnoringCancellation, CancellationToken.None);
             }
 
             using var bitmap = SKBitmap.Decode(imageBytes);
@@ -235,11 +281,11 @@ public sealed class PassportFaceTests
         }
     }
 
-    private sealed class FixedMonitor(BackgroundRemovalOptions value) : IOptionsMonitor<BackgroundRemovalOptions>
+    private sealed class FixedMonitor(PassportFaceOptions value) : IOptionsMonitor<PassportFaceOptions>
     {
-        public BackgroundRemovalOptions CurrentValue => value;
-        public BackgroundRemovalOptions Get(string? name) => value;
-        public IDisposable? OnChange(Action<BackgroundRemovalOptions, string?> listener) => null;
+        public PassportFaceOptions CurrentValue => value;
+        public PassportFaceOptions Get(string? name) => value;
+        public IDisposable? OnChange(Action<PassportFaceOptions, string?> listener) => null;
     }
 
     private sealed class Host : IAsyncDisposable
