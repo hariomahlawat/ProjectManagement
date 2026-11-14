@@ -389,7 +389,7 @@ step, so Undo takes it back.
 | Sharpen | Pushes each pixel away from the average of its neighbours (`sharpenPixels`). |
 
 - **Adjust** has four sliders from -50 to 50 (brightness, contrast, colour, warmth) with a live
-  preview; zero changes nothing (`adjustPixels`). Nothing is applied until Apply is pressed.
+  preview; zero changes nothing (`adjustPixels`). An adjustment or a straighten shown on the screen but not yet applied is applied by itself on Download (the file is saved once it is made) and on picking another tool, so what is saved is always what the screen showed (owner decision, 14 Nov 2026); the line under Download says so meanwhile. A crop box that was not applied is still dropped on changing tool.
 - **Filters** are six fixed recipes (black and white, sepia, warm, cool, vivid, faded), each
   shown on a small copy of the photo as it is now (`FILTERS`, `filterPixels`).
 - Measurements (the lighting range, the paper level) are taken from the full-size photo the step
