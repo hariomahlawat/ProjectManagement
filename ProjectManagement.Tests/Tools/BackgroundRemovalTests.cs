@@ -6,7 +6,9 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.ML.OnnxRuntime;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Features.PhotoTools;
 using SkiaSharp;
@@ -53,8 +55,169 @@ public sealed class BackgroundRemovalTests : IDisposable
         var options = EnabledOptions();
         options.Model.InputWidth = 64;
         options.Model.InputHeight = 64;
-        var result = await ServiceFor(options).MaskAsync(Png(16, 16, (_, _) => SKColors.Red), CancellationToken.None);
-        Assert.Equal(BackgroundRemovalOutcome.Failed, result.Outcome);
+        var service = ServiceFor(options);
+        var result = await service.MaskAsync(Png(16, 16, (_, _) => SKColors.Red), CancellationToken.None);
+        Assert.Equal(BackgroundRemovalOutcome.Unavailable, result.Outcome);
+        Assert.Equal(BackgroundModelState.ModelInvalid, result.ModelState);
+
+        // The status says so too, and the next photo is refused without loading the model again.
+        Assert.Equal(BackgroundModelState.ModelInvalid, service.Readiness().State);
+        var again = await service.MaskAsync(Png(16, 16, (_, _) => SKColors.Red), CancellationToken.None);
+        Assert.Equal(BackgroundModelState.ModelInvalid, again.ModelState);
+
+        // Correcting the settings lets it load at once.
+        options.Model.InputWidth = 32;
+        options.Model.InputHeight = 32;
+        Assert.True(service.Readiness().IsReady);
+        Assert.Equal(BackgroundRemovalOutcome.Done, (await service.MaskAsync(Png(16, 16, (_, _) => SKColors.Red), CancellationToken.None)).Outcome);
+    }
+
+    // ----- Status and errors (PR 4 of docs/ux/photo-tools-remove-background-fixes.md) -----
+
+    [Fact]
+    public async Task Readiness_HashesALargeModelInTheBackground_SayingChecking()
+    {
+        var options = EnabledOptions();
+        var readiness = new BackgroundModelReadinessService(Monitor(options), new TestEnvironment())
+        {
+            SynchronousHashLimitBytes = 1
+        };
+
+        // The first check starts the hash and says so at once.
+        Assert.Equal(BackgroundModelState.Checking, readiness.Check().State);
+        // A second check while it runs says "checking" again, or "ready" if the tiny test model has
+        // already been hashed: it never starts a second hash or waits for the first.
+        Assert.Contains(readiness.Check().State, new[] { BackgroundModelState.Checking, BackgroundModelState.Ready });
+        await readiness.HashingTask!;
+
+        Assert.True(readiness.Check().IsReady);
+    }
+
+    [Fact]
+    public void Readiness_SaysUnreadable_WhileTheFileIsLocked_ThenTriesAgain()
+    {
+        var options = EnabledOptions();
+        var path = Path.Combine(_folder, "red-channel-mask.onnx");
+        var readiness = new BackgroundModelReadinessService(Monitor(options), new TestEnvironment());
+
+        using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.Equal(BackgroundModelState.FileUnreadable, readiness.Check().State);
+        }
+
+        // A changed file (a copy finished) is tried again at once.
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+        Assert.True(readiness.Check().IsReady);
+    }
+
+    [Fact]
+    public async Task MaskAsync_AUserWhoLeavesIsNotLoggedAsAnError()
+    {
+        var options = EnabledOptions();
+        var logger = new ListLogger();
+        var monitor = Monitor(options);
+        using var leaving = new CancellationTokenSource();
+        using var real = new OnnxBackgroundSegmenter(monitor, NullLogger<OnnxBackgroundSegmenter>.Instance);
+        var service = new BackgroundRemovalService(
+            monitor,
+            new BackgroundModelReadinessService(monitor, new TestEnvironment()),
+            new LeavesDuringRunSegmenter(real, leaving),
+            logger);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.MaskAsync(Png(8, 8, (_, _) => SKColors.Red), leaving.Token));
+
+        Assert.DoesNotContain(logger.Levels, level => level >= LogLevel.Warning);
+    }
+
+    [Fact]
+    public void Readiness_ReportsAMissingRuntime()
+    {
+        var options = EnabledOptions();
+        var monitor = Monitor(options);
+        var service = new BackgroundRemovalService(
+            monitor,
+            new BackgroundModelReadinessService(monitor, new TestEnvironment()),
+            new NoRuntimeSegmenter(),
+            NullLogger<BackgroundRemovalService>.Instance);
+
+        Assert.Equal(BackgroundModelState.RuntimeMissing, service.Readiness().State);
+    }
+
+    [Fact]
+    public async Task HasFailedToLoad_AnswersAtOnce_WhileAModelIsLoading()
+    {
+        // The loader holds its lock for a whole load (up to a minute for 1 GB); a status or upload
+        // request asking whether the model failed must not wait for it.
+        var options = EnabledOptions();
+        var approved = ReadinessFor(options).Check();
+        using var segmenter = new OnnxBackgroundSegmenter(Monitor(options), NullLogger<OnnxBackgroundSegmenter>.Instance);
+        var loaderLock = typeof(OnnxBackgroundSegmenter)
+            .GetField("_gate", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(segmenter)!;
+        using var held = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var loading = Task.Run(() =>
+        {
+            lock (loaderLock)
+            {
+                held.Set();
+                release.Wait(TimeSpan.FromSeconds(10));
+            }
+        });
+        held.Wait();
+
+        var answer = Task.Run(() => segmenter.HasFailedToLoad(approved));
+        var finished = await Task.WhenAny(answer, Task.Delay(TimeSpan.FromSeconds(2)));
+
+        release.Set();
+        await loading;
+        Assert.Same(answer, finished);
+        Assert.False(await answer);
+    }
+
+    [Theory]
+    [InlineData(BackgroundModelState.Checking, "getting ready")]
+    [InlineData(BackgroundModelState.FileUnreadable, "cannot read")]
+    [InlineData(BackgroundModelState.ModelInvalid, "server log")]
+    [InlineData(BackgroundModelState.RuntimeMissing, "server log")]
+    [InlineData(BackgroundModelState.Disabled, "not set up")]
+    public void EachStateHasItsOwnMessage(BackgroundModelState state, string words)
+    {
+        Assert.Contains(words, PhotoToolsApi.MessageFor(state), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The real model, with the user leaving just as it starts: the request is cancelled, ONNX
+    /// Runtime is told to stop, and its run throws as it does in production.
+    /// </summary>
+    private sealed class LeavesDuringRunSegmenter(OnnxBackgroundSegmenter real, CancellationTokenSource leaving) : IBackgroundSegmenter
+    {
+        public BackgroundMask Segment(SKBitmap photo, BackgroundModelReadiness model, CancellationToken cancellationToken)
+        {
+            leaving.Cancel();
+            return real.Segment(photo, model, cancellationToken);
+        }
+    }
+
+    private sealed class NoRuntimeSegmenter : IBackgroundSegmenter
+    {
+        public BackgroundMask Segment(SKBitmap photo, BackgroundModelReadiness model, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("Not used.");
+
+        public bool RuntimeAvailable => false;
+    }
+
+    private sealed class ListLogger : ILogger<BackgroundRemovalService>
+    {
+        public List<LogLevel> Levels { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Levels.Add(logLevel);
     }
 
     [Fact]
