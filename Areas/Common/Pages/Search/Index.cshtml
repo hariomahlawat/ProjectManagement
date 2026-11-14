@@ -20,6 +20,20 @@
     var activeFilterCount = selectedSources.Count + selectedProjects.Count + selectedStatuses.Count + selectedFileTypes.Count + selectedStages.Count
         + (Model.DateFrom.HasValue ? 1 : 0) + (Model.DateTo.HasValue ? 1 : 0);
     var hasAdvancedFilters = Model.HasAdvancedFilters();
+    // The basic (Legacy) engine applies Source but none of these; name only the ones set.
+    var unappliedFilterNames = new List<string>();
+    if (selectedProjects.Count > 0) unappliedFilterNames.Add("project");
+    if (selectedStatuses.Count > 0) unappliedFilterNames.Add("status");
+    if (selectedFileTypes.Count > 0) unappliedFilterNames.Add("file type");
+    if (selectedStages.Count > 0) unappliedFilterNames.Add("stage");
+    if (Model.DateFrom.HasValue || Model.DateTo.HasValue) unappliedFilterNames.Add("date");
+    var unappliedFilters = unappliedFilterNames.Count switch
+    {
+        0 => string.Empty,
+        1 => $"{unappliedFilterNames[0]} filter",
+        _ => $"{string.Join(", ", unappliedFilterNames.Take(unappliedFilterNames.Count - 1))} and {unappliedFilterNames[^1]} filters"
+    };
+    var unappliedVerb = unappliedFilterNames.Count == 1 ? "was" : "were";
     var CategoryOrder = new[] { "Projects", "Documents", "Trackers", "Organisation", "My Work", "Media" };
     var orderedCategoryFacets = CategoryOrder
         .Select(category => search.Facets.Categories.FirstOrDefault(facet => string.Equals(facet.Value, category, StringComparison.OrdinalIgnoreCase)))
@@ -43,9 +57,27 @@
 
     string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
 
+    // One icon per source, so a project, an IPR and a visit look different at a glance.
     string TypeIcon(SearchResult hit)
     {
         if (string.Equals(hit.FileType, "PDF", StringComparison.OrdinalIgnoreCase)) return "bi-file-earmark-pdf";
+        var bySource = hit.SourceModule switch
+        {
+            "Projects" => "bi-kanban",
+            "Project documents" => "bi-file-earmark-text",
+            "Document repository" => "bi-archive",
+            "FFC" => "bi-globe2",
+            "IPR" => "bi-patch-check",
+            "Activities" => "bi-calendar-event",
+            "Visits" => "bi-people",
+            "Social media" => "bi-megaphone",
+            "Training tracker" => "bi-mortarboard",
+            "ToT" => "bi-arrow-left-right",
+            "Proliferation" => "bi-diagram-3",
+            "ARPP" => "bi-journal-text",
+            _ => null
+        };
+        if (bySource is not null) return bySource;
         return hit.Category switch
         {
             "Projects" => "bi-kanban",
@@ -209,7 +241,7 @@ else
 
             @if (search.Facets.Categories.Count > 0)
             {
-                <nav class="pm-gs-tabs" aria-label="Result categories">
+                <nav class="pm-gs-tabs" aria-label="Result categories" data-search-tabs>
                     <a class="pm-gs-tab @(selectedCategory is null ? "is-active" : string.Empty)"
                        href="@BuildUrl(Model.Q!, null)"
                        aria-current="@(selectedCategory is null ? "page" : null)">All <span class="pm-gs-tab__count">@Model.Search.TotalHits.ToString("N0", CultureInfo.InvariantCulture)</span></a>
@@ -242,21 +274,21 @@ else
             }
             else if (search.IsDegraded)
             {
-                <div class="pm-gs-banner pm-gs-banner--warning" role="alert">
+                <div class="pm-gs-banner pm-gs-banner--warning" role="status">
                     <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
                     <div>
                         <strong>Showing basic results.</strong>
-                        <span>The full search service is temporarily unavailable, so some records may be missing@(hasAdvancedFilters ? " and your project, status, file type, stage and date filters were not applied" : string.Empty).</span>
+                        <span>The full search service is temporarily unavailable, so some records may be missing@(unappliedFilters.Length > 0 ? $" and your {unappliedFilters} {unappliedVerb} not applied" : string.Empty).</span>
                     </div>
                 </div>
             }
-            else if (!search.UsedSearchV2 && hasAdvancedFilters)
+            else if (!search.UsedSearchV2 && unappliedFilters.Length > 0)
             {
-                <div class="pm-gs-banner pm-gs-banner--warning" role="alert">
+                <div class="pm-gs-banner pm-gs-banner--warning" role="status">
                     <i class="bi bi-funnel" aria-hidden="true"></i>
                     <div>
-                        <strong>Filters were not applied.</strong>
-                        <span>Project, status, file type, stage and date filters are not available in this search mode. The results below are not filtered by them.</span>
+                        <strong>Some filters were not applied.</strong>
+                        <span>Your @unappliedFilters @unappliedVerb not applied in this search mode, so the results below are not filtered by @(unappliedFilterNames.Count == 1 ? "it" : "them").</span>
                     </div>
                 </div>
             }
@@ -479,36 +511,36 @@ else
                     }
                 </section>
 
-                @if (search.UsedSearchV2 && activeFilterCount > 0)
+                @if ((search.UsedSearchV2 && activeFilterCount > 0) || (!search.UsedSearchV2 && selectedSources.Count > 0))
                 {
                     <nav class="pm-gs-active-filters" aria-label="Active search filters">
                         @foreach (var source in selectedSources)
                         {
                             <a class="pm-gs-active-filter" href="@BuildUrlRemoving("Source", source)" aria-label="Remove filter Source: @source"><span>Source: @source</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
                         }
-                        @foreach (var project in selectedProjects)
+                        @foreach (var project in search.UsedSearchV2 ? selectedProjects : Enumerable.Empty<int>())
                         {
                             var projectValue = project.ToString(CultureInfo.InvariantCulture);
                             var projectLabel = ProjectFacetLabel(projectValue);
                             <a class="pm-gs-active-filter" href="@BuildUrlRemoving("Project", projectValue)" aria-label="Remove filter Project: @projectLabel"><span>Project: @projectLabel</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
                         }
-                        @foreach (var status in selectedStatuses)
+                        @foreach (var status in search.UsedSearchV2 ? selectedStatuses : Enumerable.Empty<string>())
                         {
                             <a class="pm-gs-active-filter" href="@BuildUrlRemoving("Status", status)" aria-label="Remove filter Status: @DisplayToken(status)"><span>Status: @DisplayToken(status)</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
                         }
-                        @foreach (var fileType in selectedFileTypes)
+                        @foreach (var fileType in search.UsedSearchV2 ? selectedFileTypes : Enumerable.Empty<string>())
                         {
                             <a class="pm-gs-active-filter" href="@BuildUrlRemoving("FileType", fileType)" aria-label="Remove filter File type: @fileType"><span>File type: @fileType</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
                         }
-                        @foreach (var stage in selectedStages)
+                        @foreach (var stage in search.UsedSearchV2 ? selectedStages : Enumerable.Empty<string>())
                         {
                             <a class="pm-gs-active-filter" href="@BuildUrlRemoving("Stage", stage)" aria-label="Remove filter Stage: @DisplayToken(stage)"><span>Stage: @DisplayToken(stage)</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
                         }
-                        @if (Model.DateFrom.HasValue)
+                        @if (search.UsedSearchV2 && Model.DateFrom.HasValue)
                         {
                             <a class="pm-gs-active-filter" href="@BuildUrlRemoving("DateFrom", string.Empty)" aria-label="Remove filter From @Model.DateFrom.Value.ToString("dd MMM yyyy")"><span>From: @Model.DateFrom.Value.ToString("dd MMM yyyy")</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
                         }
-                        @if (Model.DateTo.HasValue)
+                        @if (search.UsedSearchV2 && Model.DateTo.HasValue)
                         {
                             <a class="pm-gs-active-filter" href="@BuildUrlRemoving("DateTo", string.Empty)" aria-label="Remove filter To @Model.DateTo.Value.ToString("dd MMM yyyy")"><span>To: @Model.DateTo.Value.ToString("dd MMM yyyy")</span><i class="bi bi-x-lg" aria-hidden="true"></i></a>
                         }

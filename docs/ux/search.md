@@ -38,17 +38,21 @@ uses it through `navigation/global-search.js` (loaded by `site.js`); the Search 
   - `IsUnavailable`: no engine could run. A red `role="alert"` banner with **Try again**;
     no result list and never "No results".
   - `IsDegraded`: Search V2 should have served but the bounded Legacy engine answered.
-    An amber banner says results may be incomplete and, if any were set, that project,
-    status, file type, stage and date filters were not applied.
-  - Legacy as the configured engine (V2 not rolled out to the user) with advanced filters in
-    the URL: an amber banner says those filters were not applied.
-- **Result card.** Type icon, title (link), subtitle, three-line snippet, and a details row:
+    An amber banner (`role="status"`) says results may be incomplete and names the filters
+    that were not applied (project, status, file type, stage, date), only those that were set.
+  - Legacy as the configured engine (V2 not rolled out to the user) with such filters in
+    the URL: an amber banner names them. The Legacy engine does apply Source, so a Source
+    filter keeps its chip in every mode.
+- **Result card.** Type icon (one per source: project, project document, repository document,
+  FFC, IPR, activity, visit, social media, training, ToT, proliferation, ARPP; PDFs show a PDF
+  icon; kept, smaller, on phones), title (link), subtitle, three-line snippet, and a details row:
   source, parent project (from the indexed match fields), status, date, file type, and where
   the match was found when it was not the title. Separators come from CSS, so a missing field
   never leaves a stray dot. Query latency is shown only to users who can open the admin
   Search diagnostics (`AdminPolicies.SecurityView`) or in Development.
 - **More results.** "Showing 1–20 of 512 results". **Show more results** appends the next
-  page in place, updates the range and moves focus to the first new result; without
+  page in place, updates the range and moves focus to the first new result; a second tap
+  while it loads is ignored; without
   JavaScript (or if the request fails) it opens the next page, which shows its own range and
   a **First results** link. If the index changed since the previous page (`StaleCursor`), the
   engine restarts from the first result and the page says so in a blue `role="status"` notice;
@@ -62,9 +66,15 @@ uses it through `navigation/global-search.js` (loaded by `site.js`); the Search 
   bottom sheet. Detailed facets load on first open with a skeleton, a **Retry** on failure,
   and an `AbortController`. Clicking outside or on the Filters button with unapplied changes
   keeps the panel open and says "Changes not applied yet"; Escape or the close button discards
-  them and returns focus to the button. Date presets: last 30 days, last 12 months, this year.
+  them and returns focus to the button. On phones the sheet is a modal dialog
+  (`role="dialog"`, `aria-modal`) and the rest of the page is `inert` while it is open.
+  Date presets: last 30 days, last 12 months, this year.
   Active filter chips all read "Dimension: value"; a project chip is named from the facets or,
   when the project is not among them (for example with no results), from the project record.
+- **Category tabs** scroll sideways on narrow screens; the right edge fades while more tabs
+  are hidden, and the chosen tab is scrolled into view.
+- **Touch targets** on phones are at least 44px: chips, date presets, filter options, the
+  Filters button and the clear and close buttons.
 - **Print** prints the result list only, with each result's address.
 
 ## Styling
