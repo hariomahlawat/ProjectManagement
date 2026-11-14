@@ -93,6 +93,11 @@
   const SIGNED_OUT = 'Your PRISM session has ended. Reload the page and sign in again.';
   // States that will pass without anyone doing anything: the card is not dimmed for these.
   const PASSING_STATES = new Set(['checking', 'model-unreadable']);
+  // A photo given while the server is still getting ready (checking its model after a restart)
+  // is held, and opens when the server is ready: asked every 2 s, for up to 90 s.
+  const READY_POLL_MS = 2000;
+  const READY_WAIT_MS = 90000;
+  const HOLDING = 'Remove background is getting ready on the PRISM server. Your photo opens as soon as it is.';
 
   let status = null;
   let statusLoading = null;
@@ -378,10 +383,36 @@
     pending = null;
   }
 
+  /**
+   * The status for a photo just given: while the server says it is getting ready, the photo is
+   * held and the server asked again every few seconds, up to READY_WAIT_MS. Null when a later
+   * photo took over while this one waited.
+   */
+  async function statusForPhoto(pick) {
+    let answer = await loadStatus();
+    const until = Date.now() + READY_WAIT_MS;
+    while (!answer.available && answer.state === 'checking' && Date.now() < until) {
+      if (pick !== pickRun) return null;
+      statusBox.textContent = HOLDING;
+      await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));
+      if (pick !== pickRun) return null;
+      answer = await loadStatus(0);
+    }
+    return pick === pickRun ? answer : null;
+  }
+
   async function openFile(file) {
     shared.clearError();
     if (!file) return;
-    const ready = await loadStatus();
+    if (!core.isSupportedPhoto(file.type, file.name)) {
+      shared.showError('Only JPG, PNG and WEBP photos can be used here. iPhone HEIC photos are not supported.');
+      return;
+    }
+    // Only the photo picked last is used (see below); a photo held while the server gets ready
+    // gives way to a later one.
+    const pick = ++pickRun;
+    const ready = await statusForPhoto(pick);
+    if (!ready) return;
     if (!ready.available) {
       // A photo dropped while the tool cannot be used is not ignored without a word: the note
       // that says why gets the focus, so it is read out again.
@@ -389,14 +420,9 @@
       statusBox.focus();
       return;
     }
-    if (!core.isSupportedPhoto(file.type, file.name)) {
-      shared.showError('Only JPG, PNG and WEBP photos can be used here. iPhone HEIC photos are not supported.');
-      return;
-    }
     // Only the photo picked last is used. A photo that cannot be opened leaves the one already
     // being worked on alone: only a photo that opens takes over (openRun), so a mask still on its
     // way for the earlier photo finishes, or is dropped, and its busy state is always cleared.
-    const pick = ++pickRun;
     let source;
     try {
       source = await shared.openPhoto(file);
