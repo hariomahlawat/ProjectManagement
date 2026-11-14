@@ -326,6 +326,33 @@
     return { pageWidth: layout.width * point, pageHeight, lineWidth, photos, cuts };
   }
 
+  // ID card copy: a card is the ID-1 size, 85.6 × 54 mm (Aadhaar, PAN, driving licence, bank
+  // cards), in pixels at 300 dpi. A4 upright, the front above the back, centred across, 25 mm from
+  // the top and 12 mm apart, so there is room below to sign or write "self-attested".
+  const ID_CARD = Object.freeze({ width: 1011, height: 638, label: '85.6 × 54 mm' });
+  const ID_CARD_TOP = 295;
+  const ID_CARD_GAP = 142;
+
+  /**
+   * Where the front and the back go on an A4 page, for a card held wide (`tall` false) or upright.
+   * `card` is one card's size and `positions` the top left of the front, then the back, in pixels
+   * at 300 dpi, in the shape sheetPdfPlan takes.
+   */
+  function idCardLayout(tall = false) {
+    const paper = SHEET_SIZES.find(item => item.key === 'a4');
+    const card = tall ? { width: ID_CARD.height, height: ID_CARD.width } : { width: ID_CARD.width, height: ID_CARD.height };
+    const x = Math.round((paper.width - card.width) / 2);
+    return {
+      width: paper.width,
+      height: paper.height,
+      card,
+      positions: [
+        { x, y: ID_CARD_TOP },
+        { x, y: ID_CARD_TOP + card.height + ID_CARD_GAP }
+      ]
+    };
+  }
+
   const COVER_MAX_ZOOM = 3;
 
   /**
@@ -2449,6 +2476,8 @@
     SIGNATURE_SIZES,
     SHEET_SIZES,
     sheetLayout,
+    ID_CARD,
+    idCardLayout,
     measurePaper,
     cleanPaper,
     lengthToPixels,

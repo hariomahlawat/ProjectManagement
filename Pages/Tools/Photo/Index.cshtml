@@ -69,6 +69,11 @@
                     <span class="pdft-card__title">Print sheet</span>
                     <span class="pdft-card__text">Copies of one photo on 4 × 6, 5 × 7, A5 or A4 paper, ready to print.</span>
                 </a>
+                <a class="pdft-card" href="#idcard">
+                    <span class="pdft-card__icon pdft-accent--red" aria-hidden="true"><i class="bi bi-person-vcard"></i></span>
+                    <span class="pdft-card__title">ID card copy</span>
+                    <span class="pdft-card__text">Front and back of a card on one A4 page, at its true size.</span>
+                </a>
                 <a class="pdft-card" href="#reduce">
                     <span class="pdft-card__icon pdft-accent--orange" aria-hidden="true"><i class="bi bi-arrows-angle-contract"></i></span>
                     <span class="pdft-card__title">Reduce size</span>
@@ -412,6 +417,127 @@
                     <span class="phot-savebar__text" data-save-bar-text></span>
                     <button type="button" class="btn btn-primary" data-save-bar-download disabled>
                         <i class="bi bi-download" aria-hidden="true"></i> Download sheet
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        @* ---------- ID card copy ---------- *@
+        <section class="pdft-view" data-view="idcard" hidden aria-labelledby="photIdCardTitle">
+            <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple data-idcard-input tabindex="-1" aria-hidden="true" />
+            <div class="phot-head">
+                <a class="phot-head__back" href="#" data-nav-home>
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> All tools
+                </a>
+                <h1 id="photIdCardTitle">ID card copy</h1>
+            </div>
+
+            <div class="phot-layout" data-workspace>
+                <div class="phot-layout__main">
+                    <div class="phot-stage" data-drop data-idcard-drop>
+                        <div class="phot-paper" data-idcard-stage>
+                            <canvas class="phot-paper__canvas" data-idcard-canvas role="img" aria-label="Preview of the A4 page" aria-describedby="photIdCardCaption"></canvas>
+                        </div>
+                        <p class="phot-stage__hint phot-paper__caption">
+                            <strong id="photIdCardCaption" data-idcard-caption aria-live="polite"></strong>
+                            <span>Drop or paste (Ctrl+V) one photo or both. Print at actual size (100%), not “fit to page”.</span>
+                        </p>
+                    </div>
+                </div>
+
+                <aside class="phot-layout__side" aria-label="ID card copy settings">
+                    <div class="phot-panel phot-cardside" data-card-side="front" data-drop>
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">1</span>Front</h2>
+                        <div class="phot-cardside__empty" data-side-empty>
+                            <button type="button" class="btn btn-outline-primary" data-side-action="choose">
+                                <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose the front
+                            </button>
+                            <p class="phot-hint">or drop a photo of it here. JPG, PNG or WEBP.</p>
+                        </div>
+                        <div class="phot-cardside__photo" data-side-photo hidden>
+                            <canvas class="phot-cardside__thumb" data-side-thumb tabindex="0" role="group"
+                                    aria-label="Front: the part printed. Drag to move it, or use the arrow keys; plus and minus zoom."></canvas>
+                            <p class="phot-hint phot-cardside__file" data-side-file></p>
+                            <label class="phot-slider" for="photCardFrontZoom">Zoom
+                                <input type="range" class="form-range" id="photCardFrontZoom" min="100" max="300" step="1" value="100" data-side-zoom autocomplete="off" />
+                            </label>
+                            <div class="phot-cardside__buttons">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-side-action="turn">
+                                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Turn
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-side-action="centre">Centre</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-side-action="choose">Change</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-side-action="remove" aria-label="Remove the front">
+                                    <i class="bi bi-x-lg" aria-hidden="true"></i> Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="phot-panel phot-cardside" data-card-side="back" data-drop>
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">2</span>Back</h2>
+                        <div class="phot-cardside__empty" data-side-empty>
+                            <button type="button" class="btn btn-outline-primary" data-side-action="choose">
+                                <i class="bi bi-folder2-open" aria-hidden="true"></i> Choose the back
+                            </button>
+                            <p class="phot-hint">or drop a photo of it here. JPG, PNG or WEBP.</p>
+                        </div>
+                        <div class="phot-cardside__photo" data-side-photo hidden>
+                            <canvas class="phot-cardside__thumb" data-side-thumb tabindex="0" role="group"
+                                    aria-label="Back: the part printed. Drag to move it, or use the arrow keys; plus and minus zoom."></canvas>
+                            <p class="phot-hint phot-cardside__file" data-side-file></p>
+                            <label class="phot-slider" for="photCardBackZoom">Zoom
+                                <input type="range" class="form-range" id="photCardBackZoom" min="100" max="300" step="1" value="100" data-side-zoom autocomplete="off" />
+                            </label>
+                            <div class="phot-cardside__buttons">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-side-action="turn">
+                                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Turn
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-side-action="centre">Centre</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-side-action="choose">Change</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-side-action="remove" aria-label="Remove the back">
+                                    <i class="bi bi-x-lg" aria-hidden="true"></i> Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">3</span>Page</h2>
+                        <div class="phot-segment phot-segment--start" role="group" aria-label="Card shape" data-idcard-shapes>
+                            <button type="button" aria-pressed="true" data-idcard-shape="wide">Wide card</button>
+                            <button type="button" aria-pressed="false" data-idcard-shape="tall">Upright card</button>
+                        </div>
+                        <p class="phot-hint">85.6 × 54 mm, the size of Aadhaar, PAN, a driving licence or a bank card. A4 paper, the front above the back.</p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="photIdCardOutline" checked data-idcard-outline autocomplete="off" />
+                            <label class="form-check-label" for="photIdCardOutline">Thin outline around each card</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="photIdCardGrey" data-idcard-grey autocomplete="off" />
+                            <label class="form-check-label" for="photIdCardGrey">Black and white, like a photocopy</label>
+                        </div>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title"><span class="phot-step" aria-hidden="true">4</span>Save</h2>
+                        <div class="phot-segment phot-segment--start" role="group" aria-label="File type" data-idcard-formats>
+                            <button type="button" aria-pressed="true" data-idcard-format="pdf">PDF</button>
+                            <button type="button" aria-pressed="false" data-idcard-format="jpg">JPG</button>
+                        </div>
+                        <p class="phot-hint" data-idcard-format-note aria-live="polite"></p>
+                        <p class="phot-result" data-idcard-result aria-live="polite"></p>
+                        <button type="button" class="btn btn-primary btn-lg" data-action="download-idcard" disabled>
+                            <i class="bi bi-download" aria-hidden="true"></i> <span data-idcard-download-label>Download page</span>
+                        </button>
+                    </div>
+                </aside>
+                @* The Save bar: a copy of Download at the foot of the screen while the panel's own
+                   Download is out of view (photo-tools-canvas.js, wireSaveBar). *@
+                <div class="phot-savebar" data-save-bar hidden>
+                    <span class="phot-savebar__text" data-save-bar-text></span>
+                    <button type="button" class="btn btn-primary" data-save-bar-download disabled>
+                        <i class="bi bi-download" aria-hidden="true"></i> Download page
                     </button>
                 </div>
             </div>
@@ -968,6 +1094,7 @@
     @* The same PDF library PDF Tools uses, shipped with the application. Print sheet writes its PDF with it. *@
     <script src="~/lib/pdf-lib/1.17.1/dist/pdf-lib.min.js"></script>
     <script src="~/js/photo-tools/photo-tools-print.js" asp-append-version="true"></script>
+    <script src="~/js/photo-tools/photo-tools-idcard.js" asp-append-version="true"></script>
     <script src="~/js/photo-tools/photo-tools-editor.js" asp-append-version="true"></script>
     <script src="~/js/photo-tools/photo-tools-background.js" asp-append-version="true"></script>
 </body>

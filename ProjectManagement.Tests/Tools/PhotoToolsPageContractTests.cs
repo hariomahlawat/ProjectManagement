@@ -22,6 +22,7 @@ public sealed class PhotoToolsPageContractTests
         Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-app.js"),
         Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-passport.js"),
         Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-print.js"),
+        Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-idcard.js"),
         Path.Combine("wwwroot", "js", "photo-tools", "photo-tools-editor.js")
     };
 
@@ -205,6 +206,9 @@ public sealed class PhotoToolsPageContractTests
         var print = page.IndexOf("~/js/photo-tools/photo-tools-print.js", StringComparison.Ordinal);
 
         Assert.True(library >= 0 && library < print, "Print sheet needs pdf-lib loaded before photo-tools-print.js.");
+
+        var idCard = page.IndexOf("~/js/photo-tools/photo-tools-idcard.js", StringComparison.Ordinal);
+        Assert.True(library >= 0 && library < idCard, "ID card copy needs pdf-lib loaded before photo-tools-idcard.js.");
     }
 
     [Fact]

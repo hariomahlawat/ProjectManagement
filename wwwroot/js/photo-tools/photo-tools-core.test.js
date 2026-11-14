@@ -1666,3 +1666,29 @@ test('passportChecks judges the head from the real face when there is one', () =
   assert.deepEqual(run({ crown: 0.08, chin: 0.83, centre: 0.62 }), ['face-side']);
   assert.deepEqual(run(false), ['no-face']);
 });
+
+// ----- ID card copy (PR 4 of docs/ux/photo-tools-more.md) -----
+
+test('idCardLayout puts the front above the back on A4, true size, centred, with room below', () => {
+  const wide = tools.idCardLayout();
+  assert.equal(wide.width, 2480);
+  assert.equal(wide.height, 3508);
+  // 85.6 × 54 mm at 300 dpi.
+  assert.deepEqual(wide.card, { width: 1011, height: 638 });
+  const [front, back] = wide.positions;
+  assert.equal(front.x, back.x);
+  assert.ok(Math.abs(front.x * 2 + wide.card.width - wide.width) <= 1, 'centred across');
+  assert.equal(front.y, 295, '25 mm from the top');
+  assert.equal(back.y - (front.y + wide.card.height), 142, '12 mm between the cards');
+  assert.ok(back.y + wide.card.height < wide.height / 2, 'both cards in the top half, room to sign below');
+
+  const tall = tools.idCardLayout(true);
+  assert.deepEqual(tall.card, { width: 638, height: 1011 });
+  assert.ok(tall.positions[1].y + tall.card.height + 59 <= tall.height, 'an upright pair still fits inside the margin');
+
+  // The PDF plan Print sheet uses takes it as it is: the card is 85.6 mm wide in points.
+  const pdf = tools.sheetPdfPlan(wide, wide.card.width, wide.card.height);
+  assert.ok(Math.abs(pdf.photos[0].width - 85.6 / 25.4 * 72) < 0.2);
+  assert.ok(Math.abs(pdf.pageWidth - 595.3) < 0.2);
+  assert.equal(pdf.photos.length, 2);
+});
