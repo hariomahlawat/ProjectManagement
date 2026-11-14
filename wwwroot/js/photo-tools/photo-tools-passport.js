@@ -605,6 +605,8 @@
     }
     if (typeof full.close === 'function') full.close();
     usePhoto(turned);
+    // Turning is a change to this photo, not a new one: it would be lost by leaving too.
+    shared.setUnsaved('passport', true);
   }
 
   // ---------------------------------------------------------------------------
@@ -1783,12 +1785,15 @@
   });
   fixUndo.addEventListener('click', () => {
     fixes.pop();
+    // Any change after a download is unsaved again, Undo included.
+    shared.setUnsaved('passport', true);
     renderBackground();
     showFixes();
     queueSave(true);
   });
   fixClear.addEventListener('click', () => {
     fixes = [];
+    shared.setUnsaved('passport', true);
     renderBackground();
     showFixes();
     queueSave(true);

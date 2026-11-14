@@ -925,11 +925,14 @@
 
   undoButton.addEventListener('click', () => {
     strokes.pop();
+    // Any change after a download is unsaved again, Undo included.
+    shared.setUnsaved('remove', true);
     renderControls();
     rebuild();
   });
   resetButton.addEventListener('click', () => {
     strokes = [];
+    shared.setUnsaved('remove', true);
     renderControls();
     rebuild();
   });
