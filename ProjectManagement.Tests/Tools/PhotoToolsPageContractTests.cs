@@ -177,6 +177,21 @@ public sealed class PhotoToolsPageContractTests
     }
 
     [Fact]
+    public void Page_SaysWhichScreensSendACopyToThePrismServer()
+    {
+        var root = FindProjectRoot();
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Photo", "Index.cshtml"));
+
+        // Passport photo asks the server where the face is and, when needed, for the mask, so the
+        // page must never again say that only Remove background sends a copy.
+        Assert.DoesNotContain("Only Remove background", page, StringComparison.Ordinal);
+        Assert.Contains("Two screens send a copy to the PRISM server: Remove background", page, StringComparison.Ordinal);
+        Assert.Contains("except Remove background and Passport photo", page, StringComparison.Ordinal);
+        Assert.Contains("To place the face, and for a new background when the wall is not plain, a copy of the photo is sent to the PRISM server", page, StringComparison.Ordinal);
+        Assert.Contains("Better edges sends a copy of the photo to the PRISM server", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Page_LoadsThePdfLibraryFromTheApplicationBeforePrintSheet()
     {
         var root = FindProjectRoot();
