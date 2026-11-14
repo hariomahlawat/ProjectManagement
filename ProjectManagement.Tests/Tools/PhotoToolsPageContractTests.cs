@@ -142,15 +142,17 @@ public sealed class PhotoToolsPageContractTests
         var source = File.ReadAllText(Path.Combine(root, BackgroundScript));
         Assert.Contains($"'{ProjectManagement.Features.PhotoTools.PhotoToolsApi.StatusPath}'", source, StringComparison.Ordinal);
         Assert.Contains($"'{ProjectManagement.Features.PhotoTools.PhotoToolsApi.MaskPath}'", source, StringComparison.Ordinal);
+        Assert.Contains($"'{ProjectManagement.Features.PhotoTools.PhotoToolsApi.FacePath}'", source, StringComparison.Ordinal);
         Assert.DoesNotMatch(new Regex(@"https?://", RegexOptions.IgnoreCase), source);
         Assert.DoesNotContain("XMLHttpRequest", source, StringComparison.Ordinal);
         Assert.DoesNotContain("sendBeacon", source, StringComparison.Ordinal);
         Assert.DoesNotContain("WebSocket", source, StringComparison.Ordinal);
 
-        // Every fetch goes to one of the two endpoints, never to an address built at run time.
+        // Every fetch goes to one of PRISM's three endpoints, never to an address built at run time.
+        // Passport photo asks where the face is through this script (window.PrismPhotoServer).
         var fetches = Regex.Matches(source, @"fetch\(([^,)]+)");
-        Assert.Equal(2, fetches.Count);
-        Assert.All(fetches, call => Assert.Contains(call.Groups[1].Value.Trim(), new[] { "STATUS_URL", "MASK_URL" }));
+        Assert.Equal(3, fetches.Count);
+        Assert.All(fetches, call => Assert.Contains(call.Groups[1].Value.Trim(), new[] { "STATUS_URL", "MASK_URL", "FACE_URL" }));
     }
 
     [Fact]
