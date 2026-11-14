@@ -748,7 +748,7 @@
   // ---------------------------------------------------------------------------
 
   function renderSheet() {
-    sheetButton.disabled = !full || sizeProblem;
+    sheetButton.disabled = !full || sizeProblem || modelWorking();
   }
 
   // ---------------------------------------------------------------------------
@@ -833,19 +833,18 @@
   }
 
   /**
-   * Gives the finished photo its new background. Returns the status, or null when it is kept.
-   * `placed(context, picture)` draws a picture of the whole photo through the frame's move, turn
-   * and zoom.
+   * Gives the finished photo its new background. Returns what it made, for renderOutput to keep:
+   * { status (null when the background is kept), plain, changedPixels, wall, checked }. It changes
+   * nothing else, so a picture made only to be handed on (Print sheet) leaves the screen's state
+   * alone. `placed(context, picture)` draws a picture of the whole photo through the frame's move,
+   * turn and zoom.
    */
   function applyBackground(context, width, height, placed) {
-    plain = null;
-    changedPixels = null;
-    wall = null;
-    checked = null;
-    if (mode !== 'photo') return null;
+    const made = { status: null, plain: null, changedPixels: null, wall: null, checked: null };
+    if (mode !== 'photo') return made;
     const before = context.getImageData(0, 0, width, height);
-    checked = { before, found: null };
-    if (!background) return null;
+    made.checked = { before, found: null };
+    if (!background) return made;
     if (modelInUse()) {
       // The model's cut-out, placed like the photo and given the same look, over the plain colour.
       const layer = shared.newCanvas(width, height);
@@ -857,19 +856,20 @@
       context.fillStyle = background;
       context.fillRect(0, 0, width, height);
       context.drawImage(layer, 0, 0);
-      return core.BACKGROUND_STATUS.changed;
+      made.status = core.BACKGROUND_STATUS.changed;
+      return made;
     }
     const after = new ImageData(new Uint8ClampedArray(before.data), width, height);
     const result = core.changeBackground(after.data, width, height, backgroundColour(), Number(bgAmount.value));
-    checked.found = result;
-    const { status } = result;
-    if (status === core.BACKGROUND_STATUS.changed) {
-      plain = before;
-      changedPixels = after;
-      wall = result.wall;
-      composeFixes(context);
+    made.checked.found = result;
+    made.status = result.status;
+    if (result.status === core.BACKGROUND_STATUS.changed) {
+      made.plain = before;
+      made.changedPixels = after;
+      made.wall = result.wall;
+      composeFixes(context, made);
     }
-    return status;
+    return made;
   }
 
   // ---------------------------------------------------------------------------
@@ -975,8 +975,12 @@
     }
   }
 
-  /** Writes the changed photo with the touch-up strokes laid over it. */
-  function composeFixes(context) {
+  /**
+   * Writes the changed photo with the touch-up strokes laid over it. `parts` is what the background
+   * change made ({ changedPixels, plain, wall }); by default, the last one kept.
+   */
+  function composeFixes(context, parts = { changedPixels, plain, wall }) {
+    const { changedPixels, plain, wall } = parts;
     const pixels = new ImageData(new Uint8ClampedArray(changedPixels.data), changedPixels.width, changedPixels.height);
     if (fixes.length) {
       core.applyBackgroundFixes(pixels.data, plain.data, fixMask().data, backgroundColour(), {
@@ -1090,15 +1094,29 @@
 
   /** Hands the finished photo, at the size it prints at, to the Print sheet tool. */
   function openPrintSheet() {
-    if (!full || !frame.width || sizeProblem) return;
+    if (!full || !frame.width || sizeProblem || modelWorking()) return;
     document.dispatchEvent(new CustomEvent('phot:print-sheet', {
-      detail: { photo: renderOutput(), name: `${core.baseName(fileName)}-${MODES.photo.suffix}.jpg` }
+      detail: { photo: composeOutput().output, name: `${core.baseName(fileName)}-${MODES.photo.suffix}.jpg` }
     }));
   }
 
   // ---------------------------------------------------------------------------
   // The background model: when the colour method cannot cope, and on Better edges
   // ---------------------------------------------------------------------------
+
+  /** True while the model is changing the background of the photo on screen. */
+  function modelWorking() {
+    return modelAsk !== null && mode === 'photo' && Boolean(background);
+  }
+
+  /** Download and Print sheet wait while the model works, and the line under them says why. */
+  function showModelWait() {
+    if (!modelWorking()) return;
+    downloadButton.disabled = true;
+    renderSheet();
+    resultLine.className = 'phot-result';
+    resultLine.textContent = 'Changing the background on the PRISM server. Download and Print sheet are ready when it is done.';
+  }
 
   function modelInUse() {
     return mode === 'photo' && Boolean(background) && model !== null;
@@ -1181,6 +1199,8 @@
     // happening, rather than being dropped.
     const fromButton = document.activeElement === bgModelButton;
     renderBackground();
+    // Until the model answers, the photo would be saved with its old background.
+    showModelWait();
     if (fromButton) bgWait.focus({ preventScroll: true });
     const source = full;
     try {
@@ -1210,12 +1230,15 @@
         // Focus follows the note it was on (a keyboard user who pressed Better edges or Cancel).
         const followed = bgWait.contains(document.activeElement);
         renderBackground();
+        renderSheet();
         if (model) {
           // The note about the model shows once the photo is made again; focus goes to it then.
           focusModelNote = followed;
           queueSave();
-        } else if (modelRetry && bgRetry.hidden === false) {
-          bgRetryButton.focus({ preventScroll: true });
+        } else {
+          // Stopped or failed: the photo keeps the colour method's result, which can be saved.
+          queueSave(true);
+          if (modelRetry && bgRetry.hidden === false) bgRetryButton.focus({ preventScroll: true });
         }
       }
     }
@@ -1338,8 +1361,22 @@
     return source;
   }
 
-  /** Draws exactly what the crop frame shows at the saved size, from the full photo. */
+  /**
+   * Draws exactly what the crop frame shows at the saved size, from the full photo, and keeps
+   * what the background change made (for the brushes, the checks and the next save).
+   */
   function renderOutput() {
+    const { output, made } = composeOutput();
+    bgStatus = made.status;
+    plain = made.plain;
+    changedPixels = made.changedPixels;
+    wall = made.wall;
+    checked = made.checked;
+    return output;
+  }
+
+  /** The finished photo and what its background change made; changes nothing on the screen. */
+  function composeOutput() {
     const output = shared.newCanvas(size.width, size.height);
     const context = output.getContext('2d', { willReadFrequently: true });
     context.fillStyle = '#fff';
@@ -1363,8 +1400,8 @@
 
     applyLook(context, size.width, size.height);
     // After the lighting, so the new background is exactly the colour chosen.
-    bgStatus = applyBackground(context, size.width, size.height, placed);
-    return output;
+    const made = applyBackground(context, size.width, size.height, placed);
+    return { output, made };
   }
 
   async function save() {
@@ -1416,6 +1453,12 @@
         lowestQuality: 0.2
       });
       if (mine !== saveRun) return;
+      if (modelWorking()) {
+        // This photo still has the old background: the file is made again once the model answers.
+        saved = null;
+        showModelWait();
+        return;
+      }
       saved = { bytes: core.setJpegDpi(result.bytes, core.PRINT_DPI), reached: result.reached };
       const facts = `${size.width} × ${size.height} px, ${core.formatBytes(saved.bytes.length)}, JPG`;
       resultLine.className = result.reached ? 'phot-result is-ready' : 'phot-result is-over';
@@ -1720,7 +1763,7 @@
   });
 
   downloadButton.addEventListener('click', (event) => {
-    if (!saved || shared.isRepeatClick(event)) return;
+    if (!saved || modelWorking() || shared.isRepeatClick(event)) return;
     shared.saveBlob(new Blob([saved.bytes], { type: JPEG.mime }), `${core.baseName(fileName)}-${MODES[mode].suffix}.jpg`);
   });
 

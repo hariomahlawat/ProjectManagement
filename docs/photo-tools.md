@@ -265,7 +265,7 @@ no wait and no place in the server's one-photo-at-a-time queue.
   nothing. Touch up edges (Refine edge, Erase, Restore) works on the model's mask.
 - While it works, a note in the Background panel says "Finding the person…", then "Still working"
   with **Cancel** after 8 seconds. If the server is busy, too slow or out of reach, the photo
-  keeps the colour method's result and the note offers **Try again**. The photo can be moved
+  keeps the colour method's result and the note offers **Try again**. Download and Print sheet wait until it is done (the line under them says why), so the photo is never saved with the old background half way; when it stops, they come back with the colour method's result. The photo can be moved
   while it waits. A keyboard user who pressed Better edges is taken to the note, then to the line
   that says the model was used.
 - The model keeps whatever it sees as the subject: a second person, or a machine the person stands
