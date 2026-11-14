@@ -127,6 +127,20 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="phot-busy phot-busy--inline" data-bg-wait hidden>
+                            <span class="phot-busy__line">
+                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                <span data-bg-wait-text>Finding the person…</span>
+                            </span>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-action="bg-model-cancel" hidden>Cancel</button>
+                        </div>
+                        <div class="phot-busy phot-busy--inline phot-busy--retry" data-bg-retry hidden>
+                            <span data-bg-retry-text></span>
+                            <button type="button" class="btn btn-primary btn-sm" data-action="bg-model-retry">
+                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Try again
+                            </button>
+                        </div>
+                        <p class="visually-hidden" role="status" data-bg-wait-status></p>
                         <div class="phot-stage__bar phot-stage__bar--tools">
                             <label class="phot-stage__control" for="photZoom">Zoom
                                 <input type="range" class="form-range" id="photZoom" min="100" max="400" step="1" value="100" data-zoom />
@@ -239,7 +253,11 @@
                                     <button type="button" class="btn btn-primary" data-action="bg-fix-done">Done</button>
                                 </div>
                             </div>
+                            <button type="button" class="btn btn-outline-secondary phot-bg__compare" data-action="bg-model" hidden>
+                                <i class="bi bi-stars" aria-hidden="true"></i> Better edges
+                            </button>
                             <p class="phot-hint phot-hint--warning" data-bg-problem aria-live="polite" hidden></p>
+                            <p class="phot-hint" data-bg-model-note hidden>Edges by the PRISM server's background model. A copy of the photo was sent to the PRISM server, used in memory and not stored. Check the hair and shoulders before you use the photo; some offices do not accept a changed background.</p>
                             <p class="phot-hint" data-bg-note hidden>Works on a plain wall or curtain. Check the hair and shoulders before you use the photo. Some offices do not accept a photo with a changed background, so check the rules of your form.</p>
                         </div>
                     </div>

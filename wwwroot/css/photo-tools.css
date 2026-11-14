@@ -1079,6 +1079,17 @@
     display: none;
 }
 
+/* Passport photo: the photo stays movable while the PRISM server finds the person, so the note
+   sits under the stage instead of over it. */
+.phot-busy--inline {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 0.5rem 1rem;
+    background: color-mix(in srgb, var(--bs-body-bg) 85%, transparent);
+    cursor: default;
+}
+
 .phot-edit__photo {
     position: relative;
     flex: 0 0 auto;

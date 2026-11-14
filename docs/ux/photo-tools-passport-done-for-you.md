@@ -26,8 +26,12 @@ wait and no place in the server's one-at-a-time queue, so the colour method stay
 model is used where colour cannot cope.
 
 - Picking a background colour shows the colour method's result at once, as today.
-- The model is asked **automatically** when the colour method cannot do it cleanly: no plain
-  background found, too much taken as background, or the checks before saving flag the edge.
+- The model is asked **automatically** when the colour method cannot do it cleanly: the
+  background is not plain enough, no plain background was found, or too much was taken as
+  background. (Built in PR 5 on these three answers of the colour method; the checks before saving
+  do not ask the model by themselves, Better edges is there for that.)
+- The model keeps whatever it sees as the subject: a second person, or a machine the person stands
+  in front of, stays in the photo. The Erase brush takes it out.
 - A **Better edges** button sends the photo to the model when the user is not happy with the
   colour result (a shadowed wall, a white shirt on a white wall, loose hair).
 - When the model is used, Passport photo sends the same copy Remove background would (at most
