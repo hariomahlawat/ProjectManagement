@@ -354,6 +354,9 @@
     touched = true;
     shared.setUnsaved('passport', true);
     place();
+    // The limit depends on the angle (a straightened photo is enlarged a little to fill the
+    // frame), so the slider's end follows Straighten as well as the photo and its size.
+    renderZoomRange();
     draw();
     queueSave();
   }
