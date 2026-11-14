@@ -120,13 +120,16 @@
       };
     }
     const scale = Math.max(target.width / width, target.height / height);
-    const areaWidth = Math.min(width, Math.max(1, Math.round(target.width / scale)));
-    const areaHeight = Math.min(height, Math.max(1, Math.round(target.height / scale)));
+    // Not rounded to whole pixels: a small photo enlarged to a long thin size may need a part
+    // under a pixel high, and rounding it would stretch the photo instead of cropping it. The
+    // canvas reads a part of a photo at fractional positions.
+    const areaWidth = Math.min(width, target.width / scale);
+    const areaHeight = Math.min(height, target.height / scale);
     return {
       ...out,
       area: {
-        x: Math.floor((width - areaWidth) / 2),
-        y: Math.floor((height - areaHeight) / 2),
+        x: (width - areaWidth) / 2,
+        y: (height - areaHeight) / 2,
         width: areaWidth,
         height: areaHeight
       },

@@ -82,6 +82,16 @@ test('exactFit crop to fill cuts the edges evenly and fills the size', () => {
   const small = tools.exactFit(300, 200, { width: 600, height: 400 }, 'fill');
   assert.deepEqual(small.area, { x: 0, y: 0, width: 300, height: 200 });
   assert.deepEqual(small.place, { x: 0, y: 0, width: 600, height: 400 });
+  // A small photo into a long thin size keeps the size's shape: cropped, never stretched.
+  for (const [w, h, target] of [[100, 100, { width: 10000, height: 16 }], [100, 100, { width: 16, height: 10000 }], [333, 77, { width: 7001, height: 19 }]]) {
+    const plan = tools.exactFit(w, h, target, 'fill');
+    const { area } = plan;
+    assert.ok(Math.abs(area.width / area.height - target.width / target.height) < 1e-9, `${w}x${h} → ${target.width}x${target.height}`);
+    assert.ok(area.x >= 0 && area.y >= 0 && area.x + area.width <= w + 1e-9 && area.y + area.height <= h + 1e-9);
+  }
+  const thin = tools.exactFit(100, 100, { width: 10000, height: 16 }, 'fill').area;
+  assert.deepEqual([thin.x, thin.width], [0, 100]);
+  assert.ok(Math.abs(thin.height - 0.16) < 1e-9 && Math.abs(thin.y - 49.92) < 1e-9);
 });
 
 test('exactFit fit inside keeps the whole photo with an even border', () => {
