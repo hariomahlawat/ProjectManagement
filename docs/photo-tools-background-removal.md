@@ -93,9 +93,9 @@ Section `PhotoTools:BackgroundRemoval` (defaults in `appsettings.json`, code in
 | `IntraOpThreads` | `6` | Processor threads one photo may use. Whatever is set, all photos together never use more than half the server's processors (`ThreadsFor`), so the rest of PRISM stays responsive. |
 | `ModelIdleMinutes` | `10` | Minutes the model stays in memory after its last photo; then it is released and loaded again on the next photo (which then takes longer). `0` keeps it loaded. |
 | `MaximumConcurrent` | `1` | Photos processed at the same time (1 to 4). Read when PRISM starts: a change needs a restart. |
-| `MaximumWaiting` | `4` | Photos that may wait; beyond this the answer is "busy, try again in a few seconds". |
-| `MaximumUploadBytes` | `20971520` | Largest request (20 MB). |
-| `MaximumSide` | `2048` | Longest side of the copy the browser sends. The model works at 1024 px; a larger copy only costs transfer. |
+| `MaximumWaiting` | `4` | Photos that may wait (0 to 32); beyond this the answer is "busy, try again in a few seconds", given before the photo is read. |
+| `MaximumUploadBytes` | `20971520` | Largest request (20 MB). Kept between 1 MB and 64 MB: a value outside is used at its nearest end, never a start-up failure. |
+| `MaximumSide` | `2048` | Longest side of the copy the browser sends (256 to 4096 px). The model works at 1024 px; a larger copy only costs transfer. |
 | `TimeoutSeconds` | `60` | How long one photo may take, waiting included; then it is stopped. |
 | `Model:FileName` | `background_removal_bria_rmbg_2.0.onnx` | The file in `ModelRoot`. |
 | `Model:Sha256` | empty | Lower-case SHA-256 of the file. **Required**: the model is not used without it, or when it does not match. |
@@ -143,7 +143,14 @@ much weaker than BRIA's models and is only for testing the pipeline.
   released) took 45 s, model loading included; the next took **29 s**. A server running
   Remove background therefore needs about 6 GB free for each photo processed at the same time.
 - Only `MaximumConcurrent` photos run at once, each with at most `IntraOpThreads` threads; others
-  wait their turn, and when `MaximumWaiting` are already waiting the answer is "busy".
+  wait their turn, and when `MaximumWaiting` are already waiting the answer is "busy". "Busy" and
+  "not set up" are answered before the photo is read, so a full queue never holds photos in
+  memory. A request takes its place in the queue before its photo is read and keeps it while the
+  photo arrives, so slow uploads count against `MaximumWaiting` too; the photo goes straight into
+  one array of its declared size. A photo that takes longer than `TimeoutSeconds` to arrive is stopped
+  ("took too long to arrive") and its place given back, so open uploads cannot keep others on
+  "busy".
+- Only JPG, PNG and WEBP are decoded, whatever type the request names.
 - A photo that takes longer than `TimeoutSeconds` is stopped inside ONNX Runtime, not just
   abandoned.
 - When a user changes photo before the mask arrives, the browser cancels the earlier request and

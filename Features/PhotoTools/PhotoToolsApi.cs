@@ -57,8 +57,8 @@ public static class PhotoToolsApi
             state = StateName(readiness.State),
             message = readiness.IsReady ? null : NotSetUpMessage,
             attribution = readiness.IsReady ? settings.Model.Attribution : null,
-            maximumSide = settings.MaximumSide,
-            maximumBytes = settings.MaximumUploadBytes
+            maximumSide = settings.EffectiveSide,
+            maximumBytes = settings.EffectiveUploadBytes
         });
     }
 
@@ -85,10 +85,24 @@ public static class PhotoToolsApi
             return Problem(StatusCodes.Status415UnsupportedMediaType, "Send the photo as PNG, JPG or WEBP.");
         }
 
-        var limit = options.CurrentValue.MaximumUploadBytes;
+        var limit = options.CurrentValue.EffectiveUploadBytes;
         if (httpContext.Request.ContentLength > limit)
         {
             return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
+        }
+
+        // Answered before the photo is read: a server that is not set up, or whose queue is full,
+        // never holds the photo in memory first. The place is taken now, so a photo still arriving
+        // counts against the queue, and given back on every way out.
+        if (!service.Readiness().IsReady)
+        {
+            return Problem(StatusCodes.Status503ServiceUnavailable, NotSetUpMessage);
+        }
+
+        using var place = service.TryTakePlace();
+        if (place is null)
+        {
+            return Busy(httpContext);
         }
 
         var sizeLimit = httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
@@ -97,10 +111,18 @@ public static class PhotoToolsApi
             sizeLimit.MaxRequestBodySize = limit;
         }
 
+        // The upload has its own deadline while it holds a place: a photo that trickles in cannot keep
+        // the place (and others on "busy") for longer than one photo may take.
+        using var uploadDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        uploadDeadline.CancelAfter(UploadDeadline(options.CurrentValue));
         byte[] photo;
         try
         {
-            photo = await ReadBodyAsync(httpContext.Request.Body, limit, cancellationToken);
+            photo = await ReadBodyAsync(httpContext.Request.Body, httpContext.Request.ContentLength, limit, uploadDeadline.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return Problem(StatusCodes.Status408RequestTimeout, "The photo took too long to arrive. Try again.");
         }
         catch (InvalidDataException)
         {
@@ -110,8 +132,12 @@ public static class PhotoToolsApi
         {
             return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
         }
+        catch (EndOfStreamException)
+        {
+            return Problem(StatusCodes.Status400BadRequest, "The photo did not arrive in full. Try again.");
+        }
 
-        var result = await service.MaskAsync(photo, cancellationToken);
+        var result = await service.MaskAsync(photo, place, cancellationToken);
         switch (result.Outcome)
         {
             case BackgroundRemovalOutcome.Done:
@@ -121,8 +147,7 @@ public static class PhotoToolsApi
             case BackgroundRemovalOutcome.Unavailable:
                 return Problem(StatusCodes.Status503ServiceUnavailable, NotSetUpMessage);
             case BackgroundRemovalOutcome.Busy:
-                httpContext.Response.Headers.RetryAfter = "5";
-                return Problem(StatusCodes.Status503ServiceUnavailable, "PRISM is removing other backgrounds right now. Try again in a few seconds.");
+                return Busy(httpContext);
             case BackgroundRemovalOutcome.NotAPhoto:
                 return Problem(StatusCodes.Status415UnsupportedMediaType, "This file could not be read as a photo.");
             case BackgroundRemovalOutcome.TooLarge:
@@ -134,8 +159,36 @@ public static class PhotoToolsApi
         }
     }
 
-    private static async Task<byte[]> ReadBodyAsync(Stream body, long limit, CancellationToken cancellationToken)
+    /// <summary>How long a photo may take to arrive: the same limit as for working on it.</summary>
+    internal static TimeSpan UploadDeadline(BackgroundRemovalOptions options)
+        => TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 600));
+
+    private static IResult Busy(HttpContext httpContext)
     {
+        httpContext.Response.Headers.RetryAfter = "5";
+        return Problem(StatusCodes.Status503ServiceUnavailable, "PRISM is removing other backgrounds right now. Try again in a few seconds.");
+    }
+
+    /// <summary>
+    /// Reads the photo. With a declared length (as the page always sends) it goes straight into one
+    /// array of that size, with no growing buffer and no second copy; without one it is read in
+    /// pieces up to the limit.
+    /// </summary>
+    private static async Task<byte[]> ReadBodyAsync(Stream body, long? declaredLength, long limit, CancellationToken cancellationToken)
+    {
+        if (declaredLength is > 0 and var length && length <= limit)
+        {
+            var exact = new byte[length];
+            await body.ReadExactlyAsync(exact, cancellationToken);
+            // More than was declared is refused rather than silently cut.
+            if (await body.ReadAsync(new byte[1], cancellationToken) > 0)
+            {
+                throw new InvalidDataException("The request body is longer than its declared length.");
+            }
+
+            return exact;
+        }
+
         using var buffer = new MemoryStream();
         var chunk = new byte[81920];
         int read;

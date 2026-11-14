@@ -162,21 +162,73 @@ public sealed class BackgroundRemovalTests : IDisposable
         Assert.Equal(BackgroundRemovalOutcome.NotAPhoto, (await service.MaskAsync(Array.Empty<byte>(), CancellationToken.None)).Outcome);
 
         var small = EnabledOptions();
-        small.MaximumSide = 40;
+        small.MaximumSide = 300;
         Assert.Equal(
             BackgroundRemovalOutcome.TooLarge,
-            (await ServiceFor(small).MaskAsync(Png(64, 32, (_, _) => SKColors.Red), CancellationToken.None)).Outcome);
+            (await ServiceFor(small).MaskAsync(Png(400, 32, (_, _) => SKColors.Red), CancellationToken.None)).Outcome);
 
+        // A limit set far too low is raised to the floor (1 MB, 256 px) rather than refusing every photo.
         var tiny = EnabledOptions();
         tiny.MaximumUploadBytes = 10;
+        tiny.MaximumSide = 40;
         Assert.Equal(
-            BackgroundRemovalOutcome.TooLarge,
-            (await ServiceFor(tiny).MaskAsync(Png(8, 8, (_, _) => SKColors.Red), CancellationToken.None)).Outcome);
+            BackgroundRemovalOutcome.Done,
+            (await ServiceFor(tiny).MaskAsync(Png(64, 32, (_, _) => SKColors.Red), CancellationToken.None)).Outcome);
 
         var off = ServiceFor(new BackgroundRemovalOptions());
         var refused = await off.MaskAsync(Png(8, 8, (_, _) => SKColors.Red), CancellationToken.None);
         Assert.Equal(BackgroundRemovalOutcome.Unavailable, refused.Outcome);
         Assert.Equal(BackgroundModelState.Disabled, refused.ModelState);
+    }
+
+    [Fact]
+    public async Task MaskAsync_DecodesOnlyJpgPngAndWebp_WhateverTheRequestSaid()
+    {
+        // A valid 1 x 1 BMP: the decoder can read it, but the page never sends one.
+        var bmp = new byte[]
+        {
+            0x42, 0x4D, 58, 0, 0, 0, 0, 0, 0, 0, 54, 0, 0, 0,
+            40, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 24, 0, 0, 0, 0, 0, 4, 0, 0, 0,
+            0x13, 0x0B, 0, 0, 0x13, 0x0B, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 255, 0
+        };
+        using (var codec = SKCodec.Create(new MemoryStream(bmp)))
+        {
+            Assert.NotNull(codec);
+            Assert.Equal(SKEncodedImageFormat.Bmp, codec!.EncodedFormat);
+        }
+
+        var result = await ServiceFor(EnabledOptions()).MaskAsync(bmp, CancellationToken.None);
+
+        Assert.Equal(BackgroundRemovalOutcome.NotAPhoto, result.Outcome);
+    }
+
+    [Fact]
+    public async Task TryTakePlace_CountsPhotosStillArriving_AndGivesThePlaceBackOnce()
+    {
+        var options = EnabledOptions();
+        options.MaximumConcurrent = 1;
+        options.MaximumWaiting = 0;
+        var service = ServiceFor(options);
+
+        // One place in all: a second upload is busy while the first is still arriving.
+        var first = service.TryTakePlace();
+        Assert.NotNull(first);
+        Assert.Null(service.TryTakePlace());
+        Assert.Equal(BackgroundRemovalOutcome.Busy, (await service.MaskAsync(Png(8, 8, (_, _) => SKColors.Red), CancellationToken.None)).Outcome);
+
+        // Giving it back twice frees one place, not two.
+        first!.Dispose();
+        first.Dispose();
+        var again = service.TryTakePlace();
+        Assert.NotNull(again);
+        Assert.Null(service.TryTakePlace());
+
+        // MaskAsync with a place gives it back when the photo is done.
+        var done = await service.MaskAsync(Png(8, 8, (_, _) => SKColors.Red), again!, CancellationToken.None);
+        Assert.Equal(BackgroundRemovalOutcome.Done, done.Outcome);
+        using var next = service.TryTakePlace();
+        Assert.NotNull(next);
     }
 
     [Fact]

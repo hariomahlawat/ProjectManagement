@@ -27,8 +27,21 @@ public interface IBackgroundRemovalService
 {
     BackgroundModelReadiness Readiness();
 
-    /// <summary>Finds the subject of the photo in <paramref name="photoBytes"/> and returns its mask as a greyscale PNG.</summary>
+    /// <summary>
+    /// Finds the subject of the photo in <paramref name="photoBytes"/> and returns its mask as a
+    /// greyscale PNG, taking (and giving back) a place in the queue itself.
+    /// </summary>
     Task<BackgroundRemovalResult> MaskAsync(byte[] photoBytes, CancellationToken cancellationToken);
+
+    /// <summary>The same with a <paramref name="place"/> already taken by <see cref="TryTakePlace"/>.</summary>
+    Task<BackgroundRemovalResult> MaskAsync(byte[] photoBytes, IDisposable place, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Takes a place in the queue before the photo is read, or null when the queue is full. A
+    /// request holds its place while its photo arrives, so slow uploads count against the queue
+    /// and never hold more photos in memory than it allows. Disposing the place gives it back.
+    /// </summary>
+    IDisposable? TryTakePlace();
 }
 
 /// <summary>
@@ -65,9 +78,46 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
 
     public BackgroundModelReadiness Readiness() => _readiness.Check();
 
+    public IDisposable? TryTakePlace()
+    {
+        if (Interlocked.Increment(ref _waiting) > _options.CurrentValue.EffectiveWaiting + _concurrent)
+        {
+            Interlocked.Decrement(ref _waiting);
+            return null;
+        }
+
+        return new Place(this);
+    }
+
+    /// <summary>A place in the queue; given back once, however often it is disposed.</summary>
+    private sealed class Place(BackgroundRemovalService owner) : IDisposable
+    {
+        private int _given;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _given, 1) == 0)
+            {
+                Interlocked.Decrement(ref owner._waiting);
+            }
+        }
+    }
+
     public async Task<BackgroundRemovalResult> MaskAsync(byte[] photoBytes, CancellationToken cancellationToken)
     {
+        using var place = TryTakePlace();
+        if (place is null)
+        {
+            return new(BackgroundRemovalOutcome.Busy);
+        }
+
+        return await MaskAsync(photoBytes, place, cancellationToken);
+    }
+
+    public async Task<BackgroundRemovalResult> MaskAsync(byte[] photoBytes, IDisposable place, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(photoBytes);
+        ArgumentNullException.ThrowIfNull(place);
         var options = _options.CurrentValue;
         var readiness = _readiness.Check();
         if (!readiness.IsReady || readiness.ModelPath is null)
@@ -80,7 +130,7 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
             return new(BackgroundRemovalOutcome.NotAPhoto);
         }
 
-        if (photoBytes.Length > options.MaximumUploadBytes)
+        if (photoBytes.Length > options.EffectiveUploadBytes)
         {
             return new(BackgroundRemovalOutcome.TooLarge);
         }
@@ -88,20 +138,16 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
         // The size is read from the file's header before any pixels are decoded.
         using var data = SKData.CreateCopy(photoBytes);
         using var codec = SKCodec.Create(data);
-        if (codec is null || codec.Info.Width <= 0 || codec.Info.Height <= 0)
+        // Only the three types the page sends are decoded, whatever the request said it was.
+        if (codec is null || codec.Info.Width <= 0 || codec.Info.Height <= 0
+            || codec.EncodedFormat is not (SKEncodedImageFormat.Jpeg or SKEncodedImageFormat.Png or SKEncodedImageFormat.Webp))
         {
             return new(BackgroundRemovalOutcome.NotAPhoto);
         }
 
-        if (Math.Max(codec.Info.Width, codec.Info.Height) > options.MaximumSide)
+        if (Math.Max(codec.Info.Width, codec.Info.Height) > options.EffectiveSide)
         {
             return new(BackgroundRemovalOutcome.TooLarge);
-        }
-
-        if (Interlocked.Increment(ref _waiting) > Math.Max(0, options.MaximumWaiting) + _concurrent)
-        {
-            Interlocked.Decrement(ref _waiting);
-            return new(BackgroundRemovalOutcome.Busy);
         }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -164,7 +210,8 @@ public sealed class BackgroundRemovalService : IBackgroundRemovalService
                 _turn.Release();
             }
 
-            Interlocked.Decrement(ref _waiting);
+            // The place is given back as soon as the photo is done, not when the request ends.
+            place.Dispose();
         }
     }
 
