@@ -43,6 +43,9 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
     private readonly ILogger<OnnxBackgroundSegmenter> _logger;
     private readonly object _gate = new();
     private readonly Timer _idleTimer;
+    // Read once, as BackgroundRemovalService does for its queue: the photos admitted at once and
+    // the threads each one gets are worked out from the same number until PRISM restarts.
+    private readonly int _concurrent;
     private LoadedModel? _loaded;
     private bool _disposed;
 
@@ -52,20 +55,25 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _concurrent = Math.Clamp(_options.CurrentValue.MaximumConcurrent, 1, 4);
         _idleTimer = new Timer(_ => ReleaseIdle(DateTime.UtcNow), null, IdleCheckInterval, IdleCheckInterval);
     }
 
     /// <summary>
     /// Threads for one photo: the setting, but never more than half the server's processors shared
-    /// between the photos that may run at once, and at least one.
+    /// between the <paramref name="concurrent"/> photos that may run at once, and at least one.
+    /// <paramref name="concurrent"/> is the number the queue was started with, not the current
+    /// setting, which only takes effect after a restart.
     /// </summary>
-    public static int ThreadsFor(BackgroundRemovalOptions options, int processorCount)
+    public static int ThreadsFor(int intraOpThreads, int concurrent, int processorCount)
     {
-        ArgumentNullException.ThrowIfNull(options);
         var budget = Math.Max(1, processorCount / 2);
-        var share = Math.Max(1, budget / Math.Clamp(options.MaximumConcurrent, 1, 4));
-        return Math.Clamp(options.IntraOpThreads, 1, share);
+        var share = Math.Max(1, budget / Math.Clamp(concurrent, 1, 4));
+        return Math.Clamp(intraOpThreads, 1, share);
     }
+
+    /// <summary>The photos that may run at once, as read when PRISM started.</summary>
+    public int Concurrent => _concurrent;
 
     /// <summary>True while a model is held in memory (for tests and the status page).</summary>
     public bool IsModelLoaded
@@ -215,7 +223,7 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
     }
 
     /// <summary>What a loaded model stands for: the approved file (path, size, time, checksum) and the settings it was checked against.</summary>
-    private static string KeyFor(BackgroundModelReadiness approved, BackgroundRemovalOptions options)
+    private string KeyFor(BackgroundModelReadiness approved, BackgroundRemovalOptions options)
     {
         var model = options.Model;
         return string.Join(
@@ -230,12 +238,12 @@ public sealed class OnnxBackgroundSegmenter : IBackgroundSegmenter, IDisposable
             model.InputHeight,
             string.Join(',', model.ChannelMean()),
             string.Join(',', model.ChannelStd()),
-            ThreadsFor(options, Environment.ProcessorCount));
+            ThreadsFor(options.IntraOpThreads, _concurrent, Environment.ProcessorCount));
     }
 
     private InferenceSession Load(string path, BackgroundRemovalOptions options)
     {
-        var threads = ThreadsFor(options, Environment.ProcessorCount);
+        var threads = ThreadsFor(options.IntraOpThreads, _concurrent, Environment.ProcessorCount);
         using var sessionOptions = new Microsoft.ML.OnnxRuntime.SessionOptions
         {
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,

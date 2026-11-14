@@ -300,8 +300,20 @@ public sealed class BackgroundRemovalTests : IDisposable
     [InlineData(3, 9, 64, 3)]   // more than 4 photos at once counts as 4; the setting is the most
     public void ThreadsFor_KeepsAllPhotosTogetherUnderHalfTheProcessors(int setting, int concurrent, int processors, int expected)
     {
-        var options = new BackgroundRemovalOptions { IntraOpThreads = setting, MaximumConcurrent = concurrent };
-        Assert.Equal(expected, OnnxBackgroundSegmenter.ThreadsFor(options, processors));
+        Assert.Equal(expected, OnnxBackgroundSegmenter.ThreadsFor(setting, concurrent, processors));
+    }
+
+    [Fact]
+    public void Segmenter_SharesThreadsByTheConcurrencyItStartedWith_LikeTheQueue()
+    {
+        // MaximumConcurrent is read once, at start, by the queue; the thread share must use the same
+        // number, or a later change would give each of four admitted photos one photo's budget.
+        var options = EnabledOptions();
+        options.MaximumConcurrent = 4;
+        using var segmenter = new OnnxBackgroundSegmenter(Monitor(options), NullLogger<OnnxBackgroundSegmenter>.Instance);
+        options.MaximumConcurrent = 1;
+
+        Assert.Equal(4, segmenter.Concurrent);
     }
 
     [Fact]
