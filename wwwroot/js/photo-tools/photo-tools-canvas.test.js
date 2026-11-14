@@ -134,3 +134,38 @@ test('wireHoldButton holds with a pointer, Space or Enter and lets go on release
   button.fire('blur');
   assert.deepEqual(seen, [true, false, true, false, true, false]);
 });
+
+// ----- Remembered choices (PR 2 of docs/ux/photo-tools-passport-done-for-you.md) -----
+
+function loadWithStorage(storage) {
+  const window = { PrismPhotoTools: {}, localStorage: storage };
+  const context = { window, document: { querySelector: () => ({}) } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'photo-tools-canvas.js'), 'utf8'), context);
+  return window.PrismPhotoCanvas;
+}
+
+test('rememberedChoices keeps a screen\'s choices under its own name', () => {
+  const store = new Map();
+  const storage = { getItem: key => (store.has(key) ? store.get(key) : null), setItem: (key, value) => store.set(key, value) };
+  const shared = loadWithStorage(storage);
+  const sheet = shared.rememberedChoices('sheet');
+
+  assert.equal(sheet.load(), null);
+  sheet.save({ paper: 'a4', cutLines: false });
+  assert.equal(JSON.parse(store.get('prism.photoTools.sheet')).paper, 'a4');
+  assert.equal(sheet.load().cutLines, false);
+  assert.equal(shared.rememberedChoices('edit').load(), null, 'another screen has its own');
+});
+
+test('rememberedChoices never throws: a refused or broken store remembers nothing', () => {
+  const refusing = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
+  const shared = loadWithStorage(refusing);
+  const choices = shared.rememberedChoices('passport');
+  assert.equal(choices.load(), null);
+  choices.save({ limit: '50' });
+
+  const broken = loadWithStorage({ getItem: () => '{not json', setItem() {} });
+  assert.equal(broken.rememberedChoices('passport').load(), null);
+  const notAnObject = loadWithStorage({ getItem: () => '42', setItem() {} });
+  assert.equal(notAnObject.rememberedChoices('passport').load(), null);
+});
