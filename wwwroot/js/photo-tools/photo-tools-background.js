@@ -92,6 +92,8 @@
 
   let status = null;
   let statusLoading = null;
+  let statusAt = 0;
+  const STATUS_FRESH_MS = 5000;
 
   // The photo: `full` a copy at most SAVE_SIDE (the largest saved size; a 48 MP original is not
   // kept), `work` the copy the cut-out is made on, `pixels` its RGBA.
@@ -148,13 +150,14 @@
   }
 
   /**
-   * Whether Remove background is set up on the server. Only a "ready" answer is kept: a failed
-   * request, or "not set up", is asked again the next time the screen opens or a photo is chosen,
-   * so a server that is back, or a model an administrator has just installed, is found without
-   * reloading the page.
+   * Whether Remove background is set up on the server, and its limits. Only a "ready" answer is
+   * kept, and only for `maxAge` ms (5 s by default): a new photo here or in Passport photo asks
+   * again, so a changed limit, the tool turned off, or face models an administrator has just
+   * installed are found without reloading the page. A failed request, or "not set up", is always
+   * asked again.
    */
-  function loadStatus() {
-    if (status && status.available) return Promise.resolve(status);
+  function loadStatus(maxAge = STATUS_FRESH_MS) {
+    if (status && status.available && Date.now() - statusAt < maxAge) return Promise.resolve(status);
     if (!statusLoading) {
       statusLoading = fetch(STATUS_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
         .then((response) => {
@@ -163,6 +166,7 @@
         })
         .catch(() => null)
         .then((answer) => {
+          statusAt = Date.now();
           status = answer || {
             available: false,
             message: 'The PRISM server could not be reached. Check the connection and open this screen again.'
@@ -228,11 +232,13 @@
    * enlarged to `into`'s size, one byte per pixel. Throws PhotoToolError 'retry' for what passes
    * (busy, too slow, no connection), 'signed-out', or 'server' for a photo the server cannot use.
    */
-  async function requestMask(source, size, into, signal) {
+  async function requestMask(source, size, into, signal, again = false) {
     const side = Math.min(WORK_SIDE, (status && status.maximumSide) || WORK_SIDE);
     const sent = core.resizeDimensions(size.width, size.height, { type: 'longest', value: side });
     const copy = shared.drawPhoto(source, sent.width, sent.height, { opaque: true });
     const bytes = await shared.canvasToBytes(copy, JPEG, 0.92);
+    // Up to 16 MB each: given back now rather than whenever the browser gets to it.
+    release(copy);
     let response;
     try {
       response = await fetch(MASK_URL, {
@@ -248,6 +254,15 @@
     }
     if (response.status === 401) {
       throw new core.PhotoToolError('signed-out', SIGNED_OUT);
+    }
+    if ((response.status === 413 || response.status === 503) && !again) {
+      // The server's limits may have changed since its status was read (an administrator lowered
+      // the largest side, or turned the tool off): read it again, and try once more at the new
+      // size when that is what changed.
+      const fresh = await loadStatus(0);
+      if (response.status === 413 && fresh && fresh.available && fresh.maximumSide && fresh.maximumSide < side) {
+        return requestMask(source, size, into, signal, true);
+      }
     }
     if (!response.ok) {
       let message = 'The background could not be removed from this photo.';
@@ -269,6 +284,7 @@
     context.drawImage(mask, 0, 0, into.width, into.height);
     if (typeof mask.close === 'function') mask.close();
     const data = context.getImageData(0, 0, into.width, into.height).data;
+    release(scaled);
     const result = new Uint8ClampedArray(into.width * into.height);
     for (let i = 0; i < result.length; i += 1) result[i] = data[i * 4];
     return result;
