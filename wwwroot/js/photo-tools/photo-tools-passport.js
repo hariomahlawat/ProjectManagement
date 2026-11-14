@@ -101,6 +101,7 @@
   const bgNote = $('[data-bg-note]');
   const bgModelNote = $('[data-bg-model-note]');
   const bgModelButton = $('[data-action="bg-model"]');
+  const bgModelHint = $('[data-bg-model-hint]');
   const bgWait = $('[data-bg-wait]');
   const bgWaitText = $('[data-bg-wait-text]');
   const bgWaitCancel = $('[data-action="bg-model-cancel"]');
@@ -111,7 +112,7 @@
 
   // The background model on the PRISM server (Remove background's), used when the colour method
   // cannot cope and on Better edges (owner decision, 14 Nov 2026).
-  const MODEL_FINDING = 'Finding the person…';
+  const MODEL_FINDING = 'Sending a copy to the PRISM server to find the person…';
   const MODEL_STILL_WORKING = 'Still working. The PRISM server does one photo at a time, so this can take a minute.';
   const MODEL_SLOW_AFTER_MS = 8000;
   const MODEL_GIVE_UP_MS = 180000;
@@ -783,6 +784,7 @@
     bgProblem.hidden = !problem;
     bgProblem.textContent = problem || '';
     bgModelButton.hidden = !canAskModel() || modelAsk !== null;
+    bgModelHint.hidden = bgModelButton.hidden;
     const waitText = modelAsk && modelAsk.slow ? MODEL_STILL_WORKING : MODEL_FINDING;
     bgWait.hidden = !waiting;
     bgWaitText.textContent = waitText;
