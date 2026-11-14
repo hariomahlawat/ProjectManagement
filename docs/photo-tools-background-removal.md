@@ -147,7 +147,9 @@ much weaker than BRIA's models and is only for testing the pipeline.
   "not set up" are answered before the photo is read, so a full queue never holds photos in
   memory. A request takes its place in the queue before its photo is read and keeps it while the
   photo arrives, so slow uploads count against `MaximumWaiting` too; the photo goes straight into
-  one array of its declared size.
+  one array of its declared size. A photo that takes longer than `TimeoutSeconds` to arrive is stopped
+  ("took too long to arrive") and its place given back, so open uploads cannot keep others on
+  "busy".
 - Only JPG, PNG and WEBP are decoded, whatever type the request names.
 - A photo that takes longer than `TimeoutSeconds` is stopped inside ONNX Runtime, not just
   abandoned.

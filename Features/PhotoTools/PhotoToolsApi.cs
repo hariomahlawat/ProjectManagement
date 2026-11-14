@@ -111,10 +111,18 @@ public static class PhotoToolsApi
             sizeLimit.MaxRequestBodySize = limit;
         }
 
+        // The upload has its own deadline while it holds a place: a photo that trickles in cannot keep
+        // the place (and others on "busy") for longer than one photo may take.
+        using var uploadDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        uploadDeadline.CancelAfter(UploadDeadline(options.CurrentValue));
         byte[] photo;
         try
         {
-            photo = await ReadBodyAsync(httpContext.Request.Body, httpContext.Request.ContentLength, limit, cancellationToken);
+            photo = await ReadBodyAsync(httpContext.Request.Body, httpContext.Request.ContentLength, limit, uploadDeadline.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return Problem(StatusCodes.Status408RequestTimeout, "The photo took too long to arrive. Try again.");
         }
         catch (InvalidDataException)
         {
@@ -150,6 +158,10 @@ public static class PhotoToolsApi
                 return Problem(StatusCodes.Status500InternalServerError, "The background could not be removed from this photo.");
         }
     }
+
+    /// <summary>How long a photo may take to arrive: the same limit as for working on it.</summary>
+    internal static TimeSpan UploadDeadline(BackgroundRemovalOptions options)
+        => TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 600));
 
     private static IResult Busy(HttpContext httpContext)
     {

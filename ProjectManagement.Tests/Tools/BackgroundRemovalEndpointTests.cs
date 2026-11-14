@@ -139,6 +139,78 @@ public sealed class BackgroundRemovalEndpointTests
         Assert.Equal(0, host.Service.PlacesHeld);
     }
 
+    [Fact]
+    public async Task Mask_StopsAnUploadThatTakesTooLong_AndGivesItsPlaceBack()
+    {
+        await using var host = await Host.StartAsync(options: o => o.TimeoutSeconds = 5);
+        var content = new StreamContent(new TricklingStream());
+        content.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        content.Headers.ContentLength = 1000;
+
+        HttpResponseMessage? response = null;
+        try
+        {
+            using var wait = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            response = await host.Client.PostAsync(PhotoToolsApi.MaskPath, content, wait.Token);
+        }
+        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or IOException)
+        {
+            // The test server may also report the abandoned body to the client.
+        }
+
+        if (response is not null)
+        {
+            Assert.Equal(HttpStatusCode.RequestTimeout, response.StatusCode);
+        }
+
+        Assert.Equal(0, host.Service.PhotosReceived);
+        Assert.Equal(0, host.Service.PlacesHeld);
+    }
+
+    [Theory]
+    [InlineData(60, 60)]
+    [InlineData(1, 5)]
+    [InlineData(10_000, 600)]
+    public void UploadDeadline_IsTheTimeLimitForOnePhoto(int timeoutSeconds, int expectedSeconds)
+    {
+        var deadline = PhotoToolsApi.UploadDeadline(new BackgroundRemovalOptions { TimeoutSeconds = timeoutSeconds });
+        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), deadline);
+    }
+
+    /// <summary>A body that sends one byte and then nothing more, as an upload kept open on purpose.</summary>
+    private sealed class TricklingStream : Stream
+    {
+        private bool _sent;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => 0; set => throw new NotSupportedException(); }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (!_sent)
+            {
+                _sent = true;
+                buffer.Span[0] = 0xFF;
+                return 1;
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(60), cancellationToken);
+            return 0;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     /// <summary>A body that ends before its declared length, as an upload that stalls and drops.</summary>
     private sealed class CutShortStream(byte[] data, int declared) : MemoryStream(data)
     {
