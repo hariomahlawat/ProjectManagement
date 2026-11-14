@@ -99,6 +99,28 @@
   };
   const FIX_HINT = 'Drag on the photo to paint. With the keyboard, the arrow keys move the brush and Space paints; [ and ] change its size. Press Done to move the photo again.';
   const bgNote = $('[data-bg-note]');
+  const bgModelNote = $('[data-bg-model-note]');
+  const bgModelButton = $('[data-action="bg-model"]');
+  const bgWait = $('[data-bg-wait]');
+  const bgWaitText = $('[data-bg-wait-text]');
+  const bgWaitCancel = $('[data-action="bg-model-cancel"]');
+  const bgRetry = $('[data-bg-retry]');
+  const bgRetryText = $('[data-bg-retry-text]');
+  const bgRetryButton = $('[data-action="bg-model-retry"]');
+  const bgWaitStatus = $('[data-bg-wait-status]');
+
+  // The background model on the PRISM server (Remove background's), used when the colour method
+  // cannot cope and on Better edges (owner decision, 14 Nov 2026).
+  const MODEL_FINDING = 'Finding the person…';
+  const MODEL_STILL_WORKING = 'Still working. The PRISM server does one photo at a time, so this can take a minute.';
+  const MODEL_SLOW_AFTER_MS = 8000;
+  const MODEL_GIVE_UP_MS = 180000;
+  // What the colour method says when it could not change the background: the model is asked then.
+  const COLOUR_GAVE_UP = new Set([
+    core.BACKGROUND_STATUS.busy,
+    core.BACKGROUND_STATUS.none,
+    core.BACKGROUND_STATUS.tooMuch
+  ]);
 
   const BG_PROBLEMS = {
     [core.BACKGROUND_STATUS.busy]: 'This background is not plain enough to change, so the photo is left as it is. Take the photo against a plain wall.',
@@ -171,6 +193,24 @@
   // What the checks look at: the finished photo before any background change, and where its
   // background was found when the background change already looked.
   let checked = null;
+
+  // The model's cut-out of this photo, made once per photo and kept with it, so changing the colour
+  // afterwards is instant: the photo's own pixels at the size Remove background works at (at most
+  // 2048 px), the model's mask, the mask after the brushes, and the cut-out drawn from them. null
+  // until the model has answered.
+  let model = null;
+  // Whether Remove background is set up on this server, so the model can be asked.
+  let modelReady = false;
+  // The request on its way: { request, cancelled, timedOut, slow }, or null.
+  let modelAsk = null;
+  let modelRun = 0;
+  let modelSlowTimer = 0;
+  let modelGiveUpTimer = 0;
+  // The model is asked by itself once per photo; after that only Better edges or Try again ask.
+  let modelAutoTried = false;
+  // Why the last request stopped: something that passes (Try again), or a plain problem.
+  let modelRetry = '';
+  let modelProblem = '';
 
   // Where the photo sits: the photo centre's distance from the frame centre (screen px), its
   // tilt, and how far it is zoomed past "just fills the frame".
@@ -337,6 +377,8 @@
     // The old photo's background result does not hold for this one: hide its brush, note and
     // compare button now, not only when the new background has been worked out.
     bgStatus = null;
+    forgetModel();
+    checkModel();
     renderBackground();
     const fullSize = shared.sizeOf(full);
     const small = core.resizeDimensions(fullSize.width, fullSize.height, { type: 'longest', value: PREVIEW_SIDE });
@@ -706,13 +748,31 @@
     }
     const amount = Number(bgAmount.value);
     bgAmountValue.textContent = amount < 35 ? 'Less' : amount > 65 ? 'More' : 'Normal';
-    bgAmountRow.hidden = !background;
+    const usingModel = modelInUse();
+    // The slider tunes the colour method only.
+    bgAmountRow.hidden = !background || usingModel;
     const changed = Boolean(background) && bgStatus === core.BACKGROUND_STATUS.changed;
-    const problem = background ? BG_PROBLEMS[bgStatus] : undefined;
+    const photoBackground = mode === 'photo' && Boolean(background);
+    const waiting = photoBackground && Boolean(modelAsk);
+    const stopped = photoBackground && !modelAsk && Boolean(modelRetry);
+    const problem = background && !waiting && !stopped
+      ? modelProblem || (usingModel ? undefined : BG_PROBLEMS[bgStatus])
+      : undefined;
     bgCompare.hidden = !changed;
-    bgNote.hidden = !changed;
+    bgNote.hidden = !changed || usingModel;
+    bgModelNote.hidden = !changed || !usingModel;
     bgProblem.hidden = !problem;
     bgProblem.textContent = problem || '';
+    bgModelButton.hidden = !canAskModel() || modelAsk !== null;
+    const waitText = modelAsk && modelAsk.slow ? MODEL_STILL_WORKING : MODEL_FINDING;
+    bgWait.hidden = !waiting;
+    bgWaitText.textContent = waitText;
+    bgWaitCancel.hidden = !(waiting && modelAsk.slow);
+    bgRetry.hidden = !stopped;
+    bgRetryText.textContent = modelRetry;
+    // Read out once when it changes, not on every redraw.
+    const said = waiting ? waitText : stopped ? modelRetry : '';
+    if (bgWaitStatus.textContent !== said) bgWaitStatus.textContent = said;
 
     // Touching up needs a changed background.
     if (!changed && fixing) {
@@ -751,8 +811,12 @@
     return [1, 3, 5].map(at => parseInt(background.slice(at, at + 2), 16));
   }
 
-  /** Gives the finished photo its new background. Returns the status, or null when it is kept. */
-  function applyBackground(context, width, height) {
+  /**
+   * Gives the finished photo its new background. Returns the status, or null when it is kept.
+   * `placed(context, picture)` draws a picture of the whole photo through the frame's move, turn
+   * and zoom.
+   */
+  function applyBackground(context, width, height, placed) {
     plain = null;
     changedPixels = null;
     wall = null;
@@ -761,6 +825,19 @@
     const before = context.getImageData(0, 0, width, height);
     checked = { before, found: null };
     if (!background) return null;
+    if (modelInUse()) {
+      // The model's cut-out, placed like the photo and given the same look, over the plain colour.
+      const layer = shared.newCanvas(width, height);
+      const layerContext = layer.getContext('2d', { willReadFrequently: true });
+      layerContext.imageSmoothingQuality = 'high';
+      placed(layerContext, model.cutout);
+      applyLook(layerContext, width, height);
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.fillStyle = background;
+      context.fillRect(0, 0, width, height);
+      context.drawImage(layer, 0, 0);
+      return core.BACKGROUND_STATUS.changed;
+    }
     const after = new ImageData(new Uint8ClampedArray(before.data), width, height);
     const result = core.changeBackground(after.data, width, height, backgroundColour(), Number(bgAmount.value));
     checked.found = result;
@@ -842,6 +919,12 @@
     context.rotate(angle);
     context.scale(zoomed, zoomed);
     context.translate(-fullSize.width / 2, -fullSize.height / 2);
+    paintStrokes(context);
+    return context.getImageData(0, 0, size.width, size.height);
+  }
+
+  /** Paints every stroke, in the full photo's pixels, onto a context already placed for them. */
+  function paintStrokes(context) {
     context.lineCap = 'round';
     context.lineJoin = 'round';
     const paint = (fix, radius) => {
@@ -869,7 +952,6 @@
       context.globalAlpha = 1;
       paint(fix, Math.max(fix.radius * 0.1, fix.radius - soft));
     }
-    return context.getImageData(0, 0, size.width, size.height);
   }
 
   /** Writes the changed photo with the touch-up strokes laid over it. */
@@ -903,6 +985,14 @@
     if (fixesFrame) {
       cancelAnimationFrame(fixesFrame);
       fixesFrame = 0;
+    }
+    if (modelInUse()) {
+      // The brushes work on the model's mask, as in Remove background; only the part a stroke
+      // just reached is made again, then the small finished photo.
+      rebuildCutout(strokeAreaOnModel());
+      if (shown) shown = renderOutput();
+      draw();
+      return;
     }
     if (shown && changedPixels && changedPixels.width === shown.width && changedPixels.height === shown.height) {
       composeFixes(shown.getContext('2d'));
@@ -986,6 +1076,200 @@
   }
 
   // ---------------------------------------------------------------------------
+  // The background model: when the colour method cannot cope, and on Better edges
+  // ---------------------------------------------------------------------------
+
+  function modelInUse() {
+    return mode === 'photo' && Boolean(background) && model !== null;
+  }
+
+  function canAskModel() {
+    return modelReady && Boolean(window.PrismPhotoServer) && mode === 'photo'
+      && Boolean(full) && Boolean(background) && model === null;
+  }
+
+  /** Whether Remove background is set up on this server; asked again with each photo. */
+  function checkModel() {
+    const server = window.PrismPhotoServer;
+    if (!server) return;
+    server.status().then((status) => {
+      modelReady = Boolean(status && status.available);
+      renderBackground();
+      // The answer can come after the colour method has already given up on this photo.
+      askModelIfColourGaveUp();
+    });
+  }
+
+  /** The colour method could not change this background: the model is asked, once by itself. */
+  function askModelIfColourGaveUp() {
+    if (background && COLOUR_GAVE_UP.has(bgStatus) && !modelAutoTried && canAskModel()) {
+      modelAutoTried = true;
+      askModel();
+    }
+  }
+
+  /** A new photo: the last one's cut-out, and any request for it, are dropped. */
+  function forgetModel() {
+    modelRun += 1;
+    if (modelAsk) modelAsk.request.abort();
+    modelAsk = null;
+    clearTimeout(modelSlowTimer);
+    clearTimeout(modelGiveUpTimer);
+    model = null;
+    modelAutoTried = false;
+    modelRetry = '';
+    modelProblem = '';
+  }
+
+  /**
+   * Sends a copy of the photo to the model (the same copy and the same rules as Remove
+   * background) and makes the cut-out. A request that stops for a reason that passes (busy, too
+   * slow, no connection, Cancel) leaves the photo as it was, with Try again.
+   */
+  async function askModel() {
+    if (!canAskModel() || modelAsk) return;
+    const run = ++modelRun;
+    const ask = { request: new AbortController(), cancelled: false, timedOut: false, slow: false };
+    modelAsk = ask;
+    modelRetry = '';
+    modelProblem = '';
+    clearTimeout(modelSlowTimer);
+    clearTimeout(modelGiveUpTimer);
+    modelSlowTimer = setTimeout(() => {
+      if (modelAsk !== ask) return;
+      ask.slow = true;
+      renderBackground();
+    }, MODEL_SLOW_AFTER_MS);
+    modelGiveUpTimer = setTimeout(() => {
+      ask.timedOut = true;
+      ask.request.abort();
+    }, MODEL_GIVE_UP_MS);
+    renderBackground();
+    const source = full;
+    try {
+      const answer = await window.PrismPhotoServer.mask(source, ask.request.signal);
+      if (run !== modelRun) return;
+      model = makeCutout(source, answer);
+      rebuildCutout();
+    } catch (error) {
+      if (run !== modelRun) return;
+      if (ask.cancelled) {
+        modelRetry = 'Stopped. The photo is still here.';
+      } else if (ask.timedOut) {
+        modelRetry = 'No answer came from the PRISM server in time. The photo is still here.';
+      } else if (error instanceof core.PhotoToolError && error.code === 'retry') {
+        modelRetry = error.message;
+      } else {
+        if (!(error instanceof core.PhotoToolError)) console.error(error);
+        modelProblem = error instanceof core.PhotoToolError
+          ? error.message
+          : 'The PRISM server could not find the person in this photo.';
+      }
+    } finally {
+      if (run === modelRun) {
+        clearTimeout(modelSlowTimer);
+        clearTimeout(modelGiveUpTimer);
+        modelAsk = null;
+        renderBackground();
+        if (model) {
+          queueSave();
+        } else if (modelRetry && bgRetry.hidden === false) {
+          bgRetryButton.focus({ preventScroll: true });
+        }
+      }
+    }
+  }
+
+  /**
+   * The cut-out's starting point, as Remove background makes it: the old background's colours
+   * read from where the mask is sure, the person's colours, and the mask checked against them
+   * where the model is unsure (the band around hair).
+   */
+  function makeCutout(source, answer) {
+    const { width, height, alpha: mask } = answer;
+    const work = shared.drawPhoto(source, width, height, {});
+    const pixels = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, width, height);
+    work.width = 0;
+    work.height = 0;
+    // The squares the person's colours are read from: about 3% of the photo's width.
+    const cell = Math.max(4, Math.round(width * 0.03));
+    const old = core.cutoutBackground(pixels.data, mask, width, height);
+    const subjectColours = old ? core.cutoutPersonColours(pixels.data, mask, width, old, cell) : null;
+    core.refineCutoutEdge(mask, pixels.data, width, old, cell, subjectColours);
+    return {
+      width,
+      height,
+      cell,
+      pixels,
+      background: old,
+      subjectColours,
+      modelAlpha: mask,
+      alpha: new Uint8ClampedArray(mask),
+      colourAlpha: new Uint8ClampedArray(mask),
+      colours: new ImageData(new Uint8ClampedArray(pixels.data), width, height),
+      cutout: shared.newCanvas(width, height)
+    };
+  }
+
+  /** The brush strokes over one part of the model's photo, at its size. */
+  function strokesOnModel(region) {
+    const width = region.right - region.left;
+    const height = region.bottom - region.top;
+    const picture = shared.newCanvas(width, height);
+    const context = picture.getContext('2d', { willReadFrequently: true });
+    const toModel = model.width / shared.sizeOf(full).width;
+    context.translate(-region.left, -region.top);
+    context.scale(toModel, toModel);
+    paintStrokes(context);
+    return context.getImageData(0, 0, width, height).data;
+  }
+
+  /** The part of the model's photo the stroke being painted has reached since it was last shown. */
+  function strokeAreaOnModel() {
+    if (!stroke) return null;
+    const toModel = model.width / shared.sizeOf(full).width;
+    const points = stroke.points.slice(Math.max(0, (stroke.shownUpTo || 0) - 1));
+    stroke.shownUpTo = stroke.points.length;
+    const reach = (stroke.radius * (1 + BRUSH_SOFTNESS) + 2) * toModel + 2;
+    const xs = points.map(point => point.x * toModel);
+    const ys = points.map(point => point.y * toModel);
+    const area = {
+      left: Math.max(0, Math.floor(Math.min(...xs) - reach)),
+      top: Math.max(0, Math.floor(Math.min(...ys) - reach)),
+      right: Math.min(model.width, Math.ceil(Math.max(...xs) + reach)),
+      bottom: Math.min(model.height, Math.ceil(Math.max(...ys) + reach))
+    };
+    return area.right > area.left && area.bottom > area.top ? area : null;
+  }
+
+  /**
+   * The mask after the brushes, and the cut-out made from it, as in Remove background: the old
+   * background's tint taken out of hair and edges. With `region`, only that part is made again
+   * (every stroke is still applied there, so the result is the same as a full rebuild).
+   */
+  function rebuildCutout(region) {
+    const { width, height } = model;
+    const area = region || { left: 0, top: 0, right: width, bottom: height };
+    const across = area.right - area.left;
+    if (fixes.length) {
+      core.applyCutoutStrokes(model.alpha, model.modelAlpha, model.pixels.data, strokesOnModel(area), model.background,
+        { width, cell: model.cell, colours: model.subjectColours, region: area, colourAlpha: model.colourAlpha });
+    } else {
+      for (let y = area.top; y < area.bottom; y += 1) {
+        const start = y * width + area.left;
+        model.alpha.set(model.modelAlpha.subarray(start, start + across), start);
+        model.colourAlpha.set(model.modelAlpha.subarray(start, start + across), start);
+      }
+    }
+    for (let y = area.top; y < area.bottom; y += 1) {
+      const start = (y * width + area.left) * 4;
+      model.colours.data.set(model.pixels.data.subarray(start, start + across * 4), start);
+    }
+    core.cutoutColours(model.colours.data, model.colourAlpha, width, model.background, area, model.alpha);
+    model.cutout.getContext('2d').putImageData(model.colours, 0, 0, area.left, area.top, across, area.bottom - area.top);
+  }
+
+  // ---------------------------------------------------------------------------
   // Save
   // ---------------------------------------------------------------------------
 
@@ -1023,18 +1307,22 @@
 
     const toOutput = size.width / frame.width;
     const fullSize = shared.sizeOf(full);
-    const source = sourceFor(scale() * (base.width / fullSize.width) * toOutput);
-    const sourceSize = shared.sizeOf(source);
-    const drawScale = scale() * (base.width / sourceSize.width) * toOutput;
-    context.translate(size.width / 2 + offset.x * toOutput, size.height / 2 + offset.y * toOutput);
-    context.rotate(angle);
-    context.scale(drawScale, drawScale);
-    context.drawImage(source, -sourceSize.width / 2, -sourceSize.height / 2);
+    // Any picture of the whole photo (the photo itself, a halved copy, the model's cut-out) is
+    // drawn through the same move, turn and zoom.
+    const placed = (target, picture) => {
+      const pictureSize = shared.sizeOf(picture);
+      const drawScale = scale() * (base.width / pictureSize.width) * toOutput;
+      target.translate(size.width / 2 + offset.x * toOutput, size.height / 2 + offset.y * toOutput);
+      target.rotate(angle);
+      target.scale(drawScale, drawScale);
+      target.drawImage(picture, -pictureSize.width / 2, -pictureSize.height / 2);
+      target.setTransform(1, 0, 0, 1, 0, 0);
+    };
+    placed(context, sourceFor(scale() * (base.width / fullSize.width) * toOutput));
 
-    context.setTransform(1, 0, 0, 1, 0, 0);
     applyLook(context, size.width, size.height);
     // After the lighting, so the new background is exactly the colour chosen.
-    bgStatus = applyBackground(context, size.width, size.height);
+    bgStatus = applyBackground(context, size.width, size.height, placed);
     return output;
   }
 
@@ -1064,6 +1352,7 @@
       renderBackground();
       renderChecks(output);
       draw();
+      askModelIfColourGaveUp();
       // The photo and its checks are shown either way; only the file waits for a usable limit.
       if (limitText && !targetBytes) {
         saved = null;
@@ -1314,6 +1603,16 @@
   fixDone.addEventListener('click', () => {
     setFixing(false);
     handFixButton.focus();
+  });
+  bgModelButton.addEventListener('click', () => askModel());
+  bgRetryButton.addEventListener('click', () => {
+    modelRetry = '';
+    askModel();
+  });
+  bgWaitCancel.addEventListener('click', () => {
+    if (!modelAsk) return;
+    modelAsk.cancelled = true;
+    modelAsk.request.abort();
   });
   fixUndo.addEventListener('click', () => {
     fixes.pop();

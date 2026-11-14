@@ -219,7 +219,16 @@
   }
 
   /** Sends a copy of the photo and gives back the model's mask at the work size. `signal` cancels it. */
-  async function fetchMask(source, size, signal) {
+  function fetchMask(source, size, signal) {
+    return requestMask(source, size, work, signal);
+  }
+
+  /**
+   * Sends a copy of the photo (at most the server's side, 2048 px) and gives back the model's mask
+   * enlarged to `into`'s size, one byte per pixel. Throws PhotoToolError 'retry' for what passes
+   * (busy, too slow, no connection), 'signed-out', or 'server' for a photo the server cannot use.
+   */
+  async function requestMask(source, size, into, signal) {
     const side = Math.min(WORK_SIDE, (status && status.maximumSide) || WORK_SIDE);
     const sent = core.resizeDimensions(size.width, size.height, { type: 'longest', value: side });
     const copy = shared.drawPhoto(source, sent.width, sent.height, { opaque: true });
@@ -254,13 +263,13 @@
     }
     const mask = await createImageBitmap(await response.blob());
     // The mask is enlarged to the work size by the browser, which blends between its pixels.
-    const scaled = shared.newCanvas(work.width, work.height);
+    const scaled = shared.newCanvas(into.width, into.height);
     const context = scaled.getContext('2d', { willReadFrequently: true });
     context.imageSmoothingQuality = 'high';
-    context.drawImage(mask, 0, 0, work.width, work.height);
+    context.drawImage(mask, 0, 0, into.width, into.height);
     if (typeof mask.close === 'function') mask.close();
-    const data = context.getImageData(0, 0, work.width, work.height).data;
-    const result = new Uint8ClampedArray(work.width * work.height);
+    const data = context.getImageData(0, 0, into.width, into.height).data;
+    const result = new Uint8ClampedArray(into.width * into.height);
     for (let i = 0; i < result.length; i += 1) result[i] = data[i * 4];
     return result;
   }
@@ -1033,8 +1042,20 @@
     };
   }
 
+  /**
+   * The model's mask for a photo, for Passport photo: { width, height, alpha } at the size Remove
+   * background works at (at most 2048 px), one byte per pixel. Throws as requestMask does.
+   */
+  async function maskFor(source, signal) {
+    await loadStatus();
+    const size = shared.sizeOf(source);
+    const into = core.resizeDimensions(size.width, size.height, { type: 'longest', value: WORK_SIDE });
+    const alpha = await requestMask(source, size, into, signal);
+    return { width: into.width, height: into.height, alpha };
+  }
+
   // Passport photo asks the PRISM server through here, so this stays the only script that does.
-  window.PrismPhotoServer = Object.freeze({ status: loadStatus, locateFace });
+  window.PrismPhotoServer = Object.freeze({ status: loadStatus, locateFace, mask: maskFor });
 
   renderControls();
   whenShown();

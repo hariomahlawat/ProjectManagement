@@ -156,6 +156,27 @@ public sealed class PhotoToolsPageContractTests
     }
 
     [Fact]
+    public void PassportPhoto_AsksForTheModelOnlyThroughRemoveBackground_AndOffersBetterEdges()
+    {
+        var root = FindProjectRoot();
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Photo", "Index.cshtml"));
+        var passport = File.ReadAllText(Path.Combine(root, "wwwroot", "js", "photo-tools", "photo-tools-passport.js"));
+        var background = File.ReadAllText(Path.Combine(root, BackgroundScript));
+
+        // The one script that talks to the server lends Passport photo its mask request.
+        Assert.Contains("mask: maskFor", background, StringComparison.Ordinal);
+        Assert.Contains("window.PrismPhotoServer.mask(", passport, StringComparison.Ordinal);
+        Assert.All(NetworkCalls, call => Assert.DoesNotContain(call, passport, StringComparison.Ordinal));
+
+        // Better edges, the wait with Cancel, and Try again are on the page; the privacy line says
+        // a copy goes to the PRISM server and is not stored.
+        Assert.Contains("data-action=\"bg-model\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-action=\"bg-model-cancel\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-action=\"bg-model-retry\"", page, StringComparison.Ordinal);
+        Assert.Contains("used in memory and not stored", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Page_LoadsThePdfLibraryFromTheApplicationBeforePrintSheet()
     {
         var root = FindProjectRoot();
