@@ -75,3 +75,31 @@ public sealed class SearchEngineLatencyRecorder : ISearchEngineLatencyRecorder
         return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
     }
 }
+
+/// <summary>
+/// In-process record of search-box suggestion time. Suggestions run on every pause in typing,
+/// so they are not written to the query log: that would store fragments of what people type
+/// and add a database write per keystroke.
+/// </summary>
+public interface ISearchSuggestionLatencyRecorder : ISearchEngineLatencyRecorder
+{
+}
+
+public sealed class SearchSuggestionLatencyRecorder : ISearchSuggestionLatencyRecorder
+{
+    private readonly SearchEngineLatencyRecorder _samples;
+
+    public SearchSuggestionLatencyRecorder()
+        : this(TimeProvider.System)
+    {
+    }
+
+    internal SearchSuggestionLatencyRecorder(TimeProvider time)
+    {
+        _samples = new SearchEngineLatencyRecorder(time);
+    }
+
+    public void Record(long milliseconds) => _samples.Record(milliseconds);
+
+    public SearchLatencySnapshot Snapshot(TimeSpan window) => _samples.Snapshot(window);
+}
