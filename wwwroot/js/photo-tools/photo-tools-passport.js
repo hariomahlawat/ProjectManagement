@@ -440,7 +440,12 @@
     if (!kept) return;
     restoring = true;
     try {
-      if (typeof kept.limit === 'string' && kept.limit.length <= 6) outLimit.value = kept.limit;
+      // A limit is put back only if it is empty or a real size: a mistyped one ("0", "abc") would
+      // block every download until it was noticed.
+      if (typeof kept.limit === 'string' && kept.limit.length <= 6
+        && (kept.limit === '' || core.parseTargetBytes(kept.limit, 'KB') !== null)) {
+        outLimit.value = kept.limit;
+      }
       const pixels = value => Number.isInteger(value) && value >= MIN_PIXELS && value <= MAX_PIXELS;
       // A custom size is put back only if it still makes a usable size: one left half-typed when
       // the choices were kept must not block the download next time. The last good size is used
