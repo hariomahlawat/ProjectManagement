@@ -19,11 +19,19 @@ works as it does today (colour background, placing by hand), and says so in one 
 
 ## How it works
 
-### 1. Background with the model
+### 1. Background: colour first, the model when it is needed
 
-- When Remove background is set up (status `ready`), Passport photo sends the same copy it would
-  send there (at most 2048 px) and gets the same mask. It is asked **once per photo**, when the
-  user first picks a background colour; changing the colour afterwards is instant.
+Owner decision (14 Nov 2026), after weighing the two: a plain, evenly lit wall needs no 15 to 30 s
+wait and no place in the server's one-at-a-time queue, so the colour method stays first, and the
+model is used where colour cannot cope.
+
+- Picking a background colour shows the colour method's result at once, as today.
+- The model is asked **automatically** when the colour method cannot do it cleanly: no plain
+  background found, too much taken as background, or the checks before saving flag the edge.
+- A **Better edges** button sends the photo to the model when the user is not happy with the
+  colour result (a shadowed wall, a white shirt on a white wall, loose hair).
+- When the model is used, Passport photo sends the same copy Remove background would (at most
+  2048 px) and gets the same mask, **once per photo**; changing the colour afterwards is instant.
 - The cut-out uses the same steps as Remove background (old background's tint taken out of hair
   and edges, then the new colour behind), so both screens give the same edge.
 - The Touch up brushes (Refine edge, Erase, Restore) work on the model's mask, as in Remove
@@ -31,7 +39,8 @@ works as it does today (colour background, placing by hand), and says so in one 
 - While the mask is on its way the screen shows the photo with "Finding the person…", the same
   "Still working" message and Cancel after 8 s, and keeps the photo with Try again if the server is
   busy (one photo at a time on the production server, owner 14 Nov 2026).
-- When the model is not set up, the colour method of today is used, unchanged.
+- When the model is not set up, the colour method of today is used, unchanged, and Better edges
+  is not shown.
 - Privacy is as for Remove background: a copy goes to the PRISM server, is used in memory and is
   not stored. The privacy line under the background choices says so only when the model is used.
 
@@ -44,8 +53,8 @@ works as it does today (colour background, placing by hand), and says so in one 
   photo's pixels, or "no face".
 - It uses the Photos library's detector readiness: off when the face models are not installed.
   It is cheap (a 320 px detector, well under a second) and has its own small queue.
-- When a photo is opened, Passport photo asks for the face and, when one is found, sets the zoom,
-  position and straighten so that:
+- When a photo is opened, Passport photo asks for the face automatically (owner decision) and,
+  when one is found, sets the zoom, position and straighten so that:
   - the eyes are level (straighten from the eye line, within the ±15° the screen allows);
   - the chin is on the guide's chin line and the top of the head on its top line (the top of the
     head is estimated from the face box: the detector's box ends at the brow);
@@ -70,16 +79,15 @@ the screen opens, and ignored if they no longer make sense:
 
 Photos themselves are never remembered.
 
-## For the owner
+## Owner decisions (14 Nov 2026)
 
-1. **Placing the face:** automatically as soon as a photo is opened (recommended; the user can
-   still move it), or only when "Place the face" is pressed?
-2. **Which background method:** use the model whenever it is set up (recommended; the colour
-   method stays only for when it is not), or keep both and let the user choose?
-3. **Head size:** the guide's lines today put the top of the head at 10% and the chin at 78% of
-   the photo's height, so the head is about 68% of it. Indian passport photos ask for the face
-   (chin to top of head) to be 70 to 80% of the height. Keep 68%, or move the lines to make it
-   about 75%?
+1. **Placing the face:** automatically as soon as a photo is opened; the user can still move it,
+   and "Place the face again" puts it back.
+2. **Background method:** colour first, the model automatically when colour cannot cope, and a
+   Better edges button (see 1 above). Not "always the model": that would make every plain-wall
+   photo wait 15 to 30 s and queue on the server.
+3. **Head size:** about 75% of the photo's height (Indian passport photos ask for 70 to 80%). The
+   guide's lines move from 10% / 78% (about 68%) to about 8% / 83%, and the head checks follow.
 
 ## Build plan
 
@@ -91,6 +99,6 @@ tests.
 | 1 | This plan |
 | 2 | Choices remembered on all five screens (a small shared helper in `photo-tools-canvas.js`) |
 | 3 | Server: the face endpoint on the detector only, with its own readiness, limits, queue and tests |
-| 4 | Passport photo: the face placed and straightened on open, "Place the face again", and checks from the real face |
-| 5 | Passport photo: the background from the model when it is set up, with the Remove background edge steps, brushes on the mask, waiting and Try again |
+| 4 | Passport photo: the face placed and straightened on open, "Place the face again", the guide at about 75% head height, and checks from the real face |
+| 5 | Passport photo: the model when colour cannot cope and on Better edges, with the Remove background edge steps, brushes on the mask, waiting and Try again |
 | 6 | Phones, Dark theme, keyboard and the docs (`docs/photo-tools.md`, the install guides) |
