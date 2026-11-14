@@ -309,6 +309,12 @@
     scrollbar-width: thin;
 }
 
+/* More tabs off the right edge: fade the edge so the row reads as scrollable. */
+.pm-gs-tabs.has-more {
+    -webkit-mask-image: linear-gradient(to right, currentColor calc(100% - 2.5rem), transparent);
+    mask-image: linear-gradient(to right, currentColor calc(100% - 2.5rem), transparent);
+}
+
 .pm-gs-tab {
     position: relative;
     display: inline-flex;
@@ -1171,13 +1177,43 @@
         right: .5rem;
     }
 
+    /* Keep the type icon on phones, smaller: it is how a project, an IPR or a visit is told apart. */
     .pm-gs-hit {
-        grid-template-columns: minmax(0, 1fr);
-        gap: .35rem;
+        grid-template-columns: 1.75rem minmax(0, 1fr);
+        gap: .6rem;
     }
 
     .pm-gs-hit__icon {
-        display: none;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 6px;
+        font-size: .875rem;
+    }
+
+    /* Touch targets of at least 44px. */
+    .pm-gs-filter__preset,
+    .pm-gs-active-filter,
+    .pm-gs-filter__option,
+    .pm-gs-filter__toggle {
+        min-height: 44px;
+    }
+
+    .pm-gs-search__clear,
+    .pm-gs-top__clear,
+    .pm-gs-filter__close {
+        width: 44px;
+        height: 44px;
+    }
+
+    /* Related chips keep their small look; only the tap area grows to 44px. */
+    .pm-gs-related-chip {
+        position: relative;
+    }
+
+    .pm-gs-related-chip::after {
+        content: "";
+        position: absolute;
+        inset: -11px -2px;
     }
 
     .pm-gs-nores {
@@ -1211,7 +1247,7 @@
 
     .pm-gs-filter__actions .btn {
         flex: 1 1 0;
-        min-height: 40px;
+        min-height: 44px;
     }
 
     .pm-gs-filter__pending {

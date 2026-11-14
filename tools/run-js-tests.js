@@ -53,6 +53,7 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'core', 'theme-preference.test.js'),
   path.join('wwwroot', 'js', 'core', 'whats-new.test.js'),
   path.join('wwwroot', 'js', 'navigation', 'search-combobox.test.js'),
+  path.join('wwwroot', 'js', 'pages', 'search.test.js'),
   path.join('wwwroot', 'js', 'navigation', 'drawer.test.js'),
   path.join('wwwroot', 'js', 'pdf-tools', 'pdf-tools-core.test.js'),
   path.join('wwwroot', 'js', 'pdf-tools', 'pdf-tools-reduce.test.js'),
