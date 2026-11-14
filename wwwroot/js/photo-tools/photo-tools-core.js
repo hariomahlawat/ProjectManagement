@@ -853,10 +853,14 @@
    * in the middle across. Returns the screen's placement { angle, zoom, x, y }: the photo's turn
    * (radians), its zoom past "just fills the frame" (1 to maxZoom), and its centre's distance from
    * the frame's centre (frame pixels; the screen still keeps the frame filled). When the face is
-   * too large to fit even at zoom 1, the head is centred between the lines instead.
+   * too large to fit even at zoom 1, the head is centred between the lines instead. null when the
+   * eye line is far past `maxAngle` (a photo on its side): it needs a quarter turn first.
    */
   function placeFace({ imageWidth, imageHeight, frameWidth, frameHeight, face, maxAngle = Math.PI / 12, maxZoom = 4, guide = PASSPORT_GUIDE }) {
     const head = headPoints(face);
+    // A photo on its side (or upside down) is not straightened by a few degrees and zoomed: it
+    // needs a quarter turn first, which is the user's Rotate button. null says so.
+    if (Math.abs(head.tilt) > maxAngle + Math.PI / 12) return null;
     const angle = Math.min(maxAngle, Math.max(-maxAngle, -head.tilt));
     const cx = imageWidth / 2;
     const cy = imageHeight / 2;

@@ -1583,8 +1583,18 @@ test('placeFace puts the head between the guide lines, the eyes level and the fa
   assert.ok(Math.abs(shares.centre - 0.5) < 0.01, `centre ${shares.centre}`);
 });
 
+test('placeFace leaves a photo on its side for Rotate', () => {
+  const frame = { imageWidth: 800, imageHeight: 1000, frameWidth: 350, frameHeight: 450 };
+  // Eyes one above the other: the photo is on its side, or upside down.
+  assert.equal(tools.placeFace({ ...frame, face: detectedFace(90) }), null);
+  assert.equal(tools.placeFace({ ...frame, face: detectedFace(-90) }), null);
+  assert.equal(tools.placeFace({ ...frame, face: detectedFace(180) }), null);
+  // Up to 30 degrees is still placed, with the turn held at the straighten range.
+  assert.ok(tools.placeFace({ ...frame, face: detectedFace(28) }));
+});
+
 test('placeFace keeps the turn within the straighten range and the zoom at 1 or more', () => {
-  const tilted = tools.placeFace({ imageWidth: 800, imageHeight: 1000, frameWidth: 350, frameHeight: 450, face: detectedFace(40) });
+  const tilted = tools.placeFace({ imageWidth: 800, imageHeight: 1000, frameWidth: 350, frameHeight: 450, face: detectedFace(25) });
   assert.ok(Math.abs(tilted.angle) <= Math.PI / 12 + 1e-9);
   // A face filling the whole photo cannot be made smaller than "just fills the frame".
   const huge = { box: { left: 0, top: 0, width: 800, height: 1000 }, points: [[300, 400], [500, 400], [400, 550], [340, 700], [460, 700]] };

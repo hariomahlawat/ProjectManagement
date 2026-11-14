@@ -117,6 +117,15 @@
   const MODEL_SLOW_AFTER_MS = 8000;
   const MODEL_GIVE_UP_MS = 180000;
   const MODEL_CHECK_AGAIN_MS = 10000;
+  // Finding the face: a request that takes longer is given up (the photo is then placed by hand,
+  // with Try again), and a busy answer is tried once more after a short wait.
+  const FACE_GIVE_UP_MS = 20000;
+  const FACE_BUSY_WAIT_MS = 2000;
+  const FACE_WORDS = {
+    asking: 'Placing the face…',
+    failed: 'The face could not be placed. Place it by hand, or try again.',
+    sideways: 'The photo looks turned on its side. Use Rotate, and the face is placed again.'
+  };
   // What the colour method says when it could not change the background: the model is asked then.
   const COLOUR_GAVE_UP = new Set([
     core.BACKGROUND_STATUS.busy,
@@ -230,6 +239,11 @@
   let faceRun = 0;
   // True while the face detector is being asked for this photo.
   let faceAsking = false;
+  // What the stage bar says about the face: '', 'asking', 'failed' or 'sideways'.
+  let faceState = '';
+  let faceRequest = null;
+  const faceStateLine = $('[data-face-state]');
+  const faceRetryButton = $('[data-action="face-retry"]');
   const placeFaceButton = $('[data-action="place-face"]');
   let frame = { width: 0, height: 0, left: 0, top: 0 };
 
@@ -417,8 +431,13 @@
    */
   async function findFace() {
     const mine = ++faceRun;
+    // The last photo's (or mode's) request is no longer wanted: cancelling it also gives its
+    // place on the server back, so it cannot crowd out this one.
+    if (faceRequest) faceRequest.abort();
+    faceRequest = null;
     faceFound = undefined;
     faceAsking = false;
+    faceState = '';
     renderFace();
     const server = window.PrismPhotoServer;
     if (!server || mode !== 'photo' || !base) return;
@@ -426,11 +445,28 @@
     // may give up on it, and the model must not be asked for that.
     faceAsking = true;
     let placed = false;
+    const request = new AbortController();
+    faceRequest = request;
+    const giveUp = setTimeout(() => request.abort(), FACE_GIVE_UP_MS);
     try {
       const status = await server.status();
       if (mine !== faceRun || !status || !status.faceAvailable) return;
-      const answer = await server.locateFace(base);
-      if (mine !== faceRun || !answer || mode !== 'photo') return;
+      faceState = 'asking';
+      renderFace();
+      let answer = await server.locateFace(base, request.signal);
+      if (mine === faceRun && answer && answer.problem === 'busy') {
+        // The server's places for finding faces are taken: one more try shortly.
+        await new Promise(resolve => setTimeout(resolve, FACE_BUSY_WAIT_MS));
+        if (mine === faceRun && !request.signal.aborted) answer = await server.locateFace(base, request.signal);
+      }
+      if (mine !== faceRun || mode !== 'photo') return;
+      if (!answer || answer.problem) {
+        // Busy twice, too slow (given up), or an error: placed by hand, with Try again.
+        faceState = 'failed';
+        renderFace();
+        return;
+      }
+      faceState = '';
       if (!answer.found) {
         faceFound = false;
       } else {
@@ -451,8 +487,12 @@
       queueSave(true);
       placed = true;
     } finally {
+      clearTimeout(giveUp);
       if (mine === faceRun) {
+        faceRequest = null;
         faceAsking = false;
+        if (faceState === 'asking') faceState = '';
+        renderFace();
         // No new save was queued: the last one's answer stands, so the model may be asked now.
         if (!placed) askModelIfColourGaveUp();
       }
@@ -471,6 +511,13 @@
       maxAngle: 15 * Math.PI / 180,
       maxZoom: MAX_ZOOM
     });
+    if (!placement) {
+      // On its side: Rotate first (a quarter turn opens the photo again and asks again).
+      faceState = 'sideways';
+      renderFace();
+      return;
+    }
+    faceState = '';
     // The straighten slider moves in half degrees; the photo is turned by exactly what it shows.
     const degrees = Math.round(placement.angle * 180 / Math.PI * 2) / 2;
     angle = degrees * Math.PI / 180;
@@ -486,7 +533,12 @@
   }
 
   function renderFace() {
-    placeFaceButton.hidden = !(faceFound && mode === 'photo');
+    const photo = mode === 'photo';
+    placeFaceButton.hidden = !(faceFound && photo && faceState !== 'sideways');
+    const words = photo ? FACE_WORDS[faceState] || '' : '';
+    if (faceStateLine.textContent !== words) faceStateLine.textContent = words;
+    faceStateLine.hidden = !words;
+    faceRetryButton.hidden = !(photo && faceState === 'failed');
   }
 
   /** Where the face is in the finished photo, for the checks: shares, false or undefined. */
@@ -1600,6 +1652,11 @@
 
   $('[data-action="rotate"]').addEventListener('click', rotateQuarter);
   placeFaceButton.addEventListener('click', applyFace);
+  faceRetryButton.addEventListener('click', () => {
+    // Asked for: the photo is placed when the face is found, even if it was moved meanwhile.
+    touched = false;
+    findFace();
+  });
 
   guideToggle.addEventListener('change', () => {
     guide.hidden = mode !== 'photo' || !guideToggle.checked;
