@@ -475,6 +475,11 @@ step, so Undo takes it back.
   (`PhotoTools:BackgroundRemoval:TimeoutSeconds`) or leaving the page stop it.
 - Until there is a cut-out (still working, or stopped with **Try again**), the brushes and brush
   sizes are off and "Check the edges…" under the photo is not shown.
+- A photo given while the server is still getting ready (checking its model after a restart,
+  status `checking`) is held, not dropped: the note says it opens as soon as the tool is ready,
+  the server is asked again every 2 seconds, and the photo opens when it answers ready. After
+  90 seconds it stops waiting and the server's note gets the focus, as for a tool that cannot be
+  used. A later photo takes the place of a held one.
 
 ### How the target size is reached
 
