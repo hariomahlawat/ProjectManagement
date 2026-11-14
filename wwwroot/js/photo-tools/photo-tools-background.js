@@ -287,6 +287,7 @@
   }
 
   function resetPhoto() {
+    shared.setUnsaved('remove', false);
     work = null;
     pixels = null;
     modelAlpha = null;
@@ -635,6 +636,7 @@
   function endStroke() {
     if (!stroke) return;
     stroke = null;
+    shared.setUnsaved('remove', true);
     renderControls();
   }
 
@@ -820,6 +822,7 @@
       release(picture);
       const suffix = job.backdrop === 'transparent' ? 'cutout' : 'new-background';
       shared.saveBlob(new Blob([bytes], { type: job.type.mime }), `${core.baseName(job.fileName)}-${suffix}.${job.type.extension}`);
+      shared.setUnsaved('remove', false);
       if (current()) {
         resultLine.className = 'phot-result is-ready';
         resultLine.textContent = `Saved: ${size.width} × ${size.height} px, ${core.formatBytes(bytes.length)}, ${job.type.label}.`;

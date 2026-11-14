@@ -118,6 +118,13 @@
   let working = false;
   // Counts the photos opened. A step waiting to start is dropped if another photo is opened meanwhile.
   let photoGeneration = 0;
+  // The list of steps the last download was made from: Undo or Redo back to it is not unsaved work.
+  let lastDownloaded = null;
+
+  function downloadedSteps(list) {
+    return lastDownloaded !== null && list.length === lastDownloaded.length
+      && list.every((step, index) => step === lastDownloaded[index]);
+  }
 
   // ---------------------------------------------------------------------------
   // Steps
@@ -244,6 +251,8 @@
 
   /** Called after the list of steps changes: fresh screen copy, fresh tool state, fresh file. */
   function changed() {
+    // Steps not yet downloaded would be lost by leaving the page (none after Undo back to the start).
+    shared.setUnsaved('edit', steps.length > 0 && !downloadedSteps(steps));
     small = shrink(current);
     tilt = 0;
     straighten.value = '0';
@@ -909,6 +918,8 @@
     if (!source) return;
     if (original && typeof original.close === 'function') original.close();
     photoGeneration += 1;
+    lastDownloaded = null;
+    shared.setUnsaved('edit', false);
     fileName = file.name;
     original = source;
     originalSmall = shrink(original);
@@ -1121,6 +1132,8 @@
   downloadButton.addEventListener('click', (event) => {
     if (!saved || working || shared.isRepeatClick(event)) return;
     shared.saveBlob(new Blob([saved.bytes], { type: saved.type.mime }), `${core.baseName(fileName)}-edited.${saved.type.extension}`);
+    lastDownloaded = steps.slice();
+    shared.setUnsaved('edit', false);
   });
 
   // The stage has no size while its screen is hidden, and changes size with the window.
