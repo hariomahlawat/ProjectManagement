@@ -244,8 +244,27 @@
     });
   }
 
+  // Work that would be lost by leaving the page: each screen says when it has some (moved,
+  // painted or edited since its last download), and the browser then asks before the page is left,
+  // reloaded or closed. Moving between the tools inside the page is not leaving it.
+  const unsaved = new Map();
+
+  function setUnsaved(screen, value) {
+    unsaved.set(screen, Boolean(value));
+  }
+
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('beforeunload', (event) => {
+      if (![...unsaved.values()].some(Boolean)) return;
+      event.preventDefault();
+      // Older browsers need a value here to ask; the text itself is not shown.
+      event.returnValue = '';
+    });
+  }
+
   window.PrismPhotoCanvas = Object.freeze({
     showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, canvasToBytes,
-    isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton, rememberedChoices
+    isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton, rememberedChoices,
+    setUnsaved
   });
 })();

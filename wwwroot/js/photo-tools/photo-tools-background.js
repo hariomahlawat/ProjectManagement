@@ -341,7 +341,21 @@
     downloadButton.disabled = busy || !cutout;
   }
 
+  /**
+   * Brush work not yet downloaded would be lost by leaving the page. Every change (a stroke, Undo,
+   * Reset) moves `maskRevision` on, so a download that finishes later clears the warning only if
+   * nothing changed while it was being made.
+   */
+  let maskRevision = 0;
+
+  function markUnsaved() {
+    maskRevision += 1;
+    shared.setUnsaved('remove', true);
+  }
+
   function resetPhoto() {
+    maskRevision += 1;
+    shared.setUnsaved('remove', false);
     work = null;
     pixels = null;
     modelAlpha = null;
@@ -690,6 +704,7 @@
   function endStroke() {
     if (!stroke) return;
     stroke = null;
+    markUnsaved();
     renderControls();
   }
 
@@ -847,7 +862,8 @@
       backdrop,
       colour: backdropColour(),
       type: core.TYPES[format.value] || core.TYPES.png,
-      fileName
+      fileName,
+      revision: maskRevision
     };
     setBusy('Making the file…');
     // A moment for "Making the file…" to show. A timer, not an animation frame: a page in a tab
@@ -875,6 +891,9 @@
       release(picture);
       const suffix = job.backdrop === 'transparent' ? 'cutout' : 'new-background';
       shared.saveBlob(new Blob([bytes], { type: job.type.mime }), `${core.baseName(job.fileName)}-${suffix}.${job.type.extension}`);
+      // Only when the file holds the mask on the screen: a stroke, Undo or Reset made while it was
+      // being made is still unsaved.
+      if (job.revision === maskRevision) shared.setUnsaved('remove', false);
       if (current()) {
         resultLine.className = 'phot-result is-ready';
         resultLine.textContent = `Saved: ${size.width} × ${size.height} px, ${core.formatBytes(bytes.length)}, ${job.type.label}.`;
@@ -977,11 +996,14 @@
 
   undoButton.addEventListener('click', () => {
     strokes.pop();
+    // Any change after a download is unsaved again, Undo included.
+    markUnsaved();
     renderControls();
     rebuild();
   });
   resetButton.addEventListener('click', () => {
     strokes = [];
+    markUnsaved();
     renderControls();
     rebuild();
   });

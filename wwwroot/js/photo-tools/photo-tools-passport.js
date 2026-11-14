@@ -346,6 +346,7 @@
 
   function moved() {
     touched = true;
+    shared.setUnsaved('passport', true);
     place();
     draw();
     queueSave();
@@ -392,6 +393,7 @@
   /** Takes a new full-size photo (a new file, or the same one turned a quarter). */
   function usePhoto(source) {
     full = source;
+    shared.setUnsaved('passport', false);
     mips = [];
     // A new photo, or the same one turned a quarter, is a different picture: the fixes painted
     // on the last one do not belong to it.
@@ -537,7 +539,17 @@
     queueSave();
   }
 
+  /** What the hint under the photo says: painting, the face placed for you, or how to place it. */
+  function stageHintText() {
+    if (fixing) return FIX_HINT;
+    if (mode === 'photo' && faceFound && faceState !== 'sideways') {
+      return 'The face was placed for you. Check it against the guide, or drag and zoom to adjust.';
+    }
+    return MODES[mode].stageHint;
+  }
+
   function renderFace() {
+    stageHint.textContent = stageHintText();
     const photo = mode === 'photo';
     placeFaceButton.hidden = !(faceFound && photo && faceState !== 'sideways');
     const words = photo ? FACE_WORDS[faceState] || '' : '';
@@ -598,6 +610,8 @@
     }
     if (typeof full.close === 'function') full.close();
     usePhoto(turned);
+    // Turning is a change to this photo, not a new one: it would be lost by leaving too.
+    shared.setUnsaved('passport', true);
   }
 
   // ---------------------------------------------------------------------------
@@ -774,7 +788,7 @@
     sizeTitle.textContent = words.sizeTitle;
     sizes.setAttribute('aria-label', words.sizeLabel);
     dropHint.textContent = words.dropHint;
-    stageHint.textContent = words.stageHint;
+    stageHint.textContent = stageHintText();
     downloadLabel.textContent = words.download;
     for (const button of $$('[data-mode]')) {
       button.setAttribute('aria-pressed', String(button.dataset.mode === mode));
@@ -875,7 +889,7 @@
     brushHint.textContent = BRUSH_HINTS[brush];
     fixUndo.disabled = fixes.length === 0;
     fixClear.disabled = fixes.length === 0;
-    stageHint.textContent = fixing ? FIX_HINT : MODES[mode].stageHint;
+    stageHint.textContent = stageHintText();
   }
 
   function setBackground(colour) {
@@ -961,7 +975,16 @@
     });
     checkBox.hidden = false;
     checkBox.classList.toggle('has-problems', problems.length > 0);
-    checkTitle.textContent = problems.length ? 'Check before you use this photo' : 'No problems found';
+    // With no face found and no outline from the background, head position and size were not
+    // judged: "No problems found" alone would claim more than was looked at.
+    const face = faceForChecks();
+    const outlineFound = face === undefined && width * height <= CHECK_OUTLINE_PIXELS
+      && found && found.status === core.BACKGROUND_STATUS.changed
+      && Boolean(core.headOutline(found.mask, width, height));
+    const headJudged = face !== undefined || outlineFound;
+    checkTitle.textContent = problems.length
+      ? 'Check before you use this photo'
+      : headJudged ? 'No problems found' : 'No problems found, but the head position could not be checked';
     checkList.replaceChildren(...problems.map((problem) => {
       const item = document.createElement('li');
       item.textContent = problem.text;
@@ -1127,6 +1150,7 @@
   function endStroke() {
     if (!stroke) return;
     stroke = null;
+    shared.setUnsaved('passport', true);
     // The last moves are shown now, not on a frame that a hidden page may never draw.
     if (fixesFrame) showFixes();
     renderBackground();
@@ -1700,7 +1724,11 @@
   });
 
   $('[data-action="rotate"]').addEventListener('click', rotateQuarter);
-  placeFaceButton.addEventListener('click', applyFace);
+  placeFaceButton.addEventListener('click', () => {
+    // Asked for by the user, so it is a change to keep (the placement on opening is not).
+    applyFace();
+    shared.setUnsaved('passport', true);
+  });
   faceRetryButton.addEventListener('click', () => {
     // Asked for: the photo is placed when the face is found, even if it was moved meanwhile.
     touched = false;
@@ -1767,12 +1795,15 @@
   });
   fixUndo.addEventListener('click', () => {
     fixes.pop();
+    // Any change after a download is unsaved again, Undo included.
+    shared.setUnsaved('passport', true);
     renderBackground();
     showFixes();
     queueSave(true);
   });
   fixClear.addEventListener('click', () => {
     fixes = [];
+    shared.setUnsaved('passport', true);
     renderBackground();
     showFixes();
     queueSave(true);
@@ -1856,6 +1887,7 @@
   downloadButton.addEventListener('click', (event) => {
     if (!saved || modelWorking() || shared.isRepeatClick(event)) return;
     shared.saveBlob(new Blob([saved.bytes], { type: JPEG.mime }), `${core.baseName(fileName)}-${MODES[mode].suffix}.jpg`);
+    shared.setUnsaved('passport', false);
   });
 
   // The stage has no size while its screen is hidden, and changes size with the window.

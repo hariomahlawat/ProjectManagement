@@ -249,7 +249,10 @@
   const PASSPORT_SIZES = Object.freeze([
     Object.freeze({ key: '35x45', label: '35 × 45 mm', note: 'Indian passport, most forms', width: 413, height: 531 }),
     Object.freeze({ key: '2x2', label: '2 × 2 inch', note: 'Passport from an embassy abroad, visa', width: 600, height: 600 }),
-    Object.freeze({ key: '20x25', label: '20 × 25 mm', note: 'Stamp size', width: 236, height: 295 })
+    Object.freeze({ key: '20x25', label: '20 × 25 mm', note: 'Stamp size', width: 236, height: 295 }),
+    // Online forms that ask for pixels (owner decision, 14 Nov 2026): the shape of 35 × 45 mm, at a
+    // size many Indian portals give. No one portal is named; "Pixels" covers anything else.
+    Object.freeze({ key: 'online-630x810', label: '630 × 810 px', note: 'Online forms that ask for pixels', width: 630, height: 810 })
   ]);
 
   // A signature box is wide and low. The last one is for online forms that ask for pixels.

@@ -33,6 +33,7 @@ describes what is built.
   background colour), Print sheet (paper, PDF or JPG, cut lines), Edit photo (file type and
   quality, once picked) and Remove background (background and file type). Photos are never kept,
   and a choice that no longer fits is ignored.
+- Leaving the page (a link, reload or closing the tab) after moving or painting a passport photo, editing a photo, or painting a cut-out, without downloading since, makes the browser ask first. Moving between the tools inside the page does not.
 - A photo dropped anywhere on the page outside a drop zone is ignored, so the browser does not
   open it in place of the page and lose the work on every screen (as in PDF Tools).
 
@@ -58,7 +59,7 @@ its scripts and `img-src 'self' data: blob:` for the photo previews.
 | Tool | What it does |
 | --- | --- |
 | Reduce size | One or many JPG, PNG or WEBP photos. Target file size in KB or MB (or none); the pixels are kept unless the size cannot be reached otherwise, or made fewer on request; save as JPG, PNG, WEBP or the original type, optional black and white. A drag-to-compare check of the selected photo. One photo downloads as a file; several download as one ZIP. |
-| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). The face is placed for you when the PRISM server's face detector is set up: straightened, sized and centred on the guide. Drag, zoom, straighten (±15°) and rotate; Place the face again puts it back. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour; any other background uses Remove background's model when it is set up (by itself, or with Better edges). What the tool gets wrong is touched up with Refine edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
+| Passport photo | One photo under a fixed crop frame with a face guide (oval, top-of-head and chin lines). The face is placed for you when the PRISM server's face detector is set up: straightened, sized and centred on the guide. Drag, zoom, straighten (±15°) and rotate; Place the face again puts it back. Sizes: 35 × 45 mm, 2 × 2 inch, 20 × 25 mm, 630 × 810 px for online forms that ask for pixels (the shape of 35 × 45 mm; no one portal is named), custom mm or inches, or exact pixels. One-click lighting fix and brightness. A plain background can be made white, light blue or any other colour; any other background uses Remove background's model when it is set up (by itself, or with Better edges). What the tool gets wrong is touched up with Refine edge, Erase and Restore brushes. Saved as a JPG at exactly the pixels shown, at 300 dpi, optionally under a KB limit. |
 | Print sheet | Its own tool. Copies of one photo on 4 × 6 inch, 5 × 7 inch, A5 or A4 paper, shown on a preview of the paper drawn to scale. A photo of another shape than the print size is dragged and zoomed to choose the part printed. The sheet is filled, or holds the number of copies chosen; cut lines can be turned off. The photo comes from the **Print sheet** button on Passport photo, or from a file. Saved as a PDF whose page is the paper's exact size (recommended), or as one JPG at 300 dpi. |
 | Signature | Its own card on the home screen (`#signature`), which opens the Passport photo screen switched to **Signature**: a wide frame (35 × 15 mm, 50 × 20 mm, 140 × 60 px, or custom), no face guide, and **Clean paper** in place of the lighting tools. Saved as a JPG at exactly the pixels shown, optionally under a KB limit. |
 | Remove background | One photo, any background. The PRISM server's model (BRIA RMBG) finds the subject; the browser takes the old background's tint out of the soft edge, and the cut-out is saved see-through (PNG, WEBP), on a plain colour or on a blur of its own background (JPG, PNG, WEBP), at up to 4096 px. Refine edge, Erase and Restore brushes touch up the edge. Off until an administrator installs the model; see [photo-tools-background-removal.md](photo-tools-background-removal.md). |
@@ -302,6 +303,7 @@ without a model that knows what a face looks like (`passportChecks` in the core 
   starts where the middle stays person for 1% of the height.
 - Above 2 million pixels the outline is not looked for, because the search would hold the
   screen up; the other checks still run.
+- When neither the face nor an outline could be found, the title says "No problems found, but the head position could not be checked" instead of claiming more than was looked at.
 - Signature has no checks.
 - They do not check expression, glasses, head tilt, eyes open, or any one authority's
   measurements.

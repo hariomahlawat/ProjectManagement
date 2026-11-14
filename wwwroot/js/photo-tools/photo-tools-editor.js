@@ -123,6 +123,13 @@
   let working = false;
   // Counts the photos opened. A step waiting to start is dropped if another photo is opened meanwhile.
   let photoGeneration = 0;
+  // The list of steps the last download was made from: Undo or Redo back to it is not unsaved work.
+  let lastDownloaded = null;
+
+  function downloadedSteps(list) {
+    return lastDownloaded !== null && list.length === lastDownloaded.length
+      && list.every((step, index) => step === lastDownloaded[index]);
+  }
 
   // ---------------------------------------------------------------------------
   // Steps
@@ -250,6 +257,7 @@
   /** Called after the list of steps changes: fresh screen copy, fresh tool state, fresh file. */
   function changed() {
     revision += 1;
+    renderUnsaved();
     small = shrink(current);
     tilt = 0;
     straighten.value = '0';
@@ -393,8 +401,18 @@
     return null;
   }
 
+  /**
+   * Work that leaving the page would lose: steps not yet downloaded (none after Undo back to what
+   * was downloaded), or an adjustment or straighten shown but not yet applied.
+   */
+  function renderUnsaved() {
+    shared.setUnsaved('edit', Boolean(current)
+      && ((steps.length > 0 && !downloadedSteps(steps)) || pendingLook() !== null));
+  }
+
   /** The line under Download says when the change on the screen is still to be applied. */
   function renderPending() {
+    renderUnsaved();
     if (!current || working || !saved) return;
     if (pendingLook()) {
       resultLine.className = 'phot-result';
@@ -917,6 +935,10 @@
 
   function downloadSaved() {
     shared.saveBlob(new Blob([saved.bytes], { type: saved.type.mime }), `${core.baseName(fileName)}-edited.${saved.type.extension}`);
+    // The file holds the steps on the screen: Undo or Redo back to them is not unsaved work.
+    lastDownloaded = steps.slice();
+    // Worked out again, not cleared: a slider moved while the file was being made is still unsaved.
+    renderUnsaved();
   }
 
   /** The file is prepared again shortly after the last change. */
@@ -959,6 +981,8 @@
     revision += 1;
     // A download asked for on the last photo is not made of this one.
     downloadWhenReady = null;
+    lastDownloaded = null;
+    shared.setUnsaved('edit', false);
     fileName = file.name;
     original = source;
     originalSmall = shrink(original);

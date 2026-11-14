@@ -189,6 +189,9 @@ test('passport sizes are the print sizes at 300 dpi', () => {
   assert.deepEqual([byKey['35x45'].width, byKey['35x45'].height], [413, 531]);
   assert.deepEqual([byKey['2x2'].width, byKey['2x2'].height], [600, 600]);
   assert.deepEqual([byKey['20x25'].width, byKey['20x25'].height], [236, 295]);
+  // The online size has the shape of 35 × 45 mm, so the face guide fits it the same way.
+  assert.deepEqual([byKey['online-630x810'].width, byKey['online-630x810'].height], [630, 810]);
+  assert.ok(Math.abs(630 / 810 - 413 / 531) < 0.002);
   assert.equal(tools.lengthToPixels('35', 'mm'), 413);
   assert.equal(tools.lengthToPixels('45', 'mm'), 531);
   assert.equal(tools.lengthToPixels('2', 'inch'), 600);
