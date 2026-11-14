@@ -975,6 +975,8 @@
     input.value = '';
   });
   shared.wireDropZones($$('[data-drop]'), files => openFile(files[0]));
+  // A photo pasted with Ctrl+V is taken as a chosen one.
+  shared.receivePhotos('remove', files => openFile(files[0]));
 
   photoBox.addEventListener('pointerdown', (event) => {
     if (!cutout || busy || showOriginal || stroke || !shared.isMainPointer(event)) return;

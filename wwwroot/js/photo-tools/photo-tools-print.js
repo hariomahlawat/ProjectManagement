@@ -396,6 +396,8 @@
   });
 
   shared.wireDropZones($$('[data-drop]'), files => openFile(files[0]));
+  // A photo pasted with Ctrl+V is taken as a chosen one.
+  shared.receivePhotos('sheet', files => openFile(files[0]));
 
   fewerButton.addEventListener('click', () => {
     copies = Math.max(1, plan().positions.length - 1);

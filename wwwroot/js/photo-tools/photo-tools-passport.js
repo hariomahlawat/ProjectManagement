@@ -156,7 +156,7 @@
       sizeLabel: 'Photo size',
       sizes: core.PASSPORT_SIZES,
       custom: ['35', '45'],
-      dropHint: 'or drop a photo here. JPG, PNG or WEBP. A plain, light background works best.',
+      dropHint: 'or drop a photo here, or paste one (Ctrl+V). JPG, PNG or WEBP. A plain, light background works best.',
       stageHint: 'Drag the photo so the face fills the oval, with the top of the head and the chin near the two lines.',
       download: 'Download photo',
       suffix: 'passport'
@@ -167,7 +167,7 @@
       sizeLabel: 'Signature size',
       sizes: core.SIGNATURE_SIZES,
       custom: ['35', '15'],
-      dropHint: 'or drop a photo of your signature here. Sign in dark ink on plain white paper and photograph it from straight above.',
+      dropHint: 'or drop a photo of your signature here, or paste one (Ctrl+V). Sign in dark ink on plain white paper and photograph it from straight above.',
       stageHint: 'Drag and zoom so the signature fills the frame with a little space around it.',
       download: 'Download signature',
       suffix: 'signature'
@@ -1645,6 +1645,8 @@
   });
 
   shared.wireDropZones($$('[data-drop]'), files => openFile(files[0]));
+  // A photo pasted with Ctrl+V is taken as a chosen one.
+  shared.receivePhotos('passport', files => openFile(files[0]));
 
   // Drag with a mouse, pen or one finger; two fingers zoom.
   const pointers = new Map();
