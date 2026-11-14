@@ -22,7 +22,7 @@ public static class PhotoToolsApi
     };
 
     public const string NotSetUpMessage =
-        "Remove background is not set up on this PRISM server yet. Ask your PRISM administrator.";
+        "Remove background is not set up on this PRISM server. Ask your PRISM administrator.";
 
     public static IServiceCollection AddPhotoTools(this IServiceCollection services, IConfiguration configuration)
     {
