@@ -93,21 +93,7 @@ public sealed class PassportFaceService : IPassportFaceService
         }
     }
 
-    public IDisposable? TryTakePlace() => _turn.Wait(0) ? new Place(_turn) : null;
-
-    /// <summary>A place for finding a face; given back once, however often it is disposed.</summary>
-    private sealed class Place(SemaphoreSlim turn) : IDisposable
-    {
-        private int _given;
-
-        public void Dispose()
-        {
-            if (Interlocked.Exchange(ref _given, 1) == 0)
-            {
-                turn.Release();
-            }
-        }
-    }
+    public IDisposable? TryTakePlace() => _turn.Wait(0) ? new PhotoToolsPlace(() => _turn.Release()) : null;
 
     public async Task<PassportFaceResult> LocateAsync(byte[] photoBytes, CancellationToken cancellationToken, IDisposable? place = null)
     {

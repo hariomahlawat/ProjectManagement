@@ -98,26 +98,11 @@ public static class PhotoToolsApi
         CancellationToken cancellationToken)
     {
         NoStore(httpContext);
-        try
-        {
-            await antiforgery.ValidateRequestAsync(httpContext);
-        }
-        catch (AntiforgeryValidationException)
-        {
-            return Problem(StatusCodes.Status400BadRequest, "The request could not be validated. Reload the page and try again.");
-        }
-
-        var contentType = httpContext.Request.ContentType?.Split(';')[0].Trim();
-        if (contentType is null || !PhotoTypes.Contains(contentType))
-        {
-            return Problem(StatusCodes.Status415UnsupportedMediaType, "Send the photo as PNG, JPG or WEBP.");
-        }
-
         var settings = options.CurrentValue;
         var limit = settings.EffectiveUploadBytes;
-        if (httpContext.Request.ContentLength > limit)
+        if (await CheckRequestAsync(httpContext, antiforgery, limit) is { } refused)
         {
-            return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
+            return refused;
         }
 
         var service = httpContext.RequestServices.GetService<IPassportFaceService>();
@@ -134,32 +119,14 @@ public static class PhotoToolsApi
             return Busy(httpContext, FaceBusyMessage);
         }
 
-        var sizeLimit = httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
-        if (sizeLimit is { IsReadOnly: false })
-        {
-            sizeLimit.MaxRequestBodySize = limit;
-        }
-
         // One time limit for the whole request, upload and finding the face together, while it holds
         // a place.
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(settings.EffectiveTimeout);
-        byte[] photo;
-        try
+        var (photo, unread) = await ReadPhotoAsync(httpContext, limit, deadline.Token, cancellationToken);
+        if (photo is null)
         {
-            photo = await ReadBodyAsync(httpContext.Request.Body, httpContext.Request.ContentLength, limit, deadline.Token);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Problem(StatusCodes.Status408RequestTimeout, "The photo took too long to arrive. Try again.");
-        }
-        catch (Exception error) when (error is InvalidDataException or BadHttpRequestException)
-        {
-            return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
-        }
-        catch (EndOfStreamException)
-        {
-            return Problem(StatusCodes.Status400BadRequest, "The photo did not arrive in full. Try again.");
+            return unread!;
         }
 
         PassportFaceResult result;
@@ -202,25 +169,10 @@ public static class PhotoToolsApi
         CancellationToken cancellationToken)
     {
         NoStore(httpContext);
-        try
-        {
-            await antiforgery.ValidateRequestAsync(httpContext);
-        }
-        catch (AntiforgeryValidationException)
-        {
-            return Problem(StatusCodes.Status400BadRequest, "The request could not be validated. Reload the page and try again.");
-        }
-
-        var contentType = httpContext.Request.ContentType?.Split(';')[0].Trim();
-        if (contentType is null || !PhotoTypes.Contains(contentType))
-        {
-            return Problem(StatusCodes.Status415UnsupportedMediaType, "Send the photo as PNG, JPG or WEBP.");
-        }
-
         var limit = options.CurrentValue.EffectiveUploadBytes;
-        if (httpContext.Request.ContentLength > limit)
+        if (await CheckRequestAsync(httpContext, antiforgery, limit) is { } refused)
         {
-            return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
+            return refused;
         }
 
         // Answered before the photo is read: a server that is not set up, or whose queue is full,
@@ -238,36 +190,14 @@ public static class PhotoToolsApi
             return Busy(httpContext);
         }
 
-        var sizeLimit = httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
-        if (sizeLimit is { IsReadOnly: false })
-        {
-            sizeLimit.MaxRequestBodySize = limit;
-        }
-
         // The upload has its own deadline while it holds a place: a photo that trickles in cannot keep
         // the place (and others on "busy") for longer than one photo may take.
         using var uploadDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         uploadDeadline.CancelAfter(UploadDeadline(options.CurrentValue));
-        byte[] photo;
-        try
+        var (photo, unread) = await ReadPhotoAsync(httpContext, limit, uploadDeadline.Token, cancellationToken);
+        if (photo is null)
         {
-            photo = await ReadBodyAsync(httpContext.Request.Body, httpContext.Request.ContentLength, limit, uploadDeadline.Token);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Problem(StatusCodes.Status408RequestTimeout, "The photo took too long to arrive. Try again.");
-        }
-        catch (InvalidDataException)
-        {
-            return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
-        }
-        catch (BadHttpRequestException)
-        {
-            return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
-        }
-        catch (EndOfStreamException)
-        {
-            return Problem(StatusCodes.Status400BadRequest, "The photo did not arrive in full. Try again.");
+            return unread!;
         }
 
         var result = await service.MaskAsync(photo, place, cancellationToken);
@@ -289,6 +219,71 @@ public static class PhotoToolsApi
                 return Problem(StatusCodes.Status503ServiceUnavailable, "This took too long and was stopped. Try again, or try a smaller photo.");
             default:
                 return Problem(StatusCodes.Status500InternalServerError, "The background could not be removed from this photo.");
+        }
+    }
+
+    /// <summary>
+    /// The checks both photo endpoints make before taking a place: the antiforgery token, a PNG, JPG
+    /// or WEBP type, and a declared length within <paramref name="limit"/>. The problem to answer,
+    /// or null to go on.
+    /// </summary>
+    private static async Task<IResult?> CheckRequestAsync(HttpContext httpContext, IAntiforgery antiforgery, long limit)
+    {
+        try
+        {
+            await antiforgery.ValidateRequestAsync(httpContext);
+        }
+        catch (AntiforgeryValidationException)
+        {
+            return Problem(StatusCodes.Status400BadRequest, "The request could not be validated. Reload the page and try again.");
+        }
+
+        var contentType = httpContext.Request.ContentType?.Split(';')[0].Trim();
+        if (contentType is null || !PhotoTypes.Contains(contentType))
+        {
+            return Problem(StatusCodes.Status415UnsupportedMediaType, "Send the photo as PNG, JPG or WEBP.");
+        }
+
+        if (httpContext.Request.ContentLength > limit)
+        {
+            return Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send.");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Reads the photo, at most <paramref name="limit"/> bytes, by <paramref name="deadline"/>: the
+    /// photo, or the problem to answer (408 too slow, 413 too large, 400 cut short). A caller who
+    /// left (<paramref name="requestAborted"/>) is not answered.
+    /// </summary>
+    private static async Task<(byte[]? Photo, IResult? Problem)> ReadPhotoAsync(
+        HttpContext httpContext,
+        long limit,
+        CancellationToken deadline,
+        CancellationToken requestAborted)
+    {
+        var sizeLimit = httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (sizeLimit is { IsReadOnly: false })
+        {
+            sizeLimit.MaxRequestBodySize = limit;
+        }
+
+        try
+        {
+            return (await ReadBodyAsync(httpContext.Request.Body, httpContext.Request.ContentLength, limit, deadline), null);
+        }
+        catch (OperationCanceledException) when (!requestAborted.IsCancellationRequested)
+        {
+            return (null, Problem(StatusCodes.Status408RequestTimeout, "The photo took too long to arrive. Try again."));
+        }
+        catch (Exception error) when (error is InvalidDataException or BadHttpRequestException)
+        {
+            return (null, Problem(StatusCodes.Status413PayloadTooLarge, "This photo is too large to send."));
+        }
+        catch (EndOfStreamException)
+        {
+            return (null, Problem(StatusCodes.Status400BadRequest, "The photo did not arrive in full. Try again."));
         }
     }
 
