@@ -81,6 +81,7 @@
       card: null,
       placing: 0,
       opener: shared.latestPhotoOpener(),
+      opening: 0,
       empty: panel.querySelector('[data-side-empty]'),
       photo: panel.querySelector('[data-side-photo]'),
       thumb: panel.querySelector('[data-side-thumb]'),
@@ -136,7 +137,12 @@
     side.centre.disabled = side.place.zoom === 1 && side.place.x === 0.5 && side.place.y === 0.5;
   }
 
+  // Counts every change to what the page would hold, so a download only clears "unsaved" when
+  // nothing changed while it was being made.
+  let revision = 0;
+
   function changed() {
+    revision += 1;
     shared.setUnsaved('idcard', hasCard());
     render();
   }
@@ -157,7 +163,15 @@
 
   async function openInto(side, file) {
     // Only the photo chosen last for this side is used: an earlier one that opens late is dropped.
-    const photo = await side.opener.open(file);
+    // The side counts as taken while its photo opens, so a second photo given meanwhile goes to
+    // the other side instead of replacing this one.
+    side.opening += 1;
+    let photo;
+    try {
+      photo = await side.opener.open(file);
+    } finally {
+      side.opening -= 1;
+    }
     if (!photo) return;
     if (side.source && typeof side.source.close === 'function') side.source.close();
     side.source = photo;
@@ -180,7 +194,7 @@
       openInto(back, list[1]);
       return;
     }
-    const target = side || sides.find(item => !item.source) || lastSide;
+    const target = side || sides.find(item => !item.source && !item.opening) || lastSide;
     openInto(target, list[0]);
   }
 
@@ -343,13 +357,15 @@
     // Everything the file needs is taken now: the settings may change while it is being made.
     const page = layout();
     const parts = pageParts();
+    const madeAt = revision;
     const asPdf = format === 'pdf' && PDFLib;
     const name = `id-card-copy.${asPdf ? 'pdf' : 'jpg'}`;
     let saved = '';
     try {
       const bytes = asPdf ? await pagePdf(page, parts) : await pageJpg(page, parts);
       shared.saveBlob(new Blob([bytes], { type: asPdf ? 'application/pdf' : JPEG.mime }), name);
-      shared.setUnsaved('idcard', false);
+      // A change made while the file was being made is not in it, and is still unsaved.
+      if (revision === madeAt) shared.setUnsaved('idcard', false);
       saved = `Saved: ${name}, ${core.formatBytes(bytes.length)}.`;
     } catch (error) {
       if (!(error instanceof core.PhotoToolError)) console.error(error);
@@ -447,12 +463,12 @@
   }
   outline.addEventListener('change', () => {
     rememberChoices();
-    render();
+    changed();
   });
   grey.addEventListener('change', () => {
     rememberChoices();
     for (const side of sides) makeCard(side);
-    render();
+    changed();
   });
   for (const button of formatButtons) {
     button.addEventListener('click', () => {
