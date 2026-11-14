@@ -257,8 +257,7 @@
   /** Called after the list of steps changes: fresh screen copy, fresh tool state, fresh file. */
   function changed() {
     revision += 1;
-    // Steps not yet downloaded would be lost by leaving the page (none after Undo back to the start).
-    shared.setUnsaved('edit', steps.length > 0 && !downloadedSteps(steps));
+    renderUnsaved();
     small = shrink(current);
     tilt = 0;
     straighten.value = '0';
@@ -402,8 +401,18 @@
     return null;
   }
 
+  /**
+   * Work that leaving the page would lose: steps not yet downloaded (none after Undo back to what
+   * was downloaded), or an adjustment or straighten shown but not yet applied.
+   */
+  function renderUnsaved() {
+    shared.setUnsaved('edit', Boolean(current)
+      && ((steps.length > 0 && !downloadedSteps(steps)) || pendingLook() !== null));
+  }
+
   /** The line under Download says when the change on the screen is still to be applied. */
   function renderPending() {
+    renderUnsaved();
     if (!current || working || !saved) return;
     if (pendingLook()) {
       resultLine.className = 'phot-result';
