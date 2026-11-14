@@ -1172,9 +1172,11 @@
     const pending = pendingLook();
     if (pending) {
       // The change on the screen is applied first; the file is saved once it has been made again.
-      downloadWhenReady = photoGeneration;
+      // Armed only once the step is made: a save that started before it (with the photo as it was)
+      // can never fulfil it, even when a hidden tab holds the step back.
+      const generation = photoGeneration;
       addStep(pending).then((done) => {
-        if (done === false) downloadWhenReady = null;
+        if (done && generation === photoGeneration) downloadWhenReady = generation;
       });
       return;
     }
