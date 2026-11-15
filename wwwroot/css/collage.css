@@ -944,7 +944,7 @@
 
 .clg-draft__open img {
     width: 100%;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 16 / 10;
     object-fit: contain;
     background: var(--bs-secondary-bg);
     margin-bottom: 0.35rem;
@@ -1518,4 +1518,35 @@
         grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
         max-height: 50dvh;
     }
+}
+
+/* Review fixes PR 7: the drafts row's "Show all", and the Save dialog's purpose buttons. */
+.clg-drafts__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.clg-drafts__head .clg-start__heading {
+    margin-bottom: 0.35rem;
+}
+
+.clg-drafts-all {
+    white-space: nowrap;
+}
+
+.clg-purpose {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.2rem 0 0.4rem;
+}
+
+.clg-purpose__label {
+    margin-right: 0.2rem;
+    color: var(--pdft-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
 }
