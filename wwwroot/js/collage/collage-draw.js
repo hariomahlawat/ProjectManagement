@@ -15,7 +15,8 @@
 })(typeof self !== 'undefined' ? self : this, function (core) {
   'use strict';
 
-  const CAPTION_FONT = '"Ink Free", "Segoe Print", "Comic Sans MS", cursive';
+  // Caveat ships with PRISM (wwwroot/fonts/collage); Kalam writes a Hindi caption.
+  const CAPTION_FONT = 'Caveat, Kalam, cursive';
   const FRAME_WHITE = '#ffffff';
   const POLAROID_WHITE = '#fffefa';
   const TAPE = 'rgba(250, 236, 180, 0.78)';
@@ -129,5 +130,58 @@
     ctx.restore();
   }
 
-  return Object.freeze({ drawPhoto, tracePath, canFilter, CAPTION_FONT });
+  /**
+   * Draws a text item from its layout (core.layoutText): an optional label behind it, then each
+   * line (or, on a curve, each letter cluster) with its outline, shadow or glow. Straight lines
+   * are drawn whole, so letters that join (Hindi) keep their shapes.
+   */
+  function drawText(ctx, item, layout, pixelsPerUnit = 1) {
+    ctx.save();
+    if (layout.label && item.label) {
+      tracePath(ctx, core.shapePath('rect', layout.label.x, layout.label.y, layout.label.width, layout.label.height, item.size * 0.28));
+      ctx.fillStyle = item.label;
+      ctx.fill();
+    }
+    ctx.font = core.fontOf(item);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const gap = (item.spacing || 0) / 100 * item.size;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${gap}px`;
+    const paint = (text) => {
+      if (item.outline) {
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = item.outline * 2;
+        ctx.strokeStyle = item.outlineColor || '#ffffff';
+        ctx.strokeText(text, 0, 0);
+      }
+      ctx.fillStyle = item.color;
+      ctx.fillText(text, 0, 0);
+    };
+    for (const glyph of layout.glyphs) {
+      ctx.save();
+      // With letter spacing the canvas adds space after the last letter too; half of it is
+      // taken back so a centred line stays centred.
+      ctx.translate(glyph.x + ('letterSpacing' in ctx && !glyph.angle ? gap / 2 : 0), glyph.y);
+      if (glyph.angle) ctx.rotate(glyph.angle);
+      if (item.glow) {
+        ctx.shadowColor = item.color;
+        ctx.shadowBlur = Math.max(4, item.size * 0.35) * pixelsPerUnit;
+        paint(glyph.ch);
+      }
+      if (item.shadow) {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+        ctx.shadowBlur = Math.max(2, item.size * 0.12) * pixelsPerUnit;
+        ctx.shadowOffsetY = Math.max(1, item.size * 0.06) * pixelsPerUnit;
+      } else {
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+      }
+      paint(glyph.ch);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  return Object.freeze({ drawPhoto, drawText, tracePath, canFilter, CAPTION_FONT });
 });

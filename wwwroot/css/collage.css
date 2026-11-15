@@ -1009,3 +1009,107 @@
     outline-offset: 2px;
     border-radius: 8px;
 }
+
+/* ---------- Text ---------- */
+
+.clg-text-start {
+    text-align: left;
+}
+
+.clg-text-heading {
+    margin-top: 1rem;
+}
+
+.clg-headings {
+    display: grid;
+    gap: 6px;
+}
+
+.clg-heading {
+    padding: 0.7rem 0.6rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 10px;
+    font-size: 1.35rem;
+    line-height: 1.1;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.clg-heading:hover,
+.clg-heading:focus-visible {
+    outline: 2px solid var(--clg-accent);
+    outline-offset: 1px;
+}
+
+.clg-text-field {
+    font-size: 0.95rem;
+}
+
+.clg-fonts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 0.4rem;
+}
+
+.clg-font {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 8px;
+    background: var(--pdft-surface);
+    color: var(--bs-body-color);
+    font-size: 1.05rem;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.clg-font.is-on {
+    border-color: var(--clg-accent);
+    background: var(--bs-primary-bg-subtle);
+}
+
+.clg-choices--gap {
+    margin: 0.5rem 0;
+}
+
+.clg-field__label--plain {
+    margin: 0.6rem 0 0.3rem;
+    font-size: 0.85rem;
+}
+
+.clg-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.clg-swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 1px solid var(--pdft-border);
+    border-radius: 50%;
+}
+
+.clg-swatch[aria-pressed="true"] {
+    outline: 2px solid var(--clg-accent);
+    outline-offset: 2px;
+}
+
+.clg-swatch--none {
+    background: linear-gradient(135deg, transparent 45%, var(--bs-danger) 45% 55%, transparent 55%), var(--pdft-surface);
+}
+
+.clg-swatch-pick {
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+}

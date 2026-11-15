@@ -15,7 +15,7 @@ function recorder({ filters = true } = {}) {
     set shadowBlur(v) { calls.push(['shadowBlur', v]); },
     set shadowOffsetX(v) {}, set shadowOffsetY(v) {}
   };
-  for (const name of ['save', 'restore', 'beginPath', 'closePath', 'moveTo', 'lineTo', 'quadraticCurveTo', 'bezierCurveTo', 'ellipse', 'rect', 'roundRect', 'clip', 'fill', 'translate', 'scale', 'rotate', 'fillRect', 'fillText', 'drawImage']) {
+  for (const name of ['strokeText', 'save', 'restore', 'beginPath', 'closePath', 'moveTo', 'lineTo', 'quadraticCurveTo', 'bezierCurveTo', 'ellipse', 'rect', 'roundRect', 'clip', 'fill', 'translate', 'scale', 'rotate', 'fillRect', 'fillText', 'drawImage']) {
     ctx[name] = (...args) => calls.push([name, ...args]);
   }
   if (filters) {
@@ -75,4 +75,25 @@ test('a shaped photo is cut to its shape, and taped and torn frames draw their e
   const torn = recorder();
   draw.drawPhoto(torn, { ...collage.photoItem('a', 'p', 1, { x: 0, y: 0, width: 100 }), frame: 'torn' }, 'SRC', 100, 100);
   assert.ok(torn.calls.filter((c) => c[0] === 'lineTo').length > 80, 'a jagged edge');
+});
+
+test('text is drawn a whole line at a time, with its label, outline and shadow', () => {
+  const ctx = recorder();
+  const item = collage.textItem('t', 'शुभ दीपावली\nHappy Diwali', { x: 0, y: 0 }, { size: 40, outline: 3, shadow: true, label: '#ffd23f' });
+  const layout = collage.layoutText(item, (text) => text.length * 20);
+  draw.drawText(ctx, item, layout, 2);
+  const texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+  assert.deepEqual(texts, ['शुभ दीपावली', 'Happy Diwali'], 'each line once, whole');
+  assert.equal(ctx.calls.filter((c) => c[0] === 'strokeText').length, 2, 'outlined');
+  const order = names(ctx);
+  assert.ok(order.indexOf('fill') < order.indexOf('fillText'), 'the label is behind the words');
+  assert.ok(ctx.calls.some((c) => c[0] === 'shadowBlur' && c[1] > 0));
+});
+
+test('curved text is drawn letter cluster by cluster, each turned along the arc', () => {
+  const ctx = recorder();
+  const item = collage.textItem('t', 'HAPPY', { x: 0, y: 0 }, { size: 40, curve: 40 });
+  draw.drawText(ctx, item, collage.layoutText(item, (text) => text.length * 20));
+  assert.equal(ctx.calls.filter((c) => c[0] === 'fillText').length, 5);
+  assert.equal(ctx.calls.filter((c) => c[0] === 'rotate').length, 4, 'all but the middle letter lean');
 });

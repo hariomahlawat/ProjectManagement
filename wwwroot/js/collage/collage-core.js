@@ -404,6 +404,133 @@
     return points;
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Text
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fonts for text, all shipped with PRISM (wwwroot/fonts/collage, SIL Open Font License). Each
+   * English font falls back to a Devanagari one, so Hindi typed in any font still shows.
+   */
+  const FONTS = Object.freeze({
+    clean: Object.freeze({ label: 'Clean', css: 'Mulish, "Noto Sans Devanagari", sans-serif' }),
+    elegant: Object.freeze({ label: 'Elegant', css: '"Playfair Display", "Tiro Devanagari Hindi", serif' }),
+    script: Object.freeze({ label: 'Script', css: '"Dancing Script", Kalam, cursive' }),
+    hand: Object.freeze({ label: 'Handwritten', css: 'Caveat, Kalam, cursive' }),
+    poster: Object.freeze({ label: 'Poster', css: '"Bebas Neue", "Baloo 2", sans-serif' }),
+    rounded: Object.freeze({ label: 'Rounded', css: '"Baloo 2", sans-serif' }),
+    typewriter: Object.freeze({ label: 'Typewriter', css: '"Courier Prime", "Noto Sans Devanagari", monospace' }),
+    hindiHand: Object.freeze({ label: 'हिंदी हस्तलिपि', css: 'Kalam, cursive' }),
+    hindiFormal: Object.freeze({ label: 'हिंदी औपचारिक', css: '"Tiro Devanagari Hindi", "Noto Sans Devanagari", serif' })
+  });
+  const TEXT_LIMITS = Object.freeze({
+    size: [8, 300], spacing: [-5, 40], outline: [0, 12], curve: [-100, 100], maxLength: 300
+  });
+  const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
+
+  /** A text item: the words and how they look. Its box is measured by layoutText(). */
+  function textItem(id, text, place, look = {}) {
+    return {
+      id,
+      kind: 'text',
+      text,
+      x: place.x,
+      y: place.y,
+      width: 100,
+      aspect: 2,
+      angle: 0,
+      opacity: 100,
+      font: 'clean',
+      size: 40,
+      color: '#172033',
+      bold: true,
+      italic: false,
+      align: 'center',
+      spacing: 0,
+      outline: 0,
+      outlineColor: '#ffffff',
+      shadow: false,
+      glow: false,
+      label: '',
+      curve: 0,
+      ...look
+    };
+  }
+
+  /**
+   * The letters of a text as a reader sees them: a Hindi syllable with its vowel signs is one
+   * cluster, so it is never split apart. Falls back to code points where the browser cannot tell.
+   */
+  function graphemes(text) {
+    if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+      return [...new Intl.Segmenter('hi', { granularity: 'grapheme' }).segment(text)].map((part) => part.segment);
+    }
+    return [...text];
+  }
+
+  /** The CSS font for a text item, as a canvas and the browser's font loader take it. */
+  function fontOf(item, size = item.size) {
+    const family = (FONTS[item.font] || FONTS.clean).css;
+    return `${item.italic ? 'italic ' : ''}${item.bold ? 700 : 400} ${size}px ${family}`;
+  }
+
+  /**
+   * Where every letter of a text item goes, in the item's own units, and the size of its box.
+   * `measure(text, font)` gives the width of a run of text (a canvas's measureText). Straight
+   * text keeps its lines and alignment; curved text is one line set along an arc, bent up for a
+   * curve above 0 and down below it. Letter spacing is in hundredths of the font size.
+   */
+  function layoutText(item, measure) {
+    const size = item.size;
+    const font = fontOf(item);
+    const gap = (item.spacing || 0) / 100 * size;
+    const pad = (item.outline || 0) + size * 0.08;
+    const labelX = item.label && !item.curve ? size * 0.5 : 0;
+    const labelY = item.label && !item.curve ? size * 0.14 : 0;
+    const theta = (item.curve || 0) / 100 * Math.PI;
+
+    if (Math.abs(theta) < 1e-3) {
+      // Whole lines, measured and drawn as one run each, so joined letters (Hindi) stay joined.
+      const lines = String(item.text || ' ').split('\n').map((line) => line || ' ');
+      const lineHeight = size * 1.25;
+      const widths = lines.map((line) => measure(line, font) + gap * Math.max(0, graphemes(line).length - 1));
+      const textWidth = Math.max(...widths);
+      const width = textWidth + 2 * (pad + labelX);
+      const height = lines.length * lineHeight + 2 * (pad + labelY);
+      const glyphs = lines.map((line, row) => {
+        const left = pad + labelX + (item.align === 'left' ? 0 : item.align === 'right' ? textWidth - widths[row] : (textWidth - widths[row]) / 2);
+        return { ch: line, left, x: left + widths[row] / 2, y: pad + labelY + row * lineHeight + lineHeight / 2, angle: 0, width: widths[row] };
+      });
+      return { width, height, glyphs, label: item.label ? { x: pad, y: pad, width: width - 2 * pad, height: height - 2 * pad } : null };
+    }
+
+    // Curved: one line, each letter cluster (a Hindi syllable stays whole) set along the arc.
+    const chars = graphemes(String(item.text || ' ').replace(/\n/g, ' '));
+    const length = chars.reduce((sum, ch) => sum + measure(ch, font), 0) + gap * Math.max(0, chars.length - 1);
+    const radius = length / Math.abs(theta);
+    const half = Math.abs(theta) / 2;
+    const chord = 2 * radius * Math.sin(Math.min(half, Math.PI / 2));
+    const sagitta = radius * (1 - Math.cos(half));
+    const width = Math.max(chord, half > Math.PI / 2 ? 2 * radius : 0) + size + 2 * pad;
+    const height = size * 1.25 + sagitta + 2 * pad;
+    const up = theta > 0;
+    const cx = width / 2;
+    // Letters stand on the arc, their middle a little above it.
+    const cy = up ? pad + size * 0.6 + radius : pad + size * 0.6 + sagitta - radius;
+    const glyphs = [];
+    let along = 0;
+    for (const ch of chars) {
+      const w = measure(ch, font);
+      const phi = (along + w / 2) / radius - half;
+      glyphs.push(up
+        ? { ch, x: cx + radius * Math.sin(phi), y: cy - radius * Math.cos(phi), angle: phi }
+        : { ch, x: cx + radius * Math.sin(phi), y: cy + radius * Math.cos(phi), angle: -phi });
+      along += w + gap;
+    }
+    return { width, height, glyphs, label: null };
+  }
+
   // ---------------------------------------------------------------------------
   // Layouts
   // ---------------------------------------------------------------------------
@@ -764,7 +891,7 @@
     const items = [];
     for (const item of raw.items) {
       if (!item || typeof item !== 'object' || typeof item.id !== 'string') continue;
-      if (item.kind !== 'photo' && item.kind !== 'slot') continue;
+      if (item.kind !== 'photo' && item.kind !== 'slot' && item.kind !== 'text') continue;
       if (!isNumber(item.x) || !isNumber(item.y) || !isNumber(item.width) || !(item.aspect > 0)) continue;
       if (item.kind === 'photo' && !known.has(item.photo)) continue;
       const clean = {
@@ -774,6 +901,22 @@
         opacity: Math.min(100, Math.max(10, isNumber(item.opacity) ? item.opacity : 100)),
         radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0))
       };
+      if (item.kind === 'text') {
+        const range = (value, [low, high], fallback) => Math.min(high, Math.max(low, isNumber(value) ? value : fallback));
+        clean.text = typeof item.text === 'string' ? item.text.slice(0, TEXT_LIMITS.maxLength) : '';
+        clean.font = FONTS[item.font] ? item.font : 'clean';
+        clean.size = range(item.size, TEXT_LIMITS.size, 40);
+        clean.spacing = range(item.spacing, TEXT_LIMITS.spacing, 0);
+        clean.outline = range(item.outline, TEXT_LIMITS.outline, 0);
+        clean.curve = range(item.curve, TEXT_LIMITS.curve, 0);
+        clean.color = HEX_COLOUR.test(item.color) ? item.color : '#172033';
+        clean.outlineColor = HEX_COLOUR.test(item.outlineColor) ? item.outlineColor : '#ffffff';
+        clean.label = HEX_COLOUR.test(item.label) ? item.label : '';
+        clean.align = ['left', 'center', 'right'].includes(item.align) ? item.align : 'center';
+        for (const flag of ['bold', 'italic', 'shadow', 'glow']) clean[flag] = item[flag] === true;
+        delete clean.crop;
+        delete clean.radius;
+      }
       if (item.kind === 'photo') {
         const within = (value, [low, high], fallback) => Math.min(high, Math.max(low, isNumber(value) ? value : fallback));
         clean.frame = FRAMES[item.frame] ? item.frame : 'none';
@@ -889,6 +1032,12 @@
     placeNewPhoto,
     FULL_CROP,
     MAX_CROP_ZOOM,
+    FONTS,
+    TEXT_LIMITS,
+    textItem,
+    fontOf,
+    graphemes,
+    layoutText,
     FRAMES,
     SHAPES,
     LOOKS,

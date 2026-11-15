@@ -538,6 +538,7 @@
   const NORMAL_SNAPS = [0, 45, 90, 135, 180, 225, 270, 315];
   const SHIFT_SNAPS = Array.from({ length: 24 }, (_, i) => i * 15);
   // Corners keep the shape; the middle of each side changes the frame's shape.
+  const CORNER_ANCHORS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
   const ALL_ANCHORS = ['top-left', 'top-center', 'top-right', 'middle-right', 'bottom-right', 'bottom-center', 'bottom-left', 'middle-left'];
   const transformer = new Konva.Transformer({
     rotateEnabled: true,
@@ -606,6 +607,7 @@
   }
 
   function applyItem(node, item) {
+    if (item.kind === 'text') layoutTextItem(item);
     const height = core.itemHeight(item);
     node.setAttrs({
       x: item.x,
@@ -640,6 +642,54 @@
     draw.drawPhoto(context._context, item, photo.canvas, photo.canvas.width, photo.canvas.height, pixelsPerUnit);
   }
 
+  // Text is measured with the fonts PRISM ships (wwwroot/fonts/collage); a canvas measures it.
+  const measureContext = document.createElement('canvas').getContext('2d');
+  const measureText = (text, font) => {
+    measureContext.font = font;
+    if ('letterSpacing' in measureContext) measureContext.letterSpacing = '0px';
+    return measureContext.measureText(text).width;
+  };
+  const textLayouts = new Map();
+  const fontsAsked = new Set();
+
+  /**
+   * Lays a text item out and keeps its box (width and shape) in step with its words, so moving,
+   * snapping and the handles fit the text. A font not loaded yet is asked for; the text is laid
+   * out again once it arrives.
+   */
+  function layoutTextItem(item) {
+    const font = core.fontOf(item, 40);
+    if (document.fonts && !fontsAsked.has(font)) {
+      fontsAsked.add(font);
+      document.fonts.load(font, item.text || 'Aअ').then(() => { syncPage(); }).catch(() => {});
+    }
+    const layout = core.layoutText(item, measureText);
+    item.width = layout.width;
+    item.aspect = layout.width / Math.max(1, layout.height);
+    textLayouts.set(item.id, layout);
+    return layout;
+  }
+
+  /** Waits for every font the collage's text uses, so Save measures and draws the real fonts. */
+  async function fontsReady() {
+    if (!document.fonts) return;
+    const fonts = new Set(collage.items.filter((item) => item.kind === 'text').map((item) => core.fontOf(item, 40)));
+    // A polaroid's caption is written in Caveat (Kalam for Hindi).
+    if (collage.items.some((item) => item.frame === 'polaroid' && item.caption)) fonts.add(`40px ${draw.CAPTION_FONT}`);
+    await Promise.all([...fonts].map((font) => document.fonts.load(font, 'Aअ').catch(() => null)));
+  }
+
+  // The caption font is fetched once; captions drawn before it arrived are drawn again.
+  if (document.fonts) document.fonts.load(`40px ${draw.CAPTION_FONT}`, 'Aअ').then(() => { if (!views.editor.hidden) syncPage(); }).catch(() => {});
+
+  function drawTextNode(context, shape) {
+    const item = itemById(shape.id());
+    if (!item) return;
+    const layout = textLayouts.get(item.id) || layoutTextItem(item);
+    const pixelsPerUnit = scale * (layer.getCanvas().getPixelRatio?.() || 1);
+    draw.drawText(context._context, item, layout, pixelsPerUnit);
+  }
+
   /** The area that takes clicks: the whole frame. */
   function hitPhotoNode(context, shape) {
     context.beginPath();
@@ -651,7 +701,7 @@
   function makeNode(item) {
     const node = item.kind === 'slot'
       ? makeSlotNode()
-      : new Konva.Shape({ name: 'item', draggable: true, sceneFunc: drawPhotoNode, hitFunc: hitPhotoNode });
+      : new Konva.Shape({ name: 'item', draggable: true, sceneFunc: item.kind === 'text' ? drawTextNode : drawPhotoNode, hitFunc: hitPhotoNode });
     node.id(item.id);
     node.setAttr('kind', item.kind);
     node.on('pointerdown', (event) => {
@@ -663,6 +713,7 @@
       const target = itemById(node.id());
       if (target?.kind === 'photo') startAdjust(target.id);
       else if (target?.kind === 'slot') chooseFor(target.id);
+      else if (target?.kind === 'text') focusTextField();
     });
     node.on('dragstart', () => { select(node.id()); hideToolbar(); });
     node.on('dragmove', (event) => snapWhileMoving(node, event.evt));
@@ -681,6 +732,15 @@
       angleTag.hidden = true;
       const target = itemById(node.id());
       if (!target) return;
+      if (target.kind === 'text') {
+        const [low, high] = core.TEXT_LIMITS.size;
+        target.size = Math.round(Math.min(high, Math.max(low, target.size * Math.abs(node.scaleX()))));
+        target.angle = core.normaliseAngle(node.rotation());
+        target.x = node.x();
+        target.y = node.y();
+        commit();
+        return;
+      }
       const width = core.clampWidth(target.width * Math.abs(node.scaleX()));
       const height = core.itemHeight(target) * Math.abs(node.scaleY());
       target.width = width;
@@ -757,7 +817,8 @@
     const node = selectedId && nodes.get(selectedId);
     const adjusting = Boolean(adjustId && adjustId === selectedId);
     transformer.nodes(node ? [node] : []);
-    transformer.enabledAnchors(adjusting ? [] : ALL_ANCHORS);
+    const isText = Boolean(node && itemById(selectedId)?.kind === 'text');
+    transformer.enabledAnchors(adjusting ? [] : isText ? CORNER_ANCHORS : ALL_ANCHORS);
     transformer.rotateEnabled(!adjusting);
     transformer.borderStroke(adjusting ? ADJUST_COLOUR : accent());
     transformer.borderDash(adjusting ? [6, 4] : []);
@@ -965,6 +1026,63 @@
     if (left) showAlert(`${left} photo${left > 1 ? 's' : ''} did not fit this layout. ${left > 1 ? 'They are' : 'It is'} still in Photos; Ctrl+Z brings the page back.`);
   }
 
+  /** Ready-made headings and the plain ways to start text, from the Text panel. */
+  const TEXT_STARTS = Object.freeze({
+    heading: ['Your heading', { font: 'elegant', size: 72 }],
+    subheading: ['A subheading', { font: 'clean', size: 36 }],
+    line: ['A line of text', { font: 'clean', size: 24, bold: false }],
+    hindi: ['यहाँ लिखें', { font: 'hindiHand', size: 48 }],
+    farewell: ['Farewell', { font: 'script', size: 96, color: '#7a3b1e' }],
+    birthday: ['Happy Birthday', { font: 'rounded', size: 80, color: '#c2185b', outline: 4, outlineColor: '#ffffff', curve: 35 }],
+    thanks: ['Thank you!', { font: 'hand', size: 80, color: '#1f6f43' }],
+    congrats: ['Congratulations', { font: 'elegant', size: 64, color: '#e8c36a', shadow: true }],
+    picnic: ['PICNIC DAY', { font: 'poster', size: 96, color: '#ffffff', outline: 6, outlineColor: '#1f5f2c', shadow: true, bold: false }],
+    wishes: ['Best wishes', { font: 'script', size: 80, color: '#ffffff', label: '#c62f3a' }],
+    hShubh: ['शुभकामनाएँ', { font: 'hindiHand', size: 72, color: '#b0412e' }],
+    hVidai: ['विदाई समारोह', { font: 'hindiFormal', size: 64, color: '#0b2a6f' }],
+    hJanm: ['जन्मदिन मुबारक', { font: 'hindiHand', size: 72, color: '#c2185b' }],
+    hSeva: ['सेवानिवृत्ति की शुभकामनाएँ', { font: 'hindiFormal', size: 48, color: '#e8c36a', shadow: true }],
+    hDiwali: ['शुभ दीपावली', { font: 'hindiHand', size: 80, color: '#ffcc4d', glow: true }],
+    hDhanya: ['धन्यवाद', { font: 'hindiHand', size: 72, color: '#1f6f43' }]
+  });
+
+  /** The Text panel: plain starts and ready-made headings, each shown in its own font. */
+  function renderTextPanel() {
+    const button = (key, big) => {
+      const [text, look] = TEXT_STARTS[key];
+      const font = core.FONTS[look.font || 'clean'];
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = big ? 'clg-heading' : 'btn btn-outline-secondary btn-sm clg-text-start';
+      el.dataset.addText = key;
+      el.textContent = text;
+      el.style.fontFamily = font.css;
+      el.style.fontWeight = look.bold === false ? '400' : '700';
+      if (big) {
+        el.style.color = look.color || '#172033';
+        el.style.background = look.label || (look.color === '#ffffff' || look.color === '#ffcc4d' || look.color === '#e8c36a' ? '#1d2b45' : '#f6f2ea');
+      }
+      return el;
+    };
+    const starts = root.querySelector('[data-text-starts]');
+    starts.replaceChildren(...['heading', 'subheading', 'line', 'hindi'].map((key) => button(key, false)));
+    root.querySelector('[data-text-headings]').replaceChildren(...['farewell', 'birthday', 'thanks', 'congrats', 'picnic', 'wishes'].map((key) => button(key, true)));
+    root.querySelector('[data-text-headings-hi]').replaceChildren(...['hShubh', 'hVidai', 'hJanm', 'hSeva', 'hDiwali', 'hDhanya'].map((key) => button(key, true)));
+  }
+
+  function addText(key) {
+    const start = TEXT_STARTS[key];
+    if (!start) return;
+    const count = collage.items.filter((i) => i.kind === 'text').length;
+    const item = core.textItem(newItemId(), start[0], { x: core.PAGE_WIDTH / 2, y: pageHeight() * (0.2 + (count % 4) * 0.15) }, start[1]);
+    collage.items.push(item);
+    selectedId = item.id;
+    stopAdjust(false);
+    commit();
+    announce('Text added. Type the words in the Words box.');
+    window.requestAnimationFrame(focusTextField);
+  }
+
   function act(action) {
     const item = selectedItem();
     switch (action) {
@@ -1057,6 +1175,8 @@
     if (startLayout) { startCollage(core.DEFAULT_SIZE, startLayout.dataset.startLayout); return; }
     const layoutChoice = event.target.closest('[data-layout]');
     if (layoutChoice) { applyLayoutKey(layoutChoice.dataset.layout); return; }
+    const textStart = event.target.closest('[data-add-text]');
+    if (textStart) { addText(textStart.dataset.addText); return; }
     const button = event.target.closest('[data-action]');
     if (!button || button.disabled) return;
     if (button.tagName === 'A') event.preventDefault();
@@ -1144,6 +1264,9 @@
   const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function arrangeSections(item) {
+    const corners = item.kind === 'text' ? '' : `
+        <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius">${item.radius || 0}</output></span>
+          <input type="range" min="0" max="${core.LAYOUT_LIMITS.radiusMax}" step="1" value="${item.radius || 0}" data-prop="radius" aria-label="Rounded corners, in page units"></label>`;
     return `
       <div class="clg-section">
         <p class="clg-section__title">Angle</p>
@@ -1157,8 +1280,7 @@
       </div>
       <div class="clg-section">
         <p class="clg-section__title">Look</p>
-        <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius">${item.radius || 0}</output></span>
-          <input type="range" min="0" max="${core.LAYOUT_LIMITS.radiusMax}" step="1" value="${item.radius || 0}" data-prop="radius" aria-label="Rounded corners, in page units"></label>
+        ${corners}
         <label class="clg-field"><span class="clg-field__label">See-through<output data-out="opacity">${item.opacity}%</output></span>
           <input type="range" min="10" max="100" step="1" value="${item.opacity}" data-prop="opacity" aria-label="How solid it is, in percent"></label>
       </div>
@@ -1199,6 +1321,10 @@
         </div>`;
       return;
     }
+    if (item.kind === 'text') {
+      props.innerHTML = `<h2 class="clg-panel-title">Text</h2>${textSections(item)}${arrangeSections(item)}`;
+      return;
+    }
     if (item.kind === 'slot') {
       props.innerHTML = `
         <h2 class="clg-panel-title">Empty frame</h2>
@@ -1228,6 +1354,87 @@
       ${finishSections(item, photo)}
       ${arrangeSections(item)}`;
   }
+
+  const TEXT_COLOURS = ['#ffffff', '#172033', '#000000', '#c62f3a', '#e8c36a', '#ffd23f', '#1f6f43', '#0b2a8a', '#c2185b', '#7a3b1e', '#ff7043', '#6a1b9a'];
+  const LABEL_COLOURS = ['#ffffff', '#fffbea', '#172033', '#ffd23f', '#c62f3a', '#1f6f43'];
+
+  function swatches(name, colours, current, withNone = false) {
+    const none = withNone ? `<button type="button" class="clg-swatch clg-swatch--none" data-text-set="${name}" data-value="" aria-pressed="${!current}" title="None" aria-label="None"></button>` : '';
+    const list = colours.map((c) => `<button type="button" class="clg-swatch" data-text-set="${name}" data-value="${c}" aria-pressed="${current === c}" style="background:${c}" title="${c}" aria-label="Colour ${c}"></button>`).join('');
+    const pick = `<input type="color" class="clg-swatch-pick" value="${/^#[0-9a-f]{6}$/i.test(current) ? current : '#ffffff'}" data-text-colour="${name}" aria-label="Any colour">`;
+    return `<div class="clg-swatches">${none}${list}${pick}</div>`;
+  }
+
+  /** Words, font and effects of a text item. */
+  function textSections(item) {
+    const fonts = Object.entries(core.FONTS).map(([key, font]) => `<button type="button" class="clg-font${item.font === key ? ' is-on' : ''}" data-text-set="font" data-value="${key}" aria-pressed="${item.font === key}" style='font-family:${font.css}'>${escapeHtml(font.label)}</button>`).join('');
+    const aligns = [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(([v, l]) => `<button type="button" class="btn btn-sm ${item.align === v ? 'btn-primary' : 'btn-outline-secondary'}" data-text-set="align" data-value="${v}" aria-pressed="${item.align === v}">${l}</button>`).join('');
+    const range = (prop, label, [min, max], unit = '') => `<label class="clg-field"><span class="clg-field__label">${label}<output data-out="${prop}">${item[prop]}${unit}</output></span>
+          <input type="range" min="${min}" max="${max}" step="1" value="${item[prop]}" data-prop="${prop}" aria-label="${label}"></label>`;
+    return `
+      <label class="clg-field"><span class="clg-field__label">Words</span>
+        <textarea class="form-control form-control-sm clg-text-field" rows="3" maxlength="${core.TEXT_LIMITS.maxLength}" data-text>${escapeHtml(item.text)}</textarea></label>
+      <p class="clg-hint">Type Hindi with the Windows Hindi keyboard, or paste it.</p>
+      <div class="clg-section">
+        <p class="clg-section__title">Font</p>
+        <div class="clg-fonts">${fonts}</div>
+        ${range('size', 'Size', core.TEXT_LIMITS.size)}
+        <div class="clg-choices">
+          <button type="button" class="btn btn-sm ${item.bold ? 'btn-primary' : 'btn-outline-secondary'}" data-text-toggle="bold" aria-pressed="${item.bold}"><b>B</b> Bold</button>
+          <button type="button" class="btn btn-sm ${item.italic ? 'btn-primary' : 'btn-outline-secondary'}" data-text-toggle="italic" aria-pressed="${item.italic}"><i>I</i> Italic</button>
+        </div>
+        <div class="clg-choices clg-choices--gap">${aligns}</div>
+        ${range('spacing', 'Letter spacing', core.TEXT_LIMITS.spacing)}
+        <p class="clg-field__label clg-field__label--plain">Colour</p>
+        ${swatches('color', TEXT_COLOURS, item.color)}
+      </div>
+      <div class="clg-section">
+        <p class="clg-section__title">Effects</p>
+        ${range('curve', 'Curve', core.TEXT_LIMITS.curve)}
+        ${range('outline', 'Outline', core.TEXT_LIMITS.outline)}
+        ${item.outline ? swatches('outlineColor', TEXT_COLOURS, item.outlineColor) : ''}
+        ${switchRow('shadow', 'Shadow', item.shadow)}
+        ${switchRow('glow', 'Glow', item.glow)}
+        <p class="clg-field__label clg-field__label--plain">Label behind the words${item.curve ? ' (straight text only)' : ''}</p>
+        ${swatches('label', LABEL_COLOURS, item.label, true)}
+      </div>`;
+  }
+
+  /** Puts the cursor in the selected text's words, opening its settings. */
+  function focusTextField() {
+    const field = props.querySelector('[data-text]');
+    if (!field) return;
+    field.focus();
+    field.select();
+  }
+
+  props.addEventListener('click', (event) => {
+    const set = event.target.closest('[data-text-set]');
+    if (set) {
+      changeSelected((item) => { item[set.dataset.textSet] = set.dataset.value; });
+      return;
+    }
+    const toggle = event.target.closest('[data-text-toggle]');
+    if (toggle) changeSelected((item) => { item[toggle.dataset.textToggle] = !item[toggle.dataset.textToggle]; });
+  });
+
+  props.addEventListener('input', (event) => {
+    if (event.target.matches('[data-text]')) {
+      const text = event.target.value.slice(0, core.TEXT_LIMITS.maxLength);
+      changeSelected((item) => { item.text = text; }, false);
+    } else if (event.target.matches('[data-text-colour]')) {
+      const value = event.target.value;
+      changeSelected((item) => { item[event.target.dataset.textColour] = value; }, false);
+    }
+  });
+
+  props.addEventListener('change', (event) => {
+    if (event.target.matches('[data-text], [data-text-colour]')) {
+      history.record(collage);
+      scheduleDraft();
+      updateUndo();
+    }
+  });
 
   /** Buttons that choose one value of a photo's finish (frame, shape or look). */
   function choiceButtons(name, entries, current, disabled = () => false) {
@@ -1317,6 +1524,7 @@
     if (out) {
       out.textContent = prop === 'angle' ? `${Math.round(value)}°`
         : prop === 'opacity' || prop === 'bright' || prop === 'contrast' ? `${value}%`
+          : prop === 'size' ? `${value}`
           : prop === 'zoom' ? `${value.toFixed(1)}×` : String(value);
     }
   });
@@ -1697,7 +1905,20 @@
     const s = width / core.PAGE_WIDTH;
     context.fillStyle = collage.background?.value || '#ffffff';
     context.fillRect(0, 0, width, height);
+    await fontsReady();
     for (const item of core.itemsToSave(collage)) {
+      if (item.kind === 'text') {
+        const layout = core.layoutText(item, measureText);
+        context.save();
+        context.globalAlpha = item.opacity / 100;
+        context.translate(item.x * s, item.y * s);
+        context.rotate(item.angle * Math.PI / 180);
+        context.scale(s, s);
+        context.translate(-layout.width / 2, -layout.height / 2);
+        draw.drawText(context, item, layout, s);
+        context.restore();
+        continue;
+      }
       const photo = photos.get(item.photo);
       if (!photo) continue;
       const inner = core.innerBox(item);
@@ -1870,6 +2091,7 @@
     else if (key === ']') act(event.shiftKey ? 'front' : 'forward');
     else if (key === '[') act(event.shiftKey ? 'back' : 'backward');
     else if (key === 'enter' && selectedItem()?.kind === 'photo' && !adjustId) act('adjust');
+    else if (key === 'enter' && selectedItem()?.kind === 'text') { event.preventDefault(); focusTextField(); }
     else if (key.startsWith('arrow') && selectedId) {
       event.preventDefault();
       const step = event.shiftKey ? 10 : 1;
@@ -1925,6 +2147,7 @@
   // ---------------------------------------------------------------------------
 
   renderStart();
+  renderTextPanel();
   renderDrafts();
   updateUndo();
   showView('start');

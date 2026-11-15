@@ -21,6 +21,8 @@
     <link rel="stylesheet" href="~/css/pdf-tools.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/tools-shared/prism-confirm-standalone.css" asp-append-version="true" />
+    @* Fonts for collage text, shipped with PRISM (wwwroot/fonts/collage, SIL Open Font License). *@
+    <link rel="stylesheet" href="~/css/fonts/collage-fonts.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/collage.css" asp-append-version="true" />
     <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
 </head>
@@ -49,7 +51,7 @@
         <section class="clg-start" data-view="start" aria-labelledby="clgStartTitle">
             <h1 id="clgStartTitle" tabindex="-1">Make a collage</h1>
             <p class="clg-lede">Put your photos on a page, turn them to any angle and arrange them as you like. Everything happens in this browser; no photo is sent to PRISM.</p>
-            <p class="clg-building" role="note"><i class="bi bi-stars" aria-hidden="true"></i> More is on the way: text in English and Hindi, stickers, frames and backgrounds.</p>
+            <p class="clg-building" role="note"><i class="bi bi-stars" aria-hidden="true"></i> More is on the way: stickers and backgrounds.</p>
             <section class="clg-drafts" data-drafts-section aria-labelledby="clgDraftsTitle" hidden>
                 <h2 class="clg-start__heading" id="clgDraftsTitle">Your drafts <small data-drafts-count></small></h2>
                 <p class="clg-hint clg-drafts__note">Drafts are kept in this browser on this computer, with their photos, and saved as you work. Clearing the browser's data removes them, so save a picture or a PDF to keep a copy. <span data-drafts-space></span></p>
@@ -97,6 +99,9 @@
                     <button type="button" data-panel="photos" aria-pressed="true" aria-controls="clgDrawer">
                         <i class="bi bi-images" aria-hidden="true"></i><span>Photos</span>
                     </button>
+                    <button type="button" data-panel="text" aria-pressed="false" aria-controls="clgDrawer">
+                        <i class="bi bi-fonts" aria-hidden="true"></i><span>Text</span>
+                    </button>
                 </nav>
 
                 <aside class="clg-drawer" id="clgDrawer" data-drawer aria-label="Add to the collage">
@@ -112,6 +117,15 @@
                         <p class="clg-hint">Or drop photos on the page, or paste one with Ctrl+V. Empty frames fill first. Click a photo below to add it again, or drag it onto the page or into a frame.</p>
                         <p class="clg-hint clg-count" data-photo-count></p>
                         <div class="clg-tray" data-tray></div>
+                    </section>
+                    <section data-drawer-panel="text" aria-labelledby="clgTextTitle" hidden>
+                        <h2 class="clg-panel-title" id="clgTextTitle">Text</h2>
+                        <div class="clg-stack" data-text-starts></div>
+                        <p class="clg-section__title clg-text-heading">Ready-made headings</p>
+                        <div class="clg-headings" data-text-headings></div>
+                        <p class="clg-section__title clg-text-heading" lang="hi">हिंदी शीर्षक</p>
+                        <div class="clg-headings" data-text-headings-hi></div>
+                        <p class="clg-hint">Type Hindi with the Windows Hindi keyboard, or paste it. The fonts, Hindi ones too, are part of PRISM.</p>
                     </section>
                     <section data-drawer-panel="layouts" aria-labelledby="clgLayoutsTitle" hidden>
                         <h2 class="clg-panel-title" id="clgLayoutsTitle">Layouts</h2>
