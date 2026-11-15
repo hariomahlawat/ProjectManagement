@@ -487,7 +487,10 @@ step, so Undo takes it back.
 - **Home screen.** The same home layout as PDF Tools (shared rules in `pdf-tools.css`): a
   one-line title, a two-line note, and the tool cards four across from 992 px (two on a tablet,
   one on a phone), so all seven fit on a 1366 × 768 screen without scrolling. A last row that is
-  not full keeps its gap on the right.
+  not full keeps its gap on the right. The cards are in the order of the job someone comes with
+  (owner decision, 15 Nov 2026): first what a form or portal asks for (Passport photo, Signature,
+  Reduce size, ID card copy), then general work (Edit photo, Remove background) and Print sheet,
+  which is mostly reached from Passport photo through Continue in.
 - **The photo stays in view.** Wider than 900 px, the photo column of Passport photo, Print
   sheet, Edit photo and Remove background stays on the screen while the settings beside it are
   scrolled (Reduce size is left out: its main column is a list that can be longer than the
