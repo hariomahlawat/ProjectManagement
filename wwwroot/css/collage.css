@@ -616,6 +616,14 @@
         display: none;
     }
 
+    .clg-bar .clg-draft-status.is-warning {
+        display: inline-flex;
+        max-width: 9rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     .clg-size {
         min-width: 0;
         width: 7.5rem;
@@ -982,6 +990,15 @@
     .clg-draft-status {
         display: none;
     }
+
+    /* A draft that is not being kept is never hidden, however narrow the screen. */
+    .clg-bar .clg-draft-status.is-warning {
+        display: inline-flex;
+    }
+}
+
+.clg-keep-draft {
+    white-space: nowrap;
 }
 
 /* ---------- Frame, shape and look ---------- */
