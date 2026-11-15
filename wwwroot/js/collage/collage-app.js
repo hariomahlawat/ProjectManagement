@@ -2130,15 +2130,20 @@
       context.fillStyle = '#9aa3ad';
       context.fillRect(0, 0, 4, 3);
     }
+    // The photo's own size, stored with it, so crops and frames are judged against the real photo
+    // and the draft keeps them exactly; 4 by 3 only for a record from before sizes were stored.
+    const known = Number(entry.width) > 0 && Number(entry.height) > 0;
+    const width = known ? Number(entry.width) : 4;
+    const height = known ? Number(entry.height) : 3;
     return {
       id: entry.id,
       name: entry.name,
       file: entry.file,
       canvas,
       thumbnail: canvas.toDataURL('image/png'),
-      width: 4,
-      height: 3,
-      aspect: 4 / 3,
+      width,
+      height,
+      aspect: width / height,
       missing: true
     };
   }
