@@ -17,6 +17,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.SearchV2.Models;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.SearchV2.Query;
 using ProjectManagement.Services.SearchV2.Security;
 
@@ -63,17 +64,20 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
     private readonly IUrlBuilder _urls;
     private readonly ISearchQueryNormalizer _normalizer;
     private readonly SearchV2Options _options;
+    private readonly IWorkflowStageMetadataProvider _workflowStages;
 
     public SearchProjectionBuilder(
         ApplicationDbContext db,
         IUrlBuilder urls,
         ISearchQueryNormalizer normalizer,
-        IOptions<SearchV2Options> options)
+        IOptions<SearchV2Options> options,
+        IWorkflowStageMetadataProvider? workflowStages = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _urls = urls ?? throw new ArgumentNullException(nameof(urls));
         _normalizer = normalizer ?? throw new ArgumentNullException(nameof(normalizer));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _workflowStages = workflowStages ?? new WorkflowStageMetadataProvider();
     }
 
     /// <summary>
@@ -223,6 +227,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 project.CaseFileNumber,
                 project.ArmService,
                 project.LifecycleStatus,
+                project.WorkflowVersion,
                 project.CreatedAt,
                 project.ContentUpdatedAtUtc,
                 Category = project.Category != null ? project.Category.Name : null,
@@ -257,7 +262,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 .Select(row => new { row.ProjectId, row.Status })
                 .ToListAsync(cancellationToken))
             .GroupBy(row => row.ProjectId)
-            .ToDictionary(group => group.Key, group => string.Join(" · ", group.Select(row => $"ToT {row.Status}").Distinct()));
+            .ToDictionary(group => group.Key, group => string.Join(" · ", group.Select(row => TotSummary(row.Status)).Distinct()));
 
         var iprSummaries = (await _db.IprRecords.AsNoTracking()
                 .Where(row => row.ProjectId.HasValue
@@ -269,22 +274,9 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             .GroupBy(row => row.ProjectId)
             .ToDictionary(group => group.Key, group => string.Join(" · ", group.Select(row => $"IPR {row.Type} {row.Status}").Distinct()));
 
-        var stages = (await _db.ProjectStages.AsNoTracking()
-                .Where(stage => ids.Contains(stage.ProjectId))
-                .Select(stage => new { stage.ProjectId, stage.StageCode, stage.SortOrder, stage.Status })
-                .ToListAsync(cancellationToken))
-            .GroupBy(stage => stage.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .Where(stage => stage.Status == StageStatus.InProgress)
-                    .OrderByDescending(stage => stage.SortOrder)
-                    .Select(stage => stage.StageCode)
-                    .FirstOrDefault()
-                    ?? group.Where(stage => stage.Status == StageStatus.NotStarted)
-                        .OrderBy(stage => stage.SortOrder)
-                        .Select(stage => stage.StageCode)
-                        .FirstOrDefault());
+        var stages = await LoadCurrentStagesAsync(
+            projects.ToDictionary(project => project.Id, project => (project.LifecycleStatus, project.WorkflowVersion)),
+            cancellationToken);
 
         var results = new List<SearchProjection>(projects.Count + 8);
         foreach (var project in projects)
@@ -919,10 +911,10 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 : eventDate;
             return Project(
                 "ProjectTot", row.ProjectId.ToString(CultureInfo.InvariantCulture), "Project", row.ProjectId.ToString(CultureInfo.InvariantCulture), row.ProjectId,
-                "ToT", "Trackers", $"{row.ProjectName} — Transfer of Technology", row.Status.ToString(),
+                "ToT", "Trackers", $"{row.ProjectName} — Transfer of Technology", ProjectTotPresentation.StatusLabel(row.Status),
                 _urls.ProjectOfficeTotTracker(row.ProjectId), null, string.Join(' ', genuineAliases),
-                JoinNonEmpty(row.ProjectName, row.ProjectCase, row.Status.ToString(), "Transfer of Technology", projectContext?.Category, projectContext?.TechnicalCategory, projectContext?.CurrentStage), row.MetDetails,
-                row.Status.ToString(), null, eventDate, updated,
+                JoinNonEmpty(row.ProjectName, row.ProjectCase, ProjectTotPresentation.StatusLabel(row.Status), "Transfer of Technology", projectContext?.Category, projectContext?.TechnicalCategory, projectContext?.CurrentStage), row.MetDetails,
+                ProjectTotPresentation.StatusLabel(row.Status), null, eventDate, updated,
                 BuildTerms(
                     aliases: genuineAliases,
                     names: Values(row.ProjectName),
@@ -937,7 +929,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                     {
                         ["Project"] = JoinNonEmpty(row.ProjectName, row.ProjectCase),
                         ["Lifecycle Stage"] = projectContext?.CurrentStage,
-                        ["Transfer of Technology"] = JoinNonEmpty(row.Status.ToString(), row.MetDetails)
+                        ["Transfer of Technology"] = JoinNonEmpty(ProjectTotPresentation.StatusLabel(row.Status), row.MetDetails)
                     }
                 });
         }).ToArray();
@@ -1082,6 +1074,44 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         }).ToArray();
     }
 
+    /// <summary>
+    /// Each project's current stage code by the app's one rule (<see cref="PresentStageHelper"/>,
+    /// lifecycle-aware): an active project is at its first in-progress stage, else the first
+    /// stage not completed or skipped; a completed or cancelled project stays on its latest
+    /// completed stage. Search must not keep a rule of its own (a Blocked stage, a finished
+    /// project).
+    /// </summary>
+    /// <summary>"ToT not required", in the words the project pages use.</summary>
+    internal static string TotSummary(ProjectTotStatus status) =>
+        "ToT " + ProjectTotPresentation.StatusLabel(status).ToLowerInvariant();
+
+    private async Task<Dictionary<int, string?>> LoadCurrentStagesAsync(
+        IReadOnlyDictionary<int, (ProjectLifecycleStatus Lifecycle, string? WorkflowVersion)> projects,
+        CancellationToken cancellationToken)
+    {
+        var ids = projects.Keys.ToArray();
+        var rows = (await _db.ProjectStages.AsNoTracking()
+                .Where(stage => ids.Contains(stage.ProjectId))
+                .Select(stage => new { stage.ProjectId, stage.StageCode, stage.SortOrder, stage.Status, stage.ActualStart, stage.CompletedOn })
+                .ToListAsync(cancellationToken))
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .GroupBy(stage => stage.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<ProjectStageStatusSnapshot>)group
+                    .Select(stage => new ProjectStageStatusSnapshot(stage.StageCode!, stage.Status, stage.SortOrder, stage.ActualStart, stage.CompletedOn))
+                    .ToList());
+
+        return projects.ToDictionary(
+            pair => pair.Key,
+            pair => PresentStageHelper.ComputePresentStageAndAge(
+                    rows.TryGetValue(pair.Key, out var stages) ? stages : Array.Empty<ProjectStageStatusSnapshot>(),
+                    _workflowStages,
+                    pair.Value.WorkflowVersion,
+                    pair.Value.Lifecycle)
+                .CurrentStageCode);
+    }
+
     private async Task<IReadOnlyDictionary<int, ProjectSearchContext>> LoadProjectContextsAsync(
         IEnumerable<int> projectIds,
         CancellationToken cancellationToken)
@@ -1096,27 +1126,15 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 project.Id,
                 project.Name,
                 project.LifecycleStatus,
+                project.WorkflowVersion,
                 Category = project.Category != null ? project.Category.Name : null,
                 TechnicalCategory = project.TechnicalCategory != null ? project.TechnicalCategory.Name : null
             })
             .ToListAsync(cancellationToken);
 
-        var stages = (await _db.ProjectStages.AsNoTracking()
-                .Where(stage => ids.Contains(stage.ProjectId))
-                .Select(stage => new { stage.ProjectId, stage.StageCode, stage.SortOrder, stage.Status })
-                .ToListAsync(cancellationToken))
-            .GroupBy(stage => stage.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .Where(stage => stage.Status == StageStatus.InProgress)
-                    .OrderByDescending(stage => stage.SortOrder)
-                    .Select(stage => stage.StageCode)
-                    .FirstOrDefault()
-                    ?? group.Where(stage => stage.Status == StageStatus.NotStarted)
-                        .OrderBy(stage => stage.SortOrder)
-                        .Select(stage => stage.StageCode)
-                        .FirstOrDefault());
+        var stages = await LoadCurrentStagesAsync(
+            projects.ToDictionary(project => project.Id, project => (project.LifecycleStatus, project.WorkflowVersion)),
+            cancellationToken);
 
         return projects.ToDictionary(
             project => project.Id,

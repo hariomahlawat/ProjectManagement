@@ -4,6 +4,8 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.SearchV2;
 using ProjectManagement.Services.SearchV2.Indexing;
@@ -148,6 +150,66 @@ public sealed class SearchProjectionBuilderVisibilityTests
 
         Assert.NotEmpty(entries);
         Assert.All(entries, entry => Assert.Equal(SearchSourcePolicies.RequiredPolicyFor(entry.SourceModule), entry.RequiredPolicy));
+    }
+
+    // The current stage is the app's (PresentStageHelper), not a rule of search's own: a
+    // Blocked stage is current for an active project, and a completed project keeps its last
+    // completed stage instead of having none.
+    [Theory]
+    [InlineData(ProjectLifecycleStatus.Active, new[] { StageStatus.Completed, StageStatus.Blocked, StageStatus.NotStarted }, 1)]
+    [InlineData(ProjectLifecycleStatus.Active, new[] { StageStatus.Completed, StageStatus.InProgress, StageStatus.InProgress }, 1)]
+    [InlineData(ProjectLifecycleStatus.Completed, new[] { StageStatus.Completed, StageStatus.Completed, StageStatus.Completed }, 2)]
+    public async Task CurrentStage_FollowsTheAppsRule(ProjectLifecycleStatus lifecycle, StageStatus[] statuses, int expectedIndex)
+    {
+        await using var db = CreateDb();
+        var project = Project(1, deleted: false, archived: false);
+        project.LifecycleStatus = lifecycle;
+        db.Projects.Add(project);
+        var codes = ProcurementWorkflow.StageCodesFor(project.WorkflowVersion).ToList();
+        for (var index = 0; index < codes.Count; index++)
+        {
+            var status = index < statuses.Length ? statuses[index] : StageStatus.NotStarted;
+            db.ProjectStages.Add(new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = codes[index],
+                SortOrder = index + 1,
+                Status = status,
+                CompletedOn = status == StageStatus.Completed ? new DateOnly(2026, 1, 1).AddDays(index) : null
+            });
+        }
+        db.ProjectTots.Add(new ProjectTot { ProjectId = 1, Status = ProjectTotStatus.Completed });
+        await db.SaveChangesAsync();
+
+        var entries = await CreateBuilder(db).BuildEntityAsync("Project", "1", CancellationToken.None);
+
+        var projectEntry = entries.Single(entry => entry.EntityType == "Project");
+        var expected = codes[expectedIndex];
+        using var metadata = System.Text.Json.JsonDocument.Parse(projectEntry.MetadataJson!);
+        Assert.Equal(expected, metadata.RootElement.GetProperty("currentStage").GetString());
+    }
+
+    [Theory]
+    [InlineData(ProjectTotStatus.NotRequired, "ToT not required", "Not required")]
+    [InlineData(ProjectTotStatus.InProgress, "ToT in progress", "In progress")]
+    [InlineData(ProjectTotStatus.NotKnown, "ToT not known", "Not known")]
+    public async Task TotStatus_IsIndexedInTheWordsTheProjectPagesUse(ProjectTotStatus status, string summary, string label)
+    {
+        await using var db = CreateDb();
+        var project = Project(1, deleted: false, archived: false);
+        project.LifecycleStatus = ProjectLifecycleStatus.Completed;
+        db.Projects.Add(project);
+        db.ProjectTots.Add(new ProjectTot { ProjectId = 1, Status = status });
+        await db.SaveChangesAsync();
+        var builder = CreateBuilder(db);
+
+        var projectEntry = (await builder.BuildEntityAsync("Project", "1", CancellationToken.None)).Single(entry => entry.EntityType == "Project");
+        var totEntry = (await builder.BuildEntityAsync("ProjectTot", "1", CancellationToken.None)).Single();
+
+        Assert.Contains(summary, projectEntry.StructuredText);
+        Assert.DoesNotContain(status.ToString(), projectEntry.StructuredText);
+        Assert.Equal(label, totEntry.Subtitle);
+        Assert.Equal(label, totEntry.Status);
     }
 
     private static ApplicationDbContext CreateDb() =>
