@@ -371,6 +371,59 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Empty((await host.SearchAsync("ospreyfalcon")).Results);
     }
 
+    // Document rows copy a few project facts. A project edit that changes none of them leaves
+    // the document rows alone (re-reading every document's OCR text cost minutes on big
+    // projects); one that changes them rewrites them; trashing the project removes them.
+    [SearchV2PostgresFact]
+    public async Task ProjectEdits_RewriteItsDocumentsOnlyWhenTheFactsTheyCopyChange()
+    {
+        await using var host = _database.CreateHost();
+        var projectId = await host.SeedProjectAsync("Sparrowhawk relay");
+        var first = await host.SeedProjectDocumentAsync(projectId, "Relay acceptance report");
+        var second = await host.SeedProjectDocumentAsync(projectId, "Relay trial plan");
+        await host.ResetIndexStateAsync();
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+        var indexed = await DocumentRowIdsAsync(host, projectId);
+        Assert.Equal(2, indexed.Count);
+
+        await host.ExecuteAsync($"""UPDATE "Projects" SET "ProjectBrief" = 'Long-range relay for border posts' WHERE "Id" = {projectId};""");
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+
+        Assert.Equal(indexed, await DocumentRowIdsAsync(host, projectId));
+        Assert.Contains((await host.SearchAsync("border posts")).Results, result => result.EntityKey == projectId.ToString());
+
+        await host.ExecuteAsync($"""UPDATE "Projects" SET "Name" = 'Kestrelwing relay' WHERE "Id" = {projectId};""");
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+
+        var renamed = await DocumentRowIdsAsync(host, projectId);
+        Assert.Equal(2, renamed.Count);
+        Assert.Empty(renamed.Intersect(indexed));
+        var documents = (await host.SearchAsync("kestrelwing")).Results.Where(result => result.EntityType == "ProjectDocument").Select(result => result.EntityKey).ToArray();
+        Assert.Contains(first.ToString(), documents);
+        Assert.Contains(second.ToString(), documents);
+
+        await host.ExecuteAsync($"""UPDATE "Projects" SET "IsDeleted" = TRUE WHERE "Id" = {projectId};""");
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+
+        Assert.Empty(await DocumentRowIdsAsync(host, projectId));
+    }
+
+    private static async Task<List<long>> DocumentRowIdsAsync(SearchV2TestHost host, int projectId)
+    {
+        await using var connection = await host.OpenConnectionAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT e."Id" FROM "SearchEntries" e
+            WHERE e."EntityType" = 'ProjectDocument' AND e."ParentProjectId" = {projectId}
+              AND e."Generation" = (SELECT "ActiveGeneration" FROM "SearchIndexState" WHERE "Id" = 1)
+            ORDER BY e."Id";
+            """;
+        var ids = new List<long>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync()) ids.Add(reader.GetInt64(0));
+        return ids;
+    }
+
     // Triggers stamp a re-queue with NOW(), the start of the user's transaction. A change whose
     // transaction began before the worker leased the record, but committed after the worker read
     // it, used to be stamped earlier than the lease, and completing the item deleted it.
