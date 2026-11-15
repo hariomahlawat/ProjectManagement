@@ -699,13 +699,34 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         var acronym = await host.SearchAsync("anti-tank ATOMZ hydrbad");
         var typo = await host.SearchAsync("anti-tank atomz hydrbad");
         var identifier = await host.SearchAsync("atomz-123 hydrbad");
+        var capitalised = await host.SearchAsync("Hydrbad Trials");
 
-        Assert.Equal("ir&d hyderabad", joined.CorrectedQuery);
+        // The suggestion is the typed text with the corrected words in place.
+        Assert.Equal("IR&D hyderabad", joined.CorrectedQuery);
         // Typed in capitals it is an acronym and stays; typed in lower case it is a typo.
-        Assert.Equal("anti tank atomz hyderabad", acronym.CorrectedQuery);
-        Assert.Equal("anti tank atoms hyderabad", typo.CorrectedQuery);
+        Assert.Equal("anti-tank ATOMZ hyderabad", acronym.CorrectedQuery);
+        Assert.Equal("anti-tank atoms hyderabad", typo.CorrectedQuery);
         // A word with a digit is an identifier: none of its parts is "corrected".
-        Assert.Equal("atomz 123 hyderabad", identifier.CorrectedQuery);
+        Assert.Equal("atomz-123 hyderabad", identifier.CorrectedQuery);
+        Assert.Equal("Hyderabad Trials", capitalised.CorrectedQuery);
+    }
+
+    // Dates are IST days: a record from 15 Nov 02:00 IST (14 Nov 20:30 UTC) is a 15 Nov record.
+    [SearchV2PostgresFact]
+    public async Task DateFilter_UsesIstDays()
+    {
+        await using var host = _database.CreateHost();
+        var earlyMorningIst = new DateTimeOffset(2026, 11, 14, 20, 30, 0, TimeSpan.Zero);
+        var dateOnly = new DateTimeOffset(2026, 11, 15, 0, 0, 0, TimeSpan.Zero);
+        await host.ActivateAsync(
+            host.Entry("Project", "9821", "Projects", "Projects", "Tanager uplink morning", null) with { EventDateUtc = earlyMorningIst },
+            host.Entry("Project", "9822", "Projects", "Projects", "Tanager uplink dated", null) with { EventDateUtc = dateOnly });
+
+        var fromFifteenth = await host.SearchAsync(new SearchRequest("tanager", DateFrom: new DateOnly(2026, 11, 15)));
+        var toFourteenth = await host.SearchAsync(new SearchRequest("tanager", DateTo: new DateOnly(2026, 11, 14)));
+
+        Assert.Equal(new[] { "9821", "9822" }, fromFifteenth.Results.Select(result => result.EntityKey).OrderBy(key => key).ToArray());
+        Assert.Empty(toFourteenth.Results);
     }
 
     // A three-letter word shares half its trigrams with every word starting with the same two

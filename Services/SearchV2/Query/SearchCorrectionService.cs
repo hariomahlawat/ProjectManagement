@@ -120,6 +120,15 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
             return null;
         }
 
+        // Offer it as the person typed it: "Hydrabad Radar" → "Hyderabad Radar", not the
+        // lower-case comparison form. Falls back to that form when the typed text cannot be
+        // matched to the tokens.
+        var typed = SearchCorrectionScorer.ReplaceInTypedText(query.Original, normalizedTokens, replacements, _normalizer.NormalizeExact, TokenRegex());
+        if (typed is not null && string.Equals(_normalizer.NormalizeExact(typed), corrected, StringComparison.Ordinal))
+        {
+            corrected = typed;
+        }
+
         _logger.LogDebug(
             "Search V2 spelling assistance prepared a correction. TokenCount={TokenCount}, CorrectedTokenCount={CorrectedTokenCount}.",
             normalizedTokens.Length,
@@ -326,24 +335,73 @@ public static partial class SearchCorrectionScorer
         ArgumentNullException.ThrowIfNull(normalizeExact);
         ArgumentNullException.ThrowIfNull(tokenPattern);
 
-        var result = new List<bool>(normalizedTokens.Count);
-        foreach (var word in (original ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        var tokens = TypedTokens(original, normalizedTokens, normalizeExact, tokenPattern);
+        return tokens is null
+            ? Enumerable.Repeat(true, normalizedTokens.Count).ToArray()
+            : tokens.Select(token => token.WordHasDigit || IsProtectedOriginalToken(token.Typed)).ToArray();
+    }
+
+    /// <summary>
+    /// Each normalised token's typed spelling and where it sits in <paramref name="original"/>
+    /// (Index is -1 when the spelling could not be found inside its word). Null when the typed
+    /// words do not normalise to the same tokens.
+    /// </summary>
+    private static List<(string Typed, int Index, bool WordHasDigit)>? TypedTokens(
+        string original,
+        IReadOnlyList<string> normalizedTokens,
+        Func<string, string> normalizeExact,
+        Regex tokenPattern)
+    {
+        var result = new List<(string Typed, int Index, bool WordHasDigit)>(normalizedTokens.Count);
+        foreach (Match word in TypedWordRegex().Matches(original ?? string.Empty))
         {
             var searchFrom = 0;
-            var identifier = word.Any(char.IsDigit);
-            foreach (Match part in tokenPattern.Matches(normalizeExact(word)))
+            var hasDigit = word.Value.Any(char.IsDigit);
+            foreach (Match part in tokenPattern.Matches(normalizeExact(word.Value)))
             {
                 if (part.Length == 0) continue;
-                var at = word.IndexOf(part.Value, searchFrom, StringComparison.OrdinalIgnoreCase);
-                var typed = at >= 0 ? word.Substring(at, part.Length) : word;
+                var at = word.Value.IndexOf(part.Value, searchFrom, StringComparison.OrdinalIgnoreCase);
                 if (at >= 0) searchFrom = at + part.Length;
-                result.Add(identifier || IsProtectedOriginalToken(typed));
+                result.Add(at >= 0
+                    ? (word.Value.Substring(at, part.Length), word.Index + at, hasDigit)
+                    : (word.Value, -1, hasDigit));
             }
         }
 
-        return result.Count == normalizedTokens.Count
-            ? result.ToArray()
-            : Enumerable.Repeat(true, normalizedTokens.Count).ToArray();
+        return result.Count == normalizedTokens.Count ? result : null;
+    }
+
+    /// <summary>
+    /// The correction written into the typed text: each replaced token takes the place of its
+    /// typed spelling, in the same case style (Hydrabad → Hyderabad, HYDRABAD → HYDERABAD).
+    /// Null when a replaced token cannot be found in the typed text.
+    /// </summary>
+    public static string? ReplaceInTypedText(
+        string original,
+        IReadOnlyList<string> normalizedTokens,
+        IReadOnlyDictionary<int, string> replacements,
+        Func<string, string> normalizeExact,
+        Regex tokenPattern)
+    {
+        ArgumentNullException.ThrowIfNull(replacements);
+        var tokens = TypedTokens(original, normalizedTokens, normalizeExact, tokenPattern);
+        if (tokens is null || replacements.Keys.Any(index => index >= tokens.Count || tokens[index].Index < 0)) return null;
+
+        var spans = tokens.Select(token => (Index: Math.Max(0, token.Index), Length: token.Typed.Length)).ToArray();
+        var cased = replacements.ToDictionary(pair => pair.Key, pair => InTypedCase(tokens[pair.Key].Typed, pair.Value));
+        return ApplyReplacements(original, spans, cased);
+    }
+
+    private static string InTypedCase(string typed, string replacement)
+    {
+        var letters = typed.Where(char.IsLetter).ToArray();
+        if (letters.Length > 1 && letters.All(char.IsUpper)) return replacement.ToUpperInvariant();
+        if (letters.Length > 0 && char.IsUpper(letters[0]) && replacement.Length > 0)
+        {
+            return char.ToUpperInvariant(replacement[0]) + replacement[1..];
+        }
+
+        return replacement;
     }
 
     /// <summary>Replaces the tokens at the given spans of <paramref name="text"/>, keeping everything between them.</summary>
@@ -410,4 +468,7 @@ public static partial class SearchCorrectionScorer
 
     [GeneratedRegex("^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9._/-]+$", RegexOptions.CultureInvariant)]
     private static partial Regex IdentifierLikeRegex();
+
+    [GeneratedRegex("\\S+", RegexOptions.CultureInvariant)]
+    private static partial Regex TypedWordRegex();
 }

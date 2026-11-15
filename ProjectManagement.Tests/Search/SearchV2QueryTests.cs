@@ -383,6 +383,20 @@ public sealed class SearchV2QueryTests
         Assert.Equal(expected, string.Join(',', result.Select(value => value ? "true" : "false")));
     }
 
+    [Theory]
+    [InlineData("Hydrabad Radar", "Hyderabad Radar")]
+    [InlineData("HYDRABAD radar", "HYDERABAD radar")]
+    [InlineData("hydrabad-radar", "hyderabad-radar")]
+    public void CorrectionScorer_WritesTheCorrectionIntoTheTypedText(string original, string expected)
+    {
+        var normalizer = new SearchQueryNormalizer();
+        var tokens = CorrectionTokens.Matches(normalizer.NormalizeExact(original)).Select(match => match.Value).ToArray();
+
+        var result = SearchCorrectionScorer.ReplaceInTypedText(original, tokens, new Dictionary<int, string> { [0] = "hyderabad" }, normalizer.NormalizeExact, CorrectionTokens);
+
+        Assert.Equal(expected, result);
+    }
+
     [Fact]
     public void CorrectionScorer_ProtectsEverythingWhenTheTypedTextCannotBeAligned()
     {

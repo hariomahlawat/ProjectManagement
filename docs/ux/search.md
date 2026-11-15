@@ -83,7 +83,8 @@ fixed example searches, because they may not match what this reader can see.
   keeps the panel open and says "Changes not applied yet"; Escape or the close button discards
   them and returns focus to the button. On phones the sheet is a modal dialog
   (`role="dialog"`, `aria-modal`) and the rest of the page is `inert` while it is open.
-  Date presets: last 30 days, last 12 months, this year.
+  Date presets: last 30 days, last 12 months, this year. Dates are IST days, in the filter and
+  on the cards.
   Active filter chips all read "Dimension: value"; a project chip is named from the facets or,
   when the project is not among them (for example with no results), from the project record.
 - **Category tabs** scroll sideways on narrow screens; the right edge fades while more tabs
