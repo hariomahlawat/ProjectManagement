@@ -16,7 +16,9 @@ describes what is built.
   as Remove background for the mask. The server holds the photo in memory for that request and
   never writes, stores or logs it (see
   [photo-tools-background-removal.md](photo-tools-background-removal.md)). Photos are read with
-  the File API, drawn on a canvas and downloaded with a `blob:` link.
+  the File API, drawn on a canvas and downloaded with a `blob:` link. On the home screen those
+  two cards say **Uses the PRISM server**, and the line under the title points to that label
+  (the label is hidden while Remove background's card says it is not set up).
 - Nothing is stored or retained by PRISM. The page model (`Pages/Tools/Photo/Index.cshtml.cs`)
   has only `OnGet`; there is no form post, database table or migration. The only API is three
   endpoints (`Features/PhotoTools/PhotoToolsApi.cs`): status, the mask of one photo, and where
@@ -482,6 +484,10 @@ step, so Undo takes it back.
 
 ### Laptops and wide screens
 
+- **Home screen.** The same home layout as PDF Tools (shared rules in `pdf-tools.css`): a
+  one-line title, a two-line note, and the tool cards four across from 992 px (two on a tablet,
+  one on a phone), so all seven fit on a 1366 × 768 screen without scrolling. A last row that is
+  not full keeps its gap on the right.
 - **The photo stays in view.** Wider than 900 px, the photo column of Passport photo, Print
   sheet, Edit photo and Remove background stays on the screen while the settings beside it are
   scrolled (Reduce size is left out: its main column is a list that can be longer than the
