@@ -1,0 +1,11 @@
+Twemoji graphics
+
+These emoji drawings come from Twemoji, copyright 2019-2024 Twitter, Inc. and other
+contributors (https://github.com/jdecked/twemoji), version 15.0, taken from the
+@twemoji/svg 15.0.0 package.
+
+The graphics are licensed under the Creative Commons Attribution 4.0 International
+licence (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+
+PRISM Collage Studio ships a chosen set of the drawings unchanged, so collages can be
+made without the Internet. The Credits on the Collage Studio start screen name them.

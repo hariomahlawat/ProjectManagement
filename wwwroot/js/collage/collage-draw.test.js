@@ -97,3 +97,14 @@ test('curved text is drawn letter cluster by cluster, each turned along the arc'
   assert.equal(ctx.calls.filter((c) => c[0] === 'fillText').length, 5);
   assert.equal(ctx.calls.filter((c) => c[0] === 'rotate').length, 4, 'all but the middle letter lean');
 });
+
+test('a sticker fills its box, mirrored and shadowed when asked', () => {
+  const ctx = recorder();
+  const item = collage.stickerItem('s', 'draw:heart', { x: 0, y: 0, width: 110, aspect: 1.1 }, { flip: true, shadow: true });
+  draw.drawSticker(ctx, item, 'IMG', 2);
+  assert.ok(ctx.calls.some((c) => c[0] === 'scale' && c[1] === -1));
+  assert.ok(ctx.calls.some((c) => c[0] === 'shadowBlur' && c[1] === 20));
+  const image = ctx.calls.find((c) => c[0] === 'drawImage');
+  assert.deepEqual(image.slice(0, 5), ['drawImage', 'IMG', 0, 0, 110]);
+  assert.ok(Math.abs(image[5] - 100) < 1e-9);
+});
