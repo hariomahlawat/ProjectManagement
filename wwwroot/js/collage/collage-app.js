@@ -48,6 +48,8 @@
 
   let collage = core.newCollage(core.DEFAULT_SIZE);
   let history = core.createHistory(collage);
+  // A two-finger zoom in progress: no item is dragged or panned meanwhile.
+  let pinch = null;
   let selectedId = null;
   // The photo whose picture is being moved inside its frame, or null.
   let adjustId = null;
@@ -599,12 +601,15 @@
     const height = pageHeight();
     const narrow = stageBox.clientWidth < 520;
     const pad = narrow ? 16 : 48;
-    const fit = Math.min((stageBox.clientWidth - 2 * pad) / core.PAGE_WIDTH, (stageBox.clientHeight - 2 * pad) / height);
+    // On a phone an open sheet covers the lower half: the page fits in what is left above it.
+    const box = getComputedStyle(stageBox);
+    const usableHeight = stageBox.clientHeight - (parseFloat(box.paddingTop) || 0) - (parseFloat(box.paddingBottom) || 0);
+    const fit = Math.min((stageBox.clientWidth - 2 * pad) / core.PAGE_WIDTH, (usableHeight - 2 * pad) / height);
     scale = Math.max(0.05, fit * zoom);
     const pageW = core.PAGE_WIDTH * scale;
     const pageH = height * scale;
     const stageW = Math.max(stageBox.clientWidth, pageW + 2 * pad);
-    const stageH = Math.max(stageBox.clientHeight, pageH + 2 * pad);
+    const stageH = Math.max(usableHeight, pageH + 2 * pad);
     stage.size({ width: stageW, height: stageH });
     stageHost.style.width = `${stageW}px`;
     stageHost.style.height = `${stageH}px`;
@@ -901,7 +906,7 @@
         itemsGroup.add(node);
       }
       applyItem(node, item);
-      node.draggable(adjustId !== item.id && !item.locked);
+      node.draggable(adjustId !== item.id && !item.locked && !pinch);
       node.visible(!item.hidden);
       seen.add(item.id);
     });
@@ -1007,6 +1012,45 @@
 
   stageBox.addEventListener('scroll', placeToolbar, { passive: true });
 
+  // Two fingers on the page zoom it; one finger still moves items. Pointers are followed on the
+  // work surface, so a pinch starting on a photo zooms instead of dragging it.
+  const touches = new Map();
+  stageBox.addEventListener('pointerdown', (event) => {
+    if (event.pointerType !== 'touch') return;
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      pinch = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom };
+      // stopDrag also cancels a drag Konva is holding ready for the first finger's next move.
+      for (const node of nodes.values()) { node.stopDrag(); node.draggable(false); }
+      // A move inside a frame begun by the first finger is put back and not kept.
+      if (pan) {
+        const panned = itemById(pan.id);
+        if (panned) panned.crop = { ...pan.crop };
+        pan = null;
+        syncPage();
+      }
+      // The handles are not used either until every finger has lifted, even if one lands on them.
+      transformer.stopTransform?.();
+      transformer.listening(false);
+    }
+  }, true);
+  stageBox.addEventListener('pointermove', (event) => {
+    if (!touches.has(event.pointerId)) return;
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pinch && touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      setZoom(pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y) / pinch.distance);
+    }
+  }, true);
+  const endTouch = (event) => {
+    touches.delete(event.pointerId);
+    // Items can be dragged again once every finger has lifted.
+    if (touches.size === 0 && pinch) { pinch = null; transformer.listening(true); syncPage(); }
+  };
+  stageBox.addEventListener('pointerup', endTouch, true);
+  stageBox.addEventListener('pointercancel', endTouch, true);
+
   // ---------------------------------------------------------------------------
   // Moving a photo inside its frame
   // ---------------------------------------------------------------------------
@@ -1045,7 +1089,8 @@
   function startPan(node, event) {
     const item = itemById(node.id());
     const point = world.getRelativePointerPosition();
-    if (!item || !point) return;
+    // Two fingers zoom the page; they never move the photo inside its frame.
+    if (!item || !point || pinch) return;
     event.cancelBubble = true;
     pan = { id: item.id, start: point, crop: { ...item.crop } };
   }
@@ -1377,6 +1422,10 @@
         }
         break;
       case 'preview': startPreview(); break;
+      case 'edit-props': setPropsOpen(true); break;
+      case 'toggle-props': setPropsOpen(!body.classList.contains('is-props-open')); break;
+      case 'close-props': setPropsOpen(false); break;
+      case 'close-drawer': setPanel(null); break;
       case 'preview-exit': stopPreview(); break;
       case 'delete':
         // A locked item is kept until it is unlocked.
@@ -1461,7 +1510,13 @@
       return;
     }
     const layerPick = event.target.closest('[data-layer-select]');
-    if (layerPick) { select(layerPick.dataset.layerSelect); return; }
+    if (layerPick) {
+      select(layerPick.dataset.layerSelect);
+      const name = layerPick.querySelector('.clg-layer__name')?.textContent || '';
+      announce(`Selected ${name}. Arrow keys move it; Delete removes it.`);
+      props.querySelector(`[data-layer-select="${layerPick.dataset.layerSelect}"]`)?.focus();
+      return;
+    }
     const layerHide = event.target.closest('[data-layer-hide]');
     if (layerHide) {
       const target = itemById(layerHide.dataset.layerHide);
@@ -1517,8 +1572,34 @@
   // Panels on the left
   // ---------------------------------------------------------------------------
 
+  const phoneScreen = window.matchMedia?.('(max-width: 820px)');
+  const layersButton = root.querySelector('[data-action="toggle-props"]');
+  const onPhone = () => phoneScreen?.matches === true;
+
+  /** On a phone, the settings sheet (for the selected item, or the page) open or closed. */
+  function setPropsOpen(open) {
+    body.classList.toggle('is-props-open', Boolean(open));
+    layersButton?.setAttribute('aria-pressed', String(Boolean(open)));
+    if (open && onPhone()) setPanel(null);
+    syncSheets();
+  }
+
+  /** Marks whether a sheet covers the lower half, so the page fits above it. */
+  function syncSheets() {
+    const sheet = onPhone() && (body.classList.contains('is-props-open') || Boolean(panel));
+    body.classList.toggle('is-sheet-open', sheet);
+    window.requestAnimationFrame(layout);
+    window.setTimeout(layout, 60);
+  }
+
+  phoneScreen?.addEventListener?.('change', syncSheets);
+
   function setPanel(name) {
     panel = name;
+    if (name && onPhone()) {
+      body.classList.remove('is-props-open');
+      layersButton?.setAttribute('aria-pressed', 'false');
+    }
     for (const button of root.querySelectorAll('[data-panel]')) {
       button.setAttribute('aria-pressed', String(button.dataset.panel === name));
     }
@@ -1528,7 +1609,7 @@
     body.classList.toggle('is-drawer-closed', !name);
     if (name === 'layouts') renderLayoutPanel();
     if (name === 'background') renderBackgroundPanel();
-    window.requestAnimationFrame(layout);
+    syncSheets();
   }
 
   for (const button of root.querySelectorAll('[data-panel]')) {
@@ -1660,6 +1741,7 @@
   function renderProps() {
     renderPropsBody();
     if (selectedItem()?.locked) props.querySelectorAll(LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
+    props.insertAdjacentHTML('afterbegin', '<button type="button" class="clg-sheet-close" data-action="close-props" aria-label="Close settings"><i class="bi bi-x-lg" aria-hidden="true"></i></button>');
     props.insertAdjacentHTML('beforeend', layersSection());
   }
 
@@ -1783,6 +1865,8 @@
   function focusTextField() {
     const field = props.querySelector('[data-text]');
     if (!field) return;
+    // On a phone the Words field is in the settings sheet, which opens first.
+    if (onPhone()) setPropsOpen(true);
     field.focus();
     field.select();
   }

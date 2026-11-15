@@ -111,9 +111,14 @@
                     <button type="button" data-panel="background" aria-pressed="false" aria-controls="clgDrawer">
                         <i class="bi bi-palette" aria-hidden="true"></i><span>Background</span>
                     </button>
+                    @* On phones the settings sheet, with Layers, opens from here even when nothing is selected. *@
+                    <button type="button" class="clg-rail-layers" data-action="toggle-props" aria-pressed="false">
+                        <i class="bi bi-layers" aria-hidden="true"></i><span>Layers</span>
+                    </button>
                 </nav>
 
                 <aside class="clg-drawer" id="clgDrawer" data-drawer aria-label="Add to the collage">
+                    <button type="button" class="clg-sheet-close" data-action="close-drawer" aria-label="Close panel"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                     <section data-drawer-panel="photos" aria-labelledby="clgPhotosTitle">
                         <h2 class="clg-panel-title" id="clgPhotosTitle">Photos</h2>
                         <div class="clg-banner" data-replace-banner hidden>
@@ -183,13 +188,14 @@
                 </aside>
 
                 <div class="clg-stage" data-stage>
-                    <div class="clg-stage__canvas" data-konva></div>
+                    <div class="clg-stage__canvas" data-konva role="img" aria-label="The collage page. To work without a mouse, pick an item in the Layers list, then move it with the arrow keys."></div>
                     <div class="clg-toolbar" data-toolbar role="toolbar" aria-label="Selected item" hidden>
                         <button type="button" class="clg-toolbar__text" data-action="adjust-done" data-for="adjusting">Done</button>
                         <button type="button" data-action="fill-slot" data-for="slot" class="clg-toolbar__text"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add photo</button>
                         <button type="button" data-action="adjust" data-for="photo" title="Move the photo inside its frame (double-click)" aria-label="Move the photo inside its frame"><i class="bi bi-arrows-move" aria-hidden="true"></i></button>
                         <button type="button" data-action="replace" data-for="photo" title="Replace the photo" aria-label="Replace the photo"><i class="bi bi-arrow-left-right" aria-hidden="true"></i></button>
                         <span class="clg-toolbar__sep" data-for="photo" aria-hidden="true"></span>
+                        <button type="button" class="clg-phone-only" data-action="edit-props" data-for="item" title="Settings" aria-label="Settings"><i class="bi bi-sliders" aria-hidden="true"></i></button>
                         <button type="button" data-action="duplicate" data-for="item" title="Duplicate (Ctrl+D)" aria-label="Duplicate"><i class="bi bi-copy" aria-hidden="true"></i></button>
                         <button type="button" data-action="forward" data-for="item" title="Bring forward (])" aria-label="Bring forward"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
                         <button type="button" data-action="backward" data-for="item" title="Send backward ([)" aria-label="Send backward"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
