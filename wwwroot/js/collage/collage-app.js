@@ -1108,7 +1108,14 @@
     touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pinch && touches.size === 2) {
       const [a, b] = [...touches.values()];
+      const middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      // The page point between the fingers, before and after the zoom, so it stays under them.
+      const before = stageHost.getBoundingClientRect();
+      const point = { x: (middle.x - before.left - world.x()) / scale, y: (middle.y - before.top - world.y()) / scale };
       setZoom(pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y) / pinch.distance);
+      const after = stageHost.getBoundingClientRect();
+      stageBox.scrollLeft += after.left + world.x() + point.x * scale - middle.x;
+      stageBox.scrollTop += after.top + world.y() + point.y * scale - middle.y;
     }
   }, true);
   const endTouch = (event) => {
@@ -1228,6 +1235,9 @@
     updateUndo();
   }
 
+  /** Widths a photo or empty frame can be given with its Size slider, in page units. */
+  const FRAME_WIDTHS = [60, 1400];
+
   /**
    * Settings that move, resize, reshape or turn an item; a locked item keeps them as they are.
    * A frame or shape changes the box round the photo, so those wait for Unlock too.
@@ -1235,7 +1245,8 @@
   const LOCKED_CONTROLS = [
     '[data-prop="angle"]', '[data-prop="width"]', '[data-prop="size"]',
     '[data-action="rotate-left"]', '[data-action="rotate-right"]', '[data-action="straighten"]',
-    '[data-action="fit-photo"]', '[data-finish="frame"]', '[data-finish="shape"]'
+    '[data-action="fit-photo"]', '[data-finish="frame"]', '[data-finish="shape"]',
+    '[data-prop="spacing"]', '[data-prop="curve"]', '[data-text-set="font"]', '[data-text-toggle]'
   ].join(', ');
 
   function changeSelected(change, record = true) {
@@ -1793,10 +1804,17 @@
   const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function arrangeSections(item) {
+    const framed = item.kind === 'photo' || item.kind === 'slot';
+    const [low, high] = FRAME_WIDTHS;
+    const size = !framed ? '' : `
+      <div class="clg-section">
+        <label class="clg-field"><span class="clg-field__label">Size<output data-out="width">${Math.round(item.width)}</output></span>
+          <input type="range" min="${low}" max="${high}" step="1" value="${Math.round(Math.min(high, Math.max(low, item.width)))}" data-prop="width" aria-label="Width of the ${item.kind === 'slot' ? 'frame' : 'photo'}, in page units"></label>
+      </div>`;
     const corners = item.kind === 'text' || item.kind === 'sticker' ? '' : `
         <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius">${item.radius || 0}</output></span>
           <input type="range" min="0" max="${core.LAYOUT_LIMITS.radiusMax}" step="1" value="${item.radius || 0}" data-prop="radius" aria-label="Rounded corners, in page units"></label>`;
-    return `
+    return `${size}
       <div class="clg-section">
         <p class="clg-section__title">Angle</p>
         <label class="clg-field"><span class="clg-field__label">Turn<output data-out="angle">${Math.round(item.angle)}°</output></span>
@@ -2975,6 +2993,8 @@
     if (event.key === 'Shift') setShift(true);
     if (views.editor.hidden || leaving || document.querySelector('dialog[open]')) return;
     const typing = event.target.closest?.('input, textarea, select, [contenteditable]');
+    // Enter on a button, link or tile belongs to it; only Enter on the page itself acts on the item.
+    const onPage = event.target === document.body || stageBox.contains(event.target);
     const key = event.key.toLowerCase();
     const mod = event.ctrlKey || event.metaKey;
     if (key === 'escape' && previewing) { stopPreview(); return; }
@@ -2993,8 +3013,9 @@
     else if ((key === 'delete' || key === 'backspace') && selectedId) { event.preventDefault(); act('delete'); }
     else if (key === ']') act(event.shiftKey ? 'front' : 'forward');
     else if (key === '[') act(event.shiftKey ? 'back' : 'backward');
-    else if (key === 'enter' && selectedItem()?.kind === 'photo' && !adjustId) act('adjust');
-    else if (key === 'enter' && selectedItem()?.kind === 'text') { event.preventDefault(); focusTextField(); }
+    else if (key === 'enter' && onPage && selectedItem()?.kind === 'photo' && !adjustId) act('adjust');
+    else if (key === 'enter' && onPage && selectedItem()?.kind === 'text') { event.preventDefault(); focusTextField(); }
+    else if (key.startsWith('arrow') && selectedId && selectedItem()?.hidden) { event.preventDefault(); announce('It is hidden. Show it from Layers first.'); }
     else if (key.startsWith('arrow') && selectedId && selectedItem()?.locked) { event.preventDefault(); announce('It is locked. Unlock it first.'); }
     else if (key.startsWith('arrow') && selectedId) {
       event.preventDefault();
