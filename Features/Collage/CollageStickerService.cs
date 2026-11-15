@@ -66,6 +66,7 @@ public sealed class CollageStickerService : ICollageStickerService
     };
 
     private const string AuditOrigin = "Admin.CollageStickers";
+    private const string LockKey = "collage-stickers";
 
     private readonly ApplicationDbContext _db;
     private readonly IUploadRootProvider _uploadRoot;
@@ -190,36 +191,46 @@ public sealed class CollageStickerService : ICollageStickerService
         await File.WriteAllBytesAsync(tempPath, png, cancellationToken);
         File.Move(tempPath, finalPath);
 
-        var now = _clock.UtcNow;
-        var lastOrder = await _db.CollageStickers.Where(s => !s.IsRetired).MaxAsync(s => (int?)s.SortOrder, cancellationToken) ?? 0;
-        var sticker = new CollageSticker
-        {
-            Name = cleanName,
-            SearchWords = words.Length == 0 ? null : words,
-            StorageKey = $"{Folder}/{fileStem}.png",
-            Width = width,
-            Height = height,
-            Version = 1,
-            SortOrder = lastOrder + 1,
-            CreatedByUserId = actorUserId,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
-        };
-
+        CollageStickerOutcome outcome;
         try
         {
-            _db.CollageStickers.Add(sticker);
-            await _db.SaveChangesAsync(cancellationToken);
+            outcome = await ChangeAsync(async () =>
+            {
+                // Counted again under the lock: the count above only saved decoding a refused upload.
+                if (await _db.CollageStickers.CountAsync(s => !s.IsRetired, cancellationToken) >= MaxActive)
+                {
+                    return CollageStickerOutcome.Refused($"There are already {MaxActive} stickers in use. Retire one first.");
+                }
+
+                var now = _clock.UtcNow;
+                var sticker = new CollageSticker
+                {
+                    Name = cleanName,
+                    SearchWords = words.Length == 0 ? null : words,
+                    StorageKey = $"{Folder}/{fileStem}.png",
+                    Width = width,
+                    Height = height,
+                    Version = 1,
+                    SortOrder = await NextSortOrderAsync(cancellationToken),
+                    CreatedByUserId = actorUserId,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now
+                };
+                _db.CollageStickers.Add(sticker);
+                await _db.SaveChangesAsync(cancellationToken);
+                await RecordAsync("CollageStickerAdded", sticker, null, actorUserId, $"Added the collage sticker '{sticker.Name}'.", cancellationToken);
+                return CollageStickerOutcome.Done($"Added '{sticker.Name}'.", sticker);
+            }, cancellationToken);
         }
         catch
         {
-            // The row was not saved, so the picture has nothing pointing at it.
+            // Nothing was saved, so the picture has nothing pointing at it.
             TryDelete(finalPath);
             throw;
         }
 
-        await RecordAsync("CollageStickerAdded", sticker, null, actorUserId, $"Added the collage sticker '{sticker.Name}'.", cancellationToken);
-        return CollageStickerOutcome.Done($"Added '{sticker.Name}'.", sticker);
+        if (!outcome.Succeeded) TryDelete(finalPath);
+        return outcome;
     }
 
     public async Task<CollageStickerOutcome> RenameAsync(int id, string name, string? searchWords, string? actorUserId, CancellationToken cancellationToken = default)
@@ -229,71 +240,112 @@ public sealed class CollageStickerService : ICollageStickerService
         var words = CleanWords(searchWords);
         if (words.Length > CollageSticker.SearchWordsMaxLength) return CollageStickerOutcome.Refused($"Keep the search words to {CollageSticker.SearchWordsMaxLength} letters.");
 
-        var sticker = await _db.CollageStickers.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
-        if (sticker is null) return CollageStickerOutcome.Refused("That sticker is no longer there.");
-        var before = Snapshot(sticker);
-        var oldName = sticker.Name;
-        sticker.Name = cleanName;
-        sticker.SearchWords = words.Length == 0 ? null : words;
-        sticker.UpdatedAtUtc = _clock.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
-        await RecordAsync("CollageStickerUpdated", sticker, before, actorUserId, $"Renamed the collage sticker '{oldName}' to '{sticker.Name}'.", cancellationToken);
-        return CollageStickerOutcome.Done("Saved.", sticker);
-    }
-
-    public async Task<CollageStickerOutcome> MoveAsync(int id, bool up, string? actorUserId, CancellationToken cancellationToken = default)
-    {
-        var active = await _db.CollageStickers
-            .Where(s => !s.IsRetired)
-            .OrderBy(s => s.SortOrder).ThenBy(s => s.Id)
-            .ToListAsync(cancellationToken);
-        var index = active.FindIndex(s => s.Id == id);
-        if (index < 0) return CollageStickerOutcome.Refused("That sticker is no longer in the picker.");
-        var other = up ? index - 1 : index + 1;
-        if (other < 0 || other >= active.Count) return CollageStickerOutcome.Done("It is already there.", active[index]);
-
-        (active[index], active[other]) = (active[other], active[index]);
-        // Numbered afresh, so equal or missing numbers from older rows cannot keep two in one place.
-        var now = _clock.UtcNow;
-        for (var i = 0; i < active.Count; i++)
+        return await ChangeAsync(async () =>
         {
-            if (active[i].SortOrder == i + 1) continue;
-            active[i].SortOrder = i + 1;
-            active[i].UpdatedAtUtc = now;
+            var sticker = await _db.CollageStickers.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+            if (sticker is null) return CollageStickerOutcome.Refused("That sticker is no longer there.");
+            var before = Snapshot(sticker);
+            var oldName = sticker.Name;
+            sticker.Name = cleanName;
+            sticker.SearchWords = words.Length == 0 ? null : words;
+            sticker.UpdatedAtUtc = _clock.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+            await RecordAsync("CollageStickerUpdated", sticker, before, actorUserId, $"Renamed the collage sticker '{oldName}' to '{sticker.Name}'.", cancellationToken);
+            return CollageStickerOutcome.Done("Saved.", sticker);
+        }, cancellationToken);
+    }
+
+    public Task<CollageStickerOutcome> MoveAsync(int id, bool up, string? actorUserId, CancellationToken cancellationToken = default) =>
+        ChangeAsync(async () =>
+        {
+            var active = await _db.CollageStickers
+                .Where(s => !s.IsRetired)
+                .OrderBy(s => s.SortOrder).ThenBy(s => s.Id)
+                .ToListAsync(cancellationToken);
+            var index = active.FindIndex(s => s.Id == id);
+            if (index < 0) return CollageStickerOutcome.Refused("That sticker is no longer in the picker.");
+            var other = up ? index - 1 : index + 1;
+            if (other < 0 || other >= active.Count) return CollageStickerOutcome.Done("It is already there.", active[index]);
+
+            (active[index], active[other]) = (active[other], active[index]);
+            // Numbered afresh, so equal or missing numbers from older rows cannot keep two in one place.
+            var now = _clock.UtcNow;
+            for (var i = 0; i < active.Count; i++)
+            {
+                if (active[i].SortOrder == i + 1) continue;
+                active[i].SortOrder = i + 1;
+                active[i].UpdatedAtUtc = now;
+            }
+            await _db.SaveChangesAsync(cancellationToken);
+            var moved = active[other];
+            await RecordAsync("CollageStickerUpdated", moved, null, actorUserId, $"Moved the collage sticker '{moved.Name}' {(up ? "earlier" : "later")} in the picker.", cancellationToken);
+            return CollageStickerOutcome.Done("Moved.", moved);
+        }, cancellationToken);
+
+    public Task<CollageStickerOutcome> RetireAsync(int id, string? actorUserId, CancellationToken cancellationToken = default) =>
+        ChangeAsync(async () =>
+        {
+            var sticker = await _db.CollageStickers.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+            if (sticker is null) return CollageStickerOutcome.Refused("That sticker is no longer there.");
+            if (sticker.IsRetired) return CollageStickerOutcome.Done("It is already retired.", sticker);
+            sticker.IsRetired = true;
+            sticker.UpdatedAtUtc = _clock.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+            await RecordAsync("CollageStickerRetired", sticker, null, actorUserId, $"Retired the collage sticker '{sticker.Name}'. Collages that use it keep it.", cancellationToken);
+            return CollageStickerOutcome.Done($"Retired '{sticker.Name}'. Collages that already use it keep it.", sticker);
+        }, cancellationToken);
+
+    public Task<CollageStickerOutcome> RestoreAsync(int id, string? actorUserId, CancellationToken cancellationToken = default) =>
+        ChangeAsync(async () =>
+        {
+            var sticker = await _db.CollageStickers.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+            if (sticker is null) return CollageStickerOutcome.Refused("That sticker is no longer there.");
+            if (!sticker.IsRetired) return CollageStickerOutcome.Done("It is already in the picker.", sticker);
+            if (await _db.CollageStickers.CountAsync(s => !s.IsRetired, cancellationToken) >= MaxActive)
+            {
+                return CollageStickerOutcome.Refused($"There are already {MaxActive} stickers in use. Retire one first.");
+            }
+            sticker.IsRetired = false;
+            sticker.SortOrder = await NextSortOrderAsync(cancellationToken);
+            sticker.UpdatedAtUtc = _clock.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+            await RecordAsync("CollageStickerRestored", sticker, null, actorUserId, $"Put the collage sticker '{sticker.Name}' back in the picker.", cancellationToken);
+            return CollageStickerOutcome.Done($"'{sticker.Name}' is back in the picker, at the end.", sticker);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Runs one change to the stickers and its audit entry as one database transaction, so a
+    /// change is never kept without its entry (the audit service saves through the same context).
+    /// On PostgreSQL every change first takes one transaction-scoped advisory lock, so two
+    /// administrators cannot both find room for the sixtieth sticker or renumber the picker at once.
+    /// A refused change has written nothing; a failure rolls everything back.
+    /// </summary>
+    private async Task<CollageStickerOutcome> ChangeAsync(Func<Task<CollageStickerOutcome>> change, CancellationToken cancellationToken)
+    {
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+        try
+        {
+            if (_db.Database.IsNpgsql())
+            {
+                await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtext({LockKey}))", cancellationToken);
+            }
+
+            var outcome = await change();
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            return outcome;
         }
-        await _db.SaveChangesAsync(cancellationToken);
-        var moved = active[other];
-        await RecordAsync("CollageStickerUpdated", moved, null, actorUserId, $"Moved the collage sticker '{moved.Name}' {(up ? "earlier" : "later")} in the picker.", cancellationToken);
-        return CollageStickerOutcome.Done("Moved.", moved);
+        catch
+        {
+            // Rolled back: forget the unsaved edits so this request cannot save them later.
+            _db.ChangeTracker.Clear();
+            throw;
+        }
     }
 
-    public async Task<CollageStickerOutcome> RetireAsync(int id, string? actorUserId, CancellationToken cancellationToken = default)
-    {
-        var sticker = await _db.CollageStickers.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
-        if (sticker is null) return CollageStickerOutcome.Refused("That sticker is no longer there.");
-        if (sticker.IsRetired) return CollageStickerOutcome.Done("It is already retired.", sticker);
-        sticker.IsRetired = true;
-        sticker.UpdatedAtUtc = _clock.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
-        await RecordAsync("CollageStickerRetired", sticker, null, actorUserId, $"Retired the collage sticker '{sticker.Name}'. Collages that use it keep it.", cancellationToken);
-        return CollageStickerOutcome.Done($"Retired '{sticker.Name}'. Collages that already use it keep it.", sticker);
-    }
-
-    public async Task<CollageStickerOutcome> RestoreAsync(int id, string? actorUserId, CancellationToken cancellationToken = default)
-    {
-        var sticker = await _db.CollageStickers.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
-        if (sticker is null) return CollageStickerOutcome.Refused("That sticker is no longer there.");
-        if (!sticker.IsRetired) return CollageStickerOutcome.Done("It is already in the picker.", sticker);
-        var active = await _db.CollageStickers.CountAsync(s => !s.IsRetired, cancellationToken);
-        if (active >= MaxActive) return CollageStickerOutcome.Refused($"There are already {MaxActive} stickers in use. Retire one first.");
-        var lastOrder = await _db.CollageStickers.Where(s => !s.IsRetired).MaxAsync(s => (int?)s.SortOrder, cancellationToken) ?? 0;
-        sticker.IsRetired = false;
-        sticker.SortOrder = lastOrder + 1;
-        sticker.UpdatedAtUtc = _clock.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
-        await RecordAsync("CollageStickerRestored", sticker, null, actorUserId, $"Put the collage sticker '{sticker.Name}' back in the picker.", cancellationToken);
-        return CollageStickerOutcome.Done($"'{sticker.Name}' is back in the picker, at the end.", sticker);
-    }
+    private async Task<int> NextSortOrderAsync(CancellationToken cancellationToken) =>
+        (await _db.CollageStickers.Where(s => !s.IsRetired).MaxAsync(s => (int?)s.SortOrder, cancellationToken) ?? 0) + 1;
 
     /// <summary>The name with spaces tidied, or null when it is empty or too long.</summary>
     internal static string? CleanName(string? name)
