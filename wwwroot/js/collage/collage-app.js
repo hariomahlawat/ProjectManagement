@@ -109,9 +109,15 @@
     const before = document.activeElement;
     const key = controlKey(before);
     const caret = before && typeof before.selectionStart === 'number' ? [before.selectionStart, before.selectionEnd] : null;
+    // The control is looked for again only inside the part of the page that was redrawn (the
+    // nearest container that is still there), so a matching button elsewhere, such as the
+    // floating toolbar's Lock for Settings' Lock, never takes the focus.
+    const containers = [];
+    for (let node = before?.parentElement; node && node !== root; node = node.parentElement) containers.push(node);
     render();
     if (!key || before.isConnected) return;
-    const after = root.querySelector(key);
+    const scope = containers.find((node) => node.isConnected) || root;
+    const after = scope.querySelector(key);
     if (!after || after.disabled) return;
     after.focus({ preventScroll: true });
     if (caret && typeof after.setSelectionRange === 'function') {
