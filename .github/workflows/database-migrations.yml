@@ -231,6 +231,15 @@ jobs:
           --no-build
           --filter FullyQualifiedName~ProjectPhotoConcurrentUploadPostgresTests
 
+      - name: Run collage sticker PostgreSQL test
+        # Two uploads at once never pass the limit of 60; a failed audit write rolls the change back and
+        # removes the picture. Creates, migrates and drops its own prism_test_collage_* database.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~CollageStickerPostgresIntegrationTests
+
       - name: Run Search V2 PostgreSQL integration tests
         env:
           # The tests create, migrate and drop their own prism_test_searchv2_* database
