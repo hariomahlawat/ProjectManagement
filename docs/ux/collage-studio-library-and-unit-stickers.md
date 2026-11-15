@@ -1,5 +1,8 @@
 # Collage Studio: unit stickers and photos from PRISM Photos (plan, 15 Nov 2026)
 
+> **Complete.** All seven PRs are built; what is built is described in
+> [../collage-studio.md](../collage-studio.md).
+
 Collage Studio ([../collage-studio.md](../collage-studio.md)) was built in the browser only. Its
 first plan ([collage-studio.md](collage-studio.md)) left two choices to the owner. On 15 Nov 2026
 the owner decided to build both, as nice to have:

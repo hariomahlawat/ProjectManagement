@@ -160,5 +160,22 @@ itself stays the colour the user chose, as it will print.
 - Everything is held in browser memory, so a print-quality A3 poster from many large photos
   depends on the user's computer. When a browser cannot draw a canvas that large, Save makes the
   largest picture it can and says so, with its dots per inch.
-- Admin-uploaded unit stickers, themes, and the PRISM Photos library as a source of photos are
-  not built; the owner will decide later (see [ux/collage-studio.md](ux/collage-studio.md)).
+- **Crests and logos**: only an Admin can add them (permission "Manage crests and logos", easy to
+  widen to HoD in the capability catalog). At most 60 are in use; a retired one is never deleted,
+  so drafts keep it. SVG files are refused. A user's own logo as a sticker is not built (owner,
+  15 Nov 2026); it can still be added as a photo.
+- **From PRISM Photos** lists what the Photos library's catalogue holds. A photo uploaded moments
+  ago appears once the catalogue has taken it in, as on `/Photos`. Videos are not offered.
+- Themes (ready-made Farewell, Picnic and similar designs) are not built.
+
+## Administration › Crests and logos
+
+`Areas/Admin/Pages/CollageStickers`, under Reference lists, for the "Manage crests and logos"
+permission (`Admin.CollageStickers.Manage`, Admin only). An administrator adds a PNG, JPEG or WebP
+of up to 5 MB with a name and optional search words, moves stickers earlier or later, renames,
+retires and puts them back. `Features/Collage/CollageStickerService.cs` checks the file with
+`PrismImageCodec`, re-encodes it as a PNG of at most 1024 pixels (keeping a clear background),
+writes it under the upload root in `collage-stickers/`, and saves each change with its admin
+audit entry in one transaction, under one PostgreSQL advisory lock so the limit of 60 holds when
+two administrators work at once. The table is `CollageStickers` (migration
+`20270104080022_AddCollageStickers`); the pictures are covered by the upload-root backup.
