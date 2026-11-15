@@ -543,8 +543,10 @@
     pan = { id: item.id, start: point, crop: { ...item.crop } };
   }
 
-  stage.on('pointermove', () => {
+  stage.on('pointermove', (event) => {
     if (!pan) return;
+    // A mouse whose button is no longer held was let go somewhere the page did not hear it.
+    if (event.evt?.pointerType === 'mouse' && event.evt.buttons === 0) { endPan(); return; }
     const item = itemById(pan.id);
     const photo = item && photos.get(item.photo);
     const point = world.getRelativePointerPosition();
@@ -560,11 +562,16 @@
     layer.batchDraw();
   });
 
-  stage.on('pointerup pointercancel', () => {
+  function endPan() {
     if (!pan) return;
     pan = null;
     commit();
-  });
+  }
+
+  // Released anywhere, on the page or off it: the drag inside the frame ends there.
+  window.addEventListener('pointerup', endPan);
+  window.addEventListener('pointercancel', endPan);
+  window.addEventListener('blur', endPan);
 
   function zoomCrop(item, value) {
     item.crop = clampedCrop({ ...item, crop: { ...item.crop, zoom: value } });
@@ -773,11 +780,14 @@
       const value = Number(input.value);
       const which = input.dataset.layoutInput;
       $(`[data-out="${which}"]`).textContent = String(value);
-      if (collage.layout) {
-        const next = { ...collage.layout, [which]: value };
+      if (which === 'gap' && collage.layout) {
+        // The space lays the page out again; that is what the hint under the sliders says.
+        const next = { ...collage.layout, gap: value };
         collage = core.applyLayout(collage, next.key, next.gap, next.radius, [], newItemId).collage;
       } else if (which === 'radius') {
+        // Corners change only the corners: turned photos and their crops stay as they are.
         collage.items.forEach((item) => { if (isFrame(item)) item.radius = value; });
+        if (collage.layout) collage.layout = { ...collage.layout, radius: value };
       }
       syncPage();
     });
@@ -1232,7 +1242,6 @@
   document.addEventListener('keyup', (event) => { if (event.key === 'Shift') setShift(false); });
   window.addEventListener('blur', () => setShift(false));
 
-  let wheelTimer = 0;
   stageBox.addEventListener('wheel', (event) => {
     const item = adjustId && itemById(adjustId);
     if (item) {
@@ -1244,8 +1253,11 @@
       const input = props.querySelector('[data-prop="zoom"]');
       if (out) out.textContent = `${item.crop.zoom.toFixed(1)}×`;
       if (input) input.value = item.crop.zoom;
-      window.clearTimeout(wheelTimer);
-      wheelTimer = window.setTimeout(() => { history.record(collage); updateUndo(); }, 300);
+      // Recorded for Undo once the wheel stops, the same way as a keyboard nudge, so Undo
+      // and Redo flush it first and never skip it.
+      window.clearTimeout(nudgeTimer);
+      nudgePending = true;
+      nudgeTimer = window.setTimeout(flushNudge, 300);
       return;
     }
     if (!event.ctrlKey) return;
