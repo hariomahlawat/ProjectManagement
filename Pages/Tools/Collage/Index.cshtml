@@ -86,6 +86,9 @@
                     <button type="button" class="btn btn-outline-secondary clg-zoom__value" data-action="zoom-fit" title="Fit the page" aria-label="Fit the page" data-zoom-value>100%</button>
                     <button type="button" class="btn btn-outline-secondary" data-action="zoom-in" title="Zoom in" aria-label="Zoom in"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
                 </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm clg-preview-btn" data-action="preview" title="See the page alone (Esc to come back)">
+                    <i class="bi bi-eye" aria-hidden="true"></i> <span>Preview</span>
+                </button>
                 <button type="button" class="btn btn-primary btn-sm clg-save-btn" data-action="save-open">
                     <i class="bi bi-download" aria-hidden="true"></i> <span>Save as…</span>
                 </button>
@@ -190,9 +193,11 @@
                         <button type="button" data-action="duplicate" data-for="item" title="Duplicate (Ctrl+D)" aria-label="Duplicate"><i class="bi bi-copy" aria-hidden="true"></i></button>
                         <button type="button" data-action="forward" data-for="item" title="Bring forward (])" aria-label="Bring forward"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
                         <button type="button" data-action="backward" data-for="item" title="Send backward ([)" aria-label="Send backward"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+                        <button type="button" data-action="lock" data-for="item" title="Lock" aria-label="Lock" aria-pressed="false"><i class="bi bi-unlock" aria-hidden="true"></i></button>
                         <button type="button" class="clg-toolbar__delete" data-action="delete" data-for="item" title="Delete (Delete)" aria-label="Delete"><i class="bi bi-trash3" aria-hidden="true"></i></button>
                     </div>
                     <div class="clg-angle" data-angle hidden></div>
+                    <button type="button" class="btn btn-light btn-sm clg-preview-exit" data-action="preview-exit" data-preview-exit hidden><i class="bi bi-x-lg" aria-hidden="true"></i> Exit preview</button>
                     <div class="clg-stage-hint" data-adjust-hint hidden>Drag to move the photo in its frame · scroll or use the slider to zoom · Esc when done</div>
                     <div class="clg-empty" data-empty>
                         <i class="bi bi-images" aria-hidden="true"></i>

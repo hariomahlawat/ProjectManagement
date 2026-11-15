@@ -150,8 +150,8 @@ test('items move forward, backward, to the front and to the back', () => {
 });
 
 test('a duplicate gets a new id and sits a little lower and to the right', () => {
-  const item = { id: 'a', kind: 'photo', photo: 'p1', x: 100, y: 100, width: 200, aspect: 1, angle: 12, opacity: 80 };
-  assert.deepEqual(collage.duplicateItem(item, 'b'), { ...item, id: 'b', x: 124, y: 124 });
+  const item = { id: 'a', kind: 'photo', photo: 'p1', x: 100, y: 100, width: 200, aspect: 1, angle: 12, opacity: 80, locked: true, hidden: true };
+  assert.deepEqual(collage.duplicateItem(item, 'b'), { ...item, id: 'b', x: 124, y: 124, locked: false, hidden: false });
 });
 
 test('widths stay grabbable and within reason', () => {
@@ -618,4 +618,34 @@ test('backgrounds compare by their choice, and the grain is the same every time'
   assert.deepEqual(a, [1, 2, 3].map(collage.steadyRandom));
   assert.ok(a.every((v) => v >= 0 && v < 1));
   assert.notEqual(a[0], a[1]);
+});
+
+test('lining up puts the turned box against an edge or on a centre line, one way only', () => {
+  const item = { id: 'a', kind: 'photo', x: 300, y: 300, width: 200, aspect: 2, angle: 0 };
+  const height = collage.pageHeight('a4l');
+  assert.deepEqual(collage.alignItem(item, 'a4l', 'left'), { x: 100, y: 300 });
+  assert.deepEqual(collage.alignItem(item, 'a4l', 'right'), { x: 900, y: 300 });
+  assert.deepEqual(collage.alignItem(item, 'a4l', 'centre'), { x: 500, y: 300 });
+  assert.deepEqual(collage.alignItem(item, 'a4l', 'top'), { x: 300, y: 50 });
+  assert.deepEqual(collage.alignItem(item, 'a4l', 'middle'), { x: 300, y: height / 2 });
+  assert.deepEqual(collage.alignItem(item, 'a4l', 'bottom'), { x: 300, y: height - 50 });
+  // A turned item lines up by the box round its corners.
+  const turned = collage.alignItem({ ...item, angle: 90 }, 'a4l', 'left');
+  assert.ok(Math.abs(turned.x - 50) < 1e-9);
+  assert.deepEqual(collage.alignItem(item, 'a4l', 'nowhere'), { x: 300, y: 300 });
+});
+
+test('hidden items are not saved, and drafts keep hidden and locked', () => {
+  const shown = collage.photoItem('a', 'p1', 1, { x: 1, y: 1, width: 10 });
+  const hidden = { ...shown, id: 'b', hidden: true };
+  assert.deepEqual(collage.itemsToSave({ items: [shown, hidden] }).map((i) => i.id), ['a']);
+  const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [{ ...shown, locked: true }, { ...hidden, locked: 'yes' }] }, ['p1']);
+  assert.deepEqual(read.items.map((i) => [i.hidden, i.locked]), [[false, true], [true, false]]);
+});
+
+test('the Layers list names text by its first words', () => {
+  assert.equal(collage.layerName({ kind: 'text', text: 'Happy Birthday\nPriya' }), 'Happy Birthday');
+  assert.equal(collage.layerName({ kind: 'text', text: 'x'.repeat(40) }), `${'x'.repeat(27)}…`);
+  assert.equal(collage.layerName({ kind: 'text', text: '  ' }), 'Text');
+  assert.equal(collage.layerName({ kind: 'slot' }), 'Empty frame');
 });

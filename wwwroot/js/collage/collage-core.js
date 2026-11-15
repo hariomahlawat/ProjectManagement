@@ -872,9 +872,43 @@
     return list;
   }
 
-  /** A copy of an item, a little down and to the right, with a new id. */
+  /** A copy of an item, a little down and to the right, with a new id; never hidden or locked. */
   function duplicateItem(item, id) {
-    return { ...item, id, x: item.x + 24, y: item.y + 24 };
+    return { ...item, id, x: item.x + 24, y: item.y + 24, hidden: false, locked: false };
+  }
+
+  /** Where "Line up on the page" can put an item. */
+  const ALIGN_PLACES = Object.freeze(['left', 'centre', 'right', 'top', 'middle', 'bottom']);
+
+  /**
+   * The item's centre lined up with the page: its turned box against an edge (left, right, top,
+   * bottom) or on the page's centre line (centre across, middle down). Only one direction
+   * changes.
+   */
+  function alignItem(item, sizeKey, place) {
+    const box = turnedHalfBox(item.width, itemHeight(item), item.angle);
+    const height = pageHeight(sizeKey);
+    if (place === 'left') return { x: box.halfWidth, y: item.y };
+    if (place === 'centre') return { x: PAGE_WIDTH / 2, y: item.y };
+    if (place === 'right') return { x: PAGE_WIDTH - box.halfWidth, y: item.y };
+    if (place === 'top') return { x: item.x, y: box.halfHeight };
+    if (place === 'middle') return { x: item.x, y: height / 2 };
+    if (place === 'bottom') return { x: item.x, y: height - box.halfHeight };
+    return { x: item.x, y: item.y };
+  }
+
+  /**
+   * A short name for an item in the Layers list: the words of a text, the kind of anything
+   * else. Photos and stickers are named by the caller, which knows their files.
+   */
+  function layerName(item) {
+    if (item.kind === 'text') {
+      const first = String(item.text || '').split('\n')[0].trim();
+      return first ? (first.length > 28 ? `${first.slice(0, 27)}…` : first) : 'Text';
+    }
+    if (item.kind === 'slot') return 'Empty frame';
+    if (item.kind === 'sticker') return 'Sticker';
+    return 'Photo';
   }
 
   // ---------------------------------------------------------------------------
@@ -943,9 +977,9 @@
     return { width, height: Math.max(1, Math.round(width * photo.height / photo.width)) };
   }
 
-  /** The items a saved picture shows: everything except empty frames, in drawing order. */
+  /** The items a saved picture shows: everything except empty frames and hidden items, in order. */
   function itemsToSave(collage) {
-    return collage.items.filter((item) => item.kind !== 'slot');
+    return collage.items.filter((item) => item.kind !== 'slot' && !item.hidden);
   }
 
   /**
@@ -998,7 +1032,9 @@
         width: clampWidth(item.width),
         angle: normaliseAngle(isNumber(item.angle) ? item.angle : 0),
         opacity: Math.min(100, Math.max(10, isNumber(item.opacity) ? item.opacity : 100)),
-        radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0))
+        radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0)),
+        hidden: item.hidden === true,
+        locked: item.locked === true
       };
       if (item.kind === 'sticker') {
         // Stickers have their own limits (down to 20), so the saved width is clamped, not the
@@ -1192,6 +1228,9 @@
     changeSize,
     reorder,
     duplicateItem,
+    ALIGN_PLACES,
+    alignItem,
+    layerName,
     SCREEN_SIDE,
     PRINT_DPI,
     savePixels,
