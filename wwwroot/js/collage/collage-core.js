@@ -562,6 +562,99 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Drafts (kept in this browser; docs/ux/collage-studio.md, owner decision 15 Nov 2026)
+  // ---------------------------------------------------------------------------
+
+  /** At most this many drafts; a new one past it asks before the oldest is deleted. */
+  const MAX_DRAFTS = 30;
+  /** A deleted draft can be brought back for this long before it is removed for good. */
+  const DRAFT_UNDO_MS = 10000;
+
+  const isNumber = (value) => typeof value === 'number' && Number.isFinite(value);
+
+  /**
+   * A draft's collage read back from storage, checked item by item so a damaged or hand-edited
+   * draft can never break the editor: unknown kinds, items without a usable size or place, and
+   * photos the draft does not hold are dropped. An older version is brought up to this one.
+   * Returns null when nothing usable is left or the draft was made by a newer PRISM.
+   */
+  function readDraftModel(raw, photoIds) {
+    if (!raw || typeof raw !== 'object' || !Array.isArray(raw.items)) return null;
+    const version = isNumber(raw.version) ? raw.version : 1;
+    if (version > MODEL_VERSION) return null;
+    const known = new Set(photoIds || []);
+    const items = [];
+    for (const item of raw.items) {
+      if (!item || typeof item !== 'object' || typeof item.id !== 'string') continue;
+      if (item.kind !== 'photo' && item.kind !== 'slot') continue;
+      if (!isNumber(item.x) || !isNumber(item.y) || !isNumber(item.width) || !(item.aspect > 0)) continue;
+      if (item.kind === 'photo' && !known.has(item.photo)) continue;
+      const clean = {
+        ...item,
+        width: clampWidth(item.width),
+        angle: normaliseAngle(isNumber(item.angle) ? item.angle : 0),
+        opacity: Math.min(100, Math.max(10, isNumber(item.opacity) ? item.opacity : 100)),
+        radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0))
+      };
+      if (item.kind === 'photo') {
+        const crop = item.crop || FULL_CROP;
+        clean.crop = {
+          zoom: Math.min(MAX_CROP_ZOOM, Math.max(1, isNumber(crop.zoom) ? crop.zoom : 1)),
+          x: isNumber(crop.x) ? crop.x : 0.5,
+          y: isNumber(crop.y) ? crop.y : 0.5
+        };
+      }
+      items.push(clean);
+    }
+    const layout = raw.layout && LAYOUTS[raw.layout.key]
+      ? {
+        key: raw.layout.key,
+        gap: Math.min(LAYOUT_LIMITS.gapMax, Math.max(0, isNumber(raw.layout.gap) ? raw.layout.gap : LAYOUT_LIMITS.defaultGap)),
+        radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(raw.layout.radius) ? raw.layout.radius : 0))
+      }
+      : null;
+    const background = raw.background && raw.background.type === 'color' && /^#[0-9a-f]{6}$/i.test(raw.background.value)
+      ? { type: 'color', value: raw.background.value }
+      : { type: 'color', value: '#ffffff' };
+    return { version: MODEL_VERSION, size: SIZES[raw.size] ? raw.size : DEFAULT_SIZE, background, layout, items };
+  }
+
+  /**
+   * Which drafts are shown on the start screen and which are removed for good: a draft deleted
+   * more than DRAFT_UNDO_MS ago is purged; one deleted since then is hidden (its Undo may still
+   * be on screen). Shown drafts come newest first.
+   */
+  function sortDrafts(drafts, now) {
+    const shown = [];
+    const purge = [];
+    for (const draft of drafts || []) {
+      if (draft.deletedAt) {
+        if (now - draft.deletedAt > DRAFT_UNDO_MS) purge.push(draft.id);
+      } else {
+        shown.push(draft);
+      }
+    }
+    shown.sort((a, b) => (b.saved || 0) - (a.saved || 0));
+    return { shown, purge };
+  }
+
+  /** The draft to delete to make room for a new one, or null when there is room. */
+  function draftToMakeRoom(shown) {
+    if ((shown || []).length < MAX_DRAFTS) return null;
+    return shown.reduce((oldest, draft) => ((draft.saved || 0) < (oldest.saved || 0) ? draft : oldest));
+  }
+
+  /** "2 min ago", "3 h ago", "yesterday" or a date, for a draft's last save. */
+  function savedAgo(saved, now) {
+    const seconds = Math.max(0, (now - saved) / 1000);
+    if (seconds < 50) return 'just now';
+    if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+    if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+    if (seconds < 172800) return 'yesterday';
+    return new Date(saved).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  // ---------------------------------------------------------------------------
   // Undo
   // ---------------------------------------------------------------------------
 
@@ -640,6 +733,12 @@
     decodeSize,
     itemsToSave,
     fileStem,
+    MAX_DRAFTS,
+    DRAFT_UNDO_MS,
+    readDraftModel,
+    sortDrafts,
+    draftToMakeRoom,
+    savedAgo,
     createHistory
   });
 });

@@ -158,20 +158,33 @@
     }
   }
 
-  function startCollage(sizeKey, layoutKey) {
+  /** Resets the editor to an empty page; the caller fills it in. */
+  function resetEditor() {
     collageSession += 1;
     window.clearTimeout(nudgeTimer);
+    window.clearTimeout(draftTimer);
     nudgePending = false;
+    draftPending = false;
+    photos.clear();
+    storedPhotos.clear();
+    selectedId = null;
+    adjustId = null;
+    targetId = null;
+    zoom = 1;
+  }
+
+  function startCollage(sizeKey, layoutKey) {
+    openRequest += 1;
+    resetEditor();
     collage = core.newCollage(sizeKey);
     if (layoutKey) {
       collage = core.applyLayout(collage, layoutKey, core.LAYOUT_LIMITS.defaultGap, 0, [], newItemId).collage;
     }
     history = core.createHistory(collage);
-    photos.clear();
-    selectedId = null;
-    adjustId = null;
-    targetId = null;
-    zoom = 1;
+    // A new draft: it is first stored once it has a photo.
+    draft = { id: nextId('d'), created: false, off: false };
+    draftFailed = '';
+    setDraftStatus('');
     nameInput.value = 'Untitled collage';
     sizeSelect.value = collage.size;
     showView('editor');
@@ -179,32 +192,326 @@
     syncAll();
   }
 
+  let leaving = false;
+
   async function goHome() {
-    if (hasPhotos()) {
+    if (leaving) return;
+    leaving = true;
+    // The editor is locked while the draft is written, so no change can slip in after the
+    // last snapshot and be dropped when the editor is cleared.
+    views.editor.inert = true;
+    let kept = true;
+    try {
+      // Anything still waiting (a nudge, a wheel zoom, a change made just before) is saved too.
+      for (let round = 0; round < 5; round += 1) {
+        flushNudge();
+        kept = await saveDraftNow();
+        if (!draftPending && !nudgePending) break;
+      }
+    } finally {
+      views.editor.inert = false;
+      leaving = false;
+    }
+    // Only when the draft cannot be kept is the user asked: a collage with photos, or a saved
+    // draft whose change (even removing its last photo) was not written.
+    if (!kept && (hasPhotos() || draft?.created)) {
       const leave = await askConfirm({
         title: 'Leave this collage?',
-        message: 'Drafts come in a later update, so this collage cannot be opened again once you leave. Pictures and PDFs you saved are kept.',
+        message: draftProblem() || 'This collage could not be kept as a draft, so it cannot be opened again once you leave. Pictures and PDFs you saved are kept.',
         confirmText: 'Leave collage',
         cancelText: 'Keep working',
         tone: 'warning'
       });
       if (!leave) return;
     }
-    collageSession += 1;
+    resetEditor();
     collage = core.newCollage(core.DEFAULT_SIZE);
     history = core.createHistory(collage);
-    selectedId = null;
-    adjustId = null;
-    targetId = null;
+    draft = null;
     showView('start');
+    renderDrafts();
   }
 
   window.addEventListener('beforeunload', (event) => {
-    if (views.editor.hidden || !hasPhotos()) return;
+    if (views.editor.hidden || !draft) return;
+    // A nudge or wheel zoom still waiting counts as a change: recorded now, it marks the draft
+    // for saving, so the page asks while it is written.
+    flushNudge();
+    // Only a page that never had a photo has nothing to lose; a saved draft whose last photo
+    // was just removed still has that change to write.
+    if (!draft.created && !hasPhotos()) return;
+    // Saved as a draft already, and not being written now: nothing is lost by leaving.
+    if (draft && draft.created && !draftPending && !draftWriting && !draftFailed) return;
+    saveDraftNow();
     event.preventDefault();
     // Older browsers need a value here to ask; the text itself is not shown.
     event.returnValue = '';
   });
+
+  // ---------------------------------------------------------------------------
+  // Drafts (kept in this browser)
+  // ---------------------------------------------------------------------------
+
+  const drafts = window.PrismCollageDrafts || null;
+  const draftStatus = $('[data-draft-status]');
+  // The draft being edited: { id, created, off }; null on the start screen.
+  let draft = null;
+  let draftTimer = 0;
+  let draftPending = false;
+  // True while a draft is being written; leaving then would lose the latest change.
+  let draftWriting = false;
+  let draftFailed = '';
+  let draftSaving = Promise.resolve(true);
+  let askedToKeep = false;
+  // Photos of this draft already in the browser's database, by id.
+  const storedPhotos = new Set();
+
+  function setDraftStatus(text, warning = false) {
+    draftStatus.textContent = text;
+    draftStatus.classList.toggle('is-warning', warning);
+  }
+
+  /** Why the draft is not kept, in a sentence, or '' when it is. */
+  function draftProblem() {
+    if (!drafts) return 'Drafts are not available in this browser.';
+    if (draft?.off) return 'This collage is not kept as a draft.';
+    if (draftFailed === 'full') return 'The draft was not saved: this browser has no room left. Delete old drafts on the start screen, or save a picture or a PDF.';
+    if (draftFailed) return 'The draft was not saved: this browser does not keep data here (a private window, or storage turned off). Save a picture or a PDF to keep your work.';
+    return '';
+  }
+
+  /** Saves the draft half a second after the last change. */
+  function scheduleDraft() {
+    if (!draft || draft.off || !drafts) return;
+    draftPending = true;
+    window.clearTimeout(draftTimer);
+    draftTimer = window.setTimeout(() => { saveDraftNow(); }, 500);
+  }
+
+  /** A small picture of the page for the start screen, without handles or guides. */
+  function pageThumbnail() {
+    const shown = transformer.visible();
+    transformer.visible(false);
+    guides.visible(false);
+    const width = core.PAGE_WIDTH * scale;
+    try {
+      return stage.toDataURL({
+        x: world.x(), y: world.y(), width, height: pageHeight() * scale,
+        pixelRatio: Math.min(4, 320 / Math.max(1, width)), mimeType: 'image/jpeg', quality: 0.8
+      });
+    } catch {
+      return '';
+    } finally {
+      transformer.visible(shown);
+      guides.visible(true);
+    }
+  }
+
+  /**
+   * Saves the draft now: the collage, its picture and any photos not stored yet, in one go.
+   * Resolves true when the draft is kept (or there is nothing to keep yet).
+   */
+  function saveDraftNow() {
+    window.clearTimeout(draftTimer);
+    draftSaving = draftSaving.then(async () => {
+      if (!draft || !drafts) return false;
+      if (draft.off) return false;
+      if (!draftPending && draft.created) return !draftFailed;
+      draftPending = false;
+      // A draft starts once it has a photo; an empty page is not worth keeping.
+      if (!draft.created && !hasPhotos()) return true;
+      const forDraft = draft;
+      try {
+        if (!forDraft.created) {
+          const { shown } = core.sortDrafts(await drafts.list(), Date.now());
+          const oldest = core.draftToMakeRoom(shown);
+          if (oldest) {
+            const ok = await askConfirm({
+              title: `Delete the oldest draft, “${oldest.title}”?`,
+              message: `Collage Studio keeps up to ${core.MAX_DRAFTS} drafts in this browser. Deleting the oldest makes room for this one.`,
+              confirmText: 'Delete oldest draft',
+              cancelText: 'Do not keep this one',
+              tone: 'warning'
+            });
+            if (!ok) {
+              forDraft.off = true;
+              setDraftStatus('Not kept as a draft', true);
+              return false;
+            }
+            await drafts.purge(oldest.id);
+          }
+        }
+        const newPhotos = [...photos.values()].filter((photo) => !storedPhotos.has(photo.id));
+        const record = {
+          id: forDraft.id,
+          title: nameInput.value.trim() || 'Untitled collage',
+          saved: Date.now(),
+          deletedAt: null,
+          model: collage,
+          size: collage.size,
+          photoCount: photos.size,
+          thumbnail: views.editor.hidden ? '' : pageThumbnail()
+        };
+        setDraftStatus('Saving draft…');
+        draftWriting = true;
+        try {
+          await drafts.save(record, newPhotos);
+        } finally {
+          draftWriting = false;
+        }
+        if (forDraft !== draft) return true;
+        newPhotos.forEach((photo) => storedPhotos.add(photo.id));
+        forDraft.created = true;
+        draftFailed = '';
+        setDraftStatus('Draft saved in this browser');
+        if (!askedToKeep) { askedToKeep = true; drafts.keep(); }
+        return true;
+      } catch (error) {
+        draftFailed = drafts.reasonOf(error);
+        if (forDraft === draft) setDraftStatus(draftFailed === 'full' ? 'Draft not saved: no room left' : 'Draft not saved in this browser', true);
+        return false;
+      }
+    });
+    return draftSaving;
+  }
+
+  let undoTimer = 0;
+  let undoDraftId = null;
+
+  async function renderDrafts() {
+    const section = $('[data-drafts-section]');
+    const grid = $('[data-drafts]');
+    if (!drafts) { section.hidden = true; return; }
+    let all;
+    try {
+      all = await drafts.list();
+    } catch {
+      section.hidden = true;
+      return;
+    }
+    const { shown, purge } = core.sortDrafts(all, Date.now());
+    for (const id of purge) if (id !== undoDraftId) drafts.purge(id).catch(() => {});
+    grid.textContent = '';
+    section.hidden = !shown.length && !undoDraftId;
+    $('[data-drafts-count]').textContent = shown.length ? String(shown.length) : '';
+    for (const item of shown) {
+      const card = document.createElement('div');
+      card.className = 'clg-draft';
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'clg-draft__open';
+      open.dataset.openDraft = item.id;
+      const picture = document.createElement('img');
+      picture.alt = '';
+      if (item.thumbnail) picture.src = item.thumbnail;
+      const title = document.createElement('b');
+      title.textContent = item.title;
+      const meta = document.createElement('small');
+      const size = core.SIZES[item.size]?.label || '';
+      meta.textContent = `Saved ${core.savedAgo(item.saved, Date.now())} · ${size} · ${item.photoCount} photo${item.photoCount === 1 ? '' : 's'}`;
+      open.append(picture, title, meta);
+      open.setAttribute('aria-label', `Open draft ${item.title}, saved ${core.savedAgo(item.saved, Date.now())}`);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn btn-sm btn-outline-danger clg-draft__delete';
+      remove.dataset.deleteDraft = item.id;
+      remove.title = 'Delete draft';
+      remove.setAttribute('aria-label', `Delete draft ${item.title}`);
+      remove.innerHTML = '<i class="bi bi-trash3" aria-hidden="true"></i>';
+      card.append(open, remove);
+      grid.appendChild(card);
+    }
+    const used = await drafts.usedBytes();
+    $('[data-drafts-space]').textContent = used && window.PrismPhotoTools
+      ? `Drafts and this site's other saved data use ${window.PrismPhotoTools.formatBytes(used)} of this browser's storage.`
+      : '';
+  }
+
+  async function deleteDraft(id) {
+    const record = await drafts.get(id).catch(() => null);
+    if (!record) return;
+    // Hidden at once, removed for good once Undo has gone.
+    if (undoDraftId && undoDraftId !== id) drafts.purge(undoDraftId).catch(() => {});
+    await drafts.markDeleted(id, Date.now());
+    undoDraftId = id;
+    $('[data-draft-undo-text]').textContent = `Draft “${record.title}” deleted.`;
+    $('[data-draft-undo]').hidden = false;
+    window.clearTimeout(undoTimer);
+    undoTimer = window.setTimeout(() => {
+      $('[data-draft-undo]').hidden = true;
+      drafts.purge(id).catch(() => {});
+      if (undoDraftId === id) undoDraftId = null;
+      renderDrafts();
+    }, core.DRAFT_UNDO_MS);
+    announce(`Draft ${record.title} deleted. Undo is on the screen for ten seconds.`);
+    renderDrafts();
+  }
+
+  async function undoDeleteDraft() {
+    if (!undoDraftId) return;
+    window.clearTimeout(undoTimer);
+    await drafts.restore(undoDraftId);
+    undoDraftId = null;
+    $('[data-draft-undo]').hidden = true;
+    announce('Draft brought back.');
+    renderDrafts();
+  }
+
+  // Counts draft opens and new collages: an open that is overtaken by another open, or by a
+  // new collage, while the browser is still reading it is dropped instead of replacing it.
+  let openRequest = 0;
+
+  async function openDraft(id) {
+    const request = ++openRequest;
+    const stillWanted = () => request === openRequest && !views.start.hidden;
+    let record;
+    let stored;
+    try {
+      record = await drafts.get(id);
+      stored = record ? await drafts.photosOf(id) : [];
+    } catch {
+      if (stillWanted()) showAlert('The draft could not be opened: this browser did not give it back.');
+      return;
+    }
+    if (!stillWanted()) return;
+    if (!record || record.deletedAt) { renderDrafts(); return; }
+    resetEditor();
+    const forCollage = collageSession;
+    busy(stored.length ? `Opening the draft and its ${stored.length} photo${stored.length === 1 ? '' : 's'}…` : 'Opening the draft…');
+    let unreadable = 0;
+    try {
+      // One photo at a time, as when they were first added.
+      for (const entry of stored) {
+        try {
+          const photo = await readPhoto({ file: entry.file, name: entry.name }, entry.id);
+          if (forCollage !== collageSession) return;
+          photos.set(photo.id, photo);
+          storedPhotos.add(photo.id);
+        } catch {
+          unreadable += 1;
+        }
+      }
+    } finally {
+      busy('');
+    }
+    const model = core.readDraftModel(record.model, [...photos.keys()]);
+    if (!model) {
+      showAlert('This draft was made by a newer version of PRISM, or is damaged, and cannot be opened here.');
+      return;
+    }
+    collage = model;
+    history = core.createHistory(collage);
+    draft = { id: record.id, created: true, off: false };
+    draftFailed = '';
+    nameInput.value = record.title;
+    sizeSelect.value = collage.size;
+    setDraftStatus('Draft saved in this browser');
+    showView('editor');
+    setPanel('photos');
+    syncAll();
+    if (unreadable) showAlert(`${unreadable} photo${unreadable === 1 ? '' : 's'} of this draft could not be read back and ${unreadable === 1 ? 'was' : 'were'} left out.`);
+    announce(`Draft ${record.title} opened.`);
+  }
 
   // ---------------------------------------------------------------------------
   // The page (Konva)
@@ -527,6 +834,7 @@
       item.crop = clampedCrop({ ...item, crop: { ...item.crop, zoom: 1.2 } });
       history.record(collage);
       updateUndo();
+      scheduleDraft();
     }
     adjustHint.hidden = false;
     syncPage();
@@ -590,6 +898,7 @@
 
   function commit() {
     history.record(collage);
+    scheduleDraft();
     syncPage();
     renderTray();
     renderLayoutPanel();
@@ -604,6 +913,7 @@
 
   function restore(next) {
     collage = next;
+    scheduleDraft();
     sizeSelect.value = collage.size;
     layout();
     syncPage();
@@ -689,6 +999,7 @@
       case 'save-open': openSave(); break;
       case 'save-close': if (!saving) saveDialog.close(); break;
       case 'save-go': saveCollage(); break;
+      case 'draft-undo': undoDeleteDraft(); break;
       case 'fit-photo':
         changeSelected((i) => {
           const photo = photos.get(i.photo);
@@ -719,6 +1030,10 @@
   }
 
   root.addEventListener('click', (event) => {
+    const openOne = event.target.closest('[data-open-draft]');
+    if (openOne) { openDraft(openOne.dataset.openDraft); return; }
+    const deleteOne = event.target.closest('[data-delete-draft]');
+    if (deleteOne) { deleteDraft(deleteOne.dataset.deleteDraft); return; }
     const start = event.target.closest('[data-start-size]');
     if (start) { startCollage(start.dataset.startSize); return; }
     const startLayout = event.target.closest('[data-start-layout]');
@@ -743,6 +1058,7 @@
   });
 
   nameInput.addEventListener('input', () => {
+    scheduleDraft();
     document.title = `${nameInput.value.trim() || 'Untitled collage'} · Collage Studio | PRISM ERP`;
   });
 
@@ -917,6 +1233,7 @@
       // A frame given its own corners is no longer bound to the layout's.
       if (event.target.dataset.prop === 'radius' && collage.layout) collage.layout = { ...collage.layout, radius: Number(event.target.value) };
       history.record(collage);
+      scheduleDraft();
       updateUndo();
       renderLayoutPanel();
       return;
@@ -997,7 +1314,7 @@
     return small.toDataURL('image/jpeg', 0.8);
   }
 
-  async function readPhoto(entry) {
+  async function readPhoto(entry, keepId = null) {
     const bitmap = await createImageBitmap(entry.file);
     try {
       const size = core.workingSize(bitmap.width, bitmap.height);
@@ -1008,7 +1325,7 @@
       context.imageSmoothingQuality = 'high';
       context.drawImage(bitmap, 0, 0, size.width, size.height);
       return {
-        id: nextId('p'),
+        id: keepId || nextId('p'),
         name: entry.name,
         file: entry.file,
         canvas,
@@ -1181,7 +1498,7 @@
   });
 
   document.addEventListener('paste', (event) => {
-    if (views.editor.hidden) return;
+    if (views.editor.hidden || leaving) return;
     if (event.target.closest?.('input, textarea, [contenteditable]')) return;
     const files = [...(event.clipboardData?.files || [])].filter((file) => file.type.startsWith('image/'));
     if (!files.length) {
@@ -1435,11 +1752,12 @@
     nudgePending = false;
     history.record(collage);
     updateUndo();
+    scheduleDraft();
   }
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Shift') setShift(true);
-    if (views.editor.hidden || document.querySelector('dialog[open]')) return;
+    if (views.editor.hidden || leaving || document.querySelector('dialog[open]')) return;
     const typing = event.target.closest?.('input, textarea, select, [contenteditable]');
     const key = event.key.toLowerCase();
     const mod = event.ctrlKey || event.metaKey;
@@ -1514,6 +1832,7 @@
   // ---------------------------------------------------------------------------
 
   renderStart();
+  renderDrafts();
   updateUndo();
   showView('start');
 })();
