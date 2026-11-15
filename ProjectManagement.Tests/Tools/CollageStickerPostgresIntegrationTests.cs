@@ -52,11 +52,26 @@ public sealed class CollageStickerPostgresIntegrationTests
             }
 
             // 1. Two administrators upload at the same moment: one gets the last place, one is refused.
+            // The stickers' lock is held from another connection until both uploads are waiting on
+            // it, so they truly meet at the count; without the lock in the service they would never
+            // wait, and this test would fail instead of passing by luck.
             await using var first = Context(target);
             await using var second = Context(target);
-            var outcomes = await Task.WhenAll(
+            await using var blocker = new NpgsqlConnection(target);
+            await blocker.OpenAsync();
+            await using var blockerTransaction = await blocker.BeginTransactionAsync();
+            await using (var hold = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext('collage-stickers'))", blocker, blockerTransaction))
+            {
+                await hold.ExecuteNonQueryAsync();
+            }
+            var uploads = new[]
+            {
                 Service(first, root, RealAudit(first)).AddAsync(new MemoryStream(Png()), "a.png", "First", null, "admin-1"),
-                Service(second, root, RealAudit(second)).AddAsync(new MemoryStream(Png()), "b.png", "Second", null, "admin-2"));
+                Service(second, root, RealAudit(second)).AddAsync(new MemoryStream(Png()), "b.png", "Second", null, "admin-2")
+            };
+            await WaitForWaitingSessionsAsync(target, 2, uploads);
+            await blockerTransaction.CommitAsync();
+            var outcomes = await Task.WhenAll(uploads);
             Assert.Single(outcomes, outcome => outcome.Succeeded);
             Assert.Single(outcomes, outcome => !outcome.Succeeded);
             Assert.Equal(CollageStickerService.MaxActive, await CountAsync(target, "SELECT COUNT(*) FROM \"CollageStickers\" WHERE NOT \"IsRetired\""));
@@ -113,6 +128,25 @@ public sealed class CollageStickerPostgresIntegrationTests
         using var bitmap = new SKBitmap(new SKImageInfo(40, 40, SKColorType.Rgba8888, SKAlphaType.Unpremul));
         bitmap.Erase(SKColors.DarkRed);
         return PrismImageCodec.EncodePng(bitmap);
+    }
+
+    /** Waits until this many sessions of the test database are waiting on a lock. */
+    private static async Task WaitForWaitingSessionsAsync(string connectionString, int expected, IReadOnlyList<Task<CollageStickerOutcome>> uploads)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            // An upload that failed before reaching the lock is shown, not waited on.
+            var faulted = uploads.FirstOrDefault(upload => upload.IsFaulted);
+            if (faulted != null) await faulted;
+            Assert.False(uploads.Any(upload => upload.IsCompleted), "An upload finished without waiting for the stickers' lock.");
+
+            var waiting = await CountAsync(connectionString,
+                "SELECT COUNT(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'");
+            if (waiting >= expected) return;
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(60), $"Only {waiting} of {expected} uploads reached the stickers' lock.");
+            await Task.Delay(50);
+        }
     }
 
     private static async Task ExecuteAsync(string connectionString, string sql)
