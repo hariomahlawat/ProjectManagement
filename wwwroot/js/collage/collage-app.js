@@ -1628,7 +1628,7 @@
       case 'replace': if (isFrame(item)) { setTarget(item.id); setPanel('photos'); } break;
       case 'fill-slot': if (item?.kind === 'slot') chooseFor(item.id); break;
       case 'replace-cancel': setTarget(null); break;
-      case 'save-open': openSave(); break;
+      case 'save-open': saveAs.open(); break;
       case 'credits': root.querySelector('[data-credits]').showModal(); break;
       case 'drafts-all': draftsExpanded = !draftsExpanded; renderDrafts(); break;
       case 'keep-draft':
@@ -1646,8 +1646,8 @@
       case 'library-more': libraryPicker.more(); break;
       case 'library-add': libraryPicker.add(); break;
       case 'credits-close': root.querySelector('[data-credits]').close(); break;
-      case 'save-close': if (!saving) saveDialog.close(); break;
-      case 'save-go': saveCollage(); break;
+      case 'save-close': saveAs.close(); break;
+      case 'save-go': saveAs.save(); break;
       case 'draft-undo': undoDeleteDraft(); break;
       case 'reset-look':
         changeSelected((i) => { Object.assign(i, { look: 'none', bright: 100, contrast: 100, warmth: 0, flip: false }); });
@@ -1855,92 +1855,6 @@
 
   const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  function arrangeSections(item) {
-    const framed = item.kind === 'photo' || item.kind === 'slot';
-    const [low, high] = FRAME_WIDTHS;
-    const size = !framed ? '' : `
-      <div class="clg-section">
-        <label class="clg-field"><span class="clg-field__label">Size<output data-out="width">${Math.round(item.width)}</output></span>
-          <input type="range" min="${low}" max="${high}" step="1" value="${Math.round(Math.min(high, Math.max(low, item.width)))}" data-prop="width" aria-label="Width of the ${item.kind === 'slot' ? 'frame' : 'photo'}, in page units"></label>
-      </div>`;
-    const corners = item.kind === 'text' || item.kind === 'sticker' ? '' : `
-        <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius">${item.radius || 0}</output></span>
-          <input type="range" min="0" max="${core.LAYOUT_LIMITS.radiusMax}" step="1" value="${item.radius || 0}" data-prop="radius" aria-label="Rounded corners, in page units"></label>`;
-    return `${size}
-      <div class="clg-section">
-        <p class="clg-section__title">Angle</p>
-        <label class="clg-field"><span class="clg-field__label">Turn<output data-out="angle">${Math.round(item.angle)}°</output></span>
-          <input type="range" min="-180" max="180" step="1" value="${Math.round(item.angle)}" data-prop="angle" aria-label="Angle in degrees"></label>
-        <div class="clg-buttons">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="rotate-left">−15°</button>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="straighten">Straight</button>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="rotate-right">+15°</button>
-        </div>
-      </div>
-      <div class="clg-section">
-        <p class="clg-section__title">Look</p>
-        ${corners}
-        <label class="clg-field"><span class="clg-field__label">See-through<output data-out="opacity">${item.opacity}%</output></span>
-          <input type="range" min="10" max="100" step="1" value="${item.opacity}" data-prop="opacity" aria-label="How solid it is, in percent"></label>
-      </div>
-      <div class="clg-section">
-        <p class="clg-section__title">Order</p>
-        <div class="clg-buttons clg-buttons--two">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="forward">Bring forward</button>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="backward">Send backward</button>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="front">To the front</button>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="back">To the back</button>
-        </div>
-      </div>
-      <div class="clg-section">
-        <p class="clg-section__title">Line up on the page</p>
-        <div class="clg-buttons">
-          ${core.ALIGN_PLACES.map((place) => `<button type="button" class="btn btn-outline-secondary btn-sm" data-align="${place}"${item.locked ? ' disabled' : ''}>${place.charAt(0).toUpperCase() + place.slice(1)}</button>`).join('')}
-        </div>
-      </div>
-      <div class="clg-section">
-        <div class="clg-buttons clg-buttons--two">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="lock" aria-pressed="${Boolean(item.locked)}"><i class="bi ${item.locked ? 'bi-unlock' : 'bi-lock'}" aria-hidden="true"></i> ${item.locked ? 'Unlock' : 'Lock'}</button>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="hide" aria-pressed="${Boolean(item.hidden)}"><i class="bi ${item.hidden ? 'bi-eye' : 'bi-eye-slash'}" aria-hidden="true"></i> ${item.hidden ? 'Show' : 'Hide'}</button>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="duplicate"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate</button>
-          <button type="button" class="btn btn-outline-danger btn-sm" data-action="delete"${item.locked ? ' disabled' : ''}><i class="bi bi-trash3" aria-hidden="true"></i> Delete</button>
-        </div>
-        ${item.locked ? '<p class="clg-hint">Locked: it cannot be moved, resized, turned, given another frame or shape, or deleted until it is unlocked.</p>' : ''}
-        ${item.hidden ? '<p class="clg-hint">Hidden: it is not on the page or in the saved picture until it is shown again.</p>' : ''}
-      </div>`;
-  }
-
-  /** The Layers list: every item, the front one first, to select, hide or lock. */
-  function layersSection() {
-    if (!collage.items.length) return '';
-    const rows = [...collage.items].reverse().map((item) => {
-      let thumb = '<span class="clg-layer__thumb clg-layer__thumb--icon" aria-hidden="true"><i class="bi bi-square"></i></span>';
-      let name = core.layerName(item);
-      if (item.kind === 'photo') {
-        const photo = photos.get(item.photo);
-        thumb = `<img class="clg-layer__thumb" src="${photo?.thumbnail || ''}" alt="">`;
-        name = photo?.name || name;
-      } else if (item.kind === 'sticker') {
-        const entry = stickers.find(item.sticker);
-        thumb = `<img class="clg-layer__thumb clg-layer__thumb--contain" src="${stickerSource(item) || ''}" alt="">`;
-        name = entry?.label || entry?.words?.split(' ')[0] || name;
-      } else if (item.kind === 'text') {
-        thumb = '<span class="clg-layer__thumb clg-layer__thumb--icon" aria-hidden="true"><i class="bi bi-fonts"></i></span>';
-      }
-      return `<li class="clg-layer${item.id === selectedId ? ' is-on' : ''}${item.hidden ? ' is-hidden' : ''}">
-          <button type="button" class="clg-layer__pick" data-layer-select="${item.id}" aria-current="${item.id === selectedId}">${thumb}<span class="clg-layer__name">${escapeHtml(name)}</span></button>
-          <button type="button" class="clg-layer__tool" data-layer-hide="${item.id}" aria-pressed="${Boolean(item.hidden)}" title="${item.hidden ? 'Show' : 'Hide'}" aria-label="${item.hidden ? 'Show' : 'Hide'} ${escapeHtml(name)}"><i class="bi ${item.hidden ? 'bi-eye-slash' : 'bi-eye'}" aria-hidden="true"></i></button>
-          <button type="button" class="clg-layer__tool" data-layer-lock="${item.id}" aria-pressed="${Boolean(item.locked)}" title="${item.locked ? 'Unlock' : 'Lock'}" aria-label="${item.locked ? 'Unlock' : 'Lock'} ${escapeHtml(name)}"><i class="bi ${item.locked ? 'bi-lock-fill' : 'bi-unlock'}" aria-hidden="true"></i></button>
-        </li>`;
-    }).join('');
-    return `
-      <div class="clg-section">
-        <p class="clg-section__title">Layers</p>
-        <ul class="clg-layers">${rows}</ul>
-        <p class="clg-hint">The top of the list is in front.</p>
-      </div>`;
-  }
-
   function renderProps() {
     keepingFocus(() => renderPropsNow());
   }
@@ -2025,48 +1939,12 @@
   const STICKER_COLOURS = ['#c62f3a', '#e2b13c', '#ffd23f', '#1f6f43', '#0b2a8a', '#c2185b', '#172033', '#ffffff', '#9fd3c7', '#ff7043'];
   const LABEL_COLOURS = ['#ffffff', '#fffbea', '#172033', '#ffd23f', '#c62f3a', '#1f6f43'];
 
-  function swatches(name, colours, current, withNone = false) {
-    const none = withNone ? `<button type="button" class="clg-swatch clg-swatch--none" data-text-set="${name}" data-value="" aria-pressed="${!current}" title="None" aria-label="None"></button>` : '';
-    const list = colours.map((c) => `<button type="button" class="clg-swatch" data-text-set="${name}" data-value="${c}" aria-pressed="${current === c}" style="background:${c}" title="${c}" aria-label="Colour ${c}"></button>`).join('');
-    const pick = `<input type="color" class="clg-swatch-pick" value="${/^#[0-9a-f]{6}$/i.test(current) ? current : '#ffffff'}" data-text-colour="${name}" aria-label="Any colour">`;
-    return `<div class="clg-swatches">${none}${list}${pick}</div>`;
-  }
-
-  /** Words, font and effects of a text item. */
-  function textSections(item) {
-    const fonts = Object.entries(core.FONTS).map(([key, font]) => `<button type="button" class="clg-font${item.font === key ? ' is-on' : ''}" data-text-set="font" data-value="${key}" aria-pressed="${item.font === key}" style='font-family:${font.css}'>${escapeHtml(font.label)}</button>`).join('');
-    const aligns = [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(([v, l]) => `<button type="button" class="btn btn-sm ${item.align === v ? 'btn-primary' : 'btn-outline-secondary'}" data-text-set="align" data-value="${v}" aria-pressed="${item.align === v}">${l}</button>`).join('');
-    const range = (prop, label, [min, max], unit = '') => `<label class="clg-field"><span class="clg-field__label">${label}<output data-out="${prop}">${item[prop]}${unit}</output></span>
-          <input type="range" min="${min}" max="${max}" step="1" value="${item[prop]}" data-prop="${prop}" aria-label="${label}"></label>`;
-    return `
-      <label class="clg-field"><span class="clg-field__label">Words</span>
-        <textarea class="form-control form-control-sm clg-text-field" rows="3" maxlength="${core.TEXT_LIMITS.maxLength}" data-text>${escapeHtml(item.text)}</textarea></label>
-      <p class="clg-hint">Type Hindi with the Windows Hindi keyboard, or paste it.</p>
-      <div class="clg-section">
-        <p class="clg-section__title">Font</p>
-        <div class="clg-fonts">${fonts}</div>
-        ${range('size', 'Size', core.TEXT_LIMITS.size)}
-        <div class="clg-choices">
-          <button type="button" class="btn btn-sm ${item.bold ? 'btn-primary' : 'btn-outline-secondary'}" data-text-toggle="bold" aria-pressed="${item.bold}"><b>B</b> Bold</button>
-          <button type="button" class="btn btn-sm ${item.italic ? 'btn-primary' : 'btn-outline-secondary'}" data-text-toggle="italic" aria-pressed="${item.italic}"><i>I</i> Italic</button>
-        </div>
-        <div class="clg-choices clg-choices--gap">${aligns}</div>
-        ${range('spacing', 'Letter spacing', core.TEXT_LIMITS.spacing)}
-        <p class="clg-field__label clg-field__label--plain">Colour</p>
-        ${swatches('color', TEXT_COLOURS, item.color)}
-      </div>
-      <div class="clg-section">
-        <p class="clg-section__title">Effects</p>
-        ${range('curve', 'Curve', core.TEXT_LIMITS.curve)}
-        ${range('outline', 'Outline', core.TEXT_LIMITS.outline)}
-        <p class="clg-field__label clg-field__label--plain">Outline colour</p>
-        ${swatches('outlineColor', TEXT_COLOURS, item.outlineColor)}
-        ${switchRow('shadow', 'Shadow', item.shadow)}
-        ${switchRow('glow', 'Glow', item.glow)}
-        <p class="clg-field__label clg-field__label--plain">Label behind the words${item.curve ? ' (straight text only)' : ''}</p>
-        ${swatches('label', LABEL_COLOURS, item.label, true)}
-      </div>`;
-  }
+  // The settings panel's sections as HTML (collage-settings.js).
+  const settingsHtml = window.PrismCollageSettings.createSettingsHtml({
+    core, draw, stickers, stickerSource, escapeHtml, photos, FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS
+  });
+  const { arrangeSections, swatches, textSections, switchRow, finishSections } = settingsHtml;
+  const layersSection = () => settingsHtml.layersSection(collage, selectedId);
 
   /** Puts the cursor in the selected text's words, opening its settings. */
   function focusTextField() {
@@ -2101,54 +1979,6 @@
   props.addEventListener('change', (event) => {
     if (event.target.matches('[data-text], [data-text-colour]')) flushNudge();
   });
-
-  /** Buttons that choose one value of a photo's finish (frame, shape or look). */
-  function choiceButtons(name, entries, current, disabled = () => false) {
-    return entries.map(([value, label]) => `<button type="button" class="btn btn-sm ${value === current ? 'btn-primary' : 'btn-outline-secondary'}" data-finish="${name}" data-value="${value}" aria-pressed="${value === current}"${disabled(value) ? ' disabled' : ''}>${escapeHtml(label)}</button>`).join('');
-  }
-
-  function switchRow(name, label, on) {
-    return `<label class="form-check form-switch clg-switch"><input class="form-check-input" type="checkbox" role="switch" data-toggle="${name}"${on ? ' checked' : ''}><span class="form-check-label">${escapeHtml(label)}</span></label>`;
-  }
-
-  /** Frame, shape and look: the photo's finish, the same on the page and in the saved picture. */
-  function finishSections(item, photo) {
-    const shape = item.shape || 'rect';
-    const frame = item.frame || 'none';
-    const square = shape === 'rect';
-    const look = item.look || 'none';
-    const filterOk = draw.canFilter(document.createElement('canvas').getContext('2d'));
-    const looks = Object.entries(core.LOOKS).map(([value, entry]) => `
-          <button type="button" class="clg-look${value === look ? ' is-on' : ''}" data-finish="look" data-value="${value}" aria-pressed="${value === look}">
-            <img src="${photo?.thumbnail || ''}" alt="" style="filter:${entry.filter || 'none'}"><span>${escapeHtml(entry.label)}</span>
-          </button>`).join('');
-    return `
-      <div class="clg-section">
-        <p class="clg-section__title">Frame</p>
-        <div class="clg-choices">${choiceButtons('frame', Object.entries(core.FRAMES).map(([k, v]) => [k, v.label]), frame, (v) => !square && v !== 'none')}</div>
-        ${square ? '' : '<p class="clg-hint">Frames go with the Square shape.</p>'}
-        ${square && frame === 'polaroid' ? `<label class="clg-field"><span class="clg-field__label">Caption under the photo</span>
-          <input type="text" class="form-control form-control-sm" maxlength="${core.CAPTION_MAX}" value="${escapeHtml(item.caption || '')}" placeholder="Last day at office" data-caption></label>` : ''}
-        ${switchRow('shadow', 'Shadow', item.shadow)}
-      </div>
-      <div class="clg-section">
-        <p class="clg-section__title">Shape</p>
-        <div class="clg-choices">${choiceButtons('shape', Object.entries(core.SHAPES), shape)}</div>
-      </div>
-      <div class="clg-section">
-        <p class="clg-section__title">Look</p>
-        ${filterOk ? '' : '<p class="clg-hint">This browser cannot show looks; use Edge or Chrome to change them.</p>'}
-        <div class="clg-looks">${looks}</div>
-        <label class="clg-field"><span class="clg-field__label">Brightness<output data-out="bright">${item.bright ?? 100}%</output></span>
-          <input type="range" min="${core.ADJUST_LIMITS.bright[0]}" max="${core.ADJUST_LIMITS.bright[1]}" step="1" value="${item.bright ?? 100}" data-prop="bright" aria-label="Brightness, in percent"></label>
-        <label class="clg-field"><span class="clg-field__label">Contrast<output data-out="contrast">${item.contrast ?? 100}%</output></span>
-          <input type="range" min="${core.ADJUST_LIMITS.contrast[0]}" max="${core.ADJUST_LIMITS.contrast[1]}" step="1" value="${item.contrast ?? 100}" data-prop="contrast" aria-label="Contrast, in percent"></label>
-        <label class="clg-field"><span class="clg-field__label">Warmth<output data-out="warmth">${item.warmth ?? 0}</output></span>
-          <input type="range" min="${core.ADJUST_LIMITS.warmth[0]}" max="${core.ADJUST_LIMITS.warmth[1]}" step="1" value="${item.warmth ?? 0}" data-prop="warmth" aria-label="Warmth: below 0 cooler, above 0 warmer"></label>
-        ${switchRow('flip', 'Mirror the photo', item.flip)}
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-action="reset-look">Reset look</button>
-      </div>`;
-  }
 
   /** Puts a frame on, takes it off or changes the shape, keeping the photo's own shape. */
   function setFinish(item, name, value) {
@@ -2272,103 +2102,9 @@
     selectedId = item.id;
   }
 
-  /**
-   * The tray's picture of a photo: a small JPEG drawn once from the working copy, so the tray
-   * never makes the browser decode the original file again.
-   */
-  /** The grey stand-in for a draft photo this browser cannot open now; its file is kept. */
-  function missingPhoto(entry) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 4;
-    canvas.height = 3;
-    const context = canvas.getContext('2d');
-    if (context) {
-      context.fillStyle = '#9aa3ad';
-      context.fillRect(0, 0, 4, 3);
-    }
-    // The photo's own size, stored with it, so crops and frames are judged against the real photo
-    // and the draft keeps them exactly; 4 by 3 only for a record from before sizes were stored.
-    const known = Number(entry.width) > 0 && Number(entry.height) > 0;
-    const width = known ? Number(entry.width) : 4;
-    const height = known ? Number(entry.height) : 3;
-    return {
-      id: entry.id,
-      name: entry.name,
-      file: entry.file,
-      canvas,
-      thumbnail: canvas.toDataURL('image/png'),
-      width,
-      height,
-      aspect: width / height,
-      missing: true
-    };
-  }
-
-  function thumbnailOf(canvas) {
-    const size = core.workingSize(canvas.width, canvas.height, core.PHOTO_LIMITS.thumbnailSide);
-    const small = document.createElement('canvas');
-    small.width = size.width;
-    small.height = size.height;
-    const context = small.getContext('2d');
-    context.imageSmoothingQuality = 'high';
-    context.drawImage(canvas, 0, 0, size.width, size.height);
-    return small.toDataURL('image/jpeg', 0.8);
-  }
-
-  /**
-   * A photo's size as it is shown (turned by its camera orientation), read from the file
-   * without decoding all its pixels.
-   */
-  async function pictureSize(file) {
-    const address = URL.createObjectURL(file);
-    try {
-      const image = new Image();
-      image.decoding = 'async';
-      await new Promise((resolve, reject) => {
-        image.onload = resolve;
-        image.onerror = () => reject(new Error('unreadable'));
-        image.src = address;
-      });
-      return { width: image.naturalWidth, height: image.naturalHeight };
-    } finally {
-      URL.revokeObjectURL(address);
-    }
-  }
-
-  /**
-   * A photo read for the editor: a working copy at most 2000 pixels on its long side, decoded
-   * straight at that size so a large phone photo never sits in memory at full size. The
-   * original file is kept for Save. Throws a reason ('unreadable', 'too-many-pixels').
-   */
-  async function readPhoto(entry, keepId = null) {
-    const natural = await pictureSize(entry.file);
-    if (!(natural.width > 0) || !(natural.height > 0)) throw Object.assign(new Error('unreadable'), { reason: 'unreadable' });
-    if (natural.width * natural.height > core.PHOTO_LIMITS.maxPixels) {
-      throw Object.assign(new Error('too many pixels'), { reason: 'too-many-pixels' });
-    }
-    const size = core.workingSize(natural.width, natural.height);
-    const bitmap = await createImageBitmap(entry.file, { resizeWidth: size.width, resizeHeight: size.height, resizeQuality: 'high' });
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = size.width;
-      canvas.height = size.height;
-      const context = canvas.getContext('2d');
-      if (!context) throw Object.assign(new Error('no canvas'), { reason: 'unreadable' });
-      context.drawImage(bitmap, 0, 0, size.width, size.height);
-      return {
-        id: keepId || nextId('p'),
-        name: entry.name,
-        file: entry.file,
-        canvas,
-        thumbnail: thumbnailOf(canvas),
-        width: natural.width,
-        height: natural.height,
-        aspect: natural.width / natural.height
-      };
-    } finally {
-      bitmap.close?.();
-    }
-  }
+  // Reading photos at their working size (collage-photos.js).
+  const photoReader = window.PrismCollagePhotos.createPhotoReader({ core, nextId });
+  const { readPhoto, missingPhoto, thumbnailOf } = photoReader;
 
   // Imports run one batch at a time: a second drop or paste waits for the first, so the photo
   // limit counts every photo already added and only one large photo is ever being decoded.
@@ -2564,182 +2300,14 @@
   });
 
   // ---------------------------------------------------------------------------
-  // Save as…
+  // Save as… (collage-save.js)
   // ---------------------------------------------------------------------------
 
-  const saveDialog = $('[data-save-dialog]');
-  const saveResult = $('[data-save-result]');
-  const targetRow = $('[data-target-row]');
-  const targetOn = $('[data-target-on]');
-  const targetValue = $('[data-target-value]');
-  const targetUnit = $('[data-target-unit]');
-  const photoTools = window.PrismPhotoTools;
-  let saving = false;
-
-  const chosen = (name) => saveDialog.querySelector(`input[name="${name}"]:checked`)?.value;
-
-  function syncSaveDialog() {
-    const size = core.SIZES[collage.size];
-    const pixels = core.savePixels(collage.size, 'print');
-    $('[data-print-note]').textContent = size.mm
-      ? `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels, 300 dots per inch on ${size.label} paper.`
-      : `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels.`;
-    $('[data-pdf-note]').textContent = size.mm
-      ? `${size.label} at its true size (${size.note}), ready to print.`
-      : `One page shaped like the ${size.label.toLowerCase()} page.`;
-    const jpeg = chosen('format') === 'jpeg';
-    targetRow.hidden = !jpeg;
-    targetValue.disabled = !targetOn.checked;
-    targetUnit.disabled = !targetOn.checked;
-    const empty = collage.items.filter((item) => item.kind === 'slot').length;
-    const emptyLine = $('[data-save-empty]');
-    emptyLine.hidden = !empty;
-    emptyLine.textContent = empty === 1
-      ? 'The empty frame is left out of the saved picture.'
-      : `The ${empty} empty frames are left out of the saved picture.`;
-  }
-
-  function openSave() {
-    if (!hasContent()) {
-      showAlert('Add a photo, some text or a sticker first; there is nothing to save yet.');
-      return;
-    }
-    flushNudge();
-    stopAdjust();
-    saveResult.hidden = true;
-    syncSaveDialog();
-    saveDialog.showModal();
-  }
-
-  saveDialog.addEventListener('change', syncSaveDialog);
-
-  // "What is it for?" chooses a type and quality that suit it; the user can still change them.
-  const SAVE_PURPOSES = Object.freeze({
-    share: { format: 'jpeg', quality: 'screen' },
-    print: { format: 'pdf', quality: 'print' },
-    slide: { format: 'png', quality: 'screen' }
+  const saveAs = window.PrismCollageSave.createSaveDialog({
+    $, core, draw, stickers, measureText, fontsReady, stickerImage,
+    getCollage: () => collage,
+    photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge
   });
-  saveDialog.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-save-purpose]');
-    const choice = button && SAVE_PURPOSES[button.dataset.savePurpose];
-    if (!choice) return;
-    for (const [name, value] of Object.entries(choice)) {
-      const radio = saveDialog.querySelector(`input[name="${name}"][value="${value}"]`);
-      if (radio) radio.checked = true;
-    }
-    saveDialog.querySelectorAll('[data-save-purpose]').forEach((other) => other.setAttribute('aria-pressed', String(other === button)));
-    syncSaveDialog();
-    announce(`${saveDialog.querySelector('input[name="format"]:checked')?.closest('label')?.querySelector('b')?.textContent || ''}, ${choice.quality === 'print' ? 'print quality' : 'for the screen'}.`);
-  });
-  saveDialog.addEventListener('cancel', (event) => { if (saving) event.preventDefault(); });
-
-  // Save draws the collage from the original photos (collage-render.js).
-  const renderer = window.PrismCollageRender.createRenderer({ core, draw, measureText, fontsReady, stickerImage });
-  // What the last Save left out: photos shown grey, stickers PRISM could not send.
-  let saveLeftOut = 0;
-  let saveStickersLeftOut = 0;
-
-  function download(bytes, type, name) {
-    const url = URL.createObjectURL(new Blob([bytes], { type }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-  }
-
-  async function saveCollage() {
-    if (saving) return;
-    const format = chosen('format');
-    const quality = chosen('quality');
-    let targetBytes = null;
-    if (format === 'jpeg' && targetOn.checked) {
-      targetBytes = photoTools?.parseTargetBytes(targetValue.value, targetUnit.value) ?? null;
-      if (!targetBytes) {
-        saveResult.hidden = false;
-        saveResult.textContent = 'Type a size such as 500 KB or 2 MB.';
-        targetValue.focus();
-        return;
-      }
-    }
-    saving = true;
-    const goButton = $('[data-save-go]');
-    goButton.disabled = true;
-    saveResult.hidden = false;
-    saveResult.textContent = 'Making the picture…';
-    try {
-      const wanted = core.savePixels(collage.size, quality);
-      const fits = renderer.largestCanvas(wanted.width, wanted.height);
-      if (!fits) throw new Error('canvas');
-      const drawn = await renderer.drawCollage(collage, photos, fits.width, fits.height);
-      const canvas = drawn.canvas;
-      saveLeftOut = drawn.leftOutPhotos;
-      saveStickersLeftOut = drawn.leftOutStickers;
-      const stem = core.fileStem(collageTitle());
-      let bytes;
-      let width = canvas.width;
-      let height = canvas.height;
-      let missed = false;
-      let type;
-      let name;
-      if (format === 'png') {
-        type = 'image/png';
-        name = `${stem}.png`;
-        bytes = await renderer.toBytes(canvas, type);
-      } else if (format === 'jpeg') {
-        type = 'image/jpeg';
-        name = `${stem}.jpg`;
-        if (targetBytes && photoTools) {
-          const result = await photoTools.encodeToTarget({
-            encode: (w, h, q) => renderer.toBytes(renderer.scaledCanvas(canvas, w, h), type, q),
-            lossy: true,
-            width,
-            height,
-            targetBytes
-          });
-          bytes = result.bytes;
-          width = result.width;
-          height = result.height;
-          missed = !result.reached;
-        } else {
-          bytes = await renderer.toBytes(canvas, type, 0.92);
-        }
-      } else {
-        type = 'application/pdf';
-        name = `${stem}.pdf`;
-        const page = core.pdfPage(collage.size);
-        const jpeg = await renderer.toBytes(canvas, 'image/jpeg', 0.92);
-        const pdf = await window.PDFLib.PDFDocument.create();
-        pdf.setTitle(collageTitle());
-        pdf.setCreator('PRISM Collage Studio');
-        const image = await pdf.embedJpg(jpeg);
-        pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
-        bytes = await pdf.save();
-      }
-      canvas.width = 0;
-      canvas.height = 0;
-      download(bytes, type, name);
-      const sizeText = photoTools ? photoTools.formatBytes(bytes.length) : `${Math.ceil(bytes.length / 1000)} KB`;
-      const parts = [`Saved “${name}”`, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText];
-      let line = `${parts.join(' · ')}.`;
-      if (fits.scaled) {
-        const dpi = core.paperDpi(collage.size, fits.width);
-        line += ` This browser cannot draw a picture that large, so it was made a little smaller${dpi ? ` (${dpi} dots per inch)` : ''}.`;
-      }
-      if (missed) line += ` It could not get under ${photoTools.formatBytes(targetBytes)}; this is the smallest it can be. Choose Screen or a larger size.`;
-      if (saveLeftOut) line += ` ${saveLeftOut === 1 ? 'One photo' : `${saveLeftOut} photos`} shown grey could not be opened in this browser and ${saveLeftOut === 1 ? 'was' : 'were'} left out.`;
-      if (saveStickersLeftOut) line += ` ${saveStickersLeftOut === 1 ? 'One sticker' : `${saveStickersLeftOut} stickers`} could not be loaded and ${saveStickersLeftOut === 1 ? 'was' : 'were'} left out; check the connection to PRISM and save again.`;
-      saveResult.textContent = line;
-      announce(line);
-    } catch {
-      saveResult.textContent = 'The collage could not be saved. Try Screen quality, or close other tabs and try again.';
-    } finally {
-      saving = false;
-      goButton.disabled = false;
-    }
-  }
 
   // ---------------------------------------------------------------------------
   // Keyboard and the mouse wheel

@@ -125,3 +125,33 @@ test('Save draws the photos, and counts what it had to leave out', async () => {
   assert.ok(decoded[0].options.resizeWidth <= 3000);
   assert.ok(result.canvas.ctx.calls.some((call) => call[0] === 'drawImage'));
 });
+
+test('the settings panel HTML escapes names and offers Size only for photos and frames', () => {
+  const { createSettingsHtml } = require('./collage-settings.js');
+  const stickers = require('./collage-stickers.js');
+  const photos = new Map([['p1', { id: 'p1', name: '<b>Team</b>.jpg', thumbnail: 'data:image/png;base64,AA' }]]);
+  const html = createSettingsHtml({
+    core,
+    draw,
+    stickers,
+    stickerSource: () => '',
+    escapeHtml: (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
+    photos,
+    FRAME_WIDTHS: [60, 1400],
+    TEXT_COLOURS: ['#ffffff'],
+    LABEL_COLOURS: ['#ffffff']
+  });
+  const photo = core.photoItem('i1', 'p1', 1.5, { x: 10, y: 10, width: 300 });
+  const words = core.textItem('i2', 'Farewell <script>', { x: 10, y: 10 }, {});
+  assert.match(html.arrangeSections(photo), /data-prop="width"/);
+  assert.doesNotMatch(html.arrangeSections(words), /aria-label="Width of the/);
+
+  const layers = html.layersSection({ items: [photo, words] }, 'i2');
+  assert.ok(layers.includes('&lt;b&gt;Team&lt;/b&gt;.jpg'));
+  assert.ok(!layers.includes('<b>Team</b>'));
+  assert.ok(layers.includes('Farewell &lt;script&gt;'));
+  // The top of the list is in front: the text, added last, comes first, and is marked chosen.
+  assert.ok(layers.indexOf('Farewell') < layers.indexOf('Team'));
+  assert.match(layers, /data-layer-select="i2" aria-current="true"/);
+  assert.equal(html.layersSection({ items: [] }, null), '');
+});

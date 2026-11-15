@@ -107,6 +107,9 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-edits.js` | Edits still going on (typing, sliders, nudges): kept in the draft at once, recorded for Undo once they pause |
 | `wwwroot/js/collage/collage-focus.js` | Keeping keyboard focus on the control used when a panel is drawn again |
 | `wwwroot/js/collage/collage-library-dialog.js` | The From PRISM Photos dialog |
+| `wwwroot/js/collage/collage-settings.js` | The settings panel's sections as HTML (arranging, Layers, text, frames, shapes and looks), every value escaped |
+| `wwwroot/js/collage/collage-photos.js` | Reading photos at their working size, tray pictures, and grey stand-ins for draft photos that cannot be opened |
+| `wwwroot/js/collage/collage-save.js` | The Save as… dialog and making the PNG, JPG or PDF |
 | `wwwroot/js/collage/collage-app.js` | The editor: panels, Konva stage, toolbar, keys, drafts and Save |
 | `wwwroot/css/collage.css` | All styles, Bootstrap variables only (Light and Dark) |
 
