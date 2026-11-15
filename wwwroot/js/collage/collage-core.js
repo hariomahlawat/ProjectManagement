@@ -929,7 +929,9 @@
         radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0))
       };
       if (item.kind === 'sticker') {
-        clean.width = Math.min(STICKER_LIMITS.width[1], Math.max(STICKER_LIMITS.width[0], clean.width));
+        // Stickers have their own limits (down to 20), so the saved width is clamped, not the
+        // item width already raised to the general minimum.
+        clean.width = Math.min(STICKER_LIMITS.width[1], Math.max(STICKER_LIMITS.width[0], item.width));
         clean.colour = HEX_COLOUR.test(item.colour) ? item.colour : '';
         clean.flip = item.flip === true;
         clean.shadow = item.shadow === true;

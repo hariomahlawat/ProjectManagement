@@ -74,3 +74,10 @@ test('a draft keeps stickers, within their limits', () => {
   assert.deepEqual([read.items[0].width, read.items[0].colour, read.items[0].flip], [700, '#c62f3a', true]);
   assert.deepEqual([read.items[1].colour, read.items[1].shadow], ['', false]);
 });
+
+test('a sticker at its smallest size comes back from a draft at that size', () => {
+  const smallest = collage.STICKER_LIMITS.width[0];
+  const sticker = collage.stickerItem('s', 'tw:1f389', { x: 10, y: 10, width: smallest, aspect: 1 });
+  const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [sticker, { ...sticker, id: 't', width: 5 }] }, []);
+  assert.deepEqual(read.items.map((i) => i.width), [smallest, smallest]);
+});
