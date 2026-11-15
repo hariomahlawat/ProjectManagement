@@ -1,5 +1,8 @@
 # Collage Studio (plan, 15 Nov 2026)
 
+> **Complete.** All twelve PRs are built; what is built is described in
+> [../collage-studio.md](../collage-studio.md).
+
 On 15 Nov 2026 the owner asked for "the best collage making module with all the features", so that
 nobody needs a website to make a collage. It is used for casual unit functions (farewells,
 picnics, birthdays, festivals) as well as for reports and slides.
