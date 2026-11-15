@@ -647,8 +647,9 @@
     switch (action) {
       case 'home': goHome(); break;
       case 'choose': fileInput.click(); break;
-      case 'undo': flushNudge(); stopAdjust(false); if (history.canUndo()) restore(history.undo()); break;
-      case 'redo': flushNudge(); stopAdjust(false); if (history.canRedo()) restore(history.redo()); break;
+      // Undo and Redo end moving a photo inside its frame only when there is a step to take.
+      case 'undo': flushNudge(); if (history.canUndo()) { stopAdjust(false); restore(history.undo()); } break;
+      case 'redo': flushNudge(); if (history.canRedo()) { stopAdjust(false); restore(history.redo()); } break;
       case 'zoom-in': setZoom(zoom * 1.25); break;
       case 'zoom-out': setZoom(zoom / 1.25); break;
       case 'zoom-fit': setZoom(1); break;
@@ -730,11 +731,8 @@
 
   sizeSelect.addEventListener('change', () => {
     collage = core.changeSize(collage, sizeSelect.value);
-    // A page laid out in a grid is laid out again on the new page.
-    if (collage.layout) {
-      const { key, gap, radius } = collage.layout;
-      collage = core.applyLayout(collage, key, gap, radius, [], newItemId).collage;
-    }
+    // A page laid out in a grid is laid out again on the new page, every frame in its own place.
+    if (collage.layout) collage = core.reflowLayout(collage, collage.layout.gap);
     stopAdjust(false);
     layout();
     commit();
@@ -792,8 +790,7 @@
       $(`[data-out="${which}"]`).textContent = String(value);
       if (which === 'gap' && collage.layout) {
         // The space lays the page out again; that is what the hint under the sliders says.
-        const next = { ...collage.layout, gap: value };
-        collage = core.applyLayout(collage, next.key, next.gap, next.radius, [], newItemId).collage;
+        collage = core.reflowLayout(collage, value);
       } else if (which === 'radius') {
         // Corners change only the corners: turned photos and their crops stay as they are.
         collage.items.forEach((item) => { if (isFrame(item)) item.radius = value; });
@@ -1080,7 +1077,9 @@
   fileInput.addEventListener('change', () => {
     const files = [...fileInput.files];
     fileInput.value = '';
-    addFiles(files, { frameId: targetId });
+    // An empty frame that is selected takes the photo, as it does from the tray or a paste.
+    const selected = selectedItem();
+    addFiles(files, { frameId: targetId || (selected?.kind === 'slot' ? selected.id : null) });
   });
 
   function renderTray() {

@@ -287,14 +287,34 @@
     const placed = frames.map((frame, index) => {
       const place = { ...frame };
       const existing = photos[index];
-      if (existing) return { ...existing, ...place, angle: 0, radius: r, crop: { ...FULL_CROP } };
-      if (index < sources.length) return { ...photoItem(newId(), sources[index], place.aspect, place), radius: r };
-      return { ...slotItem(newId(), place), radius: r };
+      if (existing) return { ...existing, ...place, cell: index, angle: 0, radius: r, crop: { ...FULL_CROP } };
+      if (index < sources.length) return { ...photoItem(newId(), sources[index], place.aspect, place), cell: index, radius: r };
+      return { ...slotItem(newId(), place), cell: index, radius: r };
     });
     const removed = photos.slice(frames.length).map((item) => item.id);
     return {
       collage: { ...collage, layout: { key, gap: Math.min(LAYOUT_LIMITS.gapMax, Math.max(0, Number(gap) || 0)), radius: r }, items: [...placed, ...others] },
       removed
+    };
+  }
+
+  /**
+   * The current layout laid out again, after a change of space or page size: every frame goes
+   * back to its own place in the grid (`cell`), so a photo stays in the frame it was put in and
+   * an empty frame stays empty, whatever order the frames are drawn in. Frames are made straight;
+   * a photo's zoom and the part it shows are kept. Items that are not frames are left alone.
+   */
+  function reflowLayout(collage, gap) {
+    if (!collage.layout) return collage;
+    const g = Math.min(LAYOUT_LIMITS.gapMax, Math.max(0, Number(gap) || 0));
+    const frames = layoutFrames(collage.size, collage.layout.key, g);
+    return {
+      ...collage,
+      layout: { ...collage.layout, gap: g },
+      items: collage.items.map((item) => {
+        const frame = Number.isInteger(item.cell) ? frames[item.cell] : null;
+        return frame && (item.kind === 'photo' || item.kind === 'slot') ? { ...item, ...frame, angle: 0 } : item;
+      })
     };
   }
 
@@ -511,6 +531,7 @@
     LAYOUT_LIMITS,
     layoutFrames,
     applyLayout,
+    reflowLayout,
     makeCasual,
     straightenAll,
     shufflePhotos,

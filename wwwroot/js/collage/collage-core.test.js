@@ -278,3 +278,27 @@ test('casual tilts frames both ways, straighten undoes it, shuffle moves photos 
   const one = { ...laid, items: laid.items.slice(0, 1) };
   assert.equal(collage.shufflePhotos(one), one);
 });
+
+test('laying a page out again keeps every photo in its own frame', () => {
+  let n = 0;
+  const newId = () => `n${++n}`;
+  // Two empty frames; only the right one is filled.
+  const { collage: laid } = collage.applyLayout(collage.newCollage('a4l'), 't2', 10, 4, [], newId);
+  assert.deepEqual(laid.items.map((i) => i.cell), [0, 1]);
+  const right = laid.items[1];
+  const filled = { ...laid, items: [laid.items[0], { ...collage.fillSlot(right, 'p1'), crop: { zoom: 2, x: 0.4, y: 0.5 } }] };
+  // More space: the photo stays in the right-hand frame, the left stays empty, the crop is kept.
+  const wider = collage.reflowLayout(filled, 40);
+  assert.equal(wider.layout.gap, 40);
+  assert.equal(wider.items[0].kind, 'slot');
+  assert.equal(wider.items[1].kind, 'photo');
+  assert.ok(wider.items[1].x > 500 && wider.items[0].x < 500);
+  assert.deepEqual(wider.items[1].crop, { zoom: 2, x: 0.4, y: 0.5 });
+  assert.deepEqual(collage.layoutFrames('a4l', 't2', 40)[1].x, wider.items[1].x);
+  // Drawn in another order, frames still go back to their own cells.
+  const reordered = { ...filled, items: [filled.items[1], filled.items[0]] };
+  assert.ok(collage.reflowLayout(reordered, 12).items[0].x > 500);
+  // A page with no layout is left as it is.
+  const free = { ...filled, layout: null };
+  assert.equal(collage.reflowLayout(free, 30), free);
+});
