@@ -49,6 +49,11 @@
   let shiftHeld = false;
   let transforming = false;
   let sequence = 0;
+  // Counts the collages opened in this tab; photo imports belong to the one they started in.
+  let collageSession = 0;
+  // A keyboard nudge is recorded for Undo once the keys stop; until then it is pending here.
+  let nudgeTimer = 0;
+  let nudgePending = false;
   // The photos the collage uses, by id: { id, name, file, canvas, url, width, height, aspect }.
   const photos = new Map();
 
@@ -116,6 +121,9 @@
   }
 
   function startCollage(sizeKey) {
+    collageSession += 1;
+    window.clearTimeout(nudgeTimer);
+    nudgePending = false;
     collage = core.newCollage(sizeKey);
     history = core.createHistory(collage);
     for (const photo of photos.values()) URL.revokeObjectURL(photo.url);
@@ -139,6 +147,7 @@
       });
       if (!leave) return;
     }
+    collageSession += 1;
     collage = core.newCollage(core.DEFAULT_SIZE);
     history = core.createHistory(collage);
     selectedId = null;
@@ -412,8 +421,8 @@
     switch (action) {
       case 'home': goHome(); break;
       case 'choose': fileInput.click(); break;
-      case 'undo': if (history.canUndo()) restore(history.undo()); break;
-      case 'redo': if (history.canRedo()) restore(history.redo()); break;
+      case 'undo': flushNudge(); if (history.canUndo()) restore(history.undo()); break;
+      case 'redo': flushNudge(); if (history.canRedo()) restore(history.redo()); break;
       case 'zoom-in': setZoom(zoom * 1.25); break;
       case 'zoom-out': setZoom(zoom / 1.25); break;
       case 'zoom-fit': setZoom(1); break;
@@ -587,11 +596,25 @@
     selectedId = item.id;
   }
 
-  async function addFiles(fileList, at) {
+  // Imports run one batch at a time: a second drop or paste waits for the first, so the photo
+  // limit counts every photo already added and only one large photo is ever being decoded.
+  let importQueue = Promise.resolve();
+
+  function addFiles(fileList, at) {
     const files = [...fileList];
-    if (!files.length) return;
+    if (!files.length) return importQueue;
+    const forCollage = collageSession;
+    importQueue = importQueue.then(() => importFiles(files, at, forCollage)).catch(() => {});
+    return importQueue;
+  }
+
+  async function importFiles(files, at, forCollage) {
+    // A collage left before its photos were read gets none of them, and neither does the next.
+    const stillOpen = () => forCollage === collageSession;
+    if (!stillOpen()) return;
     showAlert('');
     busy(files.length === 1 ? 'Adding the photo…' : `Adding ${files.length} photos…`);
+    const added = [];
     try {
       const entries = await Promise.all(files.map(async (file) => ({
         file,
@@ -599,17 +622,23 @@
         size: file.size,
         type: core.sniffImageType(new Uint8Array(await file.slice(0, 16).arrayBuffer()))
       })));
+      if (!stillOpen()) return;
       const { accepted, refused } = core.checkPhotos(entries, photos.size);
-      const added = [];
       // One at a time, so a pile of large phone photos is never all decoded at once.
       for (const entry of accepted) {
+        let photo;
         try {
-          const photo = await readPhoto(entry);
-          photos.set(photo.id, photo);
-          added.push(photo);
+          photo = await readPhoto(entry);
         } catch {
           refused.push({ name: entry.name, reason: 'unreadable' });
+          continue;
         }
+        if (!stillOpen()) {
+          URL.revokeObjectURL(photo.url);
+          return;
+        }
+        photos.set(photo.id, photo);
+        added.push(photo);
       }
       added.forEach((photo, index) => addPhotoItem(photo, index === 0 ? at : null));
       if (added.length) commit();
@@ -715,7 +744,15 @@
   // Keyboard and the mouse wheel
   // ---------------------------------------------------------------------------
 
-  let nudgeTimer = 0;
+  /** Records a pending nudge now, so Undo and Redo start from where the photo really is. */
+  function flushNudge() {
+    window.clearTimeout(nudgeTimer);
+    if (!nudgePending) return;
+    nudgePending = false;
+    history.record(collage);
+    updateUndo();
+  }
+
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Shift') setShift(true);
     if (views.editor.hidden || document.querySelector('dialog[open]')) return;
@@ -744,7 +781,8 @@
         if (key === 'arrowdown') item.y += step;
       }, false);
       window.clearTimeout(nudgeTimer);
-      nudgeTimer = window.setTimeout(() => { history.record(collage); updateUndo(); }, 400);
+      nudgePending = true;
+      nudgeTimer = window.setTimeout(flushNudge, 400);
     }
   });
   document.addEventListener('keyup', (event) => { if (event.key === 'Shift') setShift(false); });
