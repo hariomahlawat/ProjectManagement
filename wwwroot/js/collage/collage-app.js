@@ -10,7 +10,8 @@
   const root = document.querySelector('[data-collage]');
   const core = window.PrismCollage;
   const Konva = window.Konva;
-  if (!root || !core || !Konva) return;
+  const draw = window.PrismCollageDraw;
+  if (!root || !core || !Konva || !draw) return;
 
   // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
   const askConfirm = (options) => (window.PrismConfirm?.show
@@ -624,23 +625,33 @@
       node.findOne('.slot-label').setAttrs({ width: item.width, height, fontSize: size, lineHeight: 1.25 });
       return;
     }
-    const photo = photos.get(item.photo);
+    // A photo is drawn from the model by drawPhotoNode(); it only needs drawing again.
+  }
+
+  /**
+   * Draws a photo node: its frame, shape, look and the part of the photo its frame shows, with
+   * the same drawing Save uses, so the saved picture is what the page shows.
+   */
+  function drawPhotoNode(context, shape) {
+    const item = itemById(shape.id());
+    const photo = item && photos.get(item.photo);
     if (!photo) return;
-    if (node.image() !== photo.canvas) node.image(photo.canvas);
-    const region = core.cropRegion(photo.aspect, item.aspect, item.crop);
-    node.crop({
-      x: region.x * photo.canvas.width,
-      y: region.y * photo.canvas.height,
-      width: region.width * photo.canvas.width,
-      height: region.height * photo.canvas.height
-    });
-    node.cornerRadius(item.radius || 0);
+    const pixelsPerUnit = scale * (layer.getCanvas().getPixelRatio?.() || 1);
+    draw.drawPhoto(context._context, item, photo.canvas, photo.canvas.width, photo.canvas.height, pixelsPerUnit);
+  }
+
+  /** The area that takes clicks: the whole frame. */
+  function hitPhotoNode(context, shape) {
+    context.beginPath();
+    context.rect(0, 0, shape.width(), shape.height());
+    context.closePath();
+    context.fillStrokeShape(shape);
   }
 
   function makeNode(item) {
     const node = item.kind === 'slot'
       ? makeSlotNode()
-      : new Konva.Image({ name: 'item', draggable: true, image: photos.get(item.photo)?.canvas });
+      : new Konva.Shape({ name: 'item', draggable: true, sceneFunc: drawPhotoNode, hitFunc: hitPhotoNode });
     node.id(item.id);
     node.setAttr('kind', item.kind);
     node.on('pointerdown', (event) => {
@@ -674,6 +685,8 @@
       const height = core.itemHeight(target) * Math.abs(node.scaleY());
       target.width = width;
       target.aspect = width / Math.max(1, height);
+      // A framed photo squeezed flat keeps a usable picture area inside its edges.
+      if (target.kind === 'photo') target.aspect = core.limitFrameAspect(target);
       if (target.crop) target.crop = clampedCrop(target);
       target.angle = core.normaliseAngle(node.rotation());
       target.x = node.x();
@@ -686,7 +699,7 @@
   /** The item's crop, kept inside its photo for the frame's current shape. */
   function clampedCrop(item) {
     const photo = photos.get(item.photo);
-    return photo ? core.clampCrop(photo.aspect, item.aspect, item.crop) : item.crop;
+    return photo ? core.clampCrop(photo.aspect, core.innerAspect(item), item.crop) : item.crop;
   }
 
   function snapWhileMoving(node, event) {
@@ -1000,11 +1013,15 @@
       case 'save-close': if (!saving) saveDialog.close(); break;
       case 'save-go': saveCollage(); break;
       case 'draft-undo': undoDeleteDraft(); break;
+      case 'reset-look':
+        changeSelected((i) => { Object.assign(i, { look: 'none', bright: 100, contrast: 100, warmth: 0, flip: false }); });
+        break;
       case 'fit-photo':
         changeSelected((i) => {
           const photo = photos.get(i.photo);
           if (!photo) return;
-          i.aspect = photo.aspect;
+          // The picture area takes the photo's own shape, inside whatever frame it has.
+          i.aspect = core.outerAspectFor(i, photo.aspect);
           i.crop = { ...core.FULL_CROP };
         });
         break;
@@ -1208,10 +1225,86 @@
           <input type="range" min="1" max="${core.MAX_CROP_ZOOM}" step="0.05" value="${zoomValueNow}" data-prop="zoom" aria-label="Zoom inside the frame"></label>
         <button type="button" class="btn btn-outline-secondary btn-sm w-100" data-action="fit-photo">Fit the frame to the whole photo</button>
       </div>
+      ${finishSections(item, photo)}
       ${arrangeSections(item)}`;
   }
 
+  /** Buttons that choose one value of a photo's finish (frame, shape or look). */
+  function choiceButtons(name, entries, current, disabled = () => false) {
+    return entries.map(([value, label]) => `<button type="button" class="btn btn-sm ${value === current ? 'btn-primary' : 'btn-outline-secondary'}" data-finish="${name}" data-value="${value}" aria-pressed="${value === current}"${disabled(value) ? ' disabled' : ''}>${escapeHtml(label)}</button>`).join('');
+  }
+
+  function switchRow(name, label, on) {
+    return `<label class="form-check form-switch clg-switch"><input class="form-check-input" type="checkbox" role="switch" data-toggle="${name}"${on ? ' checked' : ''}><span class="form-check-label">${escapeHtml(label)}</span></label>`;
+  }
+
+  /** Frame, shape and look: the photo's finish, the same on the page and in the saved picture. */
+  function finishSections(item, photo) {
+    const shape = item.shape || 'rect';
+    const frame = item.frame || 'none';
+    const square = shape === 'rect';
+    const look = item.look || 'none';
+    const filterOk = draw.canFilter(document.createElement('canvas').getContext('2d'));
+    const looks = Object.entries(core.LOOKS).map(([value, entry]) => `
+          <button type="button" class="clg-look${value === look ? ' is-on' : ''}" data-finish="look" data-value="${value}" aria-pressed="${value === look}">
+            <img src="${photo?.thumbnail || ''}" alt="" style="filter:${entry.filter || 'none'}"><span>${escapeHtml(entry.label)}</span>
+          </button>`).join('');
+    return `
+      <div class="clg-section">
+        <p class="clg-section__title">Frame</p>
+        <div class="clg-choices">${choiceButtons('frame', Object.entries(core.FRAMES).map(([k, v]) => [k, v.label]), frame, (v) => !square && v !== 'none')}</div>
+        ${square ? '' : '<p class="clg-hint">Frames go with the Square shape.</p>'}
+        ${square && frame === 'polaroid' ? `<label class="clg-field"><span class="clg-field__label">Caption under the photo</span>
+          <input type="text" class="form-control form-control-sm" maxlength="${core.CAPTION_MAX}" value="${escapeHtml(item.caption || '')}" placeholder="Last day at office" data-caption></label>` : ''}
+        ${switchRow('shadow', 'Shadow', item.shadow)}
+      </div>
+      <div class="clg-section">
+        <p class="clg-section__title">Shape</p>
+        <div class="clg-choices">${choiceButtons('shape', Object.entries(core.SHAPES), shape)}</div>
+      </div>
+      <div class="clg-section">
+        <p class="clg-section__title">Look</p>
+        ${filterOk ? '' : '<p class="clg-hint">This browser cannot show looks; use Edge or Chrome to change them.</p>'}
+        <div class="clg-looks">${looks}</div>
+        <label class="clg-field"><span class="clg-field__label">Brightness<output data-out="bright">${item.bright ?? 100}%</output></span>
+          <input type="range" min="${core.ADJUST_LIMITS.bright[0]}" max="${core.ADJUST_LIMITS.bright[1]}" step="1" value="${item.bright ?? 100}" data-prop="bright" aria-label="Brightness, in percent"></label>
+        <label class="clg-field"><span class="clg-field__label">Contrast<output data-out="contrast">${item.contrast ?? 100}%</output></span>
+          <input type="range" min="${core.ADJUST_LIMITS.contrast[0]}" max="${core.ADJUST_LIMITS.contrast[1]}" step="1" value="${item.contrast ?? 100}" data-prop="contrast" aria-label="Contrast, in percent"></label>
+        <label class="clg-field"><span class="clg-field__label">Warmth<output data-out="warmth">${item.warmth ?? 0}</output></span>
+          <input type="range" min="${core.ADJUST_LIMITS.warmth[0]}" max="${core.ADJUST_LIMITS.warmth[1]}" step="1" value="${item.warmth ?? 0}" data-prop="warmth" aria-label="Warmth: below 0 cooler, above 0 warmer"></label>
+        ${switchRow('flip', 'Mirror the photo', item.flip)}
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-action="reset-look">Reset look</button>
+      </div>`;
+  }
+
+  /** Puts a frame on, takes it off or changes the shape, keeping the photo's own shape. */
+  function setFinish(item, name, value) {
+    const pictureAspect = core.innerAspect(item);
+    item[name] = value;
+    if (name === 'frame' && value !== 'none') item.shape = 'rect';
+    if (name === 'frame' || name === 'shape') {
+      item.aspect = core.limitFrameAspect({ ...item, aspect: core.outerAspectFor(item, pictureAspect) });
+      item.crop = clampedCrop(item);
+    }
+  }
+
+  props.addEventListener('click', (event) => {
+    const choice = event.target.closest('[data-finish]');
+    if (!choice || choice.disabled) return;
+    changeSelected((item) => setFinish(item, choice.dataset.finish, choice.dataset.value));
+  });
+
+  props.addEventListener('change', (event) => {
+    const toggle = event.target.closest('[data-toggle]');
+    if (toggle) changeSelected((item) => { item[toggle.dataset.toggle] = toggle.checked; });
+  });
+
   props.addEventListener('input', (event) => {
+    if (event.target.matches('[data-caption]')) {
+      const text = event.target.value.slice(0, core.CAPTION_MAX);
+      changeSelected((item) => { item.caption = text; }, false);
+      return;
+    }
     const prop = event.target.dataset.prop;
     if (!prop) return;
     const value = Number(event.target.value);
@@ -1223,12 +1316,18 @@
     const out = props.querySelector(`[data-out="${prop}"]`);
     if (out) {
       out.textContent = prop === 'angle' ? `${Math.round(value)}°`
-        : prop === 'opacity' ? `${value}%`
+        : prop === 'opacity' || prop === 'bright' || prop === 'contrast' ? `${value}%`
           : prop === 'zoom' ? `${value.toFixed(1)}×` : String(value);
     }
   });
 
   props.addEventListener('change', (event) => {
+    if (event.target.matches('[data-caption]')) {
+      history.record(collage);
+      scheduleDraft();
+      updateUndo();
+      return;
+    }
     if (event.target.dataset.prop) {
       // A frame given its own corners is no longer bound to the layout's.
       if (event.target.dataset.prop === 'radius' && collage.layout) collage.layout = { ...collage.layout, radius: Number(event.target.value) };
@@ -1601,25 +1700,19 @@
     for (const item of core.itemsToSave(collage)) {
       const photo = photos.get(item.photo);
       if (!photo) continue;
-      const frameW = item.width * s;
-      const frameH = frameW / item.aspect;
-      const want = core.decodeSize(photo, item.aspect, item.crop, frameW);
+      const inner = core.innerBox(item);
+      const want = core.decodeSize(photo, inner.width / inner.height, item.crop, inner.width * s);
       // One original at a time, read at the size this frame needs and closed straight after.
       const bitmap = await createImageBitmap(photo.file, { resizeWidth: want.width, resizeHeight: want.height, resizeQuality: 'high' });
       try {
-        const region = core.cropRegion(bitmap.width / bitmap.height, item.aspect, item.crop);
         context.save();
         context.globalAlpha = item.opacity / 100;
         context.translate(item.x * s, item.y * s);
         context.rotate(item.angle * Math.PI / 180);
-        if (item.radius) {
-          context.beginPath();
-          context.roundRect(-frameW / 2, -frameH / 2, frameW, frameH, Math.min(item.radius * s, frameW / 2, frameH / 2));
-          context.clip();
-        }
-        context.drawImage(bitmap,
-          region.x * bitmap.width, region.y * bitmap.height, region.width * bitmap.width, region.height * bitmap.height,
-          -frameW / 2, -frameH / 2, frameW, frameH);
+        context.scale(s, s);
+        context.translate(-item.width / 2, -core.itemHeight(item) / 2);
+        // The same drawing as on the page: frame, shape, look, caption and tape.
+        draw.drawPhoto(context, item, bitmap, bitmap.width, bitmap.height, s);
         context.restore();
       } finally {
         bitmap.close?.();
