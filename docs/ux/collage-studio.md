@@ -23,7 +23,8 @@ or Chrome from the file, and everything in it can be clicked.
   - unit crests and logos uploaded by an administrator as stickers (needs server storage);
   - choosing photos from the PRISM Photos library.
 
-  Neither is in this plan.
+  Neither is in this plan. Both were approved later; see
+  [collage-studio-library-and-unit-stickers.md](collage-studio-library-and-unit-stickers.md).
 
 ## Where it lives
 
