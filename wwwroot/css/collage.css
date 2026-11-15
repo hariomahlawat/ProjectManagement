@@ -186,8 +186,10 @@
     min-height: 0;
 }
 
+/* With the panel closed there is no column for it: a hidden item leaves the grid's auto-placement,
+   so an empty column would take the page's place. */
 .clg-body.is-drawer-closed {
-    grid-template-columns: var(--clg-rail) 0 minmax(0, 1fr) var(--clg-props);
+    grid-template-columns: var(--clg-rail) minmax(0, 1fr) var(--clg-props);
 }
 
 .clg-body.is-drawer-closed .clg-drawer {
