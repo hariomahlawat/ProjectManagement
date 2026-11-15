@@ -52,8 +52,11 @@
             <h1 id="clgStartTitle" tabindex="-1">Make a collage</h1>
             <p class="clg-lede">Put your photos on a page, turn them to any angle and arrange them as you like. Everything happens in this browser; no photo is sent to PRISM.</p>
             <section class="clg-drafts" data-drafts-section aria-labelledby="clgDraftsTitle" hidden>
-                <h2 class="clg-start__heading" id="clgDraftsTitle">Your drafts <small data-drafts-count></small></h2>
-                <p class="clg-hint clg-drafts__note">Drafts are kept in this browser on this computer, with their photos, and saved as you work. Clearing the browser's data removes them, so save a picture or a PDF to keep a copy. <span data-drafts-space></span></p>
+                <div class="clg-drafts__head">
+                    <h2 class="clg-start__heading" id="clgDraftsTitle">Your drafts <small data-drafts-count></small></h2>
+                    <button type="button" class="btn btn-sm btn-link clg-drafts-all" data-action="drafts-all" aria-expanded="false" hidden></button>
+                </div>
+                <p class="clg-hint clg-drafts__note" title="Clearing the browser's data removes drafts.">Kept in this browser on this computer, with their photos, and saved as you work. Save a picture or a PDF to keep a copy. <span data-drafts-space></span></p>
                 <div class="clg-undo-bar" data-draft-undo hidden><span data-draft-undo-text></span> <button type="button" class="btn btn-sm btn-link" data-action="draft-undo">Undo</button></div>
                 <div class="clg-draft-grid" data-drafts></div>
             </section>
@@ -72,7 +75,7 @@
                     <i class="bi bi-arrow-left" aria-hidden="true"></i>
                 </button>
                 <label class="visually-hidden" for="clgName">Collage name</label>
-                <input id="clgName" class="clg-name" type="text" maxlength="80" autocomplete="off" data-name />
+                <input id="clgName" class="clg-name" type="text" maxlength="80" autocomplete="off" data-name placeholder="Untitled collage" />
                 <span class="clg-draft-status" data-draft-status role="status" aria-live="polite"></span>
                 <button type="button" class="btn btn-sm btn-outline-warning clg-keep-draft" data-action="keep-draft" hidden>Keep as a draft</button>
                 <span class="clg-bar__grow"></span>
@@ -278,12 +281,18 @@
                     <h2 id="clgSaveTitle">Save the collage</h2>
                     <button type="button" class="btn-close" data-action="save-close" aria-label="Close"></button>
                 </div>
+                <div class="clg-purpose" role="group" aria-labelledby="clgPurposeLabel">
+                    <span class="clg-purpose__label" id="clgPurposeLabel">What is it for?</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-save-purpose="share">WhatsApp or email</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-save-purpose="print">Printing</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-save-purpose="slide">A slide or a screen</button>
+                </div>
                 <fieldset class="clg-options">
                     <legend>Save as</legend>
                     <label class="clg-option"><input type="radio" name="format" value="png" checked>
-                        <span><b>PNG picture</b><small>The sharpest. Best for WhatsApp, slides and screens.</small></span></label>
+                        <span><b>PNG picture</b><small>The sharpest, and a larger file. Best for slides and screens.</small></span></label>
                     <label class="clg-option"><input type="radio" name="format" value="jpeg">
-                        <span><b>JPG picture</b><small>A smaller file. It can be kept under a size a form asks for.</small></span></label>
+                        <span><b>JPG picture</b><small>A smaller file. Best for WhatsApp and email; it can be kept under a size a form asks for.</small></span></label>
                     <label class="clg-option"><input type="radio" name="format" value="pdf">
                         <span><b>PDF for printing</b><small data-pdf-note>The exact page size, ready to print.</small></span></label>
                 </fieldset>

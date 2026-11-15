@@ -891,6 +891,38 @@
     return { ...item, id, x: item.x + 24, y: item.y + 24, hidden: false, locked: false };
   }
 
+  /**
+   * The empty frame whose shape is closest to a photo's (by how much one is wider than the
+   * other), so a wide photo goes into a wide frame; the first such frame on a tie, or null.
+   */
+  function bestSlotFor(items, aspect) {
+    let best = null;
+    let bestGap = Infinity;
+    for (const item of items || []) {
+      if (item.kind !== 'slot' || item.hidden || item.locked || !(item.aspect > 0) || !(aspect > 0)) continue;
+      const gap = Math.abs(Math.log(item.aspect / aspect));
+      if (gap < bestGap - 1e-9) { best = item; bestGap = gap; }
+    }
+    return best;
+  }
+
+  const MONTHS = Object.freeze(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
+
+  /**
+   * A name for a collage nobody named: the first line of its first text, or the day and time
+   * it was started ("Collage, 15 Nov 14:05"), so drafts can be told apart.
+   */
+  function autoTitle(items, startedAt) {
+    const text = (items || []).find((item) => item.kind === 'text' && String(item.text || '').trim());
+    if (text) {
+      const line = String(text.text).split('\n').map((part) => part.trim()).find(Boolean) || '';
+      if (line) return line.length > 40 ? `${line.slice(0, 39)}…` : line;
+    }
+    const when = new Date(Number.isFinite(startedAt) ? startedAt : Date.now());
+    const time = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
+    return `Collage, ${when.getDate()} ${MONTHS[when.getMonth()]} ${time}`;
+  }
+
   /** Where "Line up on the page" can put an item. */
   const ALIGN_PLACES = Object.freeze(['left', 'centre', 'right', 'top', 'middle', 'bottom']);
 
@@ -1242,6 +1274,8 @@
     changeSize,
     reorder,
     duplicateItem,
+    bestSlotFor,
+    autoTitle,
     ALIGN_PLACES,
     alignItem,
     layerName,

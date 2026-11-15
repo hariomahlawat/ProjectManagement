@@ -697,3 +697,21 @@ test('a picture with more than 250 million pixels is refused by name', () => {
   assert.ok(collage.PHOTO_LIMITS.maxPixels >= 200 * 1000 * 1000);
   assert.equal(collage.refusedMessage([{ name: 'huge.png', reason: 'too-many-pixels' }]), '“huge.png” has more than 250 million pixels.');
 });
+
+test('a photo goes into the empty frame closest to its shape', () => {
+  const tall = { id: 't', kind: 'slot', aspect: 0.75 };
+  const wide = { id: 'w', kind: 'slot', aspect: 1.5 };
+  const square = { id: 's', kind: 'slot', aspect: 1 };
+  assert.equal(collage.bestSlotFor([tall, wide, square], 4 / 3).id, 'w');
+  assert.equal(collage.bestSlotFor([tall, wide, square], 3 / 4).id, 't');
+  assert.equal(collage.bestSlotFor([tall, wide, square], 1).id, 's');
+  assert.equal(collage.bestSlotFor([{ ...wide, locked: true }], 1.5), null);
+  assert.equal(collage.bestSlotFor([], 1), null);
+});
+
+test('a collage nobody named is called by its first words or when it was started', () => {
+  assert.equal(collage.autoTitle([{ kind: 'text', text: '  \n Farewell Col Rao\nWith love' }], 0), 'Farewell Col Rao');
+  assert.equal(collage.autoTitle([{ kind: 'text', text: 'x'.repeat(50) }], 0), `${'x'.repeat(39)}…`);
+  const started = new Date(2026, 10, 15, 14, 5).getTime();
+  assert.equal(collage.autoTitle([{ kind: 'photo' }], started), 'Collage, 15 Nov 14:05');
+});

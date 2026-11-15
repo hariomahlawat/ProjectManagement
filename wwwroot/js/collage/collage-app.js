@@ -148,7 +148,7 @@
     for (const [key, view] of Object.entries(views)) view.hidden = key !== name;
     document.body.classList.toggle('is-editing', name === 'editor');
     document.title = name === 'editor'
-      ? `${nameInput.value.trim() || 'Untitled collage'} · Collage Studio | PRISM ERP`
+      ? `${collageTitle()} · Collage Studio | PRISM ERP`
       : 'Collage Studio | PRISM ERP';
     const heading = views[name].querySelector('h1');
     heading?.focus({ preventScroll: true });
@@ -233,7 +233,9 @@
     draft = { id: nextId('d'), created: false, off: false };
     draftFailed = '';
     setDraftStatus('');
-    nameInput.value = 'Untitled collage';
+    nameInput.value = '';
+    draft.started = Date.now();
+    refreshTitle();
     sizeSelect.value = collage.size;
     showView('editor');
     setPanel('photos');
@@ -414,7 +416,10 @@
         const newPhotos = [...photos.values()].filter((photo) => !storedPhotos.has(photo.id));
         const record = {
           id: forDraft.id,
-          title: nameInput.value.trim() || 'Untitled collage',
+          title: collageTitle(),
+          // Not named by the user: the title follows the first words, and the box stays empty.
+          autoTitle: !nameInput.value.trim(),
+          started: forDraft.started || Date.now(),
           saved: Date.now(),
           deletedAt: null,
           model: collage,
@@ -448,6 +453,8 @@
   let undoTimer = 0;
   let undoDraftId = null;
 
+  let draftsExpanded = false;
+
   async function renderDrafts() {
     const section = $('[data-drafts-section]');
     const grid = $('[data-drafts]');
@@ -464,7 +471,16 @@
     grid.textContent = '';
     section.hidden = !shown.length && !undoDraftId;
     $('[data-drafts-count]').textContent = shown.length ? String(shown.length) : '';
-    for (const item of shown) {
+    // One row of drafts unless asked for all, so starting a new collage stays in view.
+    // As many as fit across the grid (cards are at least 200 pixels wide).
+    const row = Math.max(1, Math.floor(((grid.clientWidth || section.parentElement?.clientWidth || 800) + 12) / 212));
+    const allButton = $('[data-action="drafts-all"]');
+    if (allButton) {
+      allButton.hidden = shown.length <= row;
+      allButton.textContent = draftsExpanded ? 'Show fewer drafts' : `Show all ${shown.length} drafts`;
+      allButton.setAttribute('aria-expanded', String(draftsExpanded));
+    }
+    for (const item of draftsExpanded ? shown : shown.slice(0, row)) {
       const card = document.createElement('div');
       card.className = 'clg-draft';
       const open = document.createElement('button');
@@ -578,7 +594,9 @@
     history = core.createHistory(collage);
     draft = { id: record.id, created: true, off: false };
     draftFailed = '';
-    nameInput.value = record.title;
+    nameInput.value = record.autoTitle ? '' : record.title;
+    draft.started = record.started || record.saved;
+    refreshTitle();
     sizeSelect.value = collage.size;
     setDraftStatus('Draft saved in this browser');
     showView('editor');
@@ -1234,8 +1252,20 @@
   // Changes and Undo
   // ---------------------------------------------------------------------------
 
+  /** The collage's name: what the user typed, or its own title from its words or start time. */
+  function collageTitle() {
+    return nameInput.value.trim() || core.autoTitle(collage.items, draft?.started);
+  }
+
+  /** Shows the collage's own title where no name was typed: in the name box and the tab. */
+  function refreshTitle() {
+    nameInput.placeholder = core.autoTitle(collage.items, draft?.started);
+    if (!views.editor.hidden || draft) document.title = `${collageTitle()} · Collage Studio | PRISM ERP`;
+  }
+
   function commit() {
     history.record(collage);
+    refreshTitle();
     if (panel === 'background') renderBackgroundPanel();
     scheduleDraft();
     syncPage();
@@ -1629,6 +1659,7 @@
       case 'replace-cancel': setTarget(null); break;
       case 'save-open': openSave(); break;
       case 'credits': root.querySelector('[data-credits]').showModal(); break;
+      case 'drafts-all': draftsExpanded = !draftsExpanded; renderDrafts(); break;
       case 'keep-draft':
         // Asked again: keeping it may still mean deleting the oldest draft to make room.
         if (draft?.off) {
@@ -1755,7 +1786,7 @@
 
   nameInput.addEventListener('input', () => {
     scheduleDraft();
-    document.title = `${nameInput.value.trim() || 'Untitled collage'} · Collage Studio | PRISM ERP`;
+    refreshTitle();
   });
 
   // ---------------------------------------------------------------------------
@@ -2246,7 +2277,7 @@
    * replaced), else into the first empty frame, else as a new photo near the centre (or at `at`).
    */
   function placePhoto(photo, { frameId = null, at = null } = {}) {
-    const frame = (frameId && itemById(frameId)) || (!at ? firstSlot() : null);
+    const frame = (frameId && itemById(frameId)) || (!at ? (core.bestSlotFor(collage.items, photo.aspect) || firstSlot()) : null);
     if (frame && frame.kind === 'slot') {
       const filled = core.fillSlot(frame, photo.id);
       collage.items[collage.items.indexOf(frame)] = filled;
@@ -2782,6 +2813,25 @@
   }
 
   saveDialog.addEventListener('change', syncSaveDialog);
+
+  // "What is it for?" chooses a type and quality that suit it; the user can still change them.
+  const SAVE_PURPOSES = Object.freeze({
+    share: { format: 'jpeg', quality: 'screen' },
+    print: { format: 'pdf', quality: 'print' },
+    slide: { format: 'png', quality: 'screen' }
+  });
+  saveDialog.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-save-purpose]');
+    const choice = button && SAVE_PURPOSES[button.dataset.savePurpose];
+    if (!choice) return;
+    for (const [name, value] of Object.entries(choice)) {
+      const radio = saveDialog.querySelector(`input[name="${name}"][value="${value}"]`);
+      if (radio) radio.checked = true;
+    }
+    saveDialog.querySelectorAll('[data-save-purpose]').forEach((other) => other.setAttribute('aria-pressed', String(other === button)));
+    syncSaveDialog();
+    announce(`${saveDialog.querySelector('input[name="format"]:checked')?.closest('label')?.querySelector('b')?.textContent || ''}, ${choice.quality === 'print' ? 'print quality' : 'for the screen'}.`);
+  });
   saveDialog.addEventListener('cancel', (event) => { if (saving) event.preventDefault(); });
 
   /**
@@ -2944,7 +2994,7 @@
       const fits = largestCanvas(wanted.width, wanted.height);
       if (!fits) throw new Error('canvas');
       const canvas = await drawCollage(fits.width, fits.height);
-      const stem = core.fileStem(nameInput.value);
+      const stem = core.fileStem(collageTitle());
       let bytes;
       let width = canvas.width;
       let height = canvas.height;
@@ -2979,7 +3029,7 @@
         const page = core.pdfPage(collage.size);
         const jpeg = await toBytes(canvas, 'image/jpeg', 0.92);
         const pdf = await window.PDFLib.PDFDocument.create();
-        pdf.setTitle(nameInput.value.trim() || 'Collage');
+        pdf.setTitle(collageTitle());
         pdf.setCreator('PRISM Collage Studio');
         const image = await pdf.embedJpg(jpeg);
         pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
