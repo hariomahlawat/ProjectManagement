@@ -72,6 +72,8 @@
   const selectedItem = () => itemById(selectedId);
   const pageHeight = () => core.pageHeight(collage.size);
   const hasPhotos = () => collage.items.some((item) => item.kind === 'photo');
+  // Work worth keeping: a photo or some text (an empty frame alone is not).
+  const hasContent = () => collage.items.some((item) => item.kind === 'photo' || item.kind === 'text');
   const firstSlot = () => collage.items.find((item) => item.kind === 'slot') || null;
   const isFrame = (item) => item && (item.kind === 'photo' || item.kind === 'slot');
 
@@ -215,7 +217,7 @@
     }
     // Only when the draft cannot be kept is the user asked: a collage with photos, or a saved
     // draft whose change (even removing its last photo) was not written.
-    if (!kept && (hasPhotos() || draft?.created)) {
+    if (!kept && (hasContent() || draft?.created)) {
       const leave = await askConfirm({
         title: 'Leave this collage?',
         message: draftProblem() || 'This collage could not be kept as a draft, so it cannot be opened again once you leave. Pictures and PDFs you saved are kept.',
@@ -240,7 +242,7 @@
     flushNudge();
     // Only a page that never had a photo has nothing to lose; a saved draft whose last photo
     // was just removed still has that change to write.
-    if (!draft.created && !hasPhotos()) return;
+    if (!draft.created && !hasContent()) return;
     // Saved as a draft already, and not being written now: nothing is lost by leaving.
     if (draft && draft.created && !draftPending && !draftWriting && !draftFailed) return;
     saveDraftNow();
@@ -319,8 +321,8 @@
       if (draft.off) return false;
       if (!draftPending && draft.created) return !draftFailed;
       draftPending = false;
-      // A draft starts once it has a photo; an empty page is not worth keeping.
-      if (!draft.created && !hasPhotos()) return true;
+      // A draft starts once it has a photo or some text; an empty page is not worth keeping.
+      if (!draft.created && !hasContent()) return true;
       const forDraft = draft;
       try {
         if (!forDraft.created) {
@@ -1392,7 +1394,8 @@
         <p class="clg-section__title">Effects</p>
         ${range('curve', 'Curve', core.TEXT_LIMITS.curve)}
         ${range('outline', 'Outline', core.TEXT_LIMITS.outline)}
-        ${item.outline ? swatches('outlineColor', TEXT_COLOURS, item.outlineColor) : ''}
+        <p class="clg-field__label clg-field__label--plain">Outline colour</p>
+        ${swatches('outlineColor', TEXT_COLOURS, item.outlineColor)}
         ${switchRow('shadow', 'Shadow', item.shadow)}
         ${switchRow('glow', 'Glow', item.glow)}
         <p class="clg-field__label clg-field__label--plain">Label behind the words${item.curve ? ' (straight text only)' : ''}</p>
@@ -1854,8 +1857,8 @@
   }
 
   function openSave() {
-    if (!collage.items.some((item) => item.kind === 'photo')) {
-      showAlert('Add a photo first; there is nothing to save yet.');
+    if (!hasContent()) {
+      showAlert('Add a photo or some text first; there is nothing to save yet.');
       return;
     }
     flushNudge();
