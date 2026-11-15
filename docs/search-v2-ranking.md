@@ -90,8 +90,9 @@ terms and body text are not included. Only entries the user may search contribut
 Each normalised token is checked against its own typed spelling, found inside the word it
 came from: in "anti-tank ATGM" the acronym "ATGM" is protected and "anti" and "tank" are
 not. If the typed text cannot be matched to the tokens, nothing is corrected. The
-correction replaces tokens in place, so joiners stay ("IR&D hydrbad" offers
-"ir&d hyderabad", not "ir d hyderabad").
+correction replaces tokens in place, so joiners stay, and is offered in the typed text with
+each corrected word in the case it was typed: "IR&D hydrbad" offers "IR&D hyderabad", and
+"Hydrbad Trials" offers "Hyderabad Trials".
 
 ## Measuring
 

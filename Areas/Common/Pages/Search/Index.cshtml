@@ -641,7 +641,7 @@ else
                                         }
                                         @if (hit.EventDate.HasValue)
                                         {
-                                            <li><time datetime="@hit.EventDate.Value.ToUniversalTime().ToString("O")">@hit.EventDate.Value.ToLocalTime().ToString("dd MMM yyyy")</time></li>
+                                            <li><time datetime="@hit.EventDate.Value.ToUniversalTime().ToString("O")">@TimeZoneInfo.ConvertTime(hit.EventDate.Value, ProjectManagement.Utilities.TimeZoneHelper.GetIst()).ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</time></li>
                                         }
                                         @if (!string.IsNullOrWhiteSpace(hit.FileType))
                                         {

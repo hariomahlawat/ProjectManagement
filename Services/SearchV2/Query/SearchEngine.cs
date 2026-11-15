@@ -9,6 +9,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
+using ProjectManagement.Utilities;
 using ProjectManagement.Services.SearchV2.Indexing;
 using ProjectManagement.Services.SearchV2.Models;
 using ProjectManagement.Services.SearchV2.Security;
@@ -1349,12 +1350,18 @@ public sealed class SearchEngine : ISearchV2Engine
         return $"EXISTS (SELECT 1 FROM \"SearchEntries\" m WHERE m.\"Id\" = c.\"Id\" AND (COALESCE(m.\"MetadataJson\"->>'currentStage', '') IN ({inList}) OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(m.\"MetadataJson\"->'projectStages') = 'array' THEN m.\"MetadataJson\"->'projectStages' ELSE '[]'::jsonb END) stage(value) WHERE stage.value IN ({inList}))))";
     }
 
+    // Dates are days in IST, as everywhere else in PRISM: "from 15 Nov" starts at 15 Nov 00:00
+    // IST (14 Nov 18:30 UTC). Date-only values are stored at UTC midnight, which falls inside
+    // the same IST day, so they keep filtering by their date.
+    private static DateTime IstMidnightUtc(DateOnly day) =>
+        TimeZoneInfo.ConvertTimeToUtc(day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), TimeZoneHelper.GetIst());
+
     private static string? BuildDateFilter(DbCommand command, DateOnly? dateFrom, DateOnly? dateTo)
     {
         var parts = new List<string>();
         if (dateFrom.HasValue)
         {
-            Add(command, "dateFrom", dateFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            Add(command, "dateFrom", IstMidnightUtc(dateFrom.Value));
             parts.Add("c.\"EventDateUtc\" >= @dateFrom");
         }
         if (dateTo.HasValue)
@@ -1366,7 +1373,7 @@ public sealed class SearchEngine : ISearchV2Engine
             }
             else
             {
-                Add(command, "dateToExclusive", dateTo.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+                Add(command, "dateToExclusive", IstMidnightUtc(dateTo.Value.AddDays(1)));
                 parts.Add("c.\"EventDateUtc\" < @dateToExclusive");
             }
         }
