@@ -48,6 +48,8 @@
 
   let collage = core.newCollage(core.DEFAULT_SIZE);
   let history = core.createHistory(collage);
+  // A two-finger zoom in progress: no item is dragged or panned meanwhile.
+  let pinch = null;
   let selectedId = null;
   // The photo whose picture is being moved inside its frame, or null.
   let adjustId = null;
@@ -904,7 +906,7 @@
         itemsGroup.add(node);
       }
       applyItem(node, item);
-      node.draggable(adjustId !== item.id && !item.locked);
+      node.draggable(adjustId !== item.id && !item.locked && !pinch);
       node.visible(!item.hidden);
       seen.add(item.id);
     });
@@ -1013,7 +1015,6 @@
   // Two fingers on the page zoom it; one finger still moves items. Pointers are followed on the
   // work surface, so a pinch starting on a photo zooms instead of dragging it.
   const touches = new Map();
-  let pinch = null;
   stageBox.addEventListener('pointerdown', (event) => {
     if (event.pointerType !== 'touch') return;
     touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -1022,6 +1023,13 @@
       pinch = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom };
       // stopDrag also cancels a drag Konva is holding ready for the first finger's next move.
       for (const node of nodes.values()) { node.stopDrag(); node.draggable(false); }
+      // A move inside a frame begun by the first finger is put back and not kept.
+      if (pan) {
+        const panned = itemById(pan.id);
+        if (panned) panned.crop = { ...pan.crop };
+        pan = null;
+        syncPage();
+      }
       transformer.stopTransform?.();
     }
   }, true);
@@ -1079,7 +1087,8 @@
   function startPan(node, event) {
     const item = itemById(node.id());
     const point = world.getRelativePointerPosition();
-    if (!item || !point) return;
+    // Two fingers zoom the page; they never move the photo inside its frame.
+    if (!item || !point || pinch) return;
     event.cancelBubble = true;
     pan = { id: item.id, start: point, crop: { ...item.crop } };
   }
