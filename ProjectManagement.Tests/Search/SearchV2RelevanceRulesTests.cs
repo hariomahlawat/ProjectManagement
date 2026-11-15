@@ -114,13 +114,29 @@ public sealed class SearchV2RelevanceRulesTests
             new DateTimeOffset(2025, 4, 1, 10, 30, 15, 123, TimeSpan.Zero).AddTicks(4560),
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
             987654321,
-            40);
+            40,
+            "0f1e2d3c4b5a6978");
 
         var encoded = codec.EncodeKeyset("simulator", position, 9);
         var state = codec.DecodeKeyset("simulator", encoded, 9, out var decoded);
 
         Assert.Equal(SearchCursorState.Valid, state);
         Assert.Equal(position, decoded);
+    }
+
+    [Fact]
+    public void KeysetCursor_IssuedBeforeTheMatchStamp_StillContinues()
+    {
+        // Show more links on pages open during a deployment carry no match stamp.
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("aura")).AsSpan(0, 12));
+        var json = $$$"""{"QueryHash":"{{{hash}}}","Rank":20,"ActiveGeneration":2,"K":{"T":1,"P":0,"S":0.5,"E":null,"U":0,"I":7}}""";
+        var cursor = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+        var state = new SearchCursorCodec().DecodeKeyset("aura", cursor, 2, out var decoded);
+
+        Assert.Equal(SearchCursorState.Valid, state);
+        Assert.Equal(7, decoded!.Id);
+        Assert.Null(decoded.MatchStamp);
     }
 
     [Fact]

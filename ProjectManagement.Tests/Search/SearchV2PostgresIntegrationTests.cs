@@ -597,6 +597,64 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal(1d / 3, summary.NoResultShare!.Value, 3);
     }
 
+    // Show more continues after the last row shown. Re-indexing a matching record can move
+    // rows across that point (skipped or shown twice), so the next page starts from the top
+    // and says so; a change to a record that does not match leaves paging alone.
+    [SearchV2PostgresFact]
+    public async Task ShowMore_StartsAgainWhenAMatchingRecordChanged_AndContinuesOtherwise()
+    {
+        await using var host = _database.CreateHost();
+        var entries = Enumerable.Range(1, 12)
+            .Select(index => host.Entry("Project", (9600 + index).ToString(), "Projects", "Projects", $"Merlin relay {index}", null))
+            .Append(host.Entry("Project", "9650", "Projects", "Projects", "Kite antenna", null))
+            .ToArray();
+        await host.ActivateAsync(entries);
+
+        var first = await host.SearchAsync(new SearchRequest("merlin", PageSize: 5));
+        Assert.NotNull(first.NextCursor);
+
+        await host.WithStoreAsync(store => store.ReplaceEntityAsync(
+            "Project", "9650", new[] { host.Entry("Project", "9650", "Projects", "Projects", "Kite antenna mast", null) }, host.ProjectionVersion, CancellationToken.None));
+        var unaffected = await host.SearchAsync(new SearchRequest("merlin", Cursor: first.NextCursor, PageSize: 5));
+
+        Assert.Equal(SearchV2ExecutionStatus.Success, unaffected.ExecutionStatus);
+        Assert.Equal(6, unaffected.Results[0].Rank);
+        Assert.Empty(unaffected.Results.Select(result => result.EntityKey).Intersect(first.Results.Select(result => result.EntityKey)));
+
+        await host.WithStoreAsync(store => store.ReplaceEntityAsync(
+            "Project", "9612", new[] { host.Entry("Project", "9612", "Projects", "Projects", "Merlin relay 12 refit", null) }, host.ProjectionVersion, CancellationToken.None));
+        var changed = await host.SearchAsync(new SearchRequest("merlin", Cursor: unaffected.NextCursor, PageSize: 5));
+
+        Assert.Equal(SearchV2ExecutionStatus.StaleCursor, changed.ExecutionStatus);
+        Assert.Equal(1, changed.Results[0].Rank);
+        Assert.NotNull(changed.NextCursor);
+        var continued = await host.SearchAsync(new SearchRequest("merlin", Cursor: changed.NextCursor, PageSize: 5));
+        Assert.Equal(SearchV2ExecutionStatus.Success, continued.ExecutionStatus);
+        Assert.Equal(6, continued.Results[0].Rank);
+    }
+
+    [SearchV2PostgresFact]
+    public async Task DidYouMean_KeepsJoiners_AndAnAcronymAfterAHyphenatedWord()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9111", "Projects", "Projects", "Hyderabad trials", null),
+            host.Entry("Project", "9112", "Projects", "Projects", "Atoms laboratory", null),
+            host.Entry("Project", "9113", "Projects", "Projects", "Anti tank survey", null));
+
+        var joined = await host.SearchAsync("IR&D hydrbad");
+        var acronym = await host.SearchAsync("anti-tank ATOMZ hydrbad");
+        var typo = await host.SearchAsync("anti-tank atomz hydrbad");
+        var identifier = await host.SearchAsync("atomz-123 hydrbad");
+
+        Assert.Equal("ir&d hyderabad", joined.CorrectedQuery);
+        // Typed in capitals it is an acronym and stays; typed in lower case it is a typo.
+        Assert.Equal("anti tank atomz hyderabad", acronym.CorrectedQuery);
+        Assert.Equal("anti tank atoms hyderabad", typo.CorrectedQuery);
+        // A word with a digit is an identifier: none of its parts is "corrected".
+        Assert.Equal("atomz 123 hyderabad", identifier.CorrectedQuery);
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {

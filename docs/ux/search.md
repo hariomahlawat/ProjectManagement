@@ -68,7 +68,8 @@ fixed example searches, because they may not match what this reader can see.
   page in place, updates the range and moves focus to the first new result; a second tap
   while it loads is ignored; without
   JavaScript (or if the request fails) it opens the next page, which shows its own range and
-  a **First results** link. If the index changed since the previous page (`StaleCursor`), the
+  a **First results** link. If the index was rebuilt, or a record matching the search was
+  added, removed or changed since the previous page (`StaleCursor`), the
   engine restarts from the first result and the page says so in a blue `role="status"` notice;
   **Show more** opens that page instead of appending results the reader has already seen.
 - **Too short.** A search with fewer than two letters or digits runs no engine and says

@@ -145,6 +145,7 @@ public sealed class SearchEngine : ISearchV2Engine
             var rows = new List<SearchRow>(pageSize + 1);
             long totalHits = 0;
             long filteredHits = 0;
+            string? matchStamp = null;
             SearchFacets facets = SearchFacets.Empty;
 
             var databaseStopwatch = Stopwatch.StartNew();
@@ -202,6 +203,7 @@ public sealed class SearchEngine : ISearchV2Engine
                 Add(command, "afterEvent", after?.EventDate ?? DateTimeOffset.UnixEpoch);
                 Add(command, "afterUpdated", after?.UpdatedAt ?? DateTimeOffset.UnixEpoch);
                 Add(command, "afterId", after?.Id ?? 0L);
+                Add(command, "afterStamp", after?.MatchStamp ?? string.Empty);
                 Add(command, "take", pageSize + 1);
                 Add(command, "facetsOnly", request.FacetsOnly);
                 Add(command, "maxSnippetSourceCharacters", Math.Max(_options.MaxSnippetCharacters * 2, 600));
@@ -217,6 +219,7 @@ public sealed class SearchEngine : ISearchV2Engine
                     {
                         totalHits = reader.GetInt64(reader.GetOrdinal("TotalHits"));
                         filteredHits = reader.GetInt64(reader.GetOrdinal("FilteredHits"));
+                        matchStamp = NullableString(reader, "MatchStamp");
                         facets = new SearchFacets(
                             ParseFacets(reader, "CategoryFacets"),
                             ParseFacets(reader, "SourceFacets"),
@@ -242,12 +245,22 @@ public sealed class SearchEngine : ISearchV2Engine
             }
             databaseStopwatch.Stop();
 
+            // The SQL started again from the top because records matching the search were
+            // added, removed or re-indexed since the previous page (see match_stamp).
+            if (after?.MatchStamp is { Length: > 0 } previousStamp
+                && !string.Equals(previousStamp, matchStamp, StringComparison.Ordinal))
+            {
+                _logger.LogDebug("Search V2 results changed since the previous page; restarting at the first page.");
+                cursorState = SearchCursorState.Stale;
+                after = null;
+            }
+
             var hasMore = rows.Count > pageSize;
             if (hasMore) rows.RemoveAt(rows.Count - 1);
 
             var results = rows.Select(row => ToResult(row, normalized)).ToArray();
             var nextCursor = hasMore && rows.Count > 0
-                ? _cursorCodec.EncodeKeyset(cursorKey, ToCursorPosition(rows[^1]), activeGeneration)
+                ? _cursorCodec.EncodeKeyset(cursorKey, ToCursorPosition(rows[^1]) with { MatchStamp = matchStamp }, activeGeneration)
                 : null;
 
             string? correctedQuery = null;
@@ -955,6 +968,12 @@ public sealed class SearchEngine : ISearchV2Engine
                    f.channels
             FROM fused f
             JOIN "SearchEntries" e ON e."Id" = f."Id"
+        ), match_stamp AS (
+            -- Every matching record (before filters, which apply after fusion). Re-indexing
+            -- deletes and re-inserts an entry under a new id, so this changes exactly when
+            -- the ranked order can have changed; a cursor from before must not continue.
+            SELECT LEFT(md5(COUNT(*)::text || ':' || COALESCE(SUM("Id"), 0)::text), 16) AS value
+            FROM candidate_scored
         ), related_source_counts AS (
             SELECT "CanonicalEntityType", "CanonicalEntityKey", "SourceModule", COUNT(*) AS source_count
             FROM candidate_scored
@@ -1103,6 +1122,7 @@ public sealed class SearchEngine : ISearchV2Engine
             SELECT
                 (SELECT COUNT(*) FROM (SELECT DISTINCT c."CanonicalEntityType", c."CanonicalEntityKey" FROM category_facet_candidates c) d) AS "TotalHits",
                 (SELECT COUNT(*) FROM ranked) AS "FilteredHits",
+                (SELECT value FROM match_stamp) AS "MatchStamp",
                 (SELECT value::text FROM category_facets) AS "CategoryFacets",
                 {sourceFacetValue} AS "SourceFacets",
                 {projectFacetValue} AS "ProjectFacets",
@@ -1111,12 +1131,14 @@ public sealed class SearchEngine : ISearchV2Engine
                 {stageFacetValue} AS "StageFacets"
         ), page AS (
             -- Keyset continuation: rows strictly after the previous page's last row in the
-            -- ranked order. Stable when entries are re-indexed between page requests.
+            -- ranked order. If the matching records changed since that page, the order may
+            -- have moved and continuing could skip or repeat rows: start from the top.
             SELECT r.*
             FROM ranked r
             WHERE @facetsOnly = FALSE
               AND (
                   @hasAfter = FALSE
+                  OR (@afterStamp <> '' AND @afterStamp <> (SELECT value FROM match_stamp))
                   OR r.tier > @afterTier
                   OR (r.tier = @afterTier AND (
                       r.entity_priority > @afterPriority
@@ -1156,7 +1178,7 @@ public sealed class SearchEngine : ISearchV2Engine
             FROM page p
             JOIN "SearchEntries" e ON e."Id" = p."Id"
         )
-        SELECT s."TotalHits", s."FilteredHits", s."CategoryFacets", s."SourceFacets", s."ProjectFacets",
+        SELECT s."TotalHits", s."FilteredHits", s."MatchStamp", s."CategoryFacets", s."SourceFacets", s."ProjectFacets",
                s."StatusFacets", s."FileTypeFacets", s."StageFacets",
                p."Id", p."EntityType", p."EntityKey", p."CanonicalEntityType", p."CanonicalEntityKey", p."ParentProjectId",
                p."SourceModule", p."ResultCategory", p."Title", p."Subtitle", p."CanonicalUrl",
