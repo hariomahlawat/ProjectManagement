@@ -27,6 +27,9 @@ public static class FlashMessageKeys
     public const string AdminMaintenanceSuccess = "Admin.Maintenance.Success";
     public const string AdminMaintenanceError = "Admin.Maintenance.Error";
 
+    public const string AdminCollageStickersSuccess = "Admin.CollageStickers.Success";
+    public const string AdminCollageStickersError = "Admin.CollageStickers.Error";
+
     public const string CelebrationsSuccess = "Celebrations.Success";
     public const string CelebrationsError = "Celebrations.Error";
 

@@ -17,7 +17,7 @@ user adds from the computer, is still never sent to PRISM.
 
 | Question | Choice | Why |
 | --- | --- | --- |
-| Who uploads unit stickers | **Admin only**, through a new capability `Admin.CollageStickers` | Easy to widen to HoD later in the capability catalog; a crest is an official mark |
+| Who uploads unit stickers | **Admin only**, through a new capability `Admin.CollageStickers.Manage` ("Manage crests and logos") | Easy to widen to HoD later in the capability catalog; a crest is an official mark |
 | What can be uploaded | PNG, JPEG or WebP, at most 5 MB; **not SVG** | An SVG can carry script. A PNG with a clear background keeps a crest's shape |
 | How it is stored | Re-encoded as PNG (keeps the clear background), at most 1024 px on the long side, under the upload root in `collage-stickers/` | Nothing the uploader sent is kept or served as sent |
 | How many | At most 60 active stickers | One picker row stays quick to scan |
@@ -40,7 +40,7 @@ user adds from the computer, is still never sent to PRISM.
 - The start screen's privacy line changes to: "Photos from your computer stay in this browser.
   Photos from PRISM Photos and unit stickers are read from PRISM. Nothing you make is sent to
   PRISM."
-- **Administration → Collage stickers**: a list with each sticker's picture, name and search
+- **Administration → Crests and logos**: a list with each sticker's picture, name and search
   words; Add (file, name, words), Rename, Move up/down, Retire and Restore. Every change is in
   the admin audit log in plain words.
 
@@ -61,7 +61,7 @@ user adds from the computer, is still never sent to PRISM.
     `IMediaLibraryQueryService.SearchAsync`, kind photo, paged, with thumbnail URL and size; the
     images themselves come from the existing `/Photos/Media/{id}/{variant}`, which already applies
     the visibility rule.
-- **Admin page** `Areas/Admin/Pages/CollageStickers`, policy `Admin.CollageStickers`, entry in
+- **Admin page** `Areas/Admin/Pages/CollageStickers` ("Crests and logos", under Reference lists), policy `Admin.CollageStickers.Manage`, entry in
   `AdminNavigationCatalog` so it is in "Every admin page" and Home search; changes through
   `IAdminAuditService`.
 - **Collage page**: a new `wwwroot/js/collage/collage-library.js` is the only collage script that

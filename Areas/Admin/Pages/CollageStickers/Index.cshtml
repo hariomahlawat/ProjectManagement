@@ -1,0 +1,122 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.CollageStickers.IndexModel
+@{
+    ViewData["Title"] = "Crests and logos";
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+<section class="admin-panel" aria-labelledby="sticker-add-title">
+    <header class="admin-panel__header">
+        <div><h2 id="sticker-add-title">Add a crest or logo</h2></div>
+        <span class="admin-panel__meta">@Model.Active.Count of @Model.MaxActive in use</span>
+    </header>
+    @if (Model.IsFull)
+    {
+        <p class="admin-sticker-note">All @Model.MaxActive places are in use. Retire one to add another.</p>
+    }
+    else
+    {
+        <form method="post" asp-page-handler="Add" enctype="multipart/form-data" class="admin-sticker-add" data-sticker-add>
+            <label class="admin-sticker-add__file">
+                <span class="form-label">Picture</span>
+                <input type="file" name="picture" class="form-control" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" required />
+                <small class="form-text">PNG, JPEG or WebP, up to 5 MB. A PNG with a clear background looks best on a collage. PRISM keeps its own copy, at most 1024 pixels across.</small>
+            </label>
+            <label>
+                <span class="form-label">Name</span>
+                <input type="text" name="name" class="form-control" maxlength="@Model.NameMaxLength" required placeholder="For example, Signals crest" />
+            </label>
+            <label>
+                <span class="form-label">Search words <span class="text-body-secondary">(optional)</span></span>
+                <input type="text" name="searchWords" class="form-control" maxlength="@Model.SearchWordsMaxLength" placeholder="Other names it is found by" />
+            </label>
+            <div class="admin-sticker-add__action">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-upload" aria-hidden="true"></i> Add</button>
+            </div>
+        </form>
+    }
+</section>
+
+<section class="admin-panel" aria-labelledby="sticker-active-title">
+    <header class="admin-panel__header">
+        <div><h2 id="sticker-active-title">In the picker</h2></div>
+    </header>
+    @if (Model.Active.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-patch-check", Title = "No crests or logos yet", Description = "Add the first one above. It appears in Collage Studio under Stickers › Crests and logos." })" />
+    }
+    else
+    {
+        <ol class="admin-sticker-list" data-stickers-active>
+            @for (var i = 0; i < Model.Active.Count; i++)
+            {
+                var sticker = Model.Active[i];
+                <li class="admin-sticker-list__item">
+                    <img class="admin-sticker-list__picture" src="@ProjectManagement.Areas.Admin.Pages.CollageStickers.IndexModel.PictureUrl(sticker)" alt="" width="64" height="64" loading="lazy" />
+                    <div class="admin-sticker-list__copy">
+                        <strong>@sticker.Name</strong>
+                        @if (!string.IsNullOrWhiteSpace(sticker.SearchWords))
+                        {
+                            <small>Also found by: @sticker.SearchWords</small>
+                        }
+                        <small>@sticker.Width × @sticker.Height pixels</small>
+                    </div>
+                    <div class="admin-sticker-list__actions">
+                        <form method="post" asp-page-handler="Move">
+                            <input type="hidden" name="id" value="@sticker.Id" />
+                            <input type="hidden" name="up" value="true" />
+                            <button type="submit" class="btn btn-sm btn-outline-secondary" aria-label="Move @sticker.Name earlier" title="Move earlier" disabled="@(i == 0)"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
+                        </form>
+                        <form method="post" asp-page-handler="Move">
+                            <input type="hidden" name="id" value="@sticker.Id" />
+                            <input type="hidden" name="up" value="false" />
+                            <button type="submit" class="btn btn-sm btn-outline-secondary" aria-label="Move @sticker.Name later" title="Move later" disabled="@(i == Model.Active.Count - 1)"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+                        </form>
+                        <details class="admin-sticker-list__rename">
+                            <summary class="btn btn-sm btn-outline-secondary">Rename</summary>
+                            <form method="post" asp-page-handler="Rename" class="admin-sticker-list__rename-form">
+                                <input type="hidden" name="id" value="@sticker.Id" />
+                                <label><span class="form-label">Name</span><input type="text" name="name" class="form-control form-control-sm" value="@sticker.Name" maxlength="@Model.NameMaxLength" required /></label>
+                                <label><span class="form-label">Search words</span><input type="text" name="searchWords" class="form-control form-control-sm" value="@sticker.SearchWords" maxlength="@Model.SearchWordsMaxLength" /></label>
+                                <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                            </form>
+                        </details>
+                        <form method="post" asp-page-handler="Retire">
+                            <input type="hidden" name="id" value="@sticker.Id" />
+                            <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Retire @sticker.Name"><i class="bi bi-archive" aria-hidden="true"></i> Retire</button>
+                        </form>
+                    </div>
+                </li>
+            }
+        </ol>
+    }
+</section>
+
+@if (Model.Retired.Count > 0)
+{
+    <section class="admin-panel" aria-labelledby="sticker-retired-title">
+        <header class="admin-panel__header">
+            <div><h2 id="sticker-retired-title">Retired</h2></div>
+            <span class="admin-panel__meta">Not in the picker; collages that use them keep them</span>
+        </header>
+        <ul class="admin-sticker-list" data-stickers-retired>
+            @foreach (var sticker in Model.Retired)
+            {
+                <li class="admin-sticker-list__item is-retired">
+                    <img class="admin-sticker-list__picture" src="@ProjectManagement.Areas.Admin.Pages.CollageStickers.IndexModel.PictureUrl(sticker)" alt="" width="64" height="64" loading="lazy" />
+                    <div class="admin-sticker-list__copy">
+                        <strong>@sticker.Name</strong>
+                    </div>
+                    <div class="admin-sticker-list__actions">
+                        <form method="post" asp-page-handler="Restore">
+                            <input type="hidden" name="id" value="@sticker.Id" />
+                            <button type="submit" class="btn btn-sm btn-outline-primary" aria-label="Put @sticker.Name back in the picker" disabled="@Model.IsFull"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Put back</button>
+                        </form>
+                    </div>
+                </li>
+            }
+        </ul>
+    </section>
+}

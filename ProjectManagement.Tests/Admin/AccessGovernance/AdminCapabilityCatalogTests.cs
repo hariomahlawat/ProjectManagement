@@ -73,6 +73,7 @@ public sealed class AdminCapabilityCatalogTests
         Row("integrity-manage", AdminPolicies.IntegrityManage, "Admin"),
         Row("activity-types-manage", AdminPolicies.ActivityTypesManage, "Admin", "HoD"),
         Row("holidays-manage", AdminPolicies.HolidaysManage, "Admin", "HoD"),
+        Row("collage-stickers-manage", AdminPolicies.CollageStickersManage, "Admin"),
         Row("social-media-lists-manage", AdminPolicies.SocialMediaListsManage, "Admin", "HoD"),
         Row("celebrations-manage", Policies.Calendar.ManageCelebrations, "Admin", "TA", "Main_Office_Clerk", "Main Office"),
         Row("ingestion-manage", AdminPolicies.IngestionManage, "Admin"),

@@ -25,6 +25,7 @@ public static class AdminNavigationKeys
     public const string MasterDataIntegrity = "master-data-integrity";
     public const string Holidays = "holidays";
     public const string Celebrations = "celebrations";
+    public const string CollageStickers = "collage-stickers";
     public const string ProjectCategories = "project-categories";
     public const string TechnicalCategories = "technical-categories";
     public const string ActivityTypes = "activity-types";
@@ -299,6 +300,11 @@ public static class AdminNavigationCatalog
             "Birthdays and anniversaries shown on the shared calendar.",
             "birthday, anniversary, calendar",
             matchPagePattern: "/Celebrations/", showInQuickLinks: true),
+        Entry(AdminNavigationKeys.CollageStickers, AdminNavigationGroups.ReferenceLists, 207,
+            Item("Crests and logos", "Admin", "/CollageStickers/Index", "bi-patch-check", AdminPolicies.CollageStickersManage),
+            "The crests and logos everyone can put on a collage in Collage Studio.",
+            "collage, sticker, stickers, crest, logo, badge, emblem, insignia",
+            matchPagePattern: "/CollageStickers/", showInQuickLinks: true),
 
         // System
         Entry(AdminNavigationKeys.DatabaseHealth, AdminNavigationGroups.System, 300,
