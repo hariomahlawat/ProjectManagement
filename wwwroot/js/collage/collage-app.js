@@ -214,6 +214,7 @@
     draftPending = false;
     photos.clear();
     storedPhotos.clear();
+    forgetPhotoPreviews();
     selectedId = null;
     adjustId = null;
     targetId = null;
@@ -827,23 +828,50 @@
     const src = stickerSource(item);
     if (!src) return wait ? Promise.resolve(null) : null;
     let entry = stickerImages.get(src);
+    // A picture that failed (PRISM restarting, a dropped connection) is tried again: by Save at
+    // once, by the page at most every ten seconds.
+    if (entry?.failedAt && (wait || Date.now() - entry.failedAt > STICKER_RETRY_MS)) {
+      stickerImages.delete(src);
+      entry = null;
+    }
     if (!entry) {
       const image = new Image();
-      entry = { image, ready: false, done: null };
-      entry.done = new Promise((resolve) => {
-        image.onload = () => { entry.ready = true; resolve(image); if (!views.editor.hidden) layer.batchDraw(); };
-        image.onerror = () => resolve(null);
+      const made = { image, ready: false, failedAt: 0, done: null };
+      made.done = new Promise((resolve) => {
+        image.onload = () => { made.ready = true; resolve(image); if (!views.editor.hidden) layer.batchDraw(); };
+        image.onerror = () => { made.failedAt = Date.now(); resolve(null); };
       });
       image.src = src;
-      stickerImages.set(src, entry);
+      stickerImages.set(src, made);
+      trimStickerImages();
+      entry = made;
     }
     if (wait) return entry.done;
     return entry.ready ? entry.image : null;
   }
 
+  const STICKER_RETRY_MS = 10000;
+  // The picture each sticker showed last, kept on screen while a new colour loads.
+  const lastStickerImage = new Map();
+
+  /** Recoloured drawn stickers make a picture per colour tried; only the newest are kept. */
+  function trimStickerImages() {
+    if (stickerImages.size <= 80) return;
+    // A picture a sticker on the page uses now is never let go, however many there are, or it
+    // would be loaded again on every draw.
+    const inUse = new Set(collage.items.filter((item) => item.kind === 'sticker').map((item) => stickerSource(item)));
+    for (const key of stickerImages.keys()) {
+      if (stickerImages.size <= 60) break;
+      if (key.startsWith('data:') && !inUse.has(key)) stickerImages.delete(key);
+    }
+  }
+
   function drawStickerNode(context, shape) {
     const item = itemById(shape.id());
-    const image = item && stickerImage(item);
+    if (!item) return;
+    const ready = stickerImage(item);
+    if (ready) lastStickerImage.set(item.id, ready);
+    const image = ready || lastStickerImage.get(item.id);
     if (!image) return;
     const pixelsPerUnit = scale * (layer.getCanvas().getPixelRatio?.() || 1);
     draw.drawSticker(context._context, item, image, pixelsPerUnit);
@@ -1347,9 +1375,24 @@
 
   const backgroundPreviews = new Map();
 
+  /**
+   * A closed collage's photo previews are let go, with the working copies they point at, so
+   * opening one collage after another never keeps old photos in memory. Colour, gradient,
+   * pattern and texture previews stay: they are small and the same for every collage.
+   */
+  function forgetPhotoPreviews() {
+    for (const [key, preview] of backgroundPreviews) {
+      if (preview.source) backgroundPreviews.delete(key);
+    }
+    backgroundPanelShown = '';
+  }
+
   function backgroundTile(background, label) {
     const key = JSON.stringify(background);
-    if (!backgroundPreviews.has(key) || background.type === 'photo') backgroundPreviews.set(key, backgroundPreview(background));
+    // A photo's preview is made again only if its working copy changed.
+    const source = background.type === 'photo' ? photos.get(background.photo)?.canvas : null;
+    const cached = backgroundPreviews.get(key);
+    if (!cached || cached.source !== source) backgroundPreviews.set(key, { url: backgroundPreview(background), source });
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'clg-bg-tile';
@@ -1359,7 +1402,7 @@
     button.title = label;
     const img = document.createElement('img');
     img.alt = '';
-    img.src = backgroundPreviews.get(key);
+    img.src = backgroundPreviews.get(key).url;
     const name = document.createElement('span');
     name.textContent = label;
     button.append(img, name);
@@ -1371,8 +1414,15 @@
     keepingFocus(() => renderBackgroundPanelNow());
   }
 
+  let backgroundPanelShown = '';
+
   function renderBackgroundPanelNow() {
     const current = collage.background || { type: 'color', value: '#ffffff' };
+    // Nothing it shows changed (the background and the page's photos): it is left as it is.
+    const shownPhotos = [...new Set(collage.items.filter((item) => item.kind === 'photo').map((item) => item.photo))].slice(0, 9);
+    const shown = JSON.stringify([current, shownPhotos.map((id) => [id, photos.get(id)?.missing === true])]);
+    if (shown === backgroundPanelShown) return;
+    backgroundPanelShown = shown;
     const colours = root.querySelector('[data-bg-colours]');
     colours.replaceChildren(...core.BACKGROUND_COLOURS.map((value) => {
       const button = document.createElement('button');
@@ -2763,6 +2813,8 @@
 
   // Photos Save had to leave out because this browser cannot open them now.
   let saveLeftOut = 0;
+  // Stickers (such as a crest PRISM could not send just now) Save had to leave out.
+  let saveStickersLeftOut = 0;
 
   /** Draws the collage from the original photos, each read only as large as its frame needs. */
   async function drawCollage(width, height) {
@@ -2774,6 +2826,7 @@
     const s = width / core.PAGE_WIDTH;
     let backPhoto = null;
     saveLeftOut = 0;
+    saveStickersLeftOut = 0;
     if (collage.background?.type === 'photo' && photos.get(collage.background.photo)?.missing) saveLeftOut += 1;
     else if (collage.background?.type === 'photo' && photos.get(collage.background.photo)) {
       const photo = photos.get(collage.background.photo);
@@ -2793,7 +2846,7 @@
     for (const item of core.itemsToSave(collage)) {
       if (item.kind === 'sticker') {
         const image = stickerPictures.get(item.id);
-        if (!image) continue;
+        if (!image) { saveStickersLeftOut += 1; continue; }
         context.save();
         context.globalAlpha = item.opacity / 100;
         context.translate(item.x * s, item.y * s);
@@ -2944,6 +2997,7 @@
       }
       if (missed) line += ` It could not get under ${photoTools.formatBytes(targetBytes)}; this is the smallest it can be. Choose Screen or a larger size.`;
       if (saveLeftOut) line += ` ${saveLeftOut === 1 ? 'One photo' : `${saveLeftOut} photos`} shown grey could not be opened in this browser and ${saveLeftOut === 1 ? 'was' : 'were'} left out.`;
+      if (saveStickersLeftOut) line += ` ${saveStickersLeftOut === 1 ? 'One sticker' : `${saveStickersLeftOut} stickers`} could not be loaded and ${saveStickersLeftOut === 1 ? 'was' : 'were'} left out; check the connection to PRISM and save again.`;
       saveResult.textContent = line;
       announce(line);
     } catch {
