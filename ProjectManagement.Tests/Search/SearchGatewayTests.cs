@@ -125,6 +125,36 @@ public sealed class SearchGatewayTests
         Assert.Equal(new[] { "Legacy-Fallback" }, harness.Analytics.QueryEngines);
     }
 
+    // After V2 has failed (possibly at its own time limit), the basic engine must not make the
+    // user wait without end.
+    [Fact]
+    public async Task Fallback_GivesTheBasicEngineATimeLimit()
+    {
+        var harness = new Harness(new SearchV2Options { ServeV2 = true, QueryTimeoutSeconds = 1 });
+        harness.Engine.Response = SearchResponse.NotReady("radar", SearchV2ExecutionStatus.QueryFailed, "ABC");
+        harness.Legacy.HangUntilCancelled = true;
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        var response = await harness.Gateway.SearchAsync(new SearchRequest("radar"), User(), CancellationToken.None);
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10));
+        Assert.True(response.FellBackToLegacy);
+        Assert.Empty(response.Results);
+    }
+
+    [Theory]
+    [InlineData("Activities", "Organisation")]
+    [InlineData("Projects", "Projects")]
+    [InlineData("Project documents", "Documents")]
+    [InlineData("Document Repository", "Documents")]
+    [InlineData("TOT tracker", "Trackers")]
+    [InlineData("Proliferation survey", "Trackers")]
+    [InlineData("FFC", "Trackers")]
+    public void LegacySources_LandInTheSameTabsAsInTheIndex(string source, string category)
+    {
+        Assert.Equal(category, SearchGateway.LegacyCategory(source));
+    }
+
     [Fact]
     public async Task LegacyResults_AreDenyByDefault_ForUnmappedAndUnauthorisedSources()
     {
@@ -220,12 +250,14 @@ public sealed class SearchGatewayTests
     private sealed class FakeLegacy : IGlobalSearchService
     {
         public int Calls { get; private set; }
+        public bool HangUntilCancelled { get; set; }
         public IReadOnlyList<GlobalSearchHit> Hits { get; set; } = new[] { Hit("Projects") };
 
-        public Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
+        public async Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
         {
             Calls++;
-            return Task.FromResult(Hits);
+            if (HangUntilCancelled) await Task.Delay(Timeout.Infinite, cancellationToken);
+            return Hits;
         }
     }
 
