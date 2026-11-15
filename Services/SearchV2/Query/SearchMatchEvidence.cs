@@ -192,6 +192,9 @@ internal static class SearchInflections
 
     private static readonly string Alternation = string.Join('|', Endings.Where(ending => ending.Length > 0).OrderByDescending(ending => ending.Length));
 
+    /// <summary>The endings as one regular-expression alternation (letters only), for SQL too.</summary>
+    public static string RegexAlternation => Alternation;
+
     public static bool IsInflectionOf(string word, string stem) =>
         word.StartsWith(stem, StringComparison.OrdinalIgnoreCase)
         && Endings.Contains(word[stem.Length..], StringComparer.OrdinalIgnoreCase);

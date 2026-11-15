@@ -224,6 +224,9 @@ public sealed class SearchEngine : ISearchV2Engine
                 Add(command, "afterStamp", after?.MatchStamp ?? string.Empty);
                 Add(command, "take", pageSize + 1);
                 Add(command, "facetsOnly", request.FacetsOnly);
+                Add(command, "inflectionEndings", SearchInflections.RegexAlternation);
+                // Characters a typed word must have escaped before it goes into anchor_pattern.
+                Add(command, "regexSpecials", @"([.^$*+?()\[\]{}|\\])");
                 Add(command, "maxSnippetSourceCharacters", Math.Max(_options.MaxSnippetCharacters * 2, 600));
                 Add(command, "headlineWindowCharacters", HeadlineWindowCharacters);
                 Add(command, "headlineLeadCharacters", HeadlineLeadCharacters);
@@ -741,8 +744,15 @@ public sealed class SearchEngine : ISearchV2Engine
         ), query_stems AS MATERIALIZED (
             -- Each typed word with its English stem ("acceptance" → "accept"). Body text is
             -- matched by stem, so the excerpt is found, highlighted and explained by stem too.
+            -- Where the excerpt starts: the first typed word (a plain substring search), or when
+            -- none appears, the first stem with one of the inflection endings "Found in" accepts
+            -- (stem_pattern; never "Stationery" for "stations"). ^(.*?)(...) captures the text
+            -- before the first hit, so its length gives the position on any PostgreSQL version.
             SELECT COALESCE(string_agg(DISTINCT w.word || '=' || w.stem, ' '), '') AS pairs,
-                   COALESCE(array_agg(DISTINCT a.anchor) FILTER (WHERE LENGTH(a.anchor) >= 2), ARRAY[]::text[]) AS anchors
+                   COALESCE(array_agg(DISTINCT w.word), ARRAY[]::text[]) AS words,
+                   '^(.*?)(' || COALESCE(string_agg(DISTINCT
+                       '\m' || regexp_replace(w.stem, @regexSpecials, '\\\1', 'g') || '(?:' || @inflectionEndings || ')?\M', '|')
+                       FILTER (WHERE LENGTH(w.stem) >= 3), '(?!)') || ')' AS stem_pattern
             FROM (
                 -- English stop words ("the", "of") return no lexeme: the English match ignores
                 -- them, so they neither anchor the excerpt nor count as matches.
@@ -751,7 +761,6 @@ public sealed class SearchEngine : ISearchV2Engine
                 WHERE LENGTH(word) >= 2
                   AND cardinality(ts_lexize('english_stem', word)) > 0
             ) w
-            CROSS JOIN LATERAL unnest(ARRAY[w.word, w.stem]) AS a(anchor)
         ), exact_identifier AS (
             SELECT e."Id", 0 AS tier,
                    ROW_NUMBER() OVER (ORDER BY e."EventDateUtc" DESC NULLS LAST, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
@@ -1275,10 +1284,12 @@ public sealed class SearchEngine : ISearchV2Engine
             JOIN "SearchEntries" e ON e."Id" = p."Id"
             -- Where the excerpt starts: the first hit of any typed word or stem. The body is
             -- lower-cased once per row, not once per word.
+            CROSS JOIN LATERAL (SELECT LOWER(e."NarrativeText") AS lowered) body
             CROSS JOIN LATERAL (
-                SELECT COALESCE(MIN(NULLIF(STRPOS(body.lowered, anchors.anchor), 0)), 0) AS first_hit
-                FROM (SELECT LOWER(e."NarrativeText") AS lowered) body
-                CROSS JOIN unnest((SELECT anchors FROM query_stems)) AS anchors(anchor)
+                SELECT COALESCE(
+                    (SELECT MIN(NULLIF(STRPOS(body.lowered, words.word), 0)) FROM unnest((SELECT words FROM query_stems)) AS words(word)),
+                    LENGTH(substring(body.lowered FROM (SELECT stem_pattern FROM query_stems))) + 1,
+                    0) AS first_hit
             ) w
         )
         SELECT s."TotalHits", s."FilteredHits", s."MatchStamp", s."QueryStems", s."CategoryFacets", s."SourceFacets", s."ProjectFacets",

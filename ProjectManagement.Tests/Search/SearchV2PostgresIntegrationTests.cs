@@ -880,7 +880,9 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         var response = await host.SearchAsync("acceptance report");
 
         var hit = Assert.Single(response.Results, result => result.EntityKey == "9851");
-        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && segment.Text.StartsWith("accept", StringComparison.OrdinalIgnoreCase));
+        // The excerpt shows one of the matches marked ("reports" or "accepted"), not the opening words.
+        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted
+            && (segment.Text.StartsWith("accept", StringComparison.OrdinalIgnoreCase) || segment.Text.StartsWith("report", StringComparison.OrdinalIgnoreCase)));
         Assert.NotNull(hit.MatchedField);
         Assert.Contains("text", hit.MatchedField!, StringComparison.OrdinalIgnoreCase);
     }
@@ -901,6 +903,23 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
 
         var hit = Assert.Single(response.Results, result => result.EntityKey == "9852");
         Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && segment.Text.StartsWith("accept", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // A stem only anchors the excerpt as a word with an inflection ending: "Stationery" at the
+    // top does not pull the window away from "stations" far into the text.
+    [SearchV2PostgresFact]
+    public async Task AWordThatOnlyStartsWithTheStem_DoesNotAnchorTheExcerpt()
+    {
+        await using var host = _database.CreateHost();
+        var filler = string.Concat(Enumerable.Repeat("Routine maintenance schedule for the workshop. ", 300));
+        await host.ActivateAsync(
+            host.Entry("ProjectDocument", "9854", "Project documents", "Documents", "Linnet gearbox file", null)
+                with { StructuredText = "Linnet programme · Published", NarrativeText = "Stationery cupboard list. " + filler + "Radar stations were moved north." });
+
+        var response = await host.SearchAsync("stations");
+
+        var hit = Assert.Single(response.Results, result => result.EntityKey == "9854");
+        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && string.Equals(segment.Text, "stations", StringComparison.OrdinalIgnoreCase));
     }
 
     // A two-letter word ("QA") still anchors the excerpt when it first appears far into the text.
