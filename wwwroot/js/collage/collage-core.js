@@ -674,13 +674,15 @@
    * `spare` photos (ids from the photo store, with their shape) fill what is left, then empty
    * frames wait for photos. Photos beyond the frames leave the page (they stay in Photos) and are
    * returned as `removed`. Every frame is straight, uncut and given the layout's rounded corners.
+   * Locked photos and frames stay exactly where they are and take no part.
    */
   function applyLayout(collage, key, gap, radius, spare, newId) {
     const frames = layoutFrames(collage.size, key, gap);
     if (!frames.length) return { collage, removed: [] };
     const r = Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, Number(radius) || 0));
-    const photos = collage.items.filter((item) => item.kind === 'photo');
-    const others = collage.items.filter((item) => item.kind !== 'photo' && item.kind !== 'slot');
+    const isFrame = (item) => item.kind === 'photo' || item.kind === 'slot';
+    const photos = collage.items.filter((item) => item.kind === 'photo' && !item.locked);
+    const others = collage.items.filter((item) => !isFrame(item) || item.locked);
     const sources = photos.map((item) => item.photo);
     for (const id of spare || []) if (sources.length < frames.length && !sources.includes(id)) sources.push(id);
     const placed = frames.map((frame, index) => {
@@ -701,7 +703,8 @@
    * The current layout laid out again, after a change of space or page size: every frame goes
    * back to its own place in the grid (`cell`), so a photo stays in the frame it was put in and
    * an empty frame stays empty, whatever order the frames are drawn in. Frames are made straight;
-   * a photo's zoom and the part it shows are kept. Items that are not frames are left alone.
+   * a photo's zoom and the part it shows are kept. Items that are not frames, and locked
+   * frames, are left alone.
    */
   function reflowLayout(collage, gap) {
     if (!collage.layout) return collage;
@@ -712,7 +715,7 @@
       layout: { ...collage.layout, gap: g },
       items: collage.items.map((item) => {
         const frame = Number.isInteger(item.cell) ? frames[item.cell] : null;
-        return frame && (item.kind === 'photo' || item.kind === 'slot') ? { ...item, ...frame, angle: 0 } : item;
+        return frame && (item.kind === 'photo' || item.kind === 'slot') && !item.locked ? { ...item, ...frame, angle: 0 } : item;
       })
     };
   }
@@ -720,7 +723,7 @@
   /**
    * "Make it casual": every photo and empty frame tilted a little, left or right in turn,
    * nudged off the grid and made a little smaller so the tilted corners show. The same collage
-   * always gives the same result.
+   * always gives the same result. Locked items stay as they are.
    */
   function makeCasual(collage) {
     let n = 0;
@@ -728,7 +731,7 @@
       ...collage,
       layout: null,
       items: collage.items.map((item) => {
-        if (item.kind !== 'photo' && item.kind !== 'slot') return item;
+        if ((item.kind !== 'photo' && item.kind !== 'slot') || item.locked) return item;
         const i = n++;
         const angle = (i % 2 ? 1 : -1) * (3 + (i * 5) % 6);
         const moved = { ...item, angle, width: item.width * 0.9, x: item.x + ((i * 29) % 21) - 10, y: item.y + ((i * 17) % 17) - 8 };
@@ -740,21 +743,25 @@
     };
   }
 
-  /** Every photo and empty frame turned straight. */
+  /** Every photo and empty frame turned straight, except locked ones. */
   function straightenAll(collage) {
-    return { ...collage, items: collage.items.map((item) => (item.kind === 'photo' || item.kind === 'slot' ? { ...item, angle: 0 } : item)) };
+    return { ...collage, items: collage.items.map((item) => ((item.kind === 'photo' || item.kind === 'slot') && !item.locked ? { ...item, angle: 0 } : item)) };
   }
 
-  /** The photos moved one frame along: each frame shows the next photo, the last the first. */
+  /**
+   * The photos moved one frame along: each frame shows the next photo, the last the first.
+   * A locked photo keeps its place and is passed over.
+   */
   function shufflePhotos(collage) {
-    const photos = collage.items.filter((item) => item.kind === 'photo');
+    const moves = (item) => item.kind === 'photo' && !item.locked;
+    const photos = collage.items.filter(moves);
     if (photos.length < 2) return collage;
     const sources = photos.map((item) => item.photo);
     sources.push(sources.shift());
     let i = 0;
     return {
       ...collage,
-      items: collage.items.map((item) => (item.kind === 'photo' ? { ...item, photo: sources[i++], crop: { ...FULL_CROP } } : item))
+      items: collage.items.map((item) => (moves(item) ? { ...item, photo: sources[i++], crop: { ...FULL_CROP } } : item))
     };
   }
 
@@ -837,7 +844,8 @@
 
   /**
    * The collage on a new page size. Items keep their place across the page and their size, so
-   * a landscape collage turned upright stays in order; nothing is cut off the page.
+   * a landscape collage turned upright stays in order; nothing is cut off the page. A locked
+   * item keeps its exact place.
    */
   function changeSize(collage, sizeKey) {
     if (!SIZES[sizeKey] || sizeKey === collage.size) return collage;
@@ -846,7 +854,7 @@
     return {
       ...collage,
       size: sizeKey,
-      items: collage.items.map((item) => ({ ...item, y: item.y * to / from }))
+      items: collage.items.map((item) => (item.locked ? item : { ...item, y: item.y * to / from }))
     };
   }
 
@@ -872,9 +880,43 @@
     return list;
   }
 
-  /** A copy of an item, a little down and to the right, with a new id. */
+  /** A copy of an item, a little down and to the right, with a new id; never hidden or locked. */
   function duplicateItem(item, id) {
-    return { ...item, id, x: item.x + 24, y: item.y + 24 };
+    return { ...item, id, x: item.x + 24, y: item.y + 24, hidden: false, locked: false };
+  }
+
+  /** Where "Line up on the page" can put an item. */
+  const ALIGN_PLACES = Object.freeze(['left', 'centre', 'right', 'top', 'middle', 'bottom']);
+
+  /**
+   * The item's centre lined up with the page: its turned box against an edge (left, right, top,
+   * bottom) or on the page's centre line (centre across, middle down). Only one direction
+   * changes.
+   */
+  function alignItem(item, sizeKey, place) {
+    const box = turnedHalfBox(item.width, itemHeight(item), item.angle);
+    const height = pageHeight(sizeKey);
+    if (place === 'left') return { x: box.halfWidth, y: item.y };
+    if (place === 'centre') return { x: PAGE_WIDTH / 2, y: item.y };
+    if (place === 'right') return { x: PAGE_WIDTH - box.halfWidth, y: item.y };
+    if (place === 'top') return { x: item.x, y: box.halfHeight };
+    if (place === 'middle') return { x: item.x, y: height / 2 };
+    if (place === 'bottom') return { x: item.x, y: height - box.halfHeight };
+    return { x: item.x, y: item.y };
+  }
+
+  /**
+   * A short name for an item in the Layers list: the words of a text, the kind of anything
+   * else. Photos and stickers are named by the caller, which knows their files.
+   */
+  function layerName(item) {
+    if (item.kind === 'text') {
+      const first = String(item.text || '').split('\n')[0].trim();
+      return first ? (first.length > 28 ? `${first.slice(0, 27)}…` : first) : 'Text';
+    }
+    if (item.kind === 'slot') return 'Empty frame';
+    if (item.kind === 'sticker') return 'Sticker';
+    return 'Photo';
   }
 
   // ---------------------------------------------------------------------------
@@ -943,9 +985,9 @@
     return { width, height: Math.max(1, Math.round(width * photo.height / photo.width)) };
   }
 
-  /** The items a saved picture shows: everything except empty frames, in drawing order. */
+  /** The items a saved picture shows: everything except empty frames and hidden items, in order. */
   function itemsToSave(collage) {
-    return collage.items.filter((item) => item.kind !== 'slot');
+    return collage.items.filter((item) => item.kind !== 'slot' && !item.hidden);
   }
 
   /**
@@ -998,7 +1040,9 @@
         width: clampWidth(item.width),
         angle: normaliseAngle(isNumber(item.angle) ? item.angle : 0),
         opacity: Math.min(100, Math.max(10, isNumber(item.opacity) ? item.opacity : 100)),
-        radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0))
+        radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0)),
+        hidden: item.hidden === true,
+        locked: item.locked === true
       };
       if (item.kind === 'sticker') {
         // Stickers have their own limits (down to 20), so the saved width is clamped, not the
@@ -1192,6 +1236,9 @@
     changeSize,
     reorder,
     duplicateItem,
+    ALIGN_PLACES,
+    alignItem,
+    layerName,
     SCREEN_SIDE,
     PRINT_DPI,
     savePixels,

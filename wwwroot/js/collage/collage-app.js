@@ -560,6 +560,7 @@
 
   const accent = () => getComputedStyle(document.body).getPropertyValue('--bs-primary').trim() || '#0d6efd';
   const ADJUST_COLOUR = '#f2a200';
+  const LOCKED_COLOUR = '#8f9aab';
   const NORMAL_SNAPS = [0, 45, 90, 135, 180, 225, 270, 315];
   const SHIFT_SNAPS = Array.from({ length: 24 }, (_, i) => i * 15);
   // Corners keep the shape; the middle of each side changes the frame's shape.
@@ -621,6 +622,31 @@
   }
 
   new ResizeObserver(() => layout()).observe(stageBox);
+
+  let previewing = false;
+
+  /** Shows the page alone, without panels or handles; Esc or Exit preview comes back. */
+  function startPreview() {
+    previewing = true;
+    stopAdjust(false);
+    select(null);
+    document.body.classList.add('clg-previewing');
+    layer.listening(false);
+    root.querySelector('[data-preview-exit]').hidden = false;
+    root.querySelector('[data-preview-exit]').focus();
+    window.requestAnimationFrame(layout);
+    window.setTimeout(layout, 50);
+  }
+
+  function stopPreview() {
+    if (!previewing) return;
+    previewing = false;
+    document.body.classList.remove('clg-previewing');
+    layer.listening(true);
+    root.querySelector('[data-preview-exit]').hidden = true;
+    window.requestAnimationFrame(layout);
+    window.setTimeout(layout, 50);
+  }
 
   function setZoom(value) {
     zoom = Math.min(4, Math.max(0.25, value));
@@ -875,7 +901,8 @@
         itemsGroup.add(node);
       }
       applyItem(node, item);
-      node.draggable(adjustId !== item.id);
+      node.draggable(adjustId !== item.id && !item.locked);
+      node.visible(!item.hidden);
       seen.add(item.id);
     });
     collage.items.forEach((item) => nodes.get(item.id).moveToTop());
@@ -893,14 +920,16 @@
   }
 
   function attachTransformer() {
-    const node = selectedId && nodes.get(selectedId);
+    // A hidden item keeps its settings and Layers row, but no handles on the page.
+    const node = selectedId && !itemById(selectedId)?.hidden && nodes.get(selectedId);
     const adjusting = Boolean(adjustId && adjustId === selectedId);
     transformer.nodes(node ? [node] : []);
     const isText = Boolean(node && ['text', 'sticker'].includes(itemById(selectedId)?.kind));
-    transformer.enabledAnchors(adjusting ? [] : isText ? CORNER_ANCHORS : ALL_ANCHORS);
-    transformer.rotateEnabled(!adjusting);
-    transformer.borderStroke(adjusting ? ADJUST_COLOUR : accent());
-    transformer.borderDash(adjusting ? [6, 4] : []);
+    const locked = Boolean(node && itemById(selectedId)?.locked);
+    transformer.enabledAnchors(adjusting || locked ? [] : isText ? CORNER_ANCHORS : ALL_ANCHORS);
+    transformer.rotateEnabled(!adjusting && !locked);
+    transformer.borderStroke(adjusting ? ADJUST_COLOUR : locked ? LOCKED_COLOUR : accent());
+    transformer.borderDash(adjusting || locked ? [6, 4] : []);
   }
 
   function syncAll() {
@@ -941,13 +970,20 @@
   function placeToolbar() {
     const node = selectedId && nodes.get(selectedId);
     const item = selectedItem();
-    if (!node || !item || transforming || node.isDragging()) { hideToolbar(); return; }
+    if (!node || !item || item.hidden || transforming || node.isDragging()) { hideToolbar(); return; }
     const adjusting = adjustId === item.id;
     for (const part of toolbar.querySelectorAll('[data-for]')) {
       const forWhat = part.dataset.for;
       part.hidden = adjusting
         ? forWhat !== 'adjusting'
         : !(forWhat === item.kind || forWhat === 'item');
+    }
+    const lockButton = toolbar.querySelector('[data-action="lock"]');
+    if (lockButton) {
+      lockButton.setAttribute('aria-pressed', String(Boolean(item.locked)));
+      lockButton.setAttribute('aria-label', item.locked ? 'Unlock' : 'Lock');
+      lockButton.title = item.locked ? 'Unlock' : 'Lock';
+      lockButton.querySelector('i').className = `bi ${item.locked ? 'bi-lock-fill' : 'bi-unlock'}`;
     }
     const rect = node.getClientRect();
     toolbar.hidden = false;
@@ -997,6 +1033,9 @@
 
   function stopAdjust(redraw = true) {
     if (!adjustId) return;
+    // The photo can be dragged again at once, even when the page is not redrawn now.
+    const ended = itemById(adjustId);
+    nodes.get(adjustId)?.draggable(Boolean(ended) && !ended.locked);
     adjustId = null;
     pan = null;
     adjustHint.hidden = true;
@@ -1077,6 +1116,16 @@
     renderProps();
     updateUndo();
   }
+
+  /**
+   * Settings that move, resize, reshape or turn an item; a locked item keeps them as they are.
+   * A frame or shape changes the box round the photo, so those wait for Unlock too.
+   */
+  const LOCKED_CONTROLS = [
+    '[data-prop="angle"]', '[data-prop="width"]', '[data-prop="size"]',
+    '[data-action="rotate-left"]', '[data-action="rotate-right"]', '[data-action="straighten"]',
+    '[data-action="fit-photo"]', '[data-finish="frame"]', '[data-finish="shape"]'
+  ].join(', ');
 
   function changeSelected(change, record = true) {
     const item = selectedItem();
@@ -1312,7 +1361,26 @@
           announce('Duplicated.');
         }
         break;
+      case 'lock':
+        if (item) {
+          item.locked = !item.locked;
+          if (item.locked && adjustId === item.id) stopAdjust(false);
+          commit();
+          announce(item.locked ? 'Locked.' : 'Unlocked.');
+        }
+        break;
+      case 'hide':
+        if (item) {
+          item.hidden = !item.hidden;
+          commit();
+          announce(item.hidden ? 'Hidden. Show it again from Layers.' : 'Shown.');
+        }
+        break;
+      case 'preview': startPreview(); break;
+      case 'preview-exit': stopPreview(); break;
       case 'delete':
+        // A locked item is kept until it is unlocked.
+        if (item?.locked) { announce('It is locked. Unlock it first.'); break; }
         if (item) {
           collage.items = collage.items.filter((i) => i !== item);
           selectedId = null;
@@ -1323,9 +1391,14 @@
       case 'forward': case 'backward': case 'front': case 'back':
         if (item) { collage.items = core.reorder(collage.items, item.id, action); commit(); }
         break;
-      case 'rotate-left': changeSelected((i) => { i.angle = core.normaliseAngle(i.angle - 15); }); break;
-      case 'rotate-right': changeSelected((i) => { i.angle = core.normaliseAngle(i.angle + 15); }); break;
-      case 'straighten': changeSelected((i) => { i.angle = 0; }); break;
+      case 'rotate-left':
+      case 'rotate-right':
+      case 'straighten':
+        if (item?.locked) { announce('It is locked. Unlock it first.'); break; }
+        if (action === 'rotate-left') changeSelected((i) => { i.angle = core.normaliseAngle(i.angle - 15); });
+        else if (action === 'rotate-right') changeSelected((i) => { i.angle = core.normaliseAngle(i.angle + 15); });
+        else changeSelected((i) => { i.angle = 0; });
+        break;
       case 'adjust': if (item?.kind === 'photo') startAdjust(item.id); break;
       case 'adjust-done': stopAdjust(); break;
       case 'replace': if (isFrame(item)) { setTarget(item.id); setPanel('photos'); } break;
@@ -1341,6 +1414,7 @@
         changeSelected((i) => { Object.assign(i, { look: 'none', bright: 100, contrast: 100, warmth: 0, flip: false }); });
         break;
       case 'fit-photo':
+        if (item?.locked) { announce('It is locked. Unlock it first.'); break; }
         changeSelected((i) => {
           const photo = photos.get(i.photo);
           if (!photo) return;
@@ -1381,6 +1455,25 @@
     if (startLayout) { startCollage(core.DEFAULT_SIZE, startLayout.dataset.startLayout); return; }
     const layoutChoice = event.target.closest('[data-layout]');
     if (layoutChoice) { applyLayoutKey(layoutChoice.dataset.layout); return; }
+    const align = event.target.closest('[data-align]');
+    if (align && !align.disabled) {
+      changeSelected((target) => Object.assign(target, core.alignItem(target, collage.size, align.dataset.align)));
+      return;
+    }
+    const layerPick = event.target.closest('[data-layer-select]');
+    if (layerPick) { select(layerPick.dataset.layerSelect); return; }
+    const layerHide = event.target.closest('[data-layer-hide]');
+    if (layerHide) {
+      const target = itemById(layerHide.dataset.layerHide);
+      if (target) { target.hidden = !target.hidden; commit(); }
+      return;
+    }
+    const layerLock = event.target.closest('[data-layer-lock]');
+    if (layerLock) {
+      const target = itemById(layerLock.dataset.layerLock);
+      if (target) { target.locked = !target.locked; if (target.locked && adjustId === target.id) stopAdjust(false); commit(); }
+      return;
+    }
     const backgroundChoice = event.target.closest('[data-background]');
     if (backgroundChoice) {
       setBackground(JSON.parse(backgroundChoice.dataset.background));
@@ -1516,14 +1609,61 @@
         </div>
       </div>
       <div class="clg-section">
-        <div class="clg-buttons clg-buttons--two">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="duplicate"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate</button>
-          <button type="button" class="btn btn-outline-danger btn-sm" data-action="delete"><i class="bi bi-trash3" aria-hidden="true"></i> Delete</button>
+        <p class="clg-section__title">Line up on the page</p>
+        <div class="clg-buttons">
+          ${core.ALIGN_PLACES.map((place) => `<button type="button" class="btn btn-outline-secondary btn-sm" data-align="${place}"${item.locked ? ' disabled' : ''}>${place.charAt(0).toUpperCase() + place.slice(1)}</button>`).join('')}
         </div>
+      </div>
+      <div class="clg-section">
+        <div class="clg-buttons clg-buttons--two">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="lock" aria-pressed="${Boolean(item.locked)}"><i class="bi ${item.locked ? 'bi-unlock' : 'bi-lock'}" aria-hidden="true"></i> ${item.locked ? 'Unlock' : 'Lock'}</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="hide" aria-pressed="${Boolean(item.hidden)}"><i class="bi ${item.hidden ? 'bi-eye' : 'bi-eye-slash'}" aria-hidden="true"></i> ${item.hidden ? 'Show' : 'Hide'}</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="duplicate"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate</button>
+          <button type="button" class="btn btn-outline-danger btn-sm" data-action="delete"${item.locked ? ' disabled' : ''}><i class="bi bi-trash3" aria-hidden="true"></i> Delete</button>
+        </div>
+        ${item.locked ? '<p class="clg-hint">Locked: it cannot be moved, resized, turned, given another frame or shape, or deleted until it is unlocked.</p>' : ''}
+        ${item.hidden ? '<p class="clg-hint">Hidden: it is not on the page or in the saved picture until it is shown again.</p>' : ''}
+      </div>`;
+  }
+
+  /** The Layers list: every item, the front one first, to select, hide or lock. */
+  function layersSection() {
+    if (!collage.items.length) return '';
+    const rows = [...collage.items].reverse().map((item) => {
+      let thumb = '<span class="clg-layer__thumb clg-layer__thumb--icon" aria-hidden="true"><i class="bi bi-square"></i></span>';
+      let name = core.layerName(item);
+      if (item.kind === 'photo') {
+        const photo = photos.get(item.photo);
+        thumb = `<img class="clg-layer__thumb" src="${photo?.thumbnail || ''}" alt="">`;
+        name = photo?.name || name;
+      } else if (item.kind === 'sticker') {
+        const entry = stickers.find(item.sticker);
+        thumb = `<img class="clg-layer__thumb clg-layer__thumb--contain" src="${stickerSource(item) || ''}" alt="">`;
+        name = entry?.label || entry?.words?.split(' ')[0] || name;
+      } else if (item.kind === 'text') {
+        thumb = '<span class="clg-layer__thumb clg-layer__thumb--icon" aria-hidden="true"><i class="bi bi-fonts"></i></span>';
+      }
+      return `<li class="clg-layer${item.id === selectedId ? ' is-on' : ''}${item.hidden ? ' is-hidden' : ''}">
+          <button type="button" class="clg-layer__pick" data-layer-select="${item.id}" aria-current="${item.id === selectedId}">${thumb}<span class="clg-layer__name">${escapeHtml(name)}</span></button>
+          <button type="button" class="clg-layer__tool" data-layer-hide="${item.id}" aria-pressed="${Boolean(item.hidden)}" title="${item.hidden ? 'Show' : 'Hide'}" aria-label="${item.hidden ? 'Show' : 'Hide'} ${escapeHtml(name)}"><i class="bi ${item.hidden ? 'bi-eye-slash' : 'bi-eye'}" aria-hidden="true"></i></button>
+          <button type="button" class="clg-layer__tool" data-layer-lock="${item.id}" aria-pressed="${Boolean(item.locked)}" title="${item.locked ? 'Unlock' : 'Lock'}" aria-label="${item.locked ? 'Unlock' : 'Lock'} ${escapeHtml(name)}"><i class="bi ${item.locked ? 'bi-lock-fill' : 'bi-unlock'}" aria-hidden="true"></i></button>
+        </li>`;
+    }).join('');
+    return `
+      <div class="clg-section">
+        <p class="clg-section__title">Layers</p>
+        <ul class="clg-layers">${rows}</ul>
+        <p class="clg-hint">The top of the list is in front.</p>
       </div>`;
   }
 
   function renderProps() {
+    renderPropsBody();
+    if (selectedItem()?.locked) props.querySelectorAll(LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
+    props.insertAdjacentHTML('beforeend', layersSection());
+  }
+
+  function renderPropsBody() {
     const item = selectedItem();
     if (!item) {
       props.innerHTML = `
@@ -1737,6 +1877,7 @@
   props.addEventListener('click', (event) => {
     const choice = event.target.closest('[data-finish]');
     if (!choice || choice.disabled) return;
+    if (selectedItem()?.locked && choice.matches(LOCKED_CONTROLS)) return;
     changeSelected((item) => setFinish(item, choice.dataset.finish, choice.dataset.value));
   });
 
@@ -1753,6 +1894,7 @@
     }
     const prop = event.target.dataset.prop;
     if (!prop) return;
+    if (selectedItem()?.locked && event.target.matches(LOCKED_CONTROLS)) return;
     const value = Number(event.target.value);
     changeSelected((item) => {
       if (prop === 'zoom') zoomCrop(item, value);
@@ -2340,6 +2482,7 @@
     const typing = event.target.closest?.('input, textarea, select, [contenteditable]');
     const key = event.key.toLowerCase();
     const mod = event.ctrlKey || event.metaKey;
+    if (key === 'escape' && previewing) { stopPreview(); return; }
     if (key === 'escape') {
       if (typing) event.target.blur();
       else if (adjustId) stopAdjust();
@@ -2357,6 +2500,7 @@
     else if (key === '[') act(event.shiftKey ? 'back' : 'backward');
     else if (key === 'enter' && selectedItem()?.kind === 'photo' && !adjustId) act('adjust');
     else if (key === 'enter' && selectedItem()?.kind === 'text') { event.preventDefault(); focusTextField(); }
+    else if (key.startsWith('arrow') && selectedId && selectedItem()?.locked) { event.preventDefault(); announce('It is locked. Unlock it first.'); }
     else if (key.startsWith('arrow') && selectedId) {
       event.preventDefault();
       const step = event.shiftKey ? 10 : 1;
