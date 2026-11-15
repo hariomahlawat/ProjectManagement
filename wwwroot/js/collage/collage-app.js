@@ -279,6 +279,18 @@
     renderDrafts();
   }
 
+  // Phones rarely ask before a page goes away, so the draft is written whenever the page is
+  // hidden (another app, another tab, the screen locked) or put away.
+  function saveOnLeaving() {
+    if (views.editor.hidden || !draft) return;
+    flushNudge();
+    if (draftPending) saveDraftNow();
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveOnLeaving();
+  });
+  window.addEventListener('pagehide', saveOnLeaving);
+
   window.addEventListener('beforeunload', (event) => {
     if (views.editor.hidden || !draft) return;
     // A nudge or wheel zoom still waiting counts as a change: recorded now, it marks the draft
@@ -301,6 +313,7 @@
 
   const drafts = window.PrismCollageDrafts || null;
   const draftStatus = $('[data-draft-status]');
+  const keepDraftButton = $('[data-action="keep-draft"]');
   // The draft being edited: { id, created, off }; null on the start screen.
   let draft = null;
   let draftTimer = 0;
@@ -315,8 +328,17 @@
 
   function setDraftStatus(text, warning = false) {
     draftStatus.textContent = text;
+    draftStatus.title = warning ? (draftProblem() || text) : '';
     draftStatus.classList.toggle('is-warning', warning);
+    // A collage left out of the drafts can be kept again at any time.
+    if (keepDraftButton) keepDraftButton.hidden = !draft?.off;
+    // On a phone the status has room only for its mark, so the reason is shown once in full.
+    if (warning && text !== draftWarningShown && window.matchMedia?.('(max-width: 1100px)').matches) {
+      showAlert(draftProblem() || text);
+    }
+    draftWarningShown = warning ? text : '';
   }
+  let draftWarningShown = '';
 
   /** Why the draft is not kept, in a sentence, or '' when it is. */
   function draftProblem() {
@@ -1546,6 +1568,16 @@
       case 'replace-cancel': setTarget(null); break;
       case 'save-open': openSave(); break;
       case 'credits': root.querySelector('[data-credits]').showModal(); break;
+      case 'keep-draft':
+        // Asked again: keeping it may still mean deleting the oldest draft to make room.
+        if (draft?.off) {
+          draft.off = false;
+          if (keepDraftButton) keepDraftButton.hidden = true;
+          draftPending = true;
+          setDraftStatus('Saving draft…');
+          saveDraftNow();
+        }
+        break;
       case 'library-open': openLibrary(); break;
       case 'library-close': libraryDialog?.close(); break;
       case 'library-more': loadLibrary(false); break;
