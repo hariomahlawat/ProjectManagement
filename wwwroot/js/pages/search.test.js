@@ -34,8 +34,9 @@ const markup = `
   <footer id="siteFooter">Footer</footer>`;
 
 let loaded = 0;
-async function loadPage({ narrow = false } = {}) {
-  const dom = new JSDOM(`<!doctype html><html><body>${markup}</body></html>`, {
+async function loadPage({ narrow = false, inside = '' } = {}) {
+  const page = markup.replace('<div data-search-page>', `<div data-search-page>${inside}`);
+  const dom = new JSDOM(`<!doctype html><html><body>${page}</body></html>`, {
     url: 'https://prism.local/Common/Search?q=x',
     pretendToBeVisual: true,
   });
@@ -129,4 +130,12 @@ test('on a phone the filter sheet is a modal dialog, and closing it gives the pa
   assert.equal(form.hasAttribute('role'), false);
   assert.equal(document.getElementById('siteHeader').inert, false);
   assert.equal(document.querySelector('[data-search-results]').inert, false);
+});
+
+test('the page remembers a search only when it ran and found something', async () => {
+  const found = await loadPage({ inside: '<form><input data-search-record-recent="true" value="simulator"></form>' });
+  assert.deepEqual(JSON.parse(found.window.localStorage.getItem('prism.search.recent')), ['simulator']);
+
+  const empty = await loadPage({ inside: '<form><input data-search-record-recent="false" value="zzqxv"></form>' });
+  assert.equal(empty.window.localStorage.getItem('prism.search.recent'), null);
 });

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Security.Claims;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Services.Search;
 using ProjectManagement.Services.SearchV2.Analytics;
@@ -34,6 +35,7 @@ public sealed class SearchGateway : ISearchGateway
     private readonly ISearchEngineLatencyRecorder _engineLatency;
     private readonly ISearchSuggestionLatencyRecorder _suggestionLatency;
     private readonly SearchV2Options _options;
+    private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache? _searchLog;
     private readonly ILogger<SearchGateway> _logger;
 
     public SearchGateway(
@@ -47,8 +49,10 @@ public sealed class SearchGateway : ISearchGateway
         ISearchEngineLatencyRecorder engineLatency,
         ISearchSuggestionLatencyRecorder suggestionLatency,
         IOptions<SearchV2Options> options,
-        ILogger<SearchGateway> logger)
+        ILogger<SearchGateway> logger,
+        Microsoft.Extensions.Caching.Memory.IMemoryCache? searchLog = null)
     {
+        _searchLog = searchLog;
         _suggestionLatency = suggestionLatency ?? throw new ArgumentNullException(nameof(suggestionLatency));
         _v2 = v2 ?? throw new ArgumentNullException(nameof(v2));
         _legacy = legacy ?? throw new ArgumentNullException(nameof(legacy));
@@ -98,6 +102,7 @@ public sealed class SearchGateway : ISearchGateway
                     // One query-log row per search. Engine-only time goes to the
                     // in-process recorder that feeds the search health dashboard.
                     _engineLatency.Record(v2Response.QueryTimeMilliseconds);
+                    if (SearchQueryLogPolicy.IsNewSearch(request, user, normalized.Original, _searchLog))
                     await SafeQueryLogAsync(
                         normalized.Original,
                         user,
@@ -182,6 +187,7 @@ public sealed class SearchGateway : ISearchGateway
         var adapted = filtered.Select((hit, index) => AdaptLegacy(hit, normalized, index + 1)).ToArray();
 
         stopwatch.Stop();
+        if (SearchQueryLogPolicy.IsNewSearch(request, user, normalized.Original, _searchLog))
         await SafeQueryLogAsync(
             normalized.Original,
             user,
@@ -495,5 +501,36 @@ public sealed class SearchGateway : ISearchGateway
         {
             _logger.LogDebug(ex, "Search query telemetry write failed.");
         }
+    }
+}
+
+/// <summary>
+/// Which page requests count as a search in the query log. Show more pages, tab switches and
+/// filter changes are the same search seen again; counting them inflated the admin "Last 24
+/// hours" figure and diluted the found-nothing share.
+/// </summary>
+internal static class SearchQueryLogPolicy
+{
+    internal static readonly TimeSpan SameSearchWindow = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// True for the first page of a query this user has not searched in the last ten minutes
+    /// (in this process); the same query again, with another tab or filters, is not new.
+    /// Without a cache only Show more pages are left out.
+    /// </summary>
+    public static bool IsNewSearch(SearchRequest request, ClaimsPrincipal user, string query, Microsoft.Extensions.Caching.Memory.IMemoryCache? cache)
+    {
+        if (!string.IsNullOrWhiteSpace(request.Cursor)) return false;
+        if (cache is null) return true;
+
+        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+        var key = "search-log:" + userId + "\u001f" + query.Trim().ToLowerInvariant();
+        if (cache.TryGetValue(key, out _)) return false;
+        cache.Set(key, true, new Microsoft.Extensions.Caching.Memory.MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = SameSearchWindow,
+            Size = 1
+        });
+        return true;
     }
 }

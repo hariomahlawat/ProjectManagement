@@ -244,6 +244,18 @@ test('helpers: same-origin check, prefix highlight and OS shortcut label', async
   assert.equal(shortcutLabel({ userAgentData: { platform: 'Windows' } }), 'Ctrl K');
 });
 
+test('submitting a search does not save it yet: the results page does, once it found something', async () => {
+  const { createSearchCombobox, readRecentSearches } = await loadModule();
+  const { window, document } = createDom();
+  const input = document.getElementById('q');
+  createSearchCombobox(input, { fetchImpl: () => jsonResponse(suggestions), debounceMs: 0, navigate: () => {} });
+
+  input.value = 'o';
+  input.form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+
+  assert.deepEqual(readRecentSearches(window), []);
+});
+
 test('opening a suggested record does not save the half-typed text as a recent search', async () => {
   const { createSearchCombobox, readRecentSearches } = await loadModule();
   const { window, document } = createDom();

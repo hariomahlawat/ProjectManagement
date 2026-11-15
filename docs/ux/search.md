@@ -21,7 +21,8 @@ uses it through `navigation/global-search.js` (loaded by `site.js`); the Search 
 - **Suggestion links** are followed only when they stay on this site's origin.
 - **Highlighting** wraps the first match, preferring the start of a word, in `<mark>`. All
   text is set with `textContent`; nothing from the server is parsed as HTML.
-- **Recent searches.** The last six searches are kept in this browser only (`localStorage`,
+- **Recent searches.** The last six searches that ran and found something are kept in this
+  browser only (the results page remembers them, not the search box; `localStorage`,
   key `prism.search.recent`), shown when the box is empty and on the landing and zero-result
   pages, with a **Clear recent searches** row. Blocked storage is ignored silently. Opening a
   suggested record is not a search, so it adds nothing to the list.
