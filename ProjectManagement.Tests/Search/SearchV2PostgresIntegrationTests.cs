@@ -885,6 +885,24 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Contains("text", hit.MatchedField!, StringComparison.OrdinalIgnoreCase);
     }
 
+    // A stop word in the query ("the") is not an anchor: the excerpt still finds the match far
+    // into the text instead of starting at the first "The".
+    [SearchV2PostgresFact]
+    public async Task AStopWordInTheQuery_DoesNotAnchorTheExcerpt()
+    {
+        await using var host = _database.CreateHost();
+        var filler = string.Concat(Enumerable.Repeat("Routine maintenance schedule for the workshop. ", 300));
+        var body = "The introduction. " + filler + "The board accepted the equipment and filed its reports.";
+        await host.ActivateAsync(
+            host.Entry("ProjectDocument", "9852", "Project documents", "Documents", "Thrush gearbox file", null)
+                with { StructuredText = "Thrush programme · Published", NarrativeText = body });
+
+        var response = await host.SearchAsync("the acceptance report");
+
+        var hit = Assert.Single(response.Results, result => result.EntityKey == "9852");
+        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && segment.Text.StartsWith("accept", StringComparison.OrdinalIgnoreCase));
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {

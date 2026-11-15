@@ -375,6 +375,20 @@ public sealed class SearchV2QueryTests
         Assert.Equal(expected, result);
     }
 
+    [Theory]
+    [InlineData("Two reports were filed", true)]
+    [InlineData("The stationery cupboard", false)]
+    public void MatchEvidence_CountsAWordByStemOnlyAsAnInflection(string narrative, bool expected)
+    {
+        var normalizer = new SearchQueryNormalizer();
+        var query = normalizer.Normalize(narrative.Contains("stationery") ? "stations" : "report");
+        var stems = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["stations"] = "station", ["report"] = "report" };
+
+        var field = SearchMatchEvidenceResolver.Resolve(query, "Unrelated title", null, narrative, null, "ProjectDocument", "english_fts", stems);
+
+        Assert.Equal(expected, field is not null);
+    }
+
     [Fact]
     public void CorrectionScorer_ProtectsEverythingWhenTheTypedTextCannotBeAligned()
     {

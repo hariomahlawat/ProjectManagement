@@ -123,12 +123,25 @@ public static partial class SearchMatchEvidenceResolver
         var covered = terms
             .Where(term => words.Any(word => string.Equals(word, term, StringComparison.OrdinalIgnoreCase)
                                              || (allowPrefix && word.StartsWith(term, StringComparison.OrdinalIgnoreCase))
-                                             || (StemOf(term) is { } stem && word.StartsWith(stem, StringComparison.OrdinalIgnoreCase))))
+                                             || (StemOf(term) is { } stem && IsInflectionOf(word, stem))))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         if (covered.Length > 0) fields.Add(new FieldCoverage(label, covered));
     }
+
+    // Endings English stemming removes. A word counts by stem only as the stem plus one of
+    // these ("accepted", "reports", "acceptance" for accept, report), not as any word that
+    // starts with it ("stationery" is not "stations").
+    private static readonly string[] InflectionEndings =
+    {
+        "", "s", "es", "ed", "d", "ing", "er", "ers", "ion", "ions", "ation", "ations",
+        "ance", "ances", "ence", "ences", "ment", "ments", "al", "ally", "ly", "e", "ies", "ied", "y"
+    };
+
+    private static bool IsInflectionOf(string word, string stem) =>
+        word.StartsWith(stem, StringComparison.OrdinalIgnoreCase)
+        && InflectionEndings.Contains(word[stem.Length..], StringComparer.OrdinalIgnoreCase);
 
     private static string[] QueryTerms(string exact) => WordRegex().Matches(exact)
         .Select(match => match.Value)

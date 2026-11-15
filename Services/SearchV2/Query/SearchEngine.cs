@@ -744,9 +744,12 @@ public sealed class SearchEngine : ISearchV2Engine
             SELECT COALESCE(string_agg(DISTINCT w.word || '=' || w.stem, ' '), '') AS pairs,
                    COALESCE(array_agg(DISTINCT a.anchor) FILTER (WHERE LENGTH(a.anchor) >= 3), ARRAY[]::text[]) AS anchors
             FROM (
-                SELECT word, COALESCE((ts_lexize('english_stem', word))[1], word) AS stem
+                -- English stop words ("the", "of") return no lexeme: the English match ignores
+                -- them, so they neither anchor the excerpt nor count as matches.
+                SELECT word, (ts_lexize('english_stem', word))[1] AS stem
                 FROM unnest(regexp_split_to_array(@exact, '\s+')) AS words(word)
                 WHERE LENGTH(word) >= 2
+                  AND cardinality(ts_lexize('english_stem', word)) > 0
             ) w
             CROSS JOIN LATERAL unnest(ARRAY[w.word, w.stem]) AS a(anchor)
         ), exact_identifier AS (
