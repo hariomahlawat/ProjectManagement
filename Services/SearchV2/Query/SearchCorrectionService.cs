@@ -55,27 +55,25 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(access);
 
-        var normalizedTokens = TokenRegex().Matches(query.Exact)
-            .Select(match => match.Value)
-            .Where(token => token.Length > 0)
+        var tokenMatches = TokenRegex().Matches(query.Exact)
+            .Where(match => match.Length > 0)
             .ToArray();
+        var normalizedTokens = tokenMatches.Select(match => match.Value).ToArray();
         if (normalizedTokens.Length == 0 || normalizedTokens.Length > _options.CorrectionMaxTokens)
         {
             return null;
         }
 
-        var originalTokens = TokenRegex().Matches(query.Original)
-            .Select(match => match.Value)
-            .ToArray();
+        // Normalising splits "anti-tank" into two tokens, so the typed spelling of each token
+        // (needed to keep acronyms such as ATGM) is found per typed word, not by position.
+        var protectedTokens = SearchCorrectionScorer.ProtectedTokens(query.Original, normalizedTokens, _normalizer.NormalizeExact, TokenRegex());
 
         var eligible = new List<int>(normalizedTokens.Length);
         for (var index = 0; index < normalizedTokens.Length; index++)
         {
             var token = normalizedTokens[index];
             if (token.Length < _options.CorrectionMinTokenLength) continue;
-
-            var originalToken = index < originalTokens.Length ? originalTokens[index] : token;
-            if (SearchCorrectionScorer.IsProtectedOriginalToken(originalToken)) continue;
+            if (protectedTokens[index]) continue;
             eligible.Add(index);
         }
 
@@ -110,7 +108,11 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
 
         if (replacements.Count == 0) return null;
 
-        var corrected = SearchCorrectionScorer.ApplyReplacements(normalizedTokens, replacements);
+        // Replace the corrected tokens in place, so joiners such as "&" in "ir&d" survive.
+        var corrected = SearchCorrectionScorer.ApplyReplacements(
+            query.Exact,
+            tokenMatches.Select(match => (match.Index, match.Length)).ToArray(),
+            replacements);
         corrected = _normalizer.NormalizeExact(corrected);
         if (string.IsNullOrWhiteSpace(corrected)
             || string.Equals(corrected, query.Exact, StringComparison.OrdinalIgnoreCase))
@@ -306,17 +308,63 @@ public static partial class SearchCorrectionScorer
         return letters.Length is >= 2 and <= 8 && letters.All(char.IsUpper);
     }
 
-    public static string ApplyReplacements(
+    /// <summary>
+    /// For each normalised token, whether its typed spelling is protected from correction
+    /// (an acronym, an identifier, a short or numeric token). Tokens are matched to the typed
+    /// word they came from, and to their own spelling inside it: "anti-tank ATGM" protects
+    /// "atgm" but not "anti" or "tank". When the typed text cannot be aligned with the
+    /// normalised tokens, every token is protected: no suggestion beats a wrong one.
+    /// </summary>
+    public static bool[] ProtectedTokens(
+        string original,
         IReadOnlyList<string> normalizedTokens,
-        IReadOnlyDictionary<int, string> replacements)
+        Func<string, string> normalizeExact,
+        Regex tokenPattern)
     {
         ArgumentNullException.ThrowIfNull(normalizedTokens);
+        ArgumentNullException.ThrowIfNull(normalizeExact);
+        ArgumentNullException.ThrowIfNull(tokenPattern);
+
+        var result = new List<bool>(normalizedTokens.Count);
+        foreach (var word in (original ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var searchFrom = 0;
+            foreach (Match part in tokenPattern.Matches(normalizeExact(word)))
+            {
+                if (part.Length == 0) continue;
+                var at = word.IndexOf(part.Value, searchFrom, StringComparison.OrdinalIgnoreCase);
+                var typed = at >= 0 ? word.Substring(at, part.Length) : word;
+                if (at >= 0) searchFrom = at + part.Length;
+                result.Add(IsProtectedOriginalToken(typed));
+            }
+        }
+
+        return result.Count == normalizedTokens.Count
+            ? result.ToArray()
+            : Enumerable.Repeat(true, normalizedTokens.Count).ToArray();
+    }
+
+    /// <summary>Replaces the tokens at the given spans of <paramref name="text"/>, keeping everything between them.</summary>
+    public static string ApplyReplacements(
+        string text,
+        IReadOnlyList<(int Index, int Length)> tokenSpans,
+        IReadOnlyDictionary<int, string> replacements)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(tokenSpans);
         ArgumentNullException.ThrowIfNull(replacements);
 
-        return string.Join(' ', normalizedTokens.Select((token, index) =>
-            replacements.TryGetValue(index, out var replacement) && !string.IsNullOrWhiteSpace(replacement)
-                ? replacement.Trim()
-                : token));
+        var builder = new System.Text.StringBuilder(text.Length + 16);
+        var position = 0;
+        for (var index = 0; index < tokenSpans.Count; index++)
+        {
+            if (!replacements.TryGetValue(index, out var replacement) || string.IsNullOrWhiteSpace(replacement)) continue;
+            var (start, length) = tokenSpans[index];
+            builder.Append(text, position, start - position).Append(replacement.Trim());
+            position = start + length;
+        }
+
+        return builder.Append(text, position, text.Length - position).ToString();
     }
 
     public static int DamerauLevenshteinDistance(string source, string target)

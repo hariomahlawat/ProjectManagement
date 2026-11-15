@@ -68,6 +68,14 @@ cursor that no longer applies (index regenerated, different query, or a pre-keys
 cursor) returns the first page with `ExecutionStatus = StaleCursor` rather than
 silently restarting.
 
+The cursor also carries a stamp of the records that matched (their count and the sum of
+their ids). Fusion ranks each record against the other matches, so re-indexing one
+matching record can move others across the cursor, and continuing would skip or repeat
+rows. Re-indexing deletes and re-inserts an entry under a new id, so the stamp changes
+exactly then, and the next page starts from the top as `StaleCursor`. Changes to records
+that do not match leave paging alone. Cursors issued before the stamp existed continue
+as before.
+
 ## Autocomplete and did-you-mean
 
 Autocomplete is one statement: a union of index-backed candidate predicates, then
@@ -78,6 +86,12 @@ Did-you-mean runs only for committed searches whose first page has no lexical ma
 It makes one batched query against `"SearchVocabularyTerms"`. That table is kept up to
 date by triggers from entry titles and Name, Location and Organisation terms; Person
 terms and body text are not included. Only entries the user may search contribute.
+
+Each normalised token is checked against its own typed spelling, found inside the word it
+came from: in "anti-tank ATGM" the acronym "ATGM" is protected and "anti" and "tank" are
+not. If the typed text cannot be matched to the tokens, nothing is corrected. The
+correction replaces tokens in place, so joiners stay ("IR&D hydrbad" offers
+"ir&d hyderabad", not "ir d hyderabad").
 
 ## Measuring
 

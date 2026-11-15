@@ -338,14 +338,56 @@ public sealed class SearchV2QueryTests
         Assert.Equal("hyderabad", result!.Token);
     }
 
+    private static readonly System.Text.RegularExpressions.Regex CorrectionTokens =
+        new(@"[\p{L}\p{N}][\p{L}\p{N}._/-]*", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private static (int Index, int Length)[] Spans(string text) =>
+        CorrectionTokens.Matches(text).Select(match => (match.Index, match.Length)).ToArray();
+
     [Fact]
     public void CorrectionScorer_RebuildsMultiTokenQueryWithoutChangingProtectedTerms()
     {
         var rebuilt = SearchCorrectionScorer.ApplyReplacements(
-            new[] { "iit", "hydrbad", "meeting" },
+            "iit hydrbad meeting",
+            Spans("iit hydrbad meeting"),
             new Dictionary<int, string> { [1] = "hyderabad" });
 
         Assert.Equal("iit hyderabad meeting", rebuilt);
+    }
+
+    [Fact]
+    public void CorrectionScorer_KeepsJoinersBetweenTokens()
+    {
+        // "ir&d" is two tokens ("ir", "d") joined by "&"; rebuilding with spaces gave "ir d".
+        var rebuilt = SearchCorrectionScorer.ApplyReplacements(
+            "ir&d hydrbad",
+            Spans("ir&d hydrbad"),
+            new Dictionary<int, string> { [2] = "hyderabad" });
+
+        Assert.Equal("ir&d hyderabad", rebuilt);
+    }
+
+    [Theory]
+    [InlineData("anti-tank ATGM", "anti tank atgm", "false,false,true")]
+    [InlineData("ATGM-launcher trials", "atgm launcher trials", "true,false,false")]
+    [InlineData("Hydrbad AURA meeting", "hydrbad aura meeting", "false,true,false")]
+    public void CorrectionScorer_ProtectsEachTokenByItsOwnTypedSpelling(string original, string exact, string expected)
+    {
+        var normalizer = new SearchQueryNormalizer();
+        Assert.Equal(exact, normalizer.NormalizeExact(original));
+        var tokens = CorrectionTokens.Matches(exact).Select(match => match.Value).ToArray();
+
+        var result = SearchCorrectionScorer.ProtectedTokens(original, tokens, normalizer.NormalizeExact, CorrectionTokens);
+
+        Assert.Equal(expected, string.Join(',', result.Select(value => value ? "true" : "false")));
+    }
+
+    [Fact]
+    public void CorrectionScorer_ProtectsEverythingWhenTheTypedTextCannotBeAligned()
+    {
+        var result = SearchCorrectionScorer.ProtectedTokens("hydrbad", new[] { "hydrbad", "extra" }, value => value.ToLowerInvariant(), CorrectionTokens);
+
+        Assert.All(result, Assert.True);
     }
 
     [Fact]
