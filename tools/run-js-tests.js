@@ -61,6 +61,7 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'photo-tools', 'photo-tools-canvas.test.js'),
   path.join('wwwroot', 'js', 'collage', 'collage-core.test.js'),
   path.join('wwwroot', 'js', 'collage', 'collage-draw.test.js'),
+  path.join('wwwroot', 'js', 'collage', 'collage-stickers.test.js'),
   path.join('tools', 'check-views.test.js'),
   path.join('tools', 'theme-coverage.test.js'),
   path.join('tools', 'theme-dark-codemod.test.js'),

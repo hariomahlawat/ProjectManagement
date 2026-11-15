@@ -83,10 +83,12 @@ public sealed class SearchIndexStore : ISearchIndexStore
     public const string FullRebuildEntityType = "__FullRebuild__";
 
     private readonly ApplicationDbContext _db;
+    private readonly TimeSpan _leaseTimeout;
 
-    public SearchIndexStore(ApplicationDbContext db)
+    public SearchIndexStore(ApplicationDbContext db, Microsoft.Extensions.Options.IOptions<ProjectManagement.Services.SearchV2.SearchV2Options>? options = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _leaseTimeout = TimeSpan.FromMinutes(Math.Max(1, options?.Value.WorkItemLeaseMinutes ?? 10));
     }
 
     public async Task<bool> IsReadyAsync(int indexVersion, CancellationToken cancellationToken)
@@ -437,6 +439,12 @@ public sealed class SearchIndexStore : ISearchIndexStore
                     SELECT "Id"
                     FROM "SearchIndexWorkItems"
                     WHERE "Status" = 0 AND "NextAttemptAtUtc" <= NOW()
+                      -- Waiting but still stamped as started: the enqueue trigger put it back
+                      -- while a worker (perhaps in another process) is indexing it. Taking it
+                      -- now would let the holder write older data last; the holder's
+                      -- CompleteAsync returns it to the queue (clearing StartedAtUtc), or the
+                      -- lease runs out if the holder died.
+                      AND ("StartedAtUtc" IS NULL OR "StartedAtUtc" < NOW() - (@leaseSeconds * INTERVAL '1 second'))
                       AND (CAST(@entityType AS text) IS NULL OR "EntityType" = CAST(@entityType AS text))
                     ORDER BY "RequestedAtUtc", "Id"
                     FOR UPDATE SKIP LOCKED
@@ -448,6 +456,7 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 RETURNING w."Id", w."EntityType", w."EntityKey", w."RetryCount", w.xmin::text;
                 """;
             Add(command, "entityType", entityType);
+            Add(command, "leaseSeconds", (int)Math.Ceiling(_leaseTimeout.TotalSeconds));
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken)) return null;
             return new SearchIndexWorkItem(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3), reader.GetString(4));
@@ -542,6 +551,7 @@ public sealed class SearchIndexStore : ISearchIndexStore
             UPDATE "SearchIndexWorkItems"
             SET "RetryCount" = "RetryCount" + 1,
                 "Status" = CASE WHEN "RetryCount" + 1 >= 5 THEN 3 ELSE 0 END,
+                "StartedAtUtc" = NULL,
                 "LastError" = {compact},
                 "NextAttemptAtUtc" = NOW() + (LEAST(900, 30 * POWER(2, LEAST("RetryCount", 5))) * INTERVAL '1 second')
             WHERE "Id" = {workItemId};

@@ -18,6 +18,7 @@ public sealed class CollageStudioPageContractTests
         "js/collage/collage-core.js",
         "js/collage/collage-drafts.js",
         "js/collage/collage-draw.js",
+        "js/collage/collage-stickers.js",
         "js/collage/collage-app.js"
     };
 
@@ -87,7 +88,10 @@ public sealed class CollageStudioPageContractTests
             {
                 Assert.False(source.Contains(call, StringComparison.Ordinal), $"~/{script} must not use {call}");
             }
-            Assert.DoesNotMatch(new Regex(@"https?://", RegexOptions.IgnoreCase), source);
+            // The SVG namespace name the drawn stickers carry is an identifier, not an address
+            // anything loads; any other web address would be.
+            var withoutSvgNamespace = source.Replace("http://www.w3.org/2000/svg", string.Empty, StringComparison.Ordinal);
+            Assert.DoesNotMatch(new Regex(@"https?://", RegexOptions.IgnoreCase), withoutSvgNamespace);
         }
 
         // The page's own styles load nothing from elsewhere: no @import and no outside url().

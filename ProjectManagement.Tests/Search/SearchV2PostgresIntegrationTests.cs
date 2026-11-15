@@ -371,6 +371,53 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Empty((await host.SearchAsync("ospreyfalcon")).Results);
     }
 
+    // Two processes overlap during a rolling deployment. A record changed while one worker is
+    // indexing it goes back to the queue, but must not be taken by the other worker until the
+    // first finishes: the first would write older data last and the queue item would be gone.
+    [SearchV2PostgresFact]
+    public async Task ARecordChangedWhileHeld_IsNotTakenByAnotherWorkerUntilTheHolderFinishes()
+    {
+        await using var host = _database.CreateHost();
+        await host.ExecuteAsync("""DELETE FROM "SearchIndexWorkItems";""");
+        await host.WithStoreAsync(store => store.EnqueueAsync("Project", "9901", CancellationToken.None));
+
+        SearchIndexWorkItem? held = null;
+        await host.WithStoreAsync(async store => held = await store.DequeueAsync(CancellationToken.None, "Project"));
+        Assert.NotNull(held);
+
+        // The record changes while it is held (the enqueue trigger does the same).
+        await host.WithStoreAsync(store => store.EnqueueAsync("Project", "9901", CancellationToken.None));
+
+        SearchIndexWorkItem? second = null;
+        await host.WithStoreAsync(async store => second = await store.DequeueAsync(CancellationToken.None, "Project"));
+        Assert.Null(second);
+
+        await host.WithStoreAsync(store => store.CompleteAsync(held!, CancellationToken.None));
+
+        SearchIndexWorkItem? again = null;
+        await host.WithStoreAsync(async store => again = await store.DequeueAsync(CancellationToken.None, "Project"));
+        Assert.NotNull(again);
+        Assert.Equal("9901", again!.EntityKey);
+    }
+
+    // A failed attempt is retried after its back-off, not held back as if still being indexed.
+    [SearchV2PostgresFact]
+    public async Task AFailedAttempt_IsRetriedAfterItsBackOff()
+    {
+        await using var host = _database.CreateHost();
+        await host.ExecuteAsync("""DELETE FROM "SearchIndexWorkItems";""");
+        await host.WithStoreAsync(store => store.EnqueueAsync("Project", "9902", CancellationToken.None));
+        SearchIndexWorkItem? held = null;
+        await host.WithStoreAsync(async store => held = await store.DequeueAsync(CancellationToken.None, "Project"));
+        await host.WithStoreAsync(store => store.FailAsync(held!.Id, "boom", CancellationToken.None));
+        await host.ExecuteAsync("""UPDATE "SearchIndexWorkItems" SET "NextAttemptAtUtc" = NOW() - INTERVAL '1 second';""");
+
+        SearchIndexWorkItem? retry = null;
+        await host.WithStoreAsync(async store => retry = await store.DequeueAsync(CancellationToken.None, "Project"));
+
+        Assert.NotNull(retry);
+    }
+
     // Document rows copy a few project facts. A project edit that changes none of them leaves
     // the document rows alone (re-reading every document's OCR text cost minutes on big
     // projects); one that changes them rewrites them; trashing the project removes them.
