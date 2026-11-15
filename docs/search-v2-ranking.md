@@ -42,7 +42,7 @@ indexes.
 | 4 | title word prefix, title prefix, alias prefix, English-stemmed title match |
 | 5 | any-field simple full-text |
 | 6 | English body full-text, alias full-text |
-| 7 | trigram fallback (only when there are fewer than `FuzzyFallbackStrongCandidateThreshold` lexical candidates) |
+| 7 | near-miss (trigram) fallback: only when there are fewer than `FuzzyFallbackStrongCandidateThreshold` lexical candidates inside the active filters, and only for words of four letters or more |
 
 Within a channel, term matches are aggregated per entry before ranking. Channel ranks
 are fused with reciprocal-rank fusion (`SUM(weight / (k + rank))`).
@@ -56,7 +56,11 @@ update time and id.
 
 Trigram operators (`%`, `<%`) use pg_trgm session thresholds. The engine sets
 `FuzzyThreshold` and `FuzzyWordSimilarityThreshold` with `SET LOCAL` inside a read
-transaction, so pooled connections are never left changed. Record-level fuzzy matching
+transaction, so pooled connections are never left changed. Words under four letters
+(`SearchEngine.MinimumNearMissCharacters`) take no part: at the word-similarity threshold a
+three-letter word shares half its trigrams with every word starting with the same two
+letters ("drn" matched 123 records on the development data). When the best result is a near
+miss (tier 7), every result is, and the page says "No exact matches. Showing similar wording." Record-level fuzzy matching
 uses `word_similarity` per query token, because `similarity()` against long text never
 reaches a useful threshold.
 

@@ -25,6 +25,16 @@ public sealed class SearchEngine : ISearchV2Engine
 {
     // Index expressions created by AddSearchV2QueryAccelerators use LEFT(column, 160).
     private const int PatternIndexPrefixLength = 160;
+
+    /// <summary>The tier of near-miss (trigram) matches: the page says so when the best result has it.</summary>
+    public const int NearMissTier = 7;
+
+    /// <summary>
+    /// Shortest word that takes part in near-miss matching. At the word-similarity threshold a
+    /// three-letter word ("drn") shares half its trigrams with every word starting with the same
+    /// two letters, so it matched a third of the index.
+    /// </summary>
+    internal const int MinimumNearMissCharacters = 4;
     // The English vector stores the title with weight A only (search_v2_refresh_vectors).
     private const string TitleWeightFilter = "'{a}'";
     private const int HeadlineWindowCharacters = 6000;
@@ -877,8 +887,10 @@ public sealed class SearchEngine : ISearchV2Engine
             WHERE {scopeWhere}
               AND e."SearchVectorEnglish" @@ websearch_to_tsquery('english', @webQuery)
         ), strong_candidate_count AS (
+            -- Exact matches inside the active filters: one on another tab must not turn off
+            -- near-miss matches for this one. Filters read "SearchEntries" columns as c.
             SELECT COUNT(*)::int AS value
-            FROM (SELECT DISTINCT "Id" FROM (
+            FROM (SELECT DISTINCT c."Id" FROM "SearchEntries" c JOIN (
                 SELECT "Id" FROM exact_identifier
                 UNION ALL SELECT "Id" FROM exact_title
                 UNION ALL SELECT "Id" FROM identifier_prefix
@@ -895,11 +907,11 @@ public sealed class SearchEngine : ISearchV2Engine
                 UNION ALL SELECT "Id" FROM simple_fts
                 UNION ALL SELECT "Id" FROM alias_fts
                 UNION ALL SELECT "Id" FROM english_fts
-            ) strong) d
+            ) strong ON strong."Id" = c."Id" WHERE TRUE {scope.ResultFilterClause}) d
         ), title_fuzzy AS (
             -- % and <% honour pg_trgm.similarity_threshold / word_similarity_threshold, which the
             -- engine sets per transaction from FuzzyThreshold / FuzzyWordSimilarityThreshold.
-            SELECT e."Id", 7 AS tier,
+            SELECT e."Id", {NearMissTier} AS tier,
                    ROW_NUMBER() OVER (
                        ORDER BY GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC,
                                 e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
@@ -912,7 +924,7 @@ public sealed class SearchEngine : ISearchV2Engine
         ), fuzzy_matches AS (
             -- Every query token must have a close word somewhere in the record. Word
             -- similarity, unlike similarity(), does not decay with the record's length.
-            SELECT e."Id", 7 AS tier,
+            SELECT e."Id", {NearMissTier} AS tier,
                    ROW_NUMBER() OVER (
                        ORDER BY (SELECT SUM(word_similarity(q.token, e."FuzzyText")) FROM unnest(@fuzzyTokens) AS q(token)) DESC,
                                 e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
@@ -1513,7 +1525,7 @@ internal sealed record SearchQueryTerms(
         var tokens = exact.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var identifierKey = SearchQueryNormalizer.IdentifierKey(query.Original);
         var fuzzyTokens = tokens
-            .Where(token => token.Length >= 3)
+            .Where(token => token.Length >= SearchEngine.MinimumNearMissCharacters)
             .Distinct(StringComparer.Ordinal)
             .OrderByDescending(token => token.Length)
             .Take(6)
