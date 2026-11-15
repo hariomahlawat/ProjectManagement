@@ -66,6 +66,13 @@ public interface ISearchProjectionBuilder
     Task<SearchProjectDocumentsState?> GetProjectDocumentsStateAsync(int projectId, CancellationToken cancellationToken) =>
         Task.FromResult<SearchProjectDocumentsState?>(null);
 
+    /// <summary>
+    /// The project's row, then its documents a page at a time, so re-indexing a project with
+    /// hundreds of scanned documents never holds all their text at once. One batch by default.
+    /// </summary>
+    IAsyncEnumerable<IReadOnlyList<SearchProjection>> BuildProjectWithDocumentsInBatchesAsync(int projectId, CancellationToken cancellationToken) =>
+        SearchProjectionBatches.Once(ct => BuildEntityAsync("Project", projectId.ToString(CultureInfo.InvariantCulture), ct), cancellationToken);
+
     /// <summary>The project's own index row, without its documents.</summary>
     Task<IReadOnlyList<SearchProjection>> BuildProjectRowAsync(int projectId, CancellationToken cancellationToken) =>
         BuildEntityAsync("Project", projectId.ToString(CultureInfo.InvariantCulture), cancellationToken);
@@ -390,6 +397,23 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         return new SearchProjectDocumentsState(
             ProjectDocumentContextStamp(project.Name, project.CaseFileNumber, project.Category, project.TechnicalCategory, context),
             documents);
+    }
+
+    public async IAsyncEnumerable<IReadOnlyList<SearchProjection>> BuildProjectWithDocumentsInBatchesAsync(
+        int projectId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return await BuildProjectsAsync(projectId, includeProjectDocuments: false, cancellationToken);
+
+        var documentIds = await IndexableProjectDocuments()
+            .Where(document => document.ProjectId == projectId)
+            .OrderBy(document => document.Id)
+            .Select(document => document.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var page in documentIds.Chunk(DocumentPageSize))
+        {
+            yield return await BuildProjectDocumentsAsync(null, projectId, cancellationToken, page);
+        }
     }
 
     public Task<IReadOnlyList<SearchProjection>> BuildProjectRowAsync(int projectId, CancellationToken cancellationToken) =>

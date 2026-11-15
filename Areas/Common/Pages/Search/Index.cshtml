@@ -212,7 +212,9 @@
         ? "Search"
         : search.IsUnavailable
             ? $"“{Model.Q}” – Search unavailable – Search"
-            : $"“{Model.Q}” – {Count(search.FilteredHits)} result{(search.FilteredHits == 1 ? "" : "s")} – Search";
+            : search.IsTooShort
+                ? $"“{Model.Q}” – too short – Search"
+                : $"“{Model.Q}” – {Count(search.FilteredHits)} result{(search.FilteredHits == 1 ? "" : "s")} – Search";
 }
 
 <div class="pm-gs-page" data-search-page>
