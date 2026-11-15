@@ -61,6 +61,8 @@ screen, offline use.
 
 Each PR is merged only when Codex has no findings and CI is green, then the next starts.
 
+**Order changed (15 Nov):** the browser tests (12, 13) come before the editor split (10, 11), so the tests guard the split. They are built as PRs 10 and 11, and the split as PRs 12 and 13.
+
 | PR | What | Done when |
 | --- | --- | --- |
 | 1 | This plan | Merged |

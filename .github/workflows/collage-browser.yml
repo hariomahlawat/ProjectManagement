@@ -1,0 +1,46 @@
+name: Collage Studio browser tests
+
+# Collage Studio in a real browser (docs/ux/collage-review-fixes.md, PR 10). The page is built
+# from the real Razor page and served with PRISM's own files; no database or sign-in is needed.
+# Playwright and Chromium are used here only, never in the PRISM deployment.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  collage-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Restore frontend dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Collage Studio browser tests
+        run: npm run test:browser
+
+      - name: Keep the report when a test fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collage-browser-report
+          path: |
+            playwright-report/
+            test-results/collage/
+          retention-days: 7

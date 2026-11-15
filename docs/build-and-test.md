@@ -54,6 +54,17 @@ npm run lint:views
 
 `npm test` also runs the dead-declaration ratchet (`tools/css-dead-declarations.test.js`). A dead declaration is one that a later rule with the same selector, in the same or an unconditional `@media`, `@supports` or `@container` context, always overrides; they accumulate when a fix is layered on top instead of edited in place. A later value that an older browser may reject (`dvh`/`svh`/`lvh` and container units, `color-mix()`, `oklch()` and similar; the list is `RECENT_VALUE` in the tool) does not count as an override, because the earlier declaration is that browser's fallback, which matters on an offline LAN where browsers can be several versions old. The test fails when any stylesheet under `wwwroot/css` has more than `tools/css-dead-declarations-baseline.json` allows, or when the tool cannot read a stylesheet. The baseline is empty since November 2026, so every stylesheet must have none; edit the earlier rule instead of overriding it. The tool reads those three conditions (nested ones combine) and skips `@keyframes`, `@page` and `@font-face`; any other at-rule, or a stray brace, makes it stop with an error rather than report a file it cannot reason about as clean. `node tools/css-dead-declarations.js <file.css>` lists a file's dead declarations; `--fix` removes them and merges same-selector rules only where no rule in between sets a related property, so the cascade result cannot change. After a cleanup, `node tools/css-dead-declarations.js --all --write` lowers the baseline (it refuses to raise one without `--allow-increase`).
 
+## Collage Studio browser tests
+
+Collage Studio is also tested in a real browser with Playwright (a development dependency only; nothing in production uses it):
+
+```bash
+npx playwright install chromium
+npm run test:browser
+```
+
+The tests build the page from the real `Pages/Tools/Collage/Index.cshtml` (`tests/browser/collage-page.js`), serve it with PRISM's own files from `wwwroot` (`tests/browser/serve.js`), and need no database or sign-in. The page builder understands only the Razor the page uses today and fails on anything else, so the test page cannot drift from the real one. The **Collage Studio browser tests** workflow runs them on every pull request; installing Chromium needs the Internet, so on an offline machine run them where a browser can be installed, or rely on CI.
+
 ## Notebook assets
 
 Notebook source inputs include JavaScript under `wwwroot/js`, the Notebook build tooling and the npm manifests. Committed outputs include the Notebook bundle, source map and manifest under `wwwroot/dist`.
