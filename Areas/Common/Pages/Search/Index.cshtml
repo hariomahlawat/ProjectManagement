@@ -35,9 +35,12 @@
         _ => $"{string.Join(", ", unappliedFilterNames.Take(unappliedFilterNames.Count - 1))} and {unappliedFilterNames[^1]} filters"
     };
     var unappliedVerb = unappliedFilterNames.Count == 1 ? "was" : "were";
-    var CategoryOrder = new[] { "Projects", "Documents", "Trackers", "Organisation", "My Work", "Media" };
+    var CategoryOrder = new[] { "Projects", "Documents", "Trackers", "Organisation" };
+    // The selected tab always shows, at 0 when a filter leaves it empty, so the reader can see
+    // where they are and step back to All.
     var orderedCategoryFacets = CategoryOrder
-        .Select(category => search.Facets.Categories.FirstOrDefault(facet => string.Equals(facet.Value, category, StringComparison.OrdinalIgnoreCase)))
+        .Select(category => search.Facets.Categories.FirstOrDefault(facet => string.Equals(facet.Value, category, StringComparison.OrdinalIgnoreCase))
+            ?? (string.Equals(selectedCategory, category, StringComparison.OrdinalIgnoreCase) ? new SearchFacetValue(category, 0) : null))
         .Where(facet => facet is not null)
         .Cast<SearchFacetValue>()
         .ToArray();
@@ -57,6 +60,13 @@
         : Regex.Replace(value.Trim(), "([a-z0-9])([A-Z])", "$1 $2");
 
     string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
+
+    // A project's subtitle is "Completed" or "Active · PNC": the status pill would repeat it.
+    bool SubtitleShows(SearchResult hit, string value) =>
+        !string.IsNullOrWhiteSpace(hit.Subtitle)
+        && hit.Subtitle.Split('·', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Any(part => string.Equals(part, DisplayToken(value), StringComparison.OrdinalIgnoreCase)
+                      || string.Equals(part, value, StringComparison.OrdinalIgnoreCase));
 
     // One icon per source, so a project, an IPR and a visit look different at a glance.
     string TypeIcon(SearchResult hit)
@@ -262,7 +272,7 @@ else
                 <button class="btn btn-primary pm-gs-top__button" type="submit">Search</button>
             </form>
 
-            @if (search.Facets.Categories.Count > 0)
+            @if (orderedCategoryFacets.Length > 0)
             {
                 <nav class="pm-gs-tabs" aria-label="Result categories" data-search-tabs>
                     <a class="pm-gs-tab @(selectedCategory is null ? "is-active" : string.Empty)"
@@ -642,7 +652,7 @@ else
                                         {
                                             <li class="pm-gs-hit__project"><i class="bi bi-kanban" aria-hidden="true"></i><span class="visually-hidden">Project: </span>@projectName</li>
                                         }
-                                        @if (!string.IsNullOrWhiteSpace(hit.Status))
+                                        @if (!string.IsNullOrWhiteSpace(hit.Status) && !SubtitleShows(hit, hit.Status))
                                         {
                                             <li><span class="pm-gs-hit__status"><span class="visually-hidden">Status: </span>@DisplayToken(hit.Status)</span></li>
                                         }

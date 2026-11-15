@@ -1163,9 +1163,27 @@
     }
 
     /* Keep the type icon on phones, smaller: it is how a project, an IPR or a visit is told apart. */
+    /* Tighter cards on phones: about four results to a screen instead of two. */
     .pm-gs-hit {
         grid-template-columns: 1.75rem minmax(0, 1fr);
         gap: .6rem;
+        padding: .75rem 0;
+    }
+
+    .pm-gs-hit__heading {
+        font-size: 1rem;
+    }
+
+    .pm-gs-hit__snippet {
+        -webkit-line-clamp: 2;
+    }
+
+    .pm-gs-hit__meta {
+        margin-top: .35rem;
+    }
+
+    .pm-gs-hit__related {
+        margin-top: .35rem;
     }
 
     .pm-gs-hit__icon {
