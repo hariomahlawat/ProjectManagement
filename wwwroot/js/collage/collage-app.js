@@ -856,9 +856,12 @@
   /** Recoloured drawn stickers make a picture per colour tried; only the newest are kept. */
   function trimStickerImages() {
     if (stickerImages.size <= 80) return;
+    // A picture a sticker on the page uses now is never let go, however many there are, or it
+    // would be loaded again on every draw.
+    const inUse = new Set(collage.items.filter((item) => item.kind === 'sticker').map((item) => stickerSource(item)));
     for (const key of stickerImages.keys()) {
       if (stickerImages.size <= 60) break;
-      if (key.startsWith('data:')) stickerImages.delete(key);
+      if (key.startsWith('data:') && !inUse.has(key)) stickerImages.delete(key);
     }
   }
 
