@@ -426,6 +426,29 @@ public sealed class SearchV2QueryTests
         Assert.Equal(expected, field is not null);
     }
 
+    [Theory]
+    [InlineData("simulator -drone", "simulator", "drone")]
+    [InlineData("radar -drone -uav", "radar", "drone,uav")]
+    [InlineData("anti-tank simulator", "anti tank simulator", "")]
+    [InlineData("-drone", "drone", "")]
+    public void Normalizer_TreatsALeadingMinusAsAnExclusion(string query, string exact, string excluded)
+    {
+        var normalized = new SearchQueryNormalizer().Normalize(query);
+
+        Assert.Equal(exact, normalized.Exact);
+        Assert.Equal(excluded, string.Join(',', normalized.Excluded));
+        Assert.All(normalized.Excluded, word => Assert.DoesNotContain(word, normalized.HighlightTerms, StringComparer.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void DidYouMean_IsNotOfferedOnAnEmptyTabOfASearchThatFoundResults()
+    {
+        var query = new SearchQueryNormalizer().Normalize("hydraulics");
+
+        Assert.False(SearchEngine.ShouldOfferCorrectionOnPage(query, Array.Empty<SearchResultChannels>(), totalHits: 12));
+        Assert.True(SearchEngine.ShouldOfferCorrectionOnPage(query, Array.Empty<SearchResultChannels>(), totalHits: 0));
+    }
+
     [Fact]
     public void CorrectionScorer_ProtectsEverythingWhenTheTypedTextCannotBeAligned()
     {

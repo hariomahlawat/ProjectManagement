@@ -44,8 +44,8 @@ Each PR keeps the current routes, configuration keys and stored data, and needs 
 | --- | --- | --- |
 | 1 | This plan | — |
 | 2 | **Excerpts that show the match:** typed words anchor the window only as whole words (in SQL and in the C# excerpt choice); the excerpt starts just before the match instead of centring it, so two phone lines show it. Checked live at phone width; relevance harness before and after | M1, M3 |
-| 3 | **Minus excludes:** negated words are left out of the title channels and records containing them are excluded from every channel; quoted phrases unchanged. Postgres tests | M2 |
-| 4 | **Edges:** `FailAsync`/`ReleaseAsync` respect the lease token like `CompleteAsync`; alias expansions escaped; excerpt markers that cannot occur in text | L2, L3, L4 |
-| 5 | **Polish:** did-you-mean only when the query found nothing in any tab; a project's documents re-indexed 100 at a time; focus rings visible in High Contrast on the search page; tab title for a refused search | L1, L5, L6, L7 |
+| 3 | **Minus excludes:** a word typed with a leading minus is left out of the words searched for and highlighted, and records containing it (exact or English form) are excluded from results, counts and facets; a query of only exclusions is searched as typed. Also, from PRs 4 and 5 (same file): excerpt markers dropped (L2) and did-you-mean not offered on an empty tab of a search that found results (L1) | M2, L1, L2 |
+| 4 | **Edges:** `FailAsync`/`ReleaseAsync` respect the lease token like `CompleteAsync`; alias expansions escaped. (L2 moved to PR 3) | L3, L4 |
+| 5 | **Polish:** a project's documents re-indexed 100 at a time; focus rings visible in High Contrast on the search page; tab title for a refused search. (L1 moved to PR 3) | L5, L6, L7 |
 
 PRs 2 and 3 both change `SearchEngine.cs`; PR 3 starts after PR 2 is merged.

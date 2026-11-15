@@ -9,7 +9,20 @@ public sealed record NormalizedSearchQuery(
     string Exact,
     string WebSearchQuery,
     IReadOnlyList<string> HighlightTerms,
-    IReadOnlyList<string> Expansions);
+    IReadOnlyList<string> Expansions)
+{
+    /// <summary>
+    /// Words typed with a leading minus ("simulator -drone"), normalised. They are left out of
+    /// the words searched for and highlighted, and records containing them are excluded.
+    /// </summary>
+    public IReadOnlyList<string> Excluded { get; init; } = Array.Empty<string>();
+
+    /// <summary>The typed text that is searched for: <see cref="Original"/> without its exclusions.</summary>
+    public string Searched { get; init; } = Original;
+
+    /// <summary>The exclusions as typed, with their minus ("-drone"), to keep in a did-you-mean.</summary>
+    public IReadOnlyList<string> ExcludedTyped { get; init; } = Array.Empty<string>();
+}
 
 public interface ISearchQueryNormalizer
 {
@@ -35,13 +48,24 @@ public sealed partial class SearchQueryNormalizer : ISearchQueryNormalizer
             return new NormalizedSearchQuery(string.Empty, string.Empty, string.Empty, Array.Empty<string>(), Array.Empty<string>());
         }
 
-        var exact = NormalizeExact(original);
+        // "-word" excludes, as in web search. Without this the minus was folded away and the
+        // word searched for: "simulator -drone" found exactly the drone simulators. A query of
+        // nothing but exclusions is searched as typed.
+        var excludedWords = ExclusionRegex().Matches(original).Select(match => match.Groups[1].Value).ToArray();
+        var positive = string.Join(' ', ExclusionRegex().Replace(original, " ").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var excluding = excludedWords.Length > 0 && positive.Any(char.IsLetterOrDigit);
+        var searched = excluding ? positive : original;
+        var excluded = excluding
+            ? excludedWords.Select(NormalizeExact).Where(word => word.Any(char.IsLetterOrDigit)).Distinct(StringComparer.Ordinal).Take(8).ToArray()
+            : Array.Empty<string>();
+
+        var exact = NormalizeExact(searched);
         // Runtime terminology expansion is owned by SearchAliasProvider/SearchAliasQueryExpander.
         // The normalizer remains deterministic and database-independent.
         var expansions = Array.Empty<string>();
         var webSearch = exact;
         var highlights = HighlightTokenRegex()
-            .Matches(original)
+            .Matches(searched)
             .Select(match => match.Value.Trim('"', '\'', '(', ')'))
             .Concat(exact.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Where(value => value.Length >= 2)
@@ -49,8 +73,23 @@ public sealed partial class SearchQueryNormalizer : ISearchQueryNormalizer
             .OrderByDescending(value => value.Length)
             .ToArray();
 
-        return new NormalizedSearchQuery(original, exact, webSearch, highlights, expansions);
+        return new NormalizedSearchQuery(original, exact, webSearch, highlights, expansions)
+        {
+            Excluded = excluded,
+            Searched = searched,
+            ExcludedTyped = excluding ? excludedWords.Select(word => "-" + word).ToArray() : Array.Empty<string>()
+        };
     }
+
+    /// <summary>
+    /// The excluded words as a to_tsquery OR: each word's tokens joined with AND ("anti tank"
+    /// excludes records with both). Empty when nothing is excluded.
+    /// </summary>
+    public static string BuildExclusionTsQuery(IReadOnlyList<string> excluded) =>
+        string.Join(" | ", (excluded ?? Array.Empty<string>())
+            .Select(word => BuildTsQuery(word, prefixLastToken: false))
+            .Where(query => query.Length > 0)
+            .Select(query => $"({query})"));
 
     /// <summary>
     /// Canonical comparison form shared by indexed titles/terms and queries: NFKC, lower
@@ -237,6 +276,10 @@ public sealed partial class SearchQueryNormalizer : ISearchQueryNormalizer
 
     [GeneratedRegex("[\\p{L}\\p{M}\\p{N}][\\p{L}\\p{M}\\p{N}._/-]*", RegexOptions.CultureInvariant)]
     private static partial Regex HighlightTokenRegex();
+
+    // A minus that starts a word (after a space or at the start), not one inside "anti-tank".
+    [GeneratedRegex("(?<!\\S)-([\\p{L}\\p{M}\\p{N}]\\S*)", RegexOptions.CultureInvariant)]
+    private static partial Regex ExclusionRegex();
 
     [GeneratedRegex("(?<=\\p{L})(?=\\p{Nd})|(?<=\\p{Nd})(?=\\p{L})", RegexOptions.CultureInvariant)]
     private static partial Regex LetterDigitBoundaryRegex();

@@ -975,6 +975,49 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && string.Equals(segment.Text, "QA", StringComparison.Ordinal));
     }
 
+    // "-word" excludes, as in web search: "simulator -drone" must not return drone simulators
+    // (it used to return only them), and the English form drops "drones" too.
+    [SearchV2PostgresFact]
+    public async Task AMinusWord_ExcludesRecordsContainingIt()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9861", "Projects", "Projects", "Gunnery simulator trainer", null),
+            host.Entry("Project", "9862", "Projects", "Projects", "Drone gunnery simulator", null),
+            host.Entry("Project", "9863", "Projects", "Projects", "Drones gunnery simulator rig", null));
+
+        var response = await host.SearchAsync("gunnery simulator -drone");
+
+        Assert.Equal(new[] { "9861" }, response.Results.Select(result => result.EntityKey).ToArray());
+        Assert.Equal(1, response.TotalHits);
+    }
+
+    // Records with an excluded word do not count as exact matches, so near misses still show.
+    [SearchV2PostgresFact]
+    public async Task ExcludedRecords_DoNotTurnOffNearMissMatches()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9871", "Projects", "Projects", "Quillwren drone", null),
+            host.Entry("ProjectDocument", "9872", "Project documents", "Documents", "Quilwren manual", null));
+
+        var response = await host.SearchAsync("quillwren -drone");
+
+        Assert.Equal(new[] { "9872" }, response.Results.Select(result => result.EntityKey).ToArray());
+    }
+
+    // Did-you-mean still works with an exclusion, and keeps it in the offered search.
+    [SearchV2PostgresFact]
+    public async Task DidYouMean_KeepsTheExclusions()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(host.Entry("Project", "9873", "Projects", "Projects", "Hyderabad trials", null));
+
+        var response = await host.SearchAsync("hydrbad -drone");
+
+        Assert.Equal("hyderabad -drone", response.CorrectedQuery);
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {
