@@ -82,7 +82,7 @@ once PR 8 lands; until then searches fall back to Legacy during the rebuild).
 | 7 | Small page polish: plain "Found in" wording, recent searches keep full searches only, close on focus leaving, one highlighted row, tab counts explained, landing examples from the user's own recent searches | L1, L2, L4, L5, L7, L8 |
 | 8 | Keep serving the active generation while a newer projection rebuilds (minimum compatible version instead of an exact match) | M7 |
 | 9 | Cheaper candidate handling, measured with the relevance harness on a 34,000-entry copy: `MetadataJson` read only for the page, stage filter and stage facet; counts by `DISTINCT` subquery instead of `COUNT(DISTINCT)`. A common word went from 1.47 s to 1.0 s with identical results. The per-channel limit was measured and dropped: filters apply after retrieval, so it would drop filtered results and make counts lower bounds (see `docs/search-v2-ranking.md`, Measuring) | M5 |
-| 10 | Paging stability (cursor carries an index-change stamp; client drops repeated rows) and did-you-mean token alignment | M9, M10 |
+| 10 | Paging stability: the cursor carries a stamp of the matching records, and the next page starts from the top (existing "Results have changed" notice) only when a matching record changed, so nothing is skipped or repeated. Did-you-mean checks each token's own typed spelling and keeps joiners | M9, M10 |
 | 11 | Full rebuild streamed by module (documents 100 at a time) with batched writes, still one transaction. Dev data: 6.3 s to 3.1 s, identical index; memory no longer grows with the number of documents. Not measured on the production server | M8 |
 
 L10, L12 and the remaining tests in L14 are picked up in the PR that touches the same code.

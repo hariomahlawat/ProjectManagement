@@ -8,6 +8,12 @@ namespace ProjectManagement.Services.SearchV2.Query;
 /// Position of the last row on a page in the committed-search ordering
 /// (tier, entity priority, fusion score DESC, event date DESC NULLS LAST, updated DESC, id).
 /// </summary>
+/// <param name="MatchStamp">
+/// Fingerprint of the records that matched the search when the page was read. Re-indexing a
+/// record gives it a new id, so the stamp changes exactly when a matching record was added,
+/// removed or re-indexed, and with it the ranked order; edits elsewhere leave it unchanged.
+/// Null in cursors issued before it existed.
+/// </param>
 public sealed record SearchCursorPosition(
     int Tier,
     int EntityPriority,
@@ -15,7 +21,8 @@ public sealed record SearchCursorPosition(
     DateTimeOffset? EventDate,
     DateTimeOffset UpdatedAt,
     long Id,
-    int Rank);
+    int Rank,
+    string? MatchStamp = null);
 
 public enum SearchCursorState
 {
@@ -39,7 +46,7 @@ public interface ISearchCursorCodec
 
 public sealed class SearchCursorCodec : ISearchCursorCodec
 {
-    private sealed record KeysetPayload(int T, int P, double S, long? E, long U, long I);
+    private sealed record KeysetPayload(int T, int P, double S, long? E, long U, long I, string? M = null);
 
     private sealed record Payload(string QueryHash, int Rank, long ActiveGeneration, KeysetPayload? K = null);
 
@@ -82,7 +89,8 @@ public sealed class SearchCursorCodec : ISearchCursorCodec
                 position.Score,
                 position.EventDate?.UtcTicks,
                 position.UpdatedAt.UtcTicks,
-                position.Id)));
+                position.Id,
+                position.MatchStamp)));
     }
 
     public SearchCursorState DecodeKeyset(string query, string? cursor, long activeGeneration, out SearchCursorPosition? position)
@@ -97,7 +105,8 @@ public sealed class SearchCursorCodec : ISearchCursorCodec
             || !string.Equals(payload.QueryHash, Hash(query), StringComparison.Ordinal)
             || !double.IsFinite(key.S)
             || key.U < DateTimeOffset.MinValue.UtcTicks || key.U > DateTimeOffset.MaxValue.UtcTicks
-            || key.E is < 0 or > 3155378975999999999)
+            || key.E is < 0 or > 3155378975999999999
+            || key.M is { Length: > 64 })
         {
             return SearchCursorState.Stale;
         }
@@ -109,7 +118,8 @@ public sealed class SearchCursorCodec : ISearchCursorCodec
             key.E.HasValue ? new DateTimeOffset(key.E.Value, TimeSpan.Zero) : null,
             new DateTimeOffset(key.U, TimeSpan.Zero),
             key.I,
-            payload.Rank);
+            payload.Rank,
+            key.M);
         return SearchCursorState.Valid;
     }
 
