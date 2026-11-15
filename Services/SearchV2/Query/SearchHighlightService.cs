@@ -94,20 +94,19 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
 
         var normalized = WhitespaceRegex().Replace(source, " ").Trim();
         var max = Math.Max(120, _options.MaxSnippetCharacters);
-        if (normalized.Length <= max)
+
+        // Start a few words before the match, not with it centred and not with the text's
+        // opening words: phones show two lines of the excerpt, and a match further in fell
+        // below them. Short text is trimmed at the front too when the match is well into it.
+        var matchIndex = FindFirstMatch(normalized, terms, stems);
+        var lead = Math.Min(60, max / 5);
+        if (normalized.Length <= max && matchIndex <= lead)
         {
             return normalized;
         }
 
-        var matchIndex = FindFirstMatch(normalized, terms, stems);
-        var half = max / 2;
-        var start = matchIndex < 0 ? 0 : Math.Max(0, matchIndex - half);
+        var start = matchIndex < 0 ? 0 : Math.Max(0, matchIndex - lead);
         var end = Math.Min(normalized.Length, start + max);
-
-        if (end - start < max && start > 0)
-        {
-            start = Math.Max(0, end - max);
-        }
 
         while (start > 0 && start < normalized.Length && !char.IsWhiteSpace(normalized[start - 1]))
         {
@@ -169,11 +168,13 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
     private static int FindFirstMatch(string text, IReadOnlyList<string> terms, IReadOnlyList<string>? stems = null)
     {
         var best = -1;
+        // The same patterns the highlighter uses: a term counts where it starts a word ("ir"
+        // in "IR sensor", not in "their"), so the chosen excerpt is one that gets marked.
         foreach (var term in terms)
         {
             if (string.IsNullOrWhiteSpace(term)) continue;
-            var index = text.IndexOf(term, StringComparison.OrdinalIgnoreCase);
-            if (index >= 0 && (best < 0 || index < best)) best = index;
+            var match = Regex.Match(text, BuildHighlightPattern(term), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (match.Success && (best < 0 || match.Index < best)) best = match.Index;
         }
         foreach (var stem in stems ?? Array.Empty<string>())
         {

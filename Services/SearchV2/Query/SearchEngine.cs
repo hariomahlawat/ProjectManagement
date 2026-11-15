@@ -743,15 +743,18 @@ public sealed class SearchEngine : ISearchV2Engine
         ), query_stems AS MATERIALIZED (
             -- Each typed word with its English stem ("acceptance" → "accept"). Body text is
             -- matched by stem, so the excerpt is found, highlighted and explained by stem too.
-            -- Where the excerpt starts: the first typed word (a plain substring search), or when
-            -- none appears, the first stem with one of the inflection endings "Found in" accepts
-            -- (stem_pattern; never "Stationery" for "stations"). ^(.*?)(...) captures the text
-            -- before the first hit, so its length gives the position on any PostgreSQL version.
+            -- Where the excerpt starts: a typed word at the start of a word (as highlighted:
+            -- "ir" is not in "their"), or a stem with one of the inflection endings "Found in"
+            -- accepts (never "Stationery" for "stations"). anchor_pattern holds both;
+            -- ^(.*?)(...) captures the text before the first hit, so its length gives the
+            -- position on any PostgreSQL version.
             SELECT COALESCE(string_agg(DISTINCT w.word || '=' || w.stem, ' '), '') AS pairs,
-                   COALESCE(array_agg(DISTINCT w.word), ARRAY[]::text[]) AS words,
-                   '^(.*?)(' || COALESCE(string_agg(DISTINCT
-                       '\m' || regexp_replace(w.stem, @regexSpecials, '\\\1', 'g') || '(?:' || @inflectionEndings || ')?\M', '|')
-                       FILTER (WHERE LENGTH(w.stem) >= 3), '(?!)') || ')' AS stem_pattern
+                   '^(.*?)(' || COALESCE(
+                       NULLIF(concat_ws('|',
+                           string_agg(DISTINCT '\m' || regexp_replace(w.word, @regexSpecials, '\\\1', 'g'), '|'),
+                           string_agg(DISTINCT '\m' || regexp_replace(w.stem, @regexSpecials, '\\\1', 'g') || '(?:' || @inflectionEndings || ')?\M', '|')
+                               FILTER (WHERE LENGTH(w.stem) >= 3)), ''),
+                       '(?!)') || ')' AS anchor_pattern
             FROM (
                 -- English stop words ("the", "of") return no lexeme: the English match ignores
                 -- them, so they neither anchor the excerpt nor count as matches.
@@ -1281,14 +1284,11 @@ public sealed class SearchEngine : ISearchV2Engine
                    p.tier, p.entity_priority, p.fusion_score, p.channels, p.global_rank::int AS "GlobalRank", p.related_sources AS "RelatedSources"
             FROM page p
             JOIN "SearchEntries" e ON e."Id" = p."Id"
-            -- Where the excerpt starts: the first hit of any typed word or stem. The body is
-            -- lower-cased once per row, not once per word.
-            CROSS JOIN LATERAL (SELECT LOWER(e."NarrativeText") AS lowered) body
+            -- Where the excerpt starts: the first word-start hit of a typed word or stem
+            -- inflection (anchor_pattern). One regular expression per row over the body,
+            -- lower-cased once.
             CROSS JOIN LATERAL (
-                SELECT COALESCE(
-                    (SELECT MIN(NULLIF(STRPOS(body.lowered, words.word), 0)) FROM unnest((SELECT words FROM query_stems)) AS words(word)),
-                    LENGTH(substring(body.lowered FROM (SELECT stem_pattern FROM query_stems))) + 1,
-                    0) AS first_hit
+                SELECT COALESCE(LENGTH(substring(LOWER(e."NarrativeText") FROM (SELECT anchor_pattern FROM query_stems))) + 1, 0) AS first_hit
             ) w
         )
         SELECT s."TotalHits", s."FilteredHits", s."MatchStamp", s."QueryStems", s."CategoryFacets", s."SourceFacets", s."ProjectFacets",

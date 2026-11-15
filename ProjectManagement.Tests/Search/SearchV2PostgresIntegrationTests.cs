@@ -922,6 +922,23 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && string.Equals(segment.Text, "stations", StringComparison.OrdinalIgnoreCase));
     }
 
+    // A typed word anchors the excerpt only where it starts a word: "ir" inside "their" at the
+    // top does not pull the window away from "IR sensor" far into the text.
+    [SearchV2PostgresFact]
+    public async Task AWordInsideALongerWord_DoesNotAnchorTheExcerpt()
+    {
+        await using var host = _database.CreateHost();
+        var filler = string.Concat(Enumerable.Repeat("Routine maintenance schedule for the workshop. ", 300));
+        await host.ActivateAsync(
+            host.Entry("ProjectDocument", "9855", "Project documents", "Documents", "Bunting gearbox file", null)
+                with { StructuredText = "Bunting programme · Published", NarrativeText = "Units and their stores. " + filler + "The IR sensor passed the trial." });
+
+        var response = await host.SearchAsync("ir sensor");
+
+        var hit = Assert.Single(response.Results, result => result.EntityKey == "9855");
+        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && string.Equals(segment.Text, "IR", StringComparison.Ordinal));
+    }
+
     // A two-letter word ("QA") still anchors the excerpt when it first appears far into the text.
     [SearchV2PostgresFact]
     public async Task ATwoLetterWord_StillAnchorsTheExcerpt()
