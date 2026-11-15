@@ -599,12 +599,15 @@
     const height = pageHeight();
     const narrow = stageBox.clientWidth < 520;
     const pad = narrow ? 16 : 48;
-    const fit = Math.min((stageBox.clientWidth - 2 * pad) / core.PAGE_WIDTH, (stageBox.clientHeight - 2 * pad) / height);
+    // On a phone an open sheet covers the lower half: the page fits in what is left above it.
+    const box = getComputedStyle(stageBox);
+    const usableHeight = stageBox.clientHeight - (parseFloat(box.paddingTop) || 0) - (parseFloat(box.paddingBottom) || 0);
+    const fit = Math.min((stageBox.clientWidth - 2 * pad) / core.PAGE_WIDTH, (usableHeight - 2 * pad) / height);
     scale = Math.max(0.05, fit * zoom);
     const pageW = core.PAGE_WIDTH * scale;
     const pageH = height * scale;
     const stageW = Math.max(stageBox.clientWidth, pageW + 2 * pad);
-    const stageH = Math.max(stageBox.clientHeight, pageH + 2 * pad);
+    const stageH = Math.max(usableHeight, pageH + 2 * pad);
     stage.size({ width: stageW, height: stageH });
     stageHost.style.width = `${stageW}px`;
     stageHost.style.height = `${stageH}px`;
@@ -1007,6 +1010,35 @@
 
   stageBox.addEventListener('scroll', placeToolbar, { passive: true });
 
+  // Two fingers on the page zoom it; one finger still moves items. Pointers are followed on the
+  // work surface, so a pinch starting on a photo zooms instead of dragging it.
+  const touches = new Map();
+  let pinch = null;
+  stageBox.addEventListener('pointerdown', (event) => {
+    if (event.pointerType !== 'touch') return;
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      pinch = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom };
+      stage.find('.item').forEach((node) => { if (node.isDragging()) node.stopDrag(); });
+      transformer.stopTransform?.();
+    }
+  }, true);
+  stageBox.addEventListener('pointermove', (event) => {
+    if (!touches.has(event.pointerId)) return;
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pinch && touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      setZoom(pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y) / pinch.distance);
+    }
+  }, true);
+  const endTouch = (event) => {
+    touches.delete(event.pointerId);
+    if (touches.size < 2) pinch = null;
+  };
+  stageBox.addEventListener('pointerup', endTouch, true);
+  stageBox.addEventListener('pointercancel', endTouch, true);
+
   // ---------------------------------------------------------------------------
   // Moving a photo inside its frame
   // ---------------------------------------------------------------------------
@@ -1377,6 +1409,9 @@
         }
         break;
       case 'preview': startPreview(); break;
+      case 'edit-props': setPropsOpen(true); break;
+      case 'close-props': setPropsOpen(false); break;
+      case 'close-drawer': setPanel(null); break;
       case 'preview-exit': stopPreview(); break;
       case 'delete':
         // A locked item is kept until it is unlocked.
@@ -1461,7 +1496,13 @@
       return;
     }
     const layerPick = event.target.closest('[data-layer-select]');
-    if (layerPick) { select(layerPick.dataset.layerSelect); return; }
+    if (layerPick) {
+      select(layerPick.dataset.layerSelect);
+      const name = layerPick.querySelector('.clg-layer__name')?.textContent || '';
+      announce(`Selected ${name}. Arrow keys move it; Delete removes it.`);
+      props.querySelector(`[data-layer-select="${layerPick.dataset.layerSelect}"]`)?.focus();
+      return;
+    }
     const layerHide = event.target.closest('[data-layer-hide]');
     if (layerHide) {
       const target = itemById(layerHide.dataset.layerHide);
@@ -1517,8 +1558,29 @@
   // Panels on the left
   // ---------------------------------------------------------------------------
 
+  const phoneScreen = window.matchMedia?.('(max-width: 820px)');
+  const onPhone = () => phoneScreen?.matches === true;
+
+  /** On a phone, the settings sheet (for the selected item, or the page) open or closed. */
+  function setPropsOpen(open) {
+    body.classList.toggle('is-props-open', Boolean(open));
+    if (open && onPhone()) setPanel(null);
+    syncSheets();
+  }
+
+  /** Marks whether a sheet covers the lower half, so the page fits above it. */
+  function syncSheets() {
+    const sheet = onPhone() && (body.classList.contains('is-props-open') || Boolean(panel));
+    body.classList.toggle('is-sheet-open', sheet);
+    window.requestAnimationFrame(layout);
+    window.setTimeout(layout, 60);
+  }
+
+  phoneScreen?.addEventListener?.('change', syncSheets);
+
   function setPanel(name) {
     panel = name;
+    if (name && onPhone()) body.classList.remove('is-props-open');
     for (const button of root.querySelectorAll('[data-panel]')) {
       button.setAttribute('aria-pressed', String(button.dataset.panel === name));
     }
@@ -1528,7 +1590,7 @@
     body.classList.toggle('is-drawer-closed', !name);
     if (name === 'layouts') renderLayoutPanel();
     if (name === 'background') renderBackgroundPanel();
-    window.requestAnimationFrame(layout);
+    syncSheets();
   }
 
   for (const button of root.querySelectorAll('[data-panel]')) {
@@ -1660,6 +1722,7 @@
   function renderProps() {
     renderPropsBody();
     if (selectedItem()?.locked) props.querySelectorAll(LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
+    props.insertAdjacentHTML('afterbegin', '<button type="button" class="clg-sheet-close" data-action="close-props" aria-label="Close settings"><i class="bi bi-x-lg" aria-hidden="true"></i></button>');
     props.insertAdjacentHTML('beforeend', layersSection());
   }
 

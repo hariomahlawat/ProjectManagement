@@ -512,65 +512,105 @@
 }
 
 @media (max-width: 820px) {
-    .clg.is-editing {
-        height: auto;
-        overflow: visible;
+    /* Phones: the page fills the screen, the panel switcher is a bar along the bottom, and
+       panels and settings open as sheets over the lower half; the page shrinks to fit above. */
+    .clg {
+        --clg-bottom-bar: 3.6rem;
+        --clg-sheet: 52vh;
     }
 
     .clg-body,
     .clg-body.is-drawer-closed {
         grid-template-columns: 1fr;
-        grid-template-rows: 62vh auto auto auto;
-    }
-
-    /* The panel switcher becomes a row under the page. */
-    .clg-rail {
-        grid-row: 2;
-        flex-direction: row;
-        justify-content: center;
-        border-right: 0;
-        border-top: 1px solid var(--pdft-border);
-    }
-
-    .clg-rail button {
-        flex-direction: row;
-        gap: 0.4rem;
-        padding: 0.45rem 0.9rem;
-        font-size: 0.82rem;
-    }
-
-    .clg-rail button i {
-        font-size: 1.05rem;
+        grid-template-rows: minmax(0, 1fr) var(--clg-bottom-bar);
     }
 
     .clg-stage {
         grid-row: 1;
     }
 
-    .clg-drawer {
-        grid-row: 3;
+    .clg-body.is-sheet-open .clg-stage {
+        padding-bottom: var(--clg-sheet);
+    }
+
+    .clg-body.is-sheet-open .clg-empty {
+        top: calc(50% - var(--clg-sheet) / 2);
+    }
+
+    .clg-rail {
+        grid-row: 2;
+        flex-direction: row;
+        justify-content: space-around;
+        overflow-x: auto;
+        padding: 4px;
         border-right: 0;
         border-top: 1px solid var(--pdft-border);
     }
 
+    .clg-rail button {
+        min-width: 3.6rem;
+        padding: 0.3rem 0.4rem;
+        font-size: 0.68rem;
+    }
+
+    .clg-rail button i {
+        font-size: 1.15rem;
+    }
+
+    .clg-drawer,
     .clg-props {
-        grid-row: 4;
-        border-left: 0;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: var(--clg-bottom-bar);
+        z-index: 20;
+        max-height: var(--clg-sheet);
+        border: 0;
         border-top: 1px solid var(--pdft-border);
+        border-radius: 18px 18px 0 0;
+        box-shadow: 0 -10px 30px color-mix(in srgb, var(--bs-emphasis-color) 18%, transparent);
+    }
+
+    .clg-props {
+        display: none;
+    }
+
+    .clg-body.is-props-open .clg-props {
+        display: block;
+    }
+
+    .clg-body.is-props-open .clg-drawer {
+        display: none;
+    }
+
+    .clg-body .clg-sheet-close {
+        display: inline-grid;
+    }
+
+    .clg-toolbar .clg-phone-only:not([hidden]) {
+        display: inline-grid;
     }
 
     .clg-bar {
-        flex-wrap: wrap;
+        gap: 0.35rem;
+        padding: 0.4rem 0.5rem;
     }
 
     .clg-name {
-        flex: 1 1 8rem;
+        flex: 1 1 6rem;
         max-width: none;
         width: auto;
     }
 
-    .clg-bar__grow {
+    .clg-bar__grow,
+    .clg-zoom,
+    .clg-draft-status {
         display: none;
+    }
+
+    .clg-size {
+        min-width: 0;
+        width: 7.5rem;
     }
 
     .clg-tray {
@@ -1332,4 +1372,22 @@
     .clg-preview-btn span {
         display: none;
     }
+}
+
+/* The close button of a sheet and the toolbar's Edit button are for phones only. */
+.clg-sheet-close {
+    display: none;
+    float: right;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    margin: -0.25rem -0.25rem 0 0.5rem;
+    border: 0;
+    border-radius: 50%;
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-body-color);
+}
+
+.clg-toolbar .clg-phone-only {
+    display: none;
 }

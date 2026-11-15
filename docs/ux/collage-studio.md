@@ -128,7 +128,8 @@ The mockup is the reference. In short:
   - PDF whose page is the paper's true size, through `pdf-lib`, which Photo Tools already ships.
   - Print quality (300 dpi) or Screen (1920 px on the long side).
 - **Phones**: the rail moves to the bottom. Panels and the selection's settings open as a sheet,
-  and the page moves up above it. The toolbar's Edit button opens the settings.
+  and the page moves up above it. The toolbar's Settings button (sliders) opens the settings;
+  each sheet has a close button. Two fingers on the page zoom it.
 
 ## How it is built
 
