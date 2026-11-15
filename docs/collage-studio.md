@@ -130,13 +130,38 @@ delete the oldest.
 | Delete or Backspace | Delete the selected item (not when locked) |
 | Ctrl+D | Duplicate |
 | `]` / `[` | Bring forward / send backward; with Shift, to the front / back |
-| Enter | Adjust the selected photo, or edit the selected text |
+| Enter | When the page has focus: adjust the selected photo, or edit the selected text. On a focused button, Enter presses that button |
 | Ctrl+Z, Ctrl+Y (or Ctrl+Shift+Z) | Undo, redo |
 | Ctrl+S | Save as… |
 | Shift while turning | 15° steps |
 | Esc | Leave adjusting, deselect, or leave Preview |
 
-A keyboard user picks an item in the **Layers** list; the page then says how to move it.
+A keyboard user picks an item in the **Layers** list; the page then says how to move it. Photos
+and empty frames have a **Size** slider, so everything can be resized without a mouse. When a
+panel is drawn again after a change, focus goes back to the control that was used, inside that
+panel (`collage-focus.js`). Arrow keys do not move a hidden item.
+
+### Changes, Undo and drafts
+
+Every change reaches the page, Undo and the draft the same way. Clicks and drags are recorded at
+once (`commit()`). Edits that go on (typing, sliders, colour pickers, nudges, the wheel) are
+kept in the draft at once and recorded for Undo once they pause, or as soon as anything else
+happens: another item, Undo, leaving (`collage-edits.js`). Closing the tab right after typing
+loses nothing, and the draft is also written when the page is hidden or put away
+(`visibilitychange`, `pagehide`), which phones need.
+
+A draft photo this browser cannot open now (memory pressure, a damaged file) keeps its place as a
+grey stand-in with its stored file, crop and caption; it comes back when the draft is opened
+where it can be read, and Save leaves it out and says so. Photos are decoded straight at their
+working size, and a picture over 250 million pixels is refused before it is read.
+
+### First use
+
+The start screen shows one row of drafts (with "Show all") so the layouts for a new collage are
+in view. A collage nobody named is called by the first line of its first text, or by when it was
+started. A photo goes into the empty frame closest to its shape. Save asks what the picture is
+for: WhatsApp or email (JPG for the screen), printing (PDF at print quality), or a slide or a
+screen (PNG).
 
 ### Phones and the Dark theme
 
@@ -145,7 +170,8 @@ settings (the **Settings** button on the toolbar over the item), opens as a shee
 half with a close button, and the page fits in the space above it. The bottom bar's **Layers**
 button opens the settings and Layers even when nothing is selected, so hidden items can always be
 shown again. Preview fills the whole screen. Two fingers on the page zoom
-it; one finger moves items. The zoom buttons and the draft status are hidden on phones.
+it, around the point between the fingers; one finger moves items. The zoom buttons are hidden on
+phones, and the draft status shows only when something is wrong, with its reason in the alert.
 
 Colours come from Bootstrap variables, so the Dark theme needs no rules of its own; the page
 itself stays the colour the user chose, as it will print.
@@ -156,8 +182,17 @@ itself stays the colour the user chose, as it will print.
   `collage-stickers.test.js`, run by `npm test` (registered in `tools/run-js-tests.js`).
 - `ProjectManagement.Tests/Tools/CollageStudioPageContractTests.cs` (above), and the menu and
   usage-catalogue tests that list Collage Studio.
-- The editor itself (dragging, sheets, Save) has no browser test harness; each PR was checked by
-  hand in the app at desktop and phone sizes.
+- `wwwroot/js/collage/collage-editor-parts.test.js`: held edits, focus kept in the redrawn panel
+  (jsdom), Save's drawing (photos read at frame size, what was left out counted), and the
+  settings HTML (escaped names, Size only for photos and frames, Layers order).
+- Browser tests (`npm run test:browser`, Playwright, see [build-and-test.md](build-and-test.md)):
+  make a collage and Save; reopen a draft after a reload; a damaged draft photo kept as a
+  stand-in; keyboard only; Save by purpose; frames by shape; the Dark theme; From PRISM Photos with
+  a stubbed library; and a phone (sheets, Layers, `pagehide`). They run on every pull request.
+- `ProjectManagement.Tests/Tools/CollageStickerTests.cs`, `CollageLibraryPhotosTests.cs`, and
+  `CollageStickerPostgresIntegrationTests.cs` on a real PostgreSQL (two uploads at once never pass
+  60; a failed audit write rolls the change back and removes the picture), run in the database
+  migrations workflow.
 
 ## Known limits
 
