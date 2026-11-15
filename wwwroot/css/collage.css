@@ -218,6 +218,10 @@
     color: var(--bs-emphasis-color);
 }
 
+.clg-rail .clg-rail-layers {
+    display: none;
+}
+
 .clg-rail button[aria-pressed="true"] {
     background: var(--bs-primary-bg-subtle);
     color: var(--bs-primary-text-emphasis);
@@ -585,6 +589,10 @@
 
     .clg-body .clg-sheet-close {
         display: inline-grid;
+    }
+
+    .clg-rail .clg-rail-layers {
+        display: flex;
     }
 
     .clg-toolbar .clg-phone-only:not([hidden]) {
@@ -1366,6 +1374,10 @@
     grid-row: 1;
     height: 100vh;
     height: 100dvh;
+}
+
+.clg-previewing .clg-body.is-sheet-open .clg-stage {
+    padding-bottom: 0;
 }
 
 @media (max-width: 820px) {

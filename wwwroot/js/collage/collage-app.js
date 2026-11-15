@@ -1020,7 +1020,8 @@
     if (touches.size === 2) {
       const [a, b] = [...touches.values()];
       pinch = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom };
-      stage.find('.item').forEach((node) => { if (node.isDragging()) node.stopDrag(); });
+      // stopDrag also cancels a drag Konva is holding ready for the first finger's next move.
+      for (const node of nodes.values()) { node.stopDrag(); node.draggable(false); }
       transformer.stopTransform?.();
     }
   }, true);
@@ -1034,7 +1035,8 @@
   }, true);
   const endTouch = (event) => {
     touches.delete(event.pointerId);
-    if (touches.size < 2) pinch = null;
+    // Items can be dragged again once every finger has lifted.
+    if (touches.size === 0 && pinch) { pinch = null; syncPage(); }
   };
   stageBox.addEventListener('pointerup', endTouch, true);
   stageBox.addEventListener('pointercancel', endTouch, true);
@@ -1410,6 +1412,7 @@
         break;
       case 'preview': startPreview(); break;
       case 'edit-props': setPropsOpen(true); break;
+      case 'toggle-props': setPropsOpen(!body.classList.contains('is-props-open')); break;
       case 'close-props': setPropsOpen(false); break;
       case 'close-drawer': setPanel(null); break;
       case 'preview-exit': stopPreview(); break;
@@ -1559,11 +1562,13 @@
   // ---------------------------------------------------------------------------
 
   const phoneScreen = window.matchMedia?.('(max-width: 820px)');
+  const layersButton = root.querySelector('[data-action="toggle-props"]');
   const onPhone = () => phoneScreen?.matches === true;
 
   /** On a phone, the settings sheet (for the selected item, or the page) open or closed. */
   function setPropsOpen(open) {
     body.classList.toggle('is-props-open', Boolean(open));
+    layersButton?.setAttribute('aria-pressed', String(Boolean(open)));
     if (open && onPhone()) setPanel(null);
     syncSheets();
   }
@@ -1580,7 +1585,10 @@
 
   function setPanel(name) {
     panel = name;
-    if (name && onPhone()) body.classList.remove('is-props-open');
+    if (name && onPhone()) {
+      body.classList.remove('is-props-open');
+      layersButton?.setAttribute('aria-pressed', 'false');
+    }
     for (const button of root.querySelectorAll('[data-panel]')) {
       button.setAttribute('aria-pressed', String(button.dataset.panel === name));
     }

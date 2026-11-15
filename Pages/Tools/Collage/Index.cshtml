@@ -111,6 +111,10 @@
                     <button type="button" data-panel="background" aria-pressed="false" aria-controls="clgDrawer">
                         <i class="bi bi-palette" aria-hidden="true"></i><span>Background</span>
                     </button>
+                    @* On phones the settings sheet, with Layers, opens from here even when nothing is selected. *@
+                    <button type="button" class="clg-rail-layers" data-action="toggle-props" aria-pressed="false">
+                        <i class="bi bi-layers" aria-hidden="true"></i><span>Layers</span>
+                    </button>
                 </nav>
 
                 <aside class="clg-drawer" id="clgDrawer" data-drawer aria-label="Add to the collage">
