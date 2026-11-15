@@ -59,8 +59,9 @@ test('the catalogue knows each sticker and nothing else', () => {
   assert.equal(stickers.find('draw:nope'), null);
   assert.equal(stickers.find(42), null);
   const groups = stickers.groups();
-  assert.equal(groups[0].key, 'shapes');
-  assert.equal(groups[0].items.length, Object.keys(stickers.DRAWN).length);
+  assert.equal(groups[0].key, 'crests');
+  assert.equal(groups[1].key, 'shapes');
+  assert.equal(groups[1].items.length, Object.keys(stickers.DRAWN).length);
 });
 
 test('a draft keeps stickers, within their limits', () => {
@@ -80,4 +81,32 @@ test('a sticker at its smallest size comes back from a draft at that size', () =
   const sticker = collage.stickerItem('s', 'tw:1f389', { x: 10, y: 10, width: smallest, aspect: 1 });
   const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [sticker, { ...sticker, id: 't', width: 5 }] }, []);
   assert.deepEqual(read.items.map((i) => i.width), [smallest, smallest]);
+});
+
+test('crests and logos come first, take only PRISM picture addresses, and are found by name', () => {
+  assert.equal(stickers.groups()[0].key, 'crests');
+  const count = stickers.setUnit([
+    { id: 3, name: 'Signals crest', words: 'corps', width: 200, height: 100, url: '/api/collage/stickers/3/image?v=2' },
+    { id: 4, name: 'Elsewhere', width: 10, height: 10, url: 'https://example.com/logo.png' },
+    { id: 5, name: 'Wrong id', width: 10, height: 10, url: '/api/collage/stickers/6/image?v=1' },
+    { id: 7, name: '', width: 10, height: 10, url: '/api/collage/stickers/7/image?v=1' },
+    { id: 3, name: 'Twice', width: 10, height: 10, url: '/api/collage/stickers/3/image?v=1' }
+  ]);
+  assert.equal(count, 1);
+  assert.deepEqual(stickers.groups()[0].items.map((item) => item.id), ['unit:3']);
+  const found = stickers.find('unit:3');
+  assert.equal(found.kind, 'unit');
+  assert.equal(found.label, 'Signals crest');
+  assert.equal(found.aspect, 2);
+  assert.deepEqual(stickers.search('signals').map((item) => item.id), ['unit:3']);
+  assert.deepEqual(stickers.search('corps crest').map((item) => item.id), ['unit:3']);
+});
+
+test('a crest that is no longer listed still draws from its PRISM address', () => {
+  stickers.setUnit([]);
+  const retired = stickers.find('unit:12');
+  assert.equal(retired.kind, 'unit');
+  assert.equal(retired.url, '/api/collage/stickers/12/image');
+  assert.equal(stickers.find('unit:0'), null);
+  assert.equal(stickers.find('unit:abc'), null);
 });

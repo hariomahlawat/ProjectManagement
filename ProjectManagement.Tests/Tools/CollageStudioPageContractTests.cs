@@ -9,7 +9,8 @@ namespace ProjectManagement.Tests.Tools;
 /// <summary>
 /// Collage Studio (docs/ux/collage-studio.md) makes collages of users' own photos in the browser.
 /// These checks keep the page signed-in only, free of page handlers that could receive photos,
-/// offline-safe (everything it loads ships with PRISM), and its scripts off the network.
+/// offline-safe (everything it loads ships with PRISM), and its scripts off the network, except
+/// collage-library.js, which only reads PRISM's own fixed addresses (crests and logos).
 /// </summary>
 public sealed class CollageStudioPageContractTests
 {
@@ -19,8 +20,12 @@ public sealed class CollageStudioPageContractTests
         "js/collage/collage-drafts.js",
         "js/collage/collage-draw.js",
         "js/collage/collage-stickers.js",
+        "js/collage/collage-library.js",
         "js/collage/collage-app.js"
     };
+
+    // The one script that reads from PRISM; checked on its own below.
+    private const string LibraryScript = "js/collage/collage-library.js";
 
     // Ways a script could reach a server.
     private static readonly string[] NetworkCalls =
@@ -84,7 +89,7 @@ public sealed class CollageStudioPageContractTests
         foreach (var script in scripts)
         {
             var source = File.ReadAllText(Path.Combine(root, "wwwroot", script));
-            foreach (var call in NetworkCalls)
+            foreach (var call in script == LibraryScript ? Array.Empty<string>() : NetworkCalls)
             {
                 Assert.False(source.Contains(call, StringComparison.Ordinal), $"~/{script} must not use {call}");
             }
@@ -105,6 +110,26 @@ public sealed class CollageStudioPageContractTests
             Assert.DoesNotContain("@import", css, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotMatch(new Regex(@"url\(\s*[""']?(https?:)?//", RegexOptions.IgnoreCase), css);
         }
+    }
+
+    [Fact]
+    public void Library_OnlyReadsPrismsOwnCollageAddresses()
+    {
+        var root = FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(root, "wwwroot", LibraryScript));
+
+        Assert.Contains($"'{ProjectManagement.Features.Collage.CollageApi.StickersPath}'", source, StringComparison.Ordinal);
+        Assert.DoesNotMatch(new Regex(@"https?://", RegexOptions.IgnoreCase), source);
+        foreach (var call in NetworkCalls.Where(call => call != "fetch("))
+        {
+            Assert.DoesNotContain(call, source, StringComparison.Ordinal);
+        }
+
+        // Every fetch goes to a fixed PRISM address, never one built at run time, and only reads.
+        var fetches = Regex.Matches(source, @"fetch\(([^,)]+)");
+        Assert.Single(fetches);
+        Assert.All(fetches, call => Assert.Equal("STICKERS_URL", call.Groups[1].Value.Trim()));
+        Assert.DoesNotMatch(new Regex(@"method\s*:", RegexOptions.IgnoreCase), source);
     }
 
     [Fact]

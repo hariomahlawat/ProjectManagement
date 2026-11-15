@@ -685,3 +685,10 @@ test('a new page size leaves locked items where they are', () => {
   assert.equal(upright.items[0].y, 200);
   assert.notEqual(upright.items[1].y, 200);
 });
+
+test('drafts keep crests and logos and drop malformed sticker names', () => {
+  const crest = collage.stickerItem('a', 'unit:5', { x: 10, y: 10, width: 160, aspect: 1.5 });
+  const bad = { ...crest, id: 'b', sticker: 'unit:../5' };
+  const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [crest, bad] }, []);
+  assert.deepEqual(read.items.map((item) => item.sticker), ['unit:5']);
+});

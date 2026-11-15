@@ -471,11 +471,13 @@
 
   /** Sticker sizes in page units: never too small to grab, never far larger than the page. */
   const STICKER_LIMITS = Object.freeze({ width: [20, 700] });
-  const STICKER_ID = /^(tw:[0-9a-f]+(-[0-9a-f]+)*|draw:[a-z]+)$/;
+  // "unit:<id>" is a crest or logo an administrator uploaded to PRISM (Crests and logos).
+  const STICKER_ID = /^(tw:[0-9a-f]+(-[0-9a-f]+)*|draw:[a-z]+|unit:[1-9][0-9]{0,8})$/;
 
   /**
    * A sticker: `sticker` names it in the catalogue (collage-stickers.js), "tw:" for an emoji
-   * drawing and "draw:" for a drawn sticker, which takes a `colour`.
+   * drawing, "draw:" for a drawn sticker, which takes a `colour`, and "unit:" for a crest or
+   * logo from PRISM.
    */
   function stickerItem(id, sticker, place, look = {}) {
     return {
