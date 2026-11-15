@@ -955,6 +955,23 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && string.Equals(segment.Text, "QA", StringComparison.Ordinal));
     }
 
+    // "-word" excludes, as in web search: "simulator -drone" must not return drone simulators
+    // (it used to return only them), and the English form drops "drones" too.
+    [SearchV2PostgresFact]
+    public async Task AMinusWord_ExcludesRecordsContainingIt()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9861", "Projects", "Projects", "Gunnery simulator trainer", null),
+            host.Entry("Project", "9862", "Projects", "Projects", "Drone gunnery simulator", null),
+            host.Entry("Project", "9863", "Projects", "Projects", "Drones gunnery simulator rig", null));
+
+        var response = await host.SearchAsync("gunnery simulator -drone");
+
+        Assert.Equal(new[] { "9861" }, response.Results.Select(result => result.EntityKey).ToArray());
+        Assert.Equal(1, response.TotalHits);
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {

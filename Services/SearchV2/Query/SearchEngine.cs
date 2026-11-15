@@ -225,6 +225,7 @@ public sealed class SearchEngine : ISearchV2Engine
                 Add(command, "take", pageSize + 1);
                 Add(command, "facetsOnly", request.FacetsOnly);
                 Add(command, "inflectionEndings", SearchInflections.RegexAlternation);
+                Add(command, "excludeTsQuery", SearchQueryNormalizer.BuildExclusionTsQuery(normalized.Excluded));
                 // Characters a typed word must have escaped before it goes into anchor_pattern.
                 Add(command, "regexSpecials", @"([.^$*+?()\[\]{}|\\])");
                 Add(command, "maxSnippetSourceCharacters", Math.Max(_options.MaxSnippetCharacters * 2, 600));
@@ -287,7 +288,7 @@ public sealed class SearchEngine : ISearchV2Engine
 
             string? correctedQuery = null;
             var correctionMilliseconds = 0L;
-            if (!request.FacetsOnly && after is null && ShouldOfferCorrection(normalized, rows))
+            if (!request.FacetsOnly && after is null && ShouldOfferCorrectionOnPage(normalized, rows, totalHits))
             {
                 var correctionStopwatch = Stopwatch.StartNew();
                 // Spelling assistance is optional: its failure must not discard the
@@ -705,8 +706,16 @@ public sealed class SearchEngine : ISearchV2Engine
         return rows.All(row => !HasStrongLexicalChannel(row.Channels));
     }
 
-    private static bool ShouldOfferCorrection(NormalizedSearchQuery query, IReadOnlyList<SearchRow> rows) =>
-        ShouldOfferCorrection(query, rows.Select(row => new SearchResultChannels(row.Channels)).ToArray());
+    private static bool ShouldOfferCorrectionOnPage(NormalizedSearchQuery query, IReadOnlyList<SearchRow> rows, long totalHits) =>
+        ShouldOfferCorrectionOnPage(query, rows.Select(row => new SearchResultChannels(row.Channels)).ToArray(), totalHits);
+
+    /// <summary>
+    /// Did-you-mean for a first page. Not on an empty tab whose search finds results under All
+    /// (<paramref name="totalHits"/> counts every tab): the words are right, the tab is just
+    /// empty, and All offers a correction if one is needed.
+    /// </summary>
+    internal static bool ShouldOfferCorrectionOnPage(NormalizedSearchQuery query, IReadOnlyList<SearchResultChannels> rows, long totalHits) =>
+        !(rows.Count == 0 && totalHits > 0) && ShouldOfferCorrection(query, rows);
 
     private static bool HasStrongLexicalChannel(string channels) =>
         channels.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -1069,6 +1078,11 @@ public sealed class SearchEngine : ISearchV2Engine
                    f.channels
             FROM fused f
             JOIN "SearchEntries" e ON e."Id" = f."Id"
+            -- Records with an excluded word ("-drone") are left out of results, counts and
+            -- facets; English as well as exact words, so "-drone" also drops "drones".
+            WHERE @excludeTsQuery = ''
+               OR NOT (e."SearchVectorSimple" @@ to_tsquery('simple', @excludeTsQuery)
+                       OR e."SearchVectorEnglish" @@ to_tsquery('english', @excludeTsQuery))
         ), match_stamp AS (
             -- Every matching record (before filters, which apply after fusion). Re-indexing
             -- deletes and re-inserts an entry under a new id, so this changes exactly when
@@ -1263,7 +1277,6 @@ public sealed class SearchEngine : ISearchV2Engine
                    CASE
                        WHEN e."NarrativeText" IS NULL THEN NULL
                        ELSE LEFT(
-                           regexp_replace(
                                ts_headline('english',
                                    -- A bounded window around the first hit of any typed word or
                                    -- its stem, never the whole OCR body (documents can hold
@@ -1276,8 +1289,9 @@ public sealed class SearchEngine : ISearchV2Engine
                                    -- only builds fragments around a passage holding every word, and
                                    -- falls back to the opening words when they are far apart.
                                    replace(websearch_to_tsquery('english', @webQuery)::text, ' & ', ' | ')::tsquery,
-                                   'StartSel=<<,StopSel=>>,MaxWords=60,MinWords=15,ShortWord=2,MaxFragments=2,FragmentDelimiter=...'),
-                               '<<|>>', '', 'g'),
+                                   -- No markers: highlighting is done in C#, and stripping "<<"/">>"
+                                   -- markers afterwards also deleted real ones in the text.
+                                   'StartSel="",StopSel="",MaxWords=60,MinWords=15,ShortWord=2,MaxFragments=2,FragmentDelimiter=...'),
                            @maxSnippetSourceCharacters)
                    END AS "NarrativeText",
                    p."Status", p."FileType", p."EventDateUtc", p."UpdatedAtUtc", e."MetadataJson"::text AS "MetadataJson",

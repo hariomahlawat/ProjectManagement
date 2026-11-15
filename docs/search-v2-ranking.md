@@ -101,6 +101,15 @@ correction replaces tokens in place, so joiners stay, and is offered in the type
 each corrected word in the case it was typed: "IR&D hydrbad" offers "IR&D hyderabad", and
 "Hydrbad Trials" offers "Hyderabad Trials".
 
+## Excluded words
+
+A word typed with a leading minus ("simulator -drone") is an exclusion, as in web search. It
+is taken out of the words searched for and highlighted, and records whose exact or English
+vector contains it are left out of results, counts and facets (`candidate_scored`). A minus
+inside a word ("anti-tank") is not an exclusion, and a query of nothing but exclusions is
+searched as typed. Before, the minus was folded away and the word searched for, so the query
+returned exactly the records it meant to exclude.
+
 ## Excerpts
 
 Document text is matched by English stem, so the excerpt is built the same way. Each typed
