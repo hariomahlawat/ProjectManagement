@@ -42,6 +42,17 @@ public interface ISearchIndexStore
     Task<bool> ProjectDocumentsAreCurrentAsync(int projectId, string contextStamp, int documentCount, int indexVersion, CancellationToken cancellationToken) =>
         Task.FromResult(false);
 
+    /// <summary>
+    /// Replaces a project's row and all its document rows with projections read a batch at a
+    /// time (documents a page at a time), in one transaction. Collects them all by default.
+    /// </summary>
+    async Task ReplaceProjectWithDocumentsAsync(int projectId, IAsyncEnumerable<IReadOnlyList<SearchProjection>> batches, int indexVersion, CancellationToken cancellationToken)
+    {
+        var all = new List<SearchProjection>();
+        await foreach (var batch in batches.WithCancellation(cancellationToken)) all.AddRange(batch);
+        await ReplaceEntityAsync("Project", projectId.ToString(System.Globalization.CultureInfo.InvariantCulture), all, indexVersion, cancellationToken);
+    }
+
     /// <summary>Replaces the project's own row and leaves its document rows as they are.</summary>
     Task ReplaceProjectRowAsync(int projectId, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken) =>
         throw new NotSupportedException("Only stores that report current project documents replace the project row alone.");
@@ -67,6 +78,14 @@ public interface ISearchIndexStore
     /// </summary>
     Task<int> RecoverStaleWorkItemsAsync(TimeSpan leaseTimeout, CancellationToken cancellationToken, bool includeFullRebuildRequests = false);
     Task FailAsync(long workItemId, string error, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Fails a leased item, unless its row changed after the lease (the record was changed
+    /// again while it was being indexed): then the newer change is queued at once and no
+    /// failure is counted, as <see cref="CompleteAsync"/> does.
+    /// </summary>
+    Task FailAsync(SearchIndexWorkItem item, string error, CancellationToken cancellationToken) =>
+        FailAsync(item.Id, error, cancellationToken);
 
     /// <summary>Returns a leased item to Pending without counting a failed attempt.</summary>
     Task ReleaseAsync(long workItemId, TimeSpan retryAfter, CancellationToken cancellationToken);
@@ -285,7 +304,10 @@ public sealed class SearchIndexStore : ISearchIndexStore
     }
 
     public Task ReplaceProjectRowAsync(int projectId, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken) =>
-        ReplaceAsync("Project", projectId.ToString(System.Globalization.CultureInfo.InvariantCulture), projections, indexVersion, keepProjectDocuments: true, cancellationToken);
+        ReplaceAsync("Project", projectId.ToString(System.Globalization.CultureInfo.InvariantCulture), SearchProjectionBatches.Once(_ => Task.FromResult(projections), cancellationToken), indexVersion, keepProjectDocuments: true, cancellationToken);
+
+    public Task ReplaceProjectWithDocumentsAsync(int projectId, IAsyncEnumerable<IReadOnlyList<SearchProjection>> batches, int indexVersion, CancellationToken cancellationToken) =>
+        ReplaceAsync("Project", projectId.ToString(System.Globalization.CultureInfo.InvariantCulture), batches, indexVersion, keepProjectDocuments: false, cancellationToken);
 
     public Task ReplaceEntityAsync(
         string requestedEntityType,
@@ -293,12 +315,12 @@ public sealed class SearchIndexStore : ISearchIndexStore
         IReadOnlyList<SearchProjection> projections,
         int indexVersion,
         CancellationToken cancellationToken) =>
-        ReplaceAsync(requestedEntityType, requestedEntityKey, projections, indexVersion, keepProjectDocuments: false, cancellationToken);
+        ReplaceAsync(requestedEntityType, requestedEntityKey, SearchProjectionBatches.Once(_ => Task.FromResult(projections), cancellationToken), indexVersion, keepProjectDocuments: false, cancellationToken);
 
     private async Task ReplaceAsync(
         string requestedEntityType,
         string requestedEntityKey,
-        IReadOnlyList<SearchProjection> projections,
+        IAsyncEnumerable<IReadOnlyList<SearchProjection>> batches,
         int indexVersion,
         bool keepProjectDocuments,
         CancellationToken cancellationToken)
@@ -341,7 +363,10 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 await delete.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            await WriteProjectionsAsync(connection, transaction, generation, projections, cancellationToken);
+            await foreach (var batch in batches.WithCancellation(cancellationToken))
+            {
+                await WriteProjectionsAsync(connection, transaction, generation, batch, cancellationToken);
+            }
 
             await transaction.CommitAsync(cancellationToken);
         }
@@ -507,12 +532,44 @@ public sealed class SearchIndexStore : ISearchIndexStore
     public Task ReleaseAsync(long workItemId, TimeSpan retryAfter, CancellationToken cancellationToken)
     {
         var seconds = Math.Clamp((int)Math.Ceiling(retryAfter.TotalSeconds), 0, 86400);
+        // Also when a trigger has already put it back to Pending (Status 0): the start stamp
+        // must go, or the dequeue holds the item until the lease ends.
         return _db.Database.ExecuteSqlInterpolatedAsync($"""
             UPDATE "SearchIndexWorkItems"
             SET "Status" = 0,
                 "StartedAtUtc" = NULL,
                 "NextAttemptAtUtc" = NOW() + ({seconds} * INTERVAL '1 second')
-            WHERE "Id" = {workItemId} AND "Status" = 1;
+            WHERE "Id" = {workItemId} AND "Status" IN (0, 1);
+            """, cancellationToken);
+    }
+
+    public Task FailAsync(SearchIndexWorkItem item, string error, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (item.LeaseToken is null) return FailAsync(item.Id, error, cancellationToken);
+
+        var compact = string.IsNullOrWhiteSpace(error) ? "Search indexing failed." : error.Trim();
+        if (compact.Length > 4000) compact = compact[..4000];
+        var workItemId = item.Id;
+        var token = item.LeaseToken;
+        // Changed since the lease: queue the newer change now. Unchanged: count the failure.
+        // The first statement changes xmin when it applies, so the second then skips the row.
+        return _db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE "SearchIndexWorkItems"
+            SET "Status" = 0,
+                "StartedAtUtc" = NULL,
+                "NextAttemptAtUtc" = NOW()
+            WHERE "Id" = {workItemId}
+              AND xmin::text <> {token};
+
+            UPDATE "SearchIndexWorkItems"
+            SET "RetryCount" = "RetryCount" + 1,
+                "Status" = CASE WHEN "RetryCount" + 1 >= 5 THEN 3 ELSE 0 END,
+                "StartedAtUtc" = NULL,
+                "LastError" = {compact},
+                "NextAttemptAtUtc" = NOW() + (LEAST(900, 30 * POWER(2, LEAST("RetryCount", 5))) * INTERVAL '1 second')
+            WHERE "Id" = {workItemId}
+              AND xmin::text = {token};
             """, cancellationToken);
     }
 

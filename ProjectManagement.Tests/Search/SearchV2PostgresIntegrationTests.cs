@@ -400,6 +400,26 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal("9901", again!.EntityKey);
     }
 
+    // A record changed while its failing attempt ran is queued again at once, without counting
+    // a failure against the newer change.
+    [SearchV2PostgresFact]
+    public async Task AFailedAttempt_OnARecordChangedMeanwhile_QueuesTheChangeWithoutCountingAFailure()
+    {
+        await using var host = _database.CreateHost();
+        await host.ExecuteAsync("""DELETE FROM "SearchIndexWorkItems";""");
+        await host.WithStoreAsync(store => store.EnqueueAsync("Project", "9903", CancellationToken.None));
+        SearchIndexWorkItem? held = null;
+        await host.WithStoreAsync(async store => held = await store.DequeueAsync(CancellationToken.None, "Project"));
+        await host.WithStoreAsync(store => store.EnqueueAsync("Project", "9903", CancellationToken.None));
+
+        await host.WithStoreAsync(store => store.FailAsync(held!, "boom", CancellationToken.None));
+
+        SearchIndexWorkItem? again = null;
+        await host.WithStoreAsync(async store => again = await store.DequeueAsync(CancellationToken.None, "Project"));
+        Assert.NotNull(again);
+        Assert.Equal(0, again!.RetryCount);
+    }
+
     // A failed attempt is retried after its back-off, not held back as if still being indexed.
     [SearchV2PostgresFact]
     public async Task AFailedAttempt_IsRetriedAfterItsBackOff()
@@ -984,6 +1004,30 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.True(response.IsReady);
         Assert.Equal(SearchV2ExecutionStatus.Success, response.ExecutionStatus);
         Assert.Null(response.CorrectedQuery);
+    }
+
+    // Re-indexing a project whose documents must be rewritten reads them a page at a time too.
+    [SearchV2PostgresFact]
+    public async Task ProjectReindex_ReadsItsDocumentsAPageAtATime()
+    {
+        await using var host = _database.CreateHost();
+        var projectId = await host.SeedProjectAsync("Pagewise curlew suite");
+        for (var index = 0; index < SearchProjectionBuilder.DocumentPageSize + 1; index++)
+        {
+            await host.SeedProjectDocumentAsync(projectId, $"Curlew page {index}");
+        }
+
+        var batches = new List<IReadOnlyList<SearchProjection>>();
+        await host.WithBuilderAsync(async builder =>
+        {
+            await foreach (var batch in builder.BuildProjectWithDocumentsInBatchesAsync(projectId, CancellationToken.None)) batches.Add(batch);
+        });
+
+        Assert.Equal("Project", Assert.Single(batches[0]).EntityType);
+        var documentBatches = batches.Skip(1).ToArray();
+        Assert.Equal(2, documentBatches.Length);
+        Assert.All(documentBatches, batch => Assert.True(batch.Count <= SearchProjectionBuilder.DocumentPageSize));
+        Assert.Equal(SearchProjectionBuilder.DocumentPageSize + 1, documentBatches.Sum(batch => batch.Count));
     }
 
     // A full rebuild reads documents a page at a time, so the OCR text of every document is

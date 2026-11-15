@@ -168,7 +168,8 @@ public static class SearchAliasQueryExpander
     private static string ReplacePhrase(string text, string phrase, string replacement) => Regex.Replace(
         text,
         $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(phrase)}(?![\p{{L}}\p{{N}}])",
-        replacement,
+        // Literal text: a "$" in an alias is not a substitution ("$1", "$&").
+        replacement.Replace("$", "$$", StringComparison.Ordinal),
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static string QuoteForWebSearch(string value) => value.Contains(' ') ? $"\"{value}\"" : value;

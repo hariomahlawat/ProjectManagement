@@ -84,6 +84,17 @@ public sealed class SearchV2QueryTests
         Assert.DoesNotContain(" OR \"Transfer of Technology\"", result.AliasWebSearchQuery, StringComparison.OrdinalIgnoreCase);
     }
 
+    // An expansion is literal text: "$1" or "$&" in it is not a regular-expression substitution.
+    [Fact]
+    public void AliasExpander_TreatsDollarSignsInAnExpansionAsText()
+    {
+        var rules = new[] { new SearchAliasRule("ToT", "tot", "Fund $1 and $& plan") };
+
+        var result = SearchAliasQueryExpander.Expand("aura tot", rules);
+
+        Assert.Contains("aura \"Fund $1 and $& plan\"", result.AliasWebSearchQuery, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void AliasExpander_DoesNotReplaceAliasInsideAnotherWord()
     {
