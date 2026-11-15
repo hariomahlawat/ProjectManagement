@@ -183,5 +183,26 @@
     ctx.restore();
   }
 
-  return Object.freeze({ drawPhoto, drawText, tracePath, canFilter, CAPTION_FONT });
+  /**
+   * Draws a sticker's picture filling the item's box, mirrored when asked, with an optional
+   * shadow that follows the drawing's own outline.
+   */
+  function drawSticker(ctx, item, image, pixelsPerUnit = 1) {
+    const width = item.width;
+    const height = width / item.aspect;
+    ctx.save();
+    if (item.shadow) {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+      ctx.shadowBlur = 10 * pixelsPerUnit;
+      ctx.shadowOffsetY = 5 * pixelsPerUnit;
+    }
+    if (item.flip) {
+      ctx.translate(width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(image, 0, 0, width, height);
+    ctx.restore();
+  }
+
+  return Object.freeze({ drawPhoto, drawText, drawSticker, tracePath, canFilter, CAPTION_FONT });
 });

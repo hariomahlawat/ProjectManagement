@@ -469,6 +469,32 @@
     return [...text];
   }
 
+  /** Sticker sizes in page units: never too small to grab, never far larger than the page. */
+  const STICKER_LIMITS = Object.freeze({ width: [20, 700] });
+  const STICKER_ID = /^(tw:[0-9a-f]+(-[0-9a-f]+)*|draw:[a-z]+)$/;
+
+  /**
+   * A sticker: `sticker` names it in the catalogue (collage-stickers.js), "tw:" for an emoji
+   * drawing and "draw:" for a drawn sticker, which takes a `colour`.
+   */
+  function stickerItem(id, sticker, place, look = {}) {
+    return {
+      id,
+      kind: 'sticker',
+      sticker,
+      colour: '',
+      x: place.x,
+      y: place.y,
+      width: place.width,
+      aspect: place.aspect || 1,
+      angle: 0,
+      opacity: 100,
+      flip: false,
+      shadow: false,
+      ...look
+    };
+  }
+
   /** The CSS font for a text item, as a canvas and the browser's font loader take it. */
   function fontOf(item, size = item.size) {
     const family = (FONTS[item.font] || FONTS.clean).css;
@@ -891,7 +917,8 @@
     const items = [];
     for (const item of raw.items) {
       if (!item || typeof item !== 'object' || typeof item.id !== 'string') continue;
-      if (item.kind !== 'photo' && item.kind !== 'slot' && item.kind !== 'text') continue;
+      if (!['photo', 'slot', 'text', 'sticker'].includes(item.kind)) continue;
+      if (item.kind === 'sticker' && !STICKER_ID.test(item.sticker)) continue;
       if (!isNumber(item.x) || !isNumber(item.y) || !isNumber(item.width) || !(item.aspect > 0)) continue;
       if (item.kind === 'photo' && !known.has(item.photo)) continue;
       const clean = {
@@ -901,6 +928,14 @@
         opacity: Math.min(100, Math.max(10, isNumber(item.opacity) ? item.opacity : 100)),
         radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0))
       };
+      if (item.kind === 'sticker') {
+        clean.width = Math.min(STICKER_LIMITS.width[1], Math.max(STICKER_LIMITS.width[0], clean.width));
+        clean.colour = HEX_COLOUR.test(item.colour) ? item.colour : '';
+        clean.flip = item.flip === true;
+        clean.shadow = item.shadow === true;
+        delete clean.crop;
+        delete clean.radius;
+      }
       if (item.kind === 'text') {
         const range = (value, [low, high], fallback) => Math.min(high, Math.max(low, isNumber(value) ? value : fallback));
         clean.text = typeof item.text === 'string' ? item.text.slice(0, TEXT_LIMITS.maxLength) : '';
@@ -1037,6 +1072,8 @@
     textItem,
     fontOf,
     graphemes,
+    STICKER_LIMITS,
+    stickerItem,
     layoutText,
     FRAMES,
     SHAPES,

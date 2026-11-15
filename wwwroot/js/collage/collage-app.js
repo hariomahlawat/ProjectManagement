@@ -11,7 +11,8 @@
   const core = window.PrismCollage;
   const Konva = window.Konva;
   const draw = window.PrismCollageDraw;
-  if (!root || !core || !Konva || !draw) return;
+  const stickers = window.PrismCollageStickers;
+  if (!root || !core || !Konva || !draw || !stickers) return;
 
   // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
   const askConfirm = (options) => (window.PrismConfirm?.show
@@ -72,8 +73,8 @@
   const selectedItem = () => itemById(selectedId);
   const pageHeight = () => core.pageHeight(collage.size);
   const hasPhotos = () => collage.items.some((item) => item.kind === 'photo');
-  // Work worth keeping: a photo or some text (an empty frame alone is not).
-  const hasContent = () => collage.items.some((item) => item.kind === 'photo' || item.kind === 'text');
+  // Work worth keeping: a photo, some text or a sticker (an empty frame alone is not).
+  const hasContent = () => collage.items.some((item) => ['photo', 'text', 'sticker'].includes(item.kind));
   const firstSlot = () => collage.items.find((item) => item.kind === 'slot') || null;
   const isFrame = (item) => item && (item.kind === 'photo' || item.kind === 'slot');
 
@@ -684,6 +685,46 @@
   // The caption font is fetched once; captions drawn before it arrived are drawn again.
   if (document.fonts) document.fonts.load(`40px ${draw.CAPTION_FONT}`, 'Aअ').then(() => { if (!views.editor.hidden) syncPage(); }).catch(() => {});
 
+  // Sticker pictures: emoji drawings from PRISM's own files, drawn stickers from their SVG in
+  // the chosen colour. Each is loaded once; a sticker drawn before its picture arrived is drawn
+  // again when it does.
+  const stickerBase = root.dataset.stickerBase || '/img/collage/stickers/twemoji/';
+  const stickerImages = new Map();
+
+  function stickerSource(item) {
+    const entry = stickers.find(item.sticker);
+    if (!entry) return null;
+    if (entry.kind === 'emoji') return `${stickerBase}${entry.code}.svg`;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(stickers.drawnSvg(entry.key, item.colour || entry.colour))}`;
+  }
+
+  /** The sticker's picture once it has loaded (a promise for Save), or null while loading. */
+  function stickerImage(item, wait = false) {
+    const src = stickerSource(item);
+    if (!src) return wait ? Promise.resolve(null) : null;
+    let entry = stickerImages.get(src);
+    if (!entry) {
+      const image = new Image();
+      entry = { image, ready: false, done: null };
+      entry.done = new Promise((resolve) => {
+        image.onload = () => { entry.ready = true; resolve(image); if (!views.editor.hidden) layer.batchDraw(); };
+        image.onerror = () => resolve(null);
+      });
+      image.src = src;
+      stickerImages.set(src, entry);
+    }
+    if (wait) return entry.done;
+    return entry.ready ? entry.image : null;
+  }
+
+  function drawStickerNode(context, shape) {
+    const item = itemById(shape.id());
+    const image = item && stickerImage(item);
+    if (!image) return;
+    const pixelsPerUnit = scale * (layer.getCanvas().getPixelRatio?.() || 1);
+    draw.drawSticker(context._context, item, image, pixelsPerUnit);
+  }
+
   function drawTextNode(context, shape) {
     const item = itemById(shape.id());
     if (!item) return;
@@ -703,7 +744,7 @@
   function makeNode(item) {
     const node = item.kind === 'slot'
       ? makeSlotNode()
-      : new Konva.Shape({ name: 'item', draggable: true, sceneFunc: item.kind === 'text' ? drawTextNode : drawPhotoNode, hitFunc: hitPhotoNode });
+      : new Konva.Shape({ name: 'item', draggable: true, sceneFunc: item.kind === 'text' ? drawTextNode : item.kind === 'sticker' ? drawStickerNode : drawPhotoNode, hitFunc: hitPhotoNode });
     node.id(item.id);
     node.setAttr('kind', item.kind);
     node.on('pointerdown', (event) => {
@@ -737,6 +778,15 @@
       if (target.kind === 'text') {
         const [low, high] = core.TEXT_LIMITS.size;
         target.size = Math.round(Math.min(high, Math.max(low, target.size * Math.abs(node.scaleX()))));
+        target.angle = core.normaliseAngle(node.rotation());
+        target.x = node.x();
+        target.y = node.y();
+        commit();
+        return;
+      }
+      if (target.kind === 'sticker') {
+        const [low, high] = core.STICKER_LIMITS.width;
+        target.width = Math.min(high, Math.max(low, target.width * Math.abs(node.scaleX())));
         target.angle = core.normaliseAngle(node.rotation());
         target.x = node.x();
         target.y = node.y();
@@ -819,7 +869,7 @@
     const node = selectedId && nodes.get(selectedId);
     const adjusting = Boolean(adjustId && adjustId === selectedId);
     transformer.nodes(node ? [node] : []);
-    const isText = Boolean(node && itemById(selectedId)?.kind === 'text');
+    const isText = Boolean(node && ['text', 'sticker'].includes(itemById(selectedId)?.kind));
     transformer.enabledAnchors(adjusting ? [] : isText ? CORNER_ANCHORS : ALL_ANCHORS);
     transformer.rotateEnabled(!adjusting);
     transformer.borderStroke(adjusting ? ADJUST_COLOUR : accent());
@@ -1072,6 +1122,60 @@
     root.querySelector('[data-text-headings-hi]').replaceChildren(...['hShubh', 'hVidai', 'hJanm', 'hSeva', 'hDiwali', 'hDhanya'].map((key) => button(key, true)));
   }
 
+  let stickerGroup = 'celebration';
+
+  /** The Stickers panel: search, groups, and the stickers of the group or the search. */
+  function renderStickerPanel() {
+    const box = root.querySelector('[data-sticker-grid]');
+    const chips = root.querySelector('[data-sticker-groups]');
+    const query = root.querySelector('[data-sticker-search]').value.trim();
+    const groups = stickers.groups();
+    chips.replaceChildren(...groups.map((group) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'clg-chip';
+      chip.dataset.stickerGroup = group.key;
+      chip.textContent = group.label;
+      chip.setAttribute('aria-pressed', String(!query && group.key === stickerGroup));
+      return chip;
+    }));
+    const list = query ? stickers.search(query) : (groups.find((group) => group.key === stickerGroup) || groups[0]).items;
+    box.replaceChildren(...list.map((item) => {
+      const entry = stickers.find(item.id);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'clg-sticker';
+      button.dataset.addSticker = item.id;
+      const name = entry.label || item.words.split(' ')[0];
+      button.title = name;
+      button.setAttribute('aria-label', `Add ${name}`);
+      const img = document.createElement('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      img.src = stickerSource({ sticker: item.id, colour: '' });
+      button.appendChild(img);
+      return button;
+    }));
+    root.querySelector('[data-sticker-none]').hidden = list.length > 0;
+  }
+
+  function addSticker(id) {
+    const entry = stickers.find(id);
+    if (!entry) return;
+    const count = collage.items.filter((i) => i.kind === 'sticker').length;
+    const width = entry.kind === 'drawn' ? 180 : 110;
+    // Spread round the page, so stickers added one after another do not hide each other.
+    const spots = [[0, 0], [-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25], [0, -0.32], [-0.35, 0], [0.35, 0], [0, 0.32]];
+    const [fx, fy] = spots[count % spots.length];
+    const place = { x: core.PAGE_WIDTH * (0.5 + fx), y: pageHeight() * (0.5 + fy), width, aspect: entry.aspect };
+    const item = core.stickerItem(newItemId(), id, place, entry.kind === 'drawn' ? { colour: entry.colour } : {});
+    collage.items.push(item);
+    selectedId = item.id;
+    stopAdjust(false);
+    commit();
+    announce('Sticker added.');
+  }
+
   function addText(key) {
     const start = TEXT_STARTS[key];
     if (!start) return;
@@ -1130,6 +1234,8 @@
       case 'fill-slot': if (item?.kind === 'slot') chooseFor(item.id); break;
       case 'replace-cancel': setTarget(null); break;
       case 'save-open': openSave(); break;
+      case 'credits': root.querySelector('[data-credits]').showModal(); break;
+      case 'credits-close': root.querySelector('[data-credits]').close(); break;
       case 'save-close': if (!saving) saveDialog.close(); break;
       case 'save-go': saveCollage(); break;
       case 'draft-undo': undoDeleteDraft(); break;
@@ -1177,6 +1283,15 @@
     if (startLayout) { startCollage(core.DEFAULT_SIZE, startLayout.dataset.startLayout); return; }
     const layoutChoice = event.target.closest('[data-layout]');
     if (layoutChoice) { applyLayoutKey(layoutChoice.dataset.layout); return; }
+    const stickerButton = event.target.closest('[data-add-sticker]');
+    if (stickerButton) { addSticker(stickerButton.dataset.addSticker); return; }
+    const groupChip = event.target.closest('[data-sticker-group]');
+    if (groupChip) {
+      stickerGroup = groupChip.dataset.stickerGroup;
+      root.querySelector('[data-sticker-search]').value = '';
+      renderStickerPanel();
+      return;
+    }
     const textStart = event.target.closest('[data-add-text]');
     if (textStart) { addText(textStart.dataset.addText); return; }
     const button = event.target.closest('[data-action]');
@@ -1266,7 +1381,7 @@
   const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function arrangeSections(item) {
-    const corners = item.kind === 'text' ? '' : `
+    const corners = item.kind === 'text' || item.kind === 'sticker' ? '' : `
         <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius">${item.radius || 0}</output></span>
           <input type="range" min="0" max="${core.LAYOUT_LIMITS.radiusMax}" step="1" value="${item.radius || 0}" data-prop="radius" aria-label="Rounded corners, in page units"></label>`;
     return `
@@ -1327,6 +1442,21 @@
       props.innerHTML = `<h2 class="clg-panel-title">Text</h2>${textSections(item)}${arrangeSections(item)}`;
       return;
     }
+    if (item.kind === 'sticker') {
+      const entry = stickers.find(item.sticker);
+      const [low, high] = core.STICKER_LIMITS.width;
+      props.innerHTML = `
+        <h2 class="clg-panel-title">Sticker <small>${escapeHtml(entry?.label || entry?.emoji || '')}</small></h2>
+        <div class="clg-section">
+          <label class="clg-field"><span class="clg-field__label">Size<output data-out="width">${Math.round(item.width)}</output></span>
+            <input type="range" min="${low}" max="${high}" step="1" value="${Math.round(item.width)}" data-prop="width" aria-label="Size of the sticker, in page units"></label>
+          ${entry?.kind === 'drawn' ? `<p class="clg-field__label clg-field__label--plain">Colour</p>${swatches('colour', STICKER_COLOURS, item.colour || entry.colour)}` : ''}
+          ${switchRow('flip', 'Mirror', item.flip)}
+          ${switchRow('shadow', 'Shadow', item.shadow)}
+        </div>
+        ${arrangeSections(item)}`;
+      return;
+    }
     if (item.kind === 'slot') {
       props.innerHTML = `
         <h2 class="clg-panel-title">Empty frame</h2>
@@ -1358,6 +1488,7 @@
   }
 
   const TEXT_COLOURS = ['#ffffff', '#172033', '#000000', '#c62f3a', '#e8c36a', '#ffd23f', '#1f6f43', '#0b2a8a', '#c2185b', '#7a3b1e', '#ff7043', '#6a1b9a'];
+  const STICKER_COLOURS = ['#c62f3a', '#e2b13c', '#ffd23f', '#1f6f43', '#0b2a8a', '#c2185b', '#172033', '#ffffff', '#9fd3c7', '#ff7043'];
   const LABEL_COLOURS = ['#ffffff', '#fffbea', '#172033', '#ffd23f', '#c62f3a', '#1f6f43'];
 
   function swatches(name, colours, current, withNone = false) {
@@ -1527,7 +1658,7 @@
     if (out) {
       out.textContent = prop === 'angle' ? `${Math.round(value)}°`
         : prop === 'opacity' || prop === 'bright' || prop === 'contrast' ? `${value}%`
-          : prop === 'size' ? `${value}`
+          : prop === 'size' || prop === 'width' ? `${Math.round(value)}`
           : prop === 'zoom' ? `${value.toFixed(1)}×` : String(value);
     }
   });
@@ -1858,7 +1989,7 @@
 
   function openSave() {
     if (!hasContent()) {
-      showAlert('Add a photo or some text first; there is nothing to save yet.');
+      showAlert('Add a photo, some text or a sticker first; there is nothing to save yet.');
       return;
     }
     flushNudge();
@@ -1909,7 +2040,24 @@
     context.fillStyle = collage.background?.value || '#ffffff';
     context.fillRect(0, 0, width, height);
     await fontsReady();
+    const stickerPictures = new Map();
     for (const item of core.itemsToSave(collage)) {
+      if (item.kind === 'sticker') stickerPictures.set(item.id, await stickerImage(item, true));
+    }
+    for (const item of core.itemsToSave(collage)) {
+      if (item.kind === 'sticker') {
+        const image = stickerPictures.get(item.id);
+        if (!image) continue;
+        context.save();
+        context.globalAlpha = item.opacity / 100;
+        context.translate(item.x * s, item.y * s);
+        context.rotate(item.angle * Math.PI / 180);
+        context.scale(s, s);
+        context.translate(-item.width / 2, -core.itemHeight(item) / 2);
+        draw.drawSticker(context, item, image, s);
+        context.restore();
+        continue;
+      }
       if (item.kind === 'text') {
         const layout = core.layoutText(item, measureText);
         context.save();
@@ -2151,6 +2299,8 @@
 
   renderStart();
   renderTextPanel();
+  renderStickerPanel();
+  root.querySelector('[data-sticker-search]').addEventListener('input', renderStickerPanel);
   renderDrafts();
   updateUndo();
   showView('start');

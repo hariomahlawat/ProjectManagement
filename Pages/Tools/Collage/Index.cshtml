@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="~/css/collage.css" asp-append-version="true" />
     <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
 </head>
-<body class="pdft clg" data-collage>
+<body class="pdft clg" data-collage data-sticker-base="@Url.Content("~/img/collage/stickers/twemoji/")">
 
     <header class="pdft-topbar">
         <a class="pdft-brand" href="#" data-action="home">
@@ -51,7 +51,7 @@
         <section class="clg-start" data-view="start" aria-labelledby="clgStartTitle">
             <h1 id="clgStartTitle" tabindex="-1">Make a collage</h1>
             <p class="clg-lede">Put your photos on a page, turn them to any angle and arrange them as you like. Everything happens in this browser; no photo is sent to PRISM.</p>
-            <p class="clg-building" role="note"><i class="bi bi-stars" aria-hidden="true"></i> More is on the way: stickers and backgrounds.</p>
+            <p class="clg-building" role="note"><i class="bi bi-stars" aria-hidden="true"></i> More is on the way: backgrounds.</p>
             <section class="clg-drafts" data-drafts-section aria-labelledby="clgDraftsTitle" hidden>
                 <h2 class="clg-start__heading" id="clgDraftsTitle">Your drafts <small data-drafts-count></small></h2>
                 <p class="clg-hint clg-drafts__note">Drafts are kept in this browser on this computer, with their photos, and saved as you work. Clearing the browser's data removes them, so save a picture or a PDF to keep a copy. <span data-drafts-space></span></p>
@@ -62,6 +62,7 @@
             <div class="clg-layouts" data-start-layouts></div>
             <h2 class="clg-start__heading">Start with a blank page</h2>
             <div class="clg-sizes" data-sizes></div>
+            <p class="clg-credits-link"><button type="button" class="btn btn-link btn-sm" data-action="credits">Credits for the fonts, stickers and libraries</button></p>
         </section>
 
         @* ---------- Editor ---------- *@
@@ -102,6 +103,9 @@
                     <button type="button" data-panel="text" aria-pressed="false" aria-controls="clgDrawer">
                         <i class="bi bi-fonts" aria-hidden="true"></i><span>Text</span>
                     </button>
+                    <button type="button" data-panel="stickers" aria-pressed="false" aria-controls="clgDrawer">
+                        <i class="bi bi-emoji-smile" aria-hidden="true"></i><span>Stickers</span>
+                    </button>
                 </nav>
 
                 <aside class="clg-drawer" id="clgDrawer" data-drawer aria-label="Add to the collage">
@@ -126,6 +130,15 @@
                         <p class="clg-section__title clg-text-heading" lang="hi">हिंदी शीर्षक</p>
                         <div class="clg-headings" data-text-headings-hi></div>
                         <p class="clg-hint">Type Hindi with the Windows Hindi keyboard, or paste it. The fonts, Hindi ones too, are part of PRISM.</p>
+                    </section>
+                    <section data-drawer-panel="stickers" aria-labelledby="clgStickersTitle" hidden>
+                        <h2 class="clg-panel-title" id="clgStickersTitle">Stickers</h2>
+                        <label class="visually-hidden" for="clgStickerSearch">Search stickers</label>
+                        <input id="clgStickerSearch" type="search" class="form-control form-control-sm" placeholder="Search: cake, thank you, diya…" autocomplete="off" data-sticker-search />
+                        <div class="clg-chips" data-sticker-groups></div>
+                        <div class="clg-stickers" data-sticker-grid></div>
+                        <p class="clg-hint" data-sticker-none hidden>No sticker matches. Try another word.</p>
+                        <p class="clg-hint">Click a sticker to add it. Shapes can take any colour. All stickers are part of PRISM; see Credits on the start screen.</p>
                     </section>
                     <section data-drawer-panel="layouts" aria-labelledby="clgLayoutsTitle" hidden>
                         <h2 class="clg-panel-title" id="clgLayoutsTitle">Layouts</h2>
@@ -171,6 +184,27 @@
                 <aside class="clg-props" data-props aria-label="Settings"></aside>
             </div>
         </section>
+
+        @* ---------- Credits: what Collage Studio ships and under which licence ---------- *@
+        <dialog class="clg-dialog" data-credits aria-labelledby="clgCreditsTitle">
+            <div class="clg-dialog__body">
+                <div class="clg-dialog__head">
+                    <h2 id="clgCreditsTitle">Credits</h2>
+                    <button type="button" class="btn-close" data-action="credits-close" aria-label="Close"></button>
+                </div>
+                <p class="clg-hint">Collage Studio works without the Internet: everything below ships with PRISM, with its licence beside it.</p>
+                <ul class="clg-credits">
+                    <li><b>Emoji stickers:</b> Twemoji 15.0, copyright Twitter, Inc. and other contributors, under the Creative Commons Attribution 4.0 licence (CC BY 4.0). A chosen set, unchanged.</li>
+                    <li><b>Fonts:</b> Playfair Display, Dancing Script, Caveat, Bebas Neue, Courier Prime, Baloo 2, Kalam, Tiro Devanagari Hindi, Noto Sans Devanagari and Mulish, each under the SIL Open Font License 1.1, by their designers.</li>
+                    <li><b>Konva</b> 10.9.1, MIT licence, draws the page.</li>
+                    <li><b>pdf-lib</b> 1.17.1, MIT licence, writes the PDF.</li>
+                    <li><b>Drawn stickers</b> (ribbon, rosette, stamps and the rest) were made for PRISM.</li>
+                </ul>
+                <div class="clg-dialog__foot">
+                    <button type="button" class="btn btn-primary" data-action="credits-close">Close</button>
+                </div>
+            </div>
+        </dialog>
 
         @* ---------- Save as… ---------- *@
         <dialog class="clg-dialog" data-save-dialog aria-labelledby="clgSaveTitle">
@@ -237,6 +271,7 @@
     <script src="~/js/photo-tools/photo-tools-core.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-core.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-draw.js" asp-append-version="true"></script>
+    <script src="~/js/collage/collage-stickers.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-drafts.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-app.js" asp-append-version="true"></script>
 </body>

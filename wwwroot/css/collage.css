@@ -1113,3 +1113,70 @@
     background: none;
     cursor: pointer;
 }
+
+/* ---------- Stickers and credits ---------- */
+
+.clg-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin: 0.6rem 0;
+}
+
+.clg-chip {
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 999px;
+    background: var(--pdft-surface);
+    color: var(--bs-body-color);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.clg-chip[aria-pressed="true"] {
+    background: var(--bs-emphasis-color);
+    border-color: var(--bs-emphasis-color);
+    color: var(--bs-body-bg);
+}
+
+.clg-stickers {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+}
+
+.clg-sticker {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    padding: 6px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+}
+
+.clg-sticker:hover,
+.clg-sticker:focus-visible {
+    background: var(--bs-tertiary-bg);
+    outline: 2px solid var(--clg-accent);
+    outline-offset: -2px;
+}
+
+.clg-sticker img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.clg-credits-link {
+    margin-top: 2rem;
+}
+
+.clg-credits {
+    padding-left: 1.1rem;
+    font-size: 0.88rem;
+}
+
+.clg-credits li {
+    margin: 0.4rem 0;
+}
