@@ -326,6 +326,14 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Page = "/Tools/Photo/Index",
             Icon = "bi-image",
             OpensInNewTab = true
+        },
+        // Standalone tool: users make collages of their own photos in the browser; nothing is stored in PRISM.
+        new()
+        {
+            Text = "Collage Studio",
+            Page = "/Tools/Collage/Index",
+            Icon = "bi-grid-1x2",
+            OpensInNewTab = true
         }
     };
 

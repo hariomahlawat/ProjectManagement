@@ -60,6 +60,9 @@ public sealed class CollageStudioPageContractTests
             .Select(match => match.Groups[1].Value)
             .ToArray();
         Assert.Contains("lib/konva/10.9.1/konva.min.js", assets);
+        // Save as PDF and "keep it under" use the PDF library and size search Photo Tools ships.
+        Assert.Contains("lib/pdf-lib/1.17.1/dist/pdf-lib.min.js", assets);
+        Assert.Contains("js/photo-tools/photo-tools-core.js", assets);
         foreach (var asset in assets)
         {
             Assert.True(File.Exists(Path.Combine(root, "wwwroot", asset)), $"~/{asset} must ship with the application.");

@@ -219,7 +219,7 @@ public class RoleBasedNavigationProviderTests
     {
         var tools = Section(await NavigateAsAsync(Array.Empty<string>()), NavigationSectionKeys.Tools);
 
-        Assert.Equal(2, tools.Children.Count);
+        Assert.Equal(3, tools.Children.Count);
         var pdfTools = tools.Children[0];
         Assert.Equal("PDF Tools", pdfTools.Text);
         Assert.Equal("/Tools/Pdf/Index", pdfTools.Page);
@@ -233,6 +233,13 @@ public class RoleBasedNavigationProviderTests
         Assert.True(photoTools.OpensInNewTab);
         Assert.Null(photoTools.AuthorizationPolicy);
         Assert.Null(photoTools.RequiredRoles);
+
+        var collage = tools.Children[2];
+        Assert.Equal("Collage Studio", collage.Text);
+        Assert.Equal("/Tools/Collage/Index", collage.Page);
+        Assert.True(collage.OpensInNewTab);
+        Assert.Null(collage.AuthorizationPolicy);
+        Assert.Null(collage.RequiredRoles);
     }
 
     [Fact]
