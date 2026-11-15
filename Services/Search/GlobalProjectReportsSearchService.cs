@@ -5,9 +5,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Projects;
 
@@ -322,9 +324,13 @@ namespace ProjectManagement.Services.Search
         // SECTION: Proliferation survey search
         private async Task AppendProliferationAsync(string trimmedQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
+            // Same rule as the V2 index and the tracker's totals: entries of trashed or archived
+            // projects are not shown.
+            var countedProjectIds = ProliferationProjectEligibility.CountedProjects(_dbContext.Set<Project>()).Select(project => project.Id);
             var records = await _dbContext.Set<ProliferationGranular>()
                 .AsNoTracking()
                 .Where(record => record.ApprovalStatus == ApprovalStatus.Approved)
+                .Where(record => countedProjectIds.Contains(record.ProjectId))
                 .Where(record =>
                     EF.Functions.ToTsVector("english",
                         record.UnitName + " " +

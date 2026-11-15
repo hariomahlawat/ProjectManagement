@@ -148,10 +148,16 @@ public sealed class SearchGateway : ISearchGateway
         // Legacy serves: V2 is not enabled for this user, or V2 could not serve (for
         // example, the index is temporarily unavailable). Source-module authorization
         // is applied before adapting results.
-        var legacyRead = await ReadLegacyAuthorizedAsync(normalized.Original, user, cancellationToken);
+        var fellBackToLegacy = serveV2ToUser && v2Response is { IsReady: false };
+        // As a fallback the basic engine gets the same time limit as a V2 statement: the user
+        // may already have waited that long for V2 to fail.
+        var legacyRead = await ReadLegacyAuthorizedAsync(
+            normalized.Original,
+            user,
+            fellBackToLegacy ? TimeSpan.FromSeconds(Math.Max(1, _options.QueryTimeoutSeconds)) : null,
+            cancellationToken);
         var legacyResults = legacyRead.Hits;
 
-        var fellBackToLegacy = serveV2ToUser && v2Response is { IsReady: false };
         var v2Status = v2Response?.ExecutionStatus
             ?? (_options.Enabled ? SearchV2ExecutionStatus.IndexNotReady : SearchV2ExecutionStatus.Disabled);
 
@@ -352,10 +358,13 @@ public sealed class SearchGateway : ISearchGateway
     private async Task<LegacyRead> ReadLegacyAuthorizedAsync(
         string query,
         ClaimsPrincipal user,
+        TimeSpan? timeLimit,
         CancellationToken cancellationToken)
     {
+        using var limited = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (timeLimit is { } limit) limited.CancelAfter(limit);
         var accessTask = _accessFactory.CreateAsync(user, cancellationToken);
-        var searchTask = _legacy.SearchAsync(query, cancellationToken);
+        var searchTask = _legacy.SearchAsync(query, limited.Token);
 
         try
         {
@@ -447,25 +456,23 @@ public sealed class SearchGateway : ISearchGateway
             .ThenBy(value => value.Value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-    private static string LegacyCategory(string source)
+    // Basic-engine source labels, filed under the same tabs as the V2 index files them.
+    // Matching parts of labels put "Activities" under Records ("Activity" is not in it).
+    private static readonly IReadOnlyDictionary<string, string> LegacyCategories =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Document Repository"] = "Documents",
+            ["Project documents"] = "Documents",
+            ["Projects"] = "Projects",
+            ["Project portfolio"] = "Projects",
+            ["Activities"] = "Organisation"
+        };
+
+    internal static string LegacyCategory(string source)
     {
-        if (source.Contains("Document", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Documents";
-        }
-
-        if (string.Equals(source, "Projects", StringComparison.OrdinalIgnoreCase) ||
-            source.Contains("Project portfolio", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Projects";
-        }
-
-        if (source.Contains("Activity", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Organisation";
-        }
-
-        return "Trackers";
+        if (LegacyCategories.TryGetValue(source, out var category)) return category;
+        // Unknown labels: documents by name, everything else is a record.
+        return source.Contains("Document", StringComparison.OrdinalIgnoreCase) ? "Documents" : "Trackers";
     }
 
     private static string CreateDiagnosticId() =>
