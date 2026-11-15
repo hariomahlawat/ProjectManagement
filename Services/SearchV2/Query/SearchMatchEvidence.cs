@@ -19,7 +19,8 @@ public static partial class SearchMatchEvidenceResolver
         string? narrativeText,
         string? metadataJson,
         string entityType,
-        string channels)
+        string channels,
+        IReadOnlyDictionary<string, string>? stems = null)
     {
         if (string.IsNullOrWhiteSpace(query.Exact)) return null;
 
@@ -40,8 +41,10 @@ public static partial class SearchMatchEvidenceResolver
             allowPrefix: ContainsChannel(channels, "title_token_prefix") || ContainsChannel(channels, "title_prefix"));
 
         AddMetadataFields(fields, metadataJson, terms);
-        AddField(fields, "structured details", structuredText, terms, allowPrefix: false);
-        AddField(fields, NarrativeLabel(entityType), narrativeText, terms, allowPrefix: false);
+        // Details and body text are matched by English stem as well ("accepted" for
+        // "acceptance"), so a word counts there when it starts with the typed word's stem.
+        AddField(fields, "structured details", structuredText, terms, allowPrefix: false, stems);
+        AddField(fields, NarrativeLabel(entityType), narrativeText, terms, allowPrefix: false, stems);
 
         // Prefer one authoritative field that explains the complete query.
         var single = fields.FirstOrDefault(field => field.CoveredTerms.Count == terms.Length);
@@ -105,7 +108,8 @@ public static partial class SearchMatchEvidenceResolver
         string label,
         string? value,
         IReadOnlyList<string> terms,
-        bool allowPrefix)
+        bool allowPrefix,
+        IReadOnlyDictionary<string, string>? stems = null)
     {
         if (string.IsNullOrWhiteSpace(value)) return;
         var words = WordRegex().Matches(Normalize(value))
@@ -113,14 +117,20 @@ public static partial class SearchMatchEvidenceResolver
             .Where(word => word.Length > 0)
             .ToArray();
 
+        string? StemOf(string term) =>
+            stems is not null && stems.TryGetValue(term, out var stem) && stem.Length >= 3 ? stem : null;
+
         var covered = terms
             .Where(term => words.Any(word => string.Equals(word, term, StringComparison.OrdinalIgnoreCase)
-                                             || (allowPrefix && word.StartsWith(term, StringComparison.OrdinalIgnoreCase))))
+                                             || (allowPrefix && word.StartsWith(term, StringComparison.OrdinalIgnoreCase))
+                                             || (StemOf(term) is { } stem && IsInflectionOf(word, stem))))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         if (covered.Length > 0) fields.Add(new FieldCoverage(label, covered));
     }
+
+    private static bool IsInflectionOf(string word, string stem) => SearchInflections.IsInflectionOf(word, stem);
 
     private static string[] QueryTerms(string exact) => WordRegex().Matches(exact)
         .Select(match => match.Value)
@@ -162,4 +172,34 @@ public static partial class SearchMatchEvidenceResolver
 
     [GeneratedRegex("([a-z0-9])([A-Z])", RegexOptions.CultureInvariant)]
     private static partial Regex CamelBoundaryRegex();
+}
+
+/// <summary>
+/// Endings English stemming removes. A word counts as a stem's match only as the stem plus one
+/// of these ("accepted", "reports", "acceptance" for accept, report), never as any word that
+/// starts with it ("stationery" is not "stations"). Used by "Found in", the excerpt choice and
+/// its highlights, so the three agree.
+/// </summary>
+internal static class SearchInflections
+{
+    private static readonly string[] Endings =
+    {
+        "", "s", "es", "ed", "d", "ing", "er", "ers", "ion", "ions", "ation", "ations",
+        "ance", "ances", "ence", "ences", "ment", "ments", "al", "ally", "ly", "e", "ies", "ied", "y",
+        "edly", "able", "ably", "ability", "ible", "ibly", "ity", "ities", "ive", "ively", "ness",
+        "ize", "ized", "izes", "izing", "ise", "ised", "ises", "ising", "ism", "ist", "ists"
+    };
+
+    private static readonly string Alternation = string.Join('|', Endings.Where(ending => ending.Length > 0).OrderByDescending(ending => ending.Length));
+
+    /// <summary>The endings as one regular-expression alternation (letters only), for SQL too.</summary>
+    public static string RegexAlternation => Alternation;
+
+    public static bool IsInflectionOf(string word, string stem) =>
+        word.StartsWith(stem, StringComparison.OrdinalIgnoreCase)
+        && Endings.Contains(word[stem.Length..], StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A regular expression for the stem and its inflections as whole words.</summary>
+    public static string Pattern(string stem) =>
+        $@"(?<![\p{{L}}\p{{N}}]){System.Text.RegularExpressions.Regex.Escape(stem)}(?:{Alternation})?(?![\p{{L}}\p{{N}}])";
 }

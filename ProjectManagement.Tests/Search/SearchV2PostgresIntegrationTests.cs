@@ -864,6 +864,80 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal(6, suggestions.Count);
     }
 
+    // A long document matched by English stems ("accepted", "reports" for "acceptance report"),
+    // with the two words far apart, shows an excerpt with the match marked and says where it
+    // was found, instead of its metadata line.
+    [SearchV2PostgresFact]
+    public async Task ADocumentMatchedByStems_ShowsTheMatchInItsExcerpt_AndSaysWhereItWasFound()
+    {
+        await using var host = _database.CreateHost();
+        var filler = string.Concat(Enumerable.Repeat("Routine maintenance schedule for the workshop. ", 300));
+        var body = "Introduction to the trial. " + filler + "The board accepted the equipment after firing. " + filler + "Two reports were filed.";
+        await host.ActivateAsync(
+            host.Entry("ProjectDocument", "9851", "Project documents", "Documents", "Wren gearbox file", null)
+                with { StructuredText = "Wren programme · Published", NarrativeText = body });
+
+        var response = await host.SearchAsync("acceptance report");
+
+        var hit = Assert.Single(response.Results, result => result.EntityKey == "9851");
+        // The excerpt shows one of the matches marked ("reports" or "accepted"), not the opening words.
+        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted
+            && (segment.Text.StartsWith("accept", StringComparison.OrdinalIgnoreCase) || segment.Text.StartsWith("report", StringComparison.OrdinalIgnoreCase)));
+        Assert.NotNull(hit.MatchedField);
+        Assert.Contains("text", hit.MatchedField!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // A stop word in the query ("the") is not an anchor: the excerpt still finds the match far
+    // into the text instead of starting at the first "The".
+    [SearchV2PostgresFact]
+    public async Task AStopWordInTheQuery_DoesNotAnchorTheExcerpt()
+    {
+        await using var host = _database.CreateHost();
+        var filler = string.Concat(Enumerable.Repeat("Routine maintenance schedule for the workshop. ", 300));
+        var body = "The introduction. " + filler + "The board accepted the equipment and filed its reports.";
+        await host.ActivateAsync(
+            host.Entry("ProjectDocument", "9852", "Project documents", "Documents", "Thrush gearbox file", null)
+                with { StructuredText = "Thrush programme · Published", NarrativeText = body });
+
+        var response = await host.SearchAsync("the acceptance report");
+
+        var hit = Assert.Single(response.Results, result => result.EntityKey == "9852");
+        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && segment.Text.StartsWith("accept", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // A stem only anchors the excerpt as a word with an inflection ending: "Stationery" at the
+    // top does not pull the window away from "stations" far into the text.
+    [SearchV2PostgresFact]
+    public async Task AWordThatOnlyStartsWithTheStem_DoesNotAnchorTheExcerpt()
+    {
+        await using var host = _database.CreateHost();
+        var filler = string.Concat(Enumerable.Repeat("Routine maintenance schedule for the workshop. ", 300));
+        await host.ActivateAsync(
+            host.Entry("ProjectDocument", "9854", "Project documents", "Documents", "Linnet gearbox file", null)
+                with { StructuredText = "Linnet programme · Published", NarrativeText = "Stationery cupboard list. " + filler + "Radar stations were moved north." });
+
+        var response = await host.SearchAsync("stations");
+
+        var hit = Assert.Single(response.Results, result => result.EntityKey == "9854");
+        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && string.Equals(segment.Text, "stations", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // A two-letter word ("QA") still anchors the excerpt when it first appears far into the text.
+    [SearchV2PostgresFact]
+    public async Task ATwoLetterWord_StillAnchorsTheExcerpt()
+    {
+        await using var host = _database.CreateHost();
+        var filler = string.Concat(Enumerable.Repeat("Routine maintenance schedule for the workshop. ", 300));
+        await host.ActivateAsync(
+            host.Entry("ProjectDocument", "9853", "Project documents", "Documents", "Siskin gearbox file", null)
+                with { StructuredText = "Siskin programme · Published", NarrativeText = "Opening notes. " + filler + "The QA team signed the batch." });
+
+        var response = await host.SearchAsync("qa");
+
+        var hit = Assert.Single(response.Results, result => result.EntityKey == "9853");
+        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && string.Equals(segment.Text, "QA", StringComparison.Ordinal));
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {

@@ -43,7 +43,7 @@ Each PR keeps the current routes, configuration keys and stored data. Index chan
 | PR | Scope | Findings |
 | --- | --- | --- |
 | 1 | This plan | — |
-| 2 | **No lost update across processes:** a new migration redefines `search_v2_enqueue` so a held item stays held (its row still changes, so `CompleteAsync` returns it to Pending when the holder finishes); `EnqueueAsync` the same. A Postgres test with two workers. The shipped foundation migration is not edited | M1 |
+| 2 | **No lost update across processes:** the dequeue skips a Pending item still stamped as started within the lease (the trigger re-queued it while a worker holds it); the holder's completion or the lease end releases it. Done in code instead of the planned migration, so rolling back to an older build stays possible. A Postgres test of two workers | M1 |
 | 3 | **Why a document matched:** the text excerpt and its highlights use the same English matching that found the document: the window is anchored on the first stemmed match, `ts_headline` uses the English parser, and the card says "Found in the document text" when that is where the match is. Checked live on "acceptance report"; relevance harness before and after | M2 |
 | 4 | **Usage and recent searches:** Show more pages are not logged as new searches; tab and filter changes of the same query neither; recent searches keep only searches that ran and found something | L1, L2 |
 | 5 | **Shared rules and clean-up:** Document repository visibility from `DocRepoAccess`; ARPP ignores trashed projects (`ProjectionVersion` 10); the unused store methods removed; the suggestion branches built from one C# template | L3–L6 |
