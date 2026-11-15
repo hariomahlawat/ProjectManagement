@@ -129,3 +129,23 @@ test('the Dark theme colours the editor panels', async ({ page }) => {
   const [r, g, b] = background.match(/\d+/g).map(Number);
   expect(r + g + b).toBeLessThan(3 * 100);
 });
+
+test('a draft can be deleted and brought back with Undo', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startBlank(page);
+  await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'keep.jpg' }));
+  await expect(page.locator('[data-draft-status]')).toHaveText('Draft saved in this browser');
+  await page.getByRole('button', { name: 'Back to the start' }).click();
+  await expect(page.locator('[data-open-draft]')).toHaveCount(1);
+
+  // Delete may ask first; accept the PRISM confirmation if it does.
+  await page.locator('[data-delete-draft]').first().click();
+  const confirm = page.locator('.prism-confirm-modal.show [data-confirm-accept], .prism-confirm-modal.show .btn-danger, .prism-confirm-modal.show .btn-primary');
+  if (await confirm.count()) await confirm.first().click();
+  await expect(page.locator('[data-open-draft]')).toHaveCount(0);
+  await expect(page.locator('[data-draft-undo]')).toBeVisible();
+
+  await page.locator('[data-action="draft-undo"]').click();
+  await expect(page.locator('[data-open-draft]')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
