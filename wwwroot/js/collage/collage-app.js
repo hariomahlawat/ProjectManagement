@@ -215,10 +215,13 @@
   }
 
   window.addEventListener('beforeunload', (event) => {
-    if (views.editor.hidden || !hasPhotos()) return;
+    if (views.editor.hidden || !draft) return;
     // A nudge or wheel zoom still waiting counts as a change: recorded now, it marks the draft
     // for saving, so the page asks while it is written.
     flushNudge();
+    // Only a page that never had a photo has nothing to lose; a saved draft whose last photo
+    // was just removed still has that change to write.
+    if (!draft.created && !hasPhotos()) return;
     // Saved as a draft already, and not being written now: nothing is lost by leaving.
     if (draft && draft.created && !draftPending && !draftWriting && !draftFailed) return;
     saveDraftNow();
@@ -806,6 +809,7 @@
       item.crop = clampedCrop({ ...item, crop: { ...item.crop, zoom: 1.2 } });
       history.record(collage);
       updateUndo();
+      scheduleDraft();
     }
     adjustHint.hidden = false;
     syncPage();
