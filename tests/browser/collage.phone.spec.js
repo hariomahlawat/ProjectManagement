@@ -1,0 +1,37 @@
+'use strict';
+
+// Collage Studio on a phone-sized screen (docs/ux/collage-review-fixes.md, PR 11). Runs only in
+// the "phone" project of playwright.config.js.
+
+const { test, expect } = require('@playwright/test');
+const { openFresh, newestDraft } = require('./helpers');
+
+test('on a phone, panels are sheets, new words open their settings, and Layers is always reachable', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^A4 landscape/ }).click();
+  await expect(page.locator('[data-view="editor"]')).toBeVisible();
+
+  // No sideways scrolling on a phone.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await page.locator('.clg-rail [data-panel="text"]').click();
+  await page.locator('[data-add-text="heading"]').click();
+  // The Words box is in the settings sheet, which opens with it ready to type in.
+  await expect(page.locator('.clg-props [data-text]')).toBeVisible();
+  await page.locator('.clg-props [data-text]').fill('Picnic 2026');
+  await expect.poll(async () => (await newestDraft(page))?.model.items[0]?.text).toBe('Picnic 2026');
+
+  await page.locator('[data-action="close-props"]').click();
+  await expect(page.locator('.clg-props')).toBeHidden();
+  await page.getByRole('button', { name: 'Layers' }).click();
+  await expect(page.locator('.clg-props .clg-layer__name')).toHaveText(['Picnic 2026']);
+
+  // Leaving the page (switching app) writes the draft at once.
+  await page.locator('[data-action="close-props"]').click();
+  await page.locator('.clg-rail [data-panel="text"]').click();
+  await page.locator('[data-add-text="heading"]').click();
+  await page.locator('.clg-props [data-text]').fill('Before leaving');
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  await expect.poll(async () => (await newestDraft(page))?.model.items.map((item) => item.text)).toContain('Before leaving');
+  expect(errors).toEqual([]);
+});
