@@ -491,14 +491,19 @@
     try {
       // One photo at a time, as when they were first added.
       for (const entry of stored) {
+        let photo;
         try {
-          const photo = await readPhoto({ file: entry.file, name: entry.name }, entry.id);
-          if (forCollage !== collageSession) return;
-          photos.set(photo.id, photo);
-          storedPhotos.add(photo.id);
+          photo = await readPhoto({ file: entry.file, name: entry.name }, entry.id);
         } catch {
+          // Kept as a grey stand-in with its file, so the draft keeps the photo's place, crop and
+          // caption, and the photo comes back when the draft is opened again on a browser that
+          // can read it. Save leaves it out and says so.
+          photo = missingPhoto(entry);
           unreadable += 1;
         }
+        if (forCollage !== collageSession) return;
+        photos.set(photo.id, photo);
+        storedPhotos.add(photo.id);
       }
     } finally {
       busy('');
@@ -518,7 +523,7 @@
     showView('editor');
     setPanel('photos');
     syncAll();
-    if (unreadable) showAlert(`${unreadable} photo${unreadable === 1 ? '' : 's'} of this draft could not be read back and ${unreadable === 1 ? 'was' : 'were'} left out.`);
+    if (unreadable) showAlert(`${unreadable === 1 ? 'One photo' : `${unreadable} photos`} of this draft could not be opened just now and ${unreadable === 1 ? 'shows' : 'show'} grey. ${unreadable === 1 ? 'It keeps its' : 'They keep their'} place in the draft. Close other tabs and open the draft again; Save leaves ${unreadable === 1 ? 'it' : 'them'} out until then.`);
     announce(`Draft ${record.title} opened.`);
   }
 
@@ -1504,7 +1509,8 @@
         if (item?.locked) { announce('It is locked. Unlock it first.'); break; }
         changeSelected((i) => {
           const photo = photos.get(i.photo);
-          if (!photo) return;
+          // A grey stand-in has no shape of its own to fit.
+          if (!photo || photo.missing) return;
           // The picture area takes the photo's own shape, inside whatever frame it has.
           i.aspect = core.outerAspectFor(i, photo.aspect);
           i.crop = { ...core.FULL_CROP };
@@ -2114,6 +2120,34 @@
    * The tray's picture of a photo: a small JPEG drawn once from the working copy, so the tray
    * never makes the browser decode the original file again.
    */
+  /** The grey stand-in for a draft photo this browser cannot open now; its file is kept. */
+  function missingPhoto(entry) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 4;
+    canvas.height = 3;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.fillStyle = '#9aa3ad';
+      context.fillRect(0, 0, 4, 3);
+    }
+    // The photo's own size, stored with it, so crops and frames are judged against the real photo
+    // and the draft keeps them exactly; 4 by 3 only for a record from before sizes were stored.
+    const known = Number(entry.width) > 0 && Number(entry.height) > 0;
+    const width = known ? Number(entry.width) : 4;
+    const height = known ? Number(entry.height) : 3;
+    return {
+      id: entry.id,
+      name: entry.name,
+      file: entry.file,
+      canvas,
+      thumbnail: canvas.toDataURL('image/png'),
+      width,
+      height,
+      aspect: width / height,
+      missing: true
+    };
+  }
+
   function thumbnailOf(canvas) {
     const size = core.workingSize(canvas.width, canvas.height, core.PHOTO_LIMITS.thumbnailSide);
     const small = document.createElement('canvas');
@@ -2125,15 +2159,45 @@
     return small.toDataURL('image/jpeg', 0.8);
   }
 
-  async function readPhoto(entry, keepId = null) {
-    const bitmap = await createImageBitmap(entry.file);
+  /**
+   * A photo's size as it is shown (turned by its camera orientation), read from the file
+   * without decoding all its pixels.
+   */
+  async function pictureSize(file) {
+    const address = URL.createObjectURL(file);
     try {
-      const size = core.workingSize(bitmap.width, bitmap.height);
+      const image = new Image();
+      image.decoding = 'async';
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = () => reject(new Error('unreadable'));
+        image.src = address;
+      });
+      return { width: image.naturalWidth, height: image.naturalHeight };
+    } finally {
+      URL.revokeObjectURL(address);
+    }
+  }
+
+  /**
+   * A photo read for the editor: a working copy at most 2000 pixels on its long side, decoded
+   * straight at that size so a large phone photo never sits in memory at full size. The
+   * original file is kept for Save. Throws a reason ('unreadable', 'too-many-pixels').
+   */
+  async function readPhoto(entry, keepId = null) {
+    const natural = await pictureSize(entry.file);
+    if (!(natural.width > 0) || !(natural.height > 0)) throw Object.assign(new Error('unreadable'), { reason: 'unreadable' });
+    if (natural.width * natural.height > core.PHOTO_LIMITS.maxPixels) {
+      throw Object.assign(new Error('too many pixels'), { reason: 'too-many-pixels' });
+    }
+    const size = core.workingSize(natural.width, natural.height);
+    const bitmap = await createImageBitmap(entry.file, { resizeWidth: size.width, resizeHeight: size.height, resizeQuality: 'high' });
+    try {
       const canvas = document.createElement('canvas');
       canvas.width = size.width;
       canvas.height = size.height;
       const context = canvas.getContext('2d');
-      context.imageSmoothingQuality = 'high';
+      if (!context) throw Object.assign(new Error('no canvas'), { reason: 'unreadable' });
       context.drawImage(bitmap, 0, 0, size.width, size.height);
       return {
         id: keepId || nextId('p'),
@@ -2141,9 +2205,9 @@
         file: entry.file,
         canvas,
         thumbnail: thumbnailOf(canvas),
-        width: bitmap.width,
-        height: bitmap.height,
-        aspect: bitmap.width / bitmap.height
+        width: natural.width,
+        height: natural.height,
+        aspect: natural.width / natural.height
       };
     } finally {
       bitmap.close?.();
@@ -2183,8 +2247,8 @@
         let photo;
         try {
           photo = await readPhoto(entry);
-        } catch {
-          refused.push({ name: entry.name, reason: 'unreadable' });
+        } catch (error) {
+          refused.push({ name: entry.name, reason: error?.reason === 'too-many-pixels' ? 'too-many-pixels' : 'unreadable' });
           continue;
         }
         if (!stillOpen()) return;
@@ -2362,9 +2426,15 @@
     const frameId = targetId || (selected?.kind === 'slot' ? selected.id : null);
     const files = [];
     const failed = [];
+    const tooBig = [];
     busy(chosen.length === 1 ? 'Getting the photo from PRISM Photos…' : `Getting ${chosen.length} photos from PRISM Photos…`);
     try {
       for (const photo of chosen) {
+        // Refused before it is downloaded, as the same photo from the computer would be.
+        if (Number(photo.width) * Number(photo.height) > core.PHOTO_LIMITS.maxPixels) {
+          tooBig.push(photo.title || 'A photo');
+          continue;
+        }
         try {
           files.push(await library.readLibraryPhoto(photo));
         } catch {
@@ -2378,10 +2448,15 @@
     library_.chosen.clear();
     renderLibraryChosen();
     if (files.length) await addFiles(files, { frameId });
-    if (failed.length && forCollage === collageSession) {
+    if (forCollage !== collageSession || (!tooBig.length && !failed.length)) return;
+    // One message for everything left out, after the import's own message if it had one.
+    const notes = [alertBox.hidden ? '' : $('[data-alert-text]').textContent];
+    if (tooBig.length) notes.push(core.refusedMessage(tooBig.map((name) => ({ name, reason: 'too-many-pixels' }))));
+    if (failed.length) {
       const names = failed.length === 1 ? `“${failed[0]}”` : `${failed.length} photos`;
-      showAlert(`${names} could not be read from PRISM Photos. Try again, or add ${failed.length === 1 ? 'it' : 'them'} from your computer.`);
+      notes.push(`${names} could not be read from PRISM Photos. Try again, or add ${failed.length === 1 ? 'it' : 'them'} from your computer.`);
     }
+    showAlert(notes.filter(Boolean).join(' '));
   }
 
   fileInput.addEventListener('change', () => {
@@ -2578,6 +2653,9 @@
     return null;
   }
 
+  // Photos Save had to leave out because this browser cannot open them now.
+  let saveLeftOut = 0;
+
   /** Draws the collage from the original photos, each read only as large as its frame needs. */
   async function drawCollage(width, height) {
     const canvas = document.createElement('canvas');
@@ -2587,7 +2665,9 @@
     context.imageSmoothingQuality = 'high';
     const s = width / core.PAGE_WIDTH;
     let backPhoto = null;
-    if (collage.background?.type === 'photo' && photos.get(collage.background.photo)) {
+    saveLeftOut = 0;
+    if (collage.background?.type === 'photo' && photos.get(collage.background.photo)?.missing) saveLeftOut += 1;
+    else if (collage.background?.type === 'photo' && photos.get(collage.background.photo)) {
       const photo = photos.get(collage.background.photo);
       const bitmap = await createImageBitmap(photo.file, { resizeWidth: Math.min(photo.width, width), resizeQuality: 'high' });
       backPhoto = { source: bitmap, width: bitmap.width, height: bitmap.height };
@@ -2630,6 +2710,7 @@
       }
       const photo = photos.get(item.photo);
       if (!photo) continue;
+      if (photo.missing) { saveLeftOut += 1; continue; }
       const inner = core.innerBox(item);
       const want = core.decodeSize(photo, inner.width / inner.height, item.crop, inner.width * s);
       // One original at a time, read at the size this frame needs and closed straight after.
@@ -2754,6 +2835,7 @@
         line += ` This browser cannot draw a picture that large, so it was made a little smaller${dpi ? ` (${dpi} dots per inch)` : ''}.`;
       }
       if (missed) line += ` It could not get under ${photoTools.formatBytes(targetBytes)}; this is the smallest it can be. Choose Screen or a larger size.`;
+      if (saveLeftOut) line += ` ${saveLeftOut === 1 ? 'One photo' : `${saveLeftOut} photos`} shown grey could not be opened in this browser and ${saveLeftOut === 1 ? 'was' : 'were'} left out.`;
       saveResult.textContent = line;
       announce(line);
     } catch {
