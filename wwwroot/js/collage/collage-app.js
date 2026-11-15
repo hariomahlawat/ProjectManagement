@@ -191,12 +191,29 @@
     syncAll();
   }
 
+  let leaving = false;
+
   async function goHome() {
-    // A nudge or wheel zoom still waiting is recorded and marked for the draft first.
-    flushNudge();
-    // The draft is saved before leaving; only when it cannot be is the user asked.
-    const kept = await saveDraftNow();
-    if (!kept && hasPhotos()) {
+    if (leaving) return;
+    leaving = true;
+    // The editor is locked while the draft is written, so no change can slip in after the
+    // last snapshot and be dropped when the editor is cleared.
+    views.editor.inert = true;
+    let kept = true;
+    try {
+      // Anything still waiting (a nudge, a wheel zoom, a change made just before) is saved too.
+      for (let round = 0; round < 5; round += 1) {
+        flushNudge();
+        kept = await saveDraftNow();
+        if (!draftPending && !nudgePending) break;
+      }
+    } finally {
+      views.editor.inert = false;
+      leaving = false;
+    }
+    // Only when the draft cannot be kept is the user asked: a collage with photos, or a saved
+    // draft whose change (even removing its last photo) was not written.
+    if (!kept && (hasPhotos() || draft?.created)) {
       const leave = await askConfirm({
         title: 'Leave this collage?',
         message: draftProblem() || 'This collage could not be kept as a draft, so it cannot be opened again once you leave. Pictures and PDFs you saved are kept.',
@@ -1473,7 +1490,7 @@
   });
 
   document.addEventListener('paste', (event) => {
-    if (views.editor.hidden) return;
+    if (views.editor.hidden || leaving) return;
     if (event.target.closest?.('input, textarea, [contenteditable]')) return;
     const files = [...(event.clipboardData?.files || [])].filter((file) => file.type.startsWith('image/'));
     if (!files.length) {
@@ -1732,7 +1749,7 @@
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Shift') setShift(true);
-    if (views.editor.hidden || document.querySelector('dialog[open]')) return;
+    if (views.editor.hidden || leaving || document.querySelector('dialog[open]')) return;
     const typing = event.target.closest?.('input, textarea, select, [contenteditable]');
     const key = event.key.toLowerCase();
     const mod = event.ctrlKey || event.metaKey;
