@@ -645,11 +645,14 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         var joined = await host.SearchAsync("IR&D hydrbad");
         var acronym = await host.SearchAsync("anti-tank ATOMZ hydrbad");
         var typo = await host.SearchAsync("anti-tank atomz hydrbad");
+        var identifier = await host.SearchAsync("atomz-123 hydrbad");
 
         Assert.Equal("ir&d hyderabad", joined.CorrectedQuery);
         // Typed in capitals it is an acronym and stays; typed in lower case it is a typo.
         Assert.Equal("anti tank atomz hyderabad", acronym.CorrectedQuery);
         Assert.Equal("anti tank atoms hyderabad", typo.CorrectedQuery);
+        // A word with a digit is an identifier: none of its parts is "corrected".
+        Assert.Equal("atomz 123 hyderabad", identifier.CorrectedQuery);
     }
 
     [SearchV2PostgresFact]

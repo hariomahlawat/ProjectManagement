@@ -371,6 +371,7 @@ public sealed class SearchV2QueryTests
     [InlineData("anti-tank ATGM", "anti tank atgm", "false,false,true")]
     [InlineData("ATGM-launcher trials", "atgm launcher trials", "true,false,false")]
     [InlineData("Hydrbad AURA meeting", "hydrbad aura meeting", "false,true,false")]
+    [InlineData("atomz-123 hydrbad", "atomz 123 hydrbad", "true,true,false")]
     public void CorrectionScorer_ProtectsEachTokenByItsOwnTypedSpelling(string original, string exact, string expected)
     {
         var normalizer = new SearchQueryNormalizer();

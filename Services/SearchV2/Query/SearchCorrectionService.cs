@@ -312,7 +312,8 @@ public static partial class SearchCorrectionScorer
     /// For each normalised token, whether its typed spelling is protected from correction
     /// (an acronym, an identifier, a short or numeric token). Tokens are matched to the typed
     /// word they came from, and to their own spelling inside it: "anti-tank ATGM" protects
-    /// "atgm" but not "anti" or "tank". When the typed text cannot be aligned with the
+    /// "atgm" but not "anti" or "tank". A typed word with a digit is an identifier, and all of
+    /// its parts stay protected ("atomz-123" is not offered as "atoms 123"). When the typed text cannot be aligned with the
     /// normalised tokens, every token is protected: no suggestion beats a wrong one.
     /// </summary>
     public static bool[] ProtectedTokens(
@@ -329,13 +330,14 @@ public static partial class SearchCorrectionScorer
         foreach (var word in (original ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         {
             var searchFrom = 0;
+            var identifier = word.Any(char.IsDigit);
             foreach (Match part in tokenPattern.Matches(normalizeExact(word)))
             {
                 if (part.Length == 0) continue;
                 var at = word.IndexOf(part.Value, searchFrom, StringComparison.OrdinalIgnoreCase);
                 var typed = at >= 0 ? word.Substring(at, part.Length) : word;
                 if (at >= 0) searchFrom = at + part.Length;
-                result.Add(IsProtectedOriginalToken(typed));
+                result.Add(identifier || IsProtectedOriginalToken(typed));
             }
         }
 
