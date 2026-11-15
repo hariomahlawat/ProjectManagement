@@ -1030,7 +1030,9 @@
         pan = null;
         syncPage();
       }
+      // The handles are not used either until every finger has lifted, even if one lands on them.
       transformer.stopTransform?.();
+      transformer.listening(false);
     }
   }, true);
   stageBox.addEventListener('pointermove', (event) => {
@@ -1044,7 +1046,7 @@
   const endTouch = (event) => {
     touches.delete(event.pointerId);
     // Items can be dragged again once every finger has lifted.
-    if (touches.size === 0 && pinch) { pinch = null; syncPage(); }
+    if (touches.size === 0 && pinch) { pinch = null; transformer.listening(true); syncPage(); }
   };
   stageBox.addEventListener('pointerup', endTouch, true);
   stageBox.addEventListener('pointercancel', endTouch, true);
@@ -1863,6 +1865,8 @@
   function focusTextField() {
     const field = props.querySelector('[data-text]');
     if (!field) return;
+    // On a phone the Words field is in the settings sheet, which opens first.
+    if (onPhone()) setPropsOpen(true);
     field.focus();
     field.select();
   }
