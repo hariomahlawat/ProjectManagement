@@ -202,6 +202,19 @@ public sealed class PhotoToolsPageContractTests
     }
 
     [Fact]
+    public void Home_ListsTheToolsInTheOrderOfTheJob()
+    {
+        var root = FindProjectRoot();
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Photo", "Index.cshtml"));
+
+        // What a form or portal asks for first, then general work, then Print sheet (docs/photo-tools.md).
+        var cards = System.Text.RegularExpressions.Regex.Matches(page, "<a class=\"pdft-card\" href=\"#(?<tool>[a-z]+)\"")
+            .Select(match => match.Groups["tool"].Value)
+            .ToArray();
+        Assert.Equal(new[] { "passport", "signature", "reduce", "idcard", "edit", "remove", "sheet" }, cards);
+    }
+
+    [Fact]
     public void Page_LoadsThePdfLibraryFromTheApplicationBeforePrintSheet()
     {
         var root = FindProjectRoot();
