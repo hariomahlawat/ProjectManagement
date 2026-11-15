@@ -506,3 +506,14 @@ test('a draft keeps each photo finish, within its limits', () => {
   assert.deepEqual([a.frame, a.shape, a.look, a.caption.length, a.shadow, a.flip, a.bright, a.contrast, a.warmth], ['polaroid', 'star', 'vivid', 40, true, true, 150, 50, -50]);
   assert.deepEqual([b.frame, b.shape, b.look, b.shadow, b.flip], ['none', 'rect', 'none', false, false]);
 });
+
+test('a mirrored photo moves with the pointer inside its frame, not against it', () => {
+  const item = { ...collage.photoItem('a', 'p', 1, { x: 0, y: 0, width: 100 }), crop: { zoom: 2, x: 0.5, y: 0.5 } };
+  const plain = collage.panCrop(1, item, 10, 0);
+  const mirrored = collage.panCrop(1, { ...item, flip: true }, 10, 0);
+  // Unmirrored, a drag right shows more of the left of the photo; mirrored, more of its right.
+  assert.ok(plain.x < 0.5 && mirrored.x > 0.5);
+  assert.ok(Math.abs((0.5 - plain.x) - (mirrored.x - 0.5)) < 1e-9);
+  // Up and down are not mirrored.
+  assert.equal(collage.panCrop(1, { ...item, flip: true }, 0, 10).y, collage.panCrop(1, item, 0, 10).y);
+});

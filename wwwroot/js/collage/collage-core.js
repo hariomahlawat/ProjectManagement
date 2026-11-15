@@ -225,9 +225,11 @@
     const inner = innerBox(item);
     const aspect = inner.width / inner.height;
     const r = cropRegion(photoAspect, aspect, item.crop);
+    // A mirrored photo is drawn the other way round, so a drag across it moves the view back.
+    const across = item.flip ? -dx : dx;
     return clampCrop(photoAspect, aspect, {
       zoom: item.crop?.zoom || 1,
-      x: r.x + r.width / 2 - dx / inner.width * r.width,
+      x: r.x + r.width / 2 - across / inner.width * r.width,
       y: r.y + r.height / 2 - dy / inner.height * r.height
     });
   }
