@@ -952,6 +952,30 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Null(response.CorrectedQuery);
     }
 
+    // Re-indexing a project whose documents must be rewritten reads them a page at a time too.
+    [SearchV2PostgresFact]
+    public async Task ProjectReindex_ReadsItsDocumentsAPageAtATime()
+    {
+        await using var host = _database.CreateHost();
+        var projectId = await host.SeedProjectAsync("Pagewise curlew suite");
+        for (var index = 0; index < SearchProjectionBuilder.DocumentPageSize + 1; index++)
+        {
+            await host.SeedProjectDocumentAsync(projectId, $"Curlew page {index}");
+        }
+
+        var batches = new List<IReadOnlyList<SearchProjection>>();
+        await host.WithBuilderAsync(async builder =>
+        {
+            await foreach (var batch in builder.BuildProjectWithDocumentsInBatchesAsync(projectId, CancellationToken.None)) batches.Add(batch);
+        });
+
+        Assert.Equal("Project", Assert.Single(batches[0]).EntityType);
+        var documentBatches = batches.Skip(1).ToArray();
+        Assert.Equal(2, documentBatches.Length);
+        Assert.All(documentBatches, batch => Assert.True(batch.Count <= SearchProjectionBuilder.DocumentPageSize));
+        Assert.Equal(SearchProjectionBuilder.DocumentPageSize + 1, documentBatches.Sum(batch => batch.Count));
+    }
+
     // A full rebuild reads documents a page at a time, so the OCR text of every document is
     // never in memory at once; every document still reaches the index.
     [SearchV2PostgresFact]

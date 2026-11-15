@@ -1263,6 +1263,16 @@
     overflow: hidden;
 }
 
+/* Windows High Contrast removes box-shadows, and the focus rings above are shadows with the
+   outline turned off: give focused controls a real outline there. */
+@media (forced-colors: active) {
+    .pm-gs-page :focus-visible,
+    .pm-gs-filter__panel :focus-visible {
+        outline: 2px solid CanvasText;
+        outline-offset: 2px;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .pm-gs-filter__skeleton-bar,
     .pm-gs-filter__pending.is-nudged {

@@ -42,6 +42,17 @@ public interface ISearchIndexStore
     Task<bool> ProjectDocumentsAreCurrentAsync(int projectId, string contextStamp, int documentCount, int indexVersion, CancellationToken cancellationToken) =>
         Task.FromResult(false);
 
+    /// <summary>
+    /// Replaces a project's row and all its document rows with projections read a batch at a
+    /// time (documents a page at a time), in one transaction. Collects them all by default.
+    /// </summary>
+    async Task ReplaceProjectWithDocumentsAsync(int projectId, IAsyncEnumerable<IReadOnlyList<SearchProjection>> batches, int indexVersion, CancellationToken cancellationToken)
+    {
+        var all = new List<SearchProjection>();
+        await foreach (var batch in batches.WithCancellation(cancellationToken)) all.AddRange(batch);
+        await ReplaceEntityAsync("Project", projectId.ToString(System.Globalization.CultureInfo.InvariantCulture), all, indexVersion, cancellationToken);
+    }
+
     /// <summary>Replaces the project's own row and leaves its document rows as they are.</summary>
     Task ReplaceProjectRowAsync(int projectId, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken) =>
         throw new NotSupportedException("Only stores that report current project documents replace the project row alone.");
@@ -285,7 +296,10 @@ public sealed class SearchIndexStore : ISearchIndexStore
     }
 
     public Task ReplaceProjectRowAsync(int projectId, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken) =>
-        ReplaceAsync("Project", projectId.ToString(System.Globalization.CultureInfo.InvariantCulture), projections, indexVersion, keepProjectDocuments: true, cancellationToken);
+        ReplaceAsync("Project", projectId.ToString(System.Globalization.CultureInfo.InvariantCulture), SearchProjectionBatches.Once(_ => Task.FromResult(projections), cancellationToken), indexVersion, keepProjectDocuments: true, cancellationToken);
+
+    public Task ReplaceProjectWithDocumentsAsync(int projectId, IAsyncEnumerable<IReadOnlyList<SearchProjection>> batches, int indexVersion, CancellationToken cancellationToken) =>
+        ReplaceAsync("Project", projectId.ToString(System.Globalization.CultureInfo.InvariantCulture), batches, indexVersion, keepProjectDocuments: false, cancellationToken);
 
     public Task ReplaceEntityAsync(
         string requestedEntityType,
@@ -293,12 +307,12 @@ public sealed class SearchIndexStore : ISearchIndexStore
         IReadOnlyList<SearchProjection> projections,
         int indexVersion,
         CancellationToken cancellationToken) =>
-        ReplaceAsync(requestedEntityType, requestedEntityKey, projections, indexVersion, keepProjectDocuments: false, cancellationToken);
+        ReplaceAsync(requestedEntityType, requestedEntityKey, SearchProjectionBatches.Once(_ => Task.FromResult(projections), cancellationToken), indexVersion, keepProjectDocuments: false, cancellationToken);
 
     private async Task ReplaceAsync(
         string requestedEntityType,
         string requestedEntityKey,
-        IReadOnlyList<SearchProjection> projections,
+        IAsyncEnumerable<IReadOnlyList<SearchProjection>> batches,
         int indexVersion,
         bool keepProjectDocuments,
         CancellationToken cancellationToken)
@@ -341,7 +355,10 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 await delete.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            await WriteProjectionsAsync(connection, transaction, generation, projections, cancellationToken);
+            await foreach (var batch in batches.WithCancellation(cancellationToken))
+            {
+                await WriteProjectionsAsync(connection, transaction, generation, batch, cancellationToken);
+            }
 
             await transaction.CommitAsync(cancellationToken);
         }
