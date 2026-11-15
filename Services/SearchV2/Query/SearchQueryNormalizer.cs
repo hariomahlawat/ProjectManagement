@@ -16,6 +16,12 @@ public sealed record NormalizedSearchQuery(
     /// the words searched for and highlighted, and records containing them are excluded.
     /// </summary>
     public IReadOnlyList<string> Excluded { get; init; } = Array.Empty<string>();
+
+    /// <summary>The typed text that is searched for: <see cref="Original"/> without its exclusions.</summary>
+    public string Searched { get; init; } = Original;
+
+    /// <summary>The exclusions as typed, with their minus ("-drone"), to keep in a did-you-mean.</summary>
+    public IReadOnlyList<string> ExcludedTyped { get; init; } = Array.Empty<string>();
 }
 
 public interface ISearchQueryNormalizer
@@ -67,7 +73,12 @@ public sealed partial class SearchQueryNormalizer : ISearchQueryNormalizer
             .OrderByDescending(value => value.Length)
             .ToArray();
 
-        return new NormalizedSearchQuery(original, exact, webSearch, highlights, expansions) { Excluded = excluded };
+        return new NormalizedSearchQuery(original, exact, webSearch, highlights, expansions)
+        {
+            Excluded = excluded,
+            Searched = searched,
+            ExcludedTyped = excluding ? excludedWords.Select(word => "-" + word).ToArray() : Array.Empty<string>()
+        };
     }
 
     /// <summary>

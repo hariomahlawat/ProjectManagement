@@ -66,7 +66,8 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
 
         // Normalising splits "anti-tank" into two tokens, so the typed spelling of each token
         // (needed to keep acronyms such as ATGM) is found per typed word, not by position.
-        var protectedTokens = SearchCorrectionScorer.ProtectedTokens(query.Original, normalizedTokens, _normalizer.NormalizeExact, TokenRegex());
+        // Against the searched text: an exclusion ("-drone") is not one of the tokens.
+        var protectedTokens = SearchCorrectionScorer.ProtectedTokens(query.Searched, normalizedTokens, _normalizer.NormalizeExact, TokenRegex());
 
         var eligible = new List<int>(normalizedTokens.Length);
         for (var index = 0; index < normalizedTokens.Length; index++)
@@ -123,10 +124,16 @@ public sealed partial class SearchCorrectionService : ISearchCorrectionService
         // Offer it as the person typed it: "Hydrabad Radar" → "Hyderabad Radar", not the
         // lower-case comparison form. Falls back to that form when the typed text cannot be
         // matched to the tokens.
-        var typed = SearchCorrectionScorer.ReplaceInTypedText(query.Original, normalizedTokens, replacements, _normalizer.NormalizeExact, TokenRegex());
+        var typed = SearchCorrectionScorer.ReplaceInTypedText(query.Searched, normalizedTokens, replacements, _normalizer.NormalizeExact, TokenRegex());
         if (typed is not null && string.Equals(_normalizer.NormalizeExact(typed), corrected, StringComparison.Ordinal))
         {
             corrected = typed;
+        }
+
+        // The offered search keeps the exclusions: "hydrbad -drone" → "hyderabad -drone".
+        if (query.ExcludedTyped.Count > 0)
+        {
+            corrected = corrected + " " + string.Join(' ', query.ExcludedTyped);
         }
 
         _logger.LogDebug(

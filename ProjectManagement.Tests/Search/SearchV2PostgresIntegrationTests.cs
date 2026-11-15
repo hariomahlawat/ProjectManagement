@@ -992,6 +992,32 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal(1, response.TotalHits);
     }
 
+    // Records with an excluded word do not count as exact matches, so near misses still show.
+    [SearchV2PostgresFact]
+    public async Task ExcludedRecords_DoNotTurnOffNearMissMatches()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9871", "Projects", "Projects", "Quillwren drone", null),
+            host.Entry("ProjectDocument", "9872", "Project documents", "Documents", "Quilwren manual", null));
+
+        var response = await host.SearchAsync("quillwren -drone");
+
+        Assert.Equal(new[] { "9872" }, response.Results.Select(result => result.EntityKey).ToArray());
+    }
+
+    // Did-you-mean still works with an exclusion, and keeps it in the offered search.
+    [SearchV2PostgresFact]
+    public async Task DidYouMean_KeepsTheExclusions()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(host.Entry("Project", "9873", "Projects", "Projects", "Hyderabad trials", null));
+
+        var response = await host.SearchAsync("hydrbad -drone");
+
+        Assert.Equal("hyderabad -drone", response.CorrectedQuery);
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {

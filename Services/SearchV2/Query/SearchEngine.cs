@@ -1005,7 +1005,11 @@ public sealed class SearchEngine : ISearchV2Engine
                 UNION ALL SELECT "Id" FROM simple_fts
                 UNION ALL SELECT "Id" FROM alias_fts
                 UNION ALL SELECT "Id" FROM english_fts
-            ) strong ON strong."Id" = c."Id" WHERE TRUE {scope.ResultFilterClause}) d
+            ) strong ON strong."Id" = c."Id" WHERE TRUE {scope.ResultFilterClause}
+              -- Excluded records must not turn off near-miss matching either.
+              AND (@excludeTsQuery = ''
+                   OR NOT (c."SearchVectorSimple" @@ to_tsquery('simple', @excludeTsQuery)
+                           OR c."SearchVectorEnglish" @@ to_tsquery('english', @excludeTsQuery)))) d
         ), title_fuzzy AS (
             -- % and <% honour pg_trgm.similarity_threshold / word_similarity_threshold, which the
             -- engine sets per transaction from FuzzyThreshold / FuzzyWordSimilarityThreshold.
