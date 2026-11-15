@@ -35,6 +35,17 @@ public interface ISearchIndexStore
     /// </summary>
     Task ReplaceFullGenerationAsync(IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken, bool allowDowngrade = false);
     Task ReplaceEntityAsync(string requestedEntityType, string requestedEntityKey, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the project's indexed document rows are exactly <paramref name="documentCount"/>
+    /// rows that all carry <paramref name="contextStamp"/>. False by default: always rewrite.
+    /// </summary>
+    Task<bool> ProjectDocumentsAreCurrentAsync(int projectId, string contextStamp, int documentCount, int indexVersion, CancellationToken cancellationToken) =>
+        Task.FromResult(false);
+
+    /// <summary>Replaces the project's own row and leaves its document rows as they are.</summary>
+    Task ReplaceProjectRowAsync(int projectId, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Only stores that report current project documents replace the project row alone.");
     Task EnqueueAsync(string entityType, string entityKey, CancellationToken cancellationToken);
 
     /// <summary>
@@ -266,11 +277,55 @@ public sealed class SearchIndexStore : ISearchIndexStore
         }
     }
 
-    public async Task ReplaceEntityAsync(
+    public async Task<bool> ProjectDocumentsAreCurrentAsync(
+        int projectId,
+        string contextStamp,
+        int documentCount,
+        int indexVersion,
+        CancellationToken cancellationToken)
+    {
+        await _db.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await using var command = _db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = """
+                SELECT COUNT(*), COUNT(*) FILTER (WHERE e."MetadataJson"->>'projectContextStamp' = @stamp)
+                FROM "SearchEntries" e
+                WHERE e."Generation" = (SELECT "ActiveGeneration" FROM "SearchIndexState" WHERE "Id" = 1 AND "IndexVersion" = @version)
+                  AND e."EntityType" = 'ProjectDocument'
+                  AND e."ParentProjectId" = @projectId;
+                """;
+            Add(command, "stamp", contextStamp);
+            Add(command, "version", indexVersion);
+            Add(command, "projectId", projectId);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken)) return false;
+            var indexed = reader.GetInt64(0);
+            return indexed == documentCount && reader.GetInt64(1) == indexed;
+        }
+        finally
+        {
+            await SafeCloseAsync();
+        }
+    }
+
+    public Task ReplaceProjectRowAsync(int projectId, IReadOnlyList<SearchProjection> projections, int indexVersion, CancellationToken cancellationToken) =>
+        ReplaceAsync("Project", projectId.ToString(System.Globalization.CultureInfo.InvariantCulture), projections, indexVersion, keepProjectDocuments: true, cancellationToken);
+
+    public Task ReplaceEntityAsync(
         string requestedEntityType,
         string requestedEntityKey,
         IReadOnlyList<SearchProjection> projections,
         int indexVersion,
+        CancellationToken cancellationToken) =>
+        ReplaceAsync(requestedEntityType, requestedEntityKey, projections, indexVersion, keepProjectDocuments: false, cancellationToken);
+
+    private async Task ReplaceAsync(
+        string requestedEntityType,
+        string requestedEntityKey,
+        IReadOnlyList<SearchProjection> projections,
+        int indexVersion,
+        bool keepProjectDocuments,
         CancellationToken cancellationToken)
     {
         await _db.Database.OpenConnectionAsync(cancellationToken);
@@ -287,7 +342,8 @@ public sealed class SearchIndexStore : ISearchIndexStore
             await using (var delete = connection.CreateCommand())
             {
                 delete.Transaction = transaction;
-                var projectId = string.Equals(requestedEntityType, "Project", StringComparison.Ordinal)
+                var projectId = !keepProjectDocuments
+                    && string.Equals(requestedEntityType, "Project", StringComparison.Ordinal)
                     && int.TryParse(requestedEntityKey, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsedProjectId)
                         ? parsedProjectId
                         : (int?)null;

@@ -23,6 +23,10 @@ using ProjectManagement.Services.SearchV2.Security;
 
 namespace ProjectManagement.Services.SearchV2.Indexing;
 
+/// <param name="ContextStamp">Fingerprint of the project facts every document row of the project copies.</param>
+/// <param name="DocumentCount">How many of the project's documents are indexable.</param>
+public sealed record SearchProjectDocumentsState(string ContextStamp, int DocumentCount);
+
 internal static class SearchProjectionBatches
 {
     public static async IAsyncEnumerable<IReadOnlyList<SearchProjection>> Once(
@@ -53,6 +57,18 @@ public interface ISearchProjectionBuilder
     /// them at once instead of at the next full rebuild.
     /// </summary>
     Task<IReadOnlyList<SearchEntityRef>> FindProjectDependentsAsync(int projectId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A stamp of the project facts its document rows copy (name, case number, categories,
+    /// lifecycle, stage) and how many documents it has; null when the project is not indexed,
+    /// so its documents must leave the index with it. Null by default: always rewrite.
+    /// </summary>
+    Task<SearchProjectDocumentsState?> GetProjectDocumentsStateAsync(int projectId, CancellationToken cancellationToken) =>
+        Task.FromResult<SearchProjectDocumentsState?>(null);
+
+    /// <summary>The project's own index row, without its documents.</summary>
+    Task<IReadOnlyList<SearchProjection>> BuildProjectRowAsync(int projectId, CancellationToken cancellationToken) =>
+        BuildEntityAsync("Project", projectId.ToString(CultureInfo.InvariantCulture), cancellationToken);
 }
 
 /// <summary>An indexed record, named as its work items and index rows name it.</summary>
@@ -354,6 +370,55 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         return results;
     }
 
+    public async Task<SearchProjectDocumentsState?> GetProjectDocumentsStateAsync(int projectId, CancellationToken cancellationToken)
+    {
+        var project = await _db.Projects.AsNoTracking()
+            .Where(row => row.Id == projectId && !row.IsDeleted && !row.IsArchived)
+            .Select(row => new
+            {
+                row.Name,
+                row.CaseFileNumber,
+                Category = row.Category != null ? row.Category.Name : null,
+                TechnicalCategory = row.TechnicalCategory != null ? row.TechnicalCategory.Name : null
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (project is null) return null;
+
+        var contexts = await LoadProjectContextsAsync(new[] { projectId }, cancellationToken);
+        contexts.TryGetValue(projectId, out var context);
+        var documents = await IndexableProjectDocuments().CountAsync(document => document.ProjectId == projectId, cancellationToken);
+        return new SearchProjectDocumentsState(
+            ProjectDocumentContextStamp(project.Name, project.CaseFileNumber, project.Category, project.TechnicalCategory, context),
+            documents);
+    }
+
+    public Task<IReadOnlyList<SearchProjection>> BuildProjectRowAsync(int projectId, CancellationToken cancellationToken) =>
+        BuildProjectsAsync(projectId, includeProjectDocuments: false, cancellationToken);
+
+    /// <summary>
+    /// Fingerprint of everything a document row copies from its project. Written into each
+    /// document's metadata; a project edit rewrites the documents only when it changes.
+    /// </summary>
+    private static string ProjectDocumentContextStamp(
+        string? projectName,
+        string? caseFileNumber,
+        string? category,
+        string? technicalCategory,
+        ProjectSearchContext? context)
+    {
+        var facts = string.Join(
+            '\u001f',
+            projectName,
+            caseFileNumber,
+            category,
+            technicalCategory,
+            context?.Category,
+            context?.TechnicalCategory,
+            context?.LifecycleStatus,
+            context?.CurrentStage);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(facts)), 0, 12);
+    }
+
     // Documents of trashed or archived projects are hidden with their project; the
     // project page itself is unreachable, so the document must not be discoverable.
     private IQueryable<ProjectDocument> IndexableProjectDocuments() =>
@@ -448,6 +513,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                     parentProjectStatus = projectContext?.LifecycleStatus,
                     parentProjectCategory = projectContext?.Category,
                     parentTechnicalCategory = projectContext?.TechnicalCategory,
+                    projectContextStamp = ProjectDocumentContextStamp(row.ProjectName, row.ProjectCase, row.ProjectCategory, row.ProjectTechnicalCategory, projectContext),
                     matchFields = new Dictionary<string, string?>
                     {
                         ["Project"] = JoinNonEmpty(row.ProjectName, row.ProjectCase),

@@ -344,6 +344,19 @@ public sealed class SearchIndexWorker : BackgroundService
         string entityKey,
         CancellationToken cancellationToken)
     {
+        // Document rows copy a few project facts. When those are unchanged (same stamp, same
+        // number of documents), a project edit rewrites only the project row: rewriting every
+        // document meant re-reading its OCR text for, say, a change of brief.
+        if (string.Equals(entityType, "Project", StringComparison.Ordinal)
+            && int.TryParse(entityKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var projectId)
+            && await builder.GetProjectDocumentsStateAsync(projectId, cancellationToken) is { } documents
+            && await store.ProjectDocumentsAreCurrentAsync(projectId, documents.ContextStamp, documents.DocumentCount, _options.ProjectionVersion, cancellationToken))
+        {
+            var projectRows = await builder.BuildProjectRowAsync(projectId, cancellationToken);
+            await store.ReplaceProjectRowAsync(projectId, projectRows, _options.ProjectionVersion, cancellationToken);
+            return;
+        }
+
         var rows = await builder.BuildEntityAsync(entityType, entityKey, cancellationToken);
         await store.ReplaceEntityAsync(entityType, entityKey, rows, _options.ProjectionVersion, cancellationToken);
     }
