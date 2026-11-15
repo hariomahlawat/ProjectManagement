@@ -601,7 +601,12 @@ else
                                 projectName = null; // the subtitle already names the project
                             }
                             var evidence = MatchEvidence(hit);
-                            <article class="pm-gs-hit" data-search-hit>
+                            var cover = string.Equals(hit.EntityType, "Project", StringComparison.Ordinal)
+                                        && int.TryParse(hit.EntityKey, out var coverProjectId)
+                                        && Model.ProjectCovers.TryGetValue(coverProjectId, out var coverUrl)
+                                ? coverUrl
+                                : null;
+                            <article class="pm-gs-hit@(cover is null ? string.Empty : " pm-gs-hit--with-cover")" data-search-hit>
                                 <span class="pm-gs-hit__icon" aria-hidden="true"><i class="bi @TypeIcon(hit)"></i></span>
                                 <div class="pm-gs-hit__body">
                                     <h2 class="pm-gs-hit__heading">
@@ -683,6 +688,14 @@ else
                                         </div>
                                     }
                                 </div>
+                                @if (cover is not null)
+                                {
+                                    @* The project's cover, as a picture to recognise it by: the title already names it,
+                                       so it is decorative and not a second tab stop. *@
+                                    <a class="pm-gs-hit__cover" href="@hit.Url" tabindex="-1" aria-hidden="true">
+                                        <img src="@cover" alt="" width="72" height="54" loading="lazy" decoding="async" />
+                                    </a>
+                                }
                             </article>
                         }
                     </section>

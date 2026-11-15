@@ -916,6 +916,31 @@
     border-top: 1px solid var(--pm-border);
 }
 
+/* A project with a cover photo shows it small on the right, as web search shows a page's
+   picture: text stays first. Results without one keep two columns. */
+.pm-gs-hit--with-cover {
+    grid-template-columns: 2.25rem minmax(0, 1fr) 72px;
+}
+
+.pm-gs-hit__cover {
+    display: block;
+    align-self: start;
+    width: 72px;
+    height: 54px;
+    margin-top: .15rem;
+    overflow: hidden;
+    border: 1px solid var(--pm-border);
+    border-radius: 8px;
+    background: var(--pm-surface-subtle);
+}
+
+.pm-gs-hit__cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 .pm-gs-hit:first-child {
     border-top: 0;
     padding-top: .25rem;
@@ -1168,6 +1193,15 @@
         grid-template-columns: 1.75rem minmax(0, 1fr);
         gap: .6rem;
         padding: .75rem 0;
+    }
+
+    .pm-gs-hit--with-cover {
+        grid-template-columns: 1.75rem minmax(0, 1fr) 56px;
+    }
+
+    .pm-gs-hit__cover {
+        width: 56px;
+        height: 42px;
     }
 
     .pm-gs-hit__heading {

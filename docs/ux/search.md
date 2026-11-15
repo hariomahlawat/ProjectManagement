@@ -21,6 +21,14 @@ uses it through `navigation/global-search.js` (loaded by `site.js`); the Search 
 - **Suggestion links** are followed only when they stay on this site's origin.
 - **Highlighting** wraps the first match, preferring the start of a word, in `<mark>`. All
   text is set with `textContent`; nothing from the server is parsed as HTML.
+- **Project covers.** A project result whose project has a cover photo shows it on the right,
+  72 × 54 px (56 × 42 on phones), the small "xs" preview the dashboard uses, as web search
+  shows a page's picture: text stays first, and results without a cover stay text-only (no
+  placeholder). Covers are looked up for the page's projects when the page is built, not
+  stored in the index, so a new cover shows at once. The image loads lazily, is decorative
+  (empty alt; the title names the project) and opens the project but is not a tab stop. A
+  cover that fails to load removes itself and the card goes back to text only. Other record
+  types show no picture.
 - **Recent searches.** The last six searches that ran and found something are kept in this
   browser only (the results page remembers them, not the search box; `localStorage`,
   key `prism.search.recent`), shown when the box is empty and on the landing and zero-result
