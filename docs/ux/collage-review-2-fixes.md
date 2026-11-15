@@ -111,7 +111,12 @@ The guide is [../collage-studio.md](../collage-studio.md).
 - **Deleting a photo** that sits in a layout frame leaves the frame empty ("Add photo"). Deleting
   the empty frame removes it. Every delete shows a toast with **Undo**.
 - **"Make it casual"** keeps any frame or shape the user chose by hand. It changes only photos
-  still on the layout's own frame and shape.
+  still on the layout's own frame and shape. On a fresh layout it looks the same as before (owner,
+  16 Nov: "Make it casual" was good; the planned change is fine).
+- **Captions on any photo** (owner, 16 Nov). Today a caption exists only on a Polaroid, and the
+  review never found it. Every photo gets an optional **Caption** box near the top of its
+  settings. On a photo without a Polaroid frame, a caption shows on a slim white strip under the
+  photo, on screen and in Save. A Polaroid keeps its handwritten caption.
 - **Draft tests** use the real browser (Playwright) plus unit tests with an in-memory drafts
   store. No new npm package.
 - **Library pictures** use the same addresses the PRISM Photos page uses for each kind of photo,
@@ -129,7 +134,7 @@ starts.
 | 3 | **Photo lifecycle (E2, E4)**: an unused tray photo can be removed. Saving a draft drops stored photos that neither the collage nor Undo still uses. Each file is read on its own, and a failure is reported. Paste waits while a dialog is open. The PRISM Photos dialog checks the size before downloading | Photos can be removed; a bad file is named, the rest are added |
 | 4 | **One change path**: `collage-store.js` has `apply(change)`, which finishes held edits, records Undo, schedules the draft and redraws. Every edit uses it, with unit tests | No edit path records Undo or the draft by hand |
 | 5 | **Phone canvas and memory (E3, Low)**: the stage stays the size of the view and the page moves inside it, with the pixel ratio capped under the browser's limit. Idle photos are cached. Save releases canvases when it fails. The maps are cleared when a collage closes. Cheaper thumbnails | Zoom 4 on a phone stays within limits; numbers checked in a test |
-| 6 | **Your choices kept (U2, U3, U6, U11, U13)**: delete behaves as decided above, with an Undo toast. "Make it casual" keeps chosen frames and shapes. Unedited placeholder text never names a collage. Extra photos go to the tray with a message. New items are placed clear of earlier ones, and the toolbar moves to avoid covering them | Nothing the user did is undone without asking |
+| 6 | **Your choices kept (U2, U3, U6, U11, U13) and captions**: delete behaves as decided above, with an Undo toast. An optional caption on any photo, as decided above. "Make it casual" keeps chosen frames and shapes. Unedited placeholder text never names a collage. Extra photos go to the tray with a message. New items are placed clear of earlier ones, and the toolbar moves to avoid covering them | Nothing the user did is undone without asking |
 | 7 | **Preview and Save (U4, U5, U12)**: Preview shows exactly what Save makes. White, Polaroid and Torn frames get a soft shadow so they show on white. Save remembers the last purpose (WhatsApp first on phones) and shows the chosen button pressed | Preview equals the saved picture |
 | 8 | **Settings panel (U7)**: rarely used groups (Effects, Order, Line up, Lock and hide) fold away and are remembered as opened or closed. Layers is a tab of its own | Text settings fit in about one screen |
 | 9 | **Phones and keys (U1, U9, U10, Low)**: a compact phone header, a name on every icon button, touch wording on phones, focus to the next item after Delete, Ctrl+S opens Save everywhere, and the right bar button marked | A screen reader names every button; the phone header is not cut off |
