@@ -172,7 +172,8 @@
       angle: 0,
       opacity: 100,
       radius: 0,
-      crop: { ...FULL_CROP }
+      crop: { ...FULL_CROP },
+      ...PLAIN_FINISH
     };
   }
 
@@ -183,7 +184,7 @@
 
   /** A slot filled with a photo: the frame keeps its place, size, angle and corners. */
   function fillSlot(slot, photo) {
-    return { ...slot, kind: 'photo', photo, crop: { ...FULL_CROP } };
+    return { ...slot, kind: 'photo', photo, crop: { ...FULL_CROP }, ...PLAIN_FINISH };
   }
 
   // ---------------------------------------------------------------------------
@@ -221,13 +222,170 @@
    * the frame's own sides. Dragging right shows more of the photo's left.
    */
   function panCrop(photoAspect, item, dx, dy) {
-    const r = cropRegion(photoAspect, item.aspect, item.crop);
-    const frameHeight = item.width / item.aspect;
-    return clampCrop(photoAspect, item.aspect, {
+    const inner = innerBox(item);
+    const aspect = inner.width / inner.height;
+    const r = cropRegion(photoAspect, aspect, item.crop);
+    return clampCrop(photoAspect, aspect, {
       zoom: item.crop?.zoom || 1,
-      x: r.x + r.width / 2 - dx / item.width * r.width,
-      y: r.y + r.height / 2 - dy / frameHeight * r.height
+      x: r.x + r.width / 2 - dx / inner.width * r.width,
+      y: r.y + r.height / 2 - dy / inner.height * r.height
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Frames, shapes and looks
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Frames around a photo, as fractions of the frame's width: the white edge on each side, at
+   * the top and at the bottom (a polaroid's deep bottom holds a caption). Frames go with the
+   * square shape only; a shaped photo has none.
+   */
+  const FRAMES = Object.freeze({
+    none: Object.freeze({ label: 'None', side: 0, top: 0, bottom: 0 }),
+    border: Object.freeze({ label: 'White border', side: 0.035, top: 0.035, bottom: 0.035 }),
+    polaroid: Object.freeze({ label: 'Polaroid', side: 0.05, top: 0.05, bottom: 0.2 }),
+    tape: Object.freeze({ label: 'Taped', side: 0.035, top: 0.035, bottom: 0.035 }),
+    torn: Object.freeze({ label: 'Torn edge', side: 0.035, top: 0.035, bottom: 0.035 })
+  });
+  const SHAPES = Object.freeze({
+    rect: 'Square',
+    oval: 'Oval',
+    heart: 'Heart',
+    star: 'Star',
+    hex: 'Hexagon',
+    arch: 'Arch'
+  });
+  /** Looks as CSS filter lists; the same text styles the screen, the save and the previews. */
+  const LOOKS = Object.freeze({
+    none: Object.freeze({ label: 'Original', filter: '' }),
+    bw: Object.freeze({ label: 'Black & white', filter: 'grayscale(1) contrast(1.08)' }),
+    sepia: Object.freeze({ label: 'Sepia', filter: 'sepia(0.85)' }),
+    vintage: Object.freeze({ label: 'Vintage', filter: 'sepia(0.35) contrast(0.9) brightness(1.06) saturate(0.8)' }),
+    vivid: Object.freeze({ label: 'Vivid', filter: 'saturate(1.55) contrast(1.1)' }),
+    soft: Object.freeze({ label: 'Soft', filter: 'brightness(1.08) contrast(0.86) saturate(0.9)' }),
+    cool: Object.freeze({ label: 'Cool', filter: 'hue-rotate(-12deg) saturate(1.1) brightness(1.03)' }),
+    warm: Object.freeze({ label: 'Warm', filter: 'sepia(0.25) saturate(1.3) brightness(1.04)' })
+  });
+  const CAPTION_MAX = 40;
+  const ADJUST_LIMITS = Object.freeze({ bright: [50, 150], contrast: [50, 150], warmth: [-50, 50] });
+
+  /** A photo as it comes: no frame, square, no shadow, its own colours, not mirrored. */
+  const PLAIN_FINISH = Object.freeze({
+    frame: 'none', caption: '', shadow: false, shape: 'rect', look: 'none', bright: 100, contrast: 100, warmth: 0, flip: false
+  });
+
+  /** Whether the item has a frame drawn around its photo (a frame needs the square shape). */
+  function isFramed(item) {
+    return item.kind === 'photo' && (item.shape || 'rect') === 'rect' && FRAMES[item.frame] && item.frame !== 'none';
+  }
+
+  /** The frame's edges in page units: left, right, top and bottom. */
+  function framePads(item) {
+    if (!isFramed(item)) return { left: 0, right: 0, top: 0, bottom: 0 };
+    const frame = FRAMES[item.frame];
+    return { left: item.width * frame.side, right: item.width * frame.side, top: item.width * frame.top, bottom: item.width * frame.bottom };
+  }
+
+  /** The picture area inside the frame, in the item's own units (0, 0 is its top-left corner). */
+  function innerBox(item) {
+    const pads = framePads(item);
+    const height = item.width / item.aspect;
+    return {
+      x: pads.left,
+      y: pads.top,
+      width: Math.max(1, item.width - pads.left - pads.right),
+      height: Math.max(1, height - pads.top - pads.bottom)
+    };
+  }
+
+  /** The shape of the picture area, width / height. */
+  function innerAspect(item) {
+    const inner = innerBox(item);
+    return inner.width / inner.height;
+  }
+
+  /**
+   * The whole item's aspect for a picture area of `pictureAspect` with the item's frame: used to
+   * keep a photo's own shape when a frame is put on or taken off, and to fit a frame to a photo.
+   */
+  function outerAspectFor(item, pictureAspect) {
+    const frame = isFramed(item) ? FRAMES[item.frame] : FRAMES.none;
+    const width = item.width;
+    const innerWidth = width * (1 - 2 * frame.side);
+    const height = innerWidth / pictureAspect + width * (frame.top + frame.bottom);
+    return width / height;
+  }
+
+  /**
+   * The CSS filter for a photo's look and its brightness, contrast and warmth; '' for none.
+   * Warmth above 0 adds a little sepia and colour, below 0 turns the hue toward blue.
+   */
+  function lookFilter(item) {
+    const parts = [];
+    const look = LOOKS[item.look] || LOOKS.none;
+    if (look.filter) parts.push(look.filter);
+    const bright = Number.isFinite(item.bright) ? item.bright : 100;
+    const contrast = Number.isFinite(item.contrast) ? item.contrast : 100;
+    const warmth = Number.isFinite(item.warmth) ? item.warmth : 0;
+    if (bright !== 100) parts.push(`brightness(${bright / 100})`);
+    if (contrast !== 100) parts.push(`contrast(${contrast / 100})`);
+    if (warmth > 0) parts.push(`sepia(${(warmth / 160).toFixed(3)}) saturate(${(1 + warmth / 200).toFixed(3)})`);
+    if (warmth < 0) parts.push(`hue-rotate(${(warmth * 0.35).toFixed(1)}deg) saturate(${(1 - warmth / 300).toFixed(3)})`);
+    return parts.join(' ');
+  }
+
+  /**
+   * A path for a shape filling the box (x, y, w, h), as steps any 2D canvas can follow:
+   * ['M', x, y], ['L', x, y], ['Q', cx, cy, x, y], ['C', c1x, c1y, c2x, c2y, x, y],
+   * ['E', cx, cy, rx, ry] (a whole ellipse), ['R', x, y, w, h, r] (a rounded rectangle) and ['Z'].
+   */
+  function shapePath(shape, x, y, w, h, radius = 0) {
+    if (shape === 'oval') return [['E', x + w / 2, y + h / 2, w / 2, h / 2]];
+    if (shape === 'heart') {
+      return [
+        ['M', x + w / 2, y + h * 0.28],
+        ['C', x + w / 2, y + h * 0.05, x + w * 0.05, y, x + w * 0.02, y + h * 0.3],
+        ['C', x, y + h * 0.58, x + w * 0.3, y + h * 0.72, x + w / 2, y + h],
+        ['C', x + w * 0.7, y + h * 0.72, x + w, y + h * 0.58, x + w * 0.98, y + h * 0.3],
+        ['C', x + w * 0.95, y, x + w / 2, y + h * 0.05, x + w / 2, y + h * 0.28],
+        ['Z']
+      ];
+    }
+    if (shape === 'star') {
+      const steps = [];
+      for (let i = 0; i < 10; i += 1) {
+        const r = i % 2 ? 0.42 : 1;
+        const a = -Math.PI / 2 + i * Math.PI / 5;
+        steps.push([i ? 'L' : 'M', x + w / 2 + Math.cos(a) * r * w / 2, y + h * 0.53 + Math.sin(a) * r * h * 0.53]);
+      }
+      steps.push(['Z']);
+      return steps;
+    }
+    if (shape === 'hex') {
+      return [['M', x + w * 0.25, y], ['L', x + w * 0.75, y], ['L', x + w, y + h / 2], ['L', x + w * 0.75, y + h], ['L', x + w * 0.25, y + h], ['L', x, y + h / 2], ['Z']];
+    }
+    if (shape === 'arch') {
+      const r = Math.min(w / 2, h);
+      return [['M', x, y + h], ['L', x, y + r], ['Q', x, y, x + r, y], ['L', x + w - r, y], ['Q', x + w, y, x + w, y + r], ['L', x + w, y + h], ['Z']];
+    }
+    return [['R', x, y, w, h, Math.max(0, Math.min(radius, w / 2, h / 2))]];
+  }
+
+  /**
+   * A torn paper edge round the box: points a little inside each side, jagged in a pattern that
+   * is always the same, so the screen and the saved picture match.
+   */
+  function tornEdge(w, h) {
+    const n = 22;
+    const depth = Math.min(w, h) * 0.022;
+    const rand = (i) => ((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1;
+    const points = [];
+    for (let i = 0; i <= n; i += 1) points.push([i / n * w, rand(i) * depth]);
+    for (let i = 0; i <= n; i += 1) points.push([w - rand(i + 50) * depth, i / n * h]);
+    for (let i = n; i >= 0; i -= 1) points.push([i / n * w, h - rand(i + 100) * depth]);
+    for (let i = n; i >= 0; i -= 1) points.push([rand(i + 150) * depth, i / n * h]);
+    return points;
   }
 
   // ---------------------------------------------------------------------------
@@ -332,7 +490,11 @@
         if (item.kind !== 'photo' && item.kind !== 'slot') return item;
         const i = n++;
         const angle = (i % 2 ? 1 : -1) * (3 + (i * 5) % 6);
-        return { ...item, angle, width: item.width * 0.9, x: item.x + ((i * 29) % 21) - 10, y: item.y + ((i * 17) % 17) - 8 };
+        const moved = { ...item, angle, width: item.width * 0.9, x: item.x + ((i * 29) % 21) - 10, y: item.y + ((i * 17) % 17) - 8 };
+        if (item.kind !== 'photo') return moved;
+        // Polaroids, with every third one taped, a shadow and the photo's own shape kept.
+        const framed = { ...moved, shape: 'rect', frame: i % 3 === 2 ? 'tape' : 'polaroid', shadow: true };
+        return { ...framed, aspect: outerAspectFor(framed, innerAspect(moved)) };
       })
     };
   }
@@ -597,6 +759,16 @@
         radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0))
       };
       if (item.kind === 'photo') {
+        const within = (value, [low, high], fallback) => Math.min(high, Math.max(low, isNumber(value) ? value : fallback));
+        clean.frame = FRAMES[item.frame] ? item.frame : 'none';
+        clean.shape = SHAPES[item.shape] ? item.shape : 'rect';
+        clean.look = LOOKS[item.look] ? item.look : 'none';
+        clean.caption = typeof item.caption === 'string' ? item.caption.slice(0, CAPTION_MAX) : '';
+        clean.shadow = item.shadow === true;
+        clean.flip = item.flip === true;
+        clean.bright = within(item.bright, ADJUST_LIMITS.bright, 100);
+        clean.contrast = within(item.contrast, ADJUST_LIMITS.contrast, 100);
+        clean.warmth = within(item.warmth, ADJUST_LIMITS.warmth, 0);
         const crop = item.crop || FULL_CROP;
         clean.crop = {
           zoom: Math.min(MAX_CROP_ZOOM, Math.max(1, isNumber(crop.zoom) ? crop.zoom : 1)),
@@ -701,6 +873,20 @@
     placeNewPhoto,
     FULL_CROP,
     MAX_CROP_ZOOM,
+    FRAMES,
+    SHAPES,
+    LOOKS,
+    CAPTION_MAX,
+    ADJUST_LIMITS,
+    PLAIN_FINISH,
+    isFramed,
+    framePads,
+    innerBox,
+    innerAspect,
+    outerAspectFor,
+    lookFilter,
+    shapePath,
+    tornEdge,
     photoItem,
     slotItem,
     fillSlot,

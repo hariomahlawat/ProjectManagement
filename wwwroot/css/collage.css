@@ -945,3 +945,67 @@
         display: none;
     }
 }
+
+/* ---------- Frame, shape and look ---------- */
+
+.clg-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.clg-choices .btn {
+    flex: 1 1 auto;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.clg-switch {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+}
+
+.clg-looks {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 0.25rem;
+}
+
+.clg-look {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--pdft-muted);
+    font-size: 0.68rem;
+    line-height: 1.15;
+    text-align: center;
+}
+
+.clg-look img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background: var(--bs-tertiary-bg);
+}
+
+.clg-look.is-on {
+    color: var(--bs-emphasis-color);
+    font-weight: 800;
+}
+
+.clg-look.is-on img {
+    border-color: var(--clg-accent);
+}
+
+.clg-look:focus-visible {
+    outline: 2px solid var(--clg-accent);
+    outline-offset: 2px;
+    border-radius: 8px;
+}

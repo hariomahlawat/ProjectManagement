@@ -258,7 +258,7 @@ test('a layout takes the page photos, then spare ones, then leaves empty frames'
 test('an empty frame filled with a photo keeps its place, size and angle', () => {
   const slot = { ...collage.slotItem('s', { x: 10, y: 20, width: 300, aspect: 2 }), angle: 5, radius: 6 };
   const filled = collage.fillSlot(slot, 'p9');
-  assert.deepEqual(filled, { ...slot, kind: 'photo', photo: 'p9', crop: { zoom: 1, x: 0.5, y: 0.5 } });
+  assert.deepEqual(filled, { ...slot, kind: 'photo', photo: 'p9', crop: { zoom: 1, x: 0.5, y: 0.5 }, ...collage.PLAIN_FINISH });
 });
 
 test('casual tilts frames both ways, straighten undoes it, shuffle moves photos along', () => {
@@ -420,4 +420,89 @@ test('a draft says when it was last saved in plain words', () => {
   assert.equal(collage.savedAgo(now - 3 * 3_600_000, now), '3 h ago');
   assert.equal(collage.savedAgo(now - 30 * 3_600_000, now), 'yesterday');
   assert.equal(collage.savedAgo(Date.UTC(2026, 9, 2, 12), now), '2 Oct 2026');
+});
+
+test('a frame leaves a picture area inside it, and a polaroid a deep bottom for its caption', () => {
+  const plain = collage.photoItem('a', 'p', 1, { x: 0, y: 0, width: 200 });
+  assert.deepEqual(collage.framePads(plain), { left: 0, right: 0, top: 0, bottom: 0 });
+  assert.deepEqual(collage.innerBox(plain), { x: 0, y: 0, width: 200, height: 200 });
+  const polaroid = { ...plain, frame: 'polaroid' };
+  assert.deepEqual(collage.framePads(polaroid), { left: 10, right: 10, top: 10, bottom: 40 });
+  assert.deepEqual(collage.innerBox(polaroid), { x: 10, y: 10, width: 180, height: 150 });
+  // A frame needs the square shape: a heart has none.
+  assert.equal(collage.isFramed({ ...polaroid, shape: 'heart' }), false);
+  assert.deepEqual(collage.framePads({ ...polaroid, shape: 'heart' }), { left: 0, right: 0, top: 0, bottom: 0 });
+  // The whole item's shape for a 4:3 picture in a polaroid 200 wide: 180 × 135 inside, plus 50.
+  assert.ok(Math.abs(collage.outerAspectFor(polaroid, 4 / 3) - 200 / 185) < 1e-9);
+  const fitted = { ...polaroid, aspect: collage.outerAspectFor(polaroid, 4 / 3) };
+  assert.ok(Math.abs(collage.innerAspect(fitted) - 4 / 3) < 1e-9);
+});
+
+test('moving a framed photo inside its frame measures the picture area, not the frame', () => {
+  const framed = { ...collage.photoItem('a', 'p', 1, { x: 0, y: 0, width: 200 }), frame: 'polaroid', crop: { zoom: 2, x: 0.5, y: 0.5 } };
+  framed.aspect = collage.outerAspectFor(framed, 1);
+  // 90 units is half of the 180-unit picture area, so the view moves a quarter of the photo.
+  const moved = collage.panCrop(1, framed, 90, 0);
+  assert.ok(Math.abs(moved.x - 0.25) < 1e-9);
+});
+
+test('a look and the sliders become one filter, and plain photos have none', () => {
+  const plain = collage.photoItem('a', 'p', 1, { x: 0, y: 0, width: 100 });
+  assert.equal(collage.lookFilter(plain), '');
+  assert.equal(collage.lookFilter({ ...plain, look: 'bw' }), 'grayscale(1) contrast(1.08)');
+  assert.equal(collage.lookFilter({ ...plain, bright: 120, contrast: 90 }), 'brightness(1.2) contrast(0.9)');
+  assert.equal(collage.lookFilter({ ...plain, warmth: 40 }), 'sepia(0.250) saturate(1.200)');
+  assert.equal(collage.lookFilter({ ...plain, warmth: -30 }), 'hue-rotate(-10.5deg) saturate(1.100)');
+  assert.equal(collage.lookFilter({ ...plain, look: 'unknown' }), '');
+});
+
+test('every shape is a closed path inside its box', () => {
+  for (const shape of Object.keys(collage.SHAPES)) {
+    const path = collage.shapePath(shape, 10, 20, 100, 80, 12);
+    assert.ok(path.length >= 1, shape);
+    const points = [];
+    for (const step of path) {
+      if (step[0] === 'M' || step[0] === 'L') points.push([step[1], step[2]]);
+      if (step[0] === 'Q') points.push([step[3], step[4]]);
+      if (step[0] === 'C') points.push([step[5], step[6]]);
+      if (step[0] === 'E') points.push([step[1] - step[3], step[2] - step[4]], [step[1] + step[3], step[2] + step[4]]);
+      if (step[0] === 'R') points.push([step[1], step[2]], [step[1] + step[3], step[2] + step[4]]);
+    }
+    for (const [x, y] of points) {
+      assert.ok(x >= 10 - 1e-9 && x <= 110 + 1e-9 && y >= 20 - 1e-9 && y <= 100 + 1e-9, `${shape} ${x},${y}`);
+    }
+    const last = path[path.length - 1][0];
+    assert.ok(['Z', 'E', 'R'].includes(last), shape);
+  }
+  // A star has ten points; a hexagon six; corners never round past half a side.
+  assert.equal(collage.shapePath('star', 0, 0, 10, 10).filter((s) => s[0] !== 'Z').length, 10);
+  assert.equal(collage.shapePath('hex', 0, 0, 10, 10).filter((s) => s[0] !== 'Z').length, 6);
+  assert.deepEqual(collage.shapePath('rect', 0, 0, 10, 40, 99), [['R', 0, 0, 10, 40, 5]]);
+});
+
+test('a torn edge is jagged, stays inside the box and is the same every time', () => {
+  const edge = collage.tornEdge(300, 200);
+  assert.deepEqual(edge, collage.tornEdge(300, 200));
+  assert.ok(edge.length > 80);
+  assert.ok(edge.every(([x, y]) => x >= 0 && x <= 300 && y >= 0 && y <= 200));
+  assert.ok(new Set(edge.slice(0, 23).map(([, y]) => y.toFixed(3))).size > 5, 'the top edge is jagged');
+});
+
+test('casual puts photos in polaroids, every third taped, keeping each photo shape', () => {
+  let n = 0;
+  const { collage: laid } = collage.applyLayout(collage.newCollage('a4l'), 't4', 10, 0, ['p1', 'p2', 'p3', 'p4'], () => `n${++n}`);
+  const casual = collage.makeCasual(laid);
+  assert.deepEqual(casual.items.map((i) => i.frame), ['polaroid', 'polaroid', 'tape', 'polaroid']);
+  assert.ok(casual.items.every((i) => i.shadow === true));
+  casual.items.forEach((item, k) => {
+    assert.ok(Math.abs(collage.innerAspect(item) - laid.items[k].aspect) < 1e-9, 'the picture keeps its shape');
+  });
+});
+
+test('a draft keeps each photo finish, within its limits', () => {
+  const item = { ...collage.photoItem('a', 'p1', 1, { x: 1, y: 1, width: 100 }), frame: 'polaroid', caption: 'x'.repeat(60), shadow: true, shape: 'star', look: 'vivid', bright: 999, contrast: 10, warmth: -99, flip: true };
+  const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [item, { ...item, id: 'b', frame: 'zz', shape: 'zz', look: 'zz', shadow: 'yes', flip: 1 }] }, ['p1']);
+  const [a, b] = read.items;
+  assert.deepEqual([a.frame, a.shape, a.look, a.caption.length, a.shadow, a.flip, a.bright, a.contrast, a.warmth], ['polaroid', 'star', 'vivid', 40, true, true, 150, 50, -50]);
+  assert.deepEqual([b.frame, b.shape, b.look, b.shadow, b.flip], ['none', 'rect', 'none', false, false]);
 });

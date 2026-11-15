@@ -17,6 +17,7 @@ public sealed class CollageStudioPageContractTests
     {
         "js/collage/collage-core.js",
         "js/collage/collage-drafts.js",
+        "js/collage/collage-draw.js",
         "js/collage/collage-app.js"
     };
 
