@@ -22,7 +22,8 @@ module.exports = defineConfig({
     acceptDownloads: true
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } }
+    { name: 'desktop', testIgnore: /phone.spec.js$/, use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } },
+    { name: 'phone', testMatch: /phone.spec.js$/, use: { ...devices['Pixel 7'] } }
   ],
   webServer: {
     command: 'node tests/browser/serve.js',

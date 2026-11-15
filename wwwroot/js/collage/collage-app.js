@@ -1315,6 +1315,11 @@
     if (record) commit();
     else {
       syncPage();
+      // The panel is not drawn again while the user types, so the item's Layers row and the
+      // collage's own title follow the words here.
+      const row = props.querySelector(`[data-layer-select="${item.id}"] .clg-layer__name`);
+      if (row && item.kind === 'text') row.textContent = core.layerName(item);
+      refreshTitle();
       holdEdit();
     }
   }
