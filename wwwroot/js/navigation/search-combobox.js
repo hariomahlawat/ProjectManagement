@@ -466,7 +466,8 @@ export function createSearchCombobox(input, options = {}) {
   const search = (query) => {
     const value = String(query ?? '').trim();
     if (!value) return;
-    rememberSearch(value, win);
+    // Not remembered here: the results page remembers a search once it has run and found
+    // something, so refused ("o") and empty searches stay out of the recent list.
     close();
     navigate(resultsUrl(value));
   };
@@ -557,7 +558,7 @@ export function createSearchCombobox(input, options = {}) {
       input.focus();
       return;
     }
-    rememberSearch(query, win);
+    // The results page remembers the search once it has run and found something.
     close();
   });
 

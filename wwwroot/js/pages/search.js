@@ -24,8 +24,10 @@ function initSearchBoxes(root) {
     if (input instanceof HTMLInputElement) createSearchCombobox(input);
   });
 
-  // Searches that arrive by link (hints, did-you-mean, related chips) count as recent too.
-  const recordInput = root.querySelector('input[data-search-record-recent]');
+  // The page marks its box only when the search ran and found something; searches typed in
+  // any box, or arriving by link (did-you-mean, related chips), are remembered here.
+  // (Razor always renders data-* attributes, so the page says "true" or "false".)
+  const recordInput = root.querySelector('input[data-search-record-recent="true"]');
   if (recordInput instanceof HTMLInputElement && recordInput.value.trim()) {
     rememberSearch(recordInput.value);
   }

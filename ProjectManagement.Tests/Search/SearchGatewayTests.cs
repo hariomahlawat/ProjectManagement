@@ -142,6 +142,32 @@ public sealed class SearchGatewayTests
         Assert.Empty(response.Results);
     }
 
+    // A query-log row is one search: Show more pages and the same query again with another
+    // tab or filters are not new searches.
+    [Fact]
+    public async Task QueryLog_CountsASearchOnce_NotItsPagesTabsOrFilters()
+    {
+        using var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
+        var harness = new Harness(new SearchV2Options { ServeV2 = true }, cache);
+
+        await harness.Gateway.SearchAsync(new SearchRequest("radar"), User(), CancellationToken.None);
+        await harness.Gateway.SearchAsync(new SearchRequest("radar", Cursor: "next"), User(), CancellationToken.None);
+        await harness.Gateway.SearchAsync(new SearchRequest("Radar", Categories: new[] { "Documents" }), User(), CancellationToken.None);
+        await harness.Gateway.SearchAsync(new SearchRequest("sonar"), User(), CancellationToken.None);
+
+        Assert.Equal(2, harness.Analytics.QueryEngines.Count);
+    }
+
+    [Fact]
+    public async Task QueryLog_LeavesOutShowMorePages_EvenWithoutACache()
+    {
+        var harness = new Harness(new SearchV2Options { ServeV2 = true });
+
+        await harness.Gateway.SearchAsync(new SearchRequest("radar", Cursor: "next"), User(), CancellationToken.None);
+
+        Assert.Empty(harness.Analytics.QueryEngines);
+    }
+
     [Fact]
     public void ClickLogging_IsLimitedPerUserPerMinute()
     {
@@ -211,7 +237,7 @@ public sealed class SearchGatewayTests
 
     private sealed class Harness
     {
-        public Harness(SearchV2Options options)
+        public Harness(SearchV2Options options, Microsoft.Extensions.Caching.Memory.IMemoryCache? searchLog = null)
         {
             Gateway = new SearchGateway(
                 Engine,
@@ -224,7 +250,8 @@ public sealed class SearchGatewayTests
                 Latency,
                 SuggestionLatency,
                 Options.Create(options),
-                NullLogger<SearchGateway>.Instance);
+                NullLogger<SearchGateway>.Instance,
+                searchLog);
         }
 
         public FakeEngine Engine { get; } = new();
