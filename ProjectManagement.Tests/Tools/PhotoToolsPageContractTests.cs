@@ -187,7 +187,16 @@ public sealed class PhotoToolsPageContractTests
         // page must never again say that only Remove background sends a copy.
         Assert.DoesNotContain("Only Remove background", page, StringComparison.Ordinal);
         Assert.Contains("Two screens send a copy to the PRISM server: Remove background", page, StringComparison.Ordinal);
-        Assert.Contains("except Remove background and Passport photo", page, StringComparison.Ordinal);
+        // The home screen: the line under the title points to a label, and exactly the two cards
+        // that send a copy carry it.
+        Assert.Contains("except in the two tools marked “Uses the PRISM server”", page, StringComparison.Ordinal);
+        var tagged = System.Text.RegularExpressions.Regex.Matches(
+                page,
+                "<a class=\"pdft-card\" href=\"#(?<tool>[a-z]+)\"[^>]*>(?:(?!</a>).)*?pdft-card__tag(?:(?!</a>).)*?Uses the PRISM server",
+                System.Text.RegularExpressions.RegexOptions.Singleline)
+            .Select(match => match.Groups["tool"].Value)
+            .ToArray();
+        Assert.Equal(new[] { "passport", "remove" }, tagged);
         Assert.Contains("To place the face, and for a new background when the wall is not plain, a copy of the photo is sent to the PRISM server", page, StringComparison.Ordinal);
         Assert.Contains("Better edges sends a copy of the photo to the PRISM server", page, StringComparison.Ordinal);
     }

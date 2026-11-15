@@ -12,6 +12,10 @@ navigation drawer (**PDF Tools**) at `/Tools/Pdf`.
   (`Pages/Tools/Pdf/Index.cshtml.cs`) has only `OnGet`; there is no form post, API endpoint,
   database table or migration.
 - The page requires a signed-in user (`[Authorize]`), like the rest of PRISM.
+
+The home screen has a one-line title, a two-line note and the tools four across from 992 px
+(two on a tablet, one on a phone), so all eight fit on a 1366 × 768 screen without scrolling.
+Photo Tools uses the same rules (`.pdft-hero`, `.pdft-grid`, `.pdft-card` in `pdf-tools.css`).
 - Usage telemetry records only that the `pdf-tools` module was opened (`ErpUsageModuleCatalog`),
   never file names or contents.
 
