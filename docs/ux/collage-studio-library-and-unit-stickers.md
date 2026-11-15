@@ -25,11 +25,14 @@ user adds from the computer, is still never sent to PRISM.
 | Which library photos | Only what the user can already see in `/Photos`, through `IMediaAssetVisibilityPolicy`; photos only, not videos | No new access rule; the library's own rule decides |
 | Which size is fetched | The **original**, read once into the browser like a chosen file | Save is at print quality from the original, as for photos from the computer |
 | When `/Photos` is switched off | The button is not shown | No dead ends |
+| Name of the sticker group | **Crests and logos** (owner, 15 Nov) | Named by what is in it, like the other groups; "Custom" would suggest the user's own uploads |
+| A user's own logo as a sticker | **Not now** (owner, 15 Nov) | A user can still add a logo as a photo; a browser-only "Your own" group can be a later plan |
 
 ## What the user sees
 
-- **Stickers panel**: a new first group, **Unit**, showing the uploaded stickers by name, with
-  the same search box. When there are none it says an administrator can add them.
+- **Stickers panel**: a new first group, **Crests and logos**, showing the uploaded stickers by
+  name, with the same search box. When there are none it says "An administrator can add your
+  unit's crests and logos."
 - **Photos panel**: beside **Add photos**, a second button **From PRISM Photos**. It opens a
   dialog: a search box (words, project, person, year as in `/Photos`), a grid of thumbnails,
   tick up to the photos still allowed (60 in all), **Add**. The photos then behave exactly like
@@ -75,7 +78,7 @@ user adds from the computer, is still never sent to PRISM.
 | 1 | This plan | Merged |
 | 2 | Sticker entity, migration, storage service, read API, tests | API returns uploaded stickers; migration tests pass |
 | 3 | Admin page: add, rename, order, retire, restore; capability, navigation, audit | An admin can manage stickers; guard tests pass |
-| 4 | Unit stickers in the collage: Unit group, drawing, Save, drafts | A crest goes on, saves and reopens |
+| 4 | Crests and logos in the collage: the group, drawing, Save, drafts | A crest goes on, saves and reopens |
 | 5 | Library photos API | Returns only photos the user can see |
 | 6 | From PRISM Photos dialog in the collage, privacy wording, contract test | Library photos behave like computer photos |
 | 7 | Docs and a phone and Dark theme pass | Guide updated, plan complete |
