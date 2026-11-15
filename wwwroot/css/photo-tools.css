@@ -399,6 +399,39 @@
     min-height: 42px;
 }
 
+/* Exact width and height: two boxes side by side, then the fit on its own line. */
+.phot-exact {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: end;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.phot-exact label {
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.phot-field .phot-exact .form-control {
+    width: 100%;
+    min-width: 0;
+}
+
+.phot-exact__times {
+    padding-bottom: 0.6rem;
+    color: var(--pdft-muted);
+}
+
+.phot-field .phot-exact__fit-label {
+    width: 100%;
+    margin-top: 0.25rem;
+}
+
+.phot-field [data-exact-fit] {
+    width: 100%;
+}
+
 /* ---------- Summary ---------- */
 
 .phot-summary {

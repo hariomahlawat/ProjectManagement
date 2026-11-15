@@ -100,6 +100,11 @@
   const dimensions = $('[data-dimensions]', view);
   const customSide = $('[data-custom-side]', view);
   const customSideValue = $('[data-custom-side-value]', view);
+  const exactField = $('[data-exact]', view);
+  const exactWidth = $('[data-exact-width]', view);
+  const exactHeight = $('[data-exact-height]', view);
+  const exactFit = $('[data-exact-fit]', view);
+  const exactHint = $('[data-exact-hint]', view);
   const format = $('[data-format]', view);
   const greyscale = $('[data-greyscale]', view);
   const pngHint = $('[data-png-hint]', view);
@@ -127,6 +132,9 @@
         dimensions.value = saved.dimensions;
       }
       if (Number(saved.customSide) >= 16) customSideValue.value = String(saved.customSide);
+      if (core.parseExactSide(saved.exactWidth)) exactWidth.value = String(saved.exactWidth);
+      if (core.parseExactSide(saved.exactHeight)) exactHeight.value = String(saved.exactHeight);
+      if (saved.exactFit === 'fill' || saved.exactFit === 'fit') exactFit.value = saved.exactFit;
       if ($$('option', format).some(option => option.value === saved.format)) format.value = saved.format;
       greyscale.checked = saved.greyscale === true;
     } catch {
@@ -142,6 +150,9 @@
         unit,
         dimensions: dimensions.value,
         customSide: Number(customSideValue.value),
+        exactWidth: Number(exactWidth.value),
+        exactHeight: Number(exactHeight.value),
+        exactFit: exactFit.value,
         format: format.value,
         greyscale: greyscale.checked
       }));
@@ -158,6 +169,12 @@
     } else if (kind === 'custom') {
       const side = Math.round(Number(customSideValue.value));
       resize = side >= 16 ? { type: 'longest', value: side } : { type: 'keep' };
+    } else if (kind === 'exact') {
+      // Until both sides are whole numbers in range the photos are left as they are, as for a
+      // custom side that is too small; the hint under the boxes says why.
+      const width = core.parseExactSide(exactWidth.value);
+      const height = core.parseExactSide(exactHeight.value);
+      resize = width && height ? { type: 'exact', width, height, fit: exactFit.value } : { type: 'keep' };
     }
     return {
       targetBytes: core.parseTargetBytes(targetValue.value, unit),
@@ -177,6 +194,16 @@
       button.setAttribute('aria-pressed', String(button.dataset.targetPreset === current));
     }
     customSide.hidden = dimensions.value !== 'custom';
+    exactField.hidden = dimensions.value !== 'exact';
+    const exactBad = [exactWidth, exactHeight].filter(input => !core.parseExactSide(input.value));
+    for (const input of [exactWidth, exactHeight]) {
+      input.classList.toggle('is-invalid', exactBad.includes(input));
+      input.setAttribute('aria-invalid', String(exactBad.includes(input)));
+    }
+    exactHint.textContent = exactBad.length
+      ? `Type a width and height from ${core.EXACT_SIDE.min} to ${core.EXACT_SIDE.max.toLocaleString('en-IN')} px. Until then this size is not used.`
+      : 'Every photo comes out at exactly this size. Crop to fill cuts the edges evenly; Fit inside keeps the whole photo. A smaller photo is made larger.';
+    exactHint.classList.toggle('phot-hint--warning', exactBad.length > 0);
     // A size limit on a PNG costs far more detail than on a JPG; say so before the user is surprised.
     const writesPng = format.value === 'png'
       || (format.value === 'same' && photos.some(photo => photo.file.type === 'image/png'));
@@ -211,22 +238,30 @@
     try {
       const original = sizeOf(source);
       await makeThumbnail(photo, source, original);
-      const start = core.resizeDimensions(original.width, original.height, settings.resize);
+      const exact = settings.resize.type === 'exact'
+        ? core.exactFit(original.width, original.height, settings.resize, settings.resize.fit)
+        : null;
+      const start = exact || core.resizeDimensions(original.width, original.height, settings.resize);
       const type = core.outputType(photo.file.type, settings.format);
+      const drawOptions = { greyscale: settings.greyscale, opaque: type.mime === 'image/jpeg' };
       let drawn = null;
       const encode = (width, height, quality) => {
         if (!wanted()) throw STOPPED;
         if (!drawn || drawn.width !== width || drawn.height !== height) {
-          drawn = drawPhoto(source, width, height, { greyscale: settings.greyscale, opaque: type.mime === 'image/jpeg' });
+          drawn = exact
+            ? shared.drawExact(source, exact, drawOptions)
+            : drawPhoto(source, width, height, drawOptions);
         }
         return canvasToBytes(drawn, type, quality);
       };
+      // An exact size was asked for: only the quality may be lowered to meet a file size.
       let result = await core.encodeToTarget({
         encode,
         width: start.width,
         height: start.height,
         lossy: type.lossy,
-        targetBytes: settings.targetBytes
+        targetBytes: settings.targetBytes,
+        fixedSize: Boolean(exact)
       });
       // A photo that was already small can come out bigger at top quality. Saved in its own
       // type, a lower quality at the same dimensions gets it under the original.
@@ -471,7 +506,9 @@
     const note = $('[data-summary-note]', view);
     const notes = [];
     if (!pending && settings.targetBytes && done.length > reached) {
-      notes.push('Photos shown in amber are as small as they can be made.');
+      notes.push(settings.resize.type === 'exact'
+        ? 'Photos shown in amber are as small as they can be at this width and height. Choose fewer pixels or a larger size.'
+        : 'Photos shown in amber are as small as they can be made.');
     }
     const bigger = done.filter(photo => photo.result.bigger).length;
     if (!pending && bigger) {
@@ -544,8 +581,12 @@
       settingsChanged();
     });
   }
-  for (const control of [dimensions, customSideValue, format, greyscale]) {
+  for (const control of [dimensions, customSideValue, exactFit, format, greyscale]) {
     control.addEventListener('change', settingsChanged);
+  }
+  // Typed sizes count once the user stops typing, as the file size does.
+  for (const input of [exactWidth, exactHeight]) {
+    input.addEventListener('input', settingsChanged);
   }
   compareSlider.addEventListener('input', placeCompareLine);
   downloadButton.addEventListener('click', download);
