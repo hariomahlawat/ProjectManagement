@@ -26,6 +26,9 @@ public sealed class CollageStudioPageContractTests
         "js/collage/collage-edits.js",
         "js/collage/collage-render.js",
         "js/collage/collage-library-dialog.js",
+        "js/collage/collage-settings.js",
+        "js/collage/collage-photos.js",
+        "js/collage/collage-save.js",
         "js/collage/collage-app.js"
     };
 
