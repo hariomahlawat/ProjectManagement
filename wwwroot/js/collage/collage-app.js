@@ -399,6 +399,13 @@
 
   /** Draws the model: adds, updates, orders and removes Konva nodes to match it. */
   function syncPage() {
+    // Moving a photo inside its frame belongs to the selected photo only: whatever selected
+    // another item (a click, a photo placed from Photos, a duplicate) ends it.
+    if (adjustId && adjustId !== selectedId) {
+      adjustId = null;
+      pan = null;
+      adjustHint.hidden = true;
+    }
     const seen = new Set();
     collage.items.forEach((item) => {
       let node = nodes.get(item.id);
@@ -648,6 +655,9 @@
       case 'alert-close': showAlert(''); break;
       case 'duplicate':
         if (item) {
+          // A copy is one frame more than the layout has, so the page is no longer a strict
+          // grid; otherwise the next change of space or page size would drop the copy.
+          collage.layout = null;
           const copy = { ...core.duplicateItem(item, newItemId()), crop: item.crop ? { ...item.crop } : undefined };
           if (!copy.crop) delete copy.crop;
           collage.items.splice(collage.items.indexOf(item) + 1, 0, copy);
