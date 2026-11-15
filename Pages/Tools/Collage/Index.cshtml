@@ -49,7 +49,9 @@
         <section class="clg-start" data-view="start" aria-labelledby="clgStartTitle">
             <h1 id="clgStartTitle" tabindex="-1">Make a collage</h1>
             <p class="clg-lede">Put your photos on a page, turn them to any angle and arrange them as you like. Everything happens in this browser; no photo is sent to PRISM.</p>
-            <p class="clg-building" role="note"><i class="bi bi-cone-striped" aria-hidden="true"></i> Collage Studio is being built. Layouts, text, stickers, backgrounds, drafts and saving come in the next updates.</p>
+            <p class="clg-building" role="note"><i class="bi bi-cone-striped" aria-hidden="true"></i> Collage Studio is being built. Text, stickers, backgrounds, drafts and saving come in the next updates.</p>
+            <h2 class="clg-start__heading">Start with a layout <small>A4 landscape; the size can be changed later</small></h2>
+            <div class="clg-layouts" data-start-layouts></div>
             <h2 class="clg-start__heading">Start with a blank page</h2>
             <div class="clg-sizes" data-sizes></div>
         </section>
@@ -79,30 +81,62 @@
 
             <div class="clg-body" data-body>
                 <nav class="clg-rail" aria-label="Add to the collage">
+                    <button type="button" data-panel="layouts" aria-pressed="false" aria-controls="clgDrawer">
+                        <i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Layouts</span>
+                    </button>
                     <button type="button" data-panel="photos" aria-pressed="true" aria-controls="clgDrawer">
                         <i class="bi bi-images" aria-hidden="true"></i><span>Photos</span>
                     </button>
                 </nav>
 
-                <aside class="clg-drawer" id="clgDrawer" data-drawer aria-label="Photos">
-                    <h2 class="clg-panel-title">Photos</h2>
-                    <button type="button" class="btn btn-primary w-100" data-action="choose">
-                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add photos
-                    </button>
-                    <p class="clg-hint">Or drop photos on the page, or paste one with Ctrl+V. Click a photo below to add it again, or drag it onto the page.</p>
-                    <p class="clg-hint clg-count" data-photo-count></p>
-                    <div class="clg-tray" data-tray></div>
+                <aside class="clg-drawer" id="clgDrawer" data-drawer aria-label="Add to the collage">
+                    <section data-drawer-panel="photos" aria-labelledby="clgPhotosTitle">
+                        <h2 class="clg-panel-title" id="clgPhotosTitle">Photos</h2>
+                        <div class="clg-banner" data-replace-banner hidden>
+                            <span data-replace-text>Choose the photo for the selected frame.</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="replace-cancel">Cancel</button>
+                        </div>
+                        <button type="button" class="btn btn-primary w-100" data-action="choose">
+                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add photos
+                        </button>
+                        <p class="clg-hint">Or drop photos on the page, or paste one with Ctrl+V. Empty frames fill first. Click a photo below to add it again, or drag it onto the page or into a frame.</p>
+                        <p class="clg-hint clg-count" data-photo-count></p>
+                        <div class="clg-tray" data-tray></div>
+                    </section>
+                    <section data-drawer-panel="layouts" aria-labelledby="clgLayoutsTitle" hidden>
+                        <h2 class="clg-panel-title" id="clgLayoutsTitle">Layouts</h2>
+                        <div class="clg-layout-grid" data-layout-grid></div>
+                        <label class="clg-field"><span class="clg-field__label">Space between photos<output data-out="gap"></output></span>
+                            <input type="range" min="0" max="60" step="1" data-layout-input="gap" aria-label="Space between photos, in page units"></label>
+                        <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius"></output></span>
+                            <input type="range" min="0" max="60" step="1" data-layout-input="radius" aria-label="Rounded corners, in page units"></label>
+                        <p class="clg-hint" data-layout-hint></p>
+                        <div class="clg-section">
+                            <p class="clg-section__title">Mix it up</p>
+                            <div class="clg-stack">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="casual"><i class="bi bi-shuffle" aria-hidden="true"></i> Make it casual: tilt the photos</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="straighten-all"><i class="bi bi-distribute-vertical" aria-hidden="true"></i> Straighten all</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="shuffle"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Shuffle photos</button>
+                            </div>
+                        </div>
+                    </section>
                 </aside>
 
                 <div class="clg-stage" data-stage>
                     <div class="clg-stage__canvas" data-konva></div>
-                    <div class="clg-toolbar" data-toolbar role="toolbar" aria-label="Selected photo" hidden>
-                        <button type="button" data-action="duplicate" title="Duplicate (Ctrl+D)" aria-label="Duplicate"><i class="bi bi-copy" aria-hidden="true"></i></button>
-                        <button type="button" data-action="forward" title="Bring forward (])" aria-label="Bring forward"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
-                        <button type="button" data-action="backward" title="Send backward ([)" aria-label="Send backward"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
-                        <button type="button" class="clg-toolbar__delete" data-action="delete" title="Delete (Delete)" aria-label="Delete"><i class="bi bi-trash3" aria-hidden="true"></i></button>
+                    <div class="clg-toolbar" data-toolbar role="toolbar" aria-label="Selected item" hidden>
+                        <button type="button" class="clg-toolbar__text" data-action="adjust-done" data-for="adjusting">Done</button>
+                        <button type="button" data-action="fill-slot" data-for="slot" class="clg-toolbar__text"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add photo</button>
+                        <button type="button" data-action="adjust" data-for="photo" title="Move the photo inside its frame (double-click)" aria-label="Move the photo inside its frame"><i class="bi bi-arrows-move" aria-hidden="true"></i></button>
+                        <button type="button" data-action="replace" data-for="photo" title="Replace the photo" aria-label="Replace the photo"><i class="bi bi-arrow-left-right" aria-hidden="true"></i></button>
+                        <span class="clg-toolbar__sep" data-for="photo" aria-hidden="true"></span>
+                        <button type="button" data-action="duplicate" data-for="item" title="Duplicate (Ctrl+D)" aria-label="Duplicate"><i class="bi bi-copy" aria-hidden="true"></i></button>
+                        <button type="button" data-action="forward" data-for="item" title="Bring forward (])" aria-label="Bring forward"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
+                        <button type="button" data-action="backward" data-for="item" title="Send backward ([)" aria-label="Send backward"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+                        <button type="button" class="clg-toolbar__delete" data-action="delete" data-for="item" title="Delete (Delete)" aria-label="Delete"><i class="bi bi-trash3" aria-hidden="true"></i></button>
                     </div>
                     <div class="clg-angle" data-angle hidden></div>
+                    <div class="clg-stage-hint" data-adjust-hint hidden>Drag to move the photo in its frame · scroll or use the slider to zoom · Esc when done</div>
                     <div class="clg-empty" data-empty>
                         <i class="bi bi-images" aria-hidden="true"></i>
                         <p>Add photos, drop them here, or paste one with Ctrl+V.</p>

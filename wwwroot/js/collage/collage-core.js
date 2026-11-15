@@ -69,6 +69,8 @@
       version: MODEL_VERSION,
       size: SIZES[sizeKey] ? sizeKey : DEFAULT_SIZE,
       background: { type: 'color', value: '#ffffff' },
+      // The layout last chosen ({ key, gap, radius }), or null for a free arrangement.
+      layout: null,
       items: []
     };
   }
@@ -149,7 +151,15 @@
     return { x: PAGE_WIDTH / 2 + dx, y: height / 2 + dy, width };
   }
 
-  /** A photo item. `photo` is the id of the photo in the collage's photo store. */
+  /** How a photo fills its frame: no zoom, centred. */
+  const FULL_CROP = Object.freeze({ zoom: 1, x: 0.5, y: 0.5 });
+  const MAX_CROP_ZOOM = 4;
+
+  /**
+   * A photo item. `photo` is the id of the photo in the collage's photo store. `aspect` is the
+   * frame's shape (width / height); the photo fills it, cut evenly at the edges, and `crop`
+   * says how far it is zoomed and which part shows.
+   */
   function photoItem(id, photo, aspect, place) {
     return {
       id,
@@ -160,7 +170,168 @@
       width: place.width,
       aspect,
       angle: 0,
-      opacity: 100
+      opacity: 100,
+      radius: 0,
+      crop: { ...FULL_CROP }
+    };
+  }
+
+  /** An empty frame from a layout, waiting for a photo. It is never saved into the picture. */
+  function slotItem(id, place) {
+    return { id, kind: 'slot', x: place.x, y: place.y, width: place.width, aspect: place.aspect, angle: 0, opacity: 100, radius: 0 };
+  }
+
+  /** A slot filled with a photo: the frame keeps its place, size, angle and corners. */
+  function fillSlot(slot, photo) {
+    return { ...slot, kind: 'photo', photo, crop: { ...FULL_CROP } };
+  }
+
+  // ---------------------------------------------------------------------------
+  // The part of a photo a frame shows
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The part of the photo the frame shows, as fractions of the photo (0 to 1): the largest
+   * part with the frame's shape (so the frame is filled and nothing is stretched), made smaller
+   * by the zoom, centred on crop.x and crop.y but never past the photo's edges.
+   */
+  function cropRegion(photoAspect, frameAspect, crop) {
+    const zoom = Math.min(MAX_CROP_ZOOM, Math.max(1, Number(crop?.zoom) || 1));
+    // Width and height of the frame's shape inside the photo, as fractions of the photo.
+    let w = 1;
+    let h = 1;
+    if (frameAspect > photoAspect) h = photoAspect / frameAspect;
+    else w = frameAspect / photoAspect;
+    w /= zoom;
+    h /= zoom;
+    const cx = Math.min(1 - w / 2, Math.max(w / 2, Number.isFinite(crop?.x) ? crop.x : 0.5));
+    const cy = Math.min(1 - h / 2, Math.max(h / 2, Number.isFinite(crop?.y) ? crop.y : 0.5));
+    return { x: cx - w / 2, y: cy - h / 2, width: w, height: h };
+  }
+
+  /** The crop once kept inside the photo, so what is stored always matches what is shown. */
+  function clampCrop(photoAspect, frameAspect, crop) {
+    const zoom = Math.min(MAX_CROP_ZOOM, Math.max(1, Number(crop?.zoom) || 1));
+    const r = cropRegion(photoAspect, frameAspect, { ...crop, zoom });
+    return { zoom, x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  }
+
+  /**
+   * The crop after the photo is dragged inside its frame by (dx, dy) page units, measured along
+   * the frame's own sides. Dragging right shows more of the photo's left.
+   */
+  function panCrop(photoAspect, item, dx, dy) {
+    const r = cropRegion(photoAspect, item.aspect, item.crop);
+    const frameHeight = item.width / item.aspect;
+    return clampCrop(photoAspect, item.aspect, {
+      zoom: item.crop?.zoom || 1,
+      x: r.x + r.width / 2 - dx / item.width * r.width,
+      y: r.y + r.height / 2 - dy / frameHeight * r.height
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Layouts
+  // ---------------------------------------------------------------------------
+
+  /** Grids on 12 × 12 units: [x, y, width, height] for each frame. */
+  const LAYOUTS = Object.freeze({
+    t2: Object.freeze({ label: '2 side by side', cells: [[0, 0, 6, 12], [6, 0, 6, 12]] }),
+    t3: Object.freeze({ label: '1 big, 2 small', cells: [[0, 0, 7, 12], [7, 0, 5, 6], [7, 6, 5, 6]] }),
+    t3c: Object.freeze({ label: '3 columns', cells: [[0, 0, 4, 12], [4, 0, 4, 12], [8, 0, 4, 12]] }),
+    t4: Object.freeze({ label: '4 grid', cells: [[0, 0, 6, 6], [6, 0, 6, 6], [0, 6, 6, 6], [6, 6, 6, 6]] }),
+    t4s: Object.freeze({ label: '4 in a strip', cells: [[0, 0, 3, 12], [3, 0, 3, 12], [6, 0, 3, 12], [9, 0, 3, 12]] }),
+    t5: Object.freeze({ label: '2 over 3', cells: [[0, 0, 6, 7], [6, 0, 6, 7], [0, 7, 4, 5], [4, 7, 4, 5], [8, 7, 4, 5]] }),
+    t6: Object.freeze({ label: '6 grid', cells: [[0, 0, 4, 6], [4, 0, 4, 6], [8, 0, 4, 6], [0, 6, 4, 6], [4, 6, 4, 6], [8, 6, 4, 6]] }),
+    t7: Object.freeze({ label: 'Mosaic of 7', cells: [[0, 0, 5, 7], [5, 0, 4, 4], [9, 0, 3, 4], [5, 4, 7, 3], [0, 7, 4, 5], [4, 7, 4, 5], [8, 7, 4, 5]] }),
+    t8: Object.freeze({ label: '8 grid', cells: [[0, 0, 3, 6], [3, 0, 3, 6], [6, 0, 3, 6], [9, 0, 3, 6], [0, 6, 3, 6], [3, 6, 3, 6], [6, 6, 3, 6], [9, 6, 3, 6]] }),
+    t9: Object.freeze({ label: '9 grid', cells: [0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => [c * 4, r * 4, 4, 4])) }),
+    t12: Object.freeze({ label: '12 grid', cells: [0, 1, 2].flatMap((r) => [0, 1, 2, 3].map((c) => [c * 3, r * 4, 3, 4])) })
+  });
+  const LAYOUT_LIMITS = Object.freeze({ gapMax: 60, radiusMax: 60, defaultGap: 12 });
+
+  /**
+   * The frames of a layout on a page: centre, width and shape of each. `gap` is the space
+   * between frames and around the page's edge, in page units.
+   */
+  function layoutFrames(sizeKey, key, gap) {
+    const layout = LAYOUTS[key];
+    if (!layout) return [];
+    const g = Math.min(LAYOUT_LIMITS.gapMax, Math.max(0, Number(gap) || 0));
+    const height = pageHeight(sizeKey);
+    const areaW = PAGE_WIDTH - g;
+    const areaH = height - g;
+    return layout.cells.map(([cx, cy, cw, ch]) => {
+      const x = g + cx / 12 * areaW;
+      const y = g + cy / 12 * areaH;
+      const w = cw / 12 * areaW - g;
+      const h = ch / 12 * areaH - g;
+      return { x: x + w / 2, y: y + h / 2, width: w, aspect: w / h };
+    });
+  }
+
+  /**
+   * The collage arranged in a layout. Its photos fill the frames in their current order, then
+   * `spare` photos (ids from the photo store, with their shape) fill what is left, then empty
+   * frames wait for photos. Photos beyond the frames leave the page (they stay in Photos) and are
+   * returned as `removed`. Every frame is straight, uncut and given the layout's rounded corners.
+   */
+  function applyLayout(collage, key, gap, radius, spare, newId) {
+    const frames = layoutFrames(collage.size, key, gap);
+    if (!frames.length) return { collage, removed: [] };
+    const r = Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, Number(radius) || 0));
+    const photos = collage.items.filter((item) => item.kind === 'photo');
+    const others = collage.items.filter((item) => item.kind !== 'photo' && item.kind !== 'slot');
+    const sources = photos.map((item) => item.photo);
+    for (const id of spare || []) if (sources.length < frames.length && !sources.includes(id)) sources.push(id);
+    const placed = frames.map((frame, index) => {
+      const place = { ...frame };
+      const existing = photos[index];
+      if (existing) return { ...existing, ...place, angle: 0, radius: r, crop: { ...FULL_CROP } };
+      if (index < sources.length) return { ...photoItem(newId(), sources[index], place.aspect, place), radius: r };
+      return { ...slotItem(newId(), place), radius: r };
+    });
+    const removed = photos.slice(frames.length).map((item) => item.id);
+    return {
+      collage: { ...collage, layout: { key, gap: Math.min(LAYOUT_LIMITS.gapMax, Math.max(0, Number(gap) || 0)), radius: r }, items: [...placed, ...others] },
+      removed
+    };
+  }
+
+  /**
+   * "Make it casual": every photo and empty frame tilted a little, left or right in turn,
+   * nudged off the grid and made a little smaller so the tilted corners show. The same collage
+   * always gives the same result.
+   */
+  function makeCasual(collage) {
+    let n = 0;
+    return {
+      ...collage,
+      layout: null,
+      items: collage.items.map((item) => {
+        if (item.kind !== 'photo' && item.kind !== 'slot') return item;
+        const i = n++;
+        const angle = (i % 2 ? 1 : -1) * (3 + (i * 5) % 6);
+        return { ...item, angle, width: item.width * 0.9, x: item.x + ((i * 29) % 21) - 10, y: item.y + ((i * 17) % 17) - 8 };
+      })
+    };
+  }
+
+  /** Every photo and empty frame turned straight. */
+  function straightenAll(collage) {
+    return { ...collage, items: collage.items.map((item) => (item.kind === 'photo' || item.kind === 'slot' ? { ...item, angle: 0 } : item)) };
+  }
+
+  /** The photos moved one frame along: each frame shows the next photo, the last the first. */
+  function shufflePhotos(collage) {
+    const photos = collage.items.filter((item) => item.kind === 'photo');
+    if (photos.length < 2) return collage;
+    const sources = photos.map((item) => item.photo);
+    sources.push(sources.shift());
+    let i = 0;
+    return {
+      ...collage,
+      items: collage.items.map((item) => (item.kind === 'photo' ? { ...item, photo: sources[i++], crop: { ...FULL_CROP } } : item))
     };
   }
 
@@ -328,7 +499,21 @@
     refusedMessage,
     workingSize,
     placeNewPhoto,
+    FULL_CROP,
+    MAX_CROP_ZOOM,
     photoItem,
+    slotItem,
+    fillSlot,
+    cropRegion,
+    clampCrop,
+    panCrop,
+    LAYOUTS,
+    LAYOUT_LIMITS,
+    layoutFrames,
+    applyLayout,
+    makeCasual,
+    straightenAll,
+    shufflePhotos,
     itemHeight,
     turnedHalfBox,
     normaliseAngle,
