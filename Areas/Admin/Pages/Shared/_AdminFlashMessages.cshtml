@@ -10,6 +10,7 @@
         FlashMessageKeys.AdminRecoverySuccess,
         FlashMessageKeys.AdminMaintenanceSuccess,
         FlashMessageKeys.CelebrationsSuccess,
+        FlashMessageKeys.AdminCollageStickersSuccess,
         FlashMessageKeys.IdentitySuccess
     };
     var errorKeys = new[]
@@ -22,6 +23,7 @@
         FlashMessageKeys.AdminRecoveryError,
         FlashMessageKeys.AdminMaintenanceError,
         FlashMessageKeys.CelebrationsError,
+        FlashMessageKeys.AdminCollageStickersError,
         FlashMessageKeys.IdentityError
     };
     var successMessage = successKeys.Select(key => TempData[key] as string).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));

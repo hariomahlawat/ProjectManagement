@@ -16,6 +16,8 @@ public static class AdminPolicies
     public const string IntegrityManage = "Admin.MasterData.Integrity.Manage";
     public const string ActivityTypesManage = "Admin.ActivityTypes.Manage";
     public const string HolidaysManage = "Admin.Holidays.Manage";
+    // Collage Studio's "Crests and logos" (docs/ux/collage-studio-library-and-unit-stickers.md).
+    public const string CollageStickersManage = "Admin.CollageStickers.Manage";
     // The social media event types and platforms lists (Project Office Reports). Admin and HoD,
     // exactly as the pages' old [Authorize(Roles = "Admin,HoD")].
     public const string SocialMediaListsManage = "Admin.SocialMediaLists.Manage";
