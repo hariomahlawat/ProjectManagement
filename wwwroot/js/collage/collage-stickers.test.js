@@ -110,3 +110,25 @@ test('a crest that is no longer listed still draws from its PRISM address', () =
   assert.equal(stickers.find('unit:0'), null);
   assert.equal(stickers.find('unit:abc'), null);
 });
+
+const library = require('./collage-library.js');
+
+test('PRISM Photos is asked only for words, a project, a year and a page', () => {
+  assert.equal(library.libraryQuery({ q: '  farewell party ', projectId: '12', year: '2026', page: 3 }), 'q=farewell+party&projectId=12&year=2026&page=3');
+  assert.equal(library.libraryQuery({ q: '', projectId: '../x', year: '26', page: -1 }), 'page=1');
+  assert.equal(library.libraryQuery({ q: 'x'.repeat(300) }).length, 'q='.length + 200 + '&page=1'.length);
+});
+
+test('only a listed photo original from the library page is ever fetched', async () => {
+  assert.ok(library.LIBRARY_PICTURE.test('/Photos/Media/7/original?v=3'));
+  assert.ok(!library.LIBRARY_PICTURE.test('/Photos/Media/7/thumb?v=3'));
+  assert.ok(!library.LIBRARY_PICTURE.test('https://example.com/Photos/Media/7/original?v=3'));
+  assert.ok(!library.LIBRARY_PICTURE.test('/Photos/Media/7/original?v=3&x=1'));
+  await assert.rejects(library.readLibraryPhoto({ url: '//example.com/a.jpg' }));
+});
+
+test('a library photo is named by its title with the ending of its type', () => {
+  assert.equal(library.fileNameFor('Farewell: Col Rao', 'image/jpeg'), 'Farewell  Col Rao.jpg');
+  assert.equal(library.fileNameFor('IMG_0042.JPG', 'image/jpeg'), 'IMG_0042.JPG');
+  assert.equal(library.fileNameFor('', 'image/png'), 'PRISM photo.png');
+});

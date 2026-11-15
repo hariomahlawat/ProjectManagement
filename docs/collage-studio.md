@@ -13,11 +13,17 @@ The build plan, owner decisions and the approved mockup are in
 - Everything runs in the user's browser. Photos are read with the File API, drawn with Konva on
   a canvas and saved with a `blob:` download. Nothing the user makes, and no photo from the
   computer, is sent to the PRISM server.
-- PRISM only sends pictures **to** the page: the **Crests and logos** stickers an administrator
-  uploaded (Administration › Crests and logos), read by `wwwroot/js/collage/collage-library.js`
-  with a GET from `/api/collage/stickers` and drawn from `/api/collage/stickers/{id}/image`
-  (see [ux/collage-studio-library-and-unit-stickers.md](ux/collage-studio-library-and-unit-stickers.md)).
-  When PRISM cannot be reached the group says so and the other stickers still work.
+- PRISM only sends pictures **to** the page, all read by `wwwroot/js/collage/collage-library.js`
+  with GET requests (see
+  [ux/collage-studio-library-and-unit-stickers.md](ux/collage-studio-library-and-unit-stickers.md)):
+  - the **Crests and logos** stickers an administrator uploaded (Administration › Crests and
+    logos), listed by `/api/collage/stickers` and drawn from `/api/collage/stickers/{id}/image`;
+    when PRISM cannot be reached the group says so and the other stickers still work;
+  - photos picked with **From PRISM Photos**, listed by `/api/collage/library-photos` through the
+    library's own search and visibility rule, and read from `/Photos/Media/{id}/original`, which
+    checks the rule again. A picked photo becomes a file in the browser and goes through the same
+    checks as a photo from the computer; from then on it is kept only in the browser like any
+    other. The button is shown only when the Photos library is switched on.
 - Nothing the user makes is stored or retained by PRISM. The page model
   (`Pages/Tools/Collage/Index.cshtml.cs`) has only `OnGet`; there is no form post.
 - The page requires a signed-in user (`[Authorize]`), like the rest of PRISM.
@@ -35,7 +41,8 @@ The build plan, owner decisions and the approved mockup are in
 `ProjectManagement.Tests/Tools/CollageStudioPageContractTests.cs` guards these points: sign-in
 required, no handler other than `OnGet`, no form, every script the page loads, no network call
 (`fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource`, `import()`) in them except
-`collage-library.js`, whose one `fetch` reads the fixed crests-and-logos address, no
+`collage-library.js`, whose three `fetch` calls read the fixed crests-and-logos and PRISM Photos
+addresses and a listed photo's original (checked against one pattern), no
 outside address in the page, its scripts or its stylesheets, the bundled fonts with their licence,
 and the vendored Konva.
 
@@ -63,7 +70,8 @@ its npm package by hand; the libman entry records the version.
   one of seven sizes: A4 landscape or portrait, A3 poster, Slide 16:9, Square, Phone status 9:16
   and Banner 3:1. Drafts are listed below, newest first, with Delete and a 10-second Undo.
 - **Photos**: add up to 60 photos (JPEG, PNG, WEBP, GIF or BMP, at most 50 MB each) by the
-  button, by dropping them or by pasting. Empty frames fill first. A photo can be turned to any
+  button, by dropping them, by pasting, or with **From PRISM Photos** (search by words, project
+  and year, tick the photos, Add). Empty frames fill first. A photo can be turned to any
   angle, resized, mirrored, given a frame (white border, polaroid with a caption, tape, torn
   edge), rounded corners, a shape (oval, heart, star, hexagon, arch), a shadow and a look (black and
   white, sepia, vintage, vivid, soft, cool, warm), and moved inside its frame (**Adjust**, or double-click).

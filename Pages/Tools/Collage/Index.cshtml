@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="~/css/collage.css" asp-append-version="true" />
     <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
 </head>
-<body class="pdft clg" data-collage data-sticker-base="@Url.Content("~/img/collage/stickers/twemoji/")">
+<body class="pdft clg" data-collage data-sticker-base="@Url.Content("~/img/collage/stickers/twemoji/")" data-library="@(Model.LibraryOn ? "on" : "off")">
 
     <header class="pdft-topbar">
         <a class="pdft-brand" href="#" data-action="home">
@@ -128,6 +128,12 @@
                         <button type="button" class="btn btn-primary w-100" data-action="choose">
                             <i class="bi bi-plus-lg" aria-hidden="true"></i> Add photos
                         </button>
+                        @if (Model.LibraryOn)
+                        {
+                            <button type="button" class="btn btn-outline-primary w-100 clg-library-open" data-action="library-open">
+                                <i class="bi bi-images" aria-hidden="true"></i> From PRISM Photos
+                            </button>
+                        }
                         <p class="clg-hint">Or drop photos on the page, or paste one with Ctrl+V. Empty frames fill first. Click a photo below to add it again, or drag it onto the page or into a frame.</p>
                         <p class="clg-hint clg-count" data-photo-count></p>
                         <div class="clg-tray" data-tray></div>
@@ -237,6 +243,33 @@
             </div>
         </dialog>
 
+        @* ---------- From PRISM Photos: pick photos the user can see in /Photos ---------- *@
+        @if (Model.LibraryOn)
+        {
+            <dialog class="clg-dialog clg-dialog--library" data-library-dialog aria-labelledby="clgLibraryTitle">
+                <div class="clg-dialog__body">
+                    <div class="clg-dialog__head">
+                        <h2 id="clgLibraryTitle">From PRISM Photos</h2>
+                        <button type="button" class="btn-close" data-action="library-close" aria-label="Close"></button>
+                    </div>
+                    <p class="clg-hint">Photos you can see in PRISM Photos. Tick the ones you want, then Add. They are copied into this browser like photos from your computer; nothing you make is sent to PRISM.</p>
+                    <div class="clg-library-filters">
+                        <input type="search" class="form-control form-control-sm" data-library-q placeholder="Search words, places, people" aria-label="Search PRISM Photos" maxlength="200" />
+                        <select class="form-select form-select-sm" data-library-project aria-label="Project"><option value="">All projects</option></select>
+                        <select class="form-select form-select-sm" data-library-year aria-label="Year"><option value="">Any year</option></select>
+                    </div>
+                    <p class="clg-hint" data-library-status role="status"></p>
+                    <div class="clg-library-grid" data-library-grid></div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary clg-library-more" data-action="library-more" hidden>Show more</button>
+                    <div class="clg-dialog__foot clg-library-foot">
+                        <span class="clg-hint" data-library-chosen>None ticked</span>
+                        <button type="button" class="btn btn-outline-secondary" data-action="library-close">Close</button>
+                        <button type="button" class="btn btn-primary" data-action="library-add" disabled><i class="bi bi-plus-lg" aria-hidden="true"></i> Add</button>
+                    </div>
+                </div>
+            </dialog>
+        }
+
         @* ---------- Save as… ---------- *@
         <dialog class="clg-dialog" data-save-dialog aria-labelledby="clgSaveTitle">
             <div class="clg-dialog__body" data-save-form>
@@ -304,7 +337,7 @@
     <script src="~/js/collage/collage-draw.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-stickers.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-drafts.js" asp-append-version="true"></script>
-    @* The only collage script that reads from PRISM: the crests and logos list, by GET. *@
+    @* The only collage script that reads from PRISM, by GET: crests and logos, and PRISM Photos. *@
     <script src="~/js/collage/collage-library.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-app.js" asp-append-version="true"></script>
 </body>
