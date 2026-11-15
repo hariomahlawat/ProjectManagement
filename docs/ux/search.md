@@ -65,9 +65,9 @@ fixed example searches, because they may not match what this reader can see.
   - Legacy as the configured engine (V2 not rolled out to the user) with such filters in
     the URL: an amber banner names them. The Legacy engine does apply Source, so a Source
     filter keeps its chip in every mode.
-- **Result card.** Type icon (one per source: project, project document, repository document,
-  FFC, IPR, activity, visit, social media, training, ToT, proliferation, ARPP; PDFs show a PDF
-  icon; kept, smaller, on phones), title (link), subtitle, three-line snippet (two on phones, where
+- **Result card.** No type icon: the per-source icons were not ones people recognised, and the
+  details row already names the source in bold (and says PDF for PDFs). Title (link), subtitle,
+  three-line snippet (two on phones, where
   cards are tighter), and a details row:
   source, parent project (from the indexed match fields), status (left out when the subtitle
   already says it, as on project cards), date, file type, and where
