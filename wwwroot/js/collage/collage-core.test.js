@@ -715,3 +715,20 @@ test('a collage nobody named is called by its first words or when it was started
   const started = new Date(2026, 10, 15, 14, 5).getTime();
   assert.equal(collage.autoTitle([{ kind: 'photo' }], started), 'Collage, 15 Nov 14:05');
 });
+
+test('a draft is read back with only plain, unique ids and sensible shapes and crops', () => {
+  const base = collage.photoItem('a', 'p1', 1, { x: 1, y: 1, width: 100 });
+  const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [
+    base,
+    { ...base, id: 'a' },
+    { ...base, id: 'x"><img src=x onerror=alert(1)>' },
+    { ...base, id: 'b', aspect: Infinity },
+    { ...base, id: 'c', aspect: '2' },
+    { ...base, id: 'd', aspect: 1e9, crop: { zoom: 2, x: 99, y: -5 }, cell: 'x' }
+  ] }, ['p1']);
+  assert.deepEqual(read.items.map((item) => item.id), ['a', 'd']);
+  const d = read.items[1];
+  assert.equal(d.aspect, 50);
+  assert.deepEqual([d.crop.x, d.crop.y], [1, 0]);
+  assert.equal('cell' in d, false);
+});
