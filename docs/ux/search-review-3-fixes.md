@@ -47,7 +47,7 @@ Each PR keeps the current routes, configuration keys and stored data. Index chan
 | 3 | **Why a document matched:** the text excerpt and its highlights use the same English matching that found the document: the window is anchored on the first stemmed match, `ts_headline` uses the English parser, and the card says "Found in the document text" when that is where the match is. Checked live on "acceptance report"; relevance harness before and after | M2 |
 | 4 | **Usage and recent searches:** Show more pages are not logged as new searches; tab and filter changes of the same query neither; recent searches keep only searches that ran and found something | L1, L2 |
 | 5 | **Shared rules and clean-up:** Document repository visibility from `DocRepoAccess`; ARPP ignores trashed projects (`ProjectionVersion` 10); the unused store methods removed; the suggestion branches built from one C# template | L3–L6 |
-| 6 | **Digits-only searches:** measure the `identifier_number` channel on a large copy; if it is slow, index the trailing digits as a term (with `ProjectionVersion` bump); otherwise record the measurement and close | L7 |
+| 6 | **Digits-only searches:** measured 15 Nov on a 34,160-entry copy of the development index: the `identifier_number` channel took 2.2 ms of a 96 ms search for "42" (3,040 identifier terms). Not worth an index; closed without a code change. Recorded here in PR 5 | L7 |
 
 PRs 3 and 5 both touch `SearchEngine.cs`; PR 5 starts after PR 3 is merged. The others can go in
 any order.

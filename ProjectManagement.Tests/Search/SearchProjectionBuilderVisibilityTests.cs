@@ -212,6 +212,30 @@ public sealed class SearchProjectionBuilderVisibilityTests
         Assert.Equal(label, totEntry.Status);
     }
 
+    // An ARPP entry linked to a trashed project keeps its own reference, but the trashed
+    // project's name stays out of the index (as for IPR and Training).
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task ArppEntries_CarryTheProjectName_OnlyWhileTheProjectIsNotTrashed(bool trashed, bool expectName)
+    {
+        await using var db = CreateDb();
+        var project = Project(1, deleted: trashed, archived: false);
+        project.Name = "Kingfisher trainer";
+        db.Projects.Add(project);
+        var now = DateTime.UtcNow;
+        var issue = new ProjectManagement.Models.Arpp.ArppIssue { Name = "ARPP 2026-27", FinancialYearStart = 2026, Kind = ProjectManagement.Models.Arpp.ArppIssueKind.Original, IssueSequence = 0, IssueDate = new DateOnly(2026, 4, 1), CreatedAtUtc = now, UpdatedAtUtc = now, CreatedByUserId = "a", UpdatedByUserId = "a" };
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+        db.ArppEntries.Add(new ProjectManagement.Models.Arpp.ArppEntry { ArppIssueId = issue.Id, ProjectReference = "P-1", ProjectId = 1, Category = ProjectManagement.Models.Arpp.ArppCategory.New, SerialNumber = "1", Fund = "Capital", Cfa = "CFA", DfpdsSchedule = "Sch 4", CreatedAtUtc = now, UpdatedAtUtc = now, CreatedByUserId = "a", UpdatedByUserId = "a" });
+        await db.SaveChangesAsync();
+
+        var entry = (await CreateBuilder(db).BuildEntityAsync("ArppIssue", issue.Id.ToString(), CancellationToken.None)).Single();
+
+        Assert.Equal(expectName, entry.StructuredText!.Contains("Kingfisher", StringComparison.Ordinal));
+        Assert.Contains("P-1", entry.StructuredText);
+    }
+
     private static ApplicationDbContext CreateDb() =>
         new(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

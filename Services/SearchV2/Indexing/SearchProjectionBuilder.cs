@@ -426,8 +426,9 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
             .Where(document => document.Status == ProjectDocumentStatus.Published && !document.IsArchived)
             .Where(document => !document.Project.IsDeleted && !document.Project.IsArchived);
 
+    // The repository's own rule for what an ordinary reader may open (active, not deleted).
     private IQueryable<ProjectManagement.Data.DocRepo.Document> IndexableDocRepoDocuments() =>
-        _db.Documents.AsNoTracking().Where(document => document.IsActive && !document.IsDeleted);
+        ProjectManagement.Services.DocRepo.DocRepoAccess.ReadableFilter(_db.Documents.AsNoTracking(), canViewInactive: false);
 
     private async Task<IReadOnlyList<SearchProjection>> BuildProjectDocumentsAsync(
         int? documentId,
@@ -1087,7 +1088,8 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 entry.DfpdsSchedule,
                 entry.Category,
                 entry.ProjectId,
-                ProjectName = entry.Project != null ? entry.Project.Name : null
+                // A trashed project's name stays out of the index, as for IPR and Training.
+                ProjectName = entry.Project != null && !entry.Project.IsDeleted ? entry.Project.Name : null
             }).ToArray()
         }).ToListAsync(cancellationToken);
 
@@ -1140,6 +1142,10 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         }).ToArray();
     }
 
+    /// <summary>"ToT not required", in the words the project pages use.</summary>
+    internal static string TotSummary(ProjectTotStatus status) =>
+        "ToT " + ProjectTotPresentation.StatusLabel(status).ToLowerInvariant();
+
     /// <summary>
     /// Each project's current stage code by the app's one rule (<see cref="PresentStageHelper"/>,
     /// lifecycle-aware): an active project is at its first in-progress stage, else the first
@@ -1147,10 +1153,6 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
     /// completed stage. Search must not keep a rule of its own (a Blocked stage, a finished
     /// project).
     /// </summary>
-    /// <summary>"ToT not required", in the words the project pages use.</summary>
-    internal static string TotSummary(ProjectTotStatus status) =>
-        "ToT " + ProjectTotPresentation.StatusLabel(status).ToLowerInvariant();
-
     private async Task<Dictionary<int, string?>> LoadCurrentStagesAsync(
         IReadOnlyDictionary<int, (ProjectLifecycleStatus Lifecycle, string? WorkflowVersion)> projects,
         CancellationToken cancellationToken)
