@@ -661,3 +661,17 @@ test('casual, straighten and shuffle leave locked items as they are', () => {
   const shuffled = collage.shufflePhotos(page).items;
   assert.deepEqual(shuffled.map((i) => i.photo), ['p1', 'p3', 'p2']);
 });
+
+test('changing the layout or its spacing leaves locked frames where they are', () => {
+  let n = 0;
+  const id = () => `n${n++}`;
+  const start = collage.applyLayout(collage.newCollage('a4l'), 't2', 12, 0, ['p1', 'p2'], id).collage;
+  const locked = { ...start.items[0], locked: true, angle: 5 };
+  const page = { ...start, items: [locked, start.items[1]] };
+  const spaced = collage.reflowLayout(page, 40);
+  assert.deepEqual(spaced.items[0], locked);
+  assert.notDeepEqual(spaced.items[1], page.items[1]);
+  const relaid = collage.applyLayout(page, 't4', 12, 0, [], id).collage;
+  assert.deepEqual(relaid.items.find((i) => i.id === locked.id), locked);
+  assert.equal(relaid.items.filter((i) => i.kind === 'photo' && !i.locked).length, 1);
+});

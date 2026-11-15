@@ -674,13 +674,15 @@
    * `spare` photos (ids from the photo store, with their shape) fill what is left, then empty
    * frames wait for photos. Photos beyond the frames leave the page (they stay in Photos) and are
    * returned as `removed`. Every frame is straight, uncut and given the layout's rounded corners.
+   * Locked photos and frames stay exactly where they are and take no part.
    */
   function applyLayout(collage, key, gap, radius, spare, newId) {
     const frames = layoutFrames(collage.size, key, gap);
     if (!frames.length) return { collage, removed: [] };
     const r = Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, Number(radius) || 0));
-    const photos = collage.items.filter((item) => item.kind === 'photo');
-    const others = collage.items.filter((item) => item.kind !== 'photo' && item.kind !== 'slot');
+    const isFrame = (item) => item.kind === 'photo' || item.kind === 'slot';
+    const photos = collage.items.filter((item) => item.kind === 'photo' && !item.locked);
+    const others = collage.items.filter((item) => !isFrame(item) || item.locked);
     const sources = photos.map((item) => item.photo);
     for (const id of spare || []) if (sources.length < frames.length && !sources.includes(id)) sources.push(id);
     const placed = frames.map((frame, index) => {
@@ -701,7 +703,8 @@
    * The current layout laid out again, after a change of space or page size: every frame goes
    * back to its own place in the grid (`cell`), so a photo stays in the frame it was put in and
    * an empty frame stays empty, whatever order the frames are drawn in. Frames are made straight;
-   * a photo's zoom and the part it shows are kept. Items that are not frames are left alone.
+   * a photo's zoom and the part it shows are kept. Items that are not frames, and locked
+   * frames, are left alone.
    */
   function reflowLayout(collage, gap) {
     if (!collage.layout) return collage;
@@ -712,7 +715,7 @@
       layout: { ...collage.layout, gap: g },
       items: collage.items.map((item) => {
         const frame = Number.isInteger(item.cell) ? frames[item.cell] : null;
-        return frame && (item.kind === 'photo' || item.kind === 'slot') ? { ...item, ...frame, angle: 0 } : item;
+        return frame && (item.kind === 'photo' || item.kind === 'slot') && !item.locked ? { ...item, ...frame, angle: 0 } : item;
       })
     };
   }
