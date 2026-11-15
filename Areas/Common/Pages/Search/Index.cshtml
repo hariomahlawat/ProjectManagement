@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Http
 @using ProjectManagement.Areas.Common.Pages.Search
 @using ProjectManagement.Services.SearchV2.Models
+@using ProjectManagement.Services.SearchV2.Query
 @using System.Text.RegularExpressions
 @{
     var hasQuery = !string.IsNullOrWhiteSpace(Model.Q);
@@ -348,6 +349,12 @@ else
                         @if (Model.ShowLatency)
                         {
                             <span class="pm-gs-meta__latency" title="Server time for this search">@search.QueryTimeMilliseconds ms</span>
+                        }
+
+                        @if (results.Count > 0 && results[0].Rank == 1 && results[0].MatchTier == SearchEngine.NearMissTier)
+                        {
+                            @* Ranked by tier: when the best result is a near miss, every result is. *@
+                            <p class="pm-gs-correction" role="status" data-search-near-miss>No exact matches. Showing similar wording.</p>
                         }
 
                         @if (!string.IsNullOrWhiteSpace(search.CorrectedQuery))

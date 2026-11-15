@@ -655,6 +655,40 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal("atomz 123 hyderabad", identifier.CorrectedQuery);
     }
 
+    // A three-letter word shares half its trigrams with every word starting with the same two
+    // letters; near-miss matching starts at four letters.
+    [SearchV2PostgresFact]
+    public async Task NearMiss_IgnoresThreeLetterWords_ButStillCatchesALongerTypo()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(host.Entry("Project", "9801", "Projects", "Projects", "Dravidian corridor survey", null));
+
+        var threeLetters = await host.SearchAsync("drv");
+        var typo = await host.SearchAsync("dravidain");
+
+        Assert.Empty(threeLetters.Results);
+        var hit = Assert.Single(typo.Results);
+        Assert.Equal(SearchEngine.NearMissTier, hit.MatchTier);
+    }
+
+    // An exact match on another tab must not turn off near-miss matches for this one.
+    [SearchV2PostgresFact]
+    public async Task NearMiss_OnAFilteredTab_IsNotTurnedOffByAnExactMatchOutsideIt()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9811", "Projects", "Projects", "Quillfeather", null),
+            host.Entry("ProjectDocument", "9812", "Project documents", "Documents", "Quilfeather manual", null));
+
+        var all = await host.SearchAsync(new SearchRequest("quillfeather"));
+        var documents = await host.SearchAsync(new SearchRequest("quillfeather", Categories: new[] { "Documents" }));
+
+        Assert.Equal(new[] { "9811" }, all.Results.Select(result => result.EntityKey).ToArray());
+        var document = Assert.Single(documents.Results);
+        Assert.Equal("9812", document.EntityKey);
+        Assert.Equal(SearchEngine.NearMissTier, document.MatchTier);
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {
