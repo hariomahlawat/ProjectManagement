@@ -12,10 +12,6 @@ navigation drawer (**PDF Tools**) at `/Tools/Pdf`.
   (`Pages/Tools/Pdf/Index.cshtml.cs`) has only `OnGet`; there is no form post, API endpoint,
   database table or migration.
 - The page requires a signed-in user (`[Authorize]`), like the rest of PRISM.
-
-The home screen has a one-line title, a two-line note and the tools four across from 992 px
-(two on a tablet, one on a phone), so all eight fit on a 1366 × 768 screen without scrolling.
-Photo Tools uses the same rules (`.pdft-hero`, `.pdft-grid`, `.pdft-card` in `pdf-tools.css`).
 - Usage telemetry records only that the `pdf-tools` module was opened (`ErpUsageModuleCatalog`),
   never file names or contents.
 
@@ -47,6 +43,18 @@ return 404 and such text would be missing from thumbnails, the editor and export
 pdf.js is an ES module (`.mjs`), served by ASP.NET Core's default content types. It runs with
 `isEvalSupported: false`, so it works under the site's strict Content-Security-Policy
 (`script-src 'self'`) with no exception.
+
+## Home screen
+
+A one-line title, a two-line note and the tools four across from 992 px (two on a tablet, one on
+a phone), so all eight fit on a 1366 × 768 screen without scrolling. Photo Tools uses the same
+rules (`.pdft-hero`, `.pdft-grid`, `.pdft-card` in `pdf-tools.css`).
+
+The cards are in the order of the job someone comes with (owner decision, 15 Nov 2026). The
+first row is making a document to send, in the usual sequence: Organise & merge, Images to PDF,
+Sign & annotate, Reduce size (the last step before an upload). The second row holds the less
+frequent jobs, each under its partner: Split PDF under Organise & merge, PDF to images under
+Images to PDF, Watermark under Sign & annotate, and Page numbers & header/footer.
 
 ## Tools (Phase 1)
 

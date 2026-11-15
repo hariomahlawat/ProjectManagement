@@ -86,6 +86,19 @@ public sealed class PdfToolsPageContractTests
     /// fall back to the browser's own confirm() box.
     /// </summary>
     [Fact]
+    public void Home_ListsTheToolsInTheOrderOfTheJob()
+    {
+        var root = FindProjectRoot();
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Pdf", "Index.cshtml"));
+
+        // Making a document to send first, then each less frequent job under its partner (docs/pdf-tools.md).
+        var cards = System.Text.RegularExpressions.Regex.Matches(page, "<a class=\"pdft-card\" href=\"#(?<tool>[a-z-]+)\"")
+            .Select(match => match.Groups["tool"].Value)
+            .ToArray();
+        Assert.Equal(new[] { "organise", "images", "annotate", "compress", "split", "to-images", "watermark", "numbers" }, cards);
+    }
+
+    [Fact]
     public void PdfTools_AsksInThePrismConfirmDialog()
     {
         var root = FindProjectRoot();
