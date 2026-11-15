@@ -42,7 +42,7 @@ fixed example searches, because they may not match what this reader can see.
 
 - **Category tabs.** The **All** count counts each project once, with its ToT, IPR and other
   linked records folded under it, so the category counts can add up to more; the All tab's
-  tooltip says so.
+  tooltip says so. The selected tab always shows, at 0 when a filter leaves it empty.
 - **Headings and landmarks.** One `<main>` (the layout's). A visually hidden `h1`
   ("Search results for …"), each result title is an `h2`. The tab title reads
   `“query” – 512 results – Search`. The result count is a `role="status"`; the active
@@ -58,8 +58,10 @@ fixed example searches, because they may not match what this reader can see.
     filter keeps its chip in every mode.
 - **Result card.** Type icon (one per source: project, project document, repository document,
   FFC, IPR, activity, visit, social media, training, ToT, proliferation, ARPP; PDFs show a PDF
-  icon; kept, smaller, on phones), title (link), subtitle, three-line snippet, and a details row:
-  source, parent project (from the indexed match fields), status, date, file type, and where
+  icon; kept, smaller, on phones), title (link), subtitle, three-line snippet (two on phones, where
+  cards are tighter), and a details row:
+  source, parent project (from the indexed match fields), status (left out when the subtitle
+  already says it, as on project cards), date, file type, and where
   the match was found when it was not the title, in plain words ("Found in the project brief
   and the description", "Found in a related term"). Separators come from CSS, so a missing field
   never leaves a stray dot. Query latency is shown only to users who can open the admin
