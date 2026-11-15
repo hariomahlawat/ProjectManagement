@@ -400,6 +400,26 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal("9901", again!.EntityKey);
     }
 
+    // A record changed while its failing attempt ran is queued again at once, without counting
+    // a failure against the newer change.
+    [SearchV2PostgresFact]
+    public async Task AFailedAttempt_OnARecordChangedMeanwhile_QueuesTheChangeWithoutCountingAFailure()
+    {
+        await using var host = _database.CreateHost();
+        await host.ExecuteAsync("""DELETE FROM "SearchIndexWorkItems";""");
+        await host.WithStoreAsync(store => store.EnqueueAsync("Project", "9903", CancellationToken.None));
+        SearchIndexWorkItem? held = null;
+        await host.WithStoreAsync(async store => held = await store.DequeueAsync(CancellationToken.None, "Project"));
+        await host.WithStoreAsync(store => store.EnqueueAsync("Project", "9903", CancellationToken.None));
+
+        await host.WithStoreAsync(store => store.FailAsync(held!, "boom", CancellationToken.None));
+
+        SearchIndexWorkItem? again = null;
+        await host.WithStoreAsync(async store => again = await store.DequeueAsync(CancellationToken.None, "Project"));
+        Assert.NotNull(again);
+        Assert.Equal(0, again!.RetryCount);
+    }
+
     // A failed attempt is retried after its back-off, not held back as if still being indexed.
     [SearchV2PostgresFact]
     public async Task AFailedAttempt_IsRetriedAfterItsBackOff()
