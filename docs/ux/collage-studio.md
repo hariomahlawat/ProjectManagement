@@ -28,7 +28,8 @@ or Chrome from the file, and everything in it can be clicked.
   user). It has no handlers that accept files. Collage Studio is too large to be one more screen
   inside `/Tools/Photo`.
 - A **Collage** card on the Photo Tools home opens it. It also gets an entry in the Tools menu
-  beside PDF Tools and Photo Tools.
+  beside PDF Tools and Photo Tools. Both come with Save (PR 4); until then the page is reached
+  only by its address and says it is being built.
 - Everything runs in the browser, like the other Photo Tools:
   - no photo or collage is sent to the server;
   - nothing needs the Internet;
@@ -228,9 +229,9 @@ is opened.
 | PR | What | Done when |
 | --- | --- | --- |
 | 1 | This plan and the approved mockup | Merged |
-| 2 | **Page and editor core**: `/Tools/Collage`, Konva vendored, start screen (layouts and blank sizes), editor shell (top bar, rail, stage, right panel), page sizes, add photos (choose, drop, paste) with working copies, select, move, resize, turn, delete, undo and redo; Collage card on the Photo Tools home and in the Tools menu | A user can make a free collage of turned photos on any page size |
-| 3 | **Layouts**: the 11 grids, space and rounded corners, Make it casual, Straighten all, Shuffle, side handles for the frame's shape, move and zoom inside the frame, Replace photo | A neat report grid and a tilted casual one are both easy |
-| 4 | **Save as…**: PNG, JPEG under a size, PDF at the paper's true size; print or screen quality, drawn from the originals; the canvas-size limit handled | The saved file matches the screen at full quality |
+| 2 | **Page and editor core**: `/Tools/Collage`, Konva vendored, start screen (blank sizes), editor shell (top bar, rail, stage, right panel), page sizes, add photos (choose, drop, paste) with working copies, select, move with snapping, resize, turn, duplicate, order, delete, undo and redo. Not linked from anywhere yet: a collage cannot be saved until PR 4, so the page says it is being built | A user can make a free collage of turned photos on any page size |
+| 3 | **Layouts**: the 11 grids (also on the start screen), space and rounded corners, Make it casual, Straighten all, Shuffle, side handles for the frame's shape, move and zoom inside the frame, Replace photo | A neat report grid and a tilted casual one are both easy |
+| 4 | **Save as…**: PNG, JPEG under a size, PDF at the paper's true size; print or screen quality, drawn from the originals; the canvas-size limit handled. **Collage card on the Photo Tools home and in the Tools menu**, now that a collage can be kept | The saved file matches the screen at full quality |
 | 5 | **Drafts** in IndexedDB: autosave, the start-screen list, open, delete with Undo, space used, plain messages when storage is blocked or full | Closing the browser loses nothing |
 | 6 | **Photo finish**: frames (white border, polaroid with caption, taped, torn edge), shadow, shapes, looks, brightness, contrast, warmth, mirror (on screen and in Save) | Every frame, shape and look saves exactly as shown |
 | 7 | **Text**: the bundled fonts with Hindi, size, colour, bold, italic, alignment, spacing, outline, shadow, glow, label, curve; ready-made English and Hindi headings | Hindi headings render correctly on screen and in Save |
