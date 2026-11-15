@@ -144,3 +144,4 @@
 20270101080019_AddItProjectRemarkType
 20270102080020_AddItProjectModuleAndOfficer
 20270103080021_AddCelebrationUserLink
+20270104080022_AddCollageStickers

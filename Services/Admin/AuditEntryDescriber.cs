@@ -27,6 +27,7 @@ public static class AuditRecordKinds
     public const string ActivityType = "ActivityType";
     public const string Holiday = "Holiday";
     public const string Celebration = "Celebration";
+    public const string CollageSticker = "CollageSticker";
 
     private static readonly IReadOnlyDictionary<string, string> TypeLabels =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -44,7 +45,8 @@ public static class AuditRecordKinds
             [LineDirectorate] = "Line directorate",
             [ActivityType] = "Activity type",
             [Holiday] = "Holiday",
-            [Celebration] = "Celebration"
+            [Celebration] = "Celebration",
+            [CollageSticker] = "Collage sticker"
         };
 
     /// <summary>Entity types stored by <see cref="AdminAuditService"/> that name a list item.</summary>

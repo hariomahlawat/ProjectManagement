@@ -95,6 +95,7 @@ namespace ProjectManagement.Data
         public DbSet<ActionTaskUpdate> ActionTaskUpdates => Set<ActionTaskUpdate>();
         public DbSet<ActionTaskAttachment> ActionTaskAttachments => Set<ActionTaskAttachment>();
         public DbSet<Celebration> Celebrations => Set<Celebration>();
+        public DbSet<CollageSticker> CollageStickers => Set<CollageSticker>();
         public DbSet<AuthEvent> AuthEvents => Set<AuthEvent>();
         public DbSet<DailyLoginStat> DailyLoginStats => Set<DailyLoginStat>();
         public DbSet<Event> Events => Set<Event>();
@@ -3140,6 +3141,17 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.UserId, x.EventType })
                     .IsUnique()
                     .HasFilter("\"UserId\" IS NOT NULL AND \"DeletedUtc\" IS NULL");
+            });
+
+            builder.Entity<CollageSticker>(e =>
+            {
+                e.ToTable("CollageStickers");
+                e.Property(x => x.Name).IsRequired().HasMaxLength(CollageSticker.NameMaxLength);
+                e.Property(x => x.SearchWords).HasMaxLength(CollageSticker.SearchWordsMaxLength);
+                e.Property(x => x.StorageKey).IsRequired().HasMaxLength(260);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(450);
+                e.Property(x => x.Version).HasDefaultValue(1);
+                e.HasIndex(x => new { x.IsRetired, x.SortOrder });
             });
 
             builder.Entity<AuthEvent>(e =>
