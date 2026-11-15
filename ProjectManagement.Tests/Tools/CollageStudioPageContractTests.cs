@@ -10,7 +10,8 @@ namespace ProjectManagement.Tests.Tools;
 /// Collage Studio (docs/ux/collage-studio.md) makes collages of users' own photos in the browser.
 /// These checks keep the page signed-in only, free of page handlers that could receive photos,
 /// offline-safe (everything it loads ships with PRISM), and its scripts off the network, except
-/// collage-library.js, which only reads PRISM's own fixed addresses (crests and logos).
+/// collage-library.js, which only reads PRISM's own fixed addresses (crests and logos, and
+/// PRISM Photos).
 /// </summary>
 public sealed class CollageStudioPageContractTests
 {
@@ -119,6 +120,10 @@ public sealed class CollageStudioPageContractTests
         var source = File.ReadAllText(Path.Combine(root, "wwwroot", LibraryScript));
 
         Assert.Contains($"'{ProjectManagement.Features.Collage.CollageApi.StickersPath}'", source, StringComparison.Ordinal);
+        Assert.Contains($"'{ProjectManagement.Features.Collage.CollageApi.LibraryPhotosPath}'", source, StringComparison.Ordinal);
+        // The only pictures it fetches are a listed photo's original from the library's own page.
+        Assert.Contains(@"const LIBRARY_PICTURE = /^\/Photos\/Media\/[1-9][0-9]{0,17}\/original\?v=[0-9]{1,9}$/;", source, StringComparison.Ordinal);
+        Assert.Contains("if (!LIBRARY_PICTURE.test(address)) throw", source, StringComparison.Ordinal);
         Assert.DoesNotMatch(new Regex(@"https?://", RegexOptions.IgnoreCase), source);
         foreach (var call in NetworkCalls.Where(call => call != "fetch("))
         {
@@ -127,8 +132,8 @@ public sealed class CollageStudioPageContractTests
 
         // Every fetch goes to a fixed PRISM address, never one built at run time, and only reads.
         var fetches = Regex.Matches(source, @"fetch\(([^,)]+)");
-        Assert.Single(fetches);
-        Assert.All(fetches, call => Assert.Equal("STICKERS_URL", call.Groups[1].Value.Trim()));
+        Assert.Equal(3, fetches.Count);
+        Assert.All(fetches, call => Assert.Contains(call.Groups[1].Value.Trim(), new[] { "STICKERS_URL", "`${LIBRARY_URL}?${query}`", "address" }));
         Assert.DoesNotMatch(new Regex(@"method\s*:", RegexOptions.IgnoreCase), source);
     }
 
