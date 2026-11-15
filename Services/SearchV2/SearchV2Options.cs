@@ -97,7 +97,7 @@ public sealed class SearchV2Options
     /// index generation is rebuilt atomically when this value changes.
     /// </summary>
     [Range(1, int.MaxValue)]
-    public int ProjectionVersion { get; set; } = 8;
+    public int ProjectionVersion { get; set; } = 9;
 
     /// <summary>
     /// The oldest projection version this build still serves. After a deployment that bumps
