@@ -118,7 +118,9 @@ A keyboard user picks an item in the **Layers** list; the page then says how to 
 
 At 820 px wide and below, the panels move to a bar at the bottom. A panel, or the selected item's
 settings (the **Settings** button on the toolbar over the item), opens as a sheet over the lower
-half with a close button, and the page fits in the space above it. Two fingers on the page zoom
+half with a close button, and the page fits in the space above it. The bottom bar's **Layers**
+button opens the settings and Layers even when nothing is selected, so hidden items can always be
+shown again. Preview fills the whole screen. Two fingers on the page zoom
 it; one finger moves items. The zoom buttons and the draft status are hidden on phones.
 
 Colours come from Bootstrap variables, so the Dark theme needs no rules of its own; the page
