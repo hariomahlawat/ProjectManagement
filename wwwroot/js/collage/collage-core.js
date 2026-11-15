@@ -41,7 +41,9 @@
     maxBytes: 50 * 1000 * 1000,
     maxPhotos: 60,
     // The editor draws a copy at most this long on its long side; Save uses the original.
-    workingSide: 2000
+    workingSide: 2000,
+    // The tray shows a small copy made from the working copy, never from the original.
+    thumbnailSide: 240
   });
 
   /** Item sizes in page units: never too small to grab, never far larger than the page. */

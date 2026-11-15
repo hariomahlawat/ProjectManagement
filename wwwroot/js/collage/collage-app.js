@@ -54,7 +54,7 @@
   // A keyboard nudge is recorded for Undo once the keys stop; until then it is pending here.
   let nudgeTimer = 0;
   let nudgePending = false;
-  // The photos the collage uses, by id: { id, name, file, canvas, url, width, height, aspect }.
+  // The photos the collage uses, by id: { id, name, file, canvas, thumbnail, width, height, aspect }.
   const photos = new Map();
 
   const nextId = (prefix) => `${prefix}${Date.now().toString(36)}${(++sequence).toString(36)}`;
@@ -126,7 +126,6 @@
     nudgePending = false;
     collage = core.newCollage(sizeKey);
     history = core.createHistory(collage);
-    for (const photo of photos.values()) URL.revokeObjectURL(photo.url);
     photos.clear();
     selectedId = null;
     zoom = 1;
@@ -562,6 +561,21 @@
   // Photos: choose, drop, paste, and the tray
   // ---------------------------------------------------------------------------
 
+  /**
+   * The tray's picture of a photo: a small JPEG drawn once from the working copy, so the tray
+   * never makes the browser decode the original file again.
+   */
+  function thumbnailOf(canvas) {
+    const size = core.workingSize(canvas.width, canvas.height, core.PHOTO_LIMITS.thumbnailSide);
+    const small = document.createElement('canvas');
+    small.width = size.width;
+    small.height = size.height;
+    const context = small.getContext('2d');
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(canvas, 0, 0, size.width, size.height);
+    return small.toDataURL('image/jpeg', 0.8);
+  }
+
   async function readPhoto(entry) {
     const bitmap = await createImageBitmap(entry.file);
     try {
@@ -577,7 +591,7 @@
         name: entry.name,
         file: entry.file,
         canvas,
-        url: URL.createObjectURL(entry.file),
+        thumbnail: thumbnailOf(canvas),
         width: bitmap.width,
         height: bitmap.height,
         aspect: bitmap.width / bitmap.height
@@ -634,7 +648,6 @@
           continue;
         }
         if (!stillOpen()) {
-          URL.revokeObjectURL(photo.url);
           return;
         }
         photos.set(photo.id, photo);
@@ -667,7 +680,7 @@
       button.title = `Add “${photo.name}” to the page`;
       button.setAttribute('aria-label', `Add ${photo.name} to the page`);
       const img = document.createElement('img');
-      img.src = photo.url;
+      img.src = photo.thumbnail;
       img.alt = '';
       button.appendChild(img);
       const times = used.get(photo.id) || 0;

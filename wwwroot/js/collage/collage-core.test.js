@@ -67,6 +67,9 @@ test('the working copy is at most 2,000 pixels long and never made larger', () =
   assert.deepEqual(collage.workingSize(3000, 6000), { width: 1000, height: 2000 });
   assert.deepEqual(collage.workingSize(800, 600), { width: 800, height: 600 });
   assert.deepEqual(collage.workingSize(9000, 1), { width: 2000, height: 1 });
+  // The tray's thumbnail is made from the working copy at a small size.
+  assert.equal(collage.PHOTO_LIMITS.thumbnailSide, 240);
+  assert.deepEqual(collage.workingSize(2000, 1500, collage.PHOTO_LIMITS.thumbnailSide), { width: 240, height: 180 });
 });
 
 test('a new photo fits on the page and the next ones do not land on top of it', () => {
