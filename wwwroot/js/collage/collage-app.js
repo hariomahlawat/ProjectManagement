@@ -74,7 +74,9 @@
   const pageHeight = () => core.pageHeight(collage.size);
   const hasPhotos = () => collage.items.some((item) => item.kind === 'photo');
   // Work worth keeping: a photo, some text or a sticker (an empty frame alone is not).
-  const hasContent = () => collage.items.some((item) => ['photo', 'text', 'sticker'].includes(item.kind));
+  // A photo used only as the blurred background still makes a picture worth saving.
+  const hasContent = () => collage.items.some((item) => ['photo', 'text', 'sticker'].includes(item.kind))
+    || (collage.background?.type === 'photo' && photos.has(collage.background.photo));
   const firstSlot = () => collage.items.find((item) => item.kind === 'slot') || null;
   const isFrame = (item) => item && (item.kind === 'photo' || item.kind === 'slot');
 
