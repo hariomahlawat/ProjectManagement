@@ -65,8 +65,8 @@
   // Counts the collages opened in this tab; photo imports belong to the one they started in.
   let collageSession = 0;
   // A keyboard nudge is recorded for Undo once the keys stop; until then it is pending here.
-  let nudgeTimer = 0;
-  let nudgePending = false;
+  // Edits still going on (typing, sliders, nudges): recorded once they pause (collage-edits.js).
+  const edits = window.PrismCollageEdits.createHeldEdits({ record: () => recordQuietly(), keep: () => scheduleDraft() });
   // The photos the collage uses, by id: { id, name, file, canvas, thumbnail, width, height, aspect }.
   const photos = new Map();
 
@@ -87,43 +87,9 @@
   // Messages
   // ---------------------------------------------------------------------------
 
-  /**
-   * The same control after a panel is drawn again: the element type with its data-* attributes
-   * (and a radio button's name and value), which name a control and not its state.
-   */
-  function controlKey(element) {
-    if (!element || element === document.body || !root.contains(element)) return null;
-    const named = [...element.attributes].filter((attribute) =>
-      (attribute.name.startsWith('data-') && !attribute.name.startsWith('data-bs-'))
-      || (element.type === 'radio' && (attribute.name === 'name' || attribute.name === 'value')));
-    if (!named.length) return null;
-    return element.tagName.toLowerCase() + named.map((attribute) => `[${attribute.name}="${CSS.escape(attribute.value)}"]`).join('');
-  }
-
-  /**
-   * Draws a panel again (render) and, if the focused control was replaced, puts focus back on
-   * the control that takes its place, with the caret where it was, so keyboard and screen-reader
-   * users stay where they were.
-   */
-  function keepingFocus(render) {
-    const before = document.activeElement;
-    const key = controlKey(before);
-    const caret = before && typeof before.selectionStart === 'number' ? [before.selectionStart, before.selectionEnd] : null;
-    // The control is looked for again only inside the part of the page that was redrawn (the
-    // nearest container that is still there), so a matching button elsewhere, such as the
-    // floating toolbar's Lock for Settings' Lock, never takes the focus.
-    const containers = [];
-    for (let node = before?.parentElement; node && node !== root; node = node.parentElement) containers.push(node);
-    render();
-    if (!key || before.isConnected) return;
-    const scope = containers.find((node) => node.isConnected) || root;
-    const after = scope.querySelector(key);
-    if (!after || after.disabled) return;
-    after.focus({ preventScroll: true });
-    if (caret && typeof after.setSelectionRange === 'function') {
-      try { after.setSelectionRange(caret[0], caret[1]); } catch { /* not a text field */ }
-    }
-  }
+  // Focus stays on the control that was used when a panel is drawn again (collage-focus.js).
+  const focusKeeper = window.PrismCollageFocus.createFocusKeeper(root);
+  const keepingFocus = (render) => focusKeeper.keep(render);
 
   function announce(text) {
     announcer.textContent = '';
@@ -208,9 +174,8 @@
   /** Resets the editor to an empty page; the caller fills it in. */
   function resetEditor() {
     collageSession += 1;
-    window.clearTimeout(nudgeTimer);
+    edits.drop();
     window.clearTimeout(draftTimer);
-    nudgePending = false;
     draftPending = false;
     photos.clear();
     storedPhotos.clear();
@@ -256,7 +221,7 @@
       for (let round = 0; round < 5; round += 1) {
         flushNudge();
         kept = await saveDraftNow();
-        if (!draftPending && !nudgePending) break;
+        if (!draftPending && !edits.pending) break;
       }
     } finally {
       views.editor.inert = false;
@@ -1676,10 +1641,10 @@
           saveDraftNow();
         }
         break;
-      case 'library-open': openLibrary(); break;
-      case 'library-close': libraryDialog?.close(); break;
-      case 'library-more': loadLibrary(false); break;
-      case 'library-add': addFromLibrary(); break;
+      case 'library-open': libraryPicker.open(); break;
+      case 'library-close': libraryPicker.close(); break;
+      case 'library-more': libraryPicker.more(); break;
+      case 'library-add': libraryPicker.add(); break;
       case 'credits-close': root.querySelector('[data-credits]').close(); break;
       case 'save-close': if (!saving) saveDialog.close(); break;
       case 'save-go': saveCollage(); break;
@@ -2241,7 +2206,7 @@
       // A frame given its own corners is no longer bound to the layout's.
       if (event.target.dataset.prop === 'radius' && collage.layout) collage.layout = { ...collage.layout, radius: Number(event.target.value) };
       // Recorded even when the slider ends where it began, so the corners above are kept.
-      nudgePending = true;
+      edits.mark();
       flushNudge();
       renderLayoutPanel();
       return;
@@ -2460,195 +2425,23 @@
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // From PRISM Photos: pick photos the user can see in /Photos. They are read into the browser
-  // as files and go through exactly the same checks and steps as photos from the computer.
-  // ---------------------------------------------------------------------------
-
-  const libraryDialog = root.querySelector('[data-library-dialog]');
-  const libraryGrid = libraryDialog?.querySelector('[data-library-grid]');
-  const library_ = {
-    filters: { q: '', projectId: '', year: '' },
-    page: 0,
-    hasMore: false,
-    listed: [],
-    chosen: new Map(),
-    request: 0,
-    listsFilled: false
-  };
-  let libraryTyping = 0;
-
-  function openLibrary() {
-    if (!libraryDialog || !library) return;
-    library_.chosen.clear();
-    renderLibraryChosen();
-    libraryDialog.showModal();
-    if (!library_.page) loadLibrary(true);
-    else renderLibraryGrid();
-    libraryDialog.querySelector('[data-library-q]').focus();
-  }
-
-  /** Room left for photos in this collage, less the ones already ticked. */
-  const libraryRoom = () => Math.max(0, core.PHOTO_LIMITS.maxPhotos - photos.size);
-
-  /** Reads the first page for the current filters (reset), or the next page. */
-  async function loadLibrary(reset) {
-    const asked = reset ? 1 : library_.page + 1;
-    const request = ++library_.request;
-    const status = libraryDialog.querySelector('[data-library-status]');
-    status.textContent = 'Getting photos from PRISM Photos…';
-    libraryDialog.querySelector('[data-action="library-more"]').hidden = true;
-    let page;
-    try {
-      page = await library.loadLibraryPage({ ...library_.filters, page: asked });
-    } catch {
-      if (request !== library_.request) return;
-      status.textContent = 'PRISM Photos cannot be read right now. Try again in a minute, or add photos from your computer.';
-      return;
-    }
-    // A newer search has started; this answer is for the old one.
-    if (request !== library_.request) return;
-    if (!page.available) {
-      library_.listed = [];
-      library_.page = 0;
-      renderLibraryGrid();
-      status.textContent = page.message;
-      return;
-    }
-    if (page.projects && !library_.listsFilled) fillLibraryLists(page.projects, page.years || []);
-    // A page past the end comes back as the last page: add only the page that was asked for.
-    if (reset) library_.listed = page.photos;
-    else if (page.page === asked) library_.listed = library_.listed.concat(page.photos);
-    library_.page = reset ? 1 : (page.page === asked ? asked : library_.page);
-    library_.hasMore = page.hasMore && page.page === asked;
-    renderLibraryGrid();
-    status.textContent = library_.listed.length ? '' : (library_.filters.q || library_.filters.projectId || library_.filters.year
-      ? 'No photo matches. Try other words, or another project or year.'
-      : 'There are no photos in PRISM Photos yet.');
-  }
-
-  function fillLibraryLists(projects, years) {
-    library_.listsFilled = true;
-    const projectList = libraryDialog.querySelector('[data-library-project]');
-    for (const project of projects) {
-      if (!Number.isInteger(project?.id)) continue;
-      projectList.add(new Option(String(project.name || `Project ${project.id}`), String(project.id)));
-    }
-    const yearList = libraryDialog.querySelector('[data-library-year]');
-    for (const year of years) {
-      if (Number.isInteger(year)) yearList.add(new Option(String(year), String(year)));
-    }
-  }
-
-  function renderLibraryGrid() {
-    const room = libraryRoom();
-    libraryGrid.replaceChildren(...library_.listed.map((photo) => {
-      const tile = document.createElement('button');
-      tile.type = 'button';
-      tile.className = 'clg-library-tile';
-      tile.dataset.libraryPhoto = String(photo.id);
-      const chosen = library_.chosen.has(photo.id);
-      tile.setAttribute('aria-pressed', String(chosen));
-      const label = [photo.title, photo.context].filter(Boolean).join(' · ');
-      tile.title = label;
-      tile.setAttribute('aria-label', label || 'Photo');
-      tile.disabled = !chosen && library_.chosen.size >= room;
-      const img = document.createElement('img');
-      img.alt = '';
-      img.loading = 'lazy';
-      img.src = String(photo.thumbUrl || '');
-      const tick = document.createElement('span');
-      tick.className = 'clg-library-tile__tick';
-      tick.setAttribute('aria-hidden', 'true');
-      tick.innerHTML = '<i class="bi bi-check-lg"></i>';
-      tile.append(img, tick);
-      return tile;
-    }));
-    libraryDialog.querySelector('[data-action="library-more"]').hidden = !library_.hasMore;
-  }
-
-  function renderLibraryChosen() {
-    if (!libraryDialog) return;
-    const count = library_.chosen.size;
-    const room = libraryRoom();
-    libraryDialog.querySelector('[data-library-chosen]').textContent = !room
-      ? `This collage already has ${core.PHOTO_LIMITS.maxPhotos} photos.`
-      : count === 0 ? 'None ticked'
-        : count >= room ? `${count} ticked, the most this collage can take`
-          : count === 1 ? '1 ticked' : `${count} ticked`;
-    libraryDialog.querySelector('[data-action="library-add"]').disabled = count === 0;
-  }
-
-  libraryDialog?.addEventListener('click', (event) => {
-    const tile = event.target.closest('[data-library-photo]');
-    if (!tile || tile.disabled) return;
-    const id = Number(tile.dataset.libraryPhoto);
-    if (library_.chosen.has(id)) library_.chosen.delete(id);
-    else {
-      const photo = library_.listed.find((item) => item.id === id);
-      if (photo && library_.chosen.size < libraryRoom()) library_.chosen.set(id, photo);
-    }
-    renderLibraryGrid();
-    renderLibraryChosen();
-    libraryGrid.querySelector(`[data-library-photo="${id}"]`)?.focus();
+  // From PRISM Photos (collage-library-dialog.js): photos the user can see in /Photos, read in as
+  // files and added like photos from the computer.
+  const libraryPicker = window.PrismCollageLibraryDialog.createLibraryDialog({
+    root,
+    library,
+    core,
+    busy,
+    showAlert,
+    addFiles,
+    photoCount: () => photos.size,
+    session: () => collageSession,
+    frameTarget: () => {
+      const selected = selectedItem();
+      return targetId || (selected?.kind === 'slot' ? selected.id : null);
+    },
+    currentAlert: () => (alertBox.hidden ? '' : $('[data-alert-text]').textContent)
   });
-
-  libraryDialog?.querySelector('[data-library-q]').addEventListener('input', (event) => {
-    window.clearTimeout(libraryTyping);
-    libraryTyping = window.setTimeout(() => {
-      library_.filters.q = event.target.value.trim();
-      loadLibrary(true);
-    }, 350);
-  });
-  for (const [selector, key] of [['[data-library-project]', 'projectId'], ['[data-library-year]', 'year']]) {
-    libraryDialog?.querySelector(selector).addEventListener('change', (event) => {
-      library_.filters[key] = event.target.value;
-      loadLibrary(true);
-    });
-  }
-
-  /** Reads the ticked photos one at a time, then adds them like photos from the computer. */
-  async function addFromLibrary() {
-    const chosen = [...library_.chosen.values()];
-    if (!chosen.length) return;
-    libraryDialog.close();
-    const forCollage = collageSession;
-    const selected = selectedItem();
-    const frameId = targetId || (selected?.kind === 'slot' ? selected.id : null);
-    const files = [];
-    const failed = [];
-    const tooBig = [];
-    busy(chosen.length === 1 ? 'Getting the photo from PRISM Photos…' : `Getting ${chosen.length} photos from PRISM Photos…`);
-    try {
-      for (const photo of chosen) {
-        // Refused before it is downloaded, as the same photo from the computer would be.
-        if (Number(photo.width) * Number(photo.height) > core.PHOTO_LIMITS.maxPixels) {
-          tooBig.push(photo.title || 'A photo');
-          continue;
-        }
-        try {
-          files.push(await library.readLibraryPhoto(photo));
-        } catch {
-          failed.push(photo.title || 'A photo');
-        }
-        if (forCollage !== collageSession) return;
-      }
-    } finally {
-      busy('');
-    }
-    library_.chosen.clear();
-    renderLibraryChosen();
-    if (files.length) await addFiles(files, { frameId });
-    if (forCollage !== collageSession || (!tooBig.length && !failed.length)) return;
-    // One message for everything left out, after the import's own message if it had one.
-    const notes = [alertBox.hidden ? '' : $('[data-alert-text]').textContent];
-    if (tooBig.length) notes.push(core.refusedMessage(tooBig.map((name) => ({ name, reason: 'too-many-pixels' }))));
-    if (failed.length) {
-      const names = failed.length === 1 ? `“${failed[0]}”` : `${failed.length} photos`;
-      notes.push(`${names} could not be read from PRISM Photos. Try again, or add ${failed.length === 1 ? 'it' : 'them'} from your computer.`);
-    }
-    showAlert(notes.filter(Boolean).join(' '));
-  }
 
   fileInput.addEventListener('change', () => {
     const files = [...fileInput.files];
@@ -2840,130 +2633,11 @@
   });
   saveDialog.addEventListener('cancel', (event) => { if (saving) event.preventDefault(); });
 
-  /**
-   * The largest canvas this browser will really draw, up to `width` × `height`: some browsers
-   * give a blank canvas past their limit instead of an error, so a pixel is drawn and read back.
-   */
-  function largestCanvas(width, height) {
-    let size = { width, height, scaled: false };
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const probe = document.createElement('canvas');
-      probe.width = size.width;
-      probe.height = size.height;
-      let works = false;
-      try {
-        const context = probe.getContext('2d');
-        context.fillStyle = '#000';
-        context.fillRect(size.width - 1, size.height - 1, 1, 1);
-        works = context.getImageData(size.width - 1, size.height - 1, 1, 1).data[3] === 255;
-      } catch {
-        works = false;
-      }
-      probe.width = 0;
-      probe.height = 0;
-      if (works) return size;
-      size = { ...core.fitArea(size.width, size.height, size.width * size.height * 0.7), scaled: true };
-    }
-    return null;
-  }
-
-  // Photos Save had to leave out because this browser cannot open them now.
+  // Save draws the collage from the original photos (collage-render.js).
+  const renderer = window.PrismCollageRender.createRenderer({ core, draw, measureText, fontsReady, stickerImage });
+  // What the last Save left out: photos shown grey, stickers PRISM could not send.
   let saveLeftOut = 0;
-  // Stickers (such as a crest PRISM could not send just now) Save had to leave out.
   let saveStickersLeftOut = 0;
-
-  /** Draws the collage from the original photos, each read only as large as its frame needs. */
-  async function drawCollage(width, height) {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d');
-    context.imageSmoothingQuality = 'high';
-    const s = width / core.PAGE_WIDTH;
-    let backPhoto = null;
-    saveLeftOut = 0;
-    saveStickersLeftOut = 0;
-    if (collage.background?.type === 'photo' && photos.get(collage.background.photo)?.missing) saveLeftOut += 1;
-    else if (collage.background?.type === 'photo' && photos.get(collage.background.photo)) {
-      const photo = photos.get(collage.background.photo);
-      const bitmap = await createImageBitmap(photo.file, { resizeWidth: Math.min(photo.width, width), resizeQuality: 'high' });
-      backPhoto = { source: bitmap, width: bitmap.width, height: bitmap.height };
-    }
-    context.save();
-    context.scale(s, s);
-    draw.drawBackground(context, collage.background, core.PAGE_WIDTH, height / s, { photo: backPhoto, pixelsPerUnit: s });
-    context.restore();
-    backPhoto?.source.close?.();
-    await fontsReady();
-    const stickerPictures = new Map();
-    for (const item of core.itemsToSave(collage)) {
-      if (item.kind === 'sticker') stickerPictures.set(item.id, await stickerImage(item, true));
-    }
-    for (const item of core.itemsToSave(collage)) {
-      if (item.kind === 'sticker') {
-        const image = stickerPictures.get(item.id);
-        if (!image) { saveStickersLeftOut += 1; continue; }
-        context.save();
-        context.globalAlpha = item.opacity / 100;
-        context.translate(item.x * s, item.y * s);
-        context.rotate(item.angle * Math.PI / 180);
-        context.scale(s, s);
-        context.translate(-item.width / 2, -core.itemHeight(item) / 2);
-        draw.drawSticker(context, item, image, s);
-        context.restore();
-        continue;
-      }
-      if (item.kind === 'text') {
-        const layout = core.layoutText(item, measureText);
-        context.save();
-        context.globalAlpha = item.opacity / 100;
-        context.translate(item.x * s, item.y * s);
-        context.rotate(item.angle * Math.PI / 180);
-        context.scale(s, s);
-        context.translate(-layout.width / 2, -layout.height / 2);
-        draw.drawText(context, item, layout, s);
-        context.restore();
-        continue;
-      }
-      const photo = photos.get(item.photo);
-      if (!photo) continue;
-      if (photo.missing) { saveLeftOut += 1; continue; }
-      const inner = core.innerBox(item);
-      const want = core.decodeSize(photo, inner.width / inner.height, item.crop, inner.width * s);
-      // One original at a time, read at the size this frame needs and closed straight after.
-      const bitmap = await createImageBitmap(photo.file, { resizeWidth: want.width, resizeHeight: want.height, resizeQuality: 'high' });
-      try {
-        context.save();
-        context.globalAlpha = item.opacity / 100;
-        context.translate(item.x * s, item.y * s);
-        context.rotate(item.angle * Math.PI / 180);
-        context.scale(s, s);
-        context.translate(-item.width / 2, -core.itemHeight(item) / 2);
-        // The same drawing as on the page: frame, shape, look, caption and tape.
-        draw.drawPhoto(context, item, bitmap, bitmap.width, bitmap.height, s);
-        context.restore();
-      } finally {
-        bitmap.close?.();
-      }
-    }
-    return canvas;
-  }
-
-  const toBytes = (canvas, type, quality) => new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? blob.arrayBuffer().then((buffer) => resolve(new Uint8Array(buffer)), reject) : reject(new Error('encode'))), type, quality);
-  });
-
-  /** The canvas drawn smaller, for the size search when a JPG must fit a file size. */
-  function scaledCanvas(source, width, height) {
-    if (width === source.width && height === source.height) return source;
-    const small = document.createElement('canvas');
-    small.width = width;
-    small.height = height;
-    const context = small.getContext('2d');
-    context.imageSmoothingQuality = 'high';
-    context.drawImage(source, 0, 0, width, height);
-    return small;
-  }
 
   function download(bytes, type, name) {
     const url = URL.createObjectURL(new Blob([bytes], { type }));
@@ -2997,9 +2671,12 @@
     saveResult.textContent = 'Making the picture…';
     try {
       const wanted = core.savePixels(collage.size, quality);
-      const fits = largestCanvas(wanted.width, wanted.height);
+      const fits = renderer.largestCanvas(wanted.width, wanted.height);
       if (!fits) throw new Error('canvas');
-      const canvas = await drawCollage(fits.width, fits.height);
+      const drawn = await renderer.drawCollage(collage, photos, fits.width, fits.height);
+      const canvas = drawn.canvas;
+      saveLeftOut = drawn.leftOutPhotos;
+      saveStickersLeftOut = drawn.leftOutStickers;
       const stem = core.fileStem(collageTitle());
       let bytes;
       let width = canvas.width;
@@ -3010,13 +2687,13 @@
       if (format === 'png') {
         type = 'image/png';
         name = `${stem}.png`;
-        bytes = await toBytes(canvas, type);
+        bytes = await renderer.toBytes(canvas, type);
       } else if (format === 'jpeg') {
         type = 'image/jpeg';
         name = `${stem}.jpg`;
         if (targetBytes && photoTools) {
           const result = await photoTools.encodeToTarget({
-            encode: (w, h, q) => toBytes(scaledCanvas(canvas, w, h), type, q),
+            encode: (w, h, q) => renderer.toBytes(renderer.scaledCanvas(canvas, w, h), type, q),
             lossy: true,
             width,
             height,
@@ -3027,13 +2704,13 @@
           height = result.height;
           missed = !result.reached;
         } else {
-          bytes = await toBytes(canvas, type, 0.92);
+          bytes = await renderer.toBytes(canvas, type, 0.92);
         }
       } else {
         type = 'application/pdf';
         name = `${stem}.pdf`;
         const page = core.pdfPage(collage.size);
-        const jpeg = await toBytes(canvas, 'image/jpeg', 0.92);
+        const jpeg = await renderer.toBytes(canvas, 'image/jpeg', 0.92);
         const pdf = await window.PDFLib.PDFDocument.create();
         pdf.setTitle(collageTitle());
         pdf.setCreator('PRISM Collage Studio');
@@ -3087,18 +2764,12 @@
    * else happens (another item, Undo, leaving).
    */
   function holdEdit(pause = 600) {
-    window.clearTimeout(nudgeTimer);
-    nudgePending = true;
-    nudgeTimer = window.setTimeout(flushNudge, pause);
-    scheduleDraft();
+    edits.hold(pause);
   }
 
   /** Records a held edit now, so Undo and Redo start from where things really are. */
   function flushNudge() {
-    window.clearTimeout(nudgeTimer);
-    if (!nudgePending) return;
-    nudgePending = false;
-    recordQuietly();
+    edits.flush();
   }
 
   document.addEventListener('keydown', (event) => {
@@ -3148,9 +2819,7 @@
           if (key === 'arrowdown') target.y += step;
         }, false);
       }
-      window.clearTimeout(nudgeTimer);
-      nudgePending = true;
-      nudgeTimer = window.setTimeout(flushNudge, 400);
+      holdEdit(400);
     }
   });
   document.addEventListener('keyup', (event) => { if (event.key === 'Shift') setShift(false); });
@@ -3169,9 +2838,7 @@
       if (input) input.value = item.crop.zoom;
       // Recorded for Undo once the wheel stops, the same way as a keyboard nudge, so Undo
       // and Redo flush it first and never skip it.
-      window.clearTimeout(nudgeTimer);
-      nudgePending = true;
-      nudgeTimer = window.setTimeout(flushNudge, 300);
+      holdEdit(300);
       return;
     }
     if (!event.ctrlKey) return;
