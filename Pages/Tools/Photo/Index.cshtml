@@ -77,7 +77,7 @@
                 <a class="pdft-card" href="#reduce">
                     <span class="pdft-card__icon pdft-accent--orange" aria-hidden="true"><i class="bi bi-arrows-angle-contract"></i></span>
                     <span class="pdft-card__title">Reduce size</span>
-                    <span class="pdft-card__text">Get under a size such as 100 KB, or set exact pixels, for one photo or many.</span>
+                    <span class="pdft-card__text">Get under a size such as 100 KB, set exact pixels or add a watermark, for one photo or many.</span>
                 </a>
                 <a class="pdft-card" href="#remove" data-remove-card>
                     <span class="pdft-card__icon pdft-accent--teal" aria-hidden="true"><i class="bi bi-person-square"></i></span>
@@ -678,6 +678,37 @@
                             <i class="bi bi-geo-alt" aria-hidden="true"></i>
                             Location and camera details hidden in a photo are always left out of the saved file.
                         </p>
+                    </div>
+
+                    <div class="phot-panel">
+                        <h2 class="phot-panel__title">Watermark</h2>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="photWatermarkOn" data-watermark-on aria-controls="photWatermarkFields" />
+                            <label class="form-check-label" for="photWatermarkOn">Add a watermark</label>
+                        </div>
+                        <div class="phot-watermark" id="photWatermarkFields" data-watermark-fields hidden>
+                            <div class="phot-field">
+                                <label for="photWatermarkText">Text</label>
+                                <input type="text" class="form-control" id="photWatermarkText" maxlength="60" placeholder="For official use only" autocomplete="off" data-watermark-text aria-describedby="photWatermarkHint" />
+                            </div>
+                            <div class="phot-field">
+                                <label for="photWatermarkPlace">Place</label>
+                                <select class="form-select" id="photWatermarkPlace" data-watermark-place>
+                                    <option value="bottom-right" selected>Bottom right</option>
+                                    <option value="bottom-left">Bottom left</option>
+                                    <option value="centre">Centre</option>
+                                    <option value="across">Across the photo, repeated</option>
+                                </select>
+                            </div>
+                            <div class="phot-field">
+                                <span class="phot-field__label" id="photWatermarkStrength">Strength</span>
+                                <div class="phot-segment" role="group" aria-labelledby="photWatermarkStrength">
+                                    <button type="button" aria-pressed="true" data-watermark-strength="light">Light</button>
+                                    <button type="button" aria-pressed="false" data-watermark-strength="strong">Strong</button>
+                                </div>
+                            </div>
+                            <p class="phot-hint" id="photWatermarkHint" data-watermark-hint>White letters with a soft dark edge, sized to each photo. Across the photo is the hardest to crop out.</p>
+                        </div>
                     </div>
 
                     <div class="phot-summary" aria-live="polite">

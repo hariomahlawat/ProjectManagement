@@ -183,6 +183,51 @@
     return canvas;
   }
 
+  const WATERMARK_FONT = 'Mulish, "Segoe UI", Arial, sans-serif';
+
+  /**
+   * Draws a watermark on a canvas, in place: white letters with a soft dark edge, so the text
+   * reads on light and dark photos alike. mark = { text, place, strength }; empty text adds
+   * nothing.
+   */
+  function drawWatermark(canvas, mark) {
+    const text = String(mark?.text || '').trim().slice(0, core.WATERMARK_MAX_LENGTH);
+    if (!text) return canvas;
+    const context = canvas.getContext('2d');
+    context.save();
+    context.font = `700 100px ${WATERMARK_FONT}`;
+    const plan = core.watermarkPlan({
+      width: canvas.width,
+      height: canvas.height,
+      place: mark.place,
+      textWidth100: context.measureText(text).width
+    });
+    context.font = `700 ${plan.fontSize}px ${WATERMARK_FONT}`;
+    context.textAlign = plan.align;
+    context.textBaseline = plan.baseline;
+    context.globalAlpha = core.WATERMARK_STRENGTH[mark.strength] || core.WATERMARK_STRENGTH.light;
+    context.fillStyle = '#fff';
+    context.shadowColor = 'rgba(0, 0, 0, 0.65)';
+    context.shadowBlur = Math.max(2, plan.fontSize * 0.12);
+    if (plan.angle) {
+      context.translate(plan.x, plan.y);
+      context.rotate(plan.angle);
+      const rows = Math.ceil(plan.reach / plan.stepY);
+      const columns = Math.ceil(plan.reach / plan.stepX) + 1;
+      for (let row = -rows; row <= rows; row += 1) {
+        // Every other row moves half a step, so the marks do not line up in columns.
+        const shift = (row % 2) * plan.stepX / 2;
+        for (let column = -columns; column <= columns; column += 1) {
+          context.fillText(text, column * plan.stepX + shift, row * plan.stepY);
+        }
+      }
+    } else {
+      context.fillText(text, plan.x, plan.y);
+    }
+    context.restore();
+    return canvas;
+  }
+
   function canvasToBytes(canvas, type, quality) {
     return new Promise((resolve, reject) => {
       canvas.toBlob(async (blob) => {
@@ -481,7 +526,7 @@
   }
 
   window.PrismPhotoCanvas = Object.freeze({
-    showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, drawExact, canvasToBytes,
+    showError, clearError, saveBlob, openPhoto, sizeOf, newCanvas, drawPhoto, drawExact, drawWatermark, canvasToBytes,
     isMainPointer, isRepeatClick, latestPhotoOpener, wireDropZones, wireHoldButton, rememberedChoices,
     setUnsaved, wireSaveBar, viewsForFailedScript, markCouldNotStart, receivePhotos, pastedName,
     sendPhoto, wireSendButtons
