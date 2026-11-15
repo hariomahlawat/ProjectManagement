@@ -1,5 +1,12 @@
 # Collage Studio: cold review fixes (plan, 15 Nov 2026)
 
+> **Built.** All fourteen PRs are made; what is built is described in
+> [../collage-studio.md](../collage-studio.md). The editor split moved Save, the settings HTML,
+> photo reading, held edits, focus and the From PRISM Photos dialog into their own tested modules:
+> `collage-app.js` went from 3,177 to about 2,400 lines, not the 1,200 hoped for; its remaining
+> parts (the Konva page, the panels, drafts, keys) share most of its state and are covered by the
+> browser tests. The fresh cold review that scores the result follows the last merge.
+
 A cold review of Collage Studio on 15 Nov 2026 (two reviewers who had not seen the work read the
 code; a first-time-user pass in the app) scored it **UX 7.5/10, code 7.5/10** (editor 7, server 8).
 No security problem was found. The owner asked to take both scores to **at least 9**, approved
