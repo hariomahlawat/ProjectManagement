@@ -542,12 +542,9 @@ public sealed class SearchIndexWorkerTests
             Task.FromResult<IReadOnlyList<int>>(
                 IndexedParents.TryGetValue($"{entityType}/{entityKey}", out var ids) ? ids : Array.Empty<int>());
 
-        public Task<bool> IsReadyAsync(int indexVersion, CancellationToken cancellationToken) =>
-            Task.FromResult(State.HasActiveGeneration && State.IndexVersion == indexVersion);
 
         public Task<SearchIndexHealth> GetHealthAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task EnqueueAsync(string entityType, string entityKey, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task RecordReconciliationAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RequestFullRebuildAsync(string requestedBy, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<SearchFailedIndexWorkItem>> GetFailedItemsAsync(int take, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RetryFailedAsync(long? workItemId, CancellationToken cancellationToken) => throw new NotSupportedException();

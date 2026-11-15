@@ -24,7 +24,6 @@ public interface ISearchIndexStore
         return all.Count;
     }
 
-    Task<bool> IsReadyAsync(int indexVersion, CancellationToken cancellationToken);
     Task<SearchIndexHealth> GetHealthAsync(CancellationToken cancellationToken);
     Task<SearchIndexActiveState> GetActiveStateAsync(CancellationToken cancellationToken);
 
@@ -71,7 +70,6 @@ public interface ISearchIndexStore
 
     /// <summary>Returns a leased item to Pending without counting a failed attempt.</summary>
     Task ReleaseAsync(long workItemId, TimeSpan retryAfter, CancellationToken cancellationToken);
-    Task RecordReconciliationAsync(CancellationToken cancellationToken);
     Task RecordIndexErrorAsync(string error, CancellationToken cancellationToken);
     Task RequestFullRebuildAsync(string requestedBy, CancellationToken cancellationToken);
     Task<IReadOnlyList<SearchFailedIndexWorkItem>> GetFailedItemsAsync(int take, CancellationToken cancellationToken);
@@ -89,31 +87,6 @@ public sealed class SearchIndexStore : ISearchIndexStore
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _leaseTimeout = TimeSpan.FromMinutes(Math.Max(1, options?.Value.WorkItemLeaseMinutes ?? 10));
-    }
-
-    public async Task<bool> IsReadyAsync(int indexVersion, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _db.Database.OpenConnectionAsync(cancellationToken);
-            await using var command = _db.Database.GetDbConnection().CreateCommand();
-            command.CommandText = """
-                SELECT COALESCE("ActiveGeneration", 0) > 0 AND "IndexVersion" = @version
-                FROM "SearchIndexState"
-                WHERE "Id" = 1;
-                """;
-            Add(command, "version", indexVersion);
-            var result = await command.ExecuteScalarAsync(cancellationToken);
-            return result is bool ready && ready;
-        }
-        catch (Exception ex) when (IsSchemaUnavailable(ex))
-        {
-            return false;
-        }
-        finally
-        {
-            await SafeCloseAsync();
-        }
     }
 
     public async Task<SearchIndexHealth> GetHealthAsync(CancellationToken cancellationToken)
@@ -557,9 +530,6 @@ public sealed class SearchIndexStore : ISearchIndexStore
             WHERE "Id" = {workItemId};
             """, cancellationToken);
     }
-
-    public Task RecordReconciliationAsync(CancellationToken cancellationToken) =>
-        _db.Database.ExecuteSqlRawAsync("UPDATE \"SearchIndexState\" SET \"LastReconciliationUtc\" = NOW() WHERE \"Id\" = 1;", cancellationToken);
 
     public Task RecordIndexErrorAsync(string error, CancellationToken cancellationToken)
     {
