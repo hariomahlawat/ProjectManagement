@@ -216,6 +216,9 @@
 
   window.addEventListener('beforeunload', (event) => {
     if (views.editor.hidden || !hasPhotos()) return;
+    // A nudge or wheel zoom still waiting counts as a change: recorded now, it marks the draft
+    // for saving, so the page asks while it is written.
+    flushNudge();
     // Saved as a draft already, and not being written now: nothing is lost by leaving.
     if (draft && draft.created && !draftPending && !draftWriting && !draftFailed) return;
     saveDraftNow();
