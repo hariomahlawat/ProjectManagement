@@ -1,0 +1,136 @@
+@page
+@model ProjectManagement.Pages.Tools.Collage.IndexModel
+@{
+    // Collage Studio (docs/ux/collage-studio.md). A standalone tool, like Photo Tools: its own tab,
+    // its own minimal shell, and everything in the browser. No photo or collage is sent to the
+    // PRISM server. The top bar is shared with PDF Tools and Photo Tools through pdf-tools.css; the
+    // page is drawn with Konva, shipped with the application.
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10213f" />
+    <title>Collage Studio | PRISM ERP</title>
+    <script src="~/js/core/theme-preference.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pdf-tools.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/tools-shared/prism-confirm-standalone.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/collage.css" asp-append-version="true" />
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
+</head>
+<body class="pdft clg" data-collage>
+
+    <header class="pdft-topbar">
+        <a class="pdft-brand" href="#" data-action="home">
+            <span class="pdft-brand__mark clg-brand__mark" aria-hidden="true"><i class="bi bi-images"></i></span>
+            <span class="pdft-brand__text">Collage Studio <span>by PRISM</span></span>
+        </a>
+        <span class="pdft-privacy" title="Your collage is made in this browser. No photo is sent to the PRISM server.">
+            <i class="bi bi-shield-lock" aria-hidden="true"></i>
+            <span>Photos are not saved in PRISM</span>
+            <span class="visually-hidden">. Your collage is made in this browser. No photo is sent to the PRISM server.</span>
+        </span>
+        <a class="pdft-topbar__back" asp-page="/Dashboard/Index">
+            <i class="bi bi-box-arrow-up-left" aria-hidden="true"></i>
+            <span>PRISM</span>
+        </a>
+    </header>
+
+    <input type="file" class="visually-hidden" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,.jpg,.jpeg,.png,.webp,.gif,.bmp" multiple data-file-input tabindex="-1" aria-hidden="true" />
+
+    <main class="clg-main">
+        @* ---------- Start ---------- *@
+        <section class="clg-start" data-view="start" aria-labelledby="clgStartTitle">
+            <h1 id="clgStartTitle" tabindex="-1">Make a collage</h1>
+            <p class="clg-lede">Put your photos on a page, turn them to any angle and arrange them as you like. Everything happens in this browser; no photo is sent to PRISM.</p>
+            <p class="clg-building" role="note"><i class="bi bi-cone-striped" aria-hidden="true"></i> Collage Studio is being built. Layouts, text, stickers, backgrounds, drafts and saving come in the next updates.</p>
+            <h2 class="clg-start__heading">Start with a blank page</h2>
+            <div class="clg-sizes" data-sizes></div>
+        </section>
+
+        @* ---------- Editor ---------- *@
+        <section class="clg-editor" data-view="editor" aria-labelledby="clgEditorTitle" hidden>
+            <h1 id="clgEditorTitle" class="visually-hidden" tabindex="-1">Collage editor</h1>
+            <div class="clg-bar">
+                <button type="button" class="btn btn-outline-secondary btn-sm clg-icon-btn" data-action="home" title="Back to the start" aria-label="Back to the start">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                </button>
+                <label class="visually-hidden" for="clgName">Collage name</label>
+                <input id="clgName" class="clg-name" type="text" maxlength="80" autocomplete="off" data-name />
+                <span class="clg-bar__grow"></span>
+                <label class="visually-hidden" for="clgSize">Page size</label>
+                <select id="clgSize" class="form-select form-select-sm clg-size" data-size></select>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Undo and redo">
+                    <button type="button" class="btn btn-outline-secondary" data-action="undo" title="Undo (Ctrl+Z)" aria-label="Undo"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></button>
+                    <button type="button" class="btn btn-outline-secondary" data-action="redo" title="Redo (Ctrl+Y)" aria-label="Redo"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></button>
+                </div>
+                <div class="btn-group btn-group-sm clg-zoom" role="group" aria-label="Zoom">
+                    <button type="button" class="btn btn-outline-secondary" data-action="zoom-out" title="Zoom out" aria-label="Zoom out"><i class="bi bi-dash-lg" aria-hidden="true"></i></button>
+                    <button type="button" class="btn btn-outline-secondary clg-zoom__value" data-action="zoom-fit" title="Fit the page" aria-label="Fit the page" data-zoom-value>100%</button>
+                    <button type="button" class="btn btn-outline-secondary" data-action="zoom-in" title="Zoom in" aria-label="Zoom in"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+                </div>
+            </div>
+
+            <div class="clg-body" data-body>
+                <nav class="clg-rail" aria-label="Add to the collage">
+                    <button type="button" data-panel="photos" aria-pressed="true" aria-controls="clgDrawer">
+                        <i class="bi bi-images" aria-hidden="true"></i><span>Photos</span>
+                    </button>
+                </nav>
+
+                <aside class="clg-drawer" id="clgDrawer" data-drawer aria-label="Photos">
+                    <h2 class="clg-panel-title">Photos</h2>
+                    <button type="button" class="btn btn-primary w-100" data-action="choose">
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add photos
+                    </button>
+                    <p class="clg-hint">Or drop photos on the page, or paste one with Ctrl+V. Click a photo below to add it again, or drag it onto the page.</p>
+                    <p class="clg-hint clg-count" data-photo-count></p>
+                    <div class="clg-tray" data-tray></div>
+                </aside>
+
+                <div class="clg-stage" data-stage>
+                    <div class="clg-stage__canvas" data-konva></div>
+                    <div class="clg-toolbar" data-toolbar role="toolbar" aria-label="Selected photo" hidden>
+                        <button type="button" data-action="duplicate" title="Duplicate (Ctrl+D)" aria-label="Duplicate"><i class="bi bi-copy" aria-hidden="true"></i></button>
+                        <button type="button" data-action="forward" title="Bring forward (])" aria-label="Bring forward"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
+                        <button type="button" data-action="backward" title="Send backward ([)" aria-label="Send backward"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+                        <button type="button" class="clg-toolbar__delete" data-action="delete" title="Delete (Delete)" aria-label="Delete"><i class="bi bi-trash3" aria-hidden="true"></i></button>
+                    </div>
+                    <div class="clg-angle" data-angle hidden></div>
+                    <div class="clg-empty" data-empty>
+                        <i class="bi bi-images" aria-hidden="true"></i>
+                        <p>Add photos, drop them here, or paste one with Ctrl+V.</p>
+                        <button type="button" class="btn btn-primary btn-sm" data-action="choose">Add photos</button>
+                    </div>
+                </div>
+
+                <aside class="clg-props" data-props aria-label="Settings"></aside>
+            </div>
+        </section>
+
+        <div class="visually-hidden" role="status" aria-live="polite" data-announce></div>
+        <div class="alert alert-warning clg-alert" role="alert" data-alert hidden>
+            <span data-alert-text></span>
+            <button type="button" class="btn-close" data-action="alert-close" aria-label="Close"></button>
+        </div>
+        <div class="clg-busy" data-busy hidden>
+            <div class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></div>
+            <span data-busy-text>Adding photos…</span>
+        </div>
+    </main>
+
+    @* The PRISM confirmation dialog, as on every other page (docs/ux/confirm-dialogs.md). *@
+    <partial name="_PrismConfirmDialog" />
+    <script src="~/js/components/prism-confirm-dialog.js" asp-append-version="true"></script>
+    @* Konva draws the page; it ships with the application (libman.json). *@
+    <script src="~/lib/konva/10.9.1/konva.min.js"></script>
+    <script src="~/js/collage/collage-core.js" asp-append-version="true"></script>
+    <script src="~/js/collage/collage-app.js" asp-append-version="true"></script>
+</body>
+</html>

@@ -81,6 +81,14 @@
       ]
     },
     {
+      "library": "konva@10.9.1",
+      "destination": "wwwroot/lib/konva/10.9.1/",
+      "files": [
+        "konva.min.js",
+        "LICENSE"
+      ]
+    },
+    {
       "library": "pdfjs-dist@4.10.38",
       "destination": "wwwroot/lib/pdfjs/4.10.38/",
       "files": [
