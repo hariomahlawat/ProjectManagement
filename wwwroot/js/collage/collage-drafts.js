@@ -20,16 +20,7 @@
 
   function request(req) {
     return new Promise((resolve, reject) => {
-      req.onsuccess = () => {
-        const db = req.result;
-        // A newer Collage Studio in another tab needs the database changed: this tab lets go,
-        // and opens it again (at the new version) the next time it saves.
-        db.onversionchange = () => {
-          db.close();
-          opening = null;
-        };
-        resolve(db);
-      };
+      req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
   }
@@ -62,7 +53,16 @@
           photos.createIndex('draft', 'draft', { unique: false });
         }
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        // A newer Collage Studio in another tab needs the database changed: this tab lets go,
+        // and opens it again (at the new version) the next time it saves.
+        db.onversionchange = () => {
+          db.close();
+          opening = null;
+        };
+        resolve(db);
+      };
       req.onerror = () => reject(req.error);
       req.onblocked = () => reject(Object.assign(new Error('Blocked'), { name: 'Blocked' }));
     });
