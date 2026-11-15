@@ -39,6 +39,7 @@ using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Outbox;
 using ProjectManagement.Features.MediaLibrary.Services;
 using ProjectManagement.Features.PhotoTools;
+using ProjectManagement.Features.Collage;
 using ProjectManagement.Features.Notifications;
 using ProjectManagement.Features.Chat;
 using ProjectManagement.Services.Chat;
@@ -197,6 +198,7 @@ builder.Services.AddMediaLibrary(builder.Configuration, csb.ConnectionString);
 
 // ---------- Photo Tools: Remove background on the server (off until a model is installed) ----------
 builder.Services.AddPhotoTools(builder.Configuration);
+builder.Services.AddCollage();
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -1925,6 +1927,7 @@ eventsApi.MapPost("/preferences/show-celebrations", async (UserManager<Applicati
 app.MapNotificationApi();
 app.MapChatApi();
 app.MapPhotoToolsApi();
+app.MapCollageApi();
 
 var projectsApi = app.MapGroup("/api/projects").RequireAuthorization();
 
