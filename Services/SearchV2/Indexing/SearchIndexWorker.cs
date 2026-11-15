@@ -253,7 +253,7 @@ public sealed class SearchIndexWorker : BackgroundService
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
                 {
                     _logger.LogError(ex, "Search V2 failed to index {EntityType}/{EntityKey}.", item.EntityType, item.EntityKey);
-                    await store.FailAsync(item.Id, ex.Message, cancellationToken);
+                    await store.FailAsync(item, ex.Message, cancellationToken);
                 }
             }
         }
@@ -420,7 +420,7 @@ public sealed class SearchIndexWorker : BackgroundService
                 await store.CompleteAsync(item, cancellationToken);
                 break;
             case RebuildOutcome.Failed:
-                await store.FailAsync(item.Id, "Full Search V2 rebuild failed. Review application logs for the underlying exception.", cancellationToken);
+                await store.FailAsync(item, "Full Search V2 rebuild failed. Review application logs for the underlying exception.", cancellationToken);
                 break;
             default:
                 // Another process is rebuilding: hand the request back without counting
