@@ -87,6 +87,38 @@
   // Messages
   // ---------------------------------------------------------------------------
 
+  /**
+   * The same control after a panel is drawn again: the element type with its data-* attributes
+   * (and a radio button's name and value), which name a control and not its state.
+   */
+  function controlKey(element) {
+    if (!element || element === document.body || !root.contains(element)) return null;
+    const named = [...element.attributes].filter((attribute) =>
+      (attribute.name.startsWith('data-') && !attribute.name.startsWith('data-bs-'))
+      || (element.type === 'radio' && (attribute.name === 'name' || attribute.name === 'value')));
+    if (!named.length) return null;
+    return element.tagName.toLowerCase() + named.map((attribute) => `[${attribute.name}="${CSS.escape(attribute.value)}"]`).join('');
+  }
+
+  /**
+   * Draws a panel again (render) and, if the focused control was replaced, puts focus back on
+   * the control that takes its place, with the caret where it was, so keyboard and screen-reader
+   * users stay where they were.
+   */
+  function keepingFocus(render) {
+    const before = document.activeElement;
+    const key = controlKey(before);
+    const caret = before && typeof before.selectionStart === 'number' ? [before.selectionStart, before.selectionEnd] : null;
+    render();
+    if (!key || before.isConnected) return;
+    const after = root.querySelector(key);
+    if (!after || after.disabled) return;
+    after.focus({ preventScroll: true });
+    if (caret && typeof after.setSelectionRange === 'function') {
+      try { after.setSelectionRange(caret[0], caret[1]); } catch { /* not a text field */ }
+    }
+  }
+
   function announce(text) {
     announcer.textContent = '';
     window.setTimeout(() => { announcer.textContent = text; }, 30);
@@ -960,6 +992,7 @@
 
   function select(id) {
     if (selectedId === id) return;
+    flushNudge();
     selectedId = id;
     if (adjustId && adjustId !== id) stopAdjust(false);
     attachTransformer();
@@ -1072,9 +1105,7 @@
     // Zoomed in a little to begin with, so there is something to move.
     if ((item.crop?.zoom || 1) < 1.2) {
       item.crop = clampedCrop({ ...item, crop: { ...item.crop, zoom: 1.2 } });
-      history.record(collage);
-      updateUndo();
-      scheduleDraft();
+      recordQuietly();
     }
     adjustHint.hidden = false;
     syncPage();
@@ -1184,7 +1215,10 @@
     if (!item) return;
     change(item);
     if (record) commit();
-    else syncPage();
+    else {
+      syncPage();
+      holdEdit();
+    }
   }
 
   /** Photos in the tray that are not on the page, in the order they were added. */
@@ -1230,6 +1264,10 @@
 
   /** The Text panel: plain starts and ready-made headings, each shown in its own font. */
   function renderTextPanel() {
+    keepingFocus(() => renderTextPanelNow());
+  }
+
+  function renderTextPanelNow() {
     const button = (key, big) => {
       const [text, look] = TEXT_STARTS[key];
       const font = core.FONTS[look.font || 'clean'];
@@ -1291,6 +1329,10 @@
 
   /** The Background panel: colours, gradients, patterns, textures and the page's photos. */
   function renderBackgroundPanel() {
+    keepingFocus(() => renderBackgroundPanelNow());
+  }
+
+  function renderBackgroundPanelNow() {
     const current = collage.background || { type: 'color', value: '#ffffff' };
     const colours = root.querySelector('[data-bg-colours]');
     colours.replaceChildren(...core.BACKGROUND_COLOURS.map((value) => {
@@ -1351,6 +1393,10 @@
 
   /** The Stickers panel: search, groups, and the stickers of the group or the search. */
   function renderStickerPanel() {
+    keepingFocus(() => renderStickerPanelNow());
+  }
+
+  function renderStickerPanelNow() {
     const box = root.querySelector('[data-sticker-grid]');
     const chips = root.querySelector('[data-sticker-groups]');
     const query = root.querySelector('[data-sticker-search]').value.trim();
@@ -1662,6 +1708,10 @@
   }
 
   function renderLayoutPanel() {
+    keepingFocus(() => renderLayoutPanelNow());
+  }
+
+  function renderLayoutPanelNow() {
     const current = collage.layout;
     for (const button of layoutGrid.querySelectorAll('[data-layout]')) {
       button.setAttribute('aria-pressed', String(current?.key === button.dataset.layout));
@@ -1784,6 +1834,10 @@
   }
 
   function renderProps() {
+    keepingFocus(() => renderPropsNow());
+  }
+
+  function renderPropsNow() {
     renderPropsBody();
     if (selectedItem()?.locked) props.querySelectorAll(LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
     props.insertAdjacentHTML('afterbegin', '<button type="button" class="clg-sheet-close" data-action="close-props" aria-label="Close settings"><i class="bi bi-x-lg" aria-hidden="true"></i></button>');
@@ -1937,11 +1991,7 @@
   });
 
   props.addEventListener('change', (event) => {
-    if (event.target.matches('[data-text], [data-text-colour]')) {
-      history.record(collage);
-      scheduleDraft();
-      updateUndo();
-    }
+    if (event.target.matches('[data-text], [data-text-colour]')) flushNudge();
   });
 
   /** Buttons that choose one value of a photo's finish (frame, shape or look). */
@@ -2041,17 +2091,15 @@
 
   props.addEventListener('change', (event) => {
     if (event.target.matches('[data-caption]')) {
-      history.record(collage);
-      scheduleDraft();
-      updateUndo();
+      flushNudge();
       return;
     }
     if (event.target.dataset.prop) {
       // A frame given its own corners is no longer bound to the layout's.
       if (event.target.dataset.prop === 'radius' && collage.layout) collage.layout = { ...collage.layout, radius: Number(event.target.value) };
-      history.record(collage);
-      scheduleDraft();
-      updateUndo();
+      // Recorded even when the slider ends where it began, so the corners above are kept.
+      nudgePending = true;
+      flushNudge();
       renderLayoutPanel();
       return;
     }
@@ -2468,6 +2516,10 @@
   });
 
   function renderTray() {
+    keepingFocus(() => renderTrayNow());
+  }
+
+  function renderTrayNow() {
     const used = new Map();
     for (const item of collage.items) if (item.kind === 'photo') used.set(item.photo, (used.get(item.photo) || 0) + 1);
     tray.textContent = '';
@@ -2850,14 +2902,35 @@
   // Keyboard and the mouse wheel
   // ---------------------------------------------------------------------------
 
-  /** Records a pending nudge now, so Undo and Redo start from where the photo really is. */
+  /**
+   * Records the collage as it is now as one Undo step and keeps it in the draft, without
+   * redrawing the panels. commit() does this and redraws; held edits (typing, sliders, colour
+   * pickers, nudges) do it once they pause, through holdEdit() and flushNudge().
+   */
+  function recordQuietly() {
+    history.record(collage);
+    updateUndo();
+    scheduleDraft();
+  }
+
+  /**
+   * An edit already on the page that is still going on (typing, a slider, a colour picker, a
+   * nudge): kept in the draft at once, recorded for Undo once it pauses, or as soon as anything
+   * else happens (another item, Undo, leaving).
+   */
+  function holdEdit(pause = 600) {
+    window.clearTimeout(nudgeTimer);
+    nudgePending = true;
+    nudgeTimer = window.setTimeout(flushNudge, pause);
+    scheduleDraft();
+  }
+
+  /** Records a held edit now, so Undo and Redo start from where things really are. */
   function flushNudge() {
     window.clearTimeout(nudgeTimer);
     if (!nudgePending) return;
     nudgePending = false;
-    history.record(collage);
-    updateUndo();
-    scheduleDraft();
+    recordQuietly();
   }
 
   document.addEventListener('keydown', (event) => {
