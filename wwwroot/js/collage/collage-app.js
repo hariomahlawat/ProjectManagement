@@ -1033,6 +1033,9 @@
 
   function stopAdjust(redraw = true) {
     if (!adjustId) return;
+    // The photo can be dragged again at once, even when the page is not redrawn now.
+    const ended = itemById(adjustId);
+    nodes.get(adjustId)?.draggable(Boolean(ended) && !ended.locked);
     adjustId = null;
     pan = null;
     adjustHint.hidden = true;
