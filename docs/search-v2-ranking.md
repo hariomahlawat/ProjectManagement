@@ -86,3 +86,21 @@ It runs a relevance dataset against a database copy, records results, median lat
 and `auto_explain` plans, and scores them with `tools/search-v2-relevance-evaluator.mjs`.
 See `tools/README-search-v2-relevance.md`. Keep datasets and outputs that contain
 corpus text outside the repository.
+
+Measured 15 Nov 2026 on a copy of the development index grown twenty times (34,160
+entries): a word found in most records ("projects", 22,000 candidates) took 1.47 s; the
+same search after PR 9 of `docs/ux/search-review-fixes.md` takes about 1.0 s with the same
+results, totals and suggestions. What remains is split between the retrieval channels
+(each ranks every match, about 0.55 s) and clustering the candidates. Two rules keep it
+there:
+
+- Candidate rows stay narrow. Clustering and every facet sort all candidates, so titles,
+  text and `MetadataJson` are read for the final page only (and, by id, for the stage
+  filter and stage facet).
+- Counts use a `DISTINCT` subquery, never `COUNT(DISTINCT ...)`, which PostgreSQL always
+  sorts with the text collation; a `DISTINCT` subquery can hash. This was most of the gain.
+
+A per-channel limit was measured against this and not adopted: filters apply after
+retrieval, so a limit would drop filtered results ranked beyond it (an IPR tab missing
+IPR records) and make every count a lower bound, for a gain that shows only at many times
+the current index size.
