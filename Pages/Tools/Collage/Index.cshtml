@@ -49,7 +49,13 @@
         <section class="clg-start" data-view="start" aria-labelledby="clgStartTitle">
             <h1 id="clgStartTitle" tabindex="-1">Make a collage</h1>
             <p class="clg-lede">Put your photos on a page, turn them to any angle and arrange them as you like. Everything happens in this browser; no photo is sent to PRISM.</p>
-            <p class="clg-building" role="note"><i class="bi bi-stars" aria-hidden="true"></i> More is on the way: text in English and Hindi, stickers, frames, backgrounds and drafts.</p>
+            <p class="clg-building" role="note"><i class="bi bi-stars" aria-hidden="true"></i> More is on the way: text in English and Hindi, stickers, frames and backgrounds.</p>
+            <section class="clg-drafts" data-drafts-section aria-labelledby="clgDraftsTitle" hidden>
+                <h2 class="clg-start__heading" id="clgDraftsTitle">Your drafts <small data-drafts-count></small></h2>
+                <p class="clg-hint clg-drafts__note">Drafts are kept in this browser on this computer, with their photos, and saved as you work. Clearing the browser's data removes them, so save a picture or a PDF to keep a copy. <span data-drafts-space></span></p>
+                <div class="clg-undo-bar" data-draft-undo hidden><span data-draft-undo-text></span> <button type="button" class="btn btn-sm btn-link" data-action="draft-undo">Undo</button></div>
+                <div class="clg-draft-grid" data-drafts></div>
+            </section>
             <h2 class="clg-start__heading">Start with a layout <small>A4 landscape; the size can be changed later</small></h2>
             <div class="clg-layouts" data-start-layouts></div>
             <h2 class="clg-start__heading">Start with a blank page</h2>
@@ -65,6 +71,7 @@
                 </button>
                 <label class="visually-hidden" for="clgName">Collage name</label>
                 <input id="clgName" class="clg-name" type="text" maxlength="80" autocomplete="off" data-name />
+                <span class="clg-draft-status" data-draft-status role="status" aria-live="polite"></span>
                 <span class="clg-bar__grow"></span>
                 <label class="visually-hidden" for="clgSize">Page size</label>
                 <select id="clgSize" class="form-select form-select-sm clg-size" data-size></select>
@@ -215,6 +222,7 @@
     <script src="~/lib/pdf-lib/1.17.1/dist/pdf-lib.min.js"></script>
     <script src="~/js/photo-tools/photo-tools-core.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-core.js" asp-append-version="true"></script>
+    <script src="~/js/collage/collage-drafts.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-app.js" asp-append-version="true"></script>
 </body>
 </html>

@@ -357,3 +357,67 @@ test('file names lose characters a computer refuses and fall back to Collage', (
   assert.equal(collage.fileStem('शुभकामनाएँ'), 'शुभकामनाएँ');
   assert.equal(collage.fileStem('x'.repeat(200)).length, 80);
 });
+
+test('a draft read back keeps what is usable and drops what is not', () => {
+  const good = { ...collage.photoItem('a', 'p1', 1.5, { x: 100, y: 100, width: 200 }), angle: 30, crop: { zoom: 2, x: 0.3, y: 0.6 } };
+  const raw = {
+    version: 1,
+    size: 'a4p',
+    background: { type: 'color', value: '#fafafa' },
+    layout: { key: 't4', gap: 20, radius: 6 },
+    items: [
+      good,
+      { ...good, id: 'b', photo: 'gone' },
+      { id: 'c', kind: 'sticker', x: 1, y: 1, width: 10, aspect: 1 },
+      { ...good, id: 'd', width: 'wide' },
+      { ...good, id: 'e', angle: 400, opacity: 0, radius: 999, crop: { zoom: 99 } },
+      collage.slotItem('s', { x: 5, y: 5, width: 50, aspect: 2 }),
+      null
+    ]
+  };
+  const read = collage.readDraftModel(raw, ['p1']);
+  assert.equal(read.size, 'a4p');
+  assert.deepEqual(read.layout, { key: 't4', gap: 20, radius: 6 });
+  assert.deepEqual(read.background, { type: 'color', value: '#fafafa' });
+  assert.deepEqual(read.items.map((i) => i.id), ['a', 'e', 's']);
+  assert.deepEqual(read.items[0].crop, { zoom: 2, x: 0.3, y: 0.6 });
+  const e = read.items[1];
+  assert.deepEqual([e.angle, e.opacity, e.radius, e.crop.zoom], [40, 10, 60, 4]);
+
+  // Not a draft, or made by a newer PRISM: nothing is opened.
+  assert.equal(collage.readDraftModel(null, []), null);
+  assert.equal(collage.readDraftModel({ items: 'x' }, []), null);
+  assert.equal(collage.readDraftModel({ version: 99, items: [] }, []), null);
+  // Unknown size, layout and background fall back safely.
+  const odd = collage.readDraftModel({ size: 'huge', layout: { key: 'zz' }, background: { type: 'color', value: 'red' }, items: [] }, []);
+  assert.deepEqual([odd.size, odd.layout, odd.background.value, odd.version], ['a4l', null, '#ffffff', 1]);
+});
+
+test('deleted drafts hide at once and are removed for good after the undo time', () => {
+  const now = 1_000_000;
+  const drafts = [
+    { id: 'old', saved: 10 },
+    { id: 'new', saved: 50 },
+    { id: 'just-deleted', saved: 70, deletedAt: now - 2000 },
+    { id: 'long-deleted', saved: 60, deletedAt: now - collage.DRAFT_UNDO_MS - 1 }
+  ];
+  const { shown, purge } = collage.sortDrafts(drafts, now);
+  assert.deepEqual(shown.map((d) => d.id), ['new', 'old']);
+  assert.deepEqual(purge, ['long-deleted']);
+});
+
+test('a new draft past the limit names the oldest one to delete', () => {
+  const few = [{ id: 'a', saved: 1 }];
+  assert.equal(collage.draftToMakeRoom(few), null);
+  const full = Array.from({ length: collage.MAX_DRAFTS }, (_, i) => ({ id: `d${i}`, saved: 100 - i }));
+  assert.equal(collage.draftToMakeRoom(full).id, `d${collage.MAX_DRAFTS - 1}`);
+});
+
+test('a draft says when it was last saved in plain words', () => {
+  const now = Date.UTC(2026, 10, 15, 12, 0, 0);
+  assert.equal(collage.savedAgo(now - 10_000, now), 'just now');
+  assert.equal(collage.savedAgo(now - 5 * 60_000, now), '5 min ago');
+  assert.equal(collage.savedAgo(now - 3 * 3_600_000, now), '3 h ago');
+  assert.equal(collage.savedAgo(now - 30 * 3_600_000, now), 'yesterday');
+  assert.equal(collage.savedAgo(Date.UTC(2026, 9, 2, 12), now), '2 Oct 2026');
+});

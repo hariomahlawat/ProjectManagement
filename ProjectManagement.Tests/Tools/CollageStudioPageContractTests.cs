@@ -16,6 +16,7 @@ public sealed class CollageStudioPageContractTests
     private static readonly string[] Scripts =
     {
         "js/collage/collage-core.js",
+        "js/collage/collage-drafts.js",
         "js/collage/collage-app.js"
     };
 

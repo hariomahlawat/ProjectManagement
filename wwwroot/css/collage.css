@@ -829,3 +829,119 @@
         display: none;
     }
 }
+
+/* ---------- Drafts ---------- */
+
+.clg-draft-status {
+    font-size: 0.8rem;
+    color: var(--pdft-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.clg-draft-status:not(:empty)::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: var(--bs-success);
+    vertical-align: 1px;
+}
+
+.clg-draft-status.is-warning {
+    color: var(--bs-warning-text-emphasis);
+}
+
+.clg-draft-status.is-warning::before {
+    background: var(--bs-warning);
+}
+
+.clg-drafts__note {
+    max-width: 75ch;
+    margin: -0.25rem 0 0.75rem;
+}
+
+.clg-draft-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.clg-draft {
+    position: relative;
+}
+
+.clg-draft__open {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    width: 100%;
+    padding: 0 0 0.6rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--pdft-surface);
+    color: var(--bs-body-color);
+    text-align: left;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.clg-draft__open:hover,
+.clg-draft__open:focus-visible {
+    border-color: var(--clg-accent);
+    box-shadow: var(--pdft-shadow);
+}
+
+.clg-draft__open img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: contain;
+    background: var(--bs-secondary-bg);
+    margin-bottom: 0.35rem;
+}
+
+.clg-draft__open b,
+.clg-draft__open small {
+    padding: 0 0.7rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.clg-draft__open small {
+    color: var(--pdft-muted);
+}
+
+.clg-draft__delete {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.45rem;
+    background: var(--pdft-surface);
+}
+
+.clg-undo-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.6rem;
+    padding: 0.3rem 0.4rem 0.3rem 0.8rem;
+    border-radius: 999px;
+    background: var(--bs-emphasis-color);
+    color: var(--bs-body-bg);
+    font-size: 0.86rem;
+}
+
+.clg-undo-bar .btn-link {
+    color: var(--bs-body-bg);
+    font-weight: 800;
+}
+
+@media (max-width: 1100px) {
+    .clg-draft-status {
+        display: none;
+    }
+}
