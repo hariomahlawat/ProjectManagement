@@ -188,8 +188,18 @@ public sealed class CollageStickerService : ICollageStickerService
         var fileStem = Guid.NewGuid().ToString("N");
         var finalPath = Path.Combine(folder, fileStem + ".png");
         var tempPath = Path.Combine(folder, fileStem + ".tmp");
-        await File.WriteAllBytesAsync(tempPath, png, cancellationToken);
-        File.Move(tempPath, finalPath);
+        try
+        {
+            await File.WriteAllBytesAsync(tempPath, png, cancellationToken);
+            File.Move(tempPath, finalPath);
+        }
+        catch
+        {
+            // Cancelled, disk full or the move refused: nothing half-written is left behind.
+            TryDelete(tempPath);
+            TryDelete(finalPath);
+            throw;
+        }
 
         CollageStickerOutcome outcome;
         try

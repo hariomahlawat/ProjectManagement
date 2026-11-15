@@ -1061,27 +1061,38 @@
    * photos the draft does not hold are dropped. An older version is brought up to this one.
    * Returns null when nothing usable is left or the draft was made by a newer PRISM.
    */
+  // Ids the editor makes: a letter, then letters and digits.
+  const ITEM_ID = /^[A-Za-z][A-Za-z0-9_-]{0,40}$/;
+  // How much wider than tall (or the reverse) an item may be: well past any real frame or text.
+  const ASPECT_LIMITS = Object.freeze([0.02, 50]);
+
   function readDraftModel(raw, photoIds) {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.items)) return null;
     const version = isNumber(raw.version) ? raw.version : 1;
     if (version > MODEL_VERSION) return null;
     const known = new Set(photoIds || []);
     const items = [];
+    const seen = new Set();
     for (const item of raw.items) {
-      if (!item || typeof item !== 'object' || typeof item.id !== 'string') continue;
+      // An id is written into the page, so only the plain ids the editor makes are kept, once.
+      if (!item || typeof item !== 'object' || typeof item.id !== 'string' || !ITEM_ID.test(item.id) || seen.has(item.id)) continue;
       if (!['photo', 'slot', 'text', 'sticker'].includes(item.kind)) continue;
       if (item.kind === 'sticker' && !STICKER_ID.test(item.sticker)) continue;
-      if (!isNumber(item.x) || !isNumber(item.y) || !isNumber(item.width) || !(item.aspect > 0)) continue;
+      if (!isNumber(item.x) || !isNumber(item.y) || !isNumber(item.width) || !isNumber(item.aspect) || !(item.aspect > 0)) continue;
       if (item.kind === 'photo' && !known.has(item.photo)) continue;
+      seen.add(item.id);
       const clean = {
         ...item,
         width: clampWidth(item.width),
+        aspect: Math.min(ASPECT_LIMITS[1], Math.max(ASPECT_LIMITS[0], item.aspect)),
         angle: normaliseAngle(isNumber(item.angle) ? item.angle : 0),
         opacity: Math.min(100, Math.max(10, isNumber(item.opacity) ? item.opacity : 100)),
         radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0)),
         hidden: item.hidden === true,
         locked: item.locked === true
       };
+      // A layout cell is a small whole number, or nothing.
+      if (!(Number.isInteger(item.cell) && item.cell >= 0 && item.cell < 64)) delete clean.cell;
       if (item.kind === 'sticker') {
         // Stickers have their own limits (down to 20), so the saved width is clamped, not the
         // item width already raised to the general minimum.
@@ -1122,8 +1133,8 @@
         const crop = item.crop || FULL_CROP;
         clean.crop = {
           zoom: Math.min(MAX_CROP_ZOOM, Math.max(1, isNumber(crop.zoom) ? crop.zoom : 1)),
-          x: isNumber(crop.x) ? crop.x : 0.5,
-          y: isNumber(crop.y) ? crop.y : 0.5
+          x: isNumber(crop.x) ? Math.min(1, Math.max(0, crop.x)) : 0.5,
+          y: isNumber(crop.y) ? Math.min(1, Math.max(0, crop.y)) : 0.5
         };
       }
       items.push(clean);
