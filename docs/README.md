@@ -35,6 +35,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Search page and search box](ux/search.md) | What users see: the accessible search box, recent searches, shortcuts, failure banners, result cards, filters and paging. |
 | [Search: review fixes](ux/search-review-fixes.md) | The review of 15 Nov 2026 (UX 7, code 7.5): index rows that do not follow their project, lost index updates, query limits, page fixes, and the 11-PR fix plan. |
 | [Search: second review fixes](ux/search-review-2-fixes.md) | The second review of 15 Nov 2026 (UX 7.5, code 7.5): a stage rule of its own, project edits that rewrite every document, near-miss noise, and the 8-PR fix plan. |
+| [Search: third review fixes](ux/search-review-3-fixes.md) | The third review of 15 Nov 2026 (UX 8, code 8): a lost update across processes, document results that do not show why they matched, usage counts, and the 6-PR fix plan. |
 | [Configuration reference](configuration-reference.md) | Configuration keys and environment overrides. |
 | [Chat](chat.md) | Person-to-person chat: buddy list, docked windows, API/hub contract, privacy position and configuration. |
 | [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |
