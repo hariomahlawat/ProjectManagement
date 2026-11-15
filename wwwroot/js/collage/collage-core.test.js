@@ -675,3 +675,13 @@ test('changing the layout or its spacing leaves locked frames where they are', (
   assert.deepEqual(relaid.items.find((i) => i.id === locked.id), locked);
   assert.equal(relaid.items.filter((i) => i.kind === 'photo' && !i.locked).length, 1);
 });
+
+test('a new page size leaves locked items where they are', () => {
+  const page = { ...collage.newCollage('a4l'), items: [
+    { id: 'a', kind: 'text', x: 100, y: 200, width: 100, aspect: 2, angle: 0, locked: true },
+    { id: 'b', kind: 'text', x: 100, y: 200, width: 100, aspect: 2, angle: 0 }
+  ] };
+  const upright = collage.changeSize(page, 'a4p');
+  assert.equal(upright.items[0].y, 200);
+  assert.notEqual(upright.items[1].y, 200);
+});

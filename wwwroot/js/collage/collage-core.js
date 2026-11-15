@@ -844,7 +844,8 @@
 
   /**
    * The collage on a new page size. Items keep their place across the page and their size, so
-   * a landscape collage turned upright stays in order; nothing is cut off the page.
+   * a landscape collage turned upright stays in order; nothing is cut off the page. A locked
+   * item keeps its exact place.
    */
   function changeSize(collage, sizeKey) {
     if (!SIZES[sizeKey] || sizeKey === collage.size) return collage;
@@ -853,7 +854,7 @@
     return {
       ...collage,
       size: sizeKey,
-      items: collage.items.map((item) => ({ ...item, y: item.y * to / from }))
+      items: collage.items.map((item) => (item.locked ? item : { ...item, y: item.y * to / from }))
     };
   }
 
