@@ -136,7 +136,7 @@ public sealed class SearchV2SourceContractTests
 
         Assert.Contains("ProjectionVersion", options, StringComparison.Ordinal);
         Assert.Contains("state.IndexVersion < _options.ProjectionVersion", worker, StringComparison.Ordinal);
-        Assert.Contains("ReplaceFullGenerationAsync(projections, _options.ProjectionVersion", worker, StringComparison.Ordinal);
+        Assert.Contains("builder.BuildAllInBatchesAsync(cancellationToken),\n                _options.ProjectionVersion,", worker.Replace("\r\n", "\n"), StringComparison.Ordinal);
         Assert.Contains("RequestFullRebuildAsync", store, StringComparison.Ordinal);
         Assert.Contains("GetFailedItemsAsync", store, StringComparison.Ordinal);
         Assert.Contains("RetryFailedAsync", store, StringComparison.Ordinal);

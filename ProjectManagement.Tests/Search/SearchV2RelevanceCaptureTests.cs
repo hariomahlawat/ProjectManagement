@@ -123,6 +123,57 @@ public sealed class SearchV2RelevanceCaptureTests
         }
     }
 
+    /// <summary>
+    /// Times a full rebuild (build and write) and records process memory. Opt-in: set
+    /// PRISM_SEARCHV2_BENCH_CONNECTION, PRISM_SEARCHV2_BENCH_OUTPUT and
+    /// PRISM_SEARCHV2_BENCH_REBUILD_MEASURE=1. It activates a new index generation in that
+    /// database, so point it at a copy.
+    /// </summary>
+    [Fact]
+    public async Task MeasureFullRebuild()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("PRISM_SEARCHV2_BENCH_CONNECTION");
+        var outputDirectory = Environment.GetEnvironmentVariable("PRISM_SEARCHV2_BENCH_OUTPUT");
+        if (string.IsNullOrWhiteSpace(connectionString)
+            || string.IsNullOrWhiteSpace(outputDirectory)
+            || Environment.GetEnvironmentVariable("PRISM_SEARCHV2_BENCH_REBUILD_MEASURE") != "1")
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(outputDirectory);
+        var options = Options.Create(new SearchV2Options());
+        var runs = new List<object>();
+        for (var run = 0; run < 3; run++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            var process = Process.GetCurrentProcess();
+            process.Refresh();
+            var workingSetBefore = process.WorkingSet64;
+            var peakManaged = 0L;
+            using var sampler = new Timer(_ => peakManaged = Math.Max(peakManaged, GC.GetTotalMemory(false)), null, 0, 20);
+            var stopwatch = Stopwatch.StartNew();
+            await using var db = CreateDb(connectionString);
+            ISearchProjectionBuilder builder = new SearchProjectionBuilder(db, new UrlBuilder(), new SearchQueryNormalizer(), options);
+            ISearchIndexStore store = new SearchIndexStore(db);
+            var entries = await store.ReplaceFullGenerationAsync(builder.BuildAllInBatchesAsync(CancellationToken.None), options.Value.ProjectionVersion, CancellationToken.None);
+            stopwatch.Stop();
+            process.Refresh();
+            runs.Add(new
+            {
+                entries,
+                totalMs = stopwatch.Elapsed.TotalMilliseconds,
+                peakManagedMb = peakManaged / 1048576.0,
+                workingSetGrowthMb = (process.PeakWorkingSet64 - workingSetBefore) / 1048576.0
+            });
+        }
+
+        await File.WriteAllTextAsync(
+            Path.Combine(outputDirectory, "rebuild.json"),
+            JsonSerializer.Serialize(runs, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
     [Fact]
     public async Task KeysetPaging_WalksTheWholeRankedSetWithoutGapsOrRepeats()
     {

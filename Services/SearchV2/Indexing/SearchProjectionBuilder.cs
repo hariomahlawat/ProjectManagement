@@ -22,9 +22,27 @@ using ProjectManagement.Services.SearchV2.Security;
 
 namespace ProjectManagement.Services.SearchV2.Indexing;
 
+internal static class SearchProjectionBatches
+{
+    public static async IAsyncEnumerable<IReadOnlyList<SearchProjection>> Once(
+        Func<CancellationToken, Task<IReadOnlyList<SearchProjection>>> build,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return await build(cancellationToken);
+    }
+}
+
 public interface ISearchProjectionBuilder
 {
     Task<IReadOnlyList<SearchProjection>> BuildAllAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The full-rebuild projections in batches: one module at a time, and documents a page at
+    /// a time, so a rebuild never holds the text of every document at once.
+    /// </summary>
+    IAsyncEnumerable<IReadOnlyList<SearchProjection>> BuildAllInBatchesAsync(CancellationToken cancellationToken) =>
+        SearchProjectionBatches.Once(BuildAllAsync, cancellationToken);
+
     Task<IReadOnlyList<SearchProjection>> BuildEntityAsync(string entityType, string entityKey, CancellationToken cancellationToken);
 
     /// <summary>
@@ -58,22 +76,53 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     }
 
+    /// <summary>
+    /// Documents read per batch in a full rebuild. Each can carry up to 200,000 characters of
+    /// OCR text, so a page bounds the rebuild's memory however many documents there are.
+    /// </summary>
+    internal const int DocumentPageSize = 100;
+
     public async Task<IReadOnlyList<SearchProjection>> BuildAllAsync(CancellationToken cancellationToken)
     {
         var results = new List<SearchProjection>(4096);
-        results.AddRange(await BuildProjectsAsync(null, includeProjectDocuments: false, cancellationToken));
-        results.AddRange(await BuildProjectDocumentsAsync(null, null, cancellationToken));
-        results.AddRange(await BuildDocRepoDocumentsAsync(null, cancellationToken));
-        results.AddRange(await BuildFfcAsync(null, cancellationToken));
-        results.AddRange(await BuildIprAsync(null, cancellationToken));
-        results.AddRange(await BuildActivitiesAsync(null, cancellationToken));
-        results.AddRange(await BuildVisitsAsync(null, cancellationToken));
-        results.AddRange(await BuildSocialMediaAsync(null, cancellationToken));
-        results.AddRange(await BuildTrainingAsync(null, cancellationToken));
-        results.AddRange(await BuildTotsAsync(null, cancellationToken));
-        results.AddRange(await BuildProliferationAsync(null, cancellationToken));
-        results.AddRange(await BuildArppAsync(null, cancellationToken));
+        await foreach (var batch in BuildAllInBatchesAsync(cancellationToken)) results.AddRange(batch);
         return results;
+    }
+
+    public async IAsyncEnumerable<IReadOnlyList<SearchProjection>> BuildAllInBatchesAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return await BuildProjectsAsync(null, includeProjectDocuments: false, cancellationToken);
+
+        // Ids first, then a page of documents at a time. A document added meanwhile is queued
+        // by its own trigger; one removed meanwhile is simply not returned.
+        var projectDocumentIds = await IndexableProjectDocuments()
+            .OrderBy(document => document.Id)
+            .Select(document => document.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var page in projectDocumentIds.Chunk(DocumentPageSize))
+        {
+            yield return await BuildProjectDocumentsAsync(null, null, cancellationToken, page);
+        }
+
+        var docRepoIds = await IndexableDocRepoDocuments()
+            .OrderBy(document => document.Id)
+            .Select(document => document.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var page in docRepoIds.Chunk(DocumentPageSize))
+        {
+            yield return await BuildDocRepoDocumentsAsync(null, cancellationToken, page);
+        }
+
+        yield return await BuildFfcAsync(null, cancellationToken);
+        yield return await BuildIprAsync(null, cancellationToken);
+        yield return await BuildActivitiesAsync(null, cancellationToken);
+        yield return await BuildVisitsAsync(null, cancellationToken);
+        yield return await BuildSocialMediaAsync(null, cancellationToken);
+        yield return await BuildTrainingAsync(null, cancellationToken);
+        yield return await BuildTotsAsync(null, cancellationToken);
+        yield return await BuildProliferationAsync(null, cancellationToken);
+        yield return await BuildArppAsync(null, cancellationToken);
     }
 
     public async Task<IReadOnlyList<SearchProjection>> BuildEntityAsync(
@@ -313,18 +362,26 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         return results;
     }
 
+    // Documents of trashed or archived projects are hidden with their project; the
+    // project page itself is unreachable, so the document must not be discoverable.
+    private IQueryable<ProjectDocument> IndexableProjectDocuments() =>
+        _db.ProjectDocuments.AsNoTracking()
+            .Where(document => document.Status == ProjectDocumentStatus.Published && !document.IsArchived)
+            .Where(document => !document.Project.IsDeleted && !document.Project.IsArchived);
+
+    private IQueryable<ProjectManagement.Data.DocRepo.Document> IndexableDocRepoDocuments() =>
+        _db.Documents.AsNoTracking().Where(document => document.IsActive && !document.IsDeleted);
+
     private async Task<IReadOnlyList<SearchProjection>> BuildProjectDocumentsAsync(
         int? documentId,
         int? projectId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<int>? documentIds = null)
     {
-        // Documents of trashed or archived projects are hidden with their project; the
-        // project page itself is unreachable, so the document must not be discoverable.
-        var query = _db.ProjectDocuments.AsNoTracking()
-            .Where(document => document.Status == ProjectDocumentStatus.Published && !document.IsArchived)
-            .Where(document => !document.Project.IsDeleted && !document.Project.IsArchived);
+        var query = IndexableProjectDocuments();
         if (documentId.HasValue) query = query.Where(document => document.Id == documentId.Value);
         if (projectId.HasValue) query = query.Where(document => document.ProjectId == projectId.Value);
+        if (documentIds is not null) query = query.Where(document => documentIds.Contains(document.Id));
 
         var rows = await query.Select(document => new
         {
@@ -411,10 +468,14 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         }).ToArray();
     }
 
-    private async Task<IReadOnlyList<SearchProjection>> BuildDocRepoDocumentsAsync(Guid? documentId, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<SearchProjection>> BuildDocRepoDocumentsAsync(
+        Guid? documentId,
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<Guid>? documentIds = null)
     {
-        var query = _db.Documents.AsNoTracking().Where(document => document.IsActive && !document.IsDeleted);
+        var query = IndexableDocRepoDocuments();
         if (documentId.HasValue) query = query.Where(document => document.Id == documentId.Value);
+        if (documentIds is not null) query = query.Where(document => documentIds.Contains(document.Id));
 
         var rows = await query.Select(document => new
         {
