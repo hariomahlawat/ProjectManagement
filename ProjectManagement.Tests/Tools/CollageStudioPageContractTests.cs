@@ -116,6 +116,33 @@ public sealed class CollageStudioPageContractTests
     }
 
     [Fact]
+    public void TextFonts_ShipWithPrism_EachWithItsLicence()
+    {
+        var root = FindProjectRoot();
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Collage", "Index.cshtml"));
+        Assert.Contains("~/css/fonts/collage-fonts.css", page, StringComparison.Ordinal);
+
+        // Every font file the stylesheet names is shipped, and only from PRISM itself.
+        var css = File.ReadAllText(Path.Combine(root, "wwwroot", "css", "fonts", "collage-fonts.css"));
+        var urls = Regex.Matches(css, @"url\('([^']+)'\)").Select(match => match.Groups[1].Value).ToArray();
+        Assert.NotEmpty(urls);
+        foreach (var url in urls)
+        {
+            Assert.StartsWith("../../fonts/collage/", url, StringComparison.Ordinal);
+            var file = Path.GetFullPath(Path.Combine(root, "wwwroot", "css", "fonts", url));
+            Assert.True(File.Exists(file), $"{url} must ship with the application.");
+        }
+
+        // Each font folder carries its SIL Open Font License.
+        foreach (var folder in Directory.GetDirectories(Path.Combine(root, "wwwroot", "fonts", "collage")))
+        {
+            var licence = Path.Combine(folder, "OFL.txt");
+            Assert.True(File.Exists(licence), $"{Path.GetFileName(folder)} must ship with OFL.txt.");
+            Assert.Contains("SIL Open Font License", File.ReadAllText(licence), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void Konva_IsListedInLibmanAtTheVersionThePageLoads()
     {
         var root = FindProjectRoot();

@@ -529,3 +529,68 @@ test('a framed photo squeezed flat keeps a usable picture area', () => {
   assert.equal(collage.limitFrameAspect({ ...squeezed, frame: 'none' }), 5);
   assert.equal(collage.limitFrameAspect({ ...polaroid, aspect: 1 }), 1);
 });
+
+// A stand-in for a canvas's measureText: every letter half as wide as the font is tall.
+const halfEm = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) / 2;
+
+test('a text item has every font shipped with PRISM and a plain look', () => {
+  const item = collage.textItem('t', 'Farewell', { x: 500, y: 100 }, { font: 'script', size: 80 });
+  assert.equal(item.kind, 'text');
+  assert.equal(collage.fontOf(item), '700 80px "Dancing Script", Kalam, cursive');
+  assert.equal(collage.fontOf({ ...item, italic: true, bold: false, font: 'nope' }), 'italic 400 80px Mulish, "Noto Sans Devanagari", sans-serif');
+  // Every English font falls back to a Devanagari one, so Hindi always shows.
+  for (const [key, font] of Object.entries(collage.FONTS)) {
+    assert.match(font.css, /Kalam|Devanagari|Baloo 2/, key);
+  }
+});
+
+test('straight text keeps its lines and alignment inside its box', () => {
+  const item = collage.textItem('t', 'AB\nABCD', { x: 0, y: 0 }, { size: 20, align: 'left' });
+  const layout = collage.layoutText(item, halfEm);
+  // The longest line is 4 letters of 10: 40 wide, plus a little room each side.
+  assert.ok(Math.abs(layout.width - (40 + 2 * 1.6)) < 1e-9);
+  // Each line is one run, so letters that join (Hindi) are drawn together.
+  assert.deepEqual(layout.glyphs.map((g) => g.ch), ['AB', 'ABCD']);
+  const [a, c] = layout.glyphs;
+  assert.equal(a.left, c.left, 'left aligned: both lines start together');
+  assert.ok(c.y > a.y, 'the second line is below the first');
+  const centred = collage.layoutText({ ...item, align: 'center' }, halfEm);
+  assert.ok(centred.glyphs[0].left > centred.glyphs[1].left, 'centred: the short line starts further in');
+  assert.equal(centred.glyphs[0].x, centred.glyphs[1].x, 'centred lines share a middle');
+  // Letter spacing widens the box; a label adds room round the words.
+  assert.ok(collage.layoutText({ ...item, spacing: 20 }, halfEm).width > layout.width);
+  const labelled = collage.layoutText({ ...item, label: '#ffd23f' }, halfEm);
+  assert.ok(labelled.width > layout.width && labelled.label);
+});
+
+test('curved text bends up or down along an arc, the same both ways', () => {
+  const item = collage.textItem('t', 'HAPPY DAYS', { x: 0, y: 0 }, { size: 40, curve: 50 });
+  const up = collage.layoutText(item, halfEm);
+  const down = collage.layoutText({ ...item, curve: -50 }, halfEm);
+  assert.equal(up.glyphs.length, 10);
+  const first = up.glyphs[0];
+  const middle = up.glyphs[5];
+  assert.ok(first.y > middle.y, 'bent up: the ends are lower than the middle');
+  assert.ok(first.angle < 0 && up.glyphs[9].angle > 0, 'letters lean out along the arc');
+  assert.ok(down.glyphs[0].y < down.glyphs[5].y, 'bent down: the ends are higher');
+  assert.ok(Math.abs(up.width - down.width) < 1e-9 && Math.abs(up.height - down.height) < 1e-9);
+  assert.ok(up.glyphs.every((g) => g.x >= 0 && g.x <= up.width && g.y >= 0 && g.y <= up.height));
+  // A label is for straight text only.
+  assert.equal(collage.layoutText({ ...item, label: '#ffffff' }, halfEm).label, null);
+});
+
+test('a Hindi syllable stays one letter cluster on a curve', () => {
+  // शु and भ: the vowel sign stays with its consonant.
+  assert.deepEqual(collage.graphemes('शुभ'), ['शु', 'भ']);
+  const curved = collage.layoutText(collage.textItem('t', 'शुभ दिन', { x: 0, y: 0 }, { size: 40, curve: 40, font: 'hindiHand' }), halfEm);
+  assert.deepEqual(curved.glyphs.map((g) => g.ch), ['शु', 'भ', ' ', 'दि', 'न']);
+});
+
+test('a draft keeps text, within its limits', () => {
+  const text = collage.textItem('t', 'शुभकामनाएँ', { x: 10, y: 10 }, { font: 'hindiHand', size: 999, curve: -400, color: '#c62f3a', label: 'red', outlineColor: 'x', align: 'middle', bold: 'yes' });
+  const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [text, { ...text, id: 'u', font: 'comic', text: 'x'.repeat(400) }] }, []);
+  const [a, b] = read.items;
+  assert.deepEqual([a.text, a.font, a.size, a.curve, a.color, a.label, a.outlineColor, a.align, a.bold], ['शुभकामनाएँ', 'hindiHand', 300, -100, '#c62f3a', '', '#ffffff', 'center', false]);
+  assert.deepEqual([b.font, b.text.length], ['clean', 300]);
+  assert.equal('crop' in a, false);
+});
