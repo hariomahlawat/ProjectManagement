@@ -763,6 +763,60 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal(SearchEngine.NearMissTier, document.MatchTier);
     }
 
+    // Each suggestion branch passes on its best 200 candidates; the exact title still leads
+    // when a prefix matches far more rows than that.
+    [SearchV2PostgresFact]
+    public async Task Suggestions_KeepTheBestMatch_WhenAPrefixMatchesHundredsOfRows()
+    {
+        await using var host = _database.CreateHost();
+        var entries = Enumerable.Range(1, SearchEngine.SuggestionCandidatesPerBranch + 50)
+            .Select(index => host.Entry("Training", $"t{index}", "Training tracker", "Trackers", $"Kitewing drill session {index:000}", null))
+            .Append(host.Entry("Project", "9831", "Projects", "Projects", "Kitewing", null))
+            .ToArray();
+        await host.ActivateAsync(entries);
+
+        var suggestions = await host.SuggestAsync("kitewing");
+
+        Assert.Equal("Kitewing", suggestions[0].Title);
+        Assert.True(suggestions.Count > 1);
+    }
+
+    // More than 200 projects share the prefix; a record of another type titled exactly as typed
+    // still ranks first, as it does without the cap (match priority comes before projects).
+    [SearchV2PostgresFact]
+    public async Task Suggestions_KeepAnExactTitle_WhenMoreProjectsThanTheCapShareThePrefix()
+    {
+        await using var host = _database.CreateHost();
+        var entries = Enumerable.Range(1, SearchEngine.SuggestionCandidatesPerBranch + 1)
+            .Select(index => host.Entry("Project", (20000 + index).ToString(), "Projects", "Projects", $"Gannetry {index:000}", null))
+            .Append(host.Entry("Training", "gannetry", "Training tracker", "Trackers", "Gannetry", null))
+            .ToArray();
+        await host.ActivateAsync(entries);
+
+        var suggestions = await host.SuggestAsync("gannetry");
+
+        Assert.Equal("Gannetry", suggestions[0].Title);
+    }
+
+    // Hundreds of rows of one record (a row per Proliferation entry under its project's title)
+    // must not fill the cap and crowd out other records.
+    [SearchV2PostgresFact]
+    public async Task Suggestions_CountRecordsNotRows_WhenOneRecordHasHundredsOfRows()
+    {
+        await using var host = _database.CreateHost();
+        var entries = Enumerable.Range(1, SearchEngine.SuggestionCandidatesPerBranch + 50)
+            .Select(index => host.Entry("ProliferationGranular", $"p{index}", "Proliferation", "Trackers", "Alpha plover — Proliferation", null)
+                with { CanonicalEntityType = "Project", CanonicalEntityKey = "21001", UpdatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(index) })
+            .Concat(Enumerable.Range(2, 5).Select(index => host.Entry("ProliferationGranular", $"q{index}", "Proliferation", "Trackers", $"Plover {index} — Proliferation", null)
+                with { CanonicalEntityType = "Project", CanonicalEntityKey = (21000 + index).ToString() }))
+            .ToArray();
+        await host.ActivateAsync(entries);
+
+        var suggestions = await host.SuggestAsync("proliferation");
+
+        Assert.Equal(6, suggestions.Count);
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {

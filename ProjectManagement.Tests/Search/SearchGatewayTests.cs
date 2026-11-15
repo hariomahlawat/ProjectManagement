@@ -142,6 +142,20 @@ public sealed class SearchGatewayTests
         Assert.Empty(response.Results);
     }
 
+    [Fact]
+    public void ClickLogging_IsLimitedPerUserPerMinute()
+    {
+        var user = "throttle-" + Guid.NewGuid().ToString("N");
+        var minute = new DateTimeOffset(2026, 11, 15, 10, 0, 5, TimeSpan.Zero);
+
+        var taken = Enumerable.Range(0, ProjectManagement.Areas.Common.Pages.Search.SearchClickThrottle.PerMinute + 5)
+            .Count(_ => ProjectManagement.Areas.Common.Pages.Search.SearchClickThrottle.TryTake(user, minute));
+
+        Assert.Equal(ProjectManagement.Areas.Common.Pages.Search.SearchClickThrottle.PerMinute, taken);
+        Assert.True(ProjectManagement.Areas.Common.Pages.Search.SearchClickThrottle.TryTake(user, minute.AddMinutes(1)));
+        Assert.True(ProjectManagement.Areas.Common.Pages.Search.SearchClickThrottle.TryTake("other-" + user, minute));
+    }
+
     [Theory]
     [InlineData("Activities", "Organisation")]
     [InlineData("Projects", "Projects")]

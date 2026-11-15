@@ -28,6 +28,26 @@
     <div class="alert alert-info" role="status">@Model.StatusMessage</div>
 }
 
+@if (Model.ServingPreviousIndex)
+{
+    var failing = !string.IsNullOrWhiteSpace(Model.Health.LastError);
+    <div class="admin-inline-notice admin-inline-notice--@(failing ? "danger" : "warning") mb-3" role="status">
+        <i class="bi @(failing ? "bi-exclamation-octagon" : "bi-hourglass-split")" aria-hidden="true"></i>
+        <span>
+            @if (failing)
+            {
+                <strong>Building the search index for this PRISM version keeps failing.</strong>
+                <text> Search is answering from the previous index, which is not updated: changes since @Time.FormatIst(Model.Health.LastFullRebuildUtc) are not in search. The error is shown under Rebuilds and checks.</text>
+            }
+            else
+            {
+                <strong>The search index is being rebuilt for this PRISM version.</strong>
+                <text> Until it finishes, search answers from the previous index, and changes made meanwhile appear when it does.</text>
+            }
+        </span>
+    </div>
+}
+
 <section class="admin-monitoring-metric-grid" aria-label="Search index summary">
     <article class="admin-monitoring-metric admin-monitoring-metric--@(ready ? "success" : "warning")">
         <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi @(ready ? "bi-check-circle" : "bi-exclamation-triangle")"></i></span>

@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -160,7 +162,13 @@ public sealed class IndexModel : PageModel
             return new JsonResult(new { ok = false }) { StatusCode = StatusCodes.Status400BadRequest };
         }
 
-        await _search.LogClickAsync(query, entityType, entityKey, rank, sourceModule, cancellationToken);
+        // Click rows are telemetry: past the per-user limit they are dropped quietly, so a
+        // script cannot fill the table.
+        if (SearchClickThrottle.TryTake(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous", DateTimeOffset.UtcNow))
+        {
+            await _search.LogClickAsync(query, entityType, entityKey, rank, sourceModule, cancellationToken);
+        }
+
         return new JsonResult(new { ok = true });
     }
 
@@ -241,5 +249,30 @@ public sealed class IndexModel : PageModel
         {
             (DateFrom, DateTo) = (DateTo, DateFrom);
         }
+    }
+}
+
+/// <summary>At most <see cref="PerMinute"/> logged result clicks per user per minute, in this process.</summary>
+internal static class SearchClickThrottle
+{
+    internal const int PerMinute = 60;
+    private static readonly ConcurrentDictionary<string, (long Minute, int Count)> Counts = new(StringComparer.Ordinal);
+
+    public static bool TryTake(string user, DateTimeOffset now)
+    {
+        var minute = now.ToUnixTimeSeconds() / 60;
+        var entry = Counts.AddOrUpdate(
+            user,
+            _ => (minute, 1),
+            (_, current) => current.Minute == minute ? (minute, current.Count + 1) : (minute, 1));
+        if (Counts.Count > 10_000)
+        {
+            foreach (var stale in Counts.Where(pair => pair.Value.Minute < minute).Select(pair => pair.Key).ToArray())
+            {
+                Counts.TryRemove(stale, out _);
+            }
+        }
+
+        return entry.Count <= PerMinute;
     }
 }

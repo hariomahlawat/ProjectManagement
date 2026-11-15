@@ -162,7 +162,10 @@ public sealed class SearchV2RelevanceRulesTests
         Assert.Equal(SearchCursorState.Stale, codec.DecodeKeyset("astrae", encoded, 41, out _));
         Assert.Equal(SearchCursorState.Stale, codec.DecodeKeyset("aura", "not-a-cursor", 41, out _));
         // A rank-offset cursor issued before keyset paging cannot be continued safely.
-        Assert.Equal(SearchCursorState.Stale, codec.DecodeKeyset("aura", codec.Encode("aura", 20, 41), 41, out _));
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("aura")).AsSpan(0, 12));
+        var offsetJson = $$"""{"QueryHash":"{{hash}}","Rank":20,"ActiveGeneration":41}""";
+        var offsetCursor = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(offsetJson)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        Assert.Equal(SearchCursorState.Stale, codec.DecodeKeyset("aura", offsetCursor, 41, out _));
     }
 
     [Fact]
