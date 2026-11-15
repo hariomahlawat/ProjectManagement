@@ -1282,6 +1282,7 @@
 
   function restore(next) {
     collage = next;
+    refreshTitle();
     if (panel === 'background') renderBackgroundPanel();
     scheduleDraft();
     sizeSelect.value = collage.size;
@@ -3069,6 +3070,8 @@
    */
   function recordQuietly() {
     history.record(collage);
+    // An unnamed collage's title follows its first words, typed or not.
+    refreshTitle();
     updateUndo();
     scheduleDraft();
   }
