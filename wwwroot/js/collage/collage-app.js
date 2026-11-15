@@ -214,6 +214,7 @@
     draftPending = false;
     photos.clear();
     storedPhotos.clear();
+    forgetPhotoPreviews();
     selectedId = null;
     adjustId = null;
     targetId = null;
@@ -1373,6 +1374,18 @@
   }
 
   const backgroundPreviews = new Map();
+
+  /**
+   * A closed collage's photo previews are let go, with the working copies they point at, so
+   * opening one collage after another never keeps old photos in memory. Colour, gradient,
+   * pattern and texture previews stay: they are small and the same for every collage.
+   */
+  function forgetPhotoPreviews() {
+    for (const [key, preview] of backgroundPreviews) {
+      if (preview.source) backgroundPreviews.delete(key);
+    }
+    backgroundPanelShown = '';
+  }
 
   function backgroundTile(background, label) {
     const key = JSON.stringify(background);
