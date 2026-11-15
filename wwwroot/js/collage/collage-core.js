@@ -720,7 +720,7 @@
   /**
    * "Make it casual": every photo and empty frame tilted a little, left or right in turn,
    * nudged off the grid and made a little smaller so the tilted corners show. The same collage
-   * always gives the same result.
+   * always gives the same result. Locked items stay as they are.
    */
   function makeCasual(collage) {
     let n = 0;
@@ -728,7 +728,7 @@
       ...collage,
       layout: null,
       items: collage.items.map((item) => {
-        if (item.kind !== 'photo' && item.kind !== 'slot') return item;
+        if ((item.kind !== 'photo' && item.kind !== 'slot') || item.locked) return item;
         const i = n++;
         const angle = (i % 2 ? 1 : -1) * (3 + (i * 5) % 6);
         const moved = { ...item, angle, width: item.width * 0.9, x: item.x + ((i * 29) % 21) - 10, y: item.y + ((i * 17) % 17) - 8 };
@@ -740,21 +740,25 @@
     };
   }
 
-  /** Every photo and empty frame turned straight. */
+  /** Every photo and empty frame turned straight, except locked ones. */
   function straightenAll(collage) {
-    return { ...collage, items: collage.items.map((item) => (item.kind === 'photo' || item.kind === 'slot' ? { ...item, angle: 0 } : item)) };
+    return { ...collage, items: collage.items.map((item) => ((item.kind === 'photo' || item.kind === 'slot') && !item.locked ? { ...item, angle: 0 } : item)) };
   }
 
-  /** The photos moved one frame along: each frame shows the next photo, the last the first. */
+  /**
+   * The photos moved one frame along: each frame shows the next photo, the last the first.
+   * A locked photo keeps its place and is passed over.
+   */
   function shufflePhotos(collage) {
-    const photos = collage.items.filter((item) => item.kind === 'photo');
+    const moves = (item) => item.kind === 'photo' && !item.locked;
+    const photos = collage.items.filter(moves);
     if (photos.length < 2) return collage;
     const sources = photos.map((item) => item.photo);
     sources.push(sources.shift());
     let i = 0;
     return {
       ...collage,
-      items: collage.items.map((item) => (item.kind === 'photo' ? { ...item, photo: sources[i++], crop: { ...FULL_CROP } } : item))
+      items: collage.items.map((item) => (moves(item) ? { ...item, photo: sources[i++], crop: { ...FULL_CROP } } : item))
     };
   }
 

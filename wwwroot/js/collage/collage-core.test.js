@@ -649,3 +649,15 @@ test('the Layers list names text by its first words', () => {
   assert.equal(collage.layerName({ kind: 'text', text: '  ' }), 'Text');
   assert.equal(collage.layerName({ kind: 'slot' }), 'Empty frame');
 });
+
+test('casual, straighten and shuffle leave locked items as they are', () => {
+  const a = { ...collage.photoItem('a', 'p1', 1, { x: 100, y: 100, width: 200 }), angle: 7, locked: true };
+  const b = collage.photoItem('b', 'p2', 1, { x: 400, y: 100, width: 200 });
+  const c = collage.photoItem('c', 'p3', 1, { x: 700, y: 100, width: 200 });
+  const page = { version: 1, size: 'a4l', layout: null, items: [a, b, c] };
+  assert.deepEqual(collage.makeCasual(page).items[0], a);
+  assert.notEqual(collage.makeCasual(page).items[1].angle, 0);
+  assert.equal(collage.straightenAll(page).items[0].angle, 7);
+  const shuffled = collage.shufflePhotos(page).items;
+  assert.deepEqual(shuffled.map((i) => i.photo), ['p1', 'p3', 'p2']);
+});
