@@ -36,10 +36,6 @@ public enum SearchCursorState
 
 public interface ISearchCursorCodec
 {
-    string Encode(string query, int rank);
-    bool TryDecode(string query, string? cursor, out int rank);
-    string Encode(string query, int rank, long activeGeneration);
-    bool TryDecode(string query, string? cursor, long activeGeneration, out int rank);
     string EncodeKeyset(string query, SearchCursorPosition position, long activeGeneration);
     SearchCursorState DecodeKeyset(string query, string? cursor, long activeGeneration, out SearchCursorPosition? position);
 }
@@ -49,32 +45,6 @@ public sealed class SearchCursorCodec : ISearchCursorCodec
     private sealed record KeysetPayload(int T, int P, double S, long? E, long U, long I, string? M = null);
 
     private sealed record Payload(string QueryHash, int Rank, long ActiveGeneration, KeysetPayload? K = null);
-
-    public string Encode(string query, int rank) => Encode(query, rank, 0);
-
-    public bool TryDecode(string query, string? cursor, out int rank) =>
-        TryDecode(query, cursor, 0, out rank);
-
-    public string Encode(string query, int rank, long activeGeneration) =>
-        Serialize(new Payload(Hash(query), rank, Math.Max(0, activeGeneration)));
-
-    public bool TryDecode(string query, string? cursor, long activeGeneration, out int rank)
-    {
-        rank = 0;
-        if (string.IsNullOrWhiteSpace(cursor)) return true;
-
-        var payload = Deserialize(cursor);
-        if (payload is null
-            || payload.Rank < 0
-            || payload.ActiveGeneration != Math.Max(0, activeGeneration)
-            || !string.Equals(payload.QueryHash, Hash(query), StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        rank = payload.Rank;
-        return true;
-    }
 
     public string EncodeKeyset(string query, SearchCursorPosition position, long activeGeneration)
     {

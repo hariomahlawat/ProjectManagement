@@ -26,6 +26,13 @@ public sealed class SearchEngine : ISearchV2Engine
     // Index expressions created by AddSearchV2QueryAccelerators use LEFT(column, 160).
     private const int PatternIndexPrefixLength = 160;
 
+    /// <summary>
+    /// Candidates each suggestion branch passes on, best first in the final ranking's own
+    /// tie-break order (projects, closeness, most recently updated). A common two- or three-letter prefix matched thousands of rows, and every one
+    /// was scored on each keystroke; six suggestions are shown.
+    /// </summary>
+    internal const int SuggestionCandidatesPerBranch = 200;
+
     /// <summary>The tier of near-miss (trigram) matches: the page says so when the best result has it.</summary>
     public const int NearMissTier = 7;
 
@@ -402,41 +409,53 @@ public sealed class SearchEngine : ISearchV2Engine
                 FROM "SearchIndexState"
                 WHERE "Id" = 1 AND "IndexVersion" BETWEEN @minIndexVersion AND @indexVersion
             ), candidate_ids AS (
-                SELECT e."Id"
+                -- Each branch passes on its best @branchLimit candidates only, in the final
+                -- ranking's own tie-break order (projects, closeness, most recently updated).
+                (SELECT e."Id"
                 FROM "SearchEntries" e
                 WHERE {scopeWhere}
                   AND LEFT(e."NormalizedTitle", {PatternIndexPrefixLength}) LIKE @prefixLike160
                   AND e."NormalizedTitle" LIKE @prefixLike
+                ORDER BY CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC, e."UpdatedAtUtc" DESC, e."Id"
+                LIMIT @branchLimit)
                 UNION
-                SELECT e."Id"
+                (SELECT e."Id"
                 FROM "SearchEntries" e
                 WHERE @prefixTsQuery <> ''
                   AND {scopeWhere}
                   AND e."SearchVectorSimple" @@ to_tsquery('simple', @prefixTsQuery)
                   AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery)
+                ORDER BY CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC, e."UpdatedAtUtc" DESC, e."Id"
+                LIMIT @branchLimit)
                 UNION
-                SELECT e."Id"
+                (SELECT e."Id"
                 FROM "SearchEntryTerms" t
                 JOIN "SearchEntries" e ON e."Id" = t."SearchEntryId"
                 WHERE t."TermType" IN ('Identifier', 'Alias')
                   AND LEFT(t."NormalizedTerm", {PatternIndexPrefixLength}) LIKE @prefixLike160
                   AND t."NormalizedTerm" LIKE @prefixLike
                   AND {scopeWhere}
+                ORDER BY CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC, e."UpdatedAtUtc" DESC, e."Id"
+                LIMIT @branchLimit)
                 UNION
-                SELECT e."Id"
+                (SELECT e."Id"
                 FROM "SearchEntryTerms" t
                 JOIN "SearchEntries" e ON e."Id" = t."SearchEntryId"
                 WHERE LENGTH(@identifierKey) >= 3
                   AND t."TermType" = 'IdentifierKey'
                   AND LEFT(t."NormalizedTerm", {PatternIndexPrefixLength}) LIKE @identifierKeyPrefixLike
                   AND {scopeWhere}
+                ORDER BY CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC, e."UpdatedAtUtc" DESC, e."Id"
+                LIMIT @branchLimit)
                 UNION
-                SELECT e."Id"
+                (SELECT e."Id"
                 FROM "SearchEntries" e
                 WHERE LENGTH(@exact) >= 4
                   AND {scopeWhere}
                   AND e."NormalizedTitle" % @exact
                   AND similarity(e."NormalizedTitle", @exact) >= @suggestionFuzzyThreshold
+                ORDER BY CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC, e."UpdatedAtUtc" DESC, e."Id"
+                LIMIT @branchLimit)
             ), scored AS (
                 SELECT e."Id", e."Title", e."NormalizedTitle", e."Subtitle", e."CanonicalUrl", e."SourceModule",
                        e."ResultCategory", e."IdentifierText", e."CanonicalEntityType", e."CanonicalEntityKey", e."UpdatedAtUtc",
@@ -505,6 +524,7 @@ public sealed class SearchEngine : ISearchV2Engine
         Add(command, "identifierKeyPrefixLike", terms.IdentifierKeyPrefixLike);
         // Kept at or above pg_trgm's default 0.3 so the GIN-backed % operator needs no SET LOCAL.
         Add(command, "suggestionFuzzyThreshold", Math.Max(_options.FuzzyThreshold, 0.42));
+        Add(command, "branchLimit", SuggestionCandidatesPerBranch);
         Add(command, "take", take);
 
         var results = new List<SearchSuggestion>(take);

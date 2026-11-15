@@ -98,28 +98,6 @@ public sealed class SearchV2QueryTests
     }
 
     [Fact]
-    public void Cursor_IsBoundToTheOriginalQuery()
-    {
-        var cursor = new SearchCursorCodec();
-        var encoded = cursor.Encode("AURA", 20);
-
-        Assert.True(cursor.TryDecode("AURA", encoded, out var rank));
-        Assert.Equal(20, rank);
-        Assert.False(cursor.TryDecode("ASTRAE", encoded, out _));
-    }
-
-    [Fact]
-    public void Cursor_IsRejectedWhenIndexGenerationChanges()
-    {
-        var cursor = new SearchCursorCodec();
-        var encoded = cursor.Encode("AURA", 20, 41);
-
-        Assert.True(cursor.TryDecode("AURA", encoded, 41, out var rank));
-        Assert.Equal(20, rank);
-        Assert.False(cursor.TryDecode("AURA", encoded, 42, out _));
-    }
-
-    [Fact]
     public void Highlight_ReturnsStructuredSegmentsRatherThanExecutableMarkup()
     {
         var service = new SearchHighlightService(Options.Create(new SearchV2Options()));

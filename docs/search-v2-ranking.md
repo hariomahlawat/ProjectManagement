@@ -83,8 +83,11 @@ as before.
 ## Autocomplete and did-you-mean
 
 Autocomplete is one statement: a union of index-backed candidate predicates, then
-scoring of those candidates only. It never calls spelling correction, and repeated
-identical titles are shown once.
+scoring of those candidates only. Each predicate passes on at most 200 candidates
+(`SearchEngine.SuggestionCandidatesPerBranch`), taken in the final ranking's own tie-break
+order (projects, closeness, most recently updated), so a common prefix no longer scores
+thousands of rows per keystroke and the six suggestions shown are the same. It never calls
+spelling correction, and repeated identical titles are shown once.
 
 Did-you-mean runs only for committed searches whose first page has no lexical match.
 It makes one batched query against `"SearchVocabularyTerms"`. That table is kept up to

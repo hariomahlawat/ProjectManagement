@@ -689,6 +689,24 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal(SearchEngine.NearMissTier, document.MatchTier);
     }
 
+    // Each suggestion branch passes on its best 200 candidates; the exact title still leads
+    // when a prefix matches far more rows than that.
+    [SearchV2PostgresFact]
+    public async Task Suggestions_KeepTheBestMatch_WhenAPrefixMatchesHundredsOfRows()
+    {
+        await using var host = _database.CreateHost();
+        var entries = Enumerable.Range(1, SearchEngine.SuggestionCandidatesPerBranch + 50)
+            .Select(index => host.Entry("Training", $"t{index}", "Training tracker", "Trackers", $"Kitewing drill session {index:000}", null))
+            .Append(host.Entry("Project", "9831", "Projects", "Projects", "Kitewing", null))
+            .ToArray();
+        await host.ActivateAsync(entries);
+
+        var suggestions = await host.SuggestAsync("kitewing");
+
+        Assert.Equal("Kitewing", suggestions[0].Title);
+        Assert.True(suggestions.Count > 1);
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {

@@ -46,6 +46,16 @@ public sealed class SearchIndexModel : PageModel
     public IReadOnlyList<SearchFailedIndexWorkItem> FailedItems { get; private set; } = Array.Empty<SearchFailedIndexWorkItem>();
     public SearchUsageSummary Usage { get; private set; } = SearchUsageSummary.Empty;
     public int ConfiguredProjectionVersion => _options.ProjectionVersion;
+
+    /// <summary>
+    /// Search is answering from an index built by an earlier PRISM version while this
+    /// version's is built. That index takes no updates; if the rebuild keeps failing, changes
+    /// stay out of search until someone acts.
+    /// </summary>
+    public bool ServingPreviousIndex =>
+        Health.IsReady
+        && Health.IndexVersion < _options.ProjectionVersion
+        && Health.IndexVersion >= _options.MinimumServableProjectionVersion;
     public int SearchSchemaVersion => _options.IndexVersion;
     public bool CanMaintain { get; private set; }
 
