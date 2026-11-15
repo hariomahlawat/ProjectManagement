@@ -149,3 +149,33 @@ test('a draft can be deleted and brought back with Undo', async ({ page }) => {
   await expect(page.locator('[data-open-draft]')).toHaveCount(1);
   expect(errors).toEqual([]);
 });
+
+test('From PRISM Photos: ticked photos are read in and fill the empty frames', async ({ page }) => {
+  const picture = (await photoFile(page, { width: 1200, height: 900 })).buffer;
+  await page.route('**/api/collage/library-photos**', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      available: true,
+      photos: [1, 2, 3].map((id) => ({ id, title: `Library ${id}`, context: 'A project', width: 1200, height: 900, thumbUrl: `/Photos/Media/${id}/thumb?v=1`, url: `/Photos/Media/${id}/original?v=1` })),
+      page: 1,
+      hasMore: false,
+      projects: [{ id: 12, name: 'A project' }],
+      years: [2026]
+    })
+  }));
+  await page.route('**/Photos/Media/**', (route) => route.fulfill({ contentType: 'image/jpeg', body: picture }));
+
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^2 side by side/ }).click();
+  await page.getByRole('button', { name: 'From PRISM Photos' }).click();
+  const dialog = page.locator('[data-library-dialog]');
+  await expect(dialog.locator('[data-library-photo]')).toHaveCount(3);
+  await expect(dialog.locator('[data-library-project] option')).toHaveCount(2);
+  await dialog.locator('[data-library-photo="1"]').click();
+  await dialog.locator('[data-library-photo="2"]').click();
+  await expect(dialog.locator('[data-library-chosen]')).toHaveText('2 ticked');
+  await dialog.locator('[data-action="library-add"]').click();
+  await expect(page.locator('[data-photo-count]')).toHaveText('2 of 60 photos');
+  await expect.poll(async () => (await newestDraft(page))?.model.items.filter((item) => item.kind === 'photo').length).toBe(2);
+  expect(errors).toEqual([]);
+});

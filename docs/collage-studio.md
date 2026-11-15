@@ -103,6 +103,10 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-draw.js` (`window.PrismCollageDraw`) | Drawing a photo, text, sticker and background on a 2D canvas. The editor uses it inside Konva shapes and Save uses it on its own canvas, so **the saved picture always matches the screen** |
 | `wwwroot/js/collage/collage-stickers.js` | The sticker catalogue, the drawn stickers as SVG and the search |
 | `wwwroot/js/collage/collage-drafts.js` | The IndexedDB store; every call fails softly, and the editor still works when the browser refuses storage |
+| `wwwroot/js/collage/collage-render.js` | Save's drawing from the original photos (same drawing as the page), the largest canvas a browser can draw, and what was left out |
+| `wwwroot/js/collage/collage-edits.js` | Edits still going on (typing, sliders, nudges): kept in the draft at once, recorded for Undo once they pause |
+| `wwwroot/js/collage/collage-focus.js` | Keeping keyboard focus on the control used when a panel is drawn again |
+| `wwwroot/js/collage/collage-library-dialog.js` | The From PRISM Photos dialog |
 | `wwwroot/js/collage/collage-app.js` | The editor: panels, Konva stage, toolbar, keys, drafts and Save |
 | `wwwroot/css/collage.css` | All styles, Bootstrap variables only (Light and Dark) |
 
