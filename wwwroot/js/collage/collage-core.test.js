@@ -18,7 +18,7 @@ test('every page is 1,000 units wide and keeps its size shape', () => {
 
 test('a new collage is empty, white and versioned', () => {
   const c = collage.newCollage('slide');
-  assert.deepEqual(c, { version: 1, size: 'slide', background: { type: 'color', value: '#ffffff' }, items: [] });
+  assert.deepEqual(c, { version: 1, size: 'slide', background: { type: 'color', value: '#ffffff' }, layout: null, items: [] });
   assert.equal(collage.newCollage('bogus').size, 'a4l');
 });
 
@@ -179,4 +179,126 @@ test('undo and redo walk through the snapshots; a new change drops the redo', ()
   for (let n = 1; n <= 5; n++) short.record({ n });
   short.undo(); short.undo(); short.undo();
   assert.deepEqual(short.current(), { n: 3 }, 'only the last three are kept');
+});
+
+test('a frame shows the largest part of the photo with its shape, zoomed and kept inside', () => {
+  const close = (a, b) => Math.abs(a - b) < 1e-9;
+  // A 4:3 photo in a square frame shows the middle three quarters of its width.
+  const square = collage.cropRegion(4 / 3, 1, collage.FULL_CROP);
+  assert.ok(close(square.width, 0.75) && close(square.height, 1) && close(square.x, 0.125) && square.y === 0);
+  // In a wide 2:1 frame it shows the full width and part of the height.
+  const wide = collage.cropRegion(4 / 3, 2, collage.FULL_CROP);
+  assert.ok(close(wide.width, 1) && close(wide.height, 2 / 3));
+  // Zoom 2 halves both sides; a centre too near the edge is pulled back inside.
+  const zoomed = collage.cropRegion(1, 1, { zoom: 2, x: 0.95, y: 0.1 });
+  assert.ok(close(zoomed.width, 0.5) && close(zoomed.x, 0.5) && close(zoomed.y, 0));
+  // Zoom is kept between 1 and 4.
+  assert.ok(close(collage.cropRegion(1, 1, { zoom: 9, x: 0.5, y: 0.5 }).width, 0.25));
+  assert.ok(close(collage.cropRegion(1, 1, { zoom: 0.2, x: 0.5, y: 0.5 }).width, 1));
+  assert.deepEqual(collage.clampCrop(1, 1, { zoom: 2, x: 0.95, y: 0.1 }), { zoom: 2, x: 0.75, y: 0.25 });
+});
+
+test('dragging a photo inside its frame shows the other side of it, never past its edge', () => {
+  const item = { width: 200, aspect: 1, crop: { zoom: 2, x: 0.5, y: 0.5 } };
+  // Dragging 100 units right (half the frame) moves the view a quarter of the photo left.
+  const moved = collage.panCrop(1, item, 100, 0);
+  assert.equal(moved.zoom, 2);
+  assert.ok(Math.abs(moved.x - 0.25) < 1e-9 && moved.y === 0.5);
+  // Further than the edge stops at the edge.
+  assert.ok(Math.abs(collage.panCrop(1, item, 1000, -1000).x - 0.25) < 1e-9);
+  assert.ok(Math.abs(collage.panCrop(1, item, 1000, -1000).y - 0.75) < 1e-9);
+  // An unzoomed photo that already fills the frame cannot move.
+  assert.deepEqual(collage.panCrop(1, { ...item, crop: { ...collage.FULL_CROP } }, 50, 50), { zoom: 1, x: 0.5, y: 0.5 });
+});
+
+test('every layout fills the page with frames the gap apart', () => {
+  for (const [key, layout] of Object.entries(collage.LAYOUTS)) {
+    // The cells cover the 12 × 12 grid exactly once.
+    const area = layout.cells.reduce((sum, [, , w, h]) => sum + w * h, 0);
+    assert.equal(area, 144, key);
+    const frames = collage.layoutFrames('a4l', key, 12);
+    assert.equal(frames.length, layout.cells.length, key);
+    for (const f of frames) {
+      const h = f.width / f.aspect;
+      assert.ok(f.x - f.width / 2 >= 12 - 1e-9 && f.x + f.width / 2 <= 1000 - 12 + 1e-9, key);
+      assert.ok(f.y - h / 2 >= 12 - 1e-9 && f.y + h / 2 <= collage.pageHeight('a4l') - 12 + 1e-9, key);
+    }
+  }
+  // Two side by side with no gap meet in the middle and touch every edge.
+  const [left, right] = collage.layoutFrames('square', 't2', 0);
+  assert.deepEqual([left.x, left.width, right.x, left.aspect], [250, 500, 750, 0.5]);
+  // The gap is kept between 0 and 60.
+  assert.deepEqual(collage.layoutFrames('square', 't2', 999), collage.layoutFrames('square', 't2', 60));
+  assert.deepEqual(collage.layoutFrames('square', 'nope', 10), []);
+});
+
+test('a layout takes the page photos, then spare ones, then leaves empty frames', () => {
+  let n = 0;
+  const newId = () => `n${++n}`;
+  const page = { ...collage.newCollage('a4l'), items: [
+    { ...collage.photoItem('a', 'p1', 1.5, { x: 1, y: 1, width: 100 }), angle: 20, crop: { zoom: 2, x: 0.3, y: 0.3 } },
+    collage.photoItem('b', 'p2', 1.5, { x: 2, y: 2, width: 100 })
+  ] };
+  const { collage: laid, removed } = collage.applyLayout(page, 't4', 10, 8, ['p2', 'p3'], newId);
+  assert.deepEqual(removed, []);
+  assert.deepEqual(laid.layout, { key: 't4', gap: 10, radius: 8 });
+  assert.deepEqual(laid.items.map((i) => i.kind), ['photo', 'photo', 'photo', 'slot']);
+  assert.deepEqual(laid.items.map((i) => i.photo), ['p1', 'p2', 'p3', undefined], 'a photo already on the page is not used twice');
+  assert.equal(laid.items[0].id, 'a', 'photos keep their ids');
+  assert.equal(laid.items[0].angle, 0);
+  assert.deepEqual(laid.items[0].crop, collage.FULL_CROP);
+  assert.ok(laid.items.every((i) => i.radius === 8));
+
+  // A smaller layout sends the extra photos back to Photos.
+  const two = collage.applyLayout(laid, 't2', 10, 0, [], newId);
+  assert.deepEqual(two.removed, ['n1']);
+  assert.deepEqual(two.collage.items.map((i) => i.id), ['a', 'b']);
+});
+
+test('an empty frame filled with a photo keeps its place, size and angle', () => {
+  const slot = { ...collage.slotItem('s', { x: 10, y: 20, width: 300, aspect: 2 }), angle: 5, radius: 6 };
+  const filled = collage.fillSlot(slot, 'p9');
+  assert.deepEqual(filled, { ...slot, kind: 'photo', photo: 'p9', crop: { zoom: 1, x: 0.5, y: 0.5 } });
+});
+
+test('casual tilts frames both ways, straighten undoes it, shuffle moves photos along', () => {
+  let n = 0;
+  const { collage: laid } = collage.applyLayout(collage.newCollage('a4l'), 't4', 10, 0, ['p1', 'p2', 'p3'], () => `n${++n}`);
+  const casual = collage.makeCasual(laid);
+  assert.equal(casual.layout, null, 'the page is no longer a strict layout');
+  const angles = casual.items.map((i) => i.angle);
+  assert.ok(angles.some((a) => a > 0) && angles.some((a) => a < 0));
+  assert.ok(angles.every((a) => Math.abs(a) >= 3 && Math.abs(a) <= 8));
+  assert.deepEqual(collage.makeCasual(laid), casual, 'the same page gives the same result');
+  assert.ok(casual.items.every((i, k) => i.width < laid.items[k].width));
+  assert.ok(collage.straightenAll(casual).items.every((i) => i.angle === 0));
+
+  const shuffled = collage.shufflePhotos(laid);
+  assert.deepEqual(shuffled.items.map((i) => i.photo), ['p2', 'p3', 'p1', undefined]);
+  const one = { ...laid, items: laid.items.slice(0, 1) };
+  assert.equal(collage.shufflePhotos(one), one);
+});
+
+test('laying a page out again keeps every photo in its own frame', () => {
+  let n = 0;
+  const newId = () => `n${++n}`;
+  // Two empty frames; only the right one is filled.
+  const { collage: laid } = collage.applyLayout(collage.newCollage('a4l'), 't2', 10, 4, [], newId);
+  assert.deepEqual(laid.items.map((i) => i.cell), [0, 1]);
+  const right = laid.items[1];
+  const filled = { ...laid, items: [laid.items[0], { ...collage.fillSlot(right, 'p1'), crop: { zoom: 2, x: 0.4, y: 0.5 } }] };
+  // More space: the photo stays in the right-hand frame, the left stays empty, the crop is kept.
+  const wider = collage.reflowLayout(filled, 40);
+  assert.equal(wider.layout.gap, 40);
+  assert.equal(wider.items[0].kind, 'slot');
+  assert.equal(wider.items[1].kind, 'photo');
+  assert.ok(wider.items[1].x > 500 && wider.items[0].x < 500);
+  assert.deepEqual(wider.items[1].crop, { zoom: 2, x: 0.4, y: 0.5 });
+  assert.deepEqual(collage.layoutFrames('a4l', 't2', 40)[1].x, wider.items[1].x);
+  // Drawn in another order, frames still go back to their own cells.
+  const reordered = { ...filled, items: [filled.items[1], filled.items[0]] };
+  assert.ok(collage.reflowLayout(reordered, 12).items[0].x > 500);
+  // A page with no layout is left as it is.
+  const free = { ...filled, layout: null };
+  assert.equal(collage.reflowLayout(free, 30), free);
 });

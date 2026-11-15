@@ -530,27 +530,41 @@
     .clg-body,
     .clg-body.is-drawer-closed {
         grid-template-columns: 1fr;
-        grid-template-rows: 62vh auto auto;
+        grid-template-rows: 62vh auto auto auto;
     }
 
+    /* The panel switcher becomes a row under the page. */
     .clg-rail {
-        display: none;
+        grid-row: 2;
+        flex-direction: row;
+        justify-content: center;
+        border-right: 0;
+        border-top: 1px solid var(--pdft-border);
+    }
+
+    .clg-rail button {
+        flex-direction: row;
+        gap: 0.4rem;
+        padding: 0.45rem 0.9rem;
+        font-size: 0.82rem;
+    }
+
+    .clg-rail button i {
+        font-size: 1.05rem;
     }
 
     .clg-stage {
         grid-row: 1;
     }
 
-    .clg-drawer,
-    .clg-body.is-drawer-closed .clg-drawer {
-        display: block;
-        grid-row: 2;
+    .clg-drawer {
+        grid-row: 3;
         border-right: 0;
         border-top: 1px solid var(--pdft-border);
     }
 
     .clg-props {
-        grid-row: 3;
+        grid-row: 4;
         border-left: 0;
         border-top: 1px solid var(--pdft-border);
     }
@@ -576,4 +590,123 @@
     .pdft-privacy span:not(.visually-hidden) {
         display: none;
     }
+}
+
+/* ---------- Layouts ---------- */
+
+.clg-start__heading small {
+    font-weight: 500;
+    font-size: 0.82rem;
+    color: var(--pdft-muted);
+    margin-left: 0.4rem;
+}
+
+.clg-layouts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.clg-layout-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 0.5rem;
+}
+
+.clg-layout-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.6rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 12px;
+    background: var(--pdft-surface);
+    color: var(--pdft-muted);
+    font-size: 0.75rem;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.clg-layouts .clg-layout-card {
+    width: 112px;
+}
+
+.clg-layout-card svg {
+    width: 100%;
+    max-width: 88px;
+    height: auto;
+    fill: currentColor;
+}
+
+.clg-layout-card svg rect {
+    opacity: 0.55;
+}
+
+.clg-layout-card svg .clg-layout-pic__page {
+    opacity: 0.1;
+}
+
+.clg-layout-card:hover,
+.clg-layout-card:focus-visible {
+    border-color: var(--clg-accent);
+    color: var(--bs-emphasis-color);
+}
+
+.clg-layout-card[aria-pressed="true"] {
+    border-color: var(--clg-accent);
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+}
+
+.clg-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.clg-banner {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 10px;
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+    font-size: 0.84rem;
+}
+
+.clg-toolbar__text {
+    width: auto !important;
+    padding: 0 0.6rem !important;
+    gap: 0.35rem;
+    display: inline-flex !important;
+    align-items: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.clg-toolbar__sep {
+    width: 1px;
+    margin: 4px 2px;
+    background: var(--pdft-border);
+}
+
+.clg-stage-hint {
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    z-index: 4;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(100% - 2rem);
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    background: var(--bs-emphasis-color);
+    color: var(--bs-body-bg);
+    font-size: 0.82rem;
+    pointer-events: none;
 }
