@@ -302,3 +302,58 @@ test('laying a page out again keeps every photo in its own frame', () => {
   const free = { ...filled, layout: null };
   assert.equal(collage.reflowLayout(free, 30), free);
 });
+
+test('a saved picture is print quality or 1,920 pixels long, and paper knows its dpi', () => {
+  assert.deepEqual(collage.savePixels('a4l', 'print'), { width: 3508, height: 2480, dpi: 300 });
+  assert.deepEqual(collage.savePixels('a4p', 'screen'), { width: 1357, height: 1920, dpi: 164 });
+  assert.deepEqual(collage.savePixels('slide', 'screen'), { width: 1920, height: 1080, dpi: null });
+  assert.deepEqual(collage.savePixels('banner', 'print'), { width: 6000, height: 2000, dpi: null });
+});
+
+test('a picture too large for the browser is made smaller, keeping its shape', () => {
+  assert.deepEqual(collage.fitArea(3508, 4961, 0), { width: 3508, height: 4961, scaled: false });
+  assert.deepEqual(collage.fitArea(1000, 500, 600000), { width: 1000, height: 500, scaled: false });
+  const fitted = collage.fitArea(3508, 4961, 16777216);
+  assert.equal(fitted.scaled, true);
+  assert.ok(fitted.width * fitted.height <= 16777216);
+  assert.ok(Math.abs(fitted.width / fitted.height - 3508 / 4961) < 0.001);
+  // A3 at 300 dpi becomes about 295 dpi on Safari's limit.
+  assert.equal(collage.paperDpi('a3p', fitted.width), 295);
+});
+
+test('the PDF page is the true paper size, and other sizes print at 300 dpi', () => {
+  const a4 = collage.pdfPage('a4p');
+  assert.ok(Math.abs(a4.width - 595.28) < 0.01 && Math.abs(a4.height - 841.89) < 0.01);
+  assert.deepEqual(collage.pdfPage('slide'), { width: 921.6, height: 518.4 });
+});
+
+test('an original is read only as large as its frame needs, never larger than it is', () => {
+  const photo = { width: 4000, height: 3000 };
+  // A 4:3 frame 1,000 pixels wide showing the whole photo needs 1,000 pixels across.
+  assert.deepEqual(collage.decodeSize(photo, 4 / 3, collage.FULL_CROP, 1000), { width: 1000, height: 750 });
+  // Zoomed 2× it needs twice as many, so the part shown keeps its detail.
+  assert.deepEqual(collage.decodeSize(photo, 4 / 3, { zoom: 2, x: 0.5, y: 0.5 }, 1000), { width: 2000, height: 1500 });
+  // A square frame shows three quarters of the width, so it needs a third more.
+  assert.deepEqual(collage.decodeSize(photo, 1, collage.FULL_CROP, 750), { width: 1000, height: 750 });
+  // Never more than the original.
+  assert.deepEqual(collage.decodeSize(photo, 4 / 3, collage.FULL_CROP, 9000), { width: 4000, height: 3000 });
+});
+
+test('empty frames are left out of the saved picture', () => {
+  const c = { ...collage.newCollage('a4l'), items: [
+    collage.photoItem('a', 'p1', 1, { x: 1, y: 1, width: 10 }),
+    collage.slotItem('s', { x: 1, y: 1, width: 10, aspect: 1 })
+  ] };
+  assert.deepEqual(collage.itemsToSave(c).map((i) => i.id), ['a']);
+});
+
+test('file names lose characters a computer refuses and fall back to Collage', () => {
+  assert.equal(collage.fileStem('Farewell: Col Sharma / 2026'), 'Farewell Col Sharma 2026');
+  assert.equal(collage.fileStem('  ..picnic..  '), 'picnic');
+  assert.equal(collage.fileStem('a\u0007b'), 'a b');
+  assert.equal(collage.fileStem('???'), 'Collage');
+  assert.equal(collage.fileStem('CON'), 'Collage');
+  assert.equal(collage.fileStem(''), 'Collage');
+  assert.equal(collage.fileStem('शुभकामनाएँ'), 'शुभकामनाएँ');
+  assert.equal(collage.fileStem('x'.repeat(200)).length, 80);
+});

@@ -49,7 +49,7 @@
         <section class="clg-start" data-view="start" aria-labelledby="clgStartTitle">
             <h1 id="clgStartTitle" tabindex="-1">Make a collage</h1>
             <p class="clg-lede">Put your photos on a page, turn them to any angle and arrange them as you like. Everything happens in this browser; no photo is sent to PRISM.</p>
-            <p class="clg-building" role="note"><i class="bi bi-cone-striped" aria-hidden="true"></i> Collage Studio is being built. Text, stickers, backgrounds, drafts and saving come in the next updates.</p>
+            <p class="clg-building" role="note"><i class="bi bi-stars" aria-hidden="true"></i> More is on the way: text in English and Hindi, stickers, frames, backgrounds and drafts.</p>
             <h2 class="clg-start__heading">Start with a layout <small>A4 landscape; the size can be changed later</small></h2>
             <div class="clg-layouts" data-start-layouts></div>
             <h2 class="clg-start__heading">Start with a blank page</h2>
@@ -77,6 +77,9 @@
                     <button type="button" class="btn btn-outline-secondary clg-zoom__value" data-action="zoom-fit" title="Fit the page" aria-label="Fit the page" data-zoom-value>100%</button>
                     <button type="button" class="btn btn-outline-secondary" data-action="zoom-in" title="Zoom in" aria-label="Zoom in"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
                 </div>
+                <button type="button" class="btn btn-primary btn-sm clg-save-btn" data-action="save-open">
+                    <i class="bi bi-download" aria-hidden="true"></i> <span>Save as…</span>
+                </button>
             </div>
 
             <div class="clg-body" data-body>
@@ -148,6 +151,49 @@
             </div>
         </section>
 
+        @* ---------- Save as… ---------- *@
+        <dialog class="clg-dialog" data-save-dialog aria-labelledby="clgSaveTitle">
+            <div class="clg-dialog__body" data-save-form>
+                <div class="clg-dialog__head">
+                    <h2 id="clgSaveTitle">Save the collage</h2>
+                    <button type="button" class="btn-close" data-action="save-close" aria-label="Close"></button>
+                </div>
+                <fieldset class="clg-options">
+                    <legend>Save as</legend>
+                    <label class="clg-option"><input type="radio" name="format" value="png" checked>
+                        <span><b>PNG picture</b><small>The sharpest. Best for WhatsApp, slides and screens.</small></span></label>
+                    <label class="clg-option"><input type="radio" name="format" value="jpeg">
+                        <span><b>JPG picture</b><small>A smaller file. It can be kept under a size a form asks for.</small></span></label>
+                    <label class="clg-option"><input type="radio" name="format" value="pdf">
+                        <span><b>PDF for printing</b><small data-pdf-note>The exact page size, ready to print.</small></span></label>
+                </fieldset>
+                <div class="clg-target" data-target-row hidden>
+                    <label class="form-check">
+                        <input class="form-check-input" type="checkbox" data-target-on>
+                        <span class="form-check-label">Keep it under</span>
+                    </label>
+                    <input type="text" inputmode="decimal" class="form-control form-control-sm" value="500" data-target-value aria-label="Largest file size" disabled>
+                    <select class="form-select form-select-sm" data-target-unit aria-label="Unit" disabled>
+                        <option value="KB" selected>KB</option>
+                        <option value="MB">MB</option>
+                    </select>
+                </div>
+                <fieldset class="clg-options">
+                    <legend>Quality</legend>
+                    <label class="clg-option"><input type="radio" name="quality" value="print" checked>
+                        <span><b>Print quality</b><small data-print-note></small></span></label>
+                    <label class="clg-option"><input type="radio" name="quality" value="screen">
+                        <span><b>Screen</b><small>1,920 pixels on the long side. Quicker to share.</small></span></label>
+                </fieldset>
+                <p class="clg-hint" data-save-empty hidden></p>
+                <p class="clg-save-result" data-save-result role="status" hidden></p>
+                <div class="clg-dialog__foot">
+                    <button type="button" class="btn btn-outline-secondary" data-action="save-close">Close</button>
+                    <button type="button" class="btn btn-primary" data-action="save-go" data-save-go><i class="bi bi-download" aria-hidden="true"></i> Save</button>
+                </div>
+            </div>
+        </dialog>
+
         <div class="visually-hidden" role="status" aria-live="polite" data-announce></div>
         <div class="alert alert-warning clg-alert" role="alert" data-alert hidden>
             <span data-alert-text></span>
@@ -164,6 +210,10 @@
     <script src="~/js/components/prism-confirm-dialog.js" asp-append-version="true"></script>
     @* Konva draws the page; it ships with the application (libman.json). *@
     <script src="~/lib/konva/10.9.1/konva.min.js"></script>
+    @* Save as PDF uses the PDF library Photo Tools and PDF Tools ship; "keep it under" uses Photo
+       Tools' own size search, so both tools reach a file size the same way. *@
+    <script src="~/lib/pdf-lib/1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="~/js/photo-tools/photo-tools-core.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-core.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-app.js" asp-append-version="true"></script>
 </body>

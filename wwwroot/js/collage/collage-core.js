@@ -475,6 +475,93 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Saving
+  // ---------------------------------------------------------------------------
+
+  /** The long side of a picture saved for screens. */
+  const SCREEN_SIDE = 1920;
+  /** Points per inch in a PDF, and the dots per inch a print-quality picture has. */
+  const PDF_POINTS_PER_INCH = 72;
+  const PRINT_DPI = 300;
+
+  /**
+   * The picture's pixels: the size's print pixels (300 dots per inch on paper) or, for
+   * 'screen', 1,920 pixels on the long side. `dpi` is the dots per inch on paper, or null.
+   */
+  function savePixels(sizeKey, quality) {
+    const size = sizeOf(sizeKey);
+    let width = size.width;
+    let height = size.height;
+    if (quality === 'screen') {
+      const s = SCREEN_SIDE / Math.max(width, height);
+      width = Math.round(width * s);
+      height = Math.round(height * s);
+    }
+    return { width, height, dpi: paperDpi(sizeKey, width) };
+  }
+
+  /** Dots per inch of a picture `width` pixels wide printed on the size's paper; null if not paper. */
+  function paperDpi(sizeKey, width) {
+    const size = sizeOf(sizeKey);
+    return size.mm ? Math.round(width / (size.mm[0] / 25.4)) : null;
+  }
+
+  /**
+   * A picture made smaller, keeping its shape, so it has at most `maxArea` pixels. Some browsers
+   * cannot draw a canvas past a size (Safari stops near 16.7 million pixels): the picture is then
+   * saved a little smaller rather than not at all.
+   */
+  function fitArea(width, height, maxArea) {
+    if (!(maxArea > 0) || width * height <= maxArea) return { width, height, scaled: false };
+    const s = Math.sqrt(maxArea / (width * height));
+    return { width: Math.max(1, Math.floor(width * s)), height: Math.max(1, Math.floor(height * s)), scaled: true };
+  }
+
+  /**
+   * The PDF page in points. Paper sizes are their true size; the other sizes are printed at
+   * 300 dots per inch, so a slide is 12.8 × 7.2 inches.
+   */
+  function pdfPage(sizeKey) {
+    const size = sizeOf(sizeKey);
+    if (size.mm) {
+      return { width: size.mm[0] / 25.4 * PDF_POINTS_PER_INCH, height: size.mm[1] / 25.4 * PDF_POINTS_PER_INCH };
+    }
+    return { width: size.width / PRINT_DPI * PDF_POINTS_PER_INCH, height: size.height / PRINT_DPI * PDF_POINTS_PER_INCH };
+  }
+
+  /**
+   * How large to read a photo's original for a frame `framePixels` wide in the saved picture:
+   * enough for the part the frame shows to have that many pixels, never more than the original
+   * has, so a small frame never makes the browser hold a huge photo.
+   */
+  function decodeSize(photo, frameAspect, crop, framePixels) {
+    const region = cropRegion(photo.width / photo.height, frameAspect, crop);
+    const width = Math.min(photo.width, Math.max(1, Math.ceil(framePixels / region.width)));
+    return { width, height: Math.max(1, Math.round(width * photo.height / photo.width)) };
+  }
+
+  /** The items a saved picture shows: everything except empty frames, in drawing order. */
+  function itemsToSave(collage) {
+    return collage.items.filter((item) => item.kind !== 'slot');
+  }
+
+  /**
+   * A file name from the collage's name: no characters that Windows or a phone refuses, no
+   * leading or trailing dots or spaces, at most 80 characters; "Collage" when nothing is left.
+   */
+  function fileStem(name) {
+    const clean = String(name ?? '')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^[.\s]+|[.\s]+$/g, '')
+      .slice(0, 80)
+      .trim();
+    return /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(clean) || !clean ? 'Collage' : clean;
+  }
+
+  // ---------------------------------------------------------------------------
   // Undo
   // ---------------------------------------------------------------------------
 
@@ -544,6 +631,15 @@
     changeSize,
     reorder,
     duplicateItem,
+    SCREEN_SIDE,
+    PRINT_DPI,
+    savePixels,
+    paperDpi,
+    fitArea,
+    pdfPage,
+    decodeSize,
+    itemsToSave,
+    fileStem,
     createHistory
   });
 });

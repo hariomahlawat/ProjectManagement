@@ -183,7 +183,7 @@
     if (hasPhotos()) {
       const leave = await askConfirm({
         title: 'Leave this collage?',
-        message: 'Drafts and saving come in a later update, so this collage is lost when you leave it.',
+        message: 'Drafts come in a later update, so this collage cannot be opened again once you leave. Pictures and PDFs you saved are kept.',
         confirmText: 'Leave collage',
         cancelText: 'Keep working',
         tone: 'warning'
@@ -686,6 +686,9 @@
       case 'replace': if (isFrame(item)) { setTarget(item.id); setPanel('photos'); } break;
       case 'fill-slot': if (item?.kind === 'slot') chooseFor(item.id); break;
       case 'replace-cancel': setTarget(null); break;
+      case 'save-open': openSave(); break;
+      case 'save-close': if (!saving) saveDialog.close(); break;
+      case 'save-go': saveCollage(); break;
       case 'fit-photo':
         changeSelected((i) => {
           const photo = photos.get(i.photo);
@@ -1191,6 +1194,237 @@
   });
 
   // ---------------------------------------------------------------------------
+  // Save as…
+  // ---------------------------------------------------------------------------
+
+  const saveDialog = $('[data-save-dialog]');
+  const saveResult = $('[data-save-result]');
+  const targetRow = $('[data-target-row]');
+  const targetOn = $('[data-target-on]');
+  const targetValue = $('[data-target-value]');
+  const targetUnit = $('[data-target-unit]');
+  const photoTools = window.PrismPhotoTools;
+  let saving = false;
+
+  const chosen = (name) => saveDialog.querySelector(`input[name="${name}"]:checked`)?.value;
+
+  function syncSaveDialog() {
+    const size = core.SIZES[collage.size];
+    const pixels = core.savePixels(collage.size, 'print');
+    $('[data-print-note]').textContent = size.mm
+      ? `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels, 300 dots per inch on ${size.label} paper.`
+      : `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels.`;
+    $('[data-pdf-note]').textContent = size.mm
+      ? `${size.label} at its true size (${size.note}), ready to print.`
+      : `One page shaped like the ${size.label.toLowerCase()} page.`;
+    const jpeg = chosen('format') === 'jpeg';
+    targetRow.hidden = !jpeg;
+    targetValue.disabled = !targetOn.checked;
+    targetUnit.disabled = !targetOn.checked;
+    const empty = collage.items.filter((item) => item.kind === 'slot').length;
+    const emptyLine = $('[data-save-empty]');
+    emptyLine.hidden = !empty;
+    emptyLine.textContent = empty === 1
+      ? 'The empty frame is left out of the saved picture.'
+      : `The ${empty} empty frames are left out of the saved picture.`;
+  }
+
+  function openSave() {
+    if (!collage.items.some((item) => item.kind === 'photo')) {
+      showAlert('Add a photo first; there is nothing to save yet.');
+      return;
+    }
+    flushNudge();
+    stopAdjust();
+    saveResult.hidden = true;
+    syncSaveDialog();
+    saveDialog.showModal();
+  }
+
+  saveDialog.addEventListener('change', syncSaveDialog);
+  saveDialog.addEventListener('cancel', (event) => { if (saving) event.preventDefault(); });
+
+  /**
+   * The largest canvas this browser will really draw, up to `width` × `height`: some browsers
+   * give a blank canvas past their limit instead of an error, so a pixel is drawn and read back.
+   */
+  function largestCanvas(width, height) {
+    let size = { width, height, scaled: false };
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const probe = document.createElement('canvas');
+      probe.width = size.width;
+      probe.height = size.height;
+      let works = false;
+      try {
+        const context = probe.getContext('2d');
+        context.fillStyle = '#000';
+        context.fillRect(size.width - 1, size.height - 1, 1, 1);
+        works = context.getImageData(size.width - 1, size.height - 1, 1, 1).data[3] === 255;
+      } catch {
+        works = false;
+      }
+      probe.width = 0;
+      probe.height = 0;
+      if (works) return size;
+      size = { ...core.fitArea(size.width, size.height, size.width * size.height * 0.7), scaled: true };
+    }
+    return null;
+  }
+
+  /** Draws the collage from the original photos, each read only as large as its frame needs. */
+  async function drawCollage(width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    context.imageSmoothingQuality = 'high';
+    const s = width / core.PAGE_WIDTH;
+    context.fillStyle = collage.background?.value || '#ffffff';
+    context.fillRect(0, 0, width, height);
+    for (const item of core.itemsToSave(collage)) {
+      const photo = photos.get(item.photo);
+      if (!photo) continue;
+      const frameW = item.width * s;
+      const frameH = frameW / item.aspect;
+      const want = core.decodeSize(photo, item.aspect, item.crop, frameW);
+      // One original at a time, read at the size this frame needs and closed straight after.
+      const bitmap = await createImageBitmap(photo.file, { resizeWidth: want.width, resizeHeight: want.height, resizeQuality: 'high' });
+      try {
+        const region = core.cropRegion(bitmap.width / bitmap.height, item.aspect, item.crop);
+        context.save();
+        context.globalAlpha = item.opacity / 100;
+        context.translate(item.x * s, item.y * s);
+        context.rotate(item.angle * Math.PI / 180);
+        if (item.radius) {
+          context.beginPath();
+          context.roundRect(-frameW / 2, -frameH / 2, frameW, frameH, Math.min(item.radius * s, frameW / 2, frameH / 2));
+          context.clip();
+        }
+        context.drawImage(bitmap,
+          region.x * bitmap.width, region.y * bitmap.height, region.width * bitmap.width, region.height * bitmap.height,
+          -frameW / 2, -frameH / 2, frameW, frameH);
+        context.restore();
+      } finally {
+        bitmap.close?.();
+      }
+    }
+    return canvas;
+  }
+
+  const toBytes = (canvas, type, quality) => new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? blob.arrayBuffer().then((buffer) => resolve(new Uint8Array(buffer)), reject) : reject(new Error('encode'))), type, quality);
+  });
+
+  /** The canvas drawn smaller, for the size search when a JPG must fit a file size. */
+  function scaledCanvas(source, width, height) {
+    if (width === source.width && height === source.height) return source;
+    const small = document.createElement('canvas');
+    small.width = width;
+    small.height = height;
+    const context = small.getContext('2d');
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(source, 0, 0, width, height);
+    return small;
+  }
+
+  function download(bytes, type, name) {
+    const url = URL.createObjectURL(new Blob([bytes], { type }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  async function saveCollage() {
+    if (saving) return;
+    const format = chosen('format');
+    const quality = chosen('quality');
+    let targetBytes = null;
+    if (format === 'jpeg' && targetOn.checked) {
+      targetBytes = photoTools?.parseTargetBytes(targetValue.value, targetUnit.value) ?? null;
+      if (!targetBytes) {
+        saveResult.hidden = false;
+        saveResult.textContent = 'Type a size such as 500 KB or 2 MB.';
+        targetValue.focus();
+        return;
+      }
+    }
+    saving = true;
+    const goButton = $('[data-save-go]');
+    goButton.disabled = true;
+    saveResult.hidden = false;
+    saveResult.textContent = 'Making the picture…';
+    try {
+      const wanted = core.savePixels(collage.size, quality);
+      const fits = largestCanvas(wanted.width, wanted.height);
+      if (!fits) throw new Error('canvas');
+      const canvas = await drawCollage(fits.width, fits.height);
+      const stem = core.fileStem(nameInput.value);
+      let bytes;
+      let width = canvas.width;
+      let height = canvas.height;
+      let missed = false;
+      let type;
+      let name;
+      if (format === 'png') {
+        type = 'image/png';
+        name = `${stem}.png`;
+        bytes = await toBytes(canvas, type);
+      } else if (format === 'jpeg') {
+        type = 'image/jpeg';
+        name = `${stem}.jpg`;
+        if (targetBytes && photoTools) {
+          const result = await photoTools.encodeToTarget({
+            encode: (w, h, q) => toBytes(scaledCanvas(canvas, w, h), type, q),
+            lossy: true,
+            width,
+            height,
+            targetBytes
+          });
+          bytes = result.bytes;
+          width = result.width;
+          height = result.height;
+          missed = !result.reached;
+        } else {
+          bytes = await toBytes(canvas, type, 0.92);
+        }
+      } else {
+        type = 'application/pdf';
+        name = `${stem}.pdf`;
+        const page = core.pdfPage(collage.size);
+        const jpeg = await toBytes(canvas, 'image/jpeg', 0.92);
+        const pdf = await window.PDFLib.PDFDocument.create();
+        pdf.setTitle(nameInput.value.trim() || 'Collage');
+        pdf.setCreator('PRISM Collage Studio');
+        const image = await pdf.embedJpg(jpeg);
+        pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
+        bytes = await pdf.save();
+      }
+      canvas.width = 0;
+      canvas.height = 0;
+      download(bytes, type, name);
+      const sizeText = photoTools ? photoTools.formatBytes(bytes.length) : `${Math.ceil(bytes.length / 1000)} KB`;
+      const parts = [`Saved “${name}”`, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText];
+      let line = `${parts.join(' · ')}.`;
+      if (fits.scaled) {
+        const dpi = core.paperDpi(collage.size, fits.width);
+        line += ` This browser cannot draw a picture that large, so it was made a little smaller${dpi ? ` (${dpi} dots per inch)` : ''}.`;
+      }
+      if (missed) line += ` It could not get under ${photoTools.formatBytes(targetBytes)}; this is the smallest it can be. Choose Screen or a larger size.`;
+      saveResult.textContent = line;
+      announce(line);
+    } catch {
+      saveResult.textContent = 'The collage could not be saved. Try Screen quality, or close other tabs and try again.';
+    } finally {
+      saving = false;
+      goButton.disabled = false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Keyboard and the mouse wheel
   // ---------------------------------------------------------------------------
 
@@ -1217,7 +1451,8 @@
       return;
     }
     if (typing) return;
-    if (mod && key === 'z' && !event.shiftKey) { event.preventDefault(); act('undo'); }
+    if (mod && key === 's') { event.preventDefault(); act('save-open'); }
+    else if (mod && key === 'z' && !event.shiftKey) { event.preventDefault(); act('undo'); }
     else if (mod && (key === 'y' || (key === 'z' && event.shiftKey))) { event.preventDefault(); act('redo'); }
     else if (mod && key === 'd') { event.preventDefault(); act('duplicate'); }
     else if ((key === 'delete' || key === 'backspace') && selectedId) { event.preventDefault(); act('delete'); }
