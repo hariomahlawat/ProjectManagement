@@ -192,8 +192,8 @@
   }
 
   async function goHome() {
-    window.clearTimeout(nudgeTimer);
-    if (nudgePending) { nudgePending = false; history.record(collage); }
+    // A nudge or wheel zoom still waiting is recorded and marked for the draft first.
+    flushNudge();
     // The draft is saved before leaving; only when it cannot be is the user asked.
     const kept = await saveDraftNow();
     if (!kept && hasPhotos()) {
@@ -216,8 +216,8 @@
 
   window.addEventListener('beforeunload', (event) => {
     if (views.editor.hidden || !hasPhotos()) return;
-    // Saved as a draft already: nothing is lost by leaving.
-    if (draft && draft.created && !draftPending && !draftFailed) return;
+    // Saved as a draft already, and not being written now: nothing is lost by leaving.
+    if (draft && draft.created && !draftPending && !draftWriting && !draftFailed) return;
     saveDraftNow();
     event.preventDefault();
     // Older browsers need a value here to ask; the text itself is not shown.
@@ -234,6 +234,8 @@
   let draft = null;
   let draftTimer = 0;
   let draftPending = false;
+  // True while a draft is being written; leaving then would lose the latest change.
+  let draftWriting = false;
   let draftFailed = '';
   let draftSaving = Promise.resolve(true);
   let askedToKeep = false;
@@ -327,7 +329,12 @@
           thumbnail: views.editor.hidden ? '' : pageThumbnail()
         };
         setDraftStatus('Saving draft…');
-        await drafts.save(record, newPhotos);
+        draftWriting = true;
+        try {
+          await drafts.save(record, newPhotos);
+        } finally {
+          draftWriting = false;
+        }
         if (forDraft !== draft) return true;
         newPhotos.forEach((photo) => storedPhotos.add(photo.id));
         forDraft.created = true;
