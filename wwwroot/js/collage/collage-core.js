@@ -558,6 +558,78 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Backgrounds
+  // ---------------------------------------------------------------------------
+
+  /** Plain colours offered first; any other colour can be picked too. */
+  const BACKGROUND_COLOURS = Object.freeze(['#ffffff', '#f6f1e7', '#fde2e4', '#e3f2fd', '#e8f5e9', '#fff8e1', '#ede7f6', '#172033', '#0f1f3d', '#4a0d1c', '#1b5e20', '#000000']);
+
+  /**
+   * Gradients: `angle` in degrees for a linear one (0 runs left to right, 90 top to bottom), or
+   * `radial` from the middle; `stops` are [place 0 to 1, colour].
+   */
+  const GRADIENTS = Object.freeze({
+    sunset: Object.freeze({ label: 'Sunset', angle: 70, stops: [[0, '#ff9a76'], [0.55, '#ffcf8a'], [1, '#fff1c1']] }),
+    ocean: Object.freeze({ label: 'Ocean', angle: 70, stops: [[0, '#1e3c72'], [0.6, '#2a7ab0'], [1, '#8fd3f4']] }),
+    mint: Object.freeze({ label: 'Mint', angle: 70, stops: [[0, '#d4fc79'], [1, '#96e6a1']] }),
+    navy: Object.freeze({ label: 'Navy', angle: 70, stops: [[0, '#0f1f3d'], [1, '#1d3461']] }),
+    festive: Object.freeze({ label: 'Festive', radial: true, stops: [[0, '#8a2433'], [0.7, '#4a0d1c'], [1, '#2a0612']] }),
+    tricolour: Object.freeze({ label: 'Tricolour', angle: 90, stops: [[0, '#ffcf99'], [0.38, '#ffffff'], [0.62, '#ffffff'], [1, '#bfe6b8']] }),
+    peach: Object.freeze({ label: 'Peach', angle: 70, stops: [[0, '#ffecd2'], [1, '#fcb69f']] }),
+    lavender: Object.freeze({ label: 'Lavender', angle: 70, stops: [[0, '#e0c3fc'], [1, '#8ec5fc']] })
+  });
+
+  /** Patterns, drawn by collage-draw.js in page units, so they look the same at any size. */
+  const PATTERNS = Object.freeze({
+    gingham: Object.freeze({ label: 'Gingham' }),
+    dots: Object.freeze({ label: 'Polka dots' }),
+    confetti: Object.freeze({ label: 'Confetti' }),
+    stripes: Object.freeze({ label: 'Stripes' }),
+    gridpaper: Object.freeze({ label: 'Grid paper' }),
+    stars: Object.freeze({ label: 'Night stars' })
+  });
+
+  /** Textures, drawn too: no picture files to ship, and sharp at print quality. */
+  const TEXTURES = Object.freeze({
+    paper: Object.freeze({ label: 'Warm paper' }),
+    kraft: Object.freeze({ label: 'Kraft' }),
+    linen: Object.freeze({ label: 'Linen' }),
+    wood: Object.freeze({ label: 'Wood' }),
+    chalk: Object.freeze({ label: 'Chalkboard' }),
+    cork: Object.freeze({ label: 'Cork board' })
+  });
+
+  const WHITE_BACKGROUND = Object.freeze({ type: 'color', value: '#ffffff' });
+
+  /**
+   * A background read back from a draft: a known kind with a known name, a #rrggbb colour, or
+   * one of the draft's own photos; anything else is plain white.
+   */
+  function readBackground(raw, photoIds) {
+    if (!raw || typeof raw !== 'object') return { ...WHITE_BACKGROUND };
+    if (raw.type === 'color' && /^#[0-9a-f]{6}$/i.test(raw.value)) return { type: 'color', value: raw.value };
+    if (raw.type === 'gradient' && GRADIENTS[raw.key]) return { type: 'gradient', key: raw.key };
+    if (raw.type === 'pattern' && PATTERNS[raw.key]) return { type: 'pattern', key: raw.key };
+    if (raw.type === 'texture' && TEXTURES[raw.key]) return { type: 'texture', key: raw.key };
+    if (raw.type === 'photo' && (photoIds || []).includes(raw.photo)) return { type: 'photo', photo: raw.photo };
+    return { ...WHITE_BACKGROUND };
+  }
+
+  /** Whether two backgrounds are the same choice. */
+  function sameBackground(a, b) {
+    return Boolean(a && b) && a.type === b.type && (a.value || a.key || a.photo) === (b.value || b.key || b.photo);
+  }
+
+  /**
+   * A small number from 0 to 1 that is always the same for the same `n`, for speckles, grain
+   * and confetti, so a pattern never changes between the page and the saved picture.
+   */
+  function steadyRandom(n) {
+    const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  // ---------------------------------------------------------------------------
   // Layouts
   // ---------------------------------------------------------------------------
 
@@ -981,9 +1053,7 @@
         radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(raw.layout.radius) ? raw.layout.radius : 0))
       }
       : null;
-    const background = raw.background && raw.background.type === 'color' && /^#[0-9a-f]{6}$/i.test(raw.background.value)
-      ? { type: 'color', value: raw.background.value }
-      : { type: 'color', value: '#ffffff' };
+    const background = readBackground(raw.background, photoIds);
     return { version: MODEL_VERSION, size: SIZES[raw.size] ? raw.size : DEFAULT_SIZE, background, layout, items };
   }
 
@@ -1077,6 +1147,13 @@
     STICKER_LIMITS,
     stickerItem,
     layoutText,
+    BACKGROUND_COLOURS,
+    GRADIENTS,
+    PATTERNS,
+    TEXTURES,
+    readBackground,
+    sameBackground,
+    steadyRandom,
     FRAMES,
     SHAPES,
     LOOKS,

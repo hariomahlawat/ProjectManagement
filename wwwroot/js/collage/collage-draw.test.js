@@ -15,9 +15,12 @@ function recorder({ filters = true } = {}) {
     set shadowBlur(v) { calls.push(['shadowBlur', v]); },
     set shadowOffsetX(v) {}, set shadowOffsetY(v) {}
   };
-  for (const name of ['strokeText', 'save', 'restore', 'beginPath', 'closePath', 'moveTo', 'lineTo', 'quadraticCurveTo', 'bezierCurveTo', 'ellipse', 'rect', 'roundRect', 'clip', 'fill', 'translate', 'scale', 'rotate', 'fillRect', 'fillText', 'drawImage']) {
+  for (const name of ['arc', 'strokeText', 'save', 'restore', 'beginPath', 'closePath', 'moveTo', 'lineTo', 'quadraticCurveTo', 'bezierCurveTo', 'ellipse', 'rect', 'roundRect', 'clip', 'fill', 'translate', 'scale', 'rotate', 'fillRect', 'fillText', 'drawImage']) {
     ctx[name] = (...args) => calls.push([name, ...args]);
   }
+  const gradient = (kind) => (...args) => { calls.push([kind, ...args]); return { addColorStop: (...stop) => calls.push(['stop', ...stop]) }; };
+  ctx.createLinearGradient = gradient('linear');
+  ctx.createRadialGradient = gradient('radial');
   if (filters) {
     Object.defineProperty(ctx, 'filter', { set(v) { calls.push(['filter', v]); }, get() { return 'none'; }, enumerable: true });
   }
@@ -107,4 +110,42 @@ test('a sticker fills its box, mirrored and shadowed when asked', () => {
   const image = ctx.calls.find((c) => c[0] === 'drawImage');
   assert.deepEqual(image.slice(0, 5), ['drawImage', 'IMG', 0, 0, 110]);
   assert.ok(Math.abs(image[5] - 100) < 1e-9);
+});
+
+test('a background fills the whole page: colour, gradient, pattern, texture or blurred photo', () => {
+  const colour = recorder();
+  draw.drawBackground(colour, { type: 'color', value: '#123456' }, 1000, 700);
+  assert.ok(colour.calls.some((c) => c[0] === 'fillStyle' && c[1] === '#123456'));
+  assert.ok(colour.calls.some((c) => c[0] === 'fillRect' && c[3] === 1000 && c[4] === 700));
+
+  const sunset = recorder();
+  draw.drawBackground(sunset, { type: 'gradient', key: 'sunset' }, 1000, 700);
+  assert.ok(sunset.calls.some((c) => c[0] === 'linear'));
+  assert.equal(sunset.calls.filter((c) => c[0] === 'stop').length, 3);
+  const festive = recorder();
+  draw.drawBackground(festive, { type: 'gradient', key: 'festive' }, 1000, 700);
+  assert.ok(festive.calls.some((c) => c[0] === 'radial'));
+
+  for (const key of Object.keys(collage.PATTERNS)) {
+    const ctx = recorder();
+    draw.drawBackground(ctx, { type: 'pattern', key }, 1000, 700);
+    assert.ok(ctx.calls.filter((c) => c[0] === 'fillRect' || c[0] === 'arc').length > 10, key);
+  }
+  for (const key of Object.keys(collage.TEXTURES)) {
+    const ctx = recorder();
+    draw.drawBackground(ctx, { type: 'texture', key }, 1000, 700);
+    assert.ok(ctx.calls.length > 20, key);
+  }
+  // The same pattern draws the same way twice: the page and the saved picture match.
+  const one = recorder();
+  const two = recorder();
+  draw.drawBackground(one, { type: 'texture', key: 'kraft' }, 400, 300);
+  draw.drawBackground(two, { type: 'texture', key: 'kraft' }, 400, 300);
+  assert.deepEqual(one.calls, two.calls);
+
+  const photo = recorder();
+  draw.drawBackground(photo, { type: 'photo', photo: 'p' }, 1000, 700, { photo: { source: 'SRC', width: 400, height: 300 }, pixelsPerUnit: 2 });
+  assert.ok(photo.calls.some((c) => c[0] === 'filter' && c[1].startsWith('blur(28px)')));
+  const image = photo.calls.find((c) => c[0] === 'drawImage');
+  assert.ok(image[4] >= 1000 && image[5] >= 700, 'the photo covers the page');
 });

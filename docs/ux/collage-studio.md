@@ -207,8 +207,8 @@ The mockup is the reference. In short:
 - **Credits**: a "Credits" link on the start screen lists every bundled font, sticker set and
   library with its licence. CC BY needs this attribution; OFL and MIT ask for the licence to go
   with the files. [../collage-studio.md](../collage-studio.md) lists the same.
-- **Textures**: small tiling pictures made for PRISM, or taken from public-domain or CC0 sources,
-  in `wwwroot/img/collage/textures/`:
+- **Textures** are drawn in code (collage-draw.js), not shipped as pictures: nothing to license, and
+  as sharp in a print-quality save as on the screen (changed from pictures in PR 9):
   - paper;
   - kraft;
   - linen;

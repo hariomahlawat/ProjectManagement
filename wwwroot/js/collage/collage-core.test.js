@@ -594,3 +594,28 @@ test('a draft keeps text, within its limits', () => {
   assert.deepEqual([b.font, b.text.length], ['clean', 300]);
   assert.equal('crop' in a, false);
 });
+
+test('a background read back from a draft is a known one, or white', () => {
+  const ok = (bg, ids = []) => collage.readBackground(bg, ids);
+  assert.deepEqual(ok({ type: 'color', value: '#123abc' }), { type: 'color', value: '#123abc' });
+  assert.deepEqual(ok({ type: 'gradient', key: 'sunset', extra: 1 }), { type: 'gradient', key: 'sunset' });
+  assert.deepEqual(ok({ type: 'pattern', key: 'gingham' }), { type: 'pattern', key: 'gingham' });
+  assert.deepEqual(ok({ type: 'texture', key: 'cork' }), { type: 'texture', key: 'cork' });
+  assert.deepEqual(ok({ type: 'photo', photo: 'p1' }, ['p1']), { type: 'photo', photo: 'p1' });
+  // Unknown names, a photo the draft does not hold, a bad colour: white.
+  for (const bad of [{ type: 'gradient', key: 'zz' }, { type: 'photo', photo: 'p9' }, { type: 'color', value: 'url(x)' }, null, 'red']) {
+    assert.deepEqual(ok(bad, ['p1']), { type: 'color', value: '#ffffff' });
+  }
+  const read = collage.readDraftModel({ version: 1, size: 'a4l', background: { type: 'texture', key: 'wood' }, items: [] }, []);
+  assert.deepEqual(read.background, { type: 'texture', key: 'wood' });
+});
+
+test('backgrounds compare by their choice, and the grain is the same every time', () => {
+  assert.ok(collage.sameBackground({ type: 'pattern', key: 'dots' }, { type: 'pattern', key: 'dots' }));
+  assert.ok(!collage.sameBackground({ type: 'pattern', key: 'dots' }, { type: 'texture', key: 'dots' }));
+  assert.ok(!collage.sameBackground({ type: 'color', value: '#ffffff' }, { type: 'color', value: '#000000' }));
+  const a = [1, 2, 3].map(collage.steadyRandom);
+  assert.deepEqual(a, [1, 2, 3].map(collage.steadyRandom));
+  assert.ok(a.every((v) => v >= 0 && v < 1));
+  assert.notEqual(a[0], a[1]);
+});

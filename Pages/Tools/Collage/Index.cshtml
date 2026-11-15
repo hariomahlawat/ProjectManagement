@@ -51,7 +51,6 @@
         <section class="clg-start" data-view="start" aria-labelledby="clgStartTitle">
             <h1 id="clgStartTitle" tabindex="-1">Make a collage</h1>
             <p class="clg-lede">Put your photos on a page, turn them to any angle and arrange them as you like. Everything happens in this browser; no photo is sent to PRISM.</p>
-            <p class="clg-building" role="note"><i class="bi bi-stars" aria-hidden="true"></i> More is on the way: backgrounds.</p>
             <section class="clg-drafts" data-drafts-section aria-labelledby="clgDraftsTitle" hidden>
                 <h2 class="clg-start__heading" id="clgDraftsTitle">Your drafts <small data-drafts-count></small></h2>
                 <p class="clg-hint clg-drafts__note">Drafts are kept in this browser on this computer, with their photos, and saved as you work. Clearing the browser's data removes them, so save a picture or a PDF to keep a copy. <span data-drafts-space></span></p>
@@ -106,6 +105,9 @@
                     <button type="button" data-panel="stickers" aria-pressed="false" aria-controls="clgDrawer">
                         <i class="bi bi-emoji-smile" aria-hidden="true"></i><span>Stickers</span>
                     </button>
+                    <button type="button" data-panel="background" aria-pressed="false" aria-controls="clgDrawer">
+                        <i class="bi bi-palette" aria-hidden="true"></i><span>Background</span>
+                    </button>
                 </nav>
 
                 <aside class="clg-drawer" id="clgDrawer" data-drawer aria-label="Add to the collage">
@@ -139,6 +141,24 @@
                         <div class="clg-stickers" data-sticker-grid></div>
                         <p class="clg-hint" data-sticker-none hidden>No sticker matches. Try another word.</p>
                         <p class="clg-hint">Click a sticker to add it. Shapes can take any colour. All stickers are part of PRISM; see Credits on the start screen.</p>
+                    </section>
+                    <section data-drawer-panel="background" aria-labelledby="clgBackgroundTitle" hidden>
+                        <h2 class="clg-panel-title" id="clgBackgroundTitle">Background</h2>
+                        <p class="clg-section__title">Colours</p>
+                        <div class="clg-swatches">
+                            <span class="clg-swatches" data-bg-colours></span>
+                            <label class="visually-hidden" for="clgBgPick">Any colour</label>
+                            <input id="clgBgPick" type="color" class="clg-swatch-pick" data-bg-pick title="Any colour" />
+                        </div>
+                        <p class="clg-section__title clg-text-heading">Gradients</p>
+                        <div class="clg-bg-grid" data-bg-gradients></div>
+                        <p class="clg-section__title clg-text-heading">Patterns</p>
+                        <div class="clg-bg-grid" data-bg-patterns></div>
+                        <p class="clg-section__title clg-text-heading">Textures</p>
+                        <div class="clg-bg-grid" data-bg-textures></div>
+                        <p class="clg-section__title clg-text-heading">One of your photos, softly blurred</p>
+                        <div class="clg-bg-grid" data-bg-photos></div>
+                        <p class="clg-hint" data-bg-photos-none>Add a photo to the page first.</p>
                     </section>
                     <section data-drawer-panel="layouts" aria-labelledby="clgLayoutsTitle" hidden>
                         <h2 class="clg-panel-title" id="clgLayoutsTitle">Layouts</h2>
