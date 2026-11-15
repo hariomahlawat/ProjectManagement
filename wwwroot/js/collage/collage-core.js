@@ -40,6 +40,8 @@
   const PHOTO_LIMITS = Object.freeze({
     maxBytes: 50 * 1000 * 1000,
     maxPhotos: 60,
+    // Larger than any phone or camera photo; beyond it a picture is refused, not decoded.
+    maxPixels: 250 * 1000 * 1000,
     // The editor draws a copy at most this long on its long side; Save uses the original.
     workingSide: 2000,
     // The tray shows a small copy made from the working copy, never from the original.
@@ -122,9 +124,11 @@
     const tooLarge = by('too-large');
     const tooMany = by('too-many');
     const unreadable = by('unreadable');
+    const tooManyPixels = by('too-many-pixels');
     if (unreadable.length) parts.push(`${names(unreadable)} could not be opened; ${unreadable.length === 1 ? 'it may be' : 'they may be'} damaged`);
     if (notPhoto.length) parts.push(`${names(notPhoto)} ${notPhoto.length === 1 ? 'is' : 'are'} not a JPG, PNG, WebP, GIF or BMP photo`);
     if (tooLarge.length) parts.push(`${names(tooLarge)} ${tooLarge.length === 1 ? 'is' : 'are'} larger than 50 MB`);
+    if (tooManyPixels.length) parts.push(`${names(tooManyPixels)} ${tooManyPixels.length === 1 ? 'has' : 'have'} more than 250 million pixels`);
     if (tooMany.length) parts.push(`${names(tooMany)} did not fit: a collage takes up to ${PHOTO_LIMITS.maxPhotos} photos`);
     const text = parts.join('; ');
     return text.charAt(0).toUpperCase() + text.slice(1) + '.';

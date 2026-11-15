@@ -692,3 +692,8 @@ test('drafts keep crests and logos and drop malformed sticker names', () => {
   const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [crest, bad] }, []);
   assert.deepEqual(read.items.map((item) => item.sticker), ['unit:5']);
 });
+
+test('a picture with more than 250 million pixels is refused by name', () => {
+  assert.ok(collage.PHOTO_LIMITS.maxPixels >= 200 * 1000 * 1000);
+  assert.equal(collage.refusedMessage([{ name: 'huge.png', reason: 'too-many-pixels' }]), '“huge.png” has more than 250 million pixels.');
+});
