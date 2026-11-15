@@ -660,9 +660,30 @@ function initFilters(root) {
 // Boot
 // -----------------------------------------------------------------------------
 
+// A project cover that cannot be loaded (file missing, offline share) is removed, so the card
+// falls back to text instead of showing an empty box. Covers added by Show more are covered
+// too: error events are caught on the way down (they do not bubble).
+export function dropCover(img) {
+  const cover = img.closest('.pm-gs-hit__cover');
+  if (!cover) return;
+  cover.closest('[data-search-hit]')?.classList.remove('pm-gs-hit--with-cover');
+  cover.remove();
+}
+
+function initCoverFallback(root) {
+  root.addEventListener('error', (event) => {
+    if (event.target instanceof HTMLImageElement) dropCover(event.target);
+  }, true);
+  // Images that failed before this script ran.
+  root.querySelectorAll('.pm-gs-hit__cover img').forEach((img) => {
+    if (img instanceof HTMLImageElement && img.complete && img.naturalWidth === 0 && img.getAttribute('src')) dropCover(img);
+  });
+}
+
 function boot() {
   const root = document.querySelector('[data-search-page]');
   if (!(root instanceof HTMLElement)) return;
+  initCoverFallback(root);
   initSearchBoxes(root);
   initRecentSearches(root);
   initClickTelemetry(root);

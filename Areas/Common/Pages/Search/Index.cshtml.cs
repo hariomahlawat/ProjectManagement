@@ -75,6 +75,13 @@ public sealed class IndexModel : PageModel
 
     public SearchGatewayResponse Search { get; private set; } = SearchGatewayResponse.Empty(string.Empty);
 
+    /// <summary>
+    /// Cover thumbnail of each project result on this page, by project id: the same small
+    /// cover the dashboard shows. Looked up per page, not stored in the index, so a new cover
+    /// shows at once. Projects without a cover have no entry and their card stays text-only.
+    /// </summary>
+    public IReadOnlyDictionary<int, string> ProjectCovers { get; private set; } = new Dictionary<int, string>();
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(Q)) return;
@@ -87,6 +94,34 @@ public sealed class IndexModel : PageModel
         ShowLatency = ShowEngineDiagnostics
             || (await _authorization.AuthorizeAsync(User, AdminPolicies.SecurityView)).Succeeded;
         SelectedProjectNames = await LoadSelectedProjectNamesAsync(cancellationToken);
+        ProjectCovers = await LoadProjectCoversAsync(cancellationToken);
+    }
+
+    private async Task<IReadOnlyDictionary<int, string>> LoadProjectCoversAsync(CancellationToken cancellationToken)
+    {
+        var ids = Search.Results
+            .Where(hit => string.Equals(hit.EntityType, "Project", StringComparison.Ordinal))
+            .Select(hit => int.TryParse(hit.EntityKey, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var id) ? id : 0)
+            .Where(id => id > 0)
+            .Distinct()
+            .ToArray();
+        if (ids.Length == 0) return new Dictionary<int, string>();
+
+        // Project photos are open to every signed-in user (/Projects/Photos/View is [Authorize]),
+        // like the project names above.
+        var covers = await _db.Projects
+            .AsNoTracking()
+            .Where(project => ids.Contains(project.Id) && !project.IsDeleted && project.CoverPhotoId != null)
+            .Select(project => new { project.Id, PhotoId = project.CoverPhotoId!.Value, project.CoverPhotoVersion })
+            .ToListAsync(cancellationToken);
+
+        var urls = new Dictionary<int, string>();
+        foreach (var cover in covers)
+        {
+            var url = Url.Page("/Projects/Photos/View", new { area = "", id = cover.Id, photoId = cover.PhotoId, size = "xs", v = cover.CoverPhotoVersion });
+            if (!string.IsNullOrEmpty(url)) urls[cover.Id] = url;
+        }
+        return urls;
     }
 
     public async Task<IActionResult> OnGetFacetsAsync(CancellationToken cancellationToken)

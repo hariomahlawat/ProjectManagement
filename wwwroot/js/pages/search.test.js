@@ -49,7 +49,7 @@ async function loadPage({ narrow = false, inside = '' } = {}) {
     set(value) { this.matches = value; this.listeners.forEach((listener) => listener({ matches: value })); },
   };
   window.matchMedia = () => media;
-  for (const name of ['window', 'document', 'Element', 'HTMLElement', 'HTMLAnchorElement', 'HTMLInputElement', 'HTMLDetailsElement', 'HTMLFormElement', 'DOMParser', 'FormData', 'Event', 'MouseEvent', 'KeyboardEvent', 'Node', 'location', 'localStorage', 'navigator']) {
+  for (const name of ['window', 'document', 'Element', 'HTMLElement', 'HTMLAnchorElement', 'HTMLImageElement', 'HTMLInputElement', 'HTMLDetailsElement', 'HTMLFormElement', 'DOMParser', 'FormData', 'Event', 'MouseEvent', 'KeyboardEvent', 'Node', 'location', 'localStorage', 'navigator']) {
     Object.defineProperty(globalThis, name, { configurable: true, writable: true, value: window[name] });
   }
 
@@ -138,4 +138,17 @@ test('the page remembers a search only when it ran and found something', async (
 
   const empty = await loadPage({ inside: '<form><input data-search-record-recent="false" value="zzqxv"></form>' });
   assert.equal(empty.window.localStorage.getItem('prism.search.recent'), null);
+});
+
+test('a project cover that fails to load is removed and the card goes back to text only', async () => {
+  const { window, document, module } = await loadPage({
+    inside: '<section><article class="pm-gs-hit pm-gs-hit--with-cover" data-search-hit><div>Text</div><a class="pm-gs-hit__cover" href="/p"><img id="cover" src="/missing.webp" alt=""></a></article></section>',
+  });
+  const img = document.getElementById('cover');
+
+  img.dispatchEvent(new window.Event('error'));
+
+  assert.equal(document.querySelector('.pm-gs-hit__cover'), null);
+  assert.equal(document.querySelector('[data-search-hit]').classList.contains('pm-gs-hit--with-cover'), false);
+  assert.equal(typeof module.dropCover, 'function');
 });

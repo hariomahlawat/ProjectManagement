@@ -68,38 +68,6 @@
             .Any(part => string.Equals(part, DisplayToken(value), StringComparison.OrdinalIgnoreCase)
                       || string.Equals(part, value, StringComparison.OrdinalIgnoreCase));
 
-    // One icon per source, so a project, an IPR and a visit look different at a glance.
-    string TypeIcon(SearchResult hit)
-    {
-        if (string.Equals(hit.FileType, "PDF", StringComparison.OrdinalIgnoreCase)) return "bi-file-earmark-pdf";
-        var bySource = hit.SourceModule switch
-        {
-            "Projects" => "bi-kanban",
-            "Project documents" => "bi-file-earmark-text",
-            "Document repository" => "bi-archive",
-            "FFC" => "bi-globe2",
-            "IPR" => "bi-patch-check",
-            "Activities" => "bi-calendar-event",
-            "Visits" => "bi-people",
-            "Social media" => "bi-megaphone",
-            "Training tracker" => "bi-mortarboard",
-            "ToT" => "bi-arrow-left-right",
-            "Proliferation" => "bi-diagram-3",
-            "ARPP" => "bi-journal-text",
-            _ => null
-        };
-        if (bySource is not null) return bySource;
-        return hit.Category switch
-        {
-            "Projects" => "bi-kanban",
-            "Documents" => "bi-file-earmark-text",
-            "Trackers" => "bi-clipboard-data",
-            "Organisation" => "bi-building",
-            "My Work" => "bi-person-check",
-            "Media" => "bi-images",
-            _ => "bi-search"
-        };
-    }
 
     // "Matched in Title" repeats what the highlighted title already shows; only say where
     // the match was when it is somewhere the reader cannot see, in plain words.
@@ -601,8 +569,12 @@ else
                                 projectName = null; // the subtitle already names the project
                             }
                             var evidence = MatchEvidence(hit);
-                            <article class="pm-gs-hit" data-search-hit>
-                                <span class="pm-gs-hit__icon" aria-hidden="true"><i class="bi @TypeIcon(hit)"></i></span>
+                            var cover = string.Equals(hit.EntityType, "Project", StringComparison.Ordinal)
+                                        && int.TryParse(hit.EntityKey, out var coverProjectId)
+                                        && Model.ProjectCovers.TryGetValue(coverProjectId, out var coverUrl)
+                                ? coverUrl
+                                : null;
+                            <article class="pm-gs-hit@(cover is null ? string.Empty : " pm-gs-hit--with-cover")" data-search-hit>
                                 <div class="pm-gs-hit__body">
                                     <h2 class="pm-gs-hit__heading">
                                         <a class="pm-gs-hit__title"
@@ -683,6 +655,14 @@ else
                                         </div>
                                     }
                                 </div>
+                                @if (cover is not null)
+                                {
+                                    @* The project's cover, as a picture to recognise it by: the title already names it,
+                                       so it is decorative and not a second tab stop. *@
+                                    <a class="pm-gs-hit__cover" href="@hit.Url" tabindex="-1" aria-hidden="true">
+                                        <img src="@cover" alt="" width="72" height="54" loading="lazy" decoding="async" />
+                                    </a>
+                                }
                             </article>
                         }
                     </section>
