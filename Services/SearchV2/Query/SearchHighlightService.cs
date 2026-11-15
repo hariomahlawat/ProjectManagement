@@ -6,8 +6,9 @@ namespace ProjectManagement.Services.SearchV2.Query;
 
 public interface ISearchHighlightService
 {
-    IReadOnlyList<SearchTextSegment> Highlight(string? text, IReadOnlyList<string> terms);
-    string? BuildSnippet(string? structuredText, string? narrativeText, IReadOnlyList<string> terms);
+    /// <param name="stems">English stems, marked only with their inflections (<see cref="SearchInflections"/>).</param>
+    IReadOnlyList<SearchTextSegment> Highlight(string? text, IReadOnlyList<string> terms, IReadOnlyList<string>? stems = null);
+    string? BuildSnippet(string? structuredText, string? narrativeText, IReadOnlyList<string> terms, IReadOnlyList<string>? stems = null);
     string PlainLegacySnippet(string? value);
 }
 
@@ -20,7 +21,7 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     }
 
-    public IReadOnlyList<SearchTextSegment> Highlight(string? text, IReadOnlyList<string> terms)
+    public IReadOnlyList<SearchTextSegment> Highlight(string? text, IReadOnlyList<string> terms, IReadOnlyList<string>? stems = null)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -34,12 +35,18 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
             .Take(12)
             .ToArray();
 
-        if (effectiveTerms.Length == 0)
+        var stemPatterns = (stems ?? Array.Empty<string>())
+            .Where(stem => !string.IsNullOrWhiteSpace(stem))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .Select(SearchInflections.Pattern)
+            .ToArray();
+        if (effectiveTerms.Length == 0 && stemPatterns.Length == 0)
         {
             return [new SearchTextSegment(text, false)];
         }
 
-        var pattern = string.Join('|', effectiveTerms.Select(BuildHighlightPattern));
+        var pattern = string.Join('|', effectiveTerms.Select(BuildHighlightPattern).Concat(stemPatterns));
         var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         if (matches.Count == 0)
         {
@@ -72,13 +79,14 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
         return segments;
     }
 
-    public string? BuildSnippet(string? structuredText, string? narrativeText, IReadOnlyList<string> terms)
+    public string? BuildSnippet(string? structuredText, string? narrativeText, IReadOnlyList<string> terms, IReadOnlyList<string>? stems = null)
     {
         var structured = SearchTextQuality.SanitizeForDisplay(structuredText);
         var narrative = SearchTextQuality.SanitizeForDisplay(narrativeText);
         var narrativeQuality = SearchTextQuality.Score(narrativeText);
+        stems ??= Array.Empty<string>();
 
-        var source = ChooseSource(structured, narrative, narrativeQuality, terms);
+        var source = ChooseSource(structured, narrative, narrativeQuality, terms, stems);
         if (string.IsNullOrWhiteSpace(source))
         {
             return null;
@@ -91,7 +99,7 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
             return normalized;
         }
 
-        var matchIndex = FindFirstMatch(normalized, terms);
+        var matchIndex = FindFirstMatch(normalized, terms, stems);
         var half = max / 2;
         var start = matchIndex < 0 ? 0 : Math.Max(0, matchIndex - half);
         var end = Math.Min(normalized.Length, start + max);
@@ -128,16 +136,16 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
         return SearchTextQuality.SanitizeForDisplay(stripped);
     }
 
-    private static string? ChooseSource(string? structured, string? narrative, double narrativeQuality, IReadOnlyList<string> terms)
+    private static string? ChooseSource(string? structured, string? narrative, double narrativeQuality, IReadOnlyList<string> terms, IReadOnlyList<string> stems)
     {
-        if (!string.IsNullOrWhiteSpace(structured) && FindFirstMatch(structured, terms) >= 0)
+        if (!string.IsNullOrWhiteSpace(structured) && FindFirstMatch(structured, terms, stems) >= 0)
         {
             return structured;
         }
 
         if (!string.IsNullOrWhiteSpace(narrative)
             && narrativeQuality >= .42d
-            && FindFirstMatch(narrative, terms) >= 0)
+            && FindFirstMatch(narrative, terms, stems) >= 0)
         {
             return narrative;
         }
@@ -158,7 +166,7 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
             : escaped;
     }
 
-    private static int FindFirstMatch(string text, IReadOnlyList<string> terms)
+    private static int FindFirstMatch(string text, IReadOnlyList<string> terms, IReadOnlyList<string>? stems = null)
     {
         var best = -1;
         foreach (var term in terms)
@@ -166,6 +174,12 @@ public sealed partial class SearchHighlightService : ISearchHighlightService
             if (string.IsNullOrWhiteSpace(term)) continue;
             var index = text.IndexOf(term, StringComparison.OrdinalIgnoreCase);
             if (index >= 0 && (best < 0 || index < best)) best = index;
+        }
+        foreach (var stem in stems ?? Array.Empty<string>())
+        {
+            if (string.IsNullOrWhiteSpace(stem)) continue;
+            var match = Regex.Match(text, SearchInflections.Pattern(stem), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (match.Success && (best < 0 || match.Index < best)) best = match.Index;
         }
         return best;
     }

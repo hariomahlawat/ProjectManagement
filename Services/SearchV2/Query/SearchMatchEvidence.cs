@@ -130,18 +130,7 @@ public static partial class SearchMatchEvidenceResolver
         if (covered.Length > 0) fields.Add(new FieldCoverage(label, covered));
     }
 
-    // Endings English stemming removes. A word counts by stem only as the stem plus one of
-    // these ("accepted", "reports", "acceptance" for accept, report), not as any word that
-    // starts with it ("stationery" is not "stations").
-    private static readonly string[] InflectionEndings =
-    {
-        "", "s", "es", "ed", "d", "ing", "er", "ers", "ion", "ions", "ation", "ations",
-        "ance", "ances", "ence", "ences", "ment", "ments", "al", "ally", "ly", "e", "ies", "ied", "y"
-    };
-
-    private static bool IsInflectionOf(string word, string stem) =>
-        word.StartsWith(stem, StringComparison.OrdinalIgnoreCase)
-        && InflectionEndings.Contains(word[stem.Length..], StringComparer.OrdinalIgnoreCase);
+    private static bool IsInflectionOf(string word, string stem) => SearchInflections.IsInflectionOf(word, stem);
 
     private static string[] QueryTerms(string exact) => WordRegex().Matches(exact)
         .Select(match => match.Value)
@@ -183,4 +172,31 @@ public static partial class SearchMatchEvidenceResolver
 
     [GeneratedRegex("([a-z0-9])([A-Z])", RegexOptions.CultureInvariant)]
     private static partial Regex CamelBoundaryRegex();
+}
+
+/// <summary>
+/// Endings English stemming removes. A word counts as a stem's match only as the stem plus one
+/// of these ("accepted", "reports", "acceptance" for accept, report), never as any word that
+/// starts with it ("stationery" is not "stations"). Used by "Found in", the excerpt choice and
+/// its highlights, so the three agree.
+/// </summary>
+internal static class SearchInflections
+{
+    private static readonly string[] Endings =
+    {
+        "", "s", "es", "ed", "d", "ing", "er", "ers", "ion", "ions", "ation", "ations",
+        "ance", "ances", "ence", "ences", "ment", "ments", "al", "ally", "ly", "e", "ies", "ied", "y",
+        "edly", "able", "ably", "ability", "ible", "ibly", "ity", "ities", "ive", "ively", "ness",
+        "ize", "ized", "izes", "izing", "ise", "ised", "ises", "ising", "ism", "ist", "ists"
+    };
+
+    private static readonly string Alternation = string.Join('|', Endings.Where(ending => ending.Length > 0).OrderByDescending(ending => ending.Length));
+
+    public static bool IsInflectionOf(string word, string stem) =>
+        word.StartsWith(stem, StringComparison.OrdinalIgnoreCase)
+        && Endings.Contains(word[stem.Length..], StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A regular expression for the stem and its inflections as whole words.</summary>
+    public static string Pattern(string stem) =>
+        $@"(?<![\p{{L}}\p{{N}}]){System.Text.RegularExpressions.Regex.Escape(stem)}(?:{Alternation})?(?![\p{{L}}\p{{N}}])";
 }

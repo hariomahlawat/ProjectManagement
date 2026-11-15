@@ -375,6 +375,19 @@ public sealed class SearchV2QueryTests
         Assert.Equal(expected, result);
     }
 
+    [Fact]
+    public void Snippet_ChoosesAndMarksInflectionsOfAStem_NotWordsThatOnlyStartWithIt()
+    {
+        var service = new SearchHighlightService(Options.Create(new SearchV2Options()));
+        var stems = new[] { "station" };
+
+        var snippet = service.BuildSnippet("Stationery cupboard · Published", "Radar stations were moved north.", new[] { "stationz" }, stems);
+        var marked = service.Highlight(snippet, new[] { "stationz" }, stems).Where(segment => segment.Highlighted).Select(segment => segment.Text).ToArray();
+
+        Assert.Equal("Radar stations were moved north.", snippet);
+        Assert.Equal(new[] { "stations" }, marked);
+    }
+
     [Theory]
     [InlineData("Two reports were filed", true)]
     [InlineData("The stationery cupboard", false)]

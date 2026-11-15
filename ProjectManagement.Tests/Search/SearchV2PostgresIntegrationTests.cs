@@ -903,6 +903,22 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && segment.Text.StartsWith("accept", StringComparison.OrdinalIgnoreCase));
     }
 
+    // A two-letter word ("QA") still anchors the excerpt when it first appears far into the text.
+    [SearchV2PostgresFact]
+    public async Task ATwoLetterWord_StillAnchorsTheExcerpt()
+    {
+        await using var host = _database.CreateHost();
+        var filler = string.Concat(Enumerable.Repeat("Routine maintenance schedule for the workshop. ", 300));
+        await host.ActivateAsync(
+            host.Entry("ProjectDocument", "9853", "Project documents", "Documents", "Siskin gearbox file", null)
+                with { StructuredText = "Siskin programme · Published", NarrativeText = "Opening notes. " + filler + "The QA team signed the batch." });
+
+        var response = await host.SearchAsync("qa");
+
+        var hit = Assert.Single(response.Results, result => result.EntityKey == "9853");
+        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && string.Equals(segment.Text, "QA", StringComparison.Ordinal));
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {

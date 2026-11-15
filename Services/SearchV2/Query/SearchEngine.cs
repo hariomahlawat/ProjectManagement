@@ -626,10 +626,10 @@ public sealed class SearchEngine : ISearchV2Engine
 
     private SearchResult ToResult(SearchRow row, NormalizedSearchQuery query, IReadOnlyDictionary<string, string> stems)
     {
-        // The body is matched by English stem, so a stem ("accept") is also a highlight term:
-        // the excerpt then shows "accepted" marked, and the card says where the match was.
-        var snippetTerms = SearchQueryStems.WithStems(query.HighlightTerms, stems);
-        var snippet = _highlight.BuildSnippet(row.StructuredText, row.NarrativeText, snippetTerms);
+        // The body is matched by English stem, so the excerpt also looks for and marks a stem's
+        // inflections ("accepted" for accept), and the card says where the match was.
+        var stemList = SearchQueryStems.Usable(stems);
+        var snippet = _highlight.BuildSnippet(row.StructuredText, row.NarrativeText, query.HighlightTerms, stemList);
         var matchedField = SearchMatchEvidenceResolver.Resolve(
             query,
             row.Title,
@@ -662,7 +662,7 @@ public sealed class SearchEngine : ISearchV2Engine
             SearchDisplayValueFormatter.Subtitle(row.Subtitle, row.Status),
             row.CanonicalUrl,
             snippet,
-            _highlight.Highlight(snippet, snippetTerms),
+            _highlight.Highlight(snippet, query.HighlightTerms, stemList),
             matchedField,
             row.EventDateUtc,
             row.FileType,
@@ -742,7 +742,7 @@ public sealed class SearchEngine : ISearchV2Engine
             -- Each typed word with its English stem ("acceptance" → "accept"). Body text is
             -- matched by stem, so the excerpt is found, highlighted and explained by stem too.
             SELECT COALESCE(string_agg(DISTINCT w.word || '=' || w.stem, ' '), '') AS pairs,
-                   COALESCE(array_agg(DISTINCT a.anchor) FILTER (WHERE LENGTH(a.anchor) >= 3), ARRAY[]::text[]) AS anchors
+                   COALESCE(array_agg(DISTINCT a.anchor) FILTER (WHERE LENGTH(a.anchor) >= 2), ARRAY[]::text[]) AS anchors
             FROM (
                 -- English stop words ("the", "of") return no lexeme: the English match ignores
                 -- them, so they neither anchor the excerpt nor count as matches.
@@ -1673,11 +1673,7 @@ internal static class SearchQueryStems
         return result;
     }
 
-    /// <summary>The highlight terms plus each stem of three letters or more.</summary>
-    public static IReadOnlyList<string> WithStems(IReadOnlyList<string> terms, IReadOnlyDictionary<string, string> stems) =>
-        stems.Count == 0
-            ? terms
-            : terms.Concat(stems.Values.Where(stem => stem.Length >= 3))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+    /// <summary>The stems of three letters or more (shorter ones would mark too much).</summary>
+    public static IReadOnlyList<string> Usable(IReadOnlyDictionary<string, string> stems) =>
+        stems.Values.Where(stem => stem.Length >= 3).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 }
