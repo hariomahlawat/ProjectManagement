@@ -174,6 +174,7 @@
   }
 
   function startCollage(sizeKey, layoutKey) {
+    openRequest += 1;
     resetEditor();
     collage = core.newCollage(sizeKey);
     if (layoutKey) {
@@ -456,16 +457,23 @@
     renderDrafts();
   }
 
+  // Counts draft opens and new collages: an open that is overtaken by another open, or by a
+  // new collage, while the browser is still reading it is dropped instead of replacing it.
+  let openRequest = 0;
+
   async function openDraft(id) {
+    const request = ++openRequest;
+    const stillWanted = () => request === openRequest && !views.start.hidden;
     let record;
     let stored;
     try {
       record = await drafts.get(id);
       stored = record ? await drafts.photosOf(id) : [];
     } catch {
-      showAlert('The draft could not be opened: this browser did not give it back.');
+      if (stillWanted()) showAlert('The draft could not be opened: this browser did not give it back.');
       return;
     }
+    if (!stillWanted()) return;
     if (!record || record.deletedAt) { renderDrafts(); return; }
     resetEditor();
     const forCollage = collageSession;
