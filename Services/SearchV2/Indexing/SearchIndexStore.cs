@@ -7,6 +7,23 @@ namespace ProjectManagement.Services.SearchV2.Indexing;
 
 public interface ISearchIndexStore
 {
+    /// <summary>
+    /// Writes and atomically activates a new generation from projections read a batch at a
+    /// time; returns the number of projections written. Activation follows the same rules as
+    /// the list overload.
+    /// </summary>
+    async Task<int> ReplaceFullGenerationAsync(
+        IAsyncEnumerable<IReadOnlyList<SearchProjection>> batches,
+        int indexVersion,
+        CancellationToken cancellationToken,
+        bool allowDowngrade = false)
+    {
+        var all = new List<SearchProjection>();
+        await foreach (var batch in batches.WithCancellation(cancellationToken)) all.AddRange(batch);
+        await ReplaceFullGenerationAsync(all, indexVersion, cancellationToken, allowDowngrade);
+        return all.Count;
+    }
+
     Task<bool> IsReadyAsync(int indexVersion, CancellationToken cancellationToken);
     Task<SearchIndexHealth> GetHealthAsync(CancellationToken cancellationToken);
     Task<SearchIndexActiveState> GetActiveStateAsync(CancellationToken cancellationToken);
@@ -163,21 +180,40 @@ public sealed class SearchIndexStore : ISearchIndexStore
         }
     }
 
-    public async Task ReplaceFullGenerationAsync(
+    public Task ReplaceFullGenerationAsync(
         IReadOnlyList<SearchProjection> projections,
+        int indexVersion,
+        CancellationToken cancellationToken,
+        bool allowDowngrade = false) =>
+        ReplaceFullGenerationAsync(
+            SearchProjectionBatches.Once(_ => Task.FromResult(projections), cancellationToken),
+            indexVersion,
+            cancellationToken,
+            allowDowngrade);
+
+    /// <summary>
+    /// Writes each batch as it is read, so only one module (or one page of documents) is held
+    /// in memory, then activates the generation. One transaction: searches keep reading the
+    /// active generation until the commit, and a failed rebuild leaves nothing behind.
+    /// </summary>
+    public async Task<int> ReplaceFullGenerationAsync(
+        IAsyncEnumerable<IReadOnlyList<SearchProjection>> batches,
         int indexVersion,
         CancellationToken cancellationToken,
         bool allowDowngrade = false)
     {
+        ArgumentNullException.ThrowIfNull(batches);
         await _db.Database.OpenConnectionAsync(cancellationToken);
         var connection = _db.Database.GetDbConnection();
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         try
         {
             var generation = await NextGenerationAsync(connection, transaction, cancellationToken);
-            foreach (var projection in projections)
+            var written = 0;
+            await foreach (var batch in batches.WithCancellation(cancellationToken))
             {
-                await UpsertProjectionAsync(connection, transaction, generation, projection, cancellationToken);
+                await WriteProjectionsAsync(connection, transaction, generation, batch, cancellationToken);
+                written += batch.Count;
             }
 
             await using (var activate = connection.CreateCommand())
@@ -217,6 +253,7 @@ public sealed class SearchIndexStore : ISearchIndexStore
             }
 
             await transaction.CommitAsync(cancellationToken);
+            return written;
         }
         catch
         {
@@ -273,10 +310,7 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 await delete.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            foreach (var projection in projections)
-            {
-                await UpsertProjectionAsync(connection, transaction, generation, projection, cancellationToken);
-            }
+            await WriteProjectionsAsync(connection, transaction, generation, projections, cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
         }
@@ -566,11 +600,43 @@ public sealed class SearchIndexStore : ISearchIndexStore
         return value is null or DBNull ? 0 : Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private static async Task UpsertProjectionAsync(
+    /// <summary>Entries written per statement; each entry's terms and principals go with it.</summary>
+    internal const int WriteBatchSize = 200;
+
+    /// <summary>
+    /// Writes projections into <paramref name="generation"/>, <see cref="WriteBatchSize"/> per
+    /// statement: one INSERT for the entries and one statement for their terms and principals.
+    /// Row by row this was five or more round trips per entry. An entry already in the
+    /// generation is replaced, its terms and principals with it; within one call the last
+    /// projection of an entity wins.
+    /// </summary>
+    private static async Task WriteProjectionsAsync(
         DbConnection connection,
         DbTransaction transaction,
         long generation,
-        SearchProjection projection,
+        IReadOnlyList<SearchProjection> projections,
+        CancellationToken cancellationToken)
+    {
+        var latest = projections
+            .Select((projection, order) => (Projection: projection, Order: order))
+            .GroupBy(item => (item.Projection.EntityType, item.Projection.EntityKey))
+            .Select(group => group.MaxBy(item => item.Order))
+            .OrderBy(item => item.Order)
+            .Select(item => item.Projection)
+            .ToArray();
+
+        foreach (var batch in latest.Chunk(WriteBatchSize))
+        {
+            var ids = await InsertEntriesAsync(connection, transaction, generation, batch, cancellationToken);
+            await ReplaceTermsAndPrincipalsAsync(connection, transaction, batch, ids, cancellationToken);
+        }
+    }
+
+    private static async Task<long[]> InsertEntriesAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        long generation,
+        SearchProjection[] batch,
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
@@ -581,11 +647,22 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 "SourceModule", "ResultCategory", "Title", "NormalizedTitle", "Subtitle", "CanonicalUrl",
                 "IdentifierText", "AliasText", "StructuredText", "NarrativeText", "FuzzyText", "Status", "FileType",
                 "EventDateUtc", "UpdatedAtUtc", "VisibilityMode", "RequiredPolicy", "OwnerUserId", "IndexVersion", "IndexedAtUtc", "MetadataJson")
-            VALUES (
-                @generation, @entityType, @entityKey, @canonicalEntityType, @canonicalEntityKey, @parentProjectId,
+            SELECT
+                @generation, v.entity_type, v.entity_key, v.canonical_entity_type, v.canonical_entity_key, v.parent_project_id,
+                v.source_module, v.result_category, v.title, v.normalized_title, v.subtitle, v.canonical_url,
+                v.identifier_text, v.alias_text, v.structured_text, v.narrative_text, v.fuzzy_text, v.status, v.file_type,
+                v.event_date_utc, v.updated_at_utc, v.visibility_mode, v.required_policy, v.owner_user_id, v.index_version, NOW(), CAST(v.metadata_json AS jsonb)
+            FROM unnest(
+                @entityType, @entityKey, @canonicalEntityType, @canonicalEntityKey, @parentProjectId,
                 @sourceModule, @resultCategory, @title, @normalizedTitle, @subtitle, @canonicalUrl,
                 @identifierText, @aliasText, @structuredText, @narrativeText, @fuzzyText, @status, @fileType,
-                @eventDateUtc, @updatedAtUtc, @visibilityMode, @requiredPolicy, @ownerUserId, @indexVersion, NOW(), CAST(@metadataJson AS jsonb))
+                @eventDateUtc, @updatedAtUtc, @visibilityMode, @requiredPolicy, @ownerUserId, @indexVersion, @metadataJson)
+                WITH ORDINALITY AS v(
+                    entity_type, entity_key, canonical_entity_type, canonical_entity_key, parent_project_id,
+                    source_module, result_category, title, normalized_title, subtitle, canonical_url,
+                    identifier_text, alias_text, structured_text, narrative_text, fuzzy_text, status, file_type,
+                    event_date_utc, updated_at_utc, visibility_mode, required_policy, owner_user_id, index_version, metadata_json, ordinal)
+            ORDER BY v.ordinal
             ON CONFLICT ("Generation", "EntityType", "EntityKey") DO UPDATE SET
                 "CanonicalEntityType" = EXCLUDED."CanonicalEntityType",
                 "CanonicalEntityKey" = EXCLUDED."CanonicalEntityKey",
@@ -611,88 +688,88 @@ public sealed class SearchIndexStore : ISearchIndexStore
                 "IndexVersion" = EXCLUDED."IndexVersion",
                 "IndexedAtUtc" = NOW(),
                 "MetadataJson" = EXCLUDED."MetadataJson"
-            RETURNING "Id";
+            RETURNING "Id", "EntityType", "EntityKey";
             """;
 
         Add(command, "generation", generation);
-        Add(command, "entityType", projection.EntityType);
-        Add(command, "entityKey", projection.EntityKey);
-        Add(command, "canonicalEntityType", projection.CanonicalEntityType);
-        Add(command, "canonicalEntityKey", projection.CanonicalEntityKey);
-        Add(command, "parentProjectId", projection.ParentProjectId);
-        Add(command, "sourceModule", projection.SourceModule);
-        Add(command, "resultCategory", projection.ResultCategory);
-        Add(command, "title", projection.Title);
-        Add(command, "normalizedTitle", projection.NormalizedTitle);
-        Add(command, "subtitle", projection.Subtitle);
-        Add(command, "canonicalUrl", projection.CanonicalUrl);
-        Add(command, "identifierText", projection.IdentifierText);
-        Add(command, "aliasText", projection.AliasText);
-        Add(command, "structuredText", projection.StructuredText);
-        Add(command, "narrativeText", projection.NarrativeText);
-        Add(command, "fuzzyText", projection.FuzzyText);
-        Add(command, "status", projection.Status);
-        Add(command, "fileType", projection.FileType);
-        Add(command, "eventDateUtc", projection.EventDateUtc);
-        Add(command, "updatedAtUtc", projection.UpdatedAtUtc);
-        Add(command, "visibilityMode", (short)projection.VisibilityMode);
-        Add(command, "requiredPolicy", projection.RequiredPolicy);
-        Add(command, "ownerUserId", projection.OwnerUserId);
-        Add(command, "indexVersion", projection.IndexVersion);
-        Add(command, "metadataJson", projection.MetadataJson ?? "{}");
+        Add(command, "entityType", batch.Select(p => p.EntityType).ToArray());
+        Add(command, "entityKey", batch.Select(p => p.EntityKey).ToArray());
+        Add(command, "canonicalEntityType", batch.Select(p => p.CanonicalEntityType).ToArray());
+        Add(command, "canonicalEntityKey", batch.Select(p => p.CanonicalEntityKey).ToArray());
+        Add(command, "parentProjectId", batch.Select(p => p.ParentProjectId).ToArray());
+        Add(command, "sourceModule", batch.Select(p => p.SourceModule).ToArray());
+        Add(command, "resultCategory", batch.Select(p => p.ResultCategory).ToArray());
+        Add(command, "title", batch.Select(p => p.Title).ToArray());
+        Add(command, "normalizedTitle", batch.Select(p => p.NormalizedTitle).ToArray());
+        Add(command, "subtitle", batch.Select(p => p.Subtitle).ToArray());
+        Add(command, "canonicalUrl", batch.Select(p => p.CanonicalUrl).ToArray());
+        Add(command, "identifierText", batch.Select(p => p.IdentifierText).ToArray());
+        Add(command, "aliasText", batch.Select(p => p.AliasText).ToArray());
+        Add(command, "structuredText", batch.Select(p => p.StructuredText).ToArray());
+        Add(command, "narrativeText", batch.Select(p => p.NarrativeText).ToArray());
+        Add(command, "fuzzyText", batch.Select(p => p.FuzzyText).ToArray());
+        Add(command, "status", batch.Select(p => p.Status).ToArray());
+        Add(command, "fileType", batch.Select(p => p.FileType).ToArray());
+        Add(command, "eventDateUtc", batch.Select(p => p.EventDateUtc).ToArray());
+        Add(command, "updatedAtUtc", batch.Select(p => p.UpdatedAtUtc).ToArray());
+        Add(command, "visibilityMode", batch.Select(p => (short)p.VisibilityMode).ToArray());
+        Add(command, "requiredPolicy", batch.Select(p => p.RequiredPolicy).ToArray());
+        Add(command, "ownerUserId", batch.Select(p => p.OwnerUserId).ToArray());
+        Add(command, "indexVersion", batch.Select(p => p.IndexVersion).ToArray());
+        Add(command, "metadataJson", batch.Select(p => p.MetadataJson ?? "{}").ToArray());
 
-        var searchEntryId = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken), System.Globalization.CultureInfo.InvariantCulture);
-
-        await using (var deleteTerms = connection.CreateCommand())
+        var idsByEntity = new Dictionary<(string, string), long>(batch.Length);
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
-            deleteTerms.Transaction = transaction;
-            deleteTerms.CommandText = "DELETE FROM \"SearchEntryTerms\" WHERE \"SearchEntryId\" = @id;";
-            Add(deleteTerms, "id", searchEntryId);
-            await deleteTerms.ExecuteNonQueryAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                idsByEntity[(reader.GetString(1), reader.GetString(2))] = reader.GetInt64(0);
+            }
         }
 
-        foreach (var term in projection.Terms
-                     .Where(term => !string.IsNullOrWhiteSpace(term.NormalizedTerm))
-                     .DistinctBy(term => $"{term.Kind}\u001f{term.NormalizedTerm}", StringComparer.OrdinalIgnoreCase))
-        {
-            await using var termCommand = connection.CreateCommand();
-            termCommand.Transaction = transaction;
-            termCommand.CommandText = """
-                INSERT INTO "SearchEntryTerms" ("SearchEntryId", "Term", "NormalizedTerm", "TermType")
-                VALUES (@id, @term, @normalized, @kind)
-                ON CONFLICT DO NOTHING;
-                """;
-            Add(termCommand, "id", searchEntryId);
-            Add(termCommand, "term", term.Term);
-            Add(termCommand, "normalized", term.NormalizedTerm);
-            Add(termCommand, "kind", term.Kind);
-            await termCommand.ExecuteNonQueryAsync(cancellationToken);
-        }
+        return batch.Select(p => idsByEntity[(p.EntityType, p.EntityKey)]).ToArray();
+    }
 
-        await using (var deletePrincipals = connection.CreateCommand())
-        {
-            deletePrincipals.Transaction = transaction;
-            deletePrincipals.CommandText = "DELETE FROM \"SearchEntryPrincipals\" WHERE \"SearchEntryId\" = @id;";
-            Add(deletePrincipals, "id", searchEntryId);
-            await deletePrincipals.ExecuteNonQueryAsync(cancellationToken);
-        }
+    private static async Task ReplaceTermsAndPrincipalsAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        SearchProjection[] batch,
+        long[] ids,
+        CancellationToken cancellationToken)
+    {
+        var terms = batch.SelectMany((projection, index) => projection.Terms
+                .Where(term => !string.IsNullOrWhiteSpace(term.NormalizedTerm))
+                .DistinctBy(term => $"{term.Kind}\u001f{term.NormalizedTerm}", StringComparer.OrdinalIgnoreCase)
+                .Select(term => (Id: ids[index], term.Term, term.NormalizedTerm, term.Kind)))
+            .ToArray();
+        var principals = batch.SelectMany((projection, index) => projection.Principals
+                .Where(principal => !string.IsNullOrWhiteSpace(principal.Type) && !string.IsNullOrWhiteSpace(principal.Value))
+                .DistinctBy(principal => $"{principal.Type}\u001f{principal.Value}", StringComparer.OrdinalIgnoreCase)
+                .Select(principal => (Id: ids[index], principal.Type, principal.Value)))
+            .ToArray();
 
-        foreach (var principal in projection.Principals
-                     .Where(principal => !string.IsNullOrWhiteSpace(principal.Type) && !string.IsNullOrWhiteSpace(principal.Value))
-                     .DistinctBy(principal => $"{principal.Type}\u001f{principal.Value}", StringComparer.OrdinalIgnoreCase))
-        {
-            await using var principalCommand = connection.CreateCommand();
-            principalCommand.Transaction = transaction;
-            principalCommand.CommandText = """
-                INSERT INTO "SearchEntryPrincipals" ("SearchEntryId", "PrincipalType", "PrincipalValue")
-                VALUES (@id, @type, @value)
-                ON CONFLICT DO NOTHING;
-                """;
-            Add(principalCommand, "id", searchEntryId);
-            Add(principalCommand, "type", principal.Type);
-            Add(principalCommand, "value", principal.Value);
-            await principalCommand.ExecuteNonQueryAsync(cancellationToken);
-        }
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        // Deleting first replaces the terms of an entry that was already in the generation.
+        command.CommandText = """
+            DELETE FROM "SearchEntryTerms" WHERE "SearchEntryId" = ANY(@ids);
+            DELETE FROM "SearchEntryPrincipals" WHERE "SearchEntryId" = ANY(@ids);
+            INSERT INTO "SearchEntryTerms" ("SearchEntryId", "Term", "NormalizedTerm", "TermType")
+            SELECT * FROM unnest(@termEntryIds, @termTexts, @termNormalized, @termKinds)
+            ON CONFLICT DO NOTHING;
+            INSERT INTO "SearchEntryPrincipals" ("SearchEntryId", "PrincipalType", "PrincipalValue")
+            SELECT * FROM unnest(@principalEntryIds, @principalTypes, @principalValues)
+            ON CONFLICT DO NOTHING;
+            """;
+        Add(command, "ids", ids);
+        Add(command, "termEntryIds", terms.Select(term => term.Id).ToArray());
+        Add(command, "termTexts", terms.Select(term => term.Term).ToArray());
+        Add(command, "termNormalized", terms.Select(term => term.NormalizedTerm).ToArray());
+        Add(command, "termKinds", terms.Select(term => term.Kind).ToArray());
+        Add(command, "principalEntryIds", principals.Select(principal => principal.Id).ToArray());
+        Add(command, "principalTypes", principals.Select(principal => principal.Type).ToArray());
+        Add(command, "principalValues", principals.Select(principal => principal.Value).ToArray());
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static void Add(DbCommand command, string name, object? value)

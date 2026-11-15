@@ -502,11 +502,15 @@ public sealed class SearchIndexWorker : BackgroundService
         {
             var builder = services.GetRequiredService<ISearchProjectionBuilder>();
             var store = services.GetRequiredService<ISearchIndexStore>();
-            var projections = await builder.BuildAllAsync(cancellationToken);
-            await store.ReplaceFullGenerationAsync(projections, _options.ProjectionVersion, cancellationToken, allowDowngrade);
+            // Built and written a module (or a page of documents) at a time; see BuildAllInBatchesAsync.
+            var entryCount = await store.ReplaceFullGenerationAsync(
+                builder.BuildAllInBatchesAsync(cancellationToken),
+                _options.ProjectionVersion,
+                cancellationToken,
+                allowDowngrade);
             _logger.LogInformation(
                 "Search V2 full index rebuild activated {EntryCount} entries for projection version {ProjectionVersion} in {ElapsedMs} ms.",
-                projections.Count,
+                entryCount,
                 _options.ProjectionVersion,
                 (_time.GetUtcNow() - started).TotalMilliseconds);
             return RebuildOutcome.Succeeded;

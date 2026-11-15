@@ -83,7 +83,7 @@ once PR 8 lands; until then searches fall back to Legacy during the rebuild).
 | 8 | Keep serving the active generation while a newer projection rebuilds (minimum compatible version instead of an exact match) | M7 |
 | 9 | Cheaper candidate handling, measured with the relevance harness on a 34,000-entry copy: `MetadataJson` read only for the page, stage filter and stage facet; counts by `DISTINCT` subquery instead of `COUNT(DISTINCT)`. A common word went from 1.47 s to 1.0 s with identical results. The per-channel limit was measured and dropped: filters apply after retrieval, so it would drop filtered results and make counts lower bounds (see `docs/search-v2-ranking.md`, Measuring) | M5 |
 | 10 | Paging stability (cursor carries an index-change stamp; client drops repeated rows) and did-you-mean token alignment | M9, M10 |
-| 11 | Full rebuild streamed by module with batched writes; time and memory measured on a production-size copy | M8 |
+| 11 | Full rebuild streamed by module (documents 100 at a time) with batched writes, still one transaction. Dev data: 6.3 s to 3.1 s, identical index; memory no longer grows with the number of documents. Not measured on the production server | M8 |
 
 L10, L12 and the remaining tests in L14 are picked up in the PR that touches the same code.
 

@@ -611,6 +611,96 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Null(response.CorrectedQuery);
     }
 
+    // A full rebuild reads documents a page at a time, so the OCR text of every document is
+    // never in memory at once; every document still reaches the index.
+    [SearchV2PostgresFact]
+    public async Task FullRebuild_ReadsDocumentsAPageAtATime()
+    {
+        await using var host = _database.CreateHost();
+        var projectId = await host.SeedProjectAsync("Pagewise lantern suite");
+        var seeded = new List<int>();
+        for (var index = 0; index < SearchProjectionBuilder.DocumentPageSize + 1; index++)
+        {
+            seeded.Add(await host.SeedProjectDocumentAsync(projectId, $"Lantern page {index}"));
+        }
+
+        var documentBatches = new List<string[]>();
+        await host.WithBuilderAsync(async builder =>
+        {
+            await foreach (var batch in builder.BuildAllInBatchesAsync(CancellationToken.None))
+            {
+                var documents = batch.Where(p => p.EntityType == "ProjectDocument").Select(p => p.EntityKey).ToArray();
+                if (documents.Length > 0) documentBatches.Add(documents);
+            }
+        });
+
+        Assert.All(documentBatches, batch => Assert.True(batch.Length <= SearchProjectionBuilder.DocumentPageSize));
+        var built = documentBatches.SelectMany(batch => batch).ToHashSet();
+        Assert.All(seeded, id => Assert.Contains(id.ToString(), built));
+        Assert.True(documentBatches.Count >= 2);
+    }
+
+    // The rebuild is one transaction: a failure part-way leaves the active index as it was.
+    [SearchV2PostgresFact]
+    public async Task FullRebuild_FailingPartWay_LeavesTheActiveIndexAlone()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(host.Entry("Project", "9701", "Projects", "Projects", "Steadfast beacon", null));
+        var before = await host.ReadStateAsync();
+
+        async IAsyncEnumerable<IReadOnlyList<SearchProjection>> FailAfterOneBatch()
+        {
+            yield return new[] { host.Entry("Project", "9702", "Projects", "Projects", "Half written beacon", null) };
+            await Task.Yield();
+            throw new InvalidOperationException("Source read failed.");
+        }
+
+        await host.WithStoreAsync(async store =>
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                store.ReplaceFullGenerationAsync(FailAfterOneBatch(), host.ProjectionVersion, CancellationToken.None)));
+
+        Assert.Equal(before, await host.ReadStateAsync());
+        Assert.Equal(1, await host.CountEntriesAsync("Project", "9701"));
+        Assert.Equal(0, await host.CountEntriesAsync("Project", "9702"));
+    }
+
+    // Batched writes keep the old upsert rule: a record written twice keeps only its last
+    // version, terms included, whether the copies share a batch or not.
+    [SearchV2PostgresFact]
+    public async Task FullRebuild_ARecordWrittenTwice_KeepsItsLastVersionAndTerms()
+    {
+        await using var host = _database.CreateHost();
+        async IAsyncEnumerable<IReadOnlyList<SearchProjection>> Batches()
+        {
+            yield return new[]
+            {
+                host.Entry("Project", "9711", "Projects", "Projects", "Draft falconet", null),
+                host.Entry("Project", "9711", "Projects", "Projects", "Second falconet", null)
+            };
+            await Task.Yield();
+            yield return new[] { host.Entry("Project", "9711", "Projects", "Projects", "Final falconet", null) };
+        }
+
+        var written = 0;
+        await host.WithStoreAsync(async store => written = await store.ReplaceFullGenerationAsync(Batches(), host.ProjectionVersion, CancellationToken.None));
+
+        Assert.Equal(3, written);
+        Assert.Equal(1, await host.CountEntriesAsync("Project", "9711"));
+        var final = await host.SearchAsync("final falconet");
+        Assert.Contains(final.Results, result => result.EntityKey == "9711" && result.Title == "Final falconet");
+        Assert.Empty((await host.SearchAsync("draft")).Results);
+        await using var connection = await host.OpenConnectionAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT string_agg(t."NormalizedTerm", ',' ORDER BY t."NormalizedTerm")
+            FROM "SearchEntryTerms" t
+            JOIN "SearchEntries" e ON e."Id" = t."SearchEntryId"
+            WHERE e."EntityType" = 'Project' AND e."EntityKey" = '9711'
+              AND e."Generation" = (SELECT "ActiveGeneration" FROM "SearchIndexState" WHERE "Id" = 1);
+            """;
+        Assert.Equal("final falconet", await command.ExecuteScalarAsync());
+    }
+
     [SearchV2PostgresFact]
     public async Task FullRebuild_RefusesToReplaceANewerProjectionVersion()
     {
@@ -920,6 +1010,12 @@ internal sealed class SearchV2TestHost : IAsyncDisposable
     {
         using var scope = _services.CreateScope();
         await action(scope.ServiceProvider.GetRequiredService<ISearchIndexStore>());
+    }
+
+    public async Task WithBuilderAsync(Func<ISearchProjectionBuilder, Task> action)
+    {
+        using var scope = _services.CreateScope();
+        await action(scope.ServiceProvider.GetRequiredService<ISearchProjectionBuilder>());
     }
 
     public async Task<SearchIndexActiveState> ReadStateAsync()
