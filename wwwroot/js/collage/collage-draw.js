@@ -204,5 +204,154 @@
     ctx.restore();
   }
 
-  return Object.freeze({ drawPhoto, drawText, drawSticker, tracePath, canFilter, CAPTION_FONT });
+  // ---------------------------------------------------------------------------
+  // Backgrounds: every one is drawn in page units, so it looks the same on the page and in the
+  // saved picture at any size. Speckles and grain come from core.steadyRandom, never Math.random.
+  // ---------------------------------------------------------------------------
+
+  function dot(ctx, x, y, r) {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function speckle(ctx, width, height, perArea, colours, sizes, seed) {
+    const count = Math.round(width * height / perArea);
+    for (let i = 0; i < count; i += 1) {
+      ctx.fillStyle = colours[i % colours.length];
+      const r = sizes[0] + core.steadyRandom(seed + i * 3) * (sizes[1] - sizes[0]);
+      dot(ctx, core.steadyRandom(seed + i * 3 + 1) * width, core.steadyRandom(seed + i * 3 + 2) * height, r);
+    }
+  }
+
+  function drawPattern(ctx, key, width, height) {
+    if (key === 'gingham') {
+      ctx.fillStyle = '#e9f6e5';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = 'rgba(76, 153, 92, 0.32)';
+      for (let x = 0; x < width; x += 48) ctx.fillRect(x, 0, 24, height);
+      for (let y = 0; y < height; y += 48) ctx.fillRect(0, y, width, 24);
+    } else if (key === 'dots') {
+      ctx.fillStyle = '#fff1f6';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = '#f48fb1';
+      for (let y = 18; y < height + 18; y += 36) for (let x = 18; x < width + 18; x += 36) dot(ctx, x, y, 6.5);
+    } else if (key === 'confetti') {
+      ctx.fillStyle = '#fde7f1';
+      ctx.fillRect(0, 0, width, height);
+      const bits = [[0.2, 0.3, '#ff6b9a', 4], [0.7, 0.6, '#ffc93c', 4], [0.4, 0.8, '#4fc3f7', 3], [0.85, 0.15, '#8e6bff', 3]];
+      for (let y = 0; y < height; y += 90) {
+        for (let x = 0; x < width; x += 90) {
+          for (const [fx, fy, colour, r] of bits) {
+            ctx.fillStyle = colour;
+            dot(ctx, x + fx * 90, y + fy * 90, r);
+          }
+        }
+      }
+    } else if (key === 'stripes') {
+      ctx.fillStyle = '#1e4fa3';
+      ctx.fillRect(0, 0, width, height);
+      ctx.save();
+      ctx.translate(width / 2, height / 2);
+      ctx.rotate(-Math.PI / 4);
+      const reach = Math.hypot(width, height);
+      ctx.fillStyle = '#2a62c2';
+      for (let x = -reach; x < reach; x += 80) ctx.fillRect(x, -reach, 40, reach * 2);
+      ctx.restore();
+    } else if (key === 'gridpaper') {
+      ctx.fillStyle = '#fbfcff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = '#dfe7f5';
+      for (let x = 0; x < width; x += 28) ctx.fillRect(x, 0, 1, height);
+      for (let y = 0; y < height; y += 28) ctx.fillRect(0, y, width, 1);
+    } else if (key === 'stars') {
+      ctx.fillStyle = '#14213d';
+      ctx.fillRect(0, 0, width, height);
+      speckle(ctx, width, height, 2600, ['#ffffff', 'rgba(255, 255, 255, 0.6)'], [0.6, 1.8], 11);
+    }
+  }
+
+  function drawTexture(ctx, key, width, height) {
+    if (key === 'paper' || key === 'chalk') {
+      const g = ctx.createRadialGradient(width * 0.3, height * 0.2, 0, width * 0.5, height * 0.5, Math.max(width, height) * 0.85);
+      const stops = key === 'paper' ? [[0, '#fffaf0'], [0.7, '#f3e3c8'], [1, '#e7d0a8']] : [[0, '#3c5a45'], [1, '#1f3326']];
+      for (const [at, colour] of stops) g.addColorStop(at, colour);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, width, height);
+      speckle(ctx, width, height, key === 'paper' ? 900 : 1400, key === 'paper' ? ['rgba(120, 90, 40, 0.07)'] : ['rgba(255, 255, 255, 0.06)'], [0.5, 1.4], key === 'paper' ? 5 : 9);
+    } else if (key === 'kraft') {
+      ctx.fillStyle = '#c9a26b';
+      ctx.fillRect(0, 0, width, height);
+      speckle(ctx, width, height, 140, ['rgba(255, 255, 255, 0.12)', 'rgba(0, 0, 0, 0.08)'], [0.5, 1.2], 3);
+    } else if (key === 'linen') {
+      ctx.fillStyle = '#efe9df';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.035)';
+      for (let x = 0; x < width; x += 4) ctx.fillRect(x, 0, 1, height);
+      for (let y = 0; y < height; y += 4) ctx.fillRect(0, y, width, 1);
+    } else if (key === 'wood') {
+      const bands = [[6, '#a8743f'], [9, '#b07d47'], [4, '#9b6936'], [15, '#b5834c']];
+      let x = 0;
+      for (let i = 0; x < width; i += 1) {
+        const [w, colour] = bands[i % bands.length];
+        ctx.fillStyle = colour;
+        ctx.fillRect(x, 0, w + 0.5, height);
+        x += w;
+      }
+      speckle(ctx, width, height, 600, ['rgba(70, 40, 10, 0.08)'], [0.4, 1], 7);
+    } else if (key === 'cork') {
+      ctx.fillStyle = '#c89a63';
+      ctx.fillRect(0, 0, width, height);
+      speckle(ctx, width, height, 70, ['#a57442', '#dcb684'], [0.8, 1.6], 13);
+    }
+  }
+
+  /**
+   * Draws the page's background over the whole page (`width` × `height` units): a colour, a
+   * gradient, a pattern, a texture or one of the photos, softly blurred. `photo` is
+   * { source, width, height } for a photo background.
+   */
+  function drawBackground(ctx, background, width, height, { photo = null, pixelsPerUnit = 1 } = {}) {
+    const bg = background || { type: 'color', value: '#ffffff' };
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, width, height);
+    ctx.clip();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    if (bg.type === 'color') {
+      ctx.fillStyle = bg.value;
+      ctx.fillRect(0, 0, width, height);
+    } else if (bg.type === 'gradient' && core.GRADIENTS[bg.key]) {
+      const entry = core.GRADIENTS[bg.key];
+      let g;
+      if (entry.radial) {
+        g = ctx.createRadialGradient(width / 2, height * 0.4, 0, width / 2, height * 0.4, Math.max(width, height) * 0.75);
+      } else {
+        const a = entry.angle * Math.PI / 180;
+        const half = (Math.abs(width * Math.cos(a)) + Math.abs(height * Math.sin(a))) / 2;
+        const dx = Math.cos(a) * half;
+        const dy = Math.sin(a) * half;
+        g = ctx.createLinearGradient(width / 2 - dx, height / 2 - dy, width / 2 + dx, height / 2 + dy);
+      }
+      for (const [at, colour] of entry.stops) g.addColorStop(at, colour);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, width, height);
+    } else if (bg.type === 'pattern') {
+      drawPattern(ctx, bg.key, width, height);
+    } else if (bg.type === 'texture') {
+      drawTexture(ctx, bg.key, width, height);
+    } else if (bg.type === 'photo' && photo) {
+      // The photo fills the page, a little larger so its blurred edges stay off the page.
+      const grow = 1.08;
+      const scale = Math.max(width / photo.width, height / photo.height) * grow;
+      const w = photo.width * scale;
+      const h = photo.height * scale;
+      if (canFilter(ctx)) ctx.filter = `blur(${Math.max(1, 14 * pixelsPerUnit)}px) brightness(0.92) saturate(1.1)`;
+      ctx.drawImage(photo.source, (width - w) / 2, (height - h) / 2, w, h);
+    }
+    ctx.restore();
+  }
+
+  return Object.freeze({ drawPhoto, drawText, drawSticker, drawBackground, tracePath, canFilter, CAPTION_FONT });
 });

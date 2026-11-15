@@ -50,16 +50,6 @@
     max-width: 70ch;
 }
 
-.clg-building {
-    display: inline-flex;
-    gap: 0.5rem;
-    align-items: center;
-    padding: 0.45rem 0.8rem;
-    border-radius: 10px;
-    background: var(--bs-warning-bg-subtle);
-    color: var(--bs-warning-text-emphasis);
-    font-size: 0.9rem;
-}
 
 .clg-start__heading {
     font-size: 1.05rem;
@@ -1179,4 +1169,48 @@
 
 .clg-credits li {
     margin: 0.4rem 0;
+}
+
+/* ---------- Background ---------- */
+
+.clg-bg-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.clg-bg-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--pdft-muted);
+    font-size: 0.68rem;
+    line-height: 1.15;
+    text-align: center;
+}
+
+.clg-bg-tile img {
+    width: 100%;
+    aspect-ratio: 96 / 68;
+    border: 2px solid var(--pdft-border);
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.clg-bg-tile[aria-pressed="true"] {
+    color: var(--bs-emphasis-color);
+    font-weight: 800;
+}
+
+.clg-bg-tile[aria-pressed="true"] img {
+    border-color: var(--clg-accent);
+}
+
+.clg-bg-tile:focus-visible {
+    outline: 2px solid var(--clg-accent);
+    outline-offset: 2px;
+    border-radius: 8px;
 }

@@ -74,7 +74,9 @@
   const pageHeight = () => core.pageHeight(collage.size);
   const hasPhotos = () => collage.items.some((item) => item.kind === 'photo');
   // Work worth keeping: a photo, some text or a sticker (an empty frame alone is not).
-  const hasContent = () => collage.items.some((item) => ['photo', 'text', 'sticker'].includes(item.kind));
+  // A photo used only as the blurred background still makes a picture worth saving.
+  const hasContent = () => collage.items.some((item) => ['photo', 'text', 'sticker'].includes(item.kind))
+    || (collage.background?.type === 'photo' && photos.has(collage.background.photo));
   const firstSlot = () => collage.items.find((item) => item.kind === 'slot') || null;
   const isFrame = (item) => item && (item.kind === 'photo' || item.kind === 'slot');
 
@@ -522,18 +524,38 @@
   // ---------------------------------------------------------------------------
 
   const stage = new Konva.Stage({ container: stageHost, width: 10, height: 10 });
+  // The page and its background are on a layer of their own, under the items, so a busy
+  // texture is drawn again only when the background or the page changes.
+  const backLayer = new Konva.Layer({ listening: false });
   const layer = new Konva.Layer();
-  stage.add(layer);
-  // `world` is the page: 1,000 units wide, scaled and centred on the work surface.
-  const world = new Konva.Group();
+  stage.add(backLayer, layer);
+  const backWorld = new Konva.Group();
   const pageRect = new Konva.Rect({
     x: 0, y: 0, width: core.PAGE_WIDTH, height: 10, fill: '#ffffff', name: 'page',
     shadowColor: 'rgba(16, 24, 40, 0.28)', shadowBlur: 28, shadowOffsetY: 6, shadowForStrokeEnabled: false
   });
+  const backgroundShape = new Konva.Shape({
+    x: 0, y: 0, width: core.PAGE_WIDTH, height: 10,
+    sceneFunc: (context) => {
+      const pixelsPerUnit = scale * (backLayer.getCanvas().getPixelRatio?.() || 1);
+      draw.drawBackground(context._context, collage.background, core.PAGE_WIDTH, pageHeight(), { photo: backgroundPhoto(), pixelsPerUnit });
+    }
+  });
+  backWorld.add(pageRect, backgroundShape);
+  backLayer.add(backWorld);
+  // `world` is the page: 1,000 units wide, scaled and centred on the work surface.
+  const world = new Konva.Group();
   const itemsGroup = new Konva.Group();
   const guides = new Konva.Group({ listening: false });
-  world.add(pageRect, itemsGroup, guides);
+  world.add(itemsGroup, guides);
   layer.add(world);
+
+  /** The photo behind the page when the background is a blurred photo: its working copy. */
+  function backgroundPhoto() {
+    if (collage.background?.type !== 'photo') return null;
+    const photo = photos.get(collage.background.photo);
+    return photo ? { source: photo.canvas, width: photo.canvas.width, height: photo.canvas.height } : null;
+  }
   const nodes = new Map();
 
   const accent = () => getComputedStyle(document.body).getPropertyValue('--bs-primary').trim() || '#0d6efd';
@@ -588,6 +610,10 @@
     world.position({ x: (stageW - pageW) / 2, y: (stageH - pageH) / 2 });
     world.scale({ x: scale, y: scale });
     pageRect.height(height);
+    backgroundShape.height(height);
+    backWorld.position(world.position());
+    backWorld.scale(world.scale());
+    backLayer.batchDraw();
     itemsGroup.clip({ x: 0, y: 0, width: core.PAGE_WIDTH, height });
     zoomValue.textContent = `${Math.round(zoom * 100)}%`;
     layer.batchDraw();
@@ -861,6 +887,7 @@
     if (targetId && !seen.has(targetId)) setTarget(null);
     attachTransformer();
     emptyHint.hidden = collage.items.length > 0;
+    backLayer.batchDraw();
     layer.batchDraw();
     placeToolbar();
   }
@@ -1024,6 +1051,7 @@
 
   function commit() {
     history.record(collage);
+    if (panel === 'background') renderBackgroundPanel();
     scheduleDraft();
     syncPage();
     renderTray();
@@ -1039,6 +1067,7 @@
 
   function restore(next) {
     collage = next;
+    if (panel === 'background') renderBackgroundPanel();
     scheduleDraft();
     sizeSelect.value = collage.size;
     layout();
@@ -1120,6 +1149,75 @@
     starts.replaceChildren(...['heading', 'subheading', 'line', 'hindi'].map((key) => button(key, false)));
     root.querySelector('[data-text-headings]').replaceChildren(...['farewell', 'birthday', 'thanks', 'congrats', 'picnic', 'wishes'].map((key) => button(key, true)));
     root.querySelector('[data-text-headings-hi]').replaceChildren(...['hShubh', 'hVidai', 'hJanm', 'hSeva', 'hDiwali', 'hDhanya'].map((key) => button(key, true)));
+  }
+
+  /** A small picture of a background, for its button in the panel. */
+  function backgroundPreview(background) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 96;
+    canvas.height = 68;
+    const context = canvas.getContext('2d');
+    context.scale(96 / 300, 68 / 212);
+    let photo = null;
+    if (background.type === 'photo') {
+      const source = photos.get(background.photo);
+      if (source) photo = { source: source.canvas, width: source.canvas.width, height: source.canvas.height };
+    }
+    draw.drawBackground(context, background, 300, 212, { photo, pixelsPerUnit: 96 / 300 });
+    return canvas.toDataURL('image/png');
+  }
+
+  const backgroundPreviews = new Map();
+
+  function backgroundTile(background, label) {
+    const key = JSON.stringify(background);
+    if (!backgroundPreviews.has(key) || background.type === 'photo') backgroundPreviews.set(key, backgroundPreview(background));
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'clg-bg-tile';
+    button.dataset.background = key;
+    button.setAttribute('aria-pressed', String(core.sameBackground(background, collage.background)));
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    const img = document.createElement('img');
+    img.alt = '';
+    img.src = backgroundPreviews.get(key);
+    const name = document.createElement('span');
+    name.textContent = label;
+    button.append(img, name);
+    return button;
+  }
+
+  /** The Background panel: colours, gradients, patterns, textures and the page's photos. */
+  function renderBackgroundPanel() {
+    const current = collage.background || { type: 'color', value: '#ffffff' };
+    const colours = root.querySelector('[data-bg-colours]');
+    colours.replaceChildren(...core.BACKGROUND_COLOURS.map((value) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'clg-swatch';
+      button.dataset.background = JSON.stringify({ type: 'color', value });
+      button.style.background = value;
+      button.title = value;
+      button.setAttribute('aria-label', `Colour ${value}`);
+      button.setAttribute('aria-pressed', String(current.type === 'color' && current.value === value));
+      return button;
+    }));
+    const pick = root.querySelector('[data-bg-pick]');
+    pick.value = current.type === 'color' ? current.value : '#ffffff';
+    root.querySelector('[data-bg-gradients]').replaceChildren(...Object.entries(core.GRADIENTS).map(([key, entry]) => backgroundTile({ type: 'gradient', key }, entry.label)));
+    root.querySelector('[data-bg-patterns]').replaceChildren(...Object.entries(core.PATTERNS).map(([key, entry]) => backgroundTile({ type: 'pattern', key }, entry.label)));
+    root.querySelector('[data-bg-textures]').replaceChildren(...Object.entries(core.TEXTURES).map(([key, entry]) => backgroundTile({ type: 'texture', key }, entry.label)));
+    const onPage = [...new Set(collage.items.filter((item) => item.kind === 'photo').map((item) => item.photo))].slice(0, 9);
+    root.querySelector('[data-bg-photos]').replaceChildren(...onPage.map((id, n) => backgroundTile({ type: 'photo', photo: id }, `Photo ${n + 1}, blurred`)));
+    root.querySelector('[data-bg-photos-none]').hidden = onPage.length > 0;
+  }
+
+  function setBackground(background, record = true) {
+    collage.background = background;
+    if (record) commit();
+    else backLayer.batchDraw();
+    if (panel === 'background') renderBackgroundPanel();
   }
 
   let stickerGroup = 'celebration';
@@ -1283,6 +1381,12 @@
     if (startLayout) { startCollage(core.DEFAULT_SIZE, startLayout.dataset.startLayout); return; }
     const layoutChoice = event.target.closest('[data-layout]');
     if (layoutChoice) { applyLayoutKey(layoutChoice.dataset.layout); return; }
+    const backgroundChoice = event.target.closest('[data-background]');
+    if (backgroundChoice) {
+      setBackground(JSON.parse(backgroundChoice.dataset.background));
+      announce('Background changed. Ctrl+Z puts the last one back.');
+      return;
+    }
     const stickerButton = event.target.closest('[data-add-sticker]');
     if (stickerButton) { addSticker(stickerButton.dataset.addSticker); return; }
     const groupChip = event.target.closest('[data-sticker-group]');
@@ -1330,6 +1434,7 @@
     }
     body.classList.toggle('is-drawer-closed', !name);
     if (name === 'layouts') renderLayoutPanel();
+    if (name === 'background') renderBackgroundPanel();
     window.requestAnimationFrame(layout);
   }
 
@@ -2037,8 +2142,17 @@
     const context = canvas.getContext('2d');
     context.imageSmoothingQuality = 'high';
     const s = width / core.PAGE_WIDTH;
-    context.fillStyle = collage.background?.value || '#ffffff';
-    context.fillRect(0, 0, width, height);
+    let backPhoto = null;
+    if (collage.background?.type === 'photo' && photos.get(collage.background.photo)) {
+      const photo = photos.get(collage.background.photo);
+      const bitmap = await createImageBitmap(photo.file, { resizeWidth: Math.min(photo.width, width), resizeQuality: 'high' });
+      backPhoto = { source: bitmap, width: bitmap.width, height: bitmap.height };
+    }
+    context.save();
+    context.scale(s, s);
+    draw.drawBackground(context, collage.background, core.PAGE_WIDTH, height / s, { photo: backPhoto, pixelsPerUnit: s });
+    context.restore();
+    backPhoto?.source.close?.();
     await fontsReady();
     const stickerPictures = new Map();
     for (const item of core.itemsToSave(collage)) {
@@ -2301,6 +2415,8 @@
   renderTextPanel();
   renderStickerPanel();
   root.querySelector('[data-sticker-search]').addEventListener('input', renderStickerPanel);
+  root.querySelector('[data-bg-pick]').addEventListener('input', (event) => setBackground({ type: 'color', value: event.target.value }, false));
+  root.querySelector('[data-bg-pick]').addEventListener('change', (event) => setBackground({ type: 'color', value: event.target.value }));
   renderDrafts();
   updateUndo();
   showView('start');
