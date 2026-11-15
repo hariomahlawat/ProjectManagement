@@ -11,9 +11,15 @@ The build plan, owner decisions and the approved mockup are in
 ## Privacy and data contract
 
 - Everything runs in the user's browser. Photos are read with the File API, drawn with Konva on
-  a canvas and saved with a `blob:` download. Nothing is sent to the PRISM server.
-- Nothing is stored or retained by PRISM. The page model (`Pages/Tools/Collage/Index.cshtml.cs`)
-  has only `OnGet`; there is no form post, API, database table or migration.
+  a canvas and saved with a `blob:` download. Nothing the user makes, and no photo from the
+  computer, is sent to the PRISM server.
+- PRISM only sends pictures **to** the page: the **Crests and logos** stickers an administrator
+  uploaded (Administration › Crests and logos), read by `wwwroot/js/collage/collage-library.js`
+  with a GET from `/api/collage/stickers` and drawn from `/api/collage/stickers/{id}/image`
+  (see [ux/collage-studio-library-and-unit-stickers.md](ux/collage-studio-library-and-unit-stickers.md)).
+  When PRISM cannot be reached the group says so and the other stickers still work.
+- Nothing the user makes is stored or retained by PRISM. The page model
+  (`Pages/Tools/Collage/Index.cshtml.cs`) has only `OnGet`; there is no form post.
 - The page requires a signed-in user (`[Authorize]`), like the rest of PRISM.
 - Usage telemetry records only that the `collage` module was opened (`ErpUsageModuleCatalog`),
   never file names or contents.
@@ -28,7 +34,8 @@ The build plan, owner decisions and the approved mockup are in
 
 `ProjectManagement.Tests/Tools/CollageStudioPageContractTests.cs` guards these points: sign-in
 required, no handler other than `OnGet`, no form, every script the page loads, no network call
-(`fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource`, `import()`) in them, no
+(`fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource`, `import()`) in them except
+`collage-library.js`, whose one `fetch` reads the fixed crests-and-logos address, no
 outside address in the page, its scripts or its stylesheets, the bundled fonts with their licence,
 and the vendored Konva.
 
@@ -65,7 +72,9 @@ its npm package by hand; the libman entry records the version.
 - **Text** in English and Hindi with bundled fonts: ready-made headings (Farewell, Happy
   Birthday, Thank you!, Congratulations and others), curved text, outline, shadow and a label
   behind the words. Hindi is typed with the Windows Hindi keyboard or pasted.
-- **Stickers**: twelve drawn shapes and stamps that take any colour, and emoji drawings in eight
+- **Stickers**: first the **Crests and logos** an administrator uploaded (shown first when there
+  are any; a retired one still draws in drafts that use it), then twelve drawn shapes and stamps
+  that take any colour, and emoji drawings in eight
   groups with a search box.
 - **Background**: colours, gradients, patterns and textures, or one of the photos softly
   blurred.

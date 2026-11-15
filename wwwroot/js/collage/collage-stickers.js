@@ -1,10 +1,14 @@
 // PRISM Collage Studio — the sticker catalogue (docs/ux/collage-studio.md).
 //
-// Two kinds of sticker, both shipped with PRISM so nothing loads from the Internet:
+// Three kinds of sticker, none from the Internet:
+// - crests and logos an administrator uploaded to PRISM, given to setUnit() by the page;
 // - drawn stickers (ribbon, rosette, stamps…), drawn here as SVG and recoloured at will;
 // - emoji drawings from Twemoji (graphics CC BY 4.0, by Twitter, Inc. and other contributors),
 //   a chosen set copied to wwwroot/img/collage/stickers/twemoji/ with their licence.
 // Each sticker has search words. Nothing here touches the page or the network.
+//
+// A crest or logo is "unit:<id>". Its picture is PRISM's own PNG at /api/collage/stickers/<id>/image;
+// one that is no longer listed (retired, or not loaded yet) still draws from that address.
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -95,14 +99,43 @@
     return [...emoji].map((ch) => ch.codePointAt(0)).filter((cp) => cp !== 0xfe0f).map((cp) => cp.toString(16)).join('-');
   }
 
-  /** Every sticker the panel offers: drawn ones first, then the emoji groups. */
+  const UNIT_PICTURE = /^\/api\/collage\/stickers\/[1-9][0-9]{0,8}\/image\?v=[1-9][0-9]{0,8}$/;
+  let unit = Object.freeze([]);
+
+  /**
+   * The crests and logos PRISM listed, in picker order. Anything that is not a well-formed entry
+   * with PRISM's own picture address is left out.
+   */
+  function setUnit(list) {
+    const seen = new Set();
+    unit = Object.freeze((Array.isArray(list) ? list : []).flatMap((entry) => {
+      const id = Number(entry?.id);
+      const name = String(entry?.name || '').trim().slice(0, 40);
+      const width = Number(entry?.width);
+      const height = Number(entry?.height);
+      if (!Number.isInteger(id) || id < 1 || seen.has(id) || !name || !(width > 0) || !(height > 0)) return [];
+      if (typeof entry.url !== 'string' || !UNIT_PICTURE.test(entry.url) || !entry.url.startsWith(`/api/collage/stickers/${id}/`)) return [];
+      seen.add(id);
+      return [Object.freeze({
+        id: `unit:${id}`,
+        label: name,
+        url: entry.url,
+        aspect: width / height,
+        words: `${name} ${String(entry.words || '')} crest logo badge`.toLowerCase()
+      })];
+    }));
+    return unit.length;
+  }
+
+  /** Every sticker the panel offers: crests and logos, drawn ones, then the emoji groups. */
   function groups() {
+    const crests = Object.freeze({ key: 'crests', label: 'Crests and logos', items: unit });
     const drawn = Object.freeze({
       key: 'shapes',
       label: 'Shapes',
       items: Object.freeze(Object.entries(DRAWN).map(([key, entry]) => Object.freeze({ id: `draw:${key}`, words: `${entry.label.toLowerCase()} ${entry.words} shapes` })))
     });
-    return [drawn, ...EMOJI_GROUPS];
+    return [crests, drawn, ...EMOJI_GROUPS];
   }
 
   /** Stickers whose words contain every word typed, in catalogue order. */
@@ -112,9 +145,15 @@
     return groups().flatMap((group) => group.items).filter((item) => words.every((word) => item.words.includes(word)));
   }
 
-  /** A sticker's entry: { kind: 'drawn' | 'emoji', ... }, or null when PRISM does not ship it. */
+  /** A sticker's entry: { kind: 'unit' | 'drawn' | 'emoji', ... }, or null when PRISM does not ship it. */
   function find(id) {
     if (typeof id !== 'string') return null;
+    if (/^unit:[1-9][0-9]{0,8}$/.test(id)) {
+      const listed = unit.find((entry) => entry.id === id);
+      if (listed) return { kind: 'unit', ...listed };
+      // Retired, or the list has not arrived: PRISM still serves the picture by its address.
+      return { kind: 'unit', id, label: 'Crest or logo', url: `/api/collage/stickers/${id.slice(5)}/image`, aspect: 1, words: '' };
+    }
     if (id.startsWith('draw:')) {
       const entry = DRAWN[id.slice(5)];
       return entry ? { kind: 'drawn', key: id.slice(5), ...entry } : null;
@@ -133,5 +172,5 @@
     return entry.svg.replace(/COLOUR/g, safe);
   }
 
-  return Object.freeze({ DRAWN, EMOJI_GROUPS, groups, search, find, drawnSvg, codeOf });
+  return Object.freeze({ DRAWN, EMOJI_GROUPS, groups, search, find, drawnSvg, codeOf, setUnit });
 });

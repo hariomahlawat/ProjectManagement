@@ -12,6 +12,7 @@
   const Konva = window.Konva;
   const draw = window.PrismCollageDraw;
   const stickers = window.PrismCollageStickers;
+  const library = window.PrismCollageLibrary;
   if (!root || !core || !Konva || !draw || !stickers) return;
 
   // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
@@ -752,6 +753,7 @@
     const entry = stickers.find(item.sticker);
     if (!entry) return null;
     if (entry.kind === 'emoji') return `${stickerBase}${entry.code}.svg`;
+    if (entry.kind === 'unit') return entry.url;
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(stickers.drawnSvg(entry.key, item.colour || entry.colour))}`;
   }
 
@@ -1315,6 +1317,32 @@
   }
 
   let stickerGroup = 'celebration';
+  let stickerGroupChosen = false;
+  // 'loading', 'ready' or 'failed': whether the crests and logos have come from PRISM.
+  let unitState = 'loading';
+
+  const STICKER_NONE = {
+    search: 'No sticker matches. Try another word.',
+    loading: 'Getting the crests and logos from PRISM…',
+    failed: 'The crests and logos could not be read from PRISM. The other stickers still work.',
+    empty: "An administrator can add your unit's crests and logos."
+  };
+
+  /** Asks PRISM for the crests and logos once; the other stickers never wait for them. */
+  function loadUnitStickers() {
+    if (!library) { unitState = 'failed'; return; }
+    library.loadStickers().then((list) => {
+      const count = stickers.setUnit(list);
+      unitState = 'ready';
+      if (count > 0 && !stickerGroupChosen) stickerGroup = 'crests';
+    }).catch(() => {
+      unitState = 'failed';
+    }).finally(() => {
+      renderStickerPanel();
+      // A collage opened before the list arrived draws its crests at their listed address now.
+      if (!views.editor.hidden) syncPage();
+    });
+  }
 
   /** The Stickers panel: search, groups, and the stickers of the group or the search. */
   function renderStickerPanel() {
@@ -1348,14 +1376,20 @@
       button.appendChild(img);
       return button;
     }));
-    root.querySelector('[data-sticker-none]').hidden = list.length > 0;
+    const none = root.querySelector('[data-sticker-none]');
+    none.hidden = list.length > 0;
+    if (!list.length) {
+      none.textContent = query ? STICKER_NONE.search
+        : stickerGroup !== 'crests' ? STICKER_NONE.search
+          : unitState === 'ready' ? STICKER_NONE.empty : STICKER_NONE[unitState];
+    }
   }
 
   function addSticker(id) {
     const entry = stickers.find(id);
     if (!entry) return;
     const count = collage.items.filter((i) => i.kind === 'sticker').length;
-    const width = entry.kind === 'drawn' ? 180 : 110;
+    const width = entry.kind === 'drawn' ? 180 : entry.kind === 'unit' ? 160 : 110;
     // Spread round the page, so stickers added one after another do not hide each other.
     const spots = [[0, 0], [-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25], [0, -0.32], [-0.35, 0], [0.35, 0], [0, 0.32]];
     const [fx, fy] = spots[count % spots.length];
@@ -1540,6 +1574,7 @@
     const groupChip = event.target.closest('[data-sticker-group]');
     if (groupChip) {
       stickerGroup = groupChip.dataset.stickerGroup;
+      stickerGroupChosen = true;
       root.querySelector('[data-sticker-search]').value = '';
       renderStickerPanel();
       return;
@@ -2642,6 +2677,7 @@
   renderStart();
   renderTextPanel();
   renderStickerPanel();
+  loadUnitStickers();
   root.querySelector('[data-sticker-search]').addEventListener('input', renderStickerPanel);
   root.querySelector('[data-bg-pick]').addEventListener('input', (event) => setBackground({ type: 'color', value: event.target.value }, false));
   root.querySelector('[data-bg-pick]').addEventListener('change', (event) => setBackground({ type: 'color', value: event.target.value }));
