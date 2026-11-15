@@ -375,6 +375,19 @@ public sealed class SearchV2QueryTests
         Assert.Equal(expected, result);
     }
 
+    // Phones show two lines of the excerpt: it starts a few words before the match instead of
+    // centring it.
+    [Fact]
+    public void Snippet_StartsShortlyBeforeTheMatch()
+    {
+        var service = new SearchHighlightService(Options.Create(new SearchV2Options()));
+        var text = string.Concat(Enumerable.Repeat("routine maintenance schedule ", 40)) + "the radar passed its trial " + string.Concat(Enumerable.Repeat("further notes follow ", 40));
+
+        var snippet = service.BuildSnippet(null, text, new[] { "radar" })!;
+
+        Assert.InRange(snippet.IndexOf("radar", StringComparison.Ordinal), 0, 80);
+    }
+
     [Fact]
     public void Snippet_ChoosesAndMarksInflectionsOfAStem_NotWordsThatOnlyStartWithIt()
     {
