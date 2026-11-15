@@ -104,11 +104,14 @@ each corrected word in the case it was typed: "IR&D hydrbad" offers "IR&D hydera
 ## Excerpts
 
 Document text is matched by English stem, so the excerpt is built the same way. Each typed
-word is paired with its stem from PostgreSQL's English stemmer (`query_stems`): the excerpt
-window starts before the first hit of any word or stem, `ts_headline` runs with the English
+word is paired with its stem from PostgreSQL's English stemmer (`query_stems`; stop words
+are dropped): the excerpt window starts before the first typed word in the text or, when none
+appears, the first stem followed by an inflection ending (`SearchInflections`, never
+"Stationery" for "stations"), `ts_headline` runs with the English
 parser on an OR of the typed words (with AND it only builds fragments around a passage that
 holds every word, and fell back to the opening words when they were far apart), and the stems
-are highlight terms and count as matches for "Found in". For "acceptance report" on the
+are matched as the same inflections when the excerpt is chosen, highlighted and explained
+("Found in"). For "acceptance report" on the
 development data, results showing the matched words went from 5 of 20 to 20 of 20; the
 excerpt work adds about 35–40 ms to a page of long documents.
 
