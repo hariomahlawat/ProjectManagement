@@ -151,10 +151,10 @@ loses nothing, and the draft is also written when the page is hidden or put away
 (`visibilitychange`, `pagehide`), which phones need.
 
 The draft being edited, and the drafts on the start screen, are kept by
- (unit tests in ). The draft open in this
+`collage-draft-session.js` (unit tests in `collage-draft-session.test.js`). The draft open in this
 tab is never purged from it. The start screen waits while a draft opens, so it cannot be deleted
 half way through, and a draft deleted meanwhile is not opened. When another tab deletes or purges
-the draft open here, the tabs say so to each other () and this tab writes it
+the draft open here, the tabs say so to each other (`BroadcastChannel`) and this tab writes it
 back at once; every save also stores any photo the database no longer holds for it. "Delete the
 oldest draft?" is asked only when the user acts: on starting a collage when 30 drafts are kept
 already, or on **Keep as a draft**; never from the autosave.
