@@ -1114,8 +1114,15 @@
     updateUndo();
   }
 
-  /** Settings that move, resize or turn an item; a locked item keeps them as they are. */
-  const LOCKED_CONTROLS = '[data-prop="angle"], [data-prop="width"], [data-prop="size"], [data-action="rotate-left"], [data-action="rotate-right"], [data-action="straighten"]';
+  /**
+   * Settings that move, resize, reshape or turn an item; a locked item keeps them as they are.
+   * A frame or shape changes the box round the photo, so those wait for Unlock too.
+   */
+  const LOCKED_CONTROLS = [
+    '[data-prop="angle"]', '[data-prop="width"]', '[data-prop="size"]',
+    '[data-action="rotate-left"]', '[data-action="rotate-right"]', '[data-action="straighten"]',
+    '[data-action="fit-photo"]', '[data-finish="frame"]', '[data-finish="shape"]'
+  ].join(', ');
 
   function changeSelected(change, record = true) {
     const item = selectedItem();
@@ -1404,6 +1411,7 @@
         changeSelected((i) => { Object.assign(i, { look: 'none', bright: 100, contrast: 100, warmth: 0, flip: false }); });
         break;
       case 'fit-photo':
+        if (item?.locked) { announce('It is locked. Unlock it first.'); break; }
         changeSelected((i) => {
           const photo = photos.get(i.photo);
           if (!photo) return;
@@ -1610,7 +1618,7 @@
           <button type="button" class="btn btn-outline-secondary btn-sm" data-action="duplicate"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate</button>
           <button type="button" class="btn btn-outline-danger btn-sm" data-action="delete"${item.locked ? ' disabled' : ''}><i class="bi bi-trash3" aria-hidden="true"></i> Delete</button>
         </div>
-        ${item.locked ? '<p class="clg-hint">Locked: it cannot be moved, resized, turned or deleted until it is unlocked.</p>' : ''}
+        ${item.locked ? '<p class="clg-hint">Locked: it cannot be moved, resized, turned, given another frame or shape, or deleted until it is unlocked.</p>' : ''}
         ${item.hidden ? '<p class="clg-hint">Hidden: it is not on the page or in the saved picture until it is shown again.</p>' : ''}
       </div>`;
   }
@@ -1866,6 +1874,7 @@
   props.addEventListener('click', (event) => {
     const choice = event.target.closest('[data-finish]');
     if (!choice || choice.disabled) return;
+    if (selectedItem()?.locked && choice.matches(LOCKED_CONTROLS)) return;
     changeSelected((item) => setFinish(item, choice.dataset.finish, choice.dataset.value));
   });
 
