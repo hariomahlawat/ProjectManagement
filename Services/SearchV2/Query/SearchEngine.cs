@@ -864,8 +864,8 @@ public sealed class SearchEngine : ISearchV2Engine
             WHERE {scopeWhere}
               AND e."SearchVectorEnglish" @@ websearch_to_tsquery('english', @webQuery)
         ), strong_candidate_count AS (
-            SELECT COUNT(DISTINCT "Id")::int AS value
-            FROM (
+            SELECT COUNT(*)::int AS value
+            FROM (SELECT DISTINCT "Id" FROM (
                 SELECT "Id" FROM exact_identifier
                 UNION ALL SELECT "Id" FROM exact_title
                 UNION ALL SELECT "Id" FROM identifier_prefix
@@ -882,7 +882,7 @@ public sealed class SearchEngine : ISearchV2Engine
                 UNION ALL SELECT "Id" FROM simple_fts
                 UNION ALL SELECT "Id" FROM alias_fts
                 UNION ALL SELECT "Id" FROM english_fts
-            ) strong
+            ) strong) d
         ), title_fuzzy AS (
             -- % and <% honour pg_trgm.similarity_threshold / word_similarity_threshold, which the
             -- engine sets per transaction from FuzzyThreshold / FuzzyWordSimilarityThreshold.
@@ -939,10 +939,11 @@ public sealed class SearchEngine : ISearchV2Engine
             FROM channels
             GROUP BY "Id"
         ), candidate_scored AS (
-            -- Narrow columns only: facets and ordering never need the large text fields.
+            -- Narrow columns only: clustering, facets and ordering sort every candidate, so
+            -- text and metadata are read for the final page (and the stage filter and facet).
             -- The score is rounded so a keyset cursor compares it exactly across executions.
             SELECT e."Id", e."EntityType", e."EntityKey", e."CanonicalEntityType", e."CanonicalEntityKey", e."ParentProjectId",
-                   e."SourceModule", e."ResultCategory", e."Status", e."FileType", e."EventDateUtc", e."UpdatedAtUtc", e."MetadataJson",
+                   e."SourceModule", e."ResultCategory", e."Status", e."FileType", e."EventDateUtc", e."UpdatedAtUtc",
                    f.tier,
                    CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END AS entity_priority,
                    CASE WHEN e."EntityType" = e."CanonicalEntityType" AND e."EntityKey" = e."CanonicalEntityKey" THEN 0 ELSE 1 END AS canonical_order,
@@ -973,7 +974,7 @@ public sealed class SearchEngine : ISearchV2Engine
             -- matched, unless another member is a strictly better exact (tier 0/1) hit. The
             -- cluster is ranked by the best evidence of any member.
             SELECT x."Id", x."EntityType", x."EntityKey", x."CanonicalEntityType", x."CanonicalEntityKey", x."ParentProjectId",
-                   x."SourceModule", x."ResultCategory", x."Status", x."FileType", x."EventDateUtc", x."UpdatedAtUtc", x."MetadataJson",
+                   x."SourceModule", x."ResultCategory", x."Status", x."FileType", x."EventDateUtc", x."UpdatedAtUtc",
                    x.cluster_tier AS tier, x.entity_priority, x.cluster_score AS fusion_score, x.channels, r.related_sources
             FROM (
                 SELECT c.*,
@@ -996,10 +997,15 @@ public sealed class SearchEngine : ISearchV2Engine
         ), category_facet_candidates AS (
             SELECT c.* FROM candidate_scored c WHERE TRUE {scope.CategoryFacetFilterClause}
         ), category_facets AS (
+            -- Counts use a DISTINCT subquery, not COUNT(DISTINCT ...): PostgreSQL always
+            -- sorts for COUNT(DISTINCT), with the text collation, while DISTINCT can hash.
             SELECT COALESCE(jsonb_object_agg("ResultCategory", item_count), jsonb_build_object()) AS value
             FROM (
-                SELECT "ResultCategory", COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS item_count
-                FROM category_facet_candidates
+                SELECT "ResultCategory", COUNT(*) AS item_count
+                FROM (
+                    SELECT DISTINCT "ResultCategory", "CanonicalEntityType", "CanonicalEntityKey"
+                    FROM category_facet_candidates
+                ) d
                 GROUP BY "ResultCategory"
             ) x
         ), source_facet_candidates AS (
@@ -1007,8 +1013,11 @@ public sealed class SearchEngine : ISearchV2Engine
         ), source_facets AS (
             SELECT COALESCE(jsonb_object_agg("SourceModule", item_count), jsonb_build_object()) AS value
             FROM (
-                SELECT "SourceModule", COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS item_count
-                FROM source_facet_candidates
+                SELECT "SourceModule", COUNT(*) AS item_count
+                FROM (
+                    SELECT DISTINCT "SourceModule", "CanonicalEntityType", "CanonicalEntityKey"
+                    FROM source_facet_candidates
+                ) d
                 GROUP BY "SourceModule"
             ) x
         ), status_facet_candidates AS (
@@ -1016,9 +1025,12 @@ public sealed class SearchEngine : ISearchV2Engine
         ), status_facets AS (
             SELECT COALESCE(jsonb_object_agg("Status", item_count), jsonb_build_object()) AS value
             FROM (
-                SELECT "Status", COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS item_count
-                FROM status_facet_candidates
-                WHERE NULLIF("Status", '') IS NOT NULL
+                SELECT "Status", COUNT(*) AS item_count
+                FROM (
+                    SELECT DISTINCT "Status", "CanonicalEntityType", "CanonicalEntityKey"
+                    FROM status_facet_candidates
+                    WHERE NULLIF("Status", '') IS NOT NULL
+                ) d
                 GROUP BY "Status"
             ) x
         ), file_type_facet_candidates AS (
@@ -1026,9 +1038,12 @@ public sealed class SearchEngine : ISearchV2Engine
         ), file_type_facets AS (
             SELECT COALESCE(jsonb_object_agg("FileType", item_count), jsonb_build_object()) AS value
             FROM (
-                SELECT "FileType", COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS item_count
-                FROM file_type_facet_candidates
-                WHERE NULLIF("FileType", '') IS NOT NULL
+                SELECT "FileType", COUNT(*) AS item_count
+                FROM (
+                    SELECT DISTINCT "FileType", "CanonicalEntityType", "CanonicalEntityKey"
+                    FROM file_type_facet_candidates
+                    WHERE NULLIF("FileType", '') IS NOT NULL
+                ) d
                 GROUP BY "FileType"
             ) x
         ), stage_facet_candidates AS (
@@ -1036,14 +1051,15 @@ public sealed class SearchEngine : ISearchV2Engine
         ), stage_facet_values AS (
             SELECT DISTINCT c."CanonicalEntityType", c."CanonicalEntityKey", s.stage
             FROM stage_facet_candidates c
+            JOIN "SearchEntries" m ON m."Id" = c."Id"
             CROSS JOIN LATERAL (
-                SELECT NULLIF(c."MetadataJson"->>'currentStage', '') AS stage
+                SELECT NULLIF(m."MetadataJson"->>'currentStage', '') AS stage
                 UNION
                 SELECT NULLIF(value, '') AS stage
                 FROM jsonb_array_elements_text(
                     CASE
-                        WHEN jsonb_typeof(c."MetadataJson"->'projectStages') = 'array'
-                            THEN c."MetadataJson"->'projectStages'
+                        WHEN jsonb_typeof(m."MetadataJson"->'projectStages') = 'array'
+                            THEN m."MetadataJson"->'projectStages'
                         ELSE '[]'::jsonb
                     END) value
             ) s
@@ -1058,10 +1074,12 @@ public sealed class SearchEngine : ISearchV2Engine
         ), project_facet_candidates AS (
             SELECT c.* FROM candidate_scored c WHERE TRUE {scope.ProjectFacetFilterClause}
         ), project_facet_counts AS (
-            SELECT f."ParentProjectId",
-                   COUNT(DISTINCT (f."CanonicalEntityType", f."CanonicalEntityKey")) AS item_count
-            FROM project_facet_candidates f
-            WHERE f."ParentProjectId" IS NOT NULL
+            SELECT f."ParentProjectId", COUNT(*) AS item_count
+            FROM (
+                SELECT DISTINCT "ParentProjectId", "CanonicalEntityType", "CanonicalEntityKey"
+                FROM project_facet_candidates
+                WHERE "ParentProjectId" IS NOT NULL
+            ) f
             GROUP BY f."ParentProjectId"
         ), project_facet_rows AS (
             SELECT f."ParentProjectId"::text AS value,
@@ -1083,7 +1101,7 @@ public sealed class SearchEngine : ISearchV2Engine
             FROM project_facet_rows
         ), summary AS (
             SELECT
-                (SELECT COUNT(DISTINCT (c."CanonicalEntityType", c."CanonicalEntityKey")) FROM category_facet_candidates c) AS "TotalHits",
+                (SELECT COUNT(*) FROM (SELECT DISTINCT c."CanonicalEntityType", c."CanonicalEntityKey" FROM category_facet_candidates c) d) AS "TotalHits",
                 (SELECT COUNT(*) FROM ranked) AS "FilteredHits",
                 (SELECT value::text FROM category_facets) AS "CategoryFacets",
                 {sourceFacetValue} AS "SourceFacets",
@@ -1133,7 +1151,7 @@ public sealed class SearchEngine : ISearchV2Engine
                                '<<|>>', '', 'g'),
                            @maxSnippetSourceCharacters)
                    END AS "NarrativeText",
-                   p."Status", p."FileType", p."EventDateUtc", p."UpdatedAtUtc", p."MetadataJson"::text AS "MetadataJson",
+                   p."Status", p."FileType", p."EventDateUtc", p."UpdatedAtUtc", e."MetadataJson"::text AS "MetadataJson",
                    p.tier, p.entity_priority, p.fusion_score, p.channels, p.global_rank::int AS "GlobalRank", p.related_sources AS "RelatedSources"
             FROM page p
             JOIN "SearchEntries" e ON e."Id" = p."Id"
@@ -1305,7 +1323,8 @@ public sealed class SearchEngine : ISearchV2Engine
             names.Add($"@{name}");
         }
         var inList = string.Join(",", names);
-        return $"(COALESCE(c.\"MetadataJson\"->>'currentStage', '') IN ({inList}) OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(c.\"MetadataJson\"->'projectStages') = 'array' THEN c.\"MetadataJson\"->'projectStages' ELSE '[]'::jsonb END) stage(value) WHERE stage.value IN ({inList})))";
+        // Candidate rows carry no metadata (see candidate_scored); read it for this filter only.
+        return $"EXISTS (SELECT 1 FROM \"SearchEntries\" m WHERE m.\"Id\" = c.\"Id\" AND (COALESCE(m.\"MetadataJson\"->>'currentStage', '') IN ({inList}) OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(m.\"MetadataJson\"->'projectStages') = 'array' THEN m.\"MetadataJson\"->'projectStages' ELSE '[]'::jsonb END) stage(value) WHERE stage.value IN ({inList}))))";
     }
 
     private static string? BuildDateFilter(DbCommand command, DateOnly? dateFrom, DateOnly? dateTo)

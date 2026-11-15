@@ -323,6 +323,37 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.DoesNotContain(withIprSuggestions, suggestion => suggestion.SourceModule == "Visits");
     }
 
+    // Facet counts and the stage filter read the candidate rows, which carry no metadata:
+    // a linked record counts once under its project, and stages come from the entry itself.
+    [SearchV2PostgresFact]
+    public async Task FacetsCountEachRecordOnce_AndTheStageFilterAndFacetReadTheEntryStages()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9501", "Projects", "Projects", "Harrier sonar programme", null)
+                with { MetadataJson = """{"currentStage":"Development","projectStages":["Development","Trials"]}""" },
+            host.Entry("ProjectTot", "9502", "ToT", "Projects", "Harrier sonar transfer", null)
+                with { CanonicalEntityType = "Project", CanonicalEntityKey = "9501", ParentProjectId = 9501 },
+            host.Entry("Project", "9503", "Projects", "Projects", "Harrier sonar refit", null)
+                with { MetadataJson = """{"currentStage":"Trials"}""" },
+            host.Entry("ProjectDocument", "9504", "Documents", "Documents", "Harrier sonar manual", null));
+
+        var all = await host.SearchAsync(new SearchRequest("harrier"));
+
+        Assert.Equal(3, all.TotalHits);
+        Assert.Equal(2, all.Facets.Categories.Single(facet => facet.Value == "Projects").Count);
+        Assert.Equal(1, all.Facets.Categories.Single(facet => facet.Value == "Documents").Count);
+        Assert.Equal(1, all.Facets.Stages.Single(facet => facet.Value == "Development").Count);
+        Assert.Equal(2, all.Facets.Stages.Single(facet => facet.Value == "Trials").Count);
+        Assert.Contains(all.Results, result => result.EntityKey == "9501" && result.MetadataJson!.Contains("Development"));
+
+        var development = await host.SearchAsync(new SearchRequest("harrier", Stages: new[] { "Development" }));
+
+        Assert.Equal(new[] { "9501" }, development.Results.Select(result => result.CanonicalEntityKey).Distinct().ToArray());
+        Assert.Equal(2, development.Facets.Stages.Single(facet => facet.Value == "Trials").Count);
+        Assert.Equal(1, development.Facets.Categories.Single(facet => facet.Value == "Projects").Count);
+    }
+
     [SearchV2PostgresFact]
     public async Task SoftDeletedProject_LeavesTheIndex_AfterAWorkerPass()
     {
@@ -897,11 +928,13 @@ internal sealed class SearchV2TestHost : IAsyncDisposable
         return await scope.ServiceProvider.GetRequiredService<ISearchIndexStore>().GetActiveStateAsync(CancellationToken.None);
     }
 
-    public async Task<SearchResponse> SearchAsync(string query)
+    public Task<SearchResponse> SearchAsync(string query) => SearchAsync(new SearchRequest(query));
+
+    public async Task<SearchResponse> SearchAsync(SearchRequest request)
     {
         using var scope = _services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<ISearchV2Engine>()
-            .SearchAsync(new SearchRequest(query), User, CancellationToken.None);
+            .SearchAsync(request, User, CancellationToken.None);
     }
 
     public async Task<IReadOnlyList<SearchSuggestion>> SuggestAsync(string query)

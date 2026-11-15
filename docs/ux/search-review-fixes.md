@@ -81,7 +81,7 @@ once PR 8 lands; until then searches fall back to Legacy during the rebuild).
 | 6 | Page fixes: Show more double tap, Source chips and true banner wording, `role="status"` warnings, per-source icons and a type label on phones, tab scroll hint, filter sheet as a dialog, 44 px targets; `docs/ux/search.md` | M11–M15, L3, L6 |
 | 7 | Small page polish: plain "Found in" wording, recent searches keep full searches only, close on focus leaving, one highlighted row, tab counts explained, landing examples from the user's own recent searches | L1, L2, L4, L5, L7, L8 |
 | 8 | Keep serving the active generation while a newer projection rebuilds (minimum compatible version instead of an exact match) | M7 |
-| 9 | Bounded retrieval: per-channel limit, `MetadataJson` read only for the page, totals shown as "500+" past the limit; measured with the relevance harness before and after | M5 |
+| 9 | Cheaper candidate handling, measured with the relevance harness on a 34,000-entry copy: `MetadataJson` read only for the page, stage filter and stage facet; counts by `DISTINCT` subquery instead of `COUNT(DISTINCT)`. A common word went from 1.47 s to 1.0 s with identical results. The per-channel limit was measured and dropped: filters apply after retrieval, so it would drop filtered results and make counts lower bounds (see `docs/search-v2-ranking.md`, Measuring) | M5 |
 | 10 | Paging stability (cursor carries an index-change stamp; client drops repeated rows) and did-you-mean token alignment | M9, M10 |
 | 11 | Full rebuild streamed by module with batched writes; time and memory measured on a production-size copy | M8 |
 
