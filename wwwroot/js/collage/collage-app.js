@@ -920,7 +920,8 @@
   }
 
   function attachTransformer() {
-    const node = selectedId && nodes.get(selectedId);
+    // A hidden item keeps its settings and Layers row, but no handles on the page.
+    const node = selectedId && !itemById(selectedId)?.hidden && nodes.get(selectedId);
     const adjusting = Boolean(adjustId && adjustId === selectedId);
     transformer.nodes(node ? [node] : []);
     const isText = Boolean(node && ['text', 'sticker'].includes(itemById(selectedId)?.kind));
@@ -969,7 +970,7 @@
   function placeToolbar() {
     const node = selectedId && nodes.get(selectedId);
     const item = selectedItem();
-    if (!node || !item || transforming || node.isDragging()) { hideToolbar(); return; }
+    if (!node || !item || item.hidden || transforming || node.isDragging()) { hideToolbar(); return; }
     const adjusting = adjustId === item.id;
     for (const part of toolbar.querySelectorAll('[data-for]')) {
       const forWhat = part.dataset.for;
@@ -1112,6 +1113,9 @@
     renderProps();
     updateUndo();
   }
+
+  /** Settings that move, resize or turn an item; a locked item keeps them as they are. */
+  const LOCKED_CONTROLS = '[data-prop="angle"], [data-prop="width"], [data-prop="size"], [data-action="rotate-left"], [data-action="rotate-right"], [data-action="straighten"]';
 
   function changeSelected(change, record = true) {
     const item = selectedItem();
@@ -1377,9 +1381,14 @@
       case 'forward': case 'backward': case 'front': case 'back':
         if (item) { collage.items = core.reorder(collage.items, item.id, action); commit(); }
         break;
-      case 'rotate-left': changeSelected((i) => { i.angle = core.normaliseAngle(i.angle - 15); }); break;
-      case 'rotate-right': changeSelected((i) => { i.angle = core.normaliseAngle(i.angle + 15); }); break;
-      case 'straighten': changeSelected((i) => { i.angle = 0; }); break;
+      case 'rotate-left':
+      case 'rotate-right':
+      case 'straighten':
+        if (item?.locked) { announce('It is locked. Unlock it first.'); break; }
+        if (action === 'rotate-left') changeSelected((i) => { i.angle = core.normaliseAngle(i.angle - 15); });
+        else if (action === 'rotate-right') changeSelected((i) => { i.angle = core.normaliseAngle(i.angle + 15); });
+        else changeSelected((i) => { i.angle = 0; });
+        break;
       case 'adjust': if (item?.kind === 'photo') startAdjust(item.id); break;
       case 'adjust-done': stopAdjust(); break;
       case 'replace': if (isFrame(item)) { setTarget(item.id); setPanel('photos'); } break;
@@ -1639,6 +1648,7 @@
 
   function renderProps() {
     renderPropsBody();
+    if (selectedItem()?.locked) props.querySelectorAll(LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
     props.insertAdjacentHTML('beforeend', layersSection());
   }
 
@@ -1872,6 +1882,7 @@
     }
     const prop = event.target.dataset.prop;
     if (!prop) return;
+    if (selectedItem()?.locked && event.target.matches(LOCKED_CONTROLS)) return;
     const value = Number(event.target.value);
     changeSelected((item) => {
       if (prop === 'zoom') zoomCrop(item, value);
