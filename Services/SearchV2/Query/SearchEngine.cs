@@ -164,6 +164,7 @@ public sealed class SearchEngine : ISearchV2Engine
             long totalHits = 0;
             long filteredHits = 0;
             string? matchStamp = null;
+            IReadOnlyDictionary<string, string> stems = SearchQueryStems.Empty;
             SearchFacets facets = SearchFacets.Empty;
 
             var databaseStopwatch = Stopwatch.StartNew();
@@ -209,7 +210,6 @@ public sealed class SearchEngine : ISearchV2Engine
                 Add(command, "aliasPhrases", terms.AliasPhrases);
                 Add(command, "fuzzyTokens", terms.FuzzyTokens);
                 Add(command, "fuzzyLead", terms.FuzzyLead);
-                Add(command, "snippetAnchor", terms.SnippetAnchor);
                 Add(command, "fuzzyStrongThreshold", _options.FuzzyFallbackStrongCandidateThreshold);
                 Add(command, "canonicalEntityBoost", _options.CanonicalEntityBoost);
                 Add(command, "rrfK", _options.ReciprocalRankK);
@@ -238,6 +238,7 @@ public sealed class SearchEngine : ISearchV2Engine
                         totalHits = reader.GetInt64(reader.GetOrdinal("TotalHits"));
                         filteredHits = reader.GetInt64(reader.GetOrdinal("FilteredHits"));
                         matchStamp = NullableString(reader, "MatchStamp");
+                        stems = SearchQueryStems.Parse(NullableString(reader, "QueryStems"));
                         facets = new SearchFacets(
                             ParseFacets(reader, "CategoryFacets"),
                             ParseFacets(reader, "SourceFacets"),
@@ -276,7 +277,7 @@ public sealed class SearchEngine : ISearchV2Engine
             var hasMore = rows.Count > pageSize;
             if (hasMore) rows.RemoveAt(rows.Count - 1);
 
-            var results = rows.Select(row => ToResult(row, normalized)).ToArray();
+            var results = rows.Select(row => ToResult(row, normalized, stems)).ToArray();
             var nextCursor = hasMore && rows.Count > 0
                 ? _cursorCodec.EncodeKeyset(cursorKey, ToCursorPosition(rows[^1]) with { MatchStamp = matchStamp }, activeGeneration)
                 : null;
@@ -623,9 +624,12 @@ public sealed class SearchEngine : ISearchV2Engine
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private SearchResult ToResult(SearchRow row, NormalizedSearchQuery query)
+    private SearchResult ToResult(SearchRow row, NormalizedSearchQuery query, IReadOnlyDictionary<string, string> stems)
     {
-        var snippet = _highlight.BuildSnippet(row.StructuredText, row.NarrativeText, query.HighlightTerms);
+        // The body is matched by English stem, so a stem ("accept") is also a highlight term:
+        // the excerpt then shows "accepted" marked, and the card says where the match was.
+        var snippetTerms = SearchQueryStems.WithStems(query.HighlightTerms, stems);
+        var snippet = _highlight.BuildSnippet(row.StructuredText, row.NarrativeText, snippetTerms);
         var matchedField = SearchMatchEvidenceResolver.Resolve(
             query,
             row.Title,
@@ -633,7 +637,8 @@ public sealed class SearchEngine : ISearchV2Engine
             row.NarrativeText,
             row.MetadataJson,
             row.EntityType,
-            row.Channels);
+            row.Channels,
+            stems);
         var related = (row.RelatedSources ?? string.Empty)
             .Split('·', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(ParseRelatedResult)
@@ -657,7 +662,7 @@ public sealed class SearchEngine : ISearchV2Engine
             SearchDisplayValueFormatter.Subtitle(row.Subtitle, row.Status),
             row.CanonicalUrl,
             snippet,
-            _highlight.Highlight(snippet, query.HighlightTerms),
+            _highlight.Highlight(snippet, snippetTerms),
             matchedField,
             row.EventDateUtc,
             row.FileType,
@@ -733,6 +738,17 @@ public sealed class SearchEngine : ISearchV2Engine
             SELECT "ActiveGeneration" AS generation, "IndexVersion" AS version
             FROM "SearchIndexState"
             WHERE "Id" = 1 AND "IndexVersion" BETWEEN @minIndexVersion AND @indexVersion
+        ), query_stems AS MATERIALIZED (
+            -- Each typed word with its English stem ("acceptance" → "accept"). Body text is
+            -- matched by stem, so the excerpt is found, highlighted and explained by stem too.
+            SELECT COALESCE(string_agg(DISTINCT w.word || '=' || w.stem, ' '), '') AS pairs,
+                   COALESCE(array_agg(DISTINCT a.anchor) FILTER (WHERE LENGTH(a.anchor) >= 3), ARRAY[]::text[]) AS anchors
+            FROM (
+                SELECT word, COALESCE((ts_lexize('english_stem', word))[1], word) AS stem
+                FROM unnest(regexp_split_to_array(@exact, '\s+')) AS words(word)
+                WHERE LENGTH(word) >= 2
+            ) w
+            CROSS JOIN LATERAL unnest(ARRAY[w.word, w.stem]) AS a(anchor)
         ), exact_identifier AS (
             SELECT e."Id", 0 AS tier,
                    ROW_NUMBER() OVER (ORDER BY e."EventDateUtc" DESC NULLS LAST, e."UpdatedAtUtc" DESC, e."Id") AS channel_rank,
@@ -1194,6 +1210,7 @@ public sealed class SearchEngine : ISearchV2Engine
                 (SELECT COUNT(*) FROM (SELECT DISTINCT c."CanonicalEntityType", c."CanonicalEntityKey" FROM category_facet_candidates c) d) AS "TotalHits",
                 (SELECT COUNT(*) FROM ranked) AS "FilteredHits",
                 (SELECT value FROM match_stamp) AS "MatchStamp",
+                (SELECT pairs FROM query_stems) AS "QueryStems",
                 (SELECT value::text FROM category_facets) AS "CategoryFacets",
                 {sourceFacetValue} AS "SourceFacets",
                 {projectFacetValue} AS "ProjectFacets",
@@ -1233,13 +1250,18 @@ public sealed class SearchEngine : ISearchV2Engine
                        WHEN e."NarrativeText" IS NULL THEN NULL
                        ELSE LEFT(
                            regexp_replace(
-                               ts_headline('simple',
-                                   -- A bounded window around the first literal hit, never the
-                                   -- whole OCR body (documents can hold hundreds of KB).
+                               ts_headline('english',
+                                   -- A bounded window around the first hit of any typed word or
+                                   -- its stem, never the whole OCR body (documents can hold
+                                   -- hundreds of KB). English, like the match: a body that
+                                   -- says "accepted" for "acceptance" still gets its excerpt.
                                    SUBSTRING(e."NarrativeText"
-                                       FROM GREATEST(1, STRPOS(LOWER(e."NarrativeText"), @snippetAnchor) - @headlineLeadCharacters)
+                                       FROM GREATEST(1, w.first_hit - @headlineLeadCharacters)
                                        FOR @headlineWindowCharacters),
-                                   websearch_to_tsquery('simple', @webQuery),
+                                   -- Any typed word, not all of them: with an AND query ts_headline
+                                   -- only builds fragments around a passage holding every word, and
+                                   -- falls back to the opening words when they are far apart.
+                                   replace(websearch_to_tsquery('english', @webQuery)::text, ' & ', ' | ')::tsquery,
                                    'StartSel=<<,StopSel=>>,MaxWords=60,MinWords=15,ShortWord=2,MaxFragments=2,FragmentDelimiter=...'),
                                '<<|>>', '', 'g'),
                            @maxSnippetSourceCharacters)
@@ -1248,8 +1270,15 @@ public sealed class SearchEngine : ISearchV2Engine
                    p.tier, p.entity_priority, p.fusion_score, p.channels, p.global_rank::int AS "GlobalRank", p.related_sources AS "RelatedSources"
             FROM page p
             JOIN "SearchEntries" e ON e."Id" = p."Id"
+            -- Where the excerpt starts: the first hit of any typed word or stem. The body is
+            -- lower-cased once per row, not once per word.
+            CROSS JOIN LATERAL (
+                SELECT COALESCE(MIN(NULLIF(STRPOS(body.lowered, anchors.anchor), 0)), 0) AS first_hit
+                FROM (SELECT LOWER(e."NarrativeText") AS lowered) body
+                CROSS JOIN unnest((SELECT anchors FROM query_stems)) AS anchors(anchor)
+            ) w
         )
-        SELECT s."TotalHits", s."FilteredHits", s."MatchStamp", s."CategoryFacets", s."SourceFacets", s."ProjectFacets",
+        SELECT s."TotalHits", s."FilteredHits", s."MatchStamp", s."QueryStems", s."CategoryFacets", s."SourceFacets", s."ProjectFacets",
                s."StatusFacets", s."FileTypeFacets", s."StageFacets",
                p."Id", p."EntityType", p."EntityKey", p."CanonicalEntityType", p."CanonicalEntityKey", p."ParentProjectId",
                p."SourceModule", p."ResultCategory", p."Title", p."Subtitle", p."CanonicalUrl",
@@ -1576,8 +1605,7 @@ internal sealed record SearchQueryTerms(
     string[] IndexedExactTitles,
     string[] AliasPhrases,
     string[] FuzzyTokens,
-    string FuzzyLead,
-    string SnippetAnchor)
+    string FuzzyLead)
 {
     internal const int MinimumPartialMatchCharacters = 3;
 
@@ -1619,7 +1647,34 @@ internal sealed record SearchQueryTerms(
                 .Take(12)
                 .ToArray(),
             fuzzyTokens,
-            fuzzyTokens.FirstOrDefault() ?? string.Empty,
-            tokens.OrderByDescending(token => token.Length).FirstOrDefault() ?? string.Empty);
+            fuzzyTokens.FirstOrDefault() ?? string.Empty);
     }
+}
+
+/// <summary>Typed words and their English stems, as PostgreSQL's English stemmer gives them.</summary>
+internal static class SearchQueryStems
+{
+    public static IReadOnlyDictionary<string, string> Empty { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Parses "acceptance=accept report=report".</summary>
+    public static IReadOnlyDictionary<string, string> Parse(string? pairs)
+    {
+        if (string.IsNullOrWhiteSpace(pairs)) return Empty;
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in pairs.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var at = pair.IndexOf('=');
+            if (at <= 0 || at == pair.Length - 1) continue;
+            result[pair[..at]] = pair[(at + 1)..];
+        }
+        return result;
+    }
+
+    /// <summary>The highlight terms plus each stem of three letters or more.</summary>
+    public static IReadOnlyList<string> WithStems(IReadOnlyList<string> terms, IReadOnlyDictionary<string, string> stems) =>
+        stems.Count == 0
+            ? terms
+            : terms.Concat(stems.Values.Where(stem => stem.Length >= 3))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 }

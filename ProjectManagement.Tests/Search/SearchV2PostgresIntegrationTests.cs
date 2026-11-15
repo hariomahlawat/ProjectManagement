@@ -817,6 +817,27 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal(6, suggestions.Count);
     }
 
+    // A long document matched by English stems ("accepted", "reports" for "acceptance report"),
+    // with the two words far apart, shows an excerpt with the match marked and says where it
+    // was found, instead of its metadata line.
+    [SearchV2PostgresFact]
+    public async Task ADocumentMatchedByStems_ShowsTheMatchInItsExcerpt_AndSaysWhereItWasFound()
+    {
+        await using var host = _database.CreateHost();
+        var filler = string.Concat(Enumerable.Repeat("Routine maintenance schedule for the workshop. ", 300));
+        var body = "Introduction to the trial. " + filler + "The board accepted the equipment after firing. " + filler + "Two reports were filed.";
+        await host.ActivateAsync(
+            host.Entry("ProjectDocument", "9851", "Project documents", "Documents", "Wren gearbox file", null)
+                with { StructuredText = "Wren programme · Published", NarrativeText = body });
+
+        var response = await host.SearchAsync("acceptance report");
+
+        var hit = Assert.Single(response.Results, result => result.EntityKey == "9851");
+        Assert.Contains(hit.SnippetSegments, segment => segment.Highlighted && segment.Text.StartsWith("accept", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(hit.MatchedField);
+        Assert.Contains("text", hit.MatchedField!, StringComparison.OrdinalIgnoreCase);
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {

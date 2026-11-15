@@ -19,7 +19,8 @@ public static partial class SearchMatchEvidenceResolver
         string? narrativeText,
         string? metadataJson,
         string entityType,
-        string channels)
+        string channels,
+        IReadOnlyDictionary<string, string>? stems = null)
     {
         if (string.IsNullOrWhiteSpace(query.Exact)) return null;
 
@@ -40,8 +41,10 @@ public static partial class SearchMatchEvidenceResolver
             allowPrefix: ContainsChannel(channels, "title_token_prefix") || ContainsChannel(channels, "title_prefix"));
 
         AddMetadataFields(fields, metadataJson, terms);
-        AddField(fields, "structured details", structuredText, terms, allowPrefix: false);
-        AddField(fields, NarrativeLabel(entityType), narrativeText, terms, allowPrefix: false);
+        // Details and body text are matched by English stem as well ("accepted" for
+        // "acceptance"), so a word counts there when it starts with the typed word's stem.
+        AddField(fields, "structured details", structuredText, terms, allowPrefix: false, stems);
+        AddField(fields, NarrativeLabel(entityType), narrativeText, terms, allowPrefix: false, stems);
 
         // Prefer one authoritative field that explains the complete query.
         var single = fields.FirstOrDefault(field => field.CoveredTerms.Count == terms.Length);
@@ -105,7 +108,8 @@ public static partial class SearchMatchEvidenceResolver
         string label,
         string? value,
         IReadOnlyList<string> terms,
-        bool allowPrefix)
+        bool allowPrefix,
+        IReadOnlyDictionary<string, string>? stems = null)
     {
         if (string.IsNullOrWhiteSpace(value)) return;
         var words = WordRegex().Matches(Normalize(value))
@@ -113,9 +117,13 @@ public static partial class SearchMatchEvidenceResolver
             .Where(word => word.Length > 0)
             .ToArray();
 
+        string? StemOf(string term) =>
+            stems is not null && stems.TryGetValue(term, out var stem) && stem.Length >= 3 ? stem : null;
+
         var covered = terms
             .Where(term => words.Any(word => string.Equals(word, term, StringComparison.OrdinalIgnoreCase)
-                                             || (allowPrefix && word.StartsWith(term, StringComparison.OrdinalIgnoreCase))))
+                                             || (allowPrefix && word.StartsWith(term, StringComparison.OrdinalIgnoreCase))
+                                             || (StemOf(term) is { } stem && word.StartsWith(stem, StringComparison.OrdinalIgnoreCase))))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
