@@ -27,8 +27,8 @@ public sealed class SearchEngine : ISearchV2Engine
     private const int PatternIndexPrefixLength = 160;
 
     /// <summary>
-    /// Candidates each suggestion branch passes on, best first in the final ranking's own
-    /// tie-break order (projects, closeness, most recently updated). A common two- or three-letter prefix matched thousands of rows, and every one
+    /// Records each suggestion branch passes on (one row per record), best first in the final
+    /// ranking's order: match priority, projects, closeness, most recently updated. A common two- or three-letter prefix matched thousands of rows, and every one
     /// was scored on each keystroke; six suggestions are shown.
     /// </summary>
     internal const int SuggestionCandidatesPerBranch = 200;
@@ -409,52 +409,90 @@ public sealed class SearchEngine : ISearchV2Engine
                 FROM "SearchIndexState"
                 WHERE "Id" = 1 AND "IndexVersion" BETWEEN @minIndexVersion AND @indexVersion
             ), candidate_ids AS (
-                -- Each branch passes on its best @branchLimit candidates only, in the final
-                -- ranking's own tie-break order (projects, closeness, most recently updated).
-                (SELECT e."Id"
-                FROM "SearchEntries" e
-                WHERE {scopeWhere}
-                  AND LEFT(e."NormalizedTitle", {PatternIndexPrefixLength}) LIKE @prefixLike160
-                  AND e."NormalizedTitle" LIKE @prefixLike
-                ORDER BY CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC, e."UpdatedAtUtc" DESC, e."Id"
+                -- A common prefix can match thousands of rows, and many rows can be one record
+                -- (Proliferation has a row per entry under its project's title). Each branch
+                -- passes on one row per record and at most @branchLimit records, ordered as
+                -- the final ranking orders them: match priority first, then projects,
+                -- closeness and the most recent, so the cap never drops a better suggestion.
+                (SELECT d."Id" FROM (
+                    SELECT DISTINCT ON (b."CanonicalEntityType", b."CanonicalEntityKey") b.*
+                    FROM (SELECT e."Id", e."EntityType", e."NormalizedTitle", e."UpdatedAtUtc", e."CanonicalEntityType", e."CanonicalEntityKey", CASE WHEN e."NormalizedTitle" = @exact THEN 2 ELSE 4 END AS p
+                    FROM "SearchEntries" e
+                    WHERE {scopeWhere}
+                      AND LEFT(e."NormalizedTitle", {PatternIndexPrefixLength}) LIKE @prefixLike160
+                      AND e."NormalizedTitle" LIKE @prefixLike) b
+                    ORDER BY b."CanonicalEntityType", b."CanonicalEntityKey", p, CASE WHEN b."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(b."NormalizedTitle", @exact), word_similarity(@exact, b."NormalizedTitle")) DESC, b."UpdatedAtUtc" DESC, b."Id"
+                ) d
+                ORDER BY d.p, CASE WHEN d."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(d."NormalizedTitle", @exact), word_similarity(@exact, d."NormalizedTitle")) DESC, d."UpdatedAtUtc" DESC, d."Id"
                 LIMIT @branchLimit)
                 UNION
-                (SELECT e."Id"
-                FROM "SearchEntries" e
-                WHERE @prefixTsQuery <> ''
-                  AND {scopeWhere}
-                  AND e."SearchVectorSimple" @@ to_tsquery('simple', @prefixTsQuery)
-                  AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery)
-                ORDER BY CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC, e."UpdatedAtUtc" DESC, e."Id"
+                (SELECT d."Id" FROM (
+                    SELECT DISTINCT ON (b."CanonicalEntityType", b."CanonicalEntityKey") b.*
+                    FROM (SELECT e."Id", e."EntityType", e."NormalizedTitle", e."UpdatedAtUtc", e."CanonicalEntityType", e."CanonicalEntityKey",
+                           CASE
+                               WHEN e."NormalizedTitle" = @exact THEN 2
+                               WHEN @exactTokenTsQuery <> '' AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @exactTokenTsQuery) THEN 3
+                               WHEN e."NormalizedTitle" LIKE @prefixLike THEN 4
+                               ELSE 5
+                           END AS p
+                    FROM "SearchEntries" e
+                    WHERE @prefixTsQuery <> ''
+                      AND {scopeWhere}
+                      AND e."SearchVectorSimple" @@ to_tsquery('simple', @prefixTsQuery)
+                      AND to_tsvector('simple', e."Title") @@ to_tsquery('simple', @prefixTsQuery)) b
+                    ORDER BY b."CanonicalEntityType", b."CanonicalEntityKey", p, CASE WHEN b."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(b."NormalizedTitle", @exact), word_similarity(@exact, b."NormalizedTitle")) DESC, b."UpdatedAtUtc" DESC, b."Id"
+                ) d
+                ORDER BY d.p, CASE WHEN d."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(d."NormalizedTitle", @exact), word_similarity(@exact, d."NormalizedTitle")) DESC, d."UpdatedAtUtc" DESC, d."Id"
                 LIMIT @branchLimit)
                 UNION
-                (SELECT e."Id"
-                FROM "SearchEntryTerms" t
-                JOIN "SearchEntries" e ON e."Id" = t."SearchEntryId"
-                WHERE t."TermType" IN ('Identifier', 'Alias')
-                  AND LEFT(t."NormalizedTerm", {PatternIndexPrefixLength}) LIKE @prefixLike160
-                  AND t."NormalizedTerm" LIKE @prefixLike
-                  AND {scopeWhere}
-                ORDER BY CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC, e."UpdatedAtUtc" DESC, e."Id"
+                (SELECT d."Id" FROM (
+                    SELECT DISTINCT ON (b."CanonicalEntityType", b."CanonicalEntityKey") b.*
+                    FROM (SELECT e."Id", e."EntityType", e."NormalizedTitle", e."UpdatedAtUtc", e."CanonicalEntityType", e."CanonicalEntityKey",
+                           MIN(CASE
+                               WHEN t."TermType" = 'Identifier' AND t."NormalizedTerm" = @exact THEN 0
+                               WHEN t."TermType" = 'Identifier' THEN 1
+                               WHEN t."NormalizedTerm" = @exact THEN 6
+                               ELSE 7
+                           END) AS p
+                    FROM "SearchEntryTerms" t
+                    JOIN "SearchEntries" e ON e."Id" = t."SearchEntryId"
+                    WHERE t."TermType" IN ('Identifier', 'Alias')
+                      AND LEFT(t."NormalizedTerm", {PatternIndexPrefixLength}) LIKE @prefixLike160
+                      AND t."NormalizedTerm" LIKE @prefixLike
+                      AND {scopeWhere}
+                    GROUP BY e."Id", e."EntityType", e."NormalizedTitle", e."UpdatedAtUtc", e."CanonicalEntityType", e."CanonicalEntityKey") b
+                    ORDER BY b."CanonicalEntityType", b."CanonicalEntityKey", p, CASE WHEN b."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(b."NormalizedTitle", @exact), word_similarity(@exact, b."NormalizedTitle")) DESC, b."UpdatedAtUtc" DESC, b."Id"
+                ) d
+                ORDER BY d.p, CASE WHEN d."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(d."NormalizedTitle", @exact), word_similarity(@exact, d."NormalizedTitle")) DESC, d."UpdatedAtUtc" DESC, d."Id"
                 LIMIT @branchLimit)
                 UNION
-                (SELECT e."Id"
-                FROM "SearchEntryTerms" t
-                JOIN "SearchEntries" e ON e."Id" = t."SearchEntryId"
-                WHERE LENGTH(@identifierKey) >= 3
-                  AND t."TermType" = 'IdentifierKey'
-                  AND LEFT(t."NormalizedTerm", {PatternIndexPrefixLength}) LIKE @identifierKeyPrefixLike
-                  AND {scopeWhere}
-                ORDER BY CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC, e."UpdatedAtUtc" DESC, e."Id"
+                (SELECT d."Id" FROM (
+                    SELECT DISTINCT ON (b."CanonicalEntityType", b."CanonicalEntityKey") b.*
+                    FROM (SELECT e."Id", e."EntityType", e."NormalizedTitle", e."UpdatedAtUtc", e."CanonicalEntityType", e."CanonicalEntityKey",
+                           MIN(CASE WHEN t."NormalizedTerm" = @identifierKey THEN 0 ELSE 1 END) AS p
+                    FROM "SearchEntryTerms" t
+                    JOIN "SearchEntries" e ON e."Id" = t."SearchEntryId"
+                    WHERE LENGTH(@identifierKey) >= 3
+                      AND t."TermType" = 'IdentifierKey'
+                      AND LEFT(t."NormalizedTerm", {PatternIndexPrefixLength}) LIKE @identifierKeyPrefixLike
+                      AND {scopeWhere}
+                    GROUP BY e."Id", e."EntityType", e."NormalizedTitle", e."UpdatedAtUtc", e."CanonicalEntityType", e."CanonicalEntityKey") b
+                    ORDER BY b."CanonicalEntityType", b."CanonicalEntityKey", p, CASE WHEN b."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(b."NormalizedTitle", @exact), word_similarity(@exact, b."NormalizedTitle")) DESC, b."UpdatedAtUtc" DESC, b."Id"
+                ) d
+                ORDER BY d.p, CASE WHEN d."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(d."NormalizedTitle", @exact), word_similarity(@exact, d."NormalizedTitle")) DESC, d."UpdatedAtUtc" DESC, d."Id"
                 LIMIT @branchLimit)
                 UNION
-                (SELECT e."Id"
-                FROM "SearchEntries" e
-                WHERE LENGTH(@exact) >= 4
-                  AND {scopeWhere}
-                  AND e."NormalizedTitle" % @exact
-                  AND similarity(e."NormalizedTitle", @exact) >= @suggestionFuzzyThreshold
-                ORDER BY CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) DESC, e."UpdatedAtUtc" DESC, e."Id"
+                (SELECT d."Id" FROM (
+                    SELECT DISTINCT ON (b."CanonicalEntityType", b."CanonicalEntityKey") b.*
+                    FROM (SELECT e."Id", e."EntityType", e."NormalizedTitle", e."UpdatedAtUtc", e."CanonicalEntityType", e."CanonicalEntityKey", 8 AS p
+                    FROM "SearchEntries" e
+                    WHERE LENGTH(@exact) >= 4
+                      AND {scopeWhere}
+                      AND e."NormalizedTitle" % @exact
+                      AND similarity(e."NormalizedTitle", @exact) >= @suggestionFuzzyThreshold) b
+                    ORDER BY b."CanonicalEntityType", b."CanonicalEntityKey", p, CASE WHEN b."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(b."NormalizedTitle", @exact), word_similarity(@exact, b."NormalizedTitle")) DESC, b."UpdatedAtUtc" DESC, b."Id"
+                ) d
+                ORDER BY d.p, CASE WHEN d."EntityType" = 'Project' THEN 0 ELSE 1 END, GREATEST(similarity(d."NormalizedTitle", @exact), word_similarity(@exact, d."NormalizedTitle")) DESC, d."UpdatedAtUtc" DESC, d."Id"
                 LIMIT @branchLimit)
             ), scored AS (
                 SELECT e."Id", e."Title", e."NormalizedTitle", e."Subtitle", e."CanonicalUrl", e."SourceModule",
