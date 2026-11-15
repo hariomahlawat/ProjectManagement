@@ -301,6 +301,20 @@
     };
   }
 
+  /** The smallest picture area a frame keeps, in page units, however flat it is squeezed. */
+  const MIN_PICTURE = 24;
+
+  /**
+   * The item's aspect kept so a framed photo still has a picture area at least MIN_PICTURE high:
+   * a polaroid's edges follow its width, so squeezing it flat could otherwise leave no photo.
+   */
+  function limitFrameAspect(item) {
+    if (!isFramed(item)) return item.aspect;
+    const pads = framePads(item);
+    const minHeight = pads.top + pads.bottom + Math.max(MIN_PICTURE, item.width * 0.1);
+    return Math.min(item.aspect, item.width / minHeight);
+  }
+
   /** The shape of the picture area, width / height. */
   function innerAspect(item) {
     const inner = innerBox(item);
@@ -886,6 +900,7 @@
     innerBox,
     innerAspect,
     outerAspectFor,
+    limitFrameAspect,
     lookFilter,
     shapePath,
     tornEdge,

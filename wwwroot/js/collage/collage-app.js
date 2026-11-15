@@ -685,6 +685,8 @@
       const height = core.itemHeight(target) * Math.abs(node.scaleY());
       target.width = width;
       target.aspect = width / Math.max(1, height);
+      // A framed photo squeezed flat keeps a usable picture area inside its edges.
+      if (target.kind === 'photo') target.aspect = core.limitFrameAspect(target);
       if (target.crop) target.crop = clampedCrop(target);
       target.angle = core.normaliseAngle(node.rotation());
       target.x = node.x();
@@ -1281,7 +1283,7 @@
     item[name] = value;
     if (name === 'frame' && value !== 'none') item.shape = 'rect';
     if (name === 'frame' || name === 'shape') {
-      item.aspect = core.outerAspectFor(item, pictureAspect);
+      item.aspect = core.limitFrameAspect({ ...item, aspect: core.outerAspectFor(item, pictureAspect) });
       item.crop = clampedCrop(item);
     }
   }

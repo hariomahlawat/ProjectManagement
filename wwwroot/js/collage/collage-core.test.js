@@ -517,3 +517,15 @@ test('a mirrored photo moves with the pointer inside its frame, not against it',
   // Up and down are not mirrored.
   assert.equal(collage.panCrop(1, { ...item, flip: true }, 0, 10).y, collage.panCrop(1, item, 0, 10).y);
 });
+
+test('a framed photo squeezed flat keeps a usable picture area', () => {
+  const polaroid = { ...collage.photoItem('a', 'p', 1, { x: 0, y: 0, width: 400 }), frame: 'polaroid' };
+  // 400 × 80: the polaroid's 20 + 80 units of edges would leave no photo.
+  const squeezed = { ...polaroid, aspect: 5 };
+  const kept = { ...squeezed, aspect: collage.limitFrameAspect(squeezed) };
+  assert.ok(collage.innerBox(kept).height >= 40 - 1e-9);
+  assert.ok(Math.abs(collage.innerBox(kept).height - 40) < 1e-9, 'a tenth of the width at least');
+  // A photo without a frame, or a frame already tall enough, is left as it is.
+  assert.equal(collage.limitFrameAspect({ ...squeezed, frame: 'none' }), 5);
+  assert.equal(collage.limitFrameAspect({ ...polaroid, aspect: 1 }), 1);
+});
