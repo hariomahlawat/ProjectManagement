@@ -197,7 +197,17 @@
       alertBox.hidden = true;
       const toast = window.PrismToast.show({ tone: 'warning', text, life: ALERT_LIFE });
       alertToast = toast;
-      window.setTimeout(() => { if (alertToast === toast) clearAlert(); }, ALERT_LIFE + 1000);
+      // The toast decides when it goes (it waits while the tab is hidden or someone reads it); the
+      // page's own text follows it.
+      const host = toast.element?.parentNode;
+      if (host) {
+        const watch = new MutationObserver(() => {
+          if (toast.element.isConnected) return;
+          watch.disconnect();
+          if (alertToast === toast) clearAlert();
+        });
+        watch.observe(host, { childList: true });
+      }
       return;
     }
     alertBox.hidden = !text;

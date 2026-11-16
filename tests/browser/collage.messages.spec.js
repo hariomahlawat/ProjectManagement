@@ -58,3 +58,22 @@ test('a tray photo dropped beside the page when every frame is full says so, and
   expect((await newestDraft(page)).model.items).toEqual(before.items);
   expect(errors).toEqual([]);
 });
+
+test('a message stays while it is being read, and its text goes only when the toast goes', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await photos(page, 5));
+  const toast = message(page, 'did not fit');
+  await expect(toast).toBeVisible();
+  // Read with the pointer on it, for longer than the message's own life.
+  await toast.hover();
+  await page.waitForTimeout(11000);
+  await expect(toast).toBeVisible();
+  await expect(page.locator('[data-alert-text]')).toContainText('did not fit');
+  // Left alone, it fades, and the page's own text with it.
+  await page.mouse.move(5, 5);
+  await expect(toast).toHaveCount(0, { timeout: 20000 });
+  await expect(page.locator('[data-alert-text]')).toHaveText('');
+  expect(errors).toEqual([]);
+});
