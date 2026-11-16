@@ -35,6 +35,89 @@ public sealed class ProjectBriefingProjectSlideDesignTests
         Assert.Equal(design, ProjectBriefingProjectSlideDesigns.Of(settings.Layout, settings.NarrativeMode, options));
     }
 
+    // The Deck tab's card rules (review 2 fixes, PR 5): the page reads them from the card, so they
+    // must agree with the settings each design writes.
+    [Theory]
+    [InlineData(ProjectBriefingProjectSlideDesign.Capability)]
+    [InlineData(ProjectBriefingProjectSlideDesign.KeyPoints)]
+    [InlineData(ProjectBriefingProjectSlideDesign.Brief)]
+    [InlineData(ProjectBriefingProjectSlideDesign.FactSheet)]
+    [InlineData(ProjectBriefingProjectSlideDesign.KeyPointsOnly)]
+    [InlineData(ProjectBriefingProjectSlideDesign.CapabilityAndBrief)]
+    public void EachDesignsCardRules_AgreeWithTheSettingsItWrites(ProjectBriefingProjectSlideDesign design)
+    {
+        foreach (var showKeyPoints in new[] { false, true })
+        {
+            var settings = ProjectBriefingProjectSlideDesigns.Settings(
+                design,
+                ProjectBriefingNarrativeMode.CapabilityOverview,
+                ProjectBriefingKeyPointPlacement.None,
+                showKeyPoints,
+                ProjectBriefingKeyPointPlacement.ProjectBriefSlide);
+            Assert.Equal(settings.Layout, ProjectBriefingProjectSlideDesigns.Layout(design));
+            if (design == ProjectBriefingProjectSlideDesign.FactSheet)
+            {
+                continue;
+            }
+
+            var keyPointsOn = settings.KeyPoints != ProjectBriefingKeyPointPlacement.None;
+            var whenChosen = ProjectBriefingProjectSlideDesigns.KeyPointsWhenChosen(design);
+            Assert.Equal(whenChosen ?? showKeyPoints, keyPointsOn);
+            Assert.Equal(
+                settings.NarrativeMode is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both,
+                ProjectBriefingProjectSlideDesigns.UsesBriefLayout(design));
+            Assert.Equal(
+                settings.NarrativeMode == ProjectBriefingNarrativeMode.Both,
+                ProjectBriefingProjectSlideDesigns.OffersKeyPointSlide(design));
+        }
+
+        // A fact sheet hides the chips, so it has no hint under them.
+        Assert.Equal(
+            design != ProjectBriefingProjectSlideDesign.FactSheet,
+            ProjectBriefingProjectSlideDesigns.Hint(design).Length > 0);
+    }
+
+    [Fact]
+    public void TheKeyPointChip_SwapsCapabilityAndKeyPoints_AndLocksKeyPointsOnly()
+    {
+        Assert.Equal(ProjectBriefingProjectSlideDesign.KeyPoints,
+            ProjectBriefingProjectSlideDesigns.WithKeyPoints(ProjectBriefingProjectSlideDesign.Capability, on: true));
+        Assert.Equal(ProjectBriefingProjectSlideDesign.Capability,
+            ProjectBriefingProjectSlideDesigns.WithKeyPoints(ProjectBriefingProjectSlideDesign.KeyPoints, on: false));
+        Assert.Equal(ProjectBriefingProjectSlideDesign.Brief,
+            ProjectBriefingProjectSlideDesigns.WithKeyPoints(ProjectBriefingProjectSlideDesign.Brief, on: true));
+        Assert.True(ProjectBriefingProjectSlideDesigns.KeyPointsLocked(ProjectBriefingProjectSlideDesign.KeyPointsOnly));
+        Assert.False(ProjectBriefingProjectSlideDesigns.KeyPointsLocked(ProjectBriefingProjectSlideDesign.KeyPoints));
+    }
+
+    [Theory]
+    [InlineData(ProjectBriefingNarrativeMode.CapabilityOverview, true, ProjectBriefingKeyPointPlacement.ProjectBriefSlide, ProjectBriefingKeyPointPlacement.CapabilitySlide)]
+    [InlineData(ProjectBriefingNarrativeMode.ProjectBrief, true, ProjectBriefingKeyPointPlacement.CapabilitySlide, ProjectBriefingKeyPointPlacement.ProjectBriefSlide)]
+    [InlineData(ProjectBriefingNarrativeMode.Both, true, ProjectBriefingKeyPointPlacement.CapabilitySlide, ProjectBriefingKeyPointPlacement.CapabilitySlide)]
+    [InlineData(ProjectBriefingNarrativeMode.Both, true, ProjectBriefingKeyPointPlacement.None, ProjectBriefingKeyPointPlacement.ProjectBriefSlide)]
+    [InlineData(ProjectBriefingNarrativeMode.Both, false, ProjectBriefingKeyPointPlacement.CapabilitySlide, ProjectBriefingKeyPointPlacement.None)]
+    public void KeyPointPlacement_GoesOnTheOnlyProjectSlide_OrTheChosenOne(
+        ProjectBriefingNarrativeMode narrativeMode,
+        bool showKeyPoints,
+        ProjectBriefingKeyPointPlacement keyPointSlide,
+        ProjectBriefingKeyPointPlacement expected)
+        => Assert.Equal(expected, ProjectBriefingProjectSlideDesigns.KeyPointPlacement(narrativeMode, showKeyPoints, keyPointSlide));
+
+    [Fact]
+    public void Resolve_WithoutAPostedDesign_ReadsTheDesignFromThePostedFields()
+    {
+        var settings = ProjectBriefingProjectSlideDesigns.Resolve(
+            design: null,
+            ProjectBriefingLayout.StandardBriefing,
+            ProjectBriefingNarrativeMode.CapabilityOverview,
+            showKeyPoints: true,
+            ProjectBriefingKeyPointPlacement.ProjectBriefSlide);
+
+        Assert.Equal(ProjectBriefingKeyPointPlacement.CapabilitySlide, settings.KeyPoints);
+        Assert.False(settings.KeyPointsOnly);
+        Assert.Equal(ProjectBriefingNarrativeMode.CapabilityOverview, settings.NarrativeMode);
+    }
+
     [Fact]
     public void Brief_KeepsTheKeyPointBand_AndCapabilityAndBriefKeepsItsSlideChoice()
     {

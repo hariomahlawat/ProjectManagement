@@ -335,6 +335,7 @@
                         <section class="pbd-studio" aria-label="Briefing studio" data-pbd-studio
                                  data-preview-url="@Url.Page("/Workspace/BriefingDecks/Index", "Preview", new { deckId = deck.Id })"
                                  data-estimated-slides="@deck.SlideEstimate.TotalSlides"
+                                 data-speaker-notes-max="@ProjectBriefingDeckService.SpeakerNotesMaxLength"
                                  data-layout="@deck.Layout"
                                  data-presentation-mode="@deck.PresentationMode"
                                  data-has-projects="@((presentedProjects!.Length > 0).ToString().ToLowerInvariant())"
@@ -619,7 +620,16 @@
                                             @foreach (var design in designChoices)
                                             {
                                                 <label class="pbd-design">
-                                                    <input type="radio" name="ProjectDesign" value="@design" checked="@(design == currentDesign)" data-label="@ProjectBriefingProjectSlideDesigns.DisplayName(design)" data-pbd-design />
+                                                    @* The design's rules come from ProjectBriefingProjectSlideDesigns, so the script does not repeat them. *@
+                                                    <input type="radio" name="ProjectDesign" value="@design" checked="@(design == currentDesign)" data-label="@ProjectBriefingProjectSlideDesigns.DisplayName(design)" data-pbd-design
+                                                           data-layout="@ProjectBriefingProjectSlideDesigns.Layout(design)"
+                                                           data-hint="@ProjectBriefingProjectSlideDesigns.Hint(design)"
+                                                           data-key-points="@(ProjectBriefingProjectSlideDesigns.KeyPointsWhenChosen(design) switch { true => "on", false => "off", null => "keep" })"
+                                                           data-key-points-locked="@(ProjectBriefingProjectSlideDesigns.KeyPointsLocked(design) ? "true" : "false")"
+                                                           data-with-key-points="@ProjectBriefingProjectSlideDesigns.WithKeyPoints(design, true)"
+                                                           data-without-key-points="@ProjectBriefingProjectSlideDesigns.WithKeyPoints(design, false)"
+                                                           data-brief-layout="@(ProjectBriefingProjectSlideDesigns.UsesBriefLayout(design) ? "true" : "false")"
+                                                           data-key-point-slide="@(ProjectBriefingProjectSlideDesigns.OffersKeyPointSlide(design) ? "true" : "false")" />
                                                     <span class="pbd-design__mini pbd-design__mini--@design.ToString().ToLowerInvariant()" aria-hidden="true">
                                                         @switch (design)
                                                         {
@@ -687,15 +697,15 @@
                                                 <input type="hidden" name="ShowKeyPoints" value="false" />
                                             </label>
                                         </div>
-                                        <p class="pbd-seg-help" data-pbd-design-hint></p>
-                                        <div class="pbd-seg pbd-key-point-slide" role="radiogroup" aria-label="Slide that shows the key points" data-pbd-key-point-slide hidden="@(!keyPointsOn || deck.NarrativeMode != ProjectBriefingNarrativeMode.Both)">
+                                        <p class="pbd-seg-help" data-pbd-design-hint>@ProjectBriefingProjectSlideDesigns.Hint(currentDesign)</p>
+                                        <div class="pbd-seg pbd-key-point-slide" role="radiogroup" aria-label="Slide that shows the key points" data-pbd-key-point-slide hidden="@(!keyPointsOn || !ProjectBriefingProjectSlideDesigns.OffersKeyPointSlide(currentDesign))">
                                             <label class="pbd-seg__option"><input type="radio" name="KeyPointSlide" value="ProjectBriefSlide" checked="@(!keyPointsOnCapability)" /><span>On the brief slide</span></label>
                                             <label class="pbd-seg__option"><input type="radio" name="KeyPointSlide" value="CapabilitySlide" checked="@keyPointsOnCapability" /><span>On the capability slide</span></label>
                                         </div>
                                     </fieldset>
 
                                     @* The key points layout draws its own brief slide, so the brief layout only matters without key points. *@
-                                    <fieldset class="pbd-choice-group" data-pbd-project-brief-layout-settings hidden="@(isUpdateSheet || !standardNeedsProjectBrief || keyPointsOn)">
+                                    <fieldset class="pbd-choice-group" data-pbd-project-brief-layout-settings hidden="@(isUpdateSheet || !ProjectBriefingProjectSlideDesigns.UsesBriefLayout(currentDesign) || keyPointsOn)">
                                         <legend>Brief layout</legend>
                                         <div class="pbd-seg">
                                             <label class="pbd-seg__option"><input type="radio" name="ProjectBriefLayout" value="Automatic" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Automatic)" data-help="Photo emphasis when the photograph and brief suit it, otherwise standard." data-label="Automatic" /><span>Automatic</span></label>

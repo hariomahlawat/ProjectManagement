@@ -899,7 +899,10 @@ if (root) {
   });
 
   // The project slide design chosen in Project slides (ProjectBriefingProjectSlideDesigns).
-  const projectDesign = () => settingsForm?.querySelector('input[name="ProjectDesign"]:checked')?.value || '';
+  const projectDesignCard = () => settingsForm?.querySelector('input[name="ProjectDesign"]:checked');
+  const projectDesign = () => projectDesignCard()?.value || '';
+  // The chosen design's rules, which the server writes on its card (ProjectBriefingProjectSlideDesigns).
+  const designRule = (name) => projectDesignCard()?.dataset[name] || '';
   // Each step's one-line summary, read from the form as it stands.
   const settingsValue = (name) => settingsForm?.querySelector(`input[name="${name}"]:checked`)?.value || '';
   const settingsChecked = (name) => Boolean(settingsForm?.querySelector(`input[type="checkbox"][name="${name}"]`)?.checked);
@@ -928,11 +931,11 @@ if (root) {
     const project = sheet ? [] : [stage && status ? 'stage and status' : stage ? 'stage' : status ? 'status remark' : 'no stage or status', cost];
     if (sheet) {
       // A fact sheet's parts are its rows (Sheet rows).
-    } else if (keyPoints && design === 'CapabilityAndBrief') {
+    } else if (keyPoints && designRule('keyPointSlide') === 'true') {
       project.push(`key points on the ${settingsValue('KeyPointSlide') === 'CapabilitySlide' ? 'capability' : 'brief'} slide`);
-    } else if (keyPoints && design === 'Brief') {
+    } else if (keyPoints && designRule('briefLayout') === 'true') {
       project.push('key points');
-    } else if (!keyPoints && ['Brief', 'CapabilityAndBrief'].includes(design)) {
+    } else if (!keyPoints && designRule('briefLayout') === 'true') {
       project.push(`${settingsValueLabel('ProjectBriefLayout').toLowerCase()} brief layout`);
     }
     const rows = settingsForm?.querySelectorAll('input[name="UpdateSheetRows"]:checked').length || 0;
@@ -1441,31 +1444,22 @@ if (root) {
     const updateSheet = isUpdateSheet();
     root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
 
-    const design = projectDesign();
     const keyPointsToggle = root.querySelector('[data-pbd-key-points-toggle]');
     const keyPointsOn = Boolean(keyPointsToggle?.checked);
     const parts = root.querySelector('[data-pbd-design-parts]');
     if (parts) parts.hidden = updateSheet;
     // Key points only always shows them; the other designs switch them with the chip.
-    if (keyPointsToggle instanceof HTMLInputElement) keyPointsToggle.disabled = design === 'KeyPointsOnly';
+    if (keyPointsToggle instanceof HTMLInputElement) keyPointsToggle.disabled = designRule('keyPointsLocked') === 'true';
     const designHint = root.querySelector('[data-pbd-design-hint]');
-    if (designHint) {
-      designHint.textContent = {
-        KeyPointsOnly: 'No brief or capability text. A project without key points shows the gap, like other missing content.',
-        KeyPoints: 'Key points sit in a band at the foot of the slide. Switch them off for the Capability design.',
-        Capability: 'Switch key points on for the Key points design. Anything switched off gives its space to the photo and text.',
-        Brief: 'Key points add a band at the foot of the brief slide. Anything switched off gives its space to the photo and text.',
-        CapabilityAndBrief: 'An older choice, kept for this deck: two slides per project.'
-      }[design] || '';
-    }
+    if (designHint) designHint.textContent = designRule('hint');
     const projectBriefLayoutSettings = root.querySelector('[data-pbd-project-brief-layout-settings]');
     if (projectBriefLayoutSettings) {
       // The key points layout draws its own brief slide.
-      projectBriefLayoutSettings.hidden = updateSheet || !['Brief', 'CapabilityAndBrief'].includes(design) || keyPointsOn;
+      projectBriefLayoutSettings.hidden = updateSheet || designRule('briefLayout') !== 'true' || keyPointsOn;
     }
     // The slide choice matters only when the deck draws both project slides.
     const keyPointSlide = root.querySelector('[data-pbd-key-point-slide]');
-    if (keyPointSlide) keyPointSlide.hidden = !keyPointsOn || design !== 'CapabilityAndBrief';
+    if (keyPointSlide) keyPointSlide.hidden = !keyPointsOn || designRule('keyPointSlide') !== 'true';
     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
     root.querySelectorAll('[data-pbd-theme-preview]').forEach((preview) => {
       preview.classList.toggle('is-update-sheet', updateSheet);
@@ -1488,25 +1482,24 @@ if (root) {
     if (radio instanceof HTMLInputElement) radio.checked = true;
   };
   const keyPointsChip = root.querySelector('[data-pbd-key-points-toggle]');
-  const applyDesign = (design) => {
+  const applyDesign = (card) => {
     // The server works out the rest from the design (ProjectBriefingProjectSlideDesigns); the page
-    // needs only the layout, which decides whether it reloads to draw the other layout's slide list.
-    setRadio('Layout', design === 'FactSheet' ? 'ProjectUpdateSheet' : 'StandardBriefing');
-    if (keyPointsChip instanceof HTMLInputElement) {
-      if (design === 'KeyPoints' || design === 'KeyPointsOnly') keyPointsChip.checked = true;
-      if (design === 'Capability') keyPointsChip.checked = false;
+    // needs only the layout, which decides whether it reloads to draw the other layout's slide list,
+    // and the key point chip, both read from the card.
+    setRadio('Layout', card.dataset.layout || 'StandardBriefing');
+    if (keyPointsChip instanceof HTMLInputElement && card.dataset.keyPoints !== 'keep') {
+      keyPointsChip.checked = card.dataset.keyPoints === 'on';
     }
     syncTemplateSettings();
   };
   root.querySelectorAll('[data-pbd-design]').forEach((card) => card.addEventListener('change', () => {
-    if (card instanceof HTMLInputElement && card.checked) applyDesign(card.value);
+    if (card instanceof HTMLInputElement && card.checked) applyDesign(card);
   }));
-  // Key points on a capability slide is the Key points design, and off is Capability.
+  // The chip can change the design (key points on a capability slide is the Key points design, and
+  // off is Capability); the card says which.
   keyPointsChip?.addEventListener('change', () => {
-    const design = projectDesign();
-    const swap = keyPointsChip.checked && design === 'Capability' ? 'KeyPoints'
-      : !keyPointsChip.checked && design === 'KeyPoints' ? 'Capability' : '';
-    if (swap) setRadio('ProjectDesign', swap);
+    const swap = designRule(keyPointsChip.checked ? 'withKeyPoints' : 'withoutKeyPoints');
+    if (swap && swap !== projectDesign()) setRadio('ProjectDesign', swap);
     syncTemplateSettings();
   });
   // The two cost chips are the deck's cost choice (status table and project slides).
