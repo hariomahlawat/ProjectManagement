@@ -225,7 +225,7 @@
             photo = parts.missingPhoto(entry);
             unreadable += 1;
           }
-          if (forCollage !== state.collageSession) return;
+          if (forCollage !== state.collageSession) { window.PrismCollagePhotos.releasePhoto(photo); return; }
           photos.set(photo.id, photo);
         }
       } finally {
@@ -238,8 +238,7 @@
       }
       const model = core.readDraftModel(record.model, [...photos.keys()]);
       if (!model) {
-        // Its photos were read already: they are let go now, not kept until the next collage.
-        for (const photo of photos.values()) window.PrismCollagePhotos.releasePhoto(photo);
+        // Its photos were read already: resetEditor lets them go now, not at the next collage.
         resetEditor();
         renderDrafts();
         showAlert('This draft was made by a newer version of PRISM, or is damaged, and cannot be opened here.');

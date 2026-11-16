@@ -16,6 +16,17 @@
     // Keyboard and the mouse wheel
     // ---------------------------------------------------------------------------
 
+    /**
+     * Whether Delete or Backspace here removes the selected item: on the page itself, or on that
+     * item's own row in Layers (where a keyboard user picks it). On any other button or control
+     * (the toolbar, a panel, a tile) the key belongs to that control and removes nothing.
+     */
+    function deletesItem(target, onPage) {
+      const row = target.closest?.('[data-layer-select]');
+      if (row) return row.dataset.layerSelect === state.selectedId;
+      return onPage && !target.closest?.('button, a[href], summary, [role="button"], [tabindex]:not([tabindex="-1"])');
+    }
+
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Shift') setShift(true);
       if (views.editor.hidden || state.leaving || document.querySelector('dialog[open]')) return;
@@ -37,7 +48,7 @@
       if (mod && key === 'z' && !event.shiftKey) { event.preventDefault(); act('undo'); }
       else if (mod && (key === 'y' || (key === 'z' && event.shiftKey))) { event.preventDefault(); act('redo'); }
       else if (mod && key === 'd') { event.preventDefault(); act('duplicate'); }
-      else if ((key === 'delete' || key === 'backspace') && state.selectedId) { event.preventDefault(); act('delete'); }
+      else if ((key === 'delete' || key === 'backspace') && state.selectedId && deletesItem(event.target, onPage)) { event.preventDefault(); act('delete'); }
       else if (key === ']') act(event.shiftKey ? 'front' : 'forward');
       else if (key === '[') act(event.shiftKey ? 'back' : 'backward');
       else if (key === 'enter' && onPage && selectedItem()?.kind === 'photo' && !state.adjustId) act('adjust');

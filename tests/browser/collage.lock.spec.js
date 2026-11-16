@@ -33,7 +33,8 @@ test('a locked photo cannot be deleted, moved in its frame, replaced or given ot
   await expect(toolbar.locator('[data-action="lock"]')).toBeEnabled();
   await expect(toolbar.locator('[data-action="duplicate"]')).toBeEnabled();
 
-  // The keys say so and change nothing.
+  // The keys say so and change nothing (pressed on the page: on the Lock button it is the button's).
+  await page.evaluate(() => document.activeElement.blur());
   await page.keyboard.press('Delete');
   await expect(page.locator('[data-announce]')).toHaveText('It is locked. Unlock it first.');
   // Said on the screen too, not only to a screen reader.

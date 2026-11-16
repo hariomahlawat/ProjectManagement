@@ -190,6 +190,8 @@ test('rounded corners change the layout and one frame, and both are kept', async
   await showSettings(page);
   await page.locator('.clg-props summary', { hasText: 'Corners and see-through' }).click();
   await page.locator('.clg-props [data-prop="radius"]').fill('8');
-  await expect.poll(async () => (await newestDraft(page))?.model.layout?.radius).toBe(8);
+  // It is that frame's own: the layout keeps its corners (docs/ux/collage-review-4-fixes.md, E3).
+  await expect.poll(async () => (await newestDraft(page))?.model.items.map((i) => i.radius).sort((a, b) => a - b)).toEqual([8, 20, 20]);
+  expect((await newestDraft(page)).model.layout.radius).toBe(20);
   expect(errors).toEqual([]);
 });

@@ -36,7 +36,7 @@
   /** The database, or a rejection with a reason when this browser keeps no data. */
   function open() {
     if (opening) return opening;
-    opening = new Promise((resolve, reject) => {
+    const thisOpen = new Promise((resolve, reject) => {
       if (!root.indexedDB) { reject(Object.assign(new Error('No IndexedDB'), { name: 'NotSupported' })); return; }
       let req;
       try {
@@ -57,17 +57,23 @@
         const db = req.result;
         // A newer Collage Studio in another tab needs the database changed: this tab lets go,
         // and opens it again (at the new version) the next time it saves.
+        // Forgotten only if it is still the one in use: a newer connection is kept.
+        const forget = () => { if (opening === thisOpen) opening = null; };
         db.onversionchange = () => {
           db.close();
-          opening = null;
+          forget();
         };
+        // The browser closed it (storage cleared, the disk gone, a crash in its database
+        // process): every later write would fail, so the next call opens it again.
+        db.onclose = forget;
         resolve(db);
       };
       req.onerror = () => reject(req.error);
       req.onblocked = () => reject(Object.assign(new Error('Blocked'), { name: 'Blocked' }));
     });
-    opening.catch(() => { opening = null; });
-    return opening;
+    opening = thisOpen;
+    thisOpen.catch(() => { if (opening === thisOpen) opening = null; });
+    return thisOpen;
   }
 
   /** Every draft record (without its photos), deleted ones included. */
