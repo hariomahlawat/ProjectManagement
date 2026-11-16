@@ -115,11 +115,16 @@
         }));
         if (!stillOpen()) return;
         const { accepted, refused } = core.checkPhotos(entries, photosInCollage());
-        // One at a time, so a pile of large phone photos is never all decoded at once.
+        // One at a time, so a pile of large phone photos is never all decoded at once. Each
+        // working copy is sized for every photo the collage will keep after this batch.
+        const willKeep = photos.size + accepted.length;
+        // Copies made while the collage had fewer photos are made smaller first, so the budget
+        // holds while the batch is decoded, not only after it; the page is drawn again below.
+        if (accepted.length) photoReader.fitBudget(photos, willKeep);
         for (const entry of accepted) {
           let photo;
           try {
-            photo = await readPhoto(entry);
+            photo = await readPhoto(entry, null, { count: willKeep });
           } catch (error) {
             refused.push({ name: entry.name, reason: error?.reason === 'too-many-pixels' ? 'too-many-pixels' : 'unreadable' });
             continue;
@@ -258,12 +263,13 @@
       (tray.querySelector('[data-tray-photo]') || $('[data-action="choose"]'))?.focus();
     }
 
-    /** Lets go of removed photos that no Undo or Redo step shows any more. */
+    /**
+     * Lets go of removed photos that no Undo or Redo step shows any more. Called when a photo is
+     * removed and after every Undo step is recorded, since a new step can drop the Redo steps or
+     * the oldest step that still showed one.
+     */
     function forgetRemovedPhotos() {
-      for (const photo of [...photos.values()]) {
-        if (!photo.removed || changes.mentions(photo.id)) continue;
-        photos.delete(photo.id);
-      }
+      window.PrismCollagePhotos.forgetUnreachable(photos, changes.mentions);
     }
 
     tray.addEventListener('click', (event) => {
@@ -360,7 +366,7 @@
     });
 
 
-    return { setTarget, chooseFor, readPhoto, missingPhoto, libraryPicker, renderTray, keptPhotos };
+    return { setTarget, chooseFor, readPhoto, missingPhoto, libraryPicker, renderTray, keptPhotos, forgetRemovedPhotos };
   }
 
   return Object.freeze({ createTray });

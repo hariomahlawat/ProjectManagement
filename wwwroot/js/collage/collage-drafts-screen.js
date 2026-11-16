@@ -215,7 +215,8 @@
         for (const entry of stored) {
           let photo;
           try {
-            photo = await app.readPhoto({ file: entry.file, name: entry.name }, entry.id);
+            // Sized for every photo of the draft, so all working copies stay within the budget.
+            photo = await app.readPhoto({ file: entry.file, name: entry.name }, entry.id, { count: stored.length });
           } catch {
             // Kept as a grey stand-in with its file, so the draft keeps the photo's place, crop and
             // caption, and the photo comes back when the draft is opened again on a browser that
@@ -236,6 +237,10 @@
       }
       const model = core.readDraftModel(record.model, [...photos.keys()]);
       if (!model) {
+        // Its photos were read already: they are let go now, not kept until the next collage.
+        for (const photo of photos.values()) window.PrismCollagePhotos.releasePhoto(photo);
+        resetEditor();
+        renderDrafts();
         showAlert('This draft was made by a newer version of PRISM, or is damaged, and cannot be opened here.');
         return;
       }

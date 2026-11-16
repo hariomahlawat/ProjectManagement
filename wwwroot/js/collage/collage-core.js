@@ -44,6 +44,12 @@
     maxPixels: 250 * 1000 * 1000,
     // The editor draws a copy at most this long on its long side; Save uses the original.
     workingSide: 2000,
+    // All working copies together hold at most this many pixels (about 240 MB at 4 bytes a
+    // pixel), so 60 photos never fill a phone's memory: up to 15 photos keep the full 2,000 px,
+    // and at 60 each holds about a million pixels (1,154 by 866 for a 4:3 photo). Only the screen
+    // uses working copies; Save reads every original file again at full quality
+    // (docs/ux/collage-review-3-fixes.md, PR 9).
+    workingPixels: 60 * 1000 * 1000,
     // The tray shows a small copy made from the working copy, never from the original.
     thumbnailSide: 240
   });
@@ -161,6 +167,24 @@
   function workingSize(width, height, side = PHOTO_LIMITS.workingSide) {
     const scale = Math.min(1, side / Math.max(width, height));
     return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+  }
+
+  /** The most pixels each working copy may hold when a collage keeps `count` photos. */
+  function workingPixelsEach(count) {
+    const side = PHOTO_LIMITS.workingSide;
+    return Math.min(side * side, Math.floor(PHOTO_LIMITS.workingPixels / Math.max(1, Math.floor(count) || 1)));
+  }
+
+  /**
+   * The working copy's size within the memory budget: at most workingSide on its long side and
+   * at most workingPixelsEach(count) pixels, never larger than the photo. Rounded down, so the
+   * budget is never passed.
+   */
+  function budgetedSize(width, height, count) {
+    const pixels = workingPixelsEach(count);
+    const scale = Math.min(1, PHOTO_LIMITS.workingSide / Math.max(width, height), Math.sqrt(pixels / (width * height)));
+    if (scale >= 1) return { width, height };
+    return { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
   }
 
   /**
@@ -1503,6 +1527,8 @@
     checkPhotos,
     refusedMessage,
     workingSize,
+    workingPixelsEach,
+    budgetedSize,
     placeNewPhoto,
     autoTitleFromText,
     gridCells,
