@@ -670,9 +670,8 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
   - **Project-category distribution** and **Technical-category distribution**: today's category
     slides.
   The stage-wise distribution replaces today's stage-wise summary and stage-wise table, and the
-  portfolio summary is retired, so there is one stage option and no overlapping counts. These
-  three defaults were set by me and are open to the owner's change (chart only instead of chart
-  and list; keeping the old stage slides or the portfolio summary). No other analytics.
+  portfolio summary is retired, so there is one stage option and no overlapping counts (approved
+  on the mockup, 16 Nov 2026). No other analytics.
 - **No free drawing canvas** for the project slide. One design has to fit every project in the
   deck (long text, missing photos, continuation slides); the composer handles that per design.
 - **Project Officer decks: My decks and Command decks.** A Project Officer makes decks of their
