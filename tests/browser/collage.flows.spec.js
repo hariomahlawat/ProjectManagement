@@ -37,9 +37,11 @@ test('a draft reopens after a reload with its photo and the words typed', async 
 });
 
 test.describe('a damaged draft photo', () => {
-  // Chromium itself reports "Connecting to blob:" when it fails to load a damaged picture from
-  // the drafts database; the page makes no such request (only image loads, which are allowed).
-  test.use({ cspAllow: [/^Connecting to 'blob:/] });
+  // Chromium itself reports a connect-src violation for a blob: picture that fails to decode in
+  // an <img> (collage-photos.js reads a photo's size that way), with no script behind it; the
+  // page makes no such connection, and the picture had already failed. Production sends the same
+  // policy, so it shows the same console line. collage.csp.spec.js shows this on its own.
+  test.use({ cspAllow: [/^(?:Connecting to 'blob:|connect-src blob$)/] });
 
   test('a draft whose photo cannot be opened keeps it as a grey stand-in, and Save says so', async ({ page }) => {
     await openFresh(page);

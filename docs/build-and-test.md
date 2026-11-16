@@ -65,13 +65,13 @@ npm run test:browser
 
 The tests build the page from the real `Pages/Tools/Collage/Index.cshtml` (`tests/browser/collage-page.js`), serve it with PRISM's own files from `wwwroot` (`tests/browser/serve.js`), and need no database or sign-in. The page builder understands only the Razor the page uses today and fails on anything else, so the test page cannot drift from the real one. The **Collage Studio browser tests** workflow runs them on every pull request; installing Chromium needs the Internet, so on an offline machine run them where a browser can be installed, or rely on CI.
 
-The test page sends PRISM's **production security headers** and answers like the **collage API**, both read from `tests/browser/fixtures`. The .NET test `ProjectManagement.Tests/Tools/CollageBrowserFixtureTests.cs` takes them from the real host (as Production) and the real API handlers and fails when a fixture no longer matches. After a deliberate change to the headers or an answer, write the fixtures again and commit them:
+The test page sends PRISM's **production security headers** and answers like the **collage API**, both read from `tests/browser/fixtures`. The .NET test `ProjectManagement.Tests/Tools/CollageBrowserFixtureTests.cs` takes the headers from a signed-in `200` answer of `/Tools/Collage` on the real host under Production settings, and the answers from the real API handlers, with one crest uploaded through the real sticker service. It also writes that crest's stored picture (`crest.png`, compared by its pixels) and the headers it is served with, which `serve.js` uses for `/api/collage/stickers/{id}/image`. The test fails when a fixture no longer matches. After a deliberate change to the headers or an answer, write the fixtures again and commit them:
 
 ```bash
 PRISM_UPDATE_BROWSER_FIXTURES=1 dotnet test ProjectManagement.Tests --filter "FullyQualifiedName~CollageBrowserFixture"
 ```
 
-Every browser test uses `tests/browser/test.js`, which fails the test when the page breaks the Content Security Policy; a test can allow a named message, with its reason (`cspAllow`). On CI a test that passes only on its retry fails the run (`failOnFlakyTests`).
+Every browser test uses `tests/browser/test.js`, which fails the test when the page breaks the Content Security Policy. It sees a violation two ways: the page's `securitypolicyviolation` events (an init script passes each to the test at once, with the directive, the blocked address and the script line) and the browser's console message. A test can allow one, with its reason (`cspAllow`: patterns matched against the console text and against the event's `<directive> <blocked>` line); `collage.csp.spec.js` checks the check itself. On CI a test that passes only on its retry fails the run (`failOnFlakyTests`).
 
 ## Notebook assets
 

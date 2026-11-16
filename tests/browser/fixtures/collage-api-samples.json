@@ -52,7 +52,21 @@
       2026
     ]
   },
+  "stickerPicture": {
+    "Cache-Control": "private, max-age=604800",
+    "Content-Type": "image/png",
+    "ETag": "\"collage-sticker-1-1\""
+  },
   "stickers": {
-    "stickers": []
+    "stickers": [
+      {
+        "id": 1,
+        "name": "Signals crest",
+        "words": "corps badge",
+        "width": 240,
+        "height": 280,
+        "url": "/api/collage/stickers/1/image?v=1"
+      }
+    ]
   }
 }

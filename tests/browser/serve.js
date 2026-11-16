@@ -34,6 +34,11 @@ const api = {
   '/api/collage/library-photos': samples.libraryOff
 };
 
+// The crest in the samples, served as PRISM serves a sticker's picture: its stored PNG
+// (fixtures/crest.png) with the API's own headers and the production security headers.
+const crest = fs.readFileSync(path.join(fixtures, 'crest.png'));
+const stickerPictures = new Map(samples.stickers.stickers.map((sticker) => [`/api/collage/stickers/${sticker.id}/image`, crest]));
+
 /** The headers of one answer: its own, and PRISM's production security headers. */
 const headers = (own) => ({ ...productionHeaders, ...own });
 
@@ -42,6 +47,11 @@ http.createServer((request, response) => {
   if (pages[url.pathname]) {
     response.writeHead(200, headers({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }));
     response.end(pages[url.pathname]());
+    return;
+  }
+  if (stickerPictures.has(url.pathname)) {
+    response.writeHead(200, headers({ ...samples.stickerPicture }));
+    response.end(stickerPictures.get(url.pathname));
     return;
   }
   if (api[url.pathname]) {
