@@ -4899,8 +4899,21 @@ span.pbd-additional-slide-row__handle {
 
 .pbd-block-library__panel[hidden],
 .pbd-block-library__group[hidden],
-.pbd-block-library__item[hidden] {
+.pbd-block-library__entry[hidden] {
     display: none;
+}
+
+.pbd-block-library__entry {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .2rem;
+}
+
+.pbd-block-library__entry .btn-link {
+    padding: .1rem .3rem;
+    font-size: .78rem;
+    text-decoration: none;
 }
 
 .pbd-block-library__group h6 {

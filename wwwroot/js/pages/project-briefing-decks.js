@@ -1555,19 +1555,19 @@ if (root) {
       row.classList.toggle('is-off', !on);
       // An optional block not in the deck waits in the Add block library.
       if (row.dataset.optional === 'true') row.hidden = !on;
-      const add = blockList?.querySelector(`[data-pbd-block-add="${row.dataset.type}"]`);
-      if (add instanceof HTMLElement) add.hidden = on;
+      const entry = blockList?.querySelector(`[data-pbd-block-library-entry="${row.dataset.type}"]`);
+      if (entry instanceof HTMLElement) entry.hidden = on;
     });
     blockList?.querySelectorAll('[data-pbd-block-zone]').forEach((zone) => {
       const empty = zone.parentElement?.querySelector('[data-pbd-block-zone-empty]');
       if (empty instanceof HTMLElement) empty.hidden = [...zone.querySelectorAll('[data-pbd-block]')].some((row) => !row.hidden);
     });
     blockList?.querySelectorAll('[data-pbd-block-library-group]').forEach((group) => {
-      group.hidden = [...group.querySelectorAll('[data-pbd-block-add]')].every((item) => item.hidden);
+      group.hidden = [...group.querySelectorAll('[data-pbd-block-library-entry]')].every((item) => item.hidden);
     });
     const libraryEmpty = blockList?.querySelector('[data-pbd-block-library-empty]');
     if (libraryEmpty instanceof HTMLElement) {
-      libraryEmpty.hidden = [...(blockList?.querySelectorAll('[data-pbd-block-add]') || [])].some((item) => !item.hidden);
+      libraryEmpty.hidden = [...(blockList?.querySelectorAll('[data-pbd-block-library-entry]') || [])].some((item) => !item.hidden);
     }
     syncStageSummaryOptions();
     syncTemplateSettings();

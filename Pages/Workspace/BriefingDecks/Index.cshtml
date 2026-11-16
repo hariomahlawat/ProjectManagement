@@ -609,10 +609,27 @@
                                                     <div class="pbd-block-library__items">
                                                         @foreach (var block in groupBlocks)
                                                         {
-                                                            <button type="button" class="pbd-block-library__item" data-pbd-block-add="@block.Type" hidden="@block.Enabled">
-                                                                <strong>@ProjectBriefingDeckBlocks.DisplayName(block.Type)</strong>
-                                                                <small>@ProjectBriefingDeckBlocks.Description(block.Type)</small>
-                                                            </button>
+                                                            var libraryName = ProjectBriefingDeckBlocks.DisplayName(block.Type);
+                                                            @* An institution slide can be set up before it is added: the SDD profile, for
+                                                               one, cannot be added until its content passes the editor's checks. *@
+                                                            <div class="pbd-block-library__entry" data-pbd-block-library-entry="@block.Type" hidden="@block.Enabled">
+                                                                <button type="button" class="pbd-block-library__item" data-pbd-block-add="@block.Type">
+                                                                    <strong>@libraryName</strong>
+                                                                    <small>@ProjectBriefingDeckBlocks.Description(block.Type)</small>
+                                                                </button>
+                                                                @switch (block.Type)
+                                                                {
+                                                                    case ProjectBriefingDeckBlockType.InstitutionalProfile:
+                                                                        <button type="button" class="btn btn-sm btn-link" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false" aria-label="Edit @libraryName before adding it">Edit</button>
+                                                                        break;
+                                                                    case ProjectBriefingDeckBlockType.RoleAndCharter:
+                                                                        <button type="button" class="btn btn-sm btn-link" data-pbd-role-charter-open aria-controls="pbd-role-charter-drawer" aria-expanded="false" aria-label="Edit @libraryName before adding it">Edit</button>
+                                                                        break;
+                                                                    case ProjectBriefingDeckBlockType.FfcGlobalFootprint:
+                                                                        <button type="button" class="btn btn-sm btn-link" data-pbd-ffc-footprint-open aria-controls="pbd-ffc-footprint-drawer" aria-expanded="false" aria-label="Edit @libraryName before adding it">Edit</button>
+                                                                        break;
+                                                                }
+                                                            </div>
                                                         }
                                                     </div>
                                                 </section>
