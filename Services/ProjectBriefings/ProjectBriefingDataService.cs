@@ -101,7 +101,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             return null;
         }
 
-        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
+        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, snapshot.IncludeStageSummary, cancellationToken);
         var presentedProjects = projects.Where(project => project.IsPresented).ToArray();
         // The global FFC footprint is only shown in the page's FFC slide editor; in-place saves and
         // preview rebuilds do not need it.
@@ -356,7 +356,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     {
         var snapshot = await LoadSnapshotAsync(deckId, requestingUserId, cancellationToken)
             ?? throw new KeyNotFoundException("The saved deck was not found.");
-        var allProjectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
+        var allProjectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, snapshot.IncludeStageSummary, cancellationToken);
         var projectVms = allProjectVms.Where(project => project.IsPresented).ToArray();
         if (projectVms.Length == 0)
         {
@@ -767,6 +767,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         IReadOnlyList<DeckItemSnapshot> items,
         ProjectBriefingLayout layout,
         ProjectBriefingUpdateSheetOptions updateSheetOptions,
+        bool includeStageSummary,
         CancellationToken cancellationToken)
     {
         if (items.Count == 0)
@@ -786,6 +787,12 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var updateSheetFacts = layout == ProjectBriefingLayout.ProjectUpdateSheet
             ? await _updateSheetFactsResolver.ResolveAsync(projectIds, cancellationToken)
             : new Dictionary<int, ProjectBriefingUpdateSheetFacts>();
+        // The stage-wise distribution lists each Development project's PDC, so a standard deck that
+        // shows it records the PDC from the same facts the movement check reads (blocks plan PR 7).
+        // Only the PDC is taken: the other update-sheet facts stay off standard slides.
+        var milestoneFacts = layout != ProjectBriefingLayout.ProjectUpdateSheet && includeStageSummary
+            ? await _updateSheetFactsResolver.ResolveAsync(projectIds, cancellationToken)
+            : updateSheetFacts;
 
         var coverByProject = items.ToDictionary(item => item.ProjectId, ResolveCoverPhotoId);
         var photoReferences = coverByProject
@@ -859,7 +866,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     Cfa = updateFacts?.Cfa,
                     AonDate = updateFacts?.AonDate,
                     SupplyOrderDate = updateFacts?.SupplyOrderDate,
-                    DevelopmentPdcDate = requiresDevelopmentPdc ? updateFacts?.DevelopmentPdcDate : null,
+                    DevelopmentPdcDate = requiresDevelopmentPdc
+                        ? milestoneFacts.GetValueOrDefault(item.ProjectId)?.DevelopmentPdcDate
+                        : null,
                     CompletionStatusDisplay = BuildCompletionStatusDisplay(item),
                     JdpNames = updateFacts?.JdpNames ?? Array.Empty<string>(),
                     ProjectOfficer = updateFacts?.ProjectOfficer,

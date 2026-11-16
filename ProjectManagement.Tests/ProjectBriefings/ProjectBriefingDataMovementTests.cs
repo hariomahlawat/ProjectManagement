@@ -10,6 +10,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.ProjectBriefings;
 using ProjectManagement.Services.ProjectBriefings.Presentation;
@@ -416,6 +418,64 @@ public sealed class ProjectBriefingDataMovementTests
         Assert.Null(decks[2].DataMovement);
     }
 
+    // Blocks plan PR 7: the stage-wise distribution lists a Development project's PDC, so a standard
+    // deck that shows it keeps the milestone fact. The PDC kept at generation must come from the same
+    // facts the library compares with, or an unchanged deck would read as moved.
+    [Fact]
+    public async Task AStandardDeckWithTheStageWiseDistribution_KeepsTheRealPdc_SoAnUnchangedDeckHasNotMoved()
+    {
+        await using var db = CreateDb();
+        db.Users.Add(new ApplicationUser { Id = "u", UserName = "u", FullName = "U" });
+        db.Projects.Add(new Project { Id = 1, Name = "Driving Simulator", CreatedByUserId = "u" });
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.DEVP,
+            SortOrder = 11,
+            Status = StageStatus.InProgress,
+            PlannedDue = new DateOnly(2027, 6, 30)
+        });
+        db.Set<ProjectBriefingDeck>().Add(new ProjectBriefingDeck
+        {
+            Id = 7,
+            Name = "Monthly review",
+            NormalizedName = "MONTHLY REVIEW",
+            OwnerUserId = "u",
+            Layout = ProjectBriefingLayout.StandardBriefing,
+            PresentationMode = ProjectBriefingPresentationMode.ExecutiveTable,
+            CostMode = ProjectBriefingCostMode.None,
+            IncludeCoverSlide = true,
+            IncludeStageSummary = true,
+            // No institution slides, which would need their own services.
+            SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlideOrder(
+                null, Array.Empty<ProjectBriefingAdditionalSlideType>()),
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            RowVersion = Guid.NewGuid().ToByteArray(),
+            Items = new List<ProjectBriefingDeckItem>
+            {
+                new() { ProjectId = 1, SortOrder = 1, AddedAtUtc = DateTimeOffset.UtcNow }
+            }
+        });
+        await db.SaveChangesAsync();
+        var pdc = new DateOnly(2027, 6, 30);
+        var service = Service(db, new FakeCosts(), new FakeStatuses(), new FakeUpdateSheetFacts(pdc));
+
+        var data = await service.BuildPresentationDataAsync(7, "u");
+        var kept = data.Projects.Select(project => ProjectBriefingSlideFacts.FromPresentation(project, data)).ToArray();
+
+        var fact = Assert.Single(kept);
+        Assert.True(fact.Shown.HasFlag(ProjectBriefingShownFacts.Milestone));
+        Assert.Contains("PDC Date: 30 Jun 27", fact.Stage);
+        var generatedDeck = Summary(7, "Monthly review", ProjectBriefingCostMode.None) with
+        {
+            LastGeneratedAtUtc = DateTimeOffset.UtcNow,
+            GeneratedFacts = Generated(kept)
+        };
+        var movement = Assert.Single(await service.WithDataMovementAsync(new[] { generatedDeck })).DataMovement!;
+        Assert.Equal(0, movement.StageChanges);
+    }
+
     [Fact]
     public async Task List_ReadsBackTheFactsKeptAtGeneration()
     {
@@ -590,13 +650,17 @@ public sealed class ProjectBriefingDataMovementTests
             .UseInMemoryDatabase($"briefing-data-movement-{Guid.NewGuid()}")
             .Options);
 
-    private static ProjectBriefingDataService Service(ApplicationDbContext db, FakeCosts costs, FakeStatuses statuses)
+    private static ProjectBriefingDataService Service(
+        ApplicationDbContext db,
+        FakeCosts costs,
+        FakeStatuses statuses,
+        IProjectBriefingUpdateSheetFactsResolver? updateSheetFacts = null)
         => new(
             db,
             costs,
             statuses,
-            Stub<IProjectBriefingPhotoLoader>(),
-            Stub<IProjectBriefingUpdateSheetFactsResolver>(),
+            updateSheetFacts is null ? Stub<IProjectBriefingPhotoLoader>() : new NoPhotos(),
+            updateSheetFacts ?? Stub<IProjectBriefingUpdateSheetFactsResolver>(),
             Stub<IProjectBriefingInstitutionalProfileService>(),
             Stub<ProjectManagement.Services.Ffc.IFfcFootprintService>(),
             Stub<ProjectManagement.Services.Ffc.Presentation.IFfcPresentationMapRenderer>(),
@@ -636,6 +700,30 @@ public sealed class ProjectBriefingDataMovementTests
         public Task<IReadOnlyDictionary<int, ProjectBriefingExternalStatus>> GetLatestAsync(IReadOnlyCollection<int> projectIds, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyDictionary<int, ProjectBriefingExternalStatus>>(
                 projectIds.Where(Latest.ContainsKey).ToDictionary(id => id, id => Latest[id]));
+    }
+
+    // No project has a photograph.
+    private sealed class NoPhotos : IProjectBriefingPhotoLoader
+    {
+        public Task<IReadOnlyDictionary<int, ProjectBriefingPhotoProbe>> ProbeAsync(
+            IReadOnlyCollection<ProjectBriefingPhotoReference> references,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyDictionary<int, ProjectBriefingPhotoProbe>>(new Dictionary<int, ProjectBriefingPhotoProbe>());
+
+        public Task<ProjectBriefingPhotoContent?> LoadAsync(int projectId, int photoId, CancellationToken cancellationToken = default)
+            => Task.FromResult<ProjectBriefingPhotoContent?>(null);
+    }
+
+    // Every project's update-sheet facts carry the same Development PDC.
+    private sealed class FakeUpdateSheetFacts(DateOnly pdc) : IProjectBriefingUpdateSheetFactsResolver
+    {
+        public Task<IReadOnlyDictionary<int, ProjectBriefingUpdateSheetFacts>> ResolveAsync(
+            IReadOnlyCollection<int> projectIds,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyDictionary<int, ProjectBriefingUpdateSheetFacts>>(projectIds.ToDictionary(
+                id => id,
+                _ => new ProjectBriefingUpdateSheetFacts(
+                    null, null, null, null, null, null, pdc, Array.Empty<string>(), null, false, null, false)));
     }
 
     private sealed class FixedClock : IClock
