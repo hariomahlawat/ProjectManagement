@@ -86,7 +86,7 @@ public sealed class ProjectBriefingDeckLibraryTests
         };
 
     private static ProjectBriefingDeckService Service(ApplicationDbContext db)
-        => new(db, new NoSelection(), new NoAudit(), new FixedClock(), NullLogger<ProjectBriefingDeckService>.Instance);
+        => new(db, new NoSelection(), new NoAudit(), new FixedClock(), NullLogger<ProjectBriefingDeckService>.Instance, ProjectManagement.Tests.ProjectBriefings.FixedDeckRoles.Command);
 
     private static ApplicationDbContext CreateDb()
     {

@@ -191,13 +191,26 @@ public enum ProjectBriefingUpdateSheetRow
     LineDirectorate = 9
 }
 
+// Who a deck belongs to (docs/ux/briefing-decks.md, "Plan: Blocks, Project Officer decks and focus
+// view", PR 2). A command deck is shared by Comdt and HoD users, as every deck was before; a personal
+// deck is a Project Officer's own: only its owner changes it, and command users may look at it or
+// duplicate it. Stored as text; every deck made before this change is a command deck.
+public enum ProjectBriefingDeckScope
+{
+    Command = 0,
+    Personal = 1
+}
+
 public sealed class ProjectBriefingDeck
 {
     public long Id { get; set; }
 
-    // The creator is retained for attribution and audit. Deck visibility is command-workspace wide.
+    // The creator is retained for attribution and audit. For a command deck visibility is
+    // command-workspace wide; for a personal deck the creator is the one person who edits it.
     [Required, MaxLength(450)]
     public string OwnerUserId { get; set; } = string.Empty;
+
+    public ProjectBriefingDeckScope Scope { get; set; } = ProjectBriefingDeckScope.Command;
     public ApplicationUser OwnerUser { get; set; } = null!;
 
     [MaxLength(450)]

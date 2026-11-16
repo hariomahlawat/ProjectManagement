@@ -168,7 +168,7 @@ public sealed class AdminDeckRestoreAuditTests : IAsyncLifetime
     }
 
     private static ProjectBriefingDeckService CreateService(ApplicationDbContext db, IAuditService audit) =>
-        new(db, new NoSelection(), audit, FakeClock.AtUtc(Now), NullLogger<ProjectBriefingDeckService>.Instance);
+        new(db, new NoSelection(), audit, FakeClock.AtUtc(Now), NullLogger<ProjectBriefingDeckService>.Instance, ProjectManagement.Tests.ProjectBriefings.FixedDeckRoles.Command);
 
     private static async Task SeedUsersAndProjectAsync(ApplicationDbContext db)
     {

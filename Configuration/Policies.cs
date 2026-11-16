@@ -342,10 +342,13 @@ public static class Policies
     {
         public const string Manage = "ProjectBriefingDecks.Manage";
 
+        // Comdt and HoD share command decks; a Project Officer makes decks of their own
+        // (ProjectBriefingDeckAccessRules decides each deck).
         public static readonly string[] ManageAllowedRoles =
         {
             RoleNames.Comdt,
-            RoleNames.HoD
+            RoleNames.HoD,
+            RoleNames.ProjectOfficer
         };
     }
 

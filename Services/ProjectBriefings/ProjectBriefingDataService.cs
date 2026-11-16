@@ -60,6 +60,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     private readonly IFfcPresentationMapRenderer _ffcMapRenderer;
     private readonly IClock _clock;
     private readonly ILogger<ProjectBriefingDataService> _logger;
+    private readonly IProjectBriefingDeckRoleResolver _roles;
 
     public ProjectBriefingDataService(
         ApplicationDbContext db,
@@ -71,8 +72,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         IFfcFootprintService ffcFootprintService,
         IFfcPresentationMapRenderer ffcMapRenderer,
         IClock clock,
-        ILogger<ProjectBriefingDataService> logger)
+        ILogger<ProjectBriefingDataService> logger,
+        IProjectBriefingDeckRoleResolver roles)
     {
+        _roles = roles ?? throw new ArgumentNullException(nameof(roles));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _costResolver = costResolver ?? throw new ArgumentNullException(nameof(costResolver));
         _externalStatusService = externalStatusService ?? throw new ArgumentNullException(nameof(externalStatusService));
@@ -464,6 +467,23 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         if (string.IsNullOrWhiteSpace(userId))
         {
             throw new UnauthorizedAccessException("The current user could not be resolved.");
+        }
+
+        // The deck's page, slides, preview and PowerPoint are only for someone who may see the deck
+        // (ProjectBriefingDeckAccessRules); to anyone else it does not exist.
+        var owner = await _db.Set<ProjectBriefingDeck>().Live()
+            .AsNoTracking()
+            .Where(candidate => candidate.Id == deckId)
+            .Select(candidate => new { candidate.Scope, candidate.OwnerUserId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (owner is null
+            || ProjectBriefingDeckAccessRules.Evaluate(
+                owner.Scope,
+                owner.OwnerUserId,
+                userId,
+                await _roles.IsCommandAsync(userId, cancellationToken)) == ProjectBriefingDeckAccessLevel.None)
+        {
+            return null;
         }
 
         var deck = await _db.Set<ProjectBriefingDeck>().Live()

@@ -7,8 +7,13 @@
 @{
     var deck = Model.SelectedDeck;
     ViewData["Title"] = deck is null
-        ? "Briefing decks | Comdt / HoD Workspace"
+        ? (Model.IsCommandUser ? "Briefing decks | Comdt / HoD Workspace" : "Briefing decks | My Workspace")
         : $"{deck.Name} | Briefing decks";
+    // A command deck is shared by every Comdt and HoD; a Project Officer's deck is theirs alone.
+    var savedLabel = Model.SelectedDeckIsPersonal ? "Saved · yours" : "Saved · shared";
+    var whoEdits = Model.SelectedDeckIsPersonal
+        ? "Only you can change this deck. Comdt and HoD users can download or duplicate it."
+        : "Every Comdt and HoD workspace user can open and edit this deck.";
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "studio";
     var presentedProjects = deck?.Projects.Where(project => project.IsPresented).ToArray();
@@ -141,9 +146,16 @@
         {
             <header class="pbd-page-header">
                 <div>
-                    <span class="pbd-eyebrow">Command workspace</span>
+                    <span class="pbd-eyebrow">@(Model.IsCommandUser ? "Command workspace" : "My workspace")</span>
                     <h1>Briefing decks</h1>
-                    <p>Shared decks for the Comdt and HoDs, built from current PRISM data each time they are generated.</p>
+                    @if (Model.IsCommandUser)
+                    {
+                        <p>Shared decks for the Comdt and HoDs, built from current PRISM data each time they are generated. Project Officers' own decks are listed too, to download or duplicate.</p>
+                    }
+                    else
+                    {
+                        <p>Your own briefing decks, built from current PRISM data each time they are generated. Only you can change them; the Comdt and HoDs can download or duplicate them.</p>
+                    }
                 </div>
                 <div class="pbd-page-header__actions">
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal">
@@ -194,7 +206,7 @@
                 <div>
                     <span class="pbd-eyebrow">No saved decks</span>
                     <h2 id="pbd-first-use-title">Create your first project briefing deck</h2>
-                    <p>A shared command deck retains project membership and slide order while stage, cost and external status are refreshed from current PRISM data whenever the PowerPoint is generated.</p>
+                    <p>@(Model.IsCommandUser ? "A shared command deck" : "Your deck") retains project membership and slide order while stage, cost and external status are refreshed from current PRISM data whenever the PowerPoint is generated.</p>
                 </div>
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal">
                     Create deck
@@ -232,10 +244,10 @@
                                             <i class="bi bi-pencil" aria-hidden="true"></i>
                                         </button>
                                         @* How the deck behaves, where it matters: changes save at once, and the deck is shared. *@
-                                        <span class="pbd-saved-chip" data-pbd-saved-chip title="Changes save as you go. Every Comdt and HoD workspace user can open and edit this deck.">
+                                        <span class="pbd-saved-chip" data-pbd-saved-chip data-saved-label="@savedLabel" title="Changes save as you go. @whoEdits">
                                             <i class="bi bi-cloud-check" aria-hidden="true"></i>
-                                            <span data-pbd-saved-chip-text>Saved · shared</span>
-                                            <span class="visually-hidden">: changes save as you go, and every Comdt and HoD workspace user can open and edit this deck.</span>
+                                            <span data-pbd-saved-chip-text>@savedLabel</span>
+                                            <span class="visually-hidden">: changes save as you go. @whoEdits</span>
                                         </span>
                                     </div>
                                     <p data-pbd-deck-description @(string.IsNullOrWhiteSpace(deck.Description) ? "hidden" : null)>@deck.Description</p>
@@ -289,7 +301,7 @@
                                     </form>
                                     <small data-pbd-placeholder-note hidden>Gaps show as placeholders on the slides.</small>
                                 </div>
-                                @if (Model.Decks.Count > 1)
+                                @if (Model.Decks.Count(saved => saved.CanEdit) > 1)
                                 {
                                     <div class="dropdown">
                                         <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
@@ -297,7 +309,7 @@
                                             Switch deck
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end pbd-studio-nav__decks">
-                                            @foreach (var saved in Model.Decks)
+                                            @foreach (var saved in Model.Decks.Where(saved => saved.CanEdit))
                                             {
                                                 var isCurrent = saved.Id == deck.Id;
                                                 <li>
@@ -337,7 +349,7 @@
                         </header>
                         <div class="pbd-model-note" role="note" data-pbd-model-note hidden>
                             <i class="bi bi-info-circle" aria-hidden="true"></i>
-                            <p>The slides are rebuilt from live PRISM data each time, so stages, costs and status are always current. Changes here save as you go and are shared with every Comdt and HoD workspace user.</p>
+                            <p>The slides are rebuilt from live PRISM data each time, so stages, costs and status are always current. Changes here save as you go. @whoEdits</p>
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-model-note-dismiss>Got it</button>
                         </div>
                         <div class="pbd-generate-status" data-pbd-generate-status aria-live="polite"></div>
@@ -970,6 +982,18 @@
 
                             <div class="pbd-selector-panel is-active" data-pbd-selector-panel="quick">
                                 <div class="pbd-quick-grid">
+                                    @* A Project Officer starts from their own projects. *@
+                                    @if (Model.MyProjectCount > 0)
+                                    {
+                                        <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card" data-pbd-add-selection-form>
+                                            <input type="hidden" name="DeckId" value="@deck.Id" />
+                                            <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+                                            <input type="hidden" name="Kind" value="MyProjects" />
+                                            <span class="pbd-quick-card__icon"><i class="bi bi-person-check"></i></span>
+                                            <span><strong>My projects</strong><small>@Model.MyProjectCount @(Model.MyProjectCount == 1 ? "project" : "projects") you lead</small></span>
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+                                        </form>
+                                    }
                                     <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card" data-pbd-add-selection-form>
                                         <input type="hidden" name="DeckId" value="@deck.Id" />
                                         <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
@@ -1087,7 +1111,7 @@
                     @* novalidate: the name rule is said under the field (decks.js), not in a browser bubble. *@
                     <form method="post" asp-page-handler="Create" novalidate data-pbd-new-form>
                         <div class="modal-header">
-                            <div><span class="pbd-eyebrow">Shared command deck</span><h2 class="modal-title" id="pbd-new-deck-title">Create briefing deck</h2></div>
+                            <div><span class="pbd-eyebrow">@(Model.IsCommandUser ? "Shared command deck" : "Your own deck")</span><h2 class="modal-title" id="pbd-new-deck-title">Create briefing deck</h2></div>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">

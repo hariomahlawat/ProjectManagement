@@ -12,10 +12,18 @@ public interface IProjectBriefingDeckService
         string requestingUserId,
         CancellationToken cancellationToken = default);
 
+    // The deck when the person may change it; null when it does not exist, is deleted, or is
+    // theirs only to look at (ProjectBriefingDeckAccessRules).
     Task<ProjectBriefingDeck?> GetEntityAsync(
         long deckId,
         string requestingUserId,
         bool includeItems,
+        CancellationToken cancellationToken = default);
+
+    // What the person may do with a live deck: nothing, look at it, or change it.
+    Task<ProjectBriefingDeckAccessLevel> GetAccessAsync(
+        long deckId,
+        string requestingUserId,
         CancellationToken cancellationToken = default);
 
     // Creates a deck; with a preset, the new deck starts from that template.
@@ -189,14 +197,17 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     private readonly IAuditService _audit;
     private readonly IClock _clock;
     private readonly ILogger<ProjectBriefingDeckService> _logger;
+    private readonly IProjectBriefingDeckRoleResolver _roles;
 
     public ProjectBriefingDeckService(
         ApplicationDbContext db,
         IProjectBriefingSelectionService selectionService,
         IAuditService audit,
         IClock clock,
-        ILogger<ProjectBriefingDeckService> logger)
+        ILogger<ProjectBriefingDeckService> logger,
+        IProjectBriefingDeckRoleResolver roles)
     {
+        _roles = roles ?? throw new ArgumentNullException(nameof(roles));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _selectionService = selectionService ?? throw new ArgumentNullException(nameof(selectionService));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
@@ -209,14 +220,17 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
+        var isCommand = await _roles.IsCommandAsync(userId, cancellationToken);
         var rows = await _db.Set<ProjectBriefingDeck>().Live()
             .AsNoTracking()
+            .VisibleTo(userId, isCommand)
             .OrderByDescending(deck => deck.UpdatedAtUtc)
             .ThenBy(deck => deck.Name)
             .Select(deck => new
             {
                 deck.Id,
                 deck.OwnerUserId,
+                deck.Scope,
                 deck.LastModifiedByUserId,
                 deck.SelectionRulesJson,
                 deck.LastGeneratedSlideCount,
@@ -263,6 +277,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 LastGeneratedSlideCount = row.LastGeneratedSlideCount,
                 ProjectNames = row.ProjectNames,
                 Layout = row.Layout,
+                Scope = row.Scope,
+                CanEdit = ProjectBriefingDeckAccessRules.Evaluate(row.Scope, row.OwnerUserId, userId, isCommand)
+                    == ProjectBriefingDeckAccessLevel.Edit,
                 GeneratedFacts = row.LastGeneratedAtUtc is null ? null : ProjectBriefingSlideFacts.Read(row.LastGeneratedFactsJson)
             })
             .ToList();
@@ -275,13 +292,42 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         return ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPresets.TemplateOf(preset, layout)).Title;
     }
 
-    public Task<ProjectBriefingDeck?> GetEntityAsync(
+    public async Task<ProjectBriefingDeck?> GetEntityAsync(
         long deckId,
         string requestingUserId,
         bool includeItems,
         CancellationToken cancellationToken = default)
     {
-        _ = NormalizeUserId(requestingUserId);
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await LoadLiveAsync(deckId, includeItems, cancellationToken);
+        return deck is not null
+            && await AccessToAsync(deck, userId, cancellationToken) == ProjectBriefingDeckAccessLevel.Edit
+            ? deck
+            : null;
+    }
+
+    public async Task<ProjectBriefingDeckAccessLevel> GetAccessAsync(
+        long deckId,
+        string requestingUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = NormalizeUserId(requestingUserId);
+        var owner = await _db.Set<ProjectBriefingDeck>().Live()
+            .AsNoTracking()
+            .Where(deck => deck.Id == deckId)
+            .Select(deck => new { deck.Scope, deck.OwnerUserId })
+            .FirstOrDefaultAsync(cancellationToken);
+        return owner is null
+            ? ProjectBriefingDeckAccessLevel.None
+            : ProjectBriefingDeckAccessRules.Evaluate(
+                owner.Scope,
+                owner.OwnerUserId,
+                userId,
+                await _roles.IsCommandAsync(userId, cancellationToken));
+    }
+
+    private Task<ProjectBriefingDeck?> LoadLiveAsync(long deckId, bool includeItems, CancellationToken cancellationToken)
+    {
         IQueryable<ProjectBriefingDeck> query = _db.Set<ProjectBriefingDeck>().Live();
         if (includeItems)
         {
@@ -294,6 +340,54 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             deck => deck.Id == deckId,
             cancellationToken);
     }
+
+    private async Task<ProjectBriefingDeckAccessLevel> AccessToAsync(
+        ProjectBriefingDeck deck,
+        string userId,
+        CancellationToken cancellationToken)
+        => ProjectBriefingDeckAccessRules.Evaluate(
+            deck.Scope,
+            deck.OwnerUserId,
+            userId,
+            await _roles.IsCommandAsync(userId, cancellationToken));
+
+    // Every change to a deck loads it here. A deck the person cannot see reads as not found (its
+    // existence is not disclosed); one they may only look at says so.
+    private async Task<ProjectBriefingDeck> LoadEditableAsync(
+        long deckId,
+        string userId,
+        bool includeItems,
+        CancellationToken cancellationToken)
+    {
+        var deck = await LoadLiveAsync(deckId, includeItems, cancellationToken);
+        var access = deck is null
+            ? ProjectBriefingDeckAccessLevel.None
+            : await AccessToAsync(deck, userId, cancellationToken);
+        return access switch
+        {
+            ProjectBriefingDeckAccessLevel.Edit => deck!,
+            ProjectBriefingDeckAccessLevel.View => throw new InvalidOperationException(ViewOnlyMessage),
+            _ => throw new KeyNotFoundException(NotFoundMessage)
+        };
+    }
+
+    private async Task<ProjectBriefingDeck> LoadViewableAsync(
+        long deckId,
+        string userId,
+        bool includeItems,
+        CancellationToken cancellationToken)
+    {
+        var deck = await LoadLiveAsync(deckId, includeItems, cancellationToken);
+        return deck is not null
+            && await AccessToAsync(deck, userId, cancellationToken) != ProjectBriefingDeckAccessLevel.None
+            ? deck
+            : throw new KeyNotFoundException(NotFoundMessage);
+    }
+
+    public const string NotFoundMessage = "The briefing deck was not found.";
+
+    public const string ViewOnlyMessage =
+        "This is a Project Officer's own deck: you can download or duplicate it, but not change it.";
 
     public async Task<long> CreateAsync(
         string requestingUserId,
@@ -308,13 +402,15 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         var userId = NormalizeUserId(requestingUserId);
+        var scope = ProjectBriefingDeckAccessRules.ScopeForNewDeck(await _roles.IsCommandAsync(userId, cancellationToken));
         var normalizedName = NormalizeName(name);
-        await EnsureUniqueNameAsync(normalizedName, excludedDeckId: null, cancellationToken);
+        await EnsureUniqueNameAsync(normalizedName, scope, userId, excludedDeckId: null, cancellationToken);
 
         var now = _clock.UtcNow.ToUniversalTime();
         var deck = new ProjectBriefingDeck
         {
             OwnerUserId = userId,
+            Scope = scope,
             LastModifiedByUserId = userId,
             Name = CleanName(name),
             NormalizedName = normalizedName,
@@ -352,14 +448,17 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var source = await GetEntityAsync(sourceDeckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var source = await LoadViewableAsync(sourceDeckId, userId, includeItems: true, cancellationToken);
 
-        var name = await BuildDuplicateNameAsync(source.Name, cancellationToken);
+        // The copy belongs to the person who made it: a command user's copy of a Project Officer's
+        // deck is a command deck they can change.
+        var scope = ProjectBriefingDeckAccessRules.ScopeForNewDeck(await _roles.IsCommandAsync(userId, cancellationToken));
+        var name = await BuildDuplicateNameAsync(source.Name, scope, userId, cancellationToken);
         var now = _clock.UtcNow.ToUniversalTime();
         var duplicate = new ProjectBriefingDeck
         {
             OwnerUserId = userId,
+            Scope = scope,
             LastModifiedByUserId = userId,
             Name = name,
             NormalizedName = NormalizeName(name),
@@ -410,8 +509,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     {
         ArgumentNullException.ThrowIfNull(command);
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
 
         EnsureVersion(deck, command.RowVersion);
         ValidateEnums(
@@ -445,7 +543,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         var normalizedName = NormalizeName(command.Name);
-        await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
+        await EnsureUniqueNameAsync(normalizedName, deck.Scope, deck.OwnerUserId, deckId, cancellationToken);
 
         deck.Name = CleanName(command.Name);
         deck.NormalizedName = normalizedName;
@@ -492,8 +590,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
         EnsureVersion(deck, rowVersion);
 
         var target = ProjectBriefingDeckPresets.Get(preset).State;
@@ -574,8 +671,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     {
         ArgumentNullException.ThrowIfNull(undo);
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(undo.DeckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(undo.DeckId, userId, includeItems: false, cancellationToken);
         // Only while nothing has changed since the template: otherwise undo would discard later work.
         EnsureVersion(deck, undo.AppliedRowVersion);
 
@@ -751,8 +847,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     {
         ArgumentNullException.ThrowIfNull(options);
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
 
         EnsureVersion(deck, rowVersion);
         var normalized = ProjectBriefingInstitutionalProfileOptions.Normalize(
@@ -804,8 +899,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     {
         ArgumentNullException.ThrowIfNull(options);
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
 
         EnsureVersion(deck, rowVersion);
         var normalized = ProjectBriefingRoleCharterOptions.Normalize(
@@ -849,8 +943,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     {
         ArgumentNullException.ThrowIfNull(options);
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
 
         EnsureVersion(deck, rowVersion);
         var normalized = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
@@ -895,8 +988,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
         EnsureVersion(deck, rowVersion);
 
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
@@ -973,8 +1065,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
         EnsureVersion(deck, rowVersion);
 
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
@@ -1016,8 +1107,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
         EnsureVersion(deck, rowVersion);
 
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
@@ -1090,8 +1180,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: true, cancellationToken);
         EnsureVersion(deck, rowVersion);
 
         var validIds = await _selectionService.ValidateProjectIdsAsync(projectIds, cancellationToken);
@@ -1147,8 +1236,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: true, cancellationToken);
         EnsureVersion(deck, rowVersion);
 
         var requestedRemovals = (removeProjectIds ?? Array.Empty<int>())
@@ -1225,8 +1313,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: true, cancellationToken);
         EnsureVersion(deck, rowVersion);
         var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
             ?? throw new KeyNotFoundException("The project is not part of this deck.");
@@ -1246,8 +1333,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: true, cancellationToken);
         EnsureVersion(deck, rowVersion);
 
         var ordered = orderedProjectIds.Where(id => id > 0).Distinct().ToArray();
@@ -1280,8 +1366,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: true, cancellationToken);
         EnsureVersion(deck, rowVersion);
         var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
             ?? throw new KeyNotFoundException("The project is not part of this deck.");
@@ -1308,8 +1393,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: true, cancellationToken);
         EnsureVersion(deck, rowVersion);
         var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
             ?? throw new KeyNotFoundException("The project is not part of this deck.");
@@ -1342,8 +1426,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     {
         var normalized = NormalizeSpeakerNotes(notes);
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: true, cancellationToken);
         EnsureVersion(deck, rowVersion);
         var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
             ?? throw new KeyNotFoundException("The project is not part of this deck.");
@@ -1384,8 +1467,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: true, cancellationToken);
         EnsureVersion(deck, rowVersion);
         var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
             ?? throw new KeyNotFoundException("The project is not part of this deck.");
@@ -1419,8 +1501,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         CancellationToken cancellationToken = default)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
         EnsureVersion(deck, rowVersion);
 
         // Soft delete: the deck, its projects, notes and choices stay intact and can be restored
@@ -1454,10 +1535,12 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         string requestingUserId,
         CancellationToken cancellationToken = default)
     {
-        _ = NormalizeUserId(requestingUserId);
+        var userId = NormalizeUserId(requestingUserId);
+        var isCommand = await _roles.IsCommandAsync(userId, cancellationToken);
         var rows = await _db.Set<ProjectBriefingDeck>()
             .AsNoTracking()
             .Restorable(_clock.UtcNow)
+            .EditableBy(userId, isCommand)
             .OrderByDescending(deck => deck.DeletedAtUtc)
             .Select(deck => new
             {
@@ -1499,12 +1582,16 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             .Restorable(_clock.UtcNow)
             .FirstOrDefaultAsync(candidate => candidate.Id == deckId, cancellationToken)
             ?? throw new KeyNotFoundException("The deleted deck was not found or can no longer be restored.");
+        if (await AccessToAsync(deck, userId, cancellationToken) != ProjectBriefingDeckAccessLevel.Edit)
+        {
+            throw new KeyNotFoundException("The deleted deck was not found or can no longer be restored.");
+        }
 
         // Another deck may have taken the name since: restore under a free variant instead.
         var originalName = deck.Name;
         var name = originalName;
         var number = 1;
-        while (await NameTakenAsync(name, cancellationToken))
+        while (await NameTakenAsync(name, deck.Scope, deck.OwnerUserId, cancellationToken))
         {
             name = number switch
             {
@@ -1553,10 +1640,15 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             !string.Equals(name, originalName, StringComparison.Ordinal));
     }
 
-    private Task<bool> NameTakenAsync(string name, CancellationToken cancellationToken)
+    private Task<bool> NameTakenAsync(
+        string name,
+        ProjectBriefingDeckScope scope,
+        string ownerUserId,
+        CancellationToken cancellationToken)
     {
         var normalized = NormalizeName(name);
         return _db.Set<ProjectBriefingDeck>().Live().AsNoTracking()
+            .SameNameSpace(scope, ownerUserId)
             .AnyAsync(deck => deck.NormalizedName == normalized, cancellationToken);
     }
 
@@ -1575,6 +1667,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         string? slideFactsJson = null)
     {
         var userId = NormalizeUserId(requestingUserId);
+        _ = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
         var now = _clock.UtcNow.ToUniversalTime();
 
         // Generation metadata must not invalidate a shared editor's optimistic-concurrency token.
@@ -1605,21 +1698,28 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     private async Task EnsureUniqueNameAsync(
         string normalizedName,
+        ProjectBriefingDeckScope scope,
+        string ownerUserId,
         long? excludedDeckId,
         CancellationToken cancellationToken)
     {
         var exists = await _db.Set<ProjectBriefingDeck>().Live()
             .AsNoTracking()
+            .SameNameSpace(scope, ownerUserId)
             .AnyAsync(deck => deck.NormalizedName == normalizedName
                 && (!excludedDeckId.HasValue || deck.Id != excludedDeckId.Value), cancellationToken);
         if (exists)
         {
-            throw new InvalidOperationException("A shared command deck with this name already exists.");
+            throw new InvalidOperationException(scope == ProjectBriefingDeckScope.Command
+                ? "A shared command deck with this name already exists."
+                : "You already have a deck with this name.");
         }
     }
 
     private async Task<string> BuildDuplicateNameAsync(
         string sourceName,
+        ProjectBriefingDeckScope scope,
+        string ownerUserId,
         CancellationToken cancellationToken)
     {
         for (var number = 1; number <= 99; number++)
@@ -1627,7 +1727,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             var candidate = number == 1
                 ? $"{TrimForSuffix(sourceName, 7)} — Copy"
                 : $"{TrimForSuffix(sourceName, 10)} — Copy {number}";
-            if (!await _db.Set<ProjectBriefingDeck>().Live().AsNoTracking().AnyAsync(
+            if (!await _db.Set<ProjectBriefingDeck>().Live().AsNoTracking().SameNameSpace(scope, ownerUserId).AnyAsync(
                     deck => deck.NormalizedName == NormalizeName(candidate),
                     cancellationToken))
             {

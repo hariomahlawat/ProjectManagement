@@ -5173,6 +5173,15 @@ span.pbd-additional-slide-row__handle {
     box-shadow: var(--pm-focus-ring);
 }
 
+/* A Project Officer's deck in a command user's list: whose it is, and that it is view only. */
+.pbd-library__owner {
+    display: flex;
+    gap: .3rem;
+    align-items: center;
+    color: var(--pbd-muted);
+    font-size: .78rem;
+}
+
 .pbd-library__description {
     display: block;
     max-width: 30rem;

@@ -927,12 +927,23 @@ namespace ProjectManagement.Data
                 entity.Property(deck => deck.SelectionRulesJson).HasColumnType("jsonb");
                 ConfigureRowVersion(entity);
                 entity.Property(deck => deck.DeletedByUserId).HasMaxLength(450);
+                entity.Property(deck => deck.Scope)
+                    .HasConversion<string>()
+                    .HasMaxLength(16)
+                    .HasDefaultValue(ProjectBriefingDeckScope.Command)
+                    .IsRequired();
                 // Names are unique among live decks only: a deleted deck kept for restore does not
                 // block reusing its name (a restore renames itself if the name was taken meanwhile).
+                // Command decks share one set of names; each Project Officer's personal decks have
+                // their own, so a personal deck never collides with a deck its owner cannot see.
                 entity.HasIndex(deck => deck.NormalizedName)
                     .HasDatabaseName("UX_ProjectBriefingDecks_NormalizedName")
                     .IsUnique()
-                    .HasFilter("\"DeletedAtUtc\" IS NULL");
+                    .HasFilter("\"DeletedAtUtc\" IS NULL AND \"Scope\" = 'Command'");
+                entity.HasIndex(deck => new { deck.OwnerUserId, deck.NormalizedName })
+                    .HasDatabaseName("UX_ProjectBriefingDecks_Personal_OwnerUserId_NormalizedName")
+                    .IsUnique()
+                    .HasFilter("\"DeletedAtUtc\" IS NULL AND \"Scope\" = 'Personal'");
                 entity.HasIndex(deck => deck.DeletedAtUtc)
                     .HasDatabaseName("IX_ProjectBriefingDecks_DeletedAtUtc");
                 entity.HasIndex(deck => deck.UpdatedAtUtc)

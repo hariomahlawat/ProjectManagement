@@ -11,7 +11,9 @@ public enum ProjectBriefingSelectionKind
     ProjectCategory = 3,
     TechnicalCategory = 4,
     AvailableForProliferation = 5,
-    IndividualProjects = 6
+    IndividualProjects = 6,
+    // The projects the requesting Project Officer leads (the page sets the officer, never the form).
+    MyProjects = 7
 }
 
 public enum ProjectBriefingCostBasis
@@ -57,6 +59,11 @@ public sealed record ProjectBriefingDeckSummaryVm(
     public int? LastGeneratedSlideCount { get; init; }
     public IReadOnlyList<string> ProjectNames { get; init; } = Array.Empty<string>();
     public ProjectBriefingLayout Layout { get; init; }
+
+    // A command deck, or a Project Officer's own; and whether this person may change it (a command
+    // user may only download or duplicate a Project Officer's deck).
+    public ProjectBriefingDeckScope Scope { get; init; } = ProjectBriefingDeckScope.Command;
+    public bool CanEdit { get; init; } = true;
 
     // What the last generated PowerPoint said about each project; null when the deck was never
     // generated, or was generated before these facts were kept.
@@ -260,6 +267,9 @@ public sealed class ProjectBriefingSelectionRequest
     public IReadOnlyList<int> ProjectIds { get; init; } = Array.Empty<int>();
     public int? CompletionYearFrom { get; init; }
     public int? CompletionYearTo { get; init; }
+
+    // The signed-in person, for MyProjects; set by the page from the current user.
+    public string? OfficerUserId { get; init; }
 }
 
 public sealed record ProjectBriefingSelectionResult(

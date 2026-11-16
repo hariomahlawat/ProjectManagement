@@ -171,6 +171,19 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
                 summary = "Projects available for proliferation";
                 break;
 
+            case ProjectBriefingSelectionKind.MyProjects:
+            {
+                var officer = request.OfficerUserId?.Trim();
+                if (string.IsNullOrWhiteSpace(officer))
+                {
+                    throw new InvalidOperationException("Your projects could not be found.");
+                }
+
+                query = query.Where(project => project.LeadPoUserId == officer);
+                summary = "My projects";
+                break;
+            }
+
             case ProjectBriefingSelectionKind.IndividualProjects:
             {
                 var ids = request.ProjectIds.Where(id => id > 0).Distinct().ToArray();

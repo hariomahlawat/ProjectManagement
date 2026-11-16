@@ -125,7 +125,8 @@ public sealed class ProjectBriefingContractTests
         // How the deck behaves, said once, and the save state by the title.
         Assert.Contains("data-pbd-model-note hidden", page, StringComparison.Ordinal);
         Assert.Contains("'prism.briefingDecks.modelNoteSeen'", script, StringComparison.Ordinal);
-        Assert.Contains("<span data-pbd-saved-chip-text>Saved · shared</span>", page, StringComparison.Ordinal);
+        Assert.Contains("<span data-pbd-saved-chip-text>@savedLabel</span>", page, StringComparison.Ordinal);
+        Assert.Contains("\"Saved · shared\"", page, StringComparison.Ordinal);
         Assert.Contains("showSaveState('saving');", script, StringComparison.Ordinal);
         // A refused settings save fails inside the queue, before the chip says "Saved".
         var settingsSave = script[script.IndexOf("const saveSettingsOnce", StringComparison.Ordinal)..];

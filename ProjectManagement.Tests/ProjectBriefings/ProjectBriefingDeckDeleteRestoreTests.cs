@@ -140,7 +140,7 @@ public sealed class ProjectBriefingDeckDeleteRestoreTests
     private static string Version(ProjectBriefingDeck deck) => Convert.ToBase64String(deck.RowVersion);
 
     private static ProjectBriefingDeckService Service(ApplicationDbContext db, IClock clock)
-        => new(db, new NoSelection(), new NoAudit(), clock, NullLogger<ProjectBriefingDeckService>.Instance);
+        => new(db, new NoSelection(), new NoAudit(), clock, NullLogger<ProjectBriefingDeckService>.Instance, ProjectManagement.Tests.ProjectBriefings.FixedDeckRoles.Command);
 
     private static ApplicationDbContext CreateDb()
     {

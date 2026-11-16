@@ -134,6 +134,17 @@
                             <b>@Model.AssignedProjectCount</b>
                         }
                     </a>
+                    @* A Project Officer's own briefing decks. Command users reach the same page
+                       under Command oversight, so it is listed once for them. *@
+                    @if (!Model.HasCommandAccess)
+                    {
+                        <a asp-page="/Workspace/BriefingDecks/Index"
+                           class="@(Active("personal-briefing-decks"))"
+                           aria-current="@(Current("personal-briefing-decks"))"
+                           data-tooltip="Briefing decks">
+                            <i class="bi bi-file-earmark-slides" aria-hidden="true"></i><span>Briefing decks</span>
+                        </a>
+                    }
                 }
                 @* The ITO runs every live IT project; the board is where they are kept. *@
                 @if (Model.HasItoAccess)

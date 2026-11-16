@@ -124,10 +124,14 @@
     <div class="pbd-library__toolbar">
         <h2 class="pbd-library__heading" id="pbd-all-decks-title"><span data-pbd-library-title>All decks</span> · <span data-pbd-library-count>@Model.Decks.Count</span></h2>
         <div class="pbd-library__controls">
-            <div class="pbd-segmented" role="group" aria-label="Show decks">
-                <button type="button" class="pbd-segmented__option" aria-pressed="false" data-pbd-library-scope="mine">Mine</button>
-                <button type="button" class="pbd-segmented__option is-active" aria-pressed="true" data-pbd-library-scope="all">All</button>
-            </div>
+            @* A Project Officer sees only their own decks, so there is nothing to narrow. *@
+            @if (Model.IsCommandUser)
+            {
+                <div class="pbd-segmented" role="group" aria-label="Show decks">
+                    <button type="button" class="pbd-segmented__option" aria-pressed="false" data-pbd-library-scope="mine">Mine</button>
+                    <button type="button" class="pbd-segmented__option is-active" aria-pressed="true" data-pbd-library-scope="all">All</button>
+                </div>
+            }
             <label class="pbd-library__search">
                 <i class="bi bi-search" aria-hidden="true"></i>
                 <span class="visually-hidden">Find a deck or project</span>
@@ -168,7 +172,16 @@
                         data-generated="@(deck.LastGeneratedAtUtc?.ToUnixTimeSeconds() ?? 0)"
                         data-projects="@(string.Join("\n", deck.ProjectNames))">
                         <td>
-                            <a class="pbd-library__name" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">@deck.Name</a>
+                            @if (deck.CanEdit)
+                            {
+                                <a class="pbd-library__name" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">@deck.Name</a>
+                            }
+                            else
+                            {
+                                @* A Project Officer's own deck: a command user may download or duplicate it. *@
+                                <span class="pbd-library__name">@deck.Name</span>
+                                <small class="pbd-library__owner"><i class="bi bi-person" aria-hidden="true"></i> @deck.CreatedByDisplay's deck · view only</small>
+                            }
                             @if (!string.IsNullOrWhiteSpace(deck.Description))
                             {
                                 <small class="pbd-library__description">@deck.Description</small>
@@ -195,7 +208,7 @@
                                 {
                                     <small class="pbd-library__quiet">changes not tracked yet</small>
                                 }
-                                else if (deck.DataMovement.HasMoved)
+                                else if (deck.DataMovement.HasMoved && deck.CanEdit)
                                 {
                                     <a class="pbd-library__moved" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id"
                                        title="@string.Join(" · ", deck.DataMovement.Describe())">@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? "change" : "changes") since</a>
@@ -212,6 +225,23 @@
                                     <i class="bi bi-three-dots" aria-hidden="true"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
+                                @if (!deck.CanEdit)
+                                {
+                                    <li>
+                                        <form method="post" asp-page-handler="Download">
+                                            <input type="hidden" name="deckId" value="@deck.Id" />
+                                            <button type="submit" class="dropdown-item" disabled="@(deck.ProjectCount == 0)"><i class="bi bi-file-earmark-ppt" aria-hidden="true"></i> Download PowerPoint</button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form method="post" asp-page-handler="Duplicate">
+                                            <input type="hidden" name="deckId" value="@deck.Id" />
+                                            <button type="submit" class="dropdown-item"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate to change it</button>
+                                        </form>
+                                    </li>
+                                }
+                                else
+                                {
                                     <li><a class="dropdown-item" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id"><i class="bi bi-easel2" aria-hidden="true"></i> Open in Studio</a></li>
                                     <li>
                                         @if (deck.ProjectCount == 0)
@@ -237,6 +267,7 @@
                                             <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Delete</button>
                                         </form>
                                     </li>
+                                }
                                 </ul>
                             </div>
                         </td>

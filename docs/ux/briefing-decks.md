@@ -1,6 +1,7 @@
 # Briefing decks (`/Workspace/BriefingDecks`)
 
-Comdt and HoD users build shared PowerPoint briefing decks from live PRISM data. This document
+Comdt and HoD users build shared PowerPoint briefing decks from live PRISM data, and Project
+Officers build decks of their own (16 Nov 2026). This document
 records what the module does today, the problems found in the review of 1 Nov 2026, and the
 agreed plan to turn the builder into a **Briefing Studio**.
 
@@ -14,7 +15,7 @@ agreed plan to turn the builder into a **Briefing Studio**.
 | Slide generation | `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer*.cs`, `ProjectBriefingPowerPointExportService.cs` (`ComposeAsync` builds the deck; `GenerateAsync` also records the generation), `ProjectBriefingPresentationIntegrityValidator.cs` |
 | Studio | `ProjectBriefingSlidePreviewRenderer.cs` (composed PowerPoint → positioned HTML); slide roles from `ProjectBriefingSlideComposer.ComposeWithOutline`; content gaps from `ProjectBriefingContentGaps`; page handler `OnGetPreviewAsync`; `wwwroot/js/pages/project-briefing-studio.js` |
 | Scripts and styles | `wwwroot/js/pages/project-briefing-decks.js`, `project-briefing-library.js`, `project-briefing-additional-slides.js`, `project-briefing-studio.js`; `wwwroot/css/pages/project-briefing-decks.css` |
-| Access | `Policies.ProjectBriefingDecks.Manage` (Comdt, HoD); every deck is shared |
+| Access | `Policies.ProjectBriefingDecks.Manage` (Comdt, HoD, Project Officer); each deck by `ProjectBriefingDeckAccessRules` (`ProjectBriefingDeckAccess.cs`): command decks shared by Comdt and HoD, a Project Officer's personal deck changed only by its owner and downloadable or duplicable by command users |
 | Tests | `ProjectManagement.Tests/ProjectBriefings/*`, `wwwroot/js/projects/project-briefing-*.test.js` |
 
 ## Deck library (landing page)
@@ -698,8 +699,9 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
   falls back to the fixed order, and Key points only reads as Key points.
 - Project Officer access adds one column to `ProjectBriefingDecks` (personal or command, default
   command), hand-written additive migration; every existing deck stays a command deck, so nothing
-  changes for Comdt or HoD. Rollback: the older build ignores the column but would show personal
-  decks to command users, which is acceptable for a rollback window.
+  changes for Comdt or HoD. Rollback: the previous build does not start against the migrated
+  database (startup refuses a migration it does not know), so going back is the rollback SOP: a
+  database restore, or the migration's Down, which removes personal decks.
 
 **PRs**
 
@@ -712,6 +714,22 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    Duplicate. Rail entry under My work in the Personal view; Add projects opens on My projects;
    `AdminRoleAccessCatalog` lists the role. Handler authorisation tests for each role, checked in
    the browser as a Project Officer-only user.
+
+   Built (16 Nov 2026). `ProjectBriefingDecks.Scope` ('Command' or 'Personal', migration
+   `20270107080025_AddProjectBriefingDeckScope`); `ProjectBriefingDeckAccessRules` decides None,
+   View or Edit from the scope, the owner and whether the person is Comdt or HoD
+   (`ProjectBriefingDeckRoleResolver`, from Identity roles). Every change loads its deck through
+   the deck service's editable loader (a view-only deck says so; a deck the person cannot see
+   reads as not found); the data service refuses the page, preview and slides of a deck the
+   person cannot see; Generate and photo options need Edit. Deck names are unique among command
+   decks and within each officer's own decks. One change from the plan: a command user does not
+   open a Project Officer's deck in the Studio. The library lists it as "<owner>'s deck · view
+   only" with **Download PowerPoint** (the same slides, nothing recorded on the deck) and
+   **Duplicate to change it** (the copy is a command deck); a read-only Studio would have meant
+   disabling every editing control, and can follow if wanted. A Project Officer's Add projects
+   starts with **My projects** (the projects they lead, set on the server from the signed-in
+   user). The page's wording, the saved chip ("Saved · yours") and the rail (Personal view, under
+   My work, only for people without command) follow the deck's owner.
 3. **Blocks underneath.** The block list in the codec and `ProjectBriefingPresentationData`; the
    composer builds plans from the list instead of the fixed sequence; old decks read into blocks;
    the slide-for-slide equivalence tests; the old settings still written.
