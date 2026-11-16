@@ -17,10 +17,14 @@ test('many photos are decoded smaller, and earlier copies shrink to fit the budg
   await page.addInitScript(() => {
     window.__decoded = [];
     window.__shrunk = [];
+    window.__order = [];
     const decode = window.createImageBitmap.bind(window);
     window.createImageBitmap = (source, ...rest) => {
       const options = rest[rest.length - 1];
-      if (options && options.resizeWidth && options.resizeHeight) window.__decoded.push(options.resizeWidth * options.resizeHeight);
+      if (options && options.resizeWidth && options.resizeHeight) {
+        window.__decoded.push(options.resizeWidth * options.resizeHeight);
+        window.__order.push('decode');
+      }
       return decode(source, ...rest);
     };
     const draw = CanvasRenderingContext2D.prototype.drawImage;
@@ -30,6 +34,7 @@ test('many photos are decoded smaller, and earlier copies shrink to fit the budg
       if (rest.length === 4 && source instanceof HTMLCanvasElement && !this.canvas.isConnected
         && source.width * source.height >= 1000 * 1000 && rest[2] * rest[3] > 240 * 240) {
         window.__shrunk.push({ from: source.width * source.height, to: rest[2] * rest[3] });
+        window.__order.push('shrink');
       }
       return draw.call(this, source, ...rest);
     };
@@ -67,6 +72,9 @@ test('many photos are decoded smaller, and earlier copies shrink to fit the budg
     expect(step.from).toBe(2000 * 1500);
     expect(step.to).toBeLessThanOrEqual(BUDGET / 30);
   }
+  // The first ten are made smaller before the batch is decoded, so the budget holds meanwhile.
+  const order = await page.evaluate(() => window.__order.slice(10));
+  expect(order).toEqual([...Array(10).fill('shrink'), ...Array(20).fill('decode')]);
   const total = second.reduce((sum, size) => sum + size, 0) + shrunk.reduce((sum, step) => sum + step.to, 0);
   expect(total).toBeLessThanOrEqual(BUDGET);
 

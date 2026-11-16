@@ -150,7 +150,7 @@ original again at full quality. All working copies together stay within
 `core.PHOTO_LIMITS.workingPixels` (60 million pixels, about 240 MB): up to 15 photos keep the full
 2000 px, and beyond that each copy gets an equal share (`core.budgetedSize`), about a million
 pixels each at 60 photos (1,154 by 866 for a 4:3 photo). A new batch is decoded at the share for
-the count after it; copies made while there were fewer photos are then drawn again smaller from
+the count after it; copies made while there were fewer photos are first drawn again smaller from
 themselves, with no new decoding (`fitBudget` in `collage-photos.js`). Copies are not made larger
 again when photos are removed. A photo removed from the tray is let go (its canvas emptied) as
 soon as no Undo or Redo step can bring it back: checked after every recorded step, since a new

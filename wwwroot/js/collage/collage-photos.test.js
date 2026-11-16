@@ -76,6 +76,24 @@ test('copies made while there were few photos are made smaller when more are add
   assert.deepEqual(reader.fitBudget(photos), []);
 });
 
+test('copies are made smaller for the count a batch will bring, before it is read', () => {
+  const reader = createPhotoReader({ core, nextId: () => 'x', makeCanvas: fakeCanvas });
+  const photos = new Map();
+  for (let i = 0; i < 15; i += 1) {
+    const canvas = fakeCanvas();
+    canvas.width = 2000;
+    canvas.height = 2000;
+    photos.set(`p${i}`, { id: `p${i}`, canvas });
+  }
+  // 15 square copies fill the budget; 45 more are coming, so each gets a 60th of it now.
+  assert.deepEqual(reader.fitBudget(photos), []);
+  assert.equal(reader.fitBudget(photos, 60).length, 15);
+  for (const photo of photos.values()) assert.deepEqual([photo.canvas.width, photo.canvas.height], [1000, 1000]);
+  const batch = 45 * pixels(core.budgetedSize(6000, 6000, 60));
+  const kept = [...photos.values()].reduce((sum, photo) => sum + photo.canvas.width * photo.canvas.height, 0);
+  assert.ok(kept + batch <= core.PHOTO_LIMITS.workingPixels);
+});
+
 /** A collage whose photo items are the given ids, the change log over it, and the photos map. */
 function setUp() {
   let model = { size: 'square', items: [], background: { type: 'colour', colour: '#ffffff' } };

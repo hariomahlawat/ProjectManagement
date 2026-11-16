@@ -147,20 +147,21 @@
     }
 
     /**
-     * Keeps every working copy in `photos` (a Map by id) within its share of the budget for the
-     * photos the collage now keeps: a copy made when the collage had fewer photos is drawn again
+     * Keeps every working copy in `photos` (a Map by id) within its share of the budget for
+     * `count` photos (by default the photos it holds now; before a batch is read, the photos it
+     * will hold after it, so the budget holds while the batch is decoded): a copy made when the collage had fewer photos is drawn again
      * smaller from itself (no new decoding) and the larger one let go. A copy is never made larger
      * again when photos are removed; it already shows well. Returns the ids made smaller. The
      * page and the background draw from photos.get(id).canvas, so they pick up the new copy on
      * their next redraw.
      */
-    function fitBudget(photos) {
-      const each = core.workingPixelsEach(photos.size);
+    function fitBudget(photos, count = photos.size) {
+      const each = core.workingPixelsEach(count);
       const shrunk = [];
       for (const photo of photos.values()) {
         const canvas = photo.canvas;
         if (!canvas || photo.missing || canvas.width * canvas.height <= each) continue;
-        const size = core.budgetedSize(canvas.width, canvas.height, photos.size);
+        const size = core.budgetedSize(canvas.width, canvas.height, count);
         const smaller = makeCanvas();
         smaller.width = size.width;
         smaller.height = size.height;

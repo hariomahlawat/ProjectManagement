@@ -118,6 +118,9 @@
         // One at a time, so a pile of large phone photos is never all decoded at once. Each
         // working copy is sized for every photo the collage will keep after this batch.
         const willKeep = photos.size + accepted.length;
+        // Copies made while the collage had fewer photos are made smaller first, so the budget
+        // holds while the batch is decoded, not only after it; the page is drawn again below.
+        if (accepted.length) photoReader.fitBudget(photos, willKeep);
         for (const entry of accepted) {
           let photo;
           try {
@@ -132,9 +135,6 @@
           photos.set(photo.id, photo);
           added.push(photo);
         }
-        // Copies made while the collage had fewer photos are made smaller, so all of them stay
-        // within the memory budget; the page is drawn again below.
-        photoReader.fitBudget(photos);
         // A photo removed meanwhile (it cannot be, but a closed collage drops them all) stays out.
         const placing = added.filter((photo) => photos.get(photo.id) === photo);
         placing.forEach((photo) => { photo.importing = false; });
