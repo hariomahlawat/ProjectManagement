@@ -33,7 +33,11 @@ public enum ProjectBriefingShownFacts
     // it; update-sheet rows and the portfolio totals show the amount only.
     CostRdBasis = 256,
     // The project's key points, on the slide a deck that shows key points chose.
-    KeyPoints = 512
+    KeyPoints = 512,
+    // The stage-wise distribution's band (Pre-AoN, AoN to SO, Under development, Completed). It is
+    // worked out from AoN and supply-order evidence as well as the stage, so a recorded supply-order
+    // date can move a project to another column without its stage changing (blocks plan PR 7).
+    ProgressBand = 1024
 }
 
 // What a generated deck said about one project, each fact reduced to a short comparable value,
@@ -65,7 +69,9 @@ public sealed record ProjectBriefingCurrentProjectFacts(
     DateOnly? DevelopmentPdcDate = null,
     string? CompletionStatusDisplay = null,
     // The project's recorded key points, in catalogue order.
-    IReadOnlyList<ProjectBriefingKeyPoint>? KeyPoints = null)
+    IReadOnlyList<ProjectBriefingKeyPoint>? KeyPoints = null,
+    // The stage-wise distribution band (resolved only where a generation showed that slide).
+    string? ProgressBand = null)
 {
     // Today's facts, reduced the way a generation that showed `shown` reduced them.
     public ProjectBriefingSlideFact ToSlideFact(ProjectBriefingShownFacts shown)
@@ -82,7 +88,8 @@ public sealed record ProjectBriefingCurrentProjectFacts(
             ProliferationCost,
             DevelopmentPdcDate,
             CompletionStatusDisplay,
-            KeyPoints);
+            KeyPoints,
+            ProgressBand);
 }
 
 // The facts a generation kept, with the layout and cost mode it was drawn with.
@@ -199,6 +206,11 @@ public static class ProjectBriefingSlideFacts
             shown |= ProjectBriefingShownFacts.Lifecycle;
         }
 
+        if (stageDistribution)
+        {
+            shown |= ProjectBriefingShownFacts.ProgressBand;
+        }
+
         if (stageDistribution
             || (hasOwnSlides && updateSheet && rows.Contains(ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus)))
         {
@@ -250,7 +262,8 @@ public static class ProjectBriefingSlideFacts
         ProjectBriefingCostValue? proliferationCost,
         DateOnly? developmentPdcDate = null,
         string? completionStatusDisplay = null,
-        IReadOnlyList<ProjectBriefingKeyPoint>? keyPoints = null)
+        IReadOnlyList<ProjectBriefingKeyPoint>? keyPoints = null,
+        string? progressBand = null)
     {
         var status = externalStatus?.Trim() ?? string.Empty;
         if (string.Equals(status, NoExternalStatus, StringComparison.Ordinal))
@@ -283,6 +296,11 @@ public static class ProjectBriefingSlideFacts
             // The row exactly as the update sheet draws it (the planner's own rule).
             stageParts.Add("M:" + ProjectBriefingUpdateSheetPlanner.DescribeMilestone(
                 lifecycleStatus, code, developmentPdcDate, completionStatusDisplay));
+        }
+
+        if (shown.HasFlag(ProjectBriefingShownFacts.ProgressBand))
+        {
+            stageParts.Add("B:" + (progressBand ?? string.Empty));
         }
 
         return new ProjectBriefingSlideFact(
@@ -331,7 +349,8 @@ public static class ProjectBriefingSlideFacts
             project.ProliferationCost,
             project.DevelopmentPdcDate,
             project.CompletionStatusDisplay,
-            project.KeyPoints);
+            project.KeyPoints,
+            data.StageDistribution.Lines.FirstOrDefault(line => line.ProjectId == project.ProjectId)?.Bucket.ToString());
 
     public static string Write(ProjectBriefingPresentationData data)
         => Write(data.Layout, data.CostMode, data.Projects.Select(project => FromPresentation(project, data)));

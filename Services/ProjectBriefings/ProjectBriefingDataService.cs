@@ -40,7 +40,8 @@ public interface IProjectBriefingDataService
     Task<IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts>> GetCurrentSlideFactsAsync(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken = default,
-        IReadOnlyCollection<int>? milestoneProjectIds = null);
+        IReadOnlyCollection<int>? milestoneProjectIds = null,
+        IReadOnlyCollection<int>? bandProjectIds = null);
 
     // The decks with DataMovement set wherever their last generation kept slide facts: one pass
     // over every deck's projects, for the deck library.
@@ -253,7 +254,15 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             .Select(fact => fact.ProjectId)
             .Distinct()
             .ToArray();
-        var current = await GetCurrentSlideFactsAsync(projectIds, cancellationToken, milestoneProjectIds);
+        // So is the stage-wise distribution band, where a generation drew that slide.
+        var bandProjectIds = decks
+            .Where(deck => deck.GeneratedFacts is not null)
+            .SelectMany(deck => deck.GeneratedFacts!.Facts)
+            .Where(fact => fact.Shown.HasFlag(ProjectBriefingShownFacts.ProgressBand))
+            .Select(fact => fact.ProjectId)
+            .Distinct()
+            .ToArray();
+        var current = await GetCurrentSlideFactsAsync(projectIds, cancellationToken, milestoneProjectIds, bandProjectIds);
         return decks
             .Select(deck => deck.GeneratedFacts is null
                 ? deck
@@ -264,7 +273,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     public async Task<IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts>> GetCurrentSlideFactsAsync(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken = default,
-        IReadOnlyCollection<int>? milestoneProjectIds = null)
+        IReadOnlyCollection<int>? milestoneProjectIds = null,
+        IReadOnlyCollection<int>? bandProjectIds = null)
     {
         var ids = projectIds.Where(id => id > 0).Distinct().ToArray();
         if (ids.Length == 0)
@@ -324,6 +334,31 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var updateSheetFacts = milestoneIds.Length == 0
             ? new Dictionary<int, ProjectBriefingUpdateSheetFacts>()
             : await _updateSheetFactsResolver.ResolveAsync(milestoneIds, cancellationToken);
+        var stageCodes = projects.ToDictionary(
+            project => project.Id,
+            project => ResolveStageCode(
+                project.LifecycleStatus,
+                project.WorkflowVersion,
+                stagesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<StageSnapshot>()));
+        // Each band from the resolver the slides use, so an unchanged deck reads as unchanged. The day
+        // only decides "overdue", which the band does not depend on.
+        var bandIds = bandProjectIds?.Where(liveIds.Contains).ToHashSet() ?? new HashSet<int>();
+        var bands = bandIds.Count == 0
+            ? new Dictionary<int, string>()
+            : (await new ProjectBriefingStageDistributionResolver(_db).ResolveAsync(
+                    projects
+                        .Where(project => bandIds.Contains(project.Id))
+                        .Select(project => new ProjectBriefingPresentationProject
+                        {
+                            ProjectId = project.Id,
+                            ProjectName = project.Name,
+                            LifecycleStatus = project.LifecycleStatus,
+                            PresentStageCode = stageCodes[project.Id]
+                        })
+                        .ToArray(),
+                    DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime),
+                    cancellationToken))
+                .Lines.ToDictionary(line => line.ProjectId, line => line.Bucket.ToString());
 
         return projects.ToDictionary(
             project => project.Id,
@@ -334,10 +369,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     project.Id,
                     project.Name,
                     project.LifecycleStatus,
-                    ResolveStageCode(
-                        project.LifecycleStatus,
-                        project.WorkflowVersion,
-                        stagesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<StageSnapshot>()),
+                    stageCodes[project.Id],
                     external?.Body,
                     external?.EventDate,
                     costs.CostRd.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(),
@@ -345,7 +377,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     proliferation.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
                     updateSheetFacts.GetValueOrDefault(project.Id)?.DevelopmentPdcDate,
                     BuildCompletionStatusDisplay(project.LifecycleStatus, project.CompletedOn, project.CompletedYear, project.CompletedMonth),
-                    keyPointsByProject.GetValueOrDefault(project.Id) ?? Array.Empty<ProjectBriefingKeyPoint>());
+                    keyPointsByProject.GetValueOrDefault(project.Id) ?? Array.Empty<ProjectBriefingKeyPoint>(),
+                    bands.GetValueOrDefault(project.Id));
             });
     }
 

@@ -476,6 +476,64 @@ public sealed class ProjectBriefingDataMovementTests
         Assert.Equal(0, movement.StageChanges);
     }
 
+    // A recorded supply-order date moves a project at the SO stage from "AoN to SO" to "Under
+    // development" on the stage-wise distribution without changing its stage, so the band itself is
+    // kept and compared (blocks plan PR 7).
+    [Fact]
+    public async Task ASupplyOrderDateThatMovesTheDistributionBand_CountsAsMoved()
+    {
+        await using var db = CreateDb();
+        db.Users.Add(new ApplicationUser { Id = "u", UserName = "u", FullName = "U" });
+        db.Projects.Add(new Project { Id = 1, Name = "Bridge Laying Simulator", CreatedByUserId = "u" });
+        db.ProjectStages.AddRange(
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.AON, SortOrder = 4, Status = StageStatus.Completed, CompletedOn = new DateOnly(2026, 1, 10) },
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.SO, SortOrder = 10, Status = StageStatus.InProgress });
+        db.Set<ProjectBriefingDeck>().Add(new ProjectBriefingDeck
+        {
+            Id = 8,
+            Name = "Monthly review",
+            NormalizedName = "MONTHLY REVIEW",
+            OwnerUserId = "u",
+            Layout = ProjectBriefingLayout.StandardBriefing,
+            PresentationMode = ProjectBriefingPresentationMode.ExecutiveTable,
+            CostMode = ProjectBriefingCostMode.None,
+            IncludeStageSummary = true,
+            SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlideOrder(
+                null, Array.Empty<ProjectBriefingAdditionalSlideType>()),
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            RowVersion = Guid.NewGuid().ToByteArray(),
+            Items = new List<ProjectBriefingDeckItem>
+            {
+                new() { ProjectId = 1, SortOrder = 1, AddedAtUtc = DateTimeOffset.UtcNow }
+            }
+        });
+        await db.SaveChangesAsync();
+        var service = Service(db, new FakeCosts(), new FakeStatuses(), new FakeUpdateSheetFacts(new DateOnly(2027, 6, 30)));
+
+        var data = await service.BuildPresentationDataAsync(8, "u");
+        var kept = data.Projects.Select(project => ProjectBriefingSlideFacts.FromPresentation(project, data)).ToArray();
+        Assert.Contains("B:AonToSupplyOrder", Assert.Single(kept).Stage);
+        var generatedDeck = Summary(8, "Monthly review", ProjectBriefingCostMode.None) with
+        {
+            LastGeneratedAtUtc = DateTimeOffset.UtcNow,
+            GeneratedFacts = Generated(kept)
+        };
+        Assert.Equal(0, Assert.Single(await service.WithDataMovementAsync(new[] { generatedDeck })).DataMovement!.StageChanges);
+
+        // The supply order is recorded; the project is still at the SO stage.
+        db.ProjectSupplyOrderFacts.Add(new ProjectSupplyOrderFact
+        {
+            ProjectId = 1,
+            SupplyOrderDate = new DateOnly(2026, 11, 2),
+            CreatedByUserId = "u"
+        });
+        await db.SaveChangesAsync();
+
+        var movement = Assert.Single(await service.WithDataMovementAsync(new[] { generatedDeck })).DataMovement!;
+        Assert.Equal(1, movement.StageChanges);
+    }
+
     [Fact]
     public async Task List_ReadsBackTheFactsKeptAtGeneration()
     {
