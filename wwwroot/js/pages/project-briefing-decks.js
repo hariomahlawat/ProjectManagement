@@ -861,19 +861,6 @@ if (root) {
     });
   });
 
-  const stageSummaryToggle = settingsForm?.querySelector('[data-pbd-stage-summary-toggle]');
-  const stageTableOption = settingsForm?.querySelector('[data-pbd-stage-table-option]');
-  const stageTableToggle = settingsForm?.querySelector('[data-pbd-stage-table-toggle]');
-
-  const syncStageSummaryOptions = () => {
-    const enabled = !(stageSummaryToggle instanceof HTMLInputElement) || stageSummaryToggle.checked;
-    if (stageTableToggle instanceof HTMLInputElement) stageTableToggle.disabled = !enabled;
-    if (stageTableOption instanceof HTMLElement) {
-      stageTableOption.classList.toggle('is-disabled', !enabled);
-      stageTableOption.setAttribute('aria-disabled', String(!enabled));
-    }
-  };
-
   const serializeSettings = () => serializeForm(settingsForm);
   // Settings changed since the last save, latest last.
   const changedSettings = new Set();
@@ -1466,11 +1453,6 @@ if (root) {
     setRadio('CostMode', rd && proliferation ? 'Both' : rd ? 'CostRdOnly' : proliferation ? 'ProliferationOnly' : 'None');
     syncTemplateSettings();
   }));
-  stageSummaryToggle?.addEventListener('change', () => {
-    syncStageSummaryOptions();
-    refreshSettingsDirtyState();
-  });
-  syncStageSummaryOptions();
   syncTemplateSettings();
   settingsSavedState = serializeSettings();
   refreshSettingsSummary();
@@ -1519,8 +1501,7 @@ if (root) {
   // The setting each block stands for, so the Studio follows the change (SETTING_SLIDES).
   const BLOCK_SETTINGS = {
     Cover: 'IncludeCoverSlide',
-    PortfolioSummary: 'IncludePortfolioSummarySlide',
-    StageSummary: 'IncludeStageSummary',
+    StageDistribution: 'IncludeStageSummary',
     ProjectCategorySummary: 'IncludeProjectCategorySummary',
     TechnicalCategorySummary: 'IncludeTechnicalCategorySummary',
     StatusTable: 'PresentationMode',
@@ -1538,8 +1519,7 @@ if (root) {
       if (input instanceof HTMLInputElement && typeof value === 'boolean') input.checked = value;
     };
     setChecked('IncludeCoverSlide', blockOn('Cover'));
-    setChecked('IncludePortfolioSummarySlide', blockOn('PortfolioSummary'));
-    setChecked('IncludeStageSummary', blockOn('StageSummary'));
+    setChecked('IncludeStageSummary', blockOn('StageDistribution'));
     setChecked('IncludeProjectCategorySummary', blockOn('ProjectCategorySummary'));
     setChecked('IncludeTechnicalCategorySummary', blockOn('TechnicalCategorySummary'));
     const table = blockOn('StatusTable');
@@ -1569,7 +1549,6 @@ if (root) {
     if (libraryEmpty instanceof HTMLElement) {
       libraryEmpty.hidden = [...(blockList?.querySelectorAll('[data-pbd-block-library-entry]') || [])].some((item) => !item.hidden);
     }
-    syncStageSummaryOptions();
     syncTemplateSettings();
     // The mirror inputs are outside the settings form's data, so unsaved settings stay unsaved.
     refreshSettingsSummary();

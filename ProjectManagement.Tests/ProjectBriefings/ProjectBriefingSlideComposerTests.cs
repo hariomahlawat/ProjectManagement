@@ -24,7 +24,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var (content, slideCount) = composer.Compose(BuildData());
 
         Assert.True(content.Length > 10_000);
-        Assert.Equal(8, slideCount);
+        Assert.Equal(7, slideCount);
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
@@ -41,8 +41,10 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("COST (R&D)", text, StringComparison.Ordinal);
         Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
         Assert.Contains("Latest external status for AURA", text, StringComparison.Ordinal);
-        Assert.Contains("Stage-wise summary", text, StringComparison.Ordinal);
-        Assert.Contains("Stage-wise project distribution", text, StringComparison.Ordinal);
+        Assert.Contains("Where the projects stand", text, StringComparison.Ordinal);
+        Assert.Contains("The projects by where they stand", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Stage-wise summary", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Portfolio at a glance", text, StringComparison.Ordinal);
         Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
         Assert.All(slides.Where(slide => SlideText(slide).Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal)),
             slide => Assert.DoesNotContain("PROJECT POSITION", SlideText(slide), StringComparison.Ordinal));
@@ -56,7 +58,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var nativeTables = slides
             .SelectMany(slide => slide.Slide.Descendants<A.Table>())
             .Count();
-        Assert.True(nativeTables >= 2, "The stage and executive project tables must remain native editable PowerPoint tables.");
+        Assert.True(nativeTables >= 1, "The executive project table must remain a native editable PowerPoint table.");
     }
 
 
@@ -217,174 +219,6 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
-    public void Compose_StageSummary_UsesExecutiveLifecycleBandAndOngoingStageInfographic()
-    {
-        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
-        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
-        var data = new ProjectBriefingPresentationData
-        {
-            DeckId = 601,
-            DeckName = "Stage Summary Review",
-            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
-            CostMode = ProjectBriefingCostMode.None,
-            IncludeCoverSlide = false,
-            IncludePortfolioSummarySlide = false,
-            IncludeStageSummary = true,
-            GeneratedAtUtc = new DateTimeOffset(2026, 8, 6, 15, 30, 0, TimeSpan.Zero),
-            Summary = new ProjectBriefingPresentationSummary
-            {
-                ProjectCount = 25,
-                CompletedCount = 15,
-                OngoingCount = 10,
-                StageSummary = new[]
-                {
-                    new ProjectBriefingSummaryPoint("Completed", 15, ProjectBriefingStageOrder.Completed),
-                    new ProjectBriefingSummaryPoint("Development", 2, ProjectBriefingStageOrder.Development),
-                    new ProjectBriefingSummaryPoint("Technical Evaluation", 1, ProjectBriefingStageOrder.TechnicalEvaluation),
-                    new ProjectBriefingSummaryPoint("Bidding / Tendering", 1, ProjectBriefingStageOrder.BiddingTendering),
-                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 5, ProjectBriefingStageOrder.AcceptanceOfNecessity),
-                    new ProjectBriefingSummaryPoint("Scope of Work Vetting", 1, ProjectBriefingStageOrder.SowVetting)
-                },
-                OngoingStageSummary = new[]
-                {
-                    new ProjectBriefingSummaryPoint("Development", 2, ProjectBriefingStageOrder.Development),
-                    new ProjectBriefingSummaryPoint("Technical Evaluation", 1, ProjectBriefingStageOrder.TechnicalEvaluation),
-                    new ProjectBriefingSummaryPoint("Bidding / Tendering", 1, ProjectBriefingStageOrder.BiddingTendering),
-                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 5, ProjectBriefingStageOrder.AcceptanceOfNecessity),
-                    new ProjectBriefingSummaryPoint("Scope of Work Vetting", 1, ProjectBriefingStageOrder.SowVetting)
-                }
-            }
-        };
-
-        var (content, slideCount) = composer.Compose(data);
-
-        Assert.Equal(2, slideCount);
-        using var stream = new MemoryStream(content, writable: false);
-        using var document = PresentationDocument.Open(stream, false);
-        var stageSlide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart)
-            .SlideParts
-            .Where(slide => SlideText(slide).Contains("Stage-wise summary", StringComparison.Ordinal)));
-        var text = SlideText(stageSlide);
-
-        Assert.Contains("25 SELECTED PROJECTS", text, StringComparison.Ordinal);
-        Assert.Contains("Completed", text, StringComparison.Ordinal);
-        Assert.Contains("15", text, StringComparison.Ordinal);
-        Assert.Contains("(60%)", text, StringComparison.Ordinal);
-        Assert.Contains("Ongoing", text, StringComparison.Ordinal);
-        Assert.Contains("10", text, StringComparison.Ordinal);
-        Assert.Contains("(40%)", text, StringComparison.Ordinal);
-        Assert.Contains("ONGOING PROJECTS BY PRESENT STAGE", text, StringComparison.Ordinal);
-        Assert.Contains("KEY TAKEAWAY", text, StringComparison.Ordinal);
-        Assert.Contains("5 of 10", text, StringComparison.Ordinal);
-        Assert.Contains("ongoing projects are at the AoN stage",
-            string.Join(" ", ShapeByName(stageSlide, "Stage summary key takeaway body").Descendants<A.Text>().Select(node => node.Text)),
-            StringComparison.Ordinal);
-        Assert.NotNull(ShapeByName(stageSlide, "Development stage track"));
-        Assert.NotNull(ShapeByName(stageSlide, "Acceptance of Necessity stage track"));
-        Assert.NotNull(ShapeByName(stageSlide, "Acceptance of Necessity stage column"));
-        Assert.Empty(stageSlide.Slide.Descendants<P.Shape>().Where(shape => string.Equals(
-            shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value,
-            "Completed stage column",
-            StringComparison.Ordinal)));
-
-        Assert.True(text.IndexOf("Development", StringComparison.Ordinal)
-                    < text.IndexOf("Technical Evaluation", StringComparison.Ordinal));
-        Assert.True(text.IndexOf("Technical Evaluation", StringComparison.Ordinal)
-                    < text.IndexOf("Bidding / Tendering", StringComparison.Ordinal));
-        Assert.True(text.IndexOf("Bidding / Tendering", StringComparison.Ordinal)
-                    < text.IndexOf("Acceptance of Necessity", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void Compose_StageSummary_UsesCompactGridAndCancelledPanelWhenRequired()
-    {
-        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
-        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
-        var points = new[]
-        {
-            new ProjectBriefingSummaryPoint("Transfer of Technology", 1, ProjectBriefingStageOrder.TransferOfTechnology),
-            new ProjectBriefingSummaryPoint("Acceptance Testing", 1, ProjectBriefingStageOrder.AcceptanceTesting),
-            new ProjectBriefingSummaryPoint("Development", 1, ProjectBriefingStageOrder.Development),
-            new ProjectBriefingSummaryPoint("Supply Order", 1, ProjectBriefingStageOrder.SupplyOrder),
-            new ProjectBriefingSummaryPoint("Technical Evaluation", 1, ProjectBriefingStageOrder.TechnicalEvaluation),
-            new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, ProjectBriefingStageOrder.AcceptanceOfNecessity),
-            new ProjectBriefingSummaryPoint("Scope of Work Vetting", 1, ProjectBriefingStageOrder.SowVetting)
-        };
-        var data = new ProjectBriefingPresentationData
-        {
-            DeckId = 602,
-            DeckName = "Compact Stage Summary Review",
-            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
-            CostMode = ProjectBriefingCostMode.None,
-            IncludeCoverSlide = false,
-            IncludePortfolioSummarySlide = false,
-            IncludeStageSummary = true,
-            GeneratedAtUtc = new DateTimeOffset(2026, 8, 6, 15, 30, 0, TimeSpan.Zero),
-            Summary = new ProjectBriefingPresentationSummary
-            {
-                ProjectCount = 10,
-                CompletedCount = 2,
-                OngoingCount = 7,
-                CancelledCount = 1,
-                OngoingStageSummary = points
-            }
-        };
-
-        var (content, _) = composer.Compose(data);
-
-        using var stream = new MemoryStream(content, writable: false);
-        using var document = PresentationDocument.Open(stream, false);
-        var stageSlide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart)
-            .SlideParts
-            .Where(slide => SlideText(slide).Contains("Stage-wise summary", StringComparison.Ordinal)));
-        var text = SlideText(stageSlide);
-
-        Assert.Contains("Cancelled", text, StringComparison.Ordinal);
-        Assert.Contains("1 (10%)", text, StringComparison.Ordinal);
-        Assert.NotNull(ShapeByName(stageSlide, "Development compact stage card"));
-        Assert.NotNull(ShapeByName(stageSlide, "Stage summary insight strip"));
-    }
-
-    [Fact]
-    public void Compose_StageSummary_HandlesAllCompletedPortfolioWithoutEmptyChart()
-    {
-        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
-        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
-        var data = new ProjectBriefingPresentationData
-        {
-            DeckId = 603,
-            DeckName = "Completed Portfolio Review",
-            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
-            CostMode = ProjectBriefingCostMode.None,
-            IncludeCoverSlide = false,
-            IncludePortfolioSummarySlide = false,
-            IncludeStageSummary = true,
-            GeneratedAtUtc = new DateTimeOffset(2026, 8, 6, 15, 30, 0, TimeSpan.Zero),
-            Summary = new ProjectBriefingPresentationSummary
-            {
-                ProjectCount = 12,
-                CompletedCount = 12,
-                OngoingCount = 0
-            }
-        };
-
-        var (content, _) = composer.Compose(data);
-
-        using var stream = new MemoryStream(content, writable: false);
-        using var document = PresentationDocument.Open(stream, false);
-        var stageSlide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart)
-            .SlideParts
-            .Where(slide => SlideText(slide).Contains("Stage-wise summary", StringComparison.Ordinal)));
-        var text = SlideText(stageSlide);
-
-        Assert.Contains("12 (100%)", text, StringComparison.Ordinal);
-        Assert.Contains("0 (0%)", text, StringComparison.Ordinal);
-        Assert.Contains("All selected projects are completed", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("No summary data is available", text, StringComparison.Ordinal);
-    }
-
-
-    [Fact]
     public void Compose_ProjectBriefMode_CreatesDedicatedNarrativeSlideWithoutCapabilitySlide()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
@@ -414,7 +248,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(4, slideCount);
+        Assert.Equal(3, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
@@ -465,7 +299,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(5, slideCount);
+        Assert.Equal(4, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
@@ -546,7 +380,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(12, slideCount); // cover + portfolio + nine project-table slides + closing
+        Assert.Equal(11, slideCount); // cover + nine project-table slides + closing
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
@@ -685,7 +519,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(4, slideCount);
+        Assert.Equal(3, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var projectSlide = Assert.IsType<PresentationPart>(document.PresentationPart)
@@ -1381,7 +1215,8 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(4, slideCount);
+        // Cover, sheet, closing: the portfolio summary was retired (blocks plan PR 7).
+        Assert.Equal(3, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slideTexts = Assert.IsType<PresentationPart>(document.PresentationPart)
@@ -1389,12 +1224,8 @@ public sealed class ProjectBriefingSlideComposerTests
             .Select(SlideText)
             .ToArray();
         Assert.Contains("PROJECT UPDATE REVIEW", slideTexts[0], StringComparison.Ordinal);
-        Assert.Contains("Portfolio at a glance", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("RECORDED R&D COST", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("RECORDED IPA COST", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("₹74.00 Lakh", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("₹80.00 Lakh", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("Update sheet project", slideTexts[2], StringComparison.Ordinal);
+        Assert.DoesNotContain(slideTexts, text => text.Contains("Portfolio at a glance", StringComparison.Ordinal));
+        Assert.Contains("Update sheet project", slideTexts[1], StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2156,16 +1987,15 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(5, slideCount);
+        Assert.Equal(4, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
-        Assert.Equal(5, slides.Length);
+        Assert.Equal(4, slides.Length);
         Assert.Contains("SDD Institutional Profile", SlideText(slides[0]), StringComparison.OrdinalIgnoreCase);
         Assert.Contains("SDD – Growth over the years", SlideText(slides[1]), StringComparison.Ordinal);
-        Assert.Contains("Portfolio at a glance", SlideText(slides[2]), StringComparison.Ordinal);
-        Assert.Contains("PROFILE SLIDE PROJECT", SlideText(slides[3]), StringComparison.Ordinal);
-        Assert.True(IsClosingSlide(slides[4]));
+        Assert.Contains("PROFILE SLIDE PROJECT", SlideText(slides[2]), StringComparison.Ordinal);
+        Assert.True(IsClosingSlide(slides[3]));
 
         var profileSlide = slides[1];
         var profileText = SlideText(profileSlide);
@@ -2266,16 +2096,15 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(4, slideCount);
+        Assert.Equal(3, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
-        Assert.Equal(4, slides.Length);
+        Assert.Equal(3, slides.Length);
         Assert.DoesNotContain(slides, slide =>
             SlideText(slide).Contains("SDD – Growth over the years", StringComparison.Ordinal));
-        Assert.Contains("Portfolio at a glance", SlideText(slides[1]), StringComparison.Ordinal);
-        Assert.Contains("NO PROFILE PROJECT", SlideText(slides[2]), StringComparison.Ordinal);
-        Assert.True(IsClosingSlide(slides[3]));
+        Assert.Contains("NO PROFILE PROJECT", SlideText(slides[1]), StringComparison.Ordinal);
+        Assert.True(IsClosingSlide(slides[2]));
     }
 
     [Fact]
@@ -2587,7 +2416,7 @@ public sealed class ProjectBriefingSlideComposerTests
             roleCharter: roleCharter,
             additionalSlideOrder: new[] { ProjectBriefingAdditionalSlideType.RoleAndCharter }));
 
-        Assert.Equal(9, slideCount);
+        Assert.Equal(8, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
@@ -2618,8 +2447,9 @@ public sealed class ProjectBriefingSlideComposerTests
         var allText = slides.Select(SlideText).ToArray();
         var coverIndex = Array.FindIndex(allText, text => text.Contains("QUARTERLY COMMAND REVIEW", StringComparison.Ordinal));
         var roleIndex = Array.FindIndex(allText, text => text.Contains("ROLE & CHARTER", StringComparison.OrdinalIgnoreCase));
-        var summaryIndex = Array.FindIndex(allText, text => text.Contains("PORTFOLIO AT A GLANCE", StringComparison.OrdinalIgnoreCase));
-        Assert.True(coverIndex >= 0 && roleIndex > coverIndex && summaryIndex > roleIndex);
+        // Role & Charter follows the cover and comes before the overview (the stage-wise distribution).
+        var overviewIndex = Array.FindIndex(allText, text => text.Contains("Where the projects stand", StringComparison.Ordinal));
+        Assert.True(coverIndex >= 0 && roleIndex > coverIndex && overviewIndex > roleIndex);
     }
 
 
@@ -2686,23 +2516,6 @@ public sealed class ProjectBriefingSlideComposerTests
 
 
     [Fact]
-    public void Compose_StageDistributionTable_IsOptionalAndChartRemains()
-    {
-        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
-        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
-
-        var (content, slideCount) = composer.Compose(BuildData(includeStageDistributionTable: false));
-
-        Assert.Equal(7, slideCount);
-        using var stream = new MemoryStream(content, writable: false);
-        using var document = PresentationDocument.Open(stream, false);
-        var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
-            .SlideParts.Select(SlideText));
-        Assert.Contains("Stage-wise summary", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("Stage-wise project distribution", text, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Compose_TechnicalCategorySummary_IsSuppressedForSingleCategory()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
@@ -2713,7 +2526,7 @@ public sealed class ProjectBriefingSlideComposerTests
             includeTechnicalCategorySummary: true,
             technicalCategorySummary: singleCategory));
 
-        Assert.Equal(8, slideCount);
+        Assert.Equal(7, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
@@ -2751,7 +2564,7 @@ public sealed class ProjectBriefingSlideComposerTests
             additionalSlideOrder: new[] { ProjectBriefingAdditionalSlideType.FfcGlobalFootprint },
             ffcGlobalFootprint: footprint));
 
-        Assert.Equal(11, slideCount);
+        Assert.Equal(10, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();

@@ -17,7 +17,11 @@ public enum ProjectBriefingDeckBlockType
     TechnicalCategorySummary = 7,
     StatusTable = 8,
     ProjectSlides = 9,
-    FfcGlobalFootprint = 10
+    FfcGlobalFootprint = 10,
+    // The ARPP-style stage chart and project list for the deck's projects (blocks plan PR 7). It
+    // replaced the stage-wise summary, stage table and portfolio summary, which are no longer
+    // listed or drawn; their values stay so stored orders still read.
+    StageDistribution = 11
 }
 
 // Where a block sits. Blocks move only within their zone, so a deck always opens, then gives its
@@ -41,6 +45,7 @@ public static class ProjectBriefingDeckBlocks
             or ProjectBriefingDeckBlockType.RoleAndCharter => ProjectBriefingDeckZone.Opening,
         ProjectBriefingDeckBlockType.PortfolioSummary
             or ProjectBriefingDeckBlockType.StageSummary
+            or ProjectBriefingDeckBlockType.StageDistribution
             or ProjectBriefingDeckBlockType.ProjectCategorySummary
             or ProjectBriefingDeckBlockType.TechnicalCategorySummary
             or ProjectBriefingDeckBlockType.StatusTable => ProjectBriefingDeckZone.Overview,
@@ -57,17 +62,16 @@ public static class ProjectBriefingDeckBlocks
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown additional slide.")
     };
 
-    // The blocks a deck's present settings give, in the order the composer has always drawn them:
-    // cover, the after-cover institution slides in their own order, portfolio summary; for the
-    // standard layout the stage, project-category and technical-category summaries, the status
-    // table (table or both) and the project slides (project slides or both); for update sheets the
-    // sheets; then the before-closing institution slides. A deck saved before blocks existed is
-    // read through this, so it composes exactly as it did (ProjectBriefingBlockEquivalenceTests).
+    // The blocks a deck's settings give, in the deck's usual order: cover, the after-cover
+    // institution slides in their own order; for the standard layout the stage-wise distribution
+    // (where the stage summary was), the project-category and technical-category summaries, the
+    // status table (table or both) and the project slides (project slides or both); for update
+    // sheets the sheets; then the before-closing institution slides. The portfolio summary is
+    // retired (blocks plan PR 7). Used when a composition is not handed a block list.
     public static IReadOnlyList<ProjectBriefingDeckBlock> FromSettings(
         ProjectBriefingLayout layout,
         ProjectBriefingPresentationMode presentationMode,
         bool includeCoverSlide,
-        bool includePortfolioSummarySlide,
         bool includeStageSummary,
         bool includeProjectCategorySummary,
         bool includeTechnicalCategorySummary,
@@ -82,11 +86,6 @@ public static class ProjectBriefingDeckBlocks
 
         blocks.AddRange(AdditionalBlocks(additionalSlideOrder, ProjectBriefingAdditionalSlidePlacement.AfterCover));
 
-        if (includePortfolioSummarySlide)
-        {
-            blocks.Add(new(ProjectBriefingDeckBlockType.PortfolioSummary));
-        }
-
         if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
         {
             blocks.Add(new(ProjectBriefingDeckBlockType.ProjectSlides));
@@ -95,7 +94,7 @@ public static class ProjectBriefingDeckBlocks
         {
             if (includeStageSummary)
             {
-                blocks.Add(new(ProjectBriefingDeckBlockType.StageSummary));
+                blocks.Add(new(ProjectBriefingDeckBlockType.StageDistribution));
             }
 
             if (includeProjectCategorySummary)
@@ -124,10 +123,14 @@ public static class ProjectBriefingDeckBlocks
     }
 
     // Overview blocks only, each once, in the given order: what a deck stores as its overview order.
+    // A stored stage summary reads as the stage-wise distribution that replaced it, in its place;
+    // the retired portfolio summary is dropped.
     public static IReadOnlyList<ProjectBriefingDeckBlockType> NormalizeOverviewOrder(
         IEnumerable<ProjectBriefingDeckBlockType>? order)
         => (order ?? Array.Empty<ProjectBriefingDeckBlockType>())
             .Where(type => Enum.IsDefined(type) && ZoneOf(type) == ProjectBriefingDeckZone.Overview)
+            .Where(type => type != ProjectBriefingDeckBlockType.PortfolioSummary)
+            .Select(type => type == ProjectBriefingDeckBlockType.StageSummary ? ProjectBriefingDeckBlockType.StageDistribution : type)
             .Distinct()
             .ToArray();
 
@@ -139,7 +142,6 @@ public static class ProjectBriefingDeckBlocks
         ProjectBriefingLayout layout,
         ProjectBriefingPresentationMode presentationMode,
         bool includeCoverSlide,
-        bool includePortfolioSummarySlide,
         bool includeStageSummary,
         bool includeProjectCategorySummary,
         bool includeTechnicalCategorySummary,
@@ -162,13 +164,11 @@ public static class ProjectBriefingDeckBlocks
             .Where(type => ProjectBriefingAdditionalSlideCatalog.Get(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
             .Select(type => new ProjectBriefingDeckBlock(ForAdditionalSlide(type), additionalSlideOrder.Contains(type) && additionalSlideEnabled(type))));
 
-        var overview = new List<ProjectBriefingDeckBlock>
-        {
-            new(ProjectBriefingDeckBlockType.PortfolioSummary, includePortfolioSummarySlide)
-        };
+        // Update sheets have no overview slides since the portfolio summary was retired (PR 7).
+        var overview = new List<ProjectBriefingDeckBlock>();
         if (standard)
         {
-            overview.Add(new(ProjectBriefingDeckBlockType.StageSummary, includeStageSummary));
+            overview.Add(new(ProjectBriefingDeckBlockType.StageDistribution, includeStageSummary));
             overview.Add(new(ProjectBriefingDeckBlockType.ProjectCategorySummary, includeProjectCategorySummary));
             overview.Add(new(ProjectBriefingDeckBlockType.TechnicalCategorySummary, includeTechnicalCategorySummary));
             overview.Add(new(
@@ -219,6 +219,7 @@ public static class ProjectBriefingDeckBlocks
         ProjectBriefingDeckBlockType.RoleAndCharter => "Role & Charter",
         ProjectBriefingDeckBlockType.PortfolioSummary => "Portfolio summary",
         ProjectBriefingDeckBlockType.StageSummary => "Stage-wise summary",
+        ProjectBriefingDeckBlockType.StageDistribution => "Stage-wise distribution",
         ProjectBriefingDeckBlockType.ProjectCategorySummary => "Project-category distribution",
         ProjectBriefingDeckBlockType.TechnicalCategorySummary => "Technical-category distribution",
         ProjectBriefingDeckBlockType.StatusTable => "Status table",
@@ -234,6 +235,7 @@ public static class ProjectBriefingDeckBlocks
         ProjectBriefingDeckBlockType.RoleAndCharter => "Authorised role and functions",
         ProjectBriefingDeckBlockType.PortfolioSummary => "Counts by lifecycle and stage",
         ProjectBriefingDeckBlockType.StageSummary => "Where this deck's projects stand",
+        ProjectBriefingDeckBlockType.StageDistribution => "Chart by stage and parent category, then the project list",
         ProjectBriefingDeckBlockType.ProjectCategorySummary => "This deck's projects by project category",
         ProjectBriefingDeckBlockType.TechnicalCategorySummary => "This deck's projects by technical category",
         ProjectBriefingDeckBlockType.StatusTable => "One row per project",
@@ -257,7 +259,6 @@ public static class ProjectBriefingDeckBlocks
             data.Layout,
             data.PresentationMode,
             data.IncludeCoverSlide,
-            data.IncludePortfolioSummarySlide,
             data.IncludeStageSummary,
             data.IncludeProjectCategorySummary,
             data.IncludeTechnicalCategorySummary,

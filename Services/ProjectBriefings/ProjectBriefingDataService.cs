@@ -40,7 +40,8 @@ public interface IProjectBriefingDataService
     Task<IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts>> GetCurrentSlideFactsAsync(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken = default,
-        IReadOnlyCollection<int>? milestoneProjectIds = null);
+        IReadOnlyCollection<int>? milestoneProjectIds = null,
+        IReadOnlyCollection<int>? bandProjectIds = null);
 
     // The decks with DataMovement set wherever their last generation kept slide facts: one pass
     // over every deck's projects, for the deck library.
@@ -101,7 +102,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             return null;
         }
 
-        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
+        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, snapshot.IncludeStageSummary, cancellationToken);
         var presentedProjects = projects.Where(project => project.IsPresented).ToArray();
         // The global FFC footprint is only shown in the page's FFC slide editor; in-place saves and
         // preview rebuilds do not need it.
@@ -253,7 +254,15 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             .Select(fact => fact.ProjectId)
             .Distinct()
             .ToArray();
-        var current = await GetCurrentSlideFactsAsync(projectIds, cancellationToken, milestoneProjectIds);
+        // So is the stage-wise distribution band, where a generation drew that slide.
+        var bandProjectIds = decks
+            .Where(deck => deck.GeneratedFacts is not null)
+            .SelectMany(deck => deck.GeneratedFacts!.Facts)
+            .Where(fact => fact.Shown.HasFlag(ProjectBriefingShownFacts.ProgressBand))
+            .Select(fact => fact.ProjectId)
+            .Distinct()
+            .ToArray();
+        var current = await GetCurrentSlideFactsAsync(projectIds, cancellationToken, milestoneProjectIds, bandProjectIds);
         return decks
             .Select(deck => deck.GeneratedFacts is null
                 ? deck
@@ -264,7 +273,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     public async Task<IReadOnlyDictionary<int, ProjectBriefingCurrentProjectFacts>> GetCurrentSlideFactsAsync(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken = default,
-        IReadOnlyCollection<int>? milestoneProjectIds = null)
+        IReadOnlyCollection<int>? milestoneProjectIds = null,
+        IReadOnlyCollection<int>? bandProjectIds = null)
     {
         var ids = projectIds.Where(id => id > 0).Distinct().ToArray();
         if (ids.Length == 0)
@@ -324,6 +334,31 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var updateSheetFacts = milestoneIds.Length == 0
             ? new Dictionary<int, ProjectBriefingUpdateSheetFacts>()
             : await _updateSheetFactsResolver.ResolveAsync(milestoneIds, cancellationToken);
+        var stageCodes = projects.ToDictionary(
+            project => project.Id,
+            project => ResolveStageCode(
+                project.LifecycleStatus,
+                project.WorkflowVersion,
+                stagesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<StageSnapshot>()));
+        // Each band from the resolver the slides use, so an unchanged deck reads as unchanged. The day
+        // only decides "overdue", which the band does not depend on.
+        var bandIds = bandProjectIds?.Where(liveIds.Contains).ToHashSet() ?? new HashSet<int>();
+        var bands = bandIds.Count == 0
+            ? new Dictionary<int, string>()
+            : (await new ProjectBriefingStageDistributionResolver(_db).ResolveAsync(
+                    projects
+                        .Where(project => bandIds.Contains(project.Id))
+                        .Select(project => new ProjectBriefingPresentationProject
+                        {
+                            ProjectId = project.Id,
+                            ProjectName = project.Name,
+                            LifecycleStatus = project.LifecycleStatus,
+                            PresentStageCode = stageCodes[project.Id]
+                        })
+                        .ToArray(),
+                    DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime),
+                    cancellationToken))
+                .Lines.ToDictionary(line => line.ProjectId, line => line.Bucket.ToString());
 
         return projects.ToDictionary(
             project => project.Id,
@@ -334,10 +369,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     project.Id,
                     project.Name,
                     project.LifecycleStatus,
-                    ResolveStageCode(
-                        project.LifecycleStatus,
-                        project.WorkflowVersion,
-                        stagesByProject.GetValueOrDefault(project.Id) ?? Array.Empty<StageSnapshot>()),
+                    stageCodes[project.Id],
                     external?.Body,
                     external?.EventDate,
                     costs.CostRd.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(),
@@ -345,7 +377,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     proliferation.GetValueOrDefault(project.Id) ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
                     updateSheetFacts.GetValueOrDefault(project.Id)?.DevelopmentPdcDate,
                     BuildCompletionStatusDisplay(project.LifecycleStatus, project.CompletedOn, project.CompletedYear, project.CompletedMonth),
-                    keyPointsByProject.GetValueOrDefault(project.Id) ?? Array.Empty<ProjectBriefingKeyPoint>());
+                    keyPointsByProject.GetValueOrDefault(project.Id) ?? Array.Empty<ProjectBriefingKeyPoint>(),
+                    bands.GetValueOrDefault(project.Id));
             });
     }
 
@@ -356,7 +389,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     {
         var snapshot = await LoadSnapshotAsync(deckId, requestingUserId, cancellationToken)
             ?? throw new KeyNotFoundException("The saved deck was not found.");
-        var allProjectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
+        var allProjectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, snapshot.IncludeStageSummary, cancellationToken);
         var projectVms = allProjectVms.Where(project => project.IsPresented).ToArray();
         if (projectVms.Length == 0)
         {
@@ -767,6 +800,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         IReadOnlyList<DeckItemSnapshot> items,
         ProjectBriefingLayout layout,
         ProjectBriefingUpdateSheetOptions updateSheetOptions,
+        bool includeStageSummary,
         CancellationToken cancellationToken)
     {
         if (items.Count == 0)
@@ -786,6 +820,12 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var updateSheetFacts = layout == ProjectBriefingLayout.ProjectUpdateSheet
             ? await _updateSheetFactsResolver.ResolveAsync(projectIds, cancellationToken)
             : new Dictionary<int, ProjectBriefingUpdateSheetFacts>();
+        // The stage-wise distribution lists each Development project's PDC, so a standard deck that
+        // shows it records the PDC from the same facts the movement check reads (blocks plan PR 7).
+        // Only the PDC is taken: the other update-sheet facts stay off standard slides.
+        var milestoneFacts = layout != ProjectBriefingLayout.ProjectUpdateSheet && includeStageSummary
+            ? await _updateSheetFactsResolver.ResolveAsync(projectIds, cancellationToken)
+            : updateSheetFacts;
 
         var coverByProject = items.ToDictionary(item => item.ProjectId, ResolveCoverPhotoId);
         var photoReferences = coverByProject
@@ -859,7 +899,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     Cfa = updateFacts?.Cfa,
                     AonDate = updateFacts?.AonDate,
                     SupplyOrderDate = updateFacts?.SupplyOrderDate,
-                    DevelopmentPdcDate = requiresDevelopmentPdc ? updateFacts?.DevelopmentPdcDate : null,
+                    DevelopmentPdcDate = requiresDevelopmentPdc
+                        ? milestoneFacts.GetValueOrDefault(item.ProjectId)?.DevelopmentPdcDate
+                        : null,
                     CompletionStatusDisplay = BuildCompletionStatusDisplay(item),
                     JdpNames = updateFacts?.JdpNames ?? Array.Empty<string>(),
                     ProjectOfficer = updateFacts?.ProjectOfficer,
@@ -1076,8 +1118,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         ProjectBriefingNarrativeMode narrativeMode,
         IReadOnlyList<ProjectBriefingProjectVm> projects)
     {
-        var coverAndPortfolioSlides = (includeCoverSlide ? 1 : 0)
-            + (includePortfolioSummarySlide ? 1 : 0);
+        // The cover only: the portfolio summary was retired (blocks plan PR 7).
+        var coverAndPortfolioSlides = includeCoverSlide ? 1 : 0;
         var institutionalProfileSlides = institutionalProfileOptions.IncludeSlide
             && additionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.InstitutionalProfile)
                 ? 1
@@ -1128,9 +1170,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             };
         }
 
-        var summarySlides = includeStageSummary
-            ? 1 + (standardSlideOptions.IncludeStageDistributionTable ? 1 : 0)
-            : 0;
+        // The stage-wise distribution: its chart and, usually, one project list slide.
+        var summarySlides = includeStageSummary ? 2 : 0;
         var projectCategoryCount = projects
             .Select(project => project.ProjectCategory ?? "Not categorised")
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1464,7 +1505,6 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             Layout,
             PresentationMode,
             IncludeCoverSlide,
-            IncludePortfolioSummarySlide,
             IncludeStageSummary,
             IncludeProjectCategorySummary,
             IncludeTechnicalCategorySummary,

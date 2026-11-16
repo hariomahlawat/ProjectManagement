@@ -24,13 +24,12 @@ public sealed class ProjectBriefingDeckBlocksTests
     };
 
     [Fact]
-    public void StandardSettings_GiveTheBlocksInTheOrderDecksHaveAlwaysHad()
+    public void StandardSettings_GiveTheBlocksInTheDecksUsualOrder_WithTheStageWiseDistributionForTheStageSummary()
     {
         var blocks = ProjectBriefingDeckBlocks.FromSettings(
             ProjectBriefingLayout.StandardBriefing,
             ProjectBriefingPresentationMode.Combined,
             includeCoverSlide: true,
-            includePortfolioSummarySlide: true,
             includeStageSummary: true,
             includeProjectCategorySummary: true,
             includeTechnicalCategorySummary: false,
@@ -42,8 +41,7 @@ public sealed class ProjectBriefingDeckBlocksTests
                 ProjectBriefingDeckBlockType.Cover,
                 ProjectBriefingDeckBlockType.RoleAndCharter,
                 ProjectBriefingDeckBlockType.InstitutionalProfile,
-                ProjectBriefingDeckBlockType.PortfolioSummary,
-                ProjectBriefingDeckBlockType.StageSummary,
+                ProjectBriefingDeckBlockType.StageDistribution,
                 ProjectBriefingDeckBlockType.ProjectCategorySummary,
                 ProjectBriefingDeckBlockType.StatusTable,
                 ProjectBriefingDeckBlockType.ProjectSlides,
@@ -62,7 +60,7 @@ public sealed class ProjectBriefingDeckBlocksTests
         bool projectSlides)
     {
         var types = ProjectBriefingDeckBlocks.FromSettings(
-                ProjectBriefingLayout.StandardBriefing, mode, false, false, false, false, false,
+                ProjectBriefingLayout.StandardBriefing, mode, false, false, false, false,
                 Array.Empty<ProjectBriefingAdditionalSlideType>())
             .Select(block => block.Type)
             .ToArray();
@@ -72,21 +70,39 @@ public sealed class ProjectBriefingDeckBlocksTests
     }
 
     [Fact]
-    public void UpdateSheets_IgnoreTheStandardSummariesAndAlwaysHaveProjectSlides()
+    public void UpdateSheets_HaveNoOverviewSlides_AndAlwaysHaveProjectSlides()
     {
         var types = ProjectBriefingDeckBlocks.FromSettings(
                 ProjectBriefingLayout.ProjectUpdateSheet,
                 ProjectBriefingPresentationMode.ExecutiveTable,
                 includeCoverSlide: false,
-                includePortfolioSummarySlide: true,
                 includeStageSummary: true,
                 includeProjectCategorySummary: true,
                 includeTechnicalCategorySummary: true,
                 Array.Empty<ProjectBriefingAdditionalSlideType>())
             .Select(block => block.Type);
 
-        Assert.Equal(new[] { ProjectBriefingDeckBlockType.PortfolioSummary, ProjectBriefingDeckBlockType.ProjectSlides }, types);
+        // The portfolio summary update sheets had was retired (blocks plan PR 7).
+        Assert.Equal(new[] { ProjectBriefingDeckBlockType.ProjectSlides }, types);
     }
+
+    [Fact]
+    public void AStoredStageSummary_ReadsAsTheStageWiseDistributionInItsPlace_AndThePortfolioSummaryIsDropped()
+        => Assert.Equal(
+            new[]
+            {
+                ProjectBriefingDeckBlockType.StatusTable,
+                ProjectBriefingDeckBlockType.StageDistribution,
+                ProjectBriefingDeckBlockType.ProjectCategorySummary
+            },
+            ProjectBriefingDeckBlocks.NormalizeOverviewOrder(new[]
+            {
+                ProjectBriefingDeckBlockType.StatusTable,
+                ProjectBriefingDeckBlockType.PortfolioSummary,
+                ProjectBriefingDeckBlockType.StageSummary,
+                ProjectBriefingDeckBlockType.ProjectCategorySummary,
+                ProjectBriefingDeckBlockType.StageDistribution
+            }));
 
     [Fact]
     public void EveryBlock_HasAZone()
@@ -106,14 +122,15 @@ public sealed class ProjectBriefingDeckBlocksTests
         var data = Data(new[]
         {
             new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.StatusTable),
-            new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.StageSummary),
+            new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.StageDistribution),
             new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.ProjectSlides)
         });
 
         var roles = Composer().ComposeWithOutline(data).Outline.Select(item => item.Role).Distinct().ToArray();
 
         Assert.Equal(ProjectBriefingSlideRole.StatusTable, roles[0]);
-        Assert.Equal(ProjectBriefingSlideRole.StageSummary, roles[1]);
+        Assert.Equal(ProjectBriefingSlideRole.StageDistribution, roles[1]);
+        Assert.Equal(ProjectBriefingSlideRole.StageDistributionList, roles[2]);
         Assert.Equal(ProjectBriefingSlideRole.Closing, roles[^1]);
         Assert.True(Array.IndexOf(roles, ProjectBriefingSlideRole.ProjectCapability) > 1);
     }

@@ -488,8 +488,7 @@
                                     <input form="pbd-block-mirror" type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
                                     <input form="pbd-block-mirror" type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
                                     <input form="pbd-block-mirror" type="checkbox" name="IncludeCoverSlide" value="true" checked="@deck.IncludeCoverSlide" />
-                                    <input form="pbd-block-mirror" type="checkbox" name="IncludePortfolioSummarySlide" value="true" checked="@deck.IncludePortfolioSummarySlide" />
-                                    <input form="pbd-block-mirror" type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" data-pbd-stage-summary-toggle />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" />
                                     <input form="pbd-block-mirror" type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" />
                                     <input form="pbd-block-mirror" type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" />
                                 </div>
@@ -563,9 +562,6 @@
                                                                 break;
                                                             case ProjectBriefingDeckBlockType.FfcGlobalFootprint:
                                                                 <button type="button" class="btn btn-sm btn-link" data-pbd-ffc-footprint-open aria-controls="pbd-ffc-footprint-drawer" aria-expanded="false" aria-label="Edit @name">Edit</button>
-                                                                break;
-                                                            case ProjectBriefingDeckBlockType.StageSummary:
-                                                                <label class="pbd-block__option" data-pbd-stage-table-option><input type="checkbox" name="IncludeStageDistributionTable" value="true" checked="@deck.StandardSlideOptions.IncludeStageDistributionTable" data-pbd-stage-table-toggle /> With a table</label>
                                                                 break;
                                                         }
                                                         @if (optional)

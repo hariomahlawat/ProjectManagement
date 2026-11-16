@@ -33,8 +33,7 @@ public sealed class ProjectBriefingDeckBlockSaveTests
             Block(ProjectBriefingDeckBlockType.Cover, false),
             Block(ProjectBriefingDeckBlockType.StatusTable, true),
             Block(ProjectBriefingDeckBlockType.TechnicalCategorySummary, true),
-            Block(ProjectBriefingDeckBlockType.StageSummary, false),
-            Block(ProjectBriefingDeckBlockType.PortfolioSummary, true),
+            Block(ProjectBriefingDeckBlockType.StageDistribution, false),
             Block(ProjectBriefingDeckBlockType.ProjectCategorySummary, false),
             Block(ProjectBriefingDeckBlockType.ProjectSlides, false)
         }, Version(deck));
@@ -51,14 +50,13 @@ public sealed class ProjectBriefingDeckBlockSaveTests
             {
                 ProjectBriefingDeckBlockType.StatusTable,
                 ProjectBriefingDeckBlockType.TechnicalCategorySummary,
-                ProjectBriefingDeckBlockType.StageSummary,
-                ProjectBriefingDeckBlockType.PortfolioSummary,
+                ProjectBriefingDeckBlockType.StageDistribution,
                 ProjectBriefingDeckBlockType.ProjectCategorySummary
             },
             configuration.OverviewOrder);
 
         var overview = ProjectBriefingDeckBlocks.ForDeck(
-                saved.Layout, saved.PresentationMode, saved.IncludeCoverSlide, saved.IncludePortfolioSummarySlide,
+                saved.Layout, saved.PresentationMode, saved.IncludeCoverSlide,
                 saved.IncludeStageSummary, saved.IncludeProjectCategorySummary, saved.IncludeTechnicalCategorySummary,
                 configuration.AdditionalSlideOrder, _ => false, configuration.OverviewOrder)
             .Where(block => ProjectBriefingDeckBlocks.ZoneOf(block.Type) == ProjectBriefingDeckZone.Overview)
@@ -200,7 +198,7 @@ public sealed class ProjectBriefingDeckBlockSaveTests
         Assert.False(configuration.InstitutionalProfileOptions.IncludeSlide);
         var blocks = ProjectBriefingDeckBlocks.ForDeck(
             ProjectBriefingLayout.StandardBriefing, ProjectBriefingPresentationMode.DetailedProjects,
-            true, true, false, false, false, configuration.AdditionalSlideOrder,
+            true, false, false, false, configuration.AdditionalSlideOrder,
             type => false, Array.Empty<ProjectBriefingDeckBlockType>());
         Assert.Equal(
             new[] { ProjectBriefingDeckBlockType.RoleAndCharter, ProjectBriefingDeckBlockType.InstitutionalProfile },

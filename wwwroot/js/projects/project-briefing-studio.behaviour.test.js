@@ -273,7 +273,7 @@ const briefPayload = () => payload({
     slide(5, 'Bravo trainer'), slide(6, 'Bravo trainer brief'), slide(7, 'Closing')],
   outline: [
     { number: 1, role: 'Cover', projectId: null, listedProjectIds: [] },
-    { number: 2, role: 'StageSummary', projectId: null, listedProjectIds: [] },
+    { number: 2, role: 'StageDistribution', projectId: null, listedProjectIds: [] },
     { number: 3, role: 'ProjectCapability', projectId: 1, listedProjectIds: [] },
     { number: 4, role: 'ProjectBrief', projectId: 1, listedProjectIds: [] },
     { number: 5, role: 'ProjectCapability', projectId: 2, listedProjectIds: [] },
@@ -298,7 +298,7 @@ test('after a settings change the preview shows a slide the change affects', asy
   requests[1].answer(briefPayload());
   await settle(window);
 
-  assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 2 of 7 · Stage summary/);
+  assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 2 of 7 · Stage-wise distribution/);
 });
 
 test('a project-slide change stays on the project in view, and a theme change keeps the slide', async () => {

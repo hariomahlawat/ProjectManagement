@@ -322,7 +322,8 @@ test('slides in this deck: one switchable, reorderable block list saved in place
   // The settings form still reads what the deck shows, from hidden inputs the list keeps current.
   assert.match(slidesStep, /data-pbd-block-mirror/);
   // Outside the settings form's data, so a block save never marks unsaved settings as saved.
-  assert.equal((slidesStep.match(/<input form="pbd-block-mirror"/g) || []).length, 8);
+  // The portfolio summary was retired (blocks plan PR 7), so seven.
+  assert.equal((slidesStep.match(/<input form="pbd-block-mirror"/g) || []).length, 7);
   assert.doesNotMatch(source, /The hidden inputs moved with a saved change/);
   assert.match(source, /event\.detail\.changed\.includes\('Layout'\)\) window\.location\.reload\(\)/);
   assert.match(viewSource, /data-blocks-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateBlocks"\)"/);
@@ -350,11 +351,13 @@ test('FFC Global Footprint is an ERP-backed fixed concluding additional slide', 
   assert.match(additionalSlidesSource, /data-can-reorder/);
 });
 
-test('stage distribution table remains an explicit dependent option', () => {
-  assert.match(viewSource, /data-pbd-stage-summary-toggle/);
-  assert.match(viewSource, /data-pbd-stage-table-option/);
-  assert.match(source, /syncStageSummaryOptions/);
-  assert.match(source, /stageTableToggle\.disabled = !enabled/);
+test('the stage-wise distribution replaced the stage summary, its table and the portfolio summary', () => {
+  assert.doesNotMatch(viewSource, /data-pbd-stage-table-option|IncludeStageDistributionTable/);
+  assert.doesNotMatch(source, /syncStageSummaryOptions|PortfolioSummary/);
+  assert.match(source, /StageDistribution: 'IncludeStageSummary',/);
+  assert.match(source, /setChecked\('IncludeStageSummary', blockOn\('StageDistribution'\)\);/);
+  assert.match(studioSource, /StageDistributionList: \{ section: 'portfolio'/);
+  assert.match(studioSource, /IncludeStageSummary: \(\) => \['StageDistribution'\],/);
 });
 
 const studioSource = fs.readFileSync(
