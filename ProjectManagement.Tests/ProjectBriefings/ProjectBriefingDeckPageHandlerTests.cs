@@ -100,15 +100,16 @@ public sealed class ProjectBriefingDeckPageHandlerTests
 
         var result = await page.OnPostSaveSettingsAsync(SettingsInput(deck, "Renamed by HoD"), CancellationToken.None);
 
+        // The view-only message, not "not found" (review 2 fixes, Low 1).
         if (ajax)
         {
             Assert.Equal(400, StatusOf(result));
-            Assert.False(string.IsNullOrWhiteSpace(MessageOf(result)));
+            Assert.Equal(ProjectBriefingDeckService.ViewOnlyMessage, MessageOf(result));
         }
         else
         {
             Assert.IsType<RedirectToPageResult>(result);
-            Assert.False(string.IsNullOrWhiteSpace(page.ErrorMessage));
+            Assert.Equal(ProjectBriefingDeckService.ViewOnlyMessage, page.ErrorMessage);
         }
 
         Assert.Equal("Visit deck", (await ReloadAsync(db, deck)).Name);
@@ -311,6 +312,72 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         Assert.Null(unchanged.DeletedAtUtc);
         Assert.Null(unchanged.LastGeneratedAtUtc);
         Assert.Equal(1, await db.Set<ProjectBriefingDeck>().CountAsync());
+    }
+
+    // ---- Every other change, as a command user on a Project Officer's deck (review 2 fixes, PR 7)
+
+    [Theory]
+    [InlineData("UpdateMembership")]
+    [InlineData("Reorder")]
+    [InlineData("UpdateDescription")]
+    [InlineData("UpdateItemPresentation")]
+    [InlineData("UpdateSpeakerNotes")]
+    [InlineData("UpdateItemPhoto")]
+    [InlineData("SaveInstitutionalProfile")]
+    [InlineData("SaveRoleCharter")]
+    [InlineData("SaveFfcGlobalFootprint")]
+    public async Task EveryChange_ACommandUserIsRefusedWithTheViewOnlyMessage(string handler)
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
+        var before = Version(deck);
+        var page = CreatePage(db, Hod, ajax: true);
+
+        var result = handler switch
+        {
+            "UpdateMembership" => await page.OnPostUpdateMembershipAsync(new IndexModel.UpdateMembershipInput
+            {
+                DeckId = deck.Id, RemoveProjectIds = new List<int> { ProjectId }, RowVersion = before
+            }, CancellationToken.None),
+            "Reorder" => await page.OnPostReorderAsync(new IndexModel.ReorderInput
+            {
+                DeckId = deck.Id, ProjectIds = new List<int> { ProjectId }, RowVersion = before
+            }, CancellationToken.None),
+            "UpdateDescription" => await page.OnPostUpdateDescriptionAsync(new IndexModel.UpdateDescriptionInput
+            {
+                DeckId = deck.Id, ProjectId = ProjectId, Value = "Changed by HoD", RowVersion = before
+            }, CancellationToken.None),
+            "UpdateItemPresentation" => await page.OnPostUpdateItemPresentationAsync(new IndexModel.UpdateItemPresentationInput
+            {
+                DeckId = deck.Id, ProjectId = ProjectId, Presentation = ProjectBriefingItemPresentation.LeftOut, RowVersion = before
+            }, CancellationToken.None),
+            "UpdateSpeakerNotes" => await page.OnPostUpdateSpeakerNotesAsync(new IndexModel.UpdateSpeakerNotesInput
+            {
+                DeckId = deck.Id, ProjectId = ProjectId, Notes = "Changed by HoD", RowVersion = before
+            }, CancellationToken.None),
+            "UpdateItemPhoto" => await page.OnPostUpdateItemPhotoAsync(new IndexModel.UpdateItemPhotoInput
+            {
+                DeckId = deck.Id, ProjectId = ProjectId, PhotoId = null, RowVersion = before
+            }, CancellationToken.None),
+            "SaveInstitutionalProfile" => await page.OnPostSaveInstitutionalProfileAsync(new IndexModel.SaveInstitutionalProfileInput
+            {
+                DeckId = deck.Id, RowVersion = before, InstitutionalProfileTitle = "Changed by HoD"
+            }, CancellationToken.None),
+            "SaveRoleCharter" => await page.OnPostSaveRoleCharterAsync(new IndexModel.SaveRoleCharterInput
+            {
+                DeckId = deck.Id, RowVersion = before, RoleCharterTitle = "Changed by HoD"
+            }, CancellationToken.None),
+            "SaveFfcGlobalFootprint" => await page.OnPostSaveFfcGlobalFootprintAsync(new IndexModel.SaveFfcGlobalFootprintInput
+            {
+                DeckId = deck.Id, RowVersion = before, FfcGlobalFootprintTitle = "Changed by HoD"
+            }, CancellationToken.None),
+            _ => throw new ArgumentOutOfRangeException(nameof(handler))
+        };
+
+        Assert.Equal(ProjectBriefingDeckService.ViewOnlyMessage, MessageOf(result) ?? page.ErrorMessage);
+        var unchanged = await ReloadAsync(db, deck);
+        Assert.Equal(before, Version(unchanged));
+        Assert.Single(await db.Set<ProjectBriefingDeckItem>().Where(item => item.DeckId == deck.Id).ToListAsync());
     }
 
     // ---- Set-up -------------------------------------------------------------------------------
