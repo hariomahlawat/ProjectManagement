@@ -469,8 +469,8 @@
                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
                                         </summary>
                                         <div class="pbd-step__body">
-                                @* The layout is the template's slide design and is chosen with the Template picker above;
-                                   the inputs stay so the form and the step summaries keep reading it. *@
+                                @* The layout follows the Project slides design (Fact sheet is the update-sheet layout);
+                                   the inputs stay hidden so the form and the step summaries keep reading it. *@
                                 <fieldset class="pbd-choice-group" hidden>
                                     <legend>Layout</legend>
                                             <div class="pbd-seg">
@@ -600,7 +600,8 @@
                                                     continue;
                                                 }
 
-                                                <section class="pbd-block-library__group" data-pbd-block-library-group>
+                                                @* A group whose slides are all in the deck has nothing to add. *@
+                                                <section class="pbd-block-library__group" data-pbd-block-library-group hidden="@groupBlocks.All(block => block.Enabled)">
                                                     <h6>@libraryGroup.Label</h6>
                                                     <div class="pbd-block-library__items">
                                                         @foreach (var block in groupBlocks)
