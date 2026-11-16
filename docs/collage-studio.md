@@ -157,6 +157,7 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-panels.js` | The left drawer and the settings panel with its Settings and Layers tabs |
 | `wwwroot/js/collage/collage-tray.js` | Photos: choosing, dropping, pasting, reading in, the tray, From PRISM Photos |
 | `wwwroot/js/collage/collage-keys.js` | The keyboard and the mouse wheel |
+| `wwwroot/js/collage/collage-model.js` | The one way the collage changes: the collage is frozen, and `edit`/`editItem` copy it, make the change on the copy, freeze the result and tell the change log how to keep it (a finished change, one still going on, a quiet one, or none yet while something is dragged) |
 | `wwwroot/js/collage/collage-state.js` | The editor's values as the parts see them: `state` reads them and cannot set them (an assignment throws), each part is handed only the named changes it owns (the tray chooses a photo it placed with `choose(id)`; the page sets its own zoom and scale), and `parts` reaches the parts made later |
 | `wwwroot/js/collage/collage-messages.js` | The live line for screen readers, messages in the toast stack, and the busy line |
 | `wwwroot/js/collage/collage-start.js` | The start screen: blank pages, layouts and their small drawings |

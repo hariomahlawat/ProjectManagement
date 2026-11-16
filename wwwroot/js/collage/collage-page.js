@@ -11,7 +11,7 @@
   'use strict';
 
   function createPage(deps) {
-    const { state, parts, change, root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag, emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select, startAdjust, stopAdjust, startPan, commit, updateUndo, fontsArrived } = deps;
+    const { state, parts, change, root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag, emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select, startAdjust, stopAdjust, startPan, commit, updateUndo, fontsArrived, editItem } = deps;
     // ---------------------------------------------------------------------------
     // The page (Konva)
     // ---------------------------------------------------------------------------
@@ -438,49 +438,45 @@
       node.on('dragmove', (event) => snapWhileMoving(node, event.evt));
       node.on('dragend', () => {
         guides.destroyChildren();
-        const target = itemById(node.id());
-        if (!target) return;
-        target.x = node.x();
-        target.y = node.y();
-        commit();
+        editItem(node.id(), (target) => {
+          target.x = node.x();
+          target.y = node.y();
+        }, 'commit');
       });
       node.on('transformstart', () => { change.setTransforming(true); parts.hideToolbar(); });
       node.on('transform', () => parts.showAngle(node));
       node.on('transformend', () => {
         change.setTransforming(false);
         angleTag.hidden = true;
-        const target = itemById(node.id());
-        if (!target) return;
-        if (target.kind === 'text') {
-          const [low, high] = core.TEXT_LIMITS.size;
-          target.size = Math.round(Math.min(high, Math.max(low, target.size * Math.abs(node.scaleX()))));
+        editItem(node.id(), (target) => {
+          if (target.kind === 'text') {
+            const [low, high] = core.TEXT_LIMITS.size;
+            target.size = Math.round(Math.min(high, Math.max(low, target.size * Math.abs(node.scaleX()))));
+            target.angle = core.normaliseAngle(node.rotation());
+            target.x = node.x();
+            target.y = node.y();
+            fitText(target);
+            return;
+          }
+          if (target.kind === 'sticker') {
+            const [low, high] = core.STICKER_LIMITS.width;
+            target.width = Math.min(high, Math.max(low, target.width * Math.abs(node.scaleX())));
+            target.angle = core.normaliseAngle(node.rotation());
+            target.x = node.x();
+            target.y = node.y();
+            return;
+          }
+          const width = core.clampWidth(target.width * Math.abs(node.scaleX()));
+          const height = core.itemHeight(target) * Math.abs(node.scaleY());
+          target.width = width;
+          target.aspect = width / Math.max(1, height);
+          // A framed photo squeezed flat keeps a usable picture area inside its edges.
+          if (target.kind === 'photo') target.aspect = core.limitFrameAspect(target);
+          if (target.crop) target.crop = clampedCrop(target);
           target.angle = core.normaliseAngle(node.rotation());
           target.x = node.x();
           target.y = node.y();
-          fitText(target);
-          commit();
-          return;
-        }
-        if (target.kind === 'sticker') {
-          const [low, high] = core.STICKER_LIMITS.width;
-          target.width = Math.min(high, Math.max(low, target.width * Math.abs(node.scaleX())));
-          target.angle = core.normaliseAngle(node.rotation());
-          target.x = node.x();
-          target.y = node.y();
-          commit();
-          return;
-        }
-        const width = core.clampWidth(target.width * Math.abs(node.scaleX()));
-        const height = core.itemHeight(target) * Math.abs(node.scaleY());
-        target.width = width;
-        target.aspect = width / Math.max(1, height);
-        // A framed photo squeezed flat keeps a usable picture area inside its edges.
-        if (target.kind === 'photo') target.aspect = core.limitFrameAspect(target);
-        if (target.crop) target.crop = clampedCrop(target);
-        target.angle = core.normaliseAngle(node.rotation());
-        target.x = node.x();
-        target.y = node.y();
-        commit();
+        }, 'commit');
       });
       return node;
     }

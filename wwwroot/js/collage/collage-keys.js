@@ -11,7 +11,7 @@
   'use strict';
 
   function createKeys(deps) {
-    const { state, change, core, views, stageBox, props, photos, itemById, selectedItem, announce, setShift, stopPreview, setZoom, syncPage, select, stopAdjust, zoomCrop, holdEdit, changeSelected, act, focusTextField, setTarget, sayLocked } = deps;
+    const { state, change, core, views, stageBox, props, photos, itemById, selectedItem, announce, setShift, stopPreview, setZoom, syncPage, select, stopAdjust, zoomCrop, holdEdit, changeSelected, act, focusTextField, setTarget, sayLocked, editItem } = deps;
     // ---------------------------------------------------------------------------
     // Keyboard and the mouse wheel
     // ---------------------------------------------------------------------------
@@ -64,8 +64,7 @@
           const photo = photos.get(item.photo);
           const dx = key === 'arrowleft' ? -step : key === 'arrowright' ? step : 0;
           const dy = key === 'arrowup' ? -step : key === 'arrowdown' ? step : 0;
-          if (photo) item.crop = core.panCrop(photo.aspect, item, dx, dy);
-          syncPage();
+          if (photo) editItem(item.id, (it) => { it.crop = core.panCrop(photo.aspect, it, dx, dy); }, 'hold');
         } else {
           changeSelected((target) => {
             if (key === 'arrowleft') target.x -= step;
@@ -85,12 +84,13 @@
       if (item) {
         // The wheel zooms the photo inside its frame while it is being adjusted.
         event.preventDefault();
-        zoomCrop(item, (item.crop?.zoom || 1) * (event.deltaY < 0 ? 1.06 : 1 / 1.06));
+        editItem(item.id, (it) => zoomCrop(it, (it.crop?.zoom || 1) * (event.deltaY < 0 ? 1.06 : 1 / 1.06)), 'none');
         syncPage();
+        const zoomed = itemById(item.id);
         const out = props.querySelector('[data-out="zoom"]');
         const input = props.querySelector('[data-prop="zoom"]');
-        if (out) out.textContent = `${item.crop.zoom.toFixed(1)}×`;
-        if (input) input.value = item.crop.zoom;
+        if (out) out.textContent = `${zoomed.crop.zoom.toFixed(1)}×`;
+        if (input) input.value = zoomed.crop.zoom;
         // Recorded for Undo once the wheel stops, the same way as a keyboard nudge, so Undo
         // and Redo flush it first and never skip it.
         holdEdit(300);

@@ -11,7 +11,7 @@
   'use strict';
 
   function createAddPanels(deps) {
-    const { state, parts, root, core, draw, stickers, library, $, views, photos, newItemId, pageHeight, keepingFocus, announce, backLayer, layoutTextItem, stickerSource, syncPage, commit, placeNewItem } = deps;
+    const { state, parts, root, core, draw, stickers, library, $, views, photos, newItemId, pageHeight, keepingFocus, announce, backLayer, layoutTextItem, stickerSource, syncPage, commit, placeNewItem, edit } = deps;
     /** Ready-made headings and the plain ways to start text, from the Text panel. */
     // What the four plain starts say on their buttons (the words they add are the placeholders).
     const TEXT_START_LABELS = Object.freeze({ heading: 'A heading', subheading: 'A subheading', line: 'A line of text', hindi: 'हिंदी में लिखें' });
@@ -163,7 +163,7 @@
     }
 
     function setBackground(background, record = true) {
-      state.collage.background = background;
+      edit((draft) => { draft.background = background; }, 'none');
       if (record) commit();
       else backLayer.batchDraw();
       if (state.panel === 'background') renderBackgroundPanel();

@@ -9,6 +9,7 @@ const core = require('./collage-core.js');
 const draw = require('./collage-draw.js');
 const stickers = require('./collage-stickers.js');
 const { createEditorState, createLaterParts } = require('./collage-state.js');
+const { createModelEditor } = require('./collage-model.js');
 
 const GLOBALS = ['window', 'document', 'Event', 'KeyboardEvent', 'MouseEvent', 'MutationObserver', 'HTMLElement'];
 
@@ -65,7 +66,14 @@ function editorValues(initial = {}) {
     choose: (id) => { values.selectedId = id; }
   });
   const itemById = (id) => values.collage.items.find((item) => item.id === id) || null;
-  return { values, state, change, itemById, selectedItem: () => itemById(values.selectedId) };
+  // The one way the collage changes (collage-model.js); each test says what a kept change calls.
+  const keeps = {};
+  const model = createModelEditor({
+    getModel: () => values.collage,
+    setModel: (next) => { values.collage = next; },
+    keep: { commit: () => keeps.commit?.(), hold: () => keeps.hold?.(), record: () => keeps.record?.(), live: () => {} }
+  });
+  return { values, state, change, itemById, selectedItem: () => itemById(values.selectedId), edit: model.edit, editItem: model.editItem, keeps };
 }
 
 /** Records each call of the named stand-ins: calls.name is the list of argument lists. */
@@ -116,6 +124,8 @@ function makeTray(t, initial = {}, extra = {}) {
   const root = dom.$('#root');
   const tray = require('./collage-tray.js').createTray({
     state: editor.state,
+    edit: editor.edit,
+    editItem: editor.editItem,
     change: Object.freeze({ setTargetId: editor.change.setTargetId, choose: editor.change.choose }),
     $: dom.$,
     root,
@@ -267,6 +277,8 @@ function makeKeys(t, initial = {}) {
   };
   require('./collage-keys.js').createKeys({
     state: editor.state,
+    edit: editor.edit,
+    editItem: editor.editItem,
     change: Object.freeze({}),
     core,
     views: { editor: dom.$('[data-view="editor"]') },
@@ -373,6 +385,8 @@ function makePanels(t, initial = {}) {
   const { calls, fns } = recorder(['layout', 'syncPage', 'select', 'zoomCrop', 'flushNudge', 'commit', 'renderBackgroundPanel', 'offerUndo', 'changeSelected']);
   const panels = require('./collage-panels.js').createPanels({
     state: editor.state,
+    edit: editor.edit,
+    editItem: editor.editItem,
     change: Object.freeze({ setPanel: editor.change.setPanel, setPropsTab: editor.change.setPropsTab, setCollage: editor.change.setCollage }),
     $: dom.$,
     root: dom.$('#root'),
@@ -652,6 +666,8 @@ function makeActions(t, initial = {}) {
   let ids = 0;
   const actions = require('./collage-actions.js').createActions({
     state: editor.state,
+    edit: editor.edit,
+    editItem: editor.editItem,
     parts: createLaterParts({}),
     root: dom.$('#root'),
     core,
@@ -833,6 +849,8 @@ function makeAddPanels(t, library) {
   let ids = 0;
   const panels = require('./collage-add-panels.js').createAddPanels({
     state: editor.state,
+    edit: editor.edit,
+    editItem: editor.editItem,
     parts: createLaterParts({ focusTextField: () => () => {} }),
     root: dom.$('#root'),
     core,
