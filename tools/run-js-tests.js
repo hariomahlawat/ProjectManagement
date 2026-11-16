@@ -67,6 +67,7 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'collage', 'collage-changes.test.js'),
   path.join('wwwroot', 'js', 'collage', 'collage-state.test.js'),
   path.join('wwwroot', 'js', 'collage', 'collage-model.test.js'),
+  path.join('wwwroot', 'js', 'collage', 'collage-every-change.test.js'),
   path.join('wwwroot', 'js', 'collage', 'collage-save.test.js'),
   path.join('wwwroot', 'js', 'collage', 'collage-photos.test.js'),
   path.join('wwwroot', 'js', 'collage', 'collage-editor-modules.test.js'),
