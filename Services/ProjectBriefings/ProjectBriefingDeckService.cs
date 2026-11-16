@@ -22,6 +22,10 @@ public interface IProjectBriefingDeckService
         CancellationToken cancellationToken = default);
 
     // What the person may do with a live deck: nothing, look at it, or change it.
+    // Records that a deck's PowerPoint was downloaded (review 4 fixes, Low 7). Best effort: the
+    // file has already been made, and a download changes nothing.
+    Task RecordDownloadAsync(long deckId, string requestingUserId, int slideCount);
+
     // Whether the person is Comdt or HoD, from the same roles every access check uses.
     Task<bool> IsCommandUserAsync(string requestingUserId, CancellationToken cancellationToken = default);
 
@@ -278,6 +282,17 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ? deck
             : null;
     }
+
+    public Task RecordDownloadAsync(long deckId, string requestingUserId, int slideCount)
+        => TryAuditAsync(
+            "ProjectBriefing.PowerPointDownloaded",
+            "Project briefing PowerPoint downloaded.",
+            NormalizeUserId(requestingUserId),
+            new Dictionary<string, string?>
+            {
+                ["DeckId"] = deckId.ToString(),
+                ["SlideCount"] = slideCount.ToString()
+            });
 
     public Task<bool> IsCommandUserAsync(string requestingUserId, CancellationToken cancellationToken = default)
         => _roles.IsCommandAsync(NormalizeUserId(requestingUserId), cancellationToken);
@@ -678,13 +693,6 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     private static void ValidateInstitutionalProfile(ProjectBriefingInstitutionalProfileOptions options)
     {
-        if (options.IncludeFooterStrip
-            && string.IsNullOrWhiteSpace(options.FooterStripText)
-            && string.IsNullOrWhiteSpace(options.FooterStripEmphasisValue))
-        {
-            throw new InvalidOperationException("Enter footer-strip text or a highlighted value for the SDD profile slide.");
-        }
-
         if (options.IncludeSlide
             && !options.IncludeHistory
             && options.Modules.Count == 0)
@@ -1356,16 +1364,31 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.DeletedByUserId = userId;
         deck.RowVersion = NewRowVersion();
 
-        await _db.SaveChangesAsync(cancellationToken);
-        await TryAuditAsync(
-            "ProjectBriefing.DeckDeleted",
-            $"Project briefing deck deleted; it can be restored for {DeletedRetentionDays} days.",
-            userId,
-            new Dictionary<string, string?>
+        // The delete and its record are one transaction, as a restore is (review 4 fixes, M3): a
+        // deck never moves to Recently deleted without a record of who deleted it.
+        await using (var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken))
+        {
+            try
             {
-                ["DeckId"] = deckId.ToString(),
-                ["DeckName"] = deck.Name
-            });
+                await _db.SaveChangesAsync(cancellationToken);
+                await _audit.LogAsync(
+                    "ProjectBriefing.DeckDeleted",
+                    $"Project briefing deck deleted; it can be restored for {DeletedRetentionDays} days.",
+                    userId: userId,
+                    data: new Dictionary<string, string?>
+                    {
+                        ["DeckId"] = deckId.ToString(),
+                        ["DeckName"] = deck.Name
+                    });
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                // Nothing was committed; leave no half-deleted deck tracked in this request's context.
+                _db.Entry(deck).State = EntityState.Detached;
+                throw;
+            }
+        }
 
         await PurgeExpiredAsync(userId, now, cancellationToken);
     }

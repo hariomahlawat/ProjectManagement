@@ -85,10 +85,10 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             ProjectBriefingDeckConfigurationCodec.WithPreset(newer, ProjectBriefingDeckPreset.MonthlyCommandReview));
     }
 
-    // Review 3 fixes, M2: values a newer build added inside lists this build writes survive its
-    // saves. A single choice is what the person picked on this build's page.
+    // Review 3 fixes M2 and review 4 fixes M1: values a newer build wrote survive every save this
+    // build makes, unless the save sets that value to something else.
     [Fact]
-    public void ListValuesThisBuildDoesNotKnow_SurviveItsSaves_AndAChoiceIsWhatWasPicked()
+    public void ValuesThisBuildDoesNotKnow_SurviveItsSaves_UnlessTheSaveChangesThem()
     {
         var json = ProjectBriefingDeckConfigurationCodec.WithOverviewOrder(
             ProjectBriefingDeckConfigurationCodec.WithPreset(null, ProjectBriefingDeckPreset.MonthlyCommandReview),
@@ -97,33 +97,66 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         document["updateSheet"]!["rows"]!.AsArray().Add("FutureRow");
         document["overviewOrder"]!.AsArray().Add("FutureBlock");
         document["standardBriefing"]!["projectBriefLayout"] = "FutureLayout";
+        document["standardBriefing"]!["keyPoints"] = "FuturePlacement";
         document["preset"] = "FuturePreset";
         json = document.ToJsonString();
 
-        // A save that changes none of them: the newer list values are still there.
-        json = ProjectBriefingDeckConfigurationCodec.WithSelectionRules(json, "{\"source\":\"manual\"}");
-        var saved = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
-        Assert.Contains("FutureRow", saved["updateSheet"]!["rows"]!.AsArray().Select(node => node!.GetValue<string>()));
-        Assert.Equal(new[] { "StatusTable", "FutureBlock" }, saved["overviewOrder"]!.AsArray().Select(node => node!.GetValue<string>()));
+        string Text(string json, params string[] path)
+        {
+            System.Text.Json.Nodes.JsonNode? node = System.Text.Json.Nodes.JsonNode.Parse(json);
+            foreach (var part in path) node = node?[part];
+            return node!.GetValue<string>();
+        }
+
+        string[] List(string json, params string[] path)
+        {
+            System.Text.Json.Nodes.JsonNode? node = System.Text.Json.Nodes.JsonNode.Parse(json);
+            foreach (var part in path) node = node?[part];
+            return node!.AsArray().Select(item => item!.GetValue<string>()).ToArray();
+        }
+
+        // Saves that never touch these values (Add projects, a slide switch, an editor, a re-save of
+        // the shown settings): every newer value is still there, once.
+        var current = ProjectBriefingDeckConfigurationCodec.Read(json);
+        var saves = new Func<string, string>[]
+        {
+            value => ProjectBriefingDeckConfigurationCodec.WithSelectionRules(value, "{\"source\":\"manual\"}"),
+            value => ProjectBriefingDeckConfigurationCodec.WithOverviewOrder(value, new[] { ProjectBriefingDeckBlockType.StatusTable }),
+            value => ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
+                value, current.UpdateSheetOptions, current.StandardSlideOptions, current.ClosingSlideType)
+        };
+        foreach (var save in saves)
+        {
+            json = save(json);
+            Assert.Equal("FutureLayout", Text(json, "standardBriefing", "projectBriefLayout"));
+            Assert.Equal("FuturePlacement", Text(json, "standardBriefing", "keyPoints"));
+            Assert.Equal("FuturePreset", Text(json, "preset"));
+            Assert.Equal(1, List(json, "updateSheet", "rows").Count(row => row == "FutureRow"));
+            Assert.Equal(new[] { "StatusTable", "FutureBlock" }, List(json, "overviewOrder"));
+        }
 
         // This build still reads only what it knows.
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(json);
         Assert.Equal(new[] { ProjectBriefingDeckBlockType.StatusTable }, configuration.OverviewOrder);
         Assert.Null(configuration.Preset);
 
-        // A choice is written as picked, even the value this build reads an unknown one as (Codex,
-        // #3394): picking Automatic replaces a newer layout. The list keeps its newer value.
-        var current = ProjectBriefingDeckConfigurationCodec.Read(json);
+        // A save that sets a value to something else writes it; a changed list keeps its newer value
+        // after its own.
         json = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
             json,
-            current.UpdateSheetOptions,
-            current.StandardSlideOptions with { ProjectBriefLayout = ProjectBriefingProjectBriefLayout.Automatic },
-            current.ClosingSlideType);
+            configuration.UpdateSheetOptions,
+            configuration.StandardSlideOptions with { ProjectBriefLayout = ProjectBriefingProjectBriefLayout.PhotoEmphasis },
+            configuration.ClosingSlideType);
         json = ProjectBriefingDeckConfigurationCodec.WithOverviewOrder(json, new[] { ProjectBriefingDeckBlockType.StageDistribution });
-        saved = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
-        Assert.Equal("Automatic", saved["standardBriefing"]!["projectBriefLayout"]!.GetValue<string>());
-        Assert.Equal(new[] { "StageDistribution", "FutureBlock" }, saved["overviewOrder"]!.AsArray().Select(node => node!.GetValue<string>()));
-        Assert.Contains("FutureRow", saved["updateSheet"]!["rows"]!.AsArray().Select(node => node!.GetValue<string>()));
+        json = ProjectBriefingDeckConfigurationCodec.WithPreset(json, ProjectBriefingDeckPreset.MonthlyCommandReview);
+        Assert.Equal("PhotoEmphasis", Text(json, "standardBriefing", "projectBriefLayout"));
+        Assert.Equal("FuturePlacement", Text(json, "standardBriefing", "keyPoints"));
+        Assert.Equal(new[] { "StageDistribution", "FutureBlock" }, List(json, "overviewOrder"));
+        Assert.Equal("MonthlyCommandReview", Text(json, "preset"));
+
+        // Clearing a preset this build knows removes it.
+        json = ProjectBriefingDeckConfigurationCodec.WithPreset(json, null);
+        Assert.Null(System.Text.Json.Nodes.JsonNode.Parse(json)!["preset"]);
     }
 
     [Fact]

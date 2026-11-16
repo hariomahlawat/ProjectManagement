@@ -799,23 +799,55 @@ public static class ProjectBriefingDeckConfigurationCodec
                 "This deck was saved by a newer version of PRISM. Ask the administrator to update PRISM before changing it.");
         }
 
+        // A save writes only what it changed (review 4 fixes, M1). "Changed" is measured against
+        // what this build would write for the stored deck unchanged, so a value this build cannot
+        // read (a newer build's layout, preset or key point placement) stays as stored unless this
+        // save sets that value to something else. A value this build shows as its fallback and the
+        // person leaves (or re-picks) is the same value to this build, so the stored one stays.
+        var unchanged = Build(Read(existingJson));
         var merged = (JsonObject)existing.DeepClone();
         foreach (var key in OwnedKeys)
         {
+            var before = unchanged[key];
             if (!written.TryGetPropertyValue(key, out var value))
             {
-                merged.Remove(key);
+                if (before is not null)
+                {
+                    merged.Remove(key);
+                }
+
                 continue;
             }
 
             if (value is JsonObject section && merged[key] is JsonObject stored)
             {
+                var beforeSection = before as JsonObject;
+                var writtenNames = section.Select(pair => pair.Key).ToHashSet(StringComparer.Ordinal);
                 foreach (var (name, child) in section.ToArray())
                 {
                     section.Remove(name);
+                    if (beforeSection is not null
+                        && stored.ContainsKey(name)
+                        && JsonNode.DeepEquals(child, beforeSection[name]))
+                    {
+                        continue;
+                    }
+
                     stored[name] = child;
                 }
 
+                // A value this build used to write and this save leaves out was removed by it.
+                foreach (var name in beforeSection?.Select(pair => pair.Key).Where(name => !writtenNames.Contains(name)).ToArray()
+                    ?? Array.Empty<string>())
+                {
+                    stored.Remove(name);
+                }
+
+                continue;
+            }
+
+            if (before is not null && merged.ContainsKey(key) && JsonNode.DeepEquals(value, before))
+            {
                 continue;
             }
 
@@ -828,11 +860,9 @@ public static class ProjectBriefingDeckConfigurationCodec
     }
 
     // Lists this build writes, with the enum each holds. A newer build may add values this build
-    // cannot read (an update-sheet row, a block type); the sections above are rebuilt from what this
-    // build read, so those values are put back here (review 3 fixes, M2). This build cannot show
-    // them, so nobody here could have meant to remove them. A single choice (brief layout, key
-    // points, preset) is different: the person picks it on this page, and picking the value this
-    // build shows cannot be told apart from leaving it, so the saved choice is what was picked.
+    // cannot read (an update-sheet row, a block type). A list this save changed is rebuilt from what
+    // this build read, so those values are put back after this build's own (review 3 fixes, M2):
+    // this build cannot show them, so nobody here could have meant to remove them.
     private static readonly (string? Section, string Key, Type Values)[] EnumLists =
     {
         ("updateSheet", "rows", typeof(ProjectBriefingUpdateSheetRow)),
@@ -860,7 +890,8 @@ public static class ProjectBriefingDeckConfigurationCodec
 
             if (target[key] is JsonArray list)
             {
-                foreach (var node in newer)
+                // An unchanged list kept its stored values, newer ones included.
+                foreach (var node in newer.Where(node => !list.Any(item => JsonNode.DeepEquals(item, node))))
                 {
                     list.Add(node);
                 }
