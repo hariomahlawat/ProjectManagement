@@ -122,3 +122,17 @@ test('a boundary is a pointer pressed, focus moved, or a key that is not typing 
   assert.equal(isBoundary(key(doc.body, 'Delete')), true);
   assert.equal(isBoundary({ type: 'input', target: field }), false);
 });
+
+test('a change marked and recorded after the draft was written is kept in the draft again', () => {
+  const t = setUp();
+  // A slider was held, then paused long enough for the draft to be written.
+  t.model.items[0].text = 'Held';
+  t.log.hold();
+  t.timers.fire();
+  const keepsBefore = t.keeps;
+  // Letting go changes one more thing, marks it and records it.
+  t.model.items[0].bold = true;
+  t.log.mark();
+  assert.equal(t.log.flush(), true);
+  assert.ok(t.keeps > keepsBefore, 'the draft is asked to be written');
+});

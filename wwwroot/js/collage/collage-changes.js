@@ -29,7 +29,9 @@
   function createChangeLog({ core, getModel, onRecorded = () => {}, onKeep = () => {}, timers }) {
     let history = core.createHistory(getModel());
     const held = edits.createHeldEdits({
-      record: () => { history.record(getModel()); onRecorded('quiet'); },
+      // Recorded held changes are kept in the draft too: a change marked without being held
+      // (a slider let go after the draft was written) would otherwise reach Undo but not the draft.
+      record: () => { history.record(getModel()); onKeep(); onRecorded('quiet'); },
       keep: () => onKeep(),
       ...(timers ? { timers } : {})
     });
