@@ -1506,7 +1506,7 @@ if (root) {
       const on = Boolean(row.querySelector('[data-pbd-block-switch]')?.checked);
       row.classList.toggle('is-on', on);
       row.classList.toggle('is-off', !on);
-      // An optional block not in the deck waits in the Add block library.
+      // An optional slide not in the deck waits in the Add slide library.
       if (row.dataset.optional === 'true') row.hidden = !on;
       const entry = blockList?.querySelector(`[data-pbd-block-library-entry="${row.dataset.type}"]`);
       if (entry instanceof HTMLElement) entry.hidden = on;
@@ -1576,14 +1576,14 @@ if (root) {
         // A refused change was put back, so the deck is as it was saved: not "Not saved".
         showSaveState('saved');
       }
-      // A refused add hides the slide again: focus returns to Add block, and an institution slide
+      // A refused add hides the slide again: focus returns to Add slide, and an institution slide
       // that needs content set up points to its Edit there.
       const refusedAdd = blockList?.querySelector(`[data-pbd-block][data-type="${changedType}"]`)?.hidden === true;
       const editable = ['InstitutionalProfile', 'RoleAndCharter', 'FfcGlobalFootprint'].includes(changedType);
       if (refusedAdd) blockList?.querySelector('[data-pbd-block-library-toggle]')?.focus();
       setState(
         blockStatus,
-        `${error.message || 'The slides could not be saved.'}${refusedAdd && editable ? ' Use Edit beside it under Add block to set it up first.' : ''}`,
+        `${error.message || 'The slides could not be saved.'}${refusedAdd && editable ? ' Use Edit beside it under Add slide to set it up first.' : ''}`,
         'error');
     } finally {
       setBlocksBusy(false);
@@ -1601,7 +1601,7 @@ if (root) {
       }
     }, true);
 
-    // Remove and Add block: set the block's box and save the list as a switch does.
+    // Remove and Add slide: set the block's box and save the list as a switch does.
     const libraryToggle = blockList.querySelector('[data-pbd-block-library-toggle]');
     const library = blockList.querySelector('[data-pbd-block-library]');
     // The outline's "+ Slide" opens this library: the Deck tab, Slides in this deck, then the library.

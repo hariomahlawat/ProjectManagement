@@ -228,7 +228,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 AddSummaryChartSlides(
                     plans,
                     data,
-                    "Project-category summary",
+                    "Project-category distribution",
                     data.Summary.ProjectCategorySummary,
                     ThemeAccent.Secondary);
                 break;
@@ -239,7 +239,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 AddSummaryChartSlides(
                     plans,
                     data,
-                    "Technical-category summary",
+                    "Technical-category distribution",
                     data.Summary.TechnicalCategorySummary,
                     ThemeAccent.Primary);
                 break;

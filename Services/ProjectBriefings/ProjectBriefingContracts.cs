@@ -54,7 +54,8 @@ public sealed record ProjectBriefingDeckSummaryVm(
     string LastModifiedByDisplay,
     string RowVersion)
 {
-    public string Purpose { get; init; } = "Portfolio";
+    // The deck's project slide design ("Capability", "Key points", ...), as the Studio shows it.
+    public string Design { get; init; } = "Capability";
     public bool IsMine { get; init; }
     public bool LastEditedByMe { get; init; }
     public int? LastGeneratedSlideCount { get; init; }

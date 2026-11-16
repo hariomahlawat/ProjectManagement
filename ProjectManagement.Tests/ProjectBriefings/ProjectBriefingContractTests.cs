@@ -367,7 +367,7 @@ public sealed class ProjectBriefingContractTests
         // Cards never wider than the phone (Codex, #2946): the column and name cell shrink, descriptions wrap.
         Assert.Contains("grid-template-columns: minmax(0, 1fr);", phone, StringComparison.Ordinal);
         Assert.Contains(".pbd-library__table .pbd-library__description {\n        max-width: none;\n        white-space: normal;", phone, StringComparison.Ordinal);
-        foreach (var label in new[] { "Template", "Projects", "Edited", "PowerPoint" })
+        foreach (var label in new[] { "Design", "Projects", "Edited", "PowerPoint" })
         {
             Assert.Contains($"data-label=\"{label}\"", library, StringComparison.Ordinal);
         }

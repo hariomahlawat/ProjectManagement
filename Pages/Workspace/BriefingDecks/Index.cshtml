@@ -298,7 +298,7 @@
                                                     <a class="dropdown-item @(isCurrent ? "active" : null)" aria-current="@(isCurrent ? "page" : null)"
                                                        asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@saved.Id">
                                                         <strong>@saved.Name</strong>
-                                                        <small>@saved.Purpose · @saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects")</small>
+                                                        <small>@saved.Design · @saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects")</small>
                                                     </a>
                                                 </li>
                                             }
@@ -486,7 +486,7 @@
                                                     // Update sheets always have their sheets.
                                                     var alwaysOn = block.Type == ProjectBriefingDeckBlockType.ProjectSlides && isUpdateSheet;
                                                     var optional = ProjectBriefingDeckBlocks.IsOptional(block.Type);
-                                                    @* An optional block not in the deck waits in the Add block library below. *@
+                                                    @* An optional slide not in the deck waits in the Add slide library below. *@
                                                     <li class="pbd-block @(block.Enabled ? "is-on" : "is-off")" data-pbd-block data-type="@block.Type" data-name="@name" data-movable="@(movable ? "true" : "false")" data-optional="@(optional ? "true" : "false")" hidden="@(optional && !block.Enabled)">
                                                         @if (movable)
                                                         {
@@ -547,11 +547,11 @@
                                         };
                                         var libraryBlocks = deck.Blocks.Where(block => ProjectBriefingDeckBlocks.IsOptional(block.Type)).ToArray();
                                     }
-                                    @* Add block: the optional blocks not in the deck. Adding one puts it back in its group,
+                                    @* Add slide: the optional slides not in the deck. Adding one puts it back in its group,
                                        where it was last placed. *@
                                     <div class="pbd-block-library" data-pbd-block-library-wrap>
                                         <button type="button" class="btn btn-sm btn-outline-primary pbd-block-library__toggle" aria-expanded="false" aria-controls="pbd-block-library" data-pbd-block-library-toggle>
-                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add block
+                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
                                         </button>
                                         <div class="pbd-block-library__panel" id="pbd-block-library" data-pbd-block-library hidden>
                                             @foreach (var libraryGroup in libraryGroups)
@@ -673,6 +673,7 @@
 
                                     <fieldset class="pbd-choice-group" data-pbd-design-parts hidden="@isUpdateSheet">
                                         <legend>Show on each slide</legend>
+                                        <p class="pbd-seg-help">The cost choice also sets the status table's cost columns.</p>
                                         <div class="pbd-chips">
                                             <label class="pbd-chip">
                                                 <input type="checkbox" name="ShowPresentStage" value="true" checked="@deck.StandardSlideOptions.ShowPresentStage" />

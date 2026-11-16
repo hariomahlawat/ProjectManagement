@@ -2531,7 +2531,7 @@ public sealed class ProjectBriefingSlideComposerTests
         using var document = PresentationDocument.Open(stream, false);
         var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
             .SlideParts.Select(SlideText));
-        Assert.DoesNotContain("Technical-category summary", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Technical-category distribution", text, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -41,15 +41,15 @@ public sealed class ProjectBriefingDeckLibraryTests
         var decks = (await Service(db).ListAsync(Me)).ToDictionary(deck => deck.Name);
 
         var visit = decks["Visit deck"];
-        // A deck from the retired visit preset shows the template of its slide design.
-        Assert.Equal("Portfolio", visit.Purpose);
+        // The library names each deck's project slide design (review fixes PR 5), not its template.
+        Assert.Equal("Capability", visit.Design);
         Assert.False(visit.IsMine);
         Assert.False(visit.LastEditedByMe);
         Assert.Equal(33, visit.LastGeneratedSlideCount);
         Assert.Equal(new[] { "Counter-UAS System", "VR Based Map Reading" }, visit.ProjectNames.OrderBy(name => name));
 
         var mine = decks["My deck"];
-        Assert.Equal("Portfolio", mine.Purpose);
+        Assert.Equal("Capability", mine.Design);
         Assert.True(mine.IsMine);
         Assert.True(mine.LastEditedByMe);
         Assert.Null(mine.LastGeneratedSlideCount);

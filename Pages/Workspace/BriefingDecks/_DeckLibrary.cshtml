@@ -47,7 +47,7 @@
                 <div class="pbd-continue__body">
                     <div class="pbd-continue__title">
                         <a asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@continueDeck.Id">@continueDeck.Name</a>
-                        <span class="pbd-library__purpose">@continueDeck.Purpose</span>
+                        <span class="pbd-library__purpose">@continueDeck.Design</span>
                     </div>
                     @if (!string.IsNullOrWhiteSpace(continueDeck.Description))
                     {
@@ -153,7 +153,7 @@
             <thead>
                 <tr>
                     <th scope="col" class="is-deck">Deck</th>
-                    <th scope="col">Template</th>
+                    <th scope="col">Design</th>
                     <th scope="col" class="is-number">Projects</th>
                     <th scope="col">Edited</th>
                     <th scope="col">PowerPoint</th>
@@ -189,7 +189,7 @@
                             <small class="pbd-library__match" data-pbd-library-match hidden></small>
                         </td>
                         @* data-label: on a phone the table becomes cards, and each value carries its label. *@
-                        <td class="is-date" data-label="Template">@deck.Purpose</td>
+                        <td class="is-date" data-label="Design">@deck.Design</td>
                         <td class="is-number" data-label="Projects">@deck.ProjectCount<span class="pbd-library__unit"> @(deck.ProjectCount == 1 ? "project" : "projects")</span></td>
                         <td class="is-edited" data-label="Edited" title="@WhenFull(deck.UpdatedAtUtc) · created by @deck.CreatedByDisplay">
                             @WhenShort(deck.UpdatedAtUtc)<small>@deck.LastModifiedByDisplay</small>

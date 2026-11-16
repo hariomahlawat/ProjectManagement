@@ -323,7 +323,7 @@ test('a project-slide change stays on the project in view, and a theme change ke
 test('turning on the technical-category summary shows it, not the project-category one before it', async () => {
   const categories = () => payload({
     slideCount: 4,
-    slides: [slide(1, 'Cover'), slide(2, 'Project-category summary'), slide(3, 'Technical-category summary'), slide(4, 'Closing')],
+    slides: [slide(1, 'Cover'), slide(2, 'Project-category distribution'), slide(3, 'Technical-category distribution'), slide(4, 'Closing')],
     outline: [
       { number: 1, role: 'Cover', projectId: null, listedProjectIds: [] },
       { number: 2, role: 'CategorySummary', projectId: null, listedProjectIds: [] },
