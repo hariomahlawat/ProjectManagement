@@ -150,3 +150,24 @@ document.addEventListener('click', (event) => {
   if (!match) return;
   try { window.sessionStorage.setItem(`prism.briefingDecks.generate.${match[1]}`, '1'); } catch { /* opens without generating */ }
 });
+
+// Download builds the PowerPoint on the server and returns a file, so the page does not change:
+// say it is being made and keep a second click from building it again (review 4 fixes, Low 7).
+document.addEventListener('submit', (event) => {
+  const form = event.target instanceof HTMLFormElement ? event.target : null;
+  if (!form || !/handler=Download/i.test(form.getAttribute('action') || '')) return;
+  const button = form.querySelector('button[type="submit"]');
+  if (button instanceof HTMLButtonElement) {
+    if (button.dataset.pbdDownloading === 'true') {
+      event.preventDefault();
+      return;
+    }
+    button.dataset.pbdDownloading = 'true';
+    button.setAttribute('aria-disabled', 'true');
+    window.setTimeout(() => {
+      delete button.dataset.pbdDownloading;
+      button.removeAttribute('aria-disabled');
+    }, 8000);
+  }
+  window.PrismToast?.show({ tone: 'info', text: 'Making the PowerPoint. It downloads when it is ready.' });
+});

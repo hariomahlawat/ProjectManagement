@@ -386,6 +386,31 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         Assert.Single(await db.Set<ProjectBriefingDeckItem>().Where(item => item.DeckId == deck.Id).ToListAsync());
     }
 
+    // Review 4 fixes, Low 2: an entry without a lead phrase (tab + text) keeps a "|" in its text.
+    [Fact]
+    public async Task ARoleCharterEntryWithoutALeadPhrase_KeepsItsWholeText()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
+        var page = CreatePage(db, Officer, ajax: true);
+
+        var result = await page.OnPostSaveRoleCharterAsync(new IndexModel.SaveRoleCharterInput
+        {
+            DeckId = deck.Id,
+            RowVersion = Version(deck),
+            RoleCharterTitle = "Role & Charter",
+            RoleCharterLayout = ProjectBriefingRoleCharterLayout.CharterOnly,
+            UseSharedRoleCharterContent = false,
+            CharterItemLines = "\tLiaison | coordination\nTrials\tField trials of new equipment"
+        }, CancellationToken.None);
+
+        Assert.Equal(200, StatusOf(result) ?? 200);
+        var stored = ProjectBriefingDeckConfigurationCodec.Read((await ReloadAsync(db, deck)).SelectionRulesJson).RoleCharterOptions;
+        Assert.Equal(
+            new[] { ("", "Liaison | coordination"), ("Trials", "Field trials of new equipment") },
+            stored.CharterItems.Select(item => (item.LeadPhrase, item.Text)).ToArray());
+    }
+
     // Review 4 fixes, Low 3: the server refuses an empty footer strip as the page does, before
     // Normalize would quietly switch it off.
     [Fact]

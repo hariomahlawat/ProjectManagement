@@ -180,7 +180,7 @@ if (root) {
 
   const openDrawer = (trigger = null) => {
     if (!drawer || !backdrop || !(form instanceof HTMLFormElement)) return;
-    returnFocus = trigger || document.activeElement;
+    returnFocus = trigger instanceof HTMLElement && trigger.getClientRects().length > 0 ? trigger : document.activeElement;
     drawer.classList.add('is-open');
     drawer.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
@@ -422,7 +422,8 @@ if (root) {
     if (ffcSupportingEstimate instanceof HTMLElement) {
       const countryCount = Number.parseInt(ffcSupportingEstimate.dataset.countryCount || '0', 10) || 0;
       const included = ffcSupportingSlide instanceof HTMLInputElement && ffcSupportingSlide.checked;
-      const slides = included && countryCount > 0 ? Math.ceil(countryCount / 12) : 0;
+      const perSlide = Number.parseInt(ffcForm?.dataset.countriesPerSlide || '', 10) || 1;
+      const slides = included && countryCount > 0 ? Math.ceil(countryCount / perSlide) : 0;
       ffcSupportingEstimate.textContent = included
         ? `${slides} supporting slide${slides === 1 ? '' : 's'} · ${countryCount} countries`
         : 'Not included';
@@ -454,7 +455,7 @@ if (root) {
 
   const openFfcDrawer = (trigger = null) => {
     if (!ffcDrawer || !ffcBackdrop || !(ffcForm instanceof HTMLFormElement)) return;
-    ffcReturnFocus = trigger || document.activeElement;
+    ffcReturnFocus = trigger instanceof HTMLElement && trigger.getClientRects().length > 0 ? trigger : document.activeElement;
     ffcDrawer.classList.add('is-open');
     ffcDrawer.setAttribute('aria-hidden', 'false');
     ffcBackdrop.hidden = false;
@@ -465,6 +466,12 @@ if (root) {
     setFfcDirty(false);
     window.requestAnimationFrame(() => ffcFocusable()[0]?.focus());
   };
+
+  window.addEventListener('beforeunload', (event) => {
+    if (!ffcDirty) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
 
   const confirmFfcDiscard = async () => !ffcDirty || prismConfirm({
     title: 'Discard unsaved changes?',

@@ -17,7 +17,7 @@
        data-pbd-ffc-footprint-reopen="@Model.ReopenFfcGlobalFootprint.ToString().ToLowerInvariant()"
        aria-labelledby="pbd-ffc-footprint-drawer-title"
        aria-hidden="true">
-    <form method="post" asp-page-handler="SaveFfcGlobalFootprint" data-pbd-ffc-footprint-form>
+    <form method="post" asp-page-handler="SaveFfcGlobalFootprint" data-pbd-ffc-footprint-form data-countries-per-slide="@ProjectBriefingFfcGlobalFootprintOptions.CountriesPerBreakdownSlide">
         <input type="hidden" name="DeckId" value="@deck.Id" />
         <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
 
