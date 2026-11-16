@@ -223,7 +223,9 @@
         const smaller = Math.min(cell.width * cell.height, 4 * box.halfWidth * box.halfHeight);
         return w * h > smaller * LOCK_COVER_LIMIT;
       })) continue;
-      const width = Math.max(ITEM_LIMITS.minWidth, Math.min(cell.width, cell.height * aspect) * 0.94);
+      const width = Math.min(cell.width, cell.height * aspect) * 0.94;
+      // A grid too fine for the smallest photo is no grid: the caller places it as before.
+      if (width < ITEM_LIMITS.minWidth) return null;
       return { x: cell.x, y: cell.y, width };
     }
     return null;
@@ -937,7 +939,8 @@
     return collage.items.some((item) => {
       const frame = Number.isInteger(item.cell) ? frames[item.cell] : null;
       if (!frame || (item.kind !== 'photo' && item.kind !== 'slot') || item.locked) return false;
-      return !near(item.x, frame.x) || !near(item.y, frame.y) || !near(item.width, frame.width) || Boolean(item.angle);
+      return !near(item.x, frame.x) || !near(item.y, frame.y) || !near(item.width, frame.width)
+        || !near(item.width / item.aspect, frame.width / frame.aspect) || Boolean(item.angle);
     });
   }
 

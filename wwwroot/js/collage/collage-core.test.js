@@ -985,3 +985,28 @@ test('long thin photos each take their own grid cell', () => {
   }
   assert.equal(new Set(items.map((i) => `${Math.round(i.x)},${Math.round(i.y)}`)).size, 4);
 });
+
+test('a grid photo always fits inside its cell, and a grid too fine is not used', () => {
+  const items = [];
+  let placed = 0;
+  for (let i = 0; i < 60; i += 1) {
+    const place = collage.gridPlace(items, 'a4l', 1 / 4, 60);
+    if (!place) continue;
+    placed += 1;
+    const item = collage.photoItem(`p${i}`, `f${i}`, 1 / 4, place);
+    for (const other of items) {
+      const w = Math.min(item.x + item.width / 2, other.x + other.width / 2) - Math.max(item.x - item.width / 2, other.x - other.width / 2);
+      const h = Math.min(item.y + collage.itemHeight(item) / 2, other.y + collage.itemHeight(other) / 2) - Math.max(item.y - collage.itemHeight(item) / 2, other.y - collage.itemHeight(other) / 2);
+      assert.ok(!(w > 0 && h > 0), `${item.id} overlaps ${other.id}`);
+    }
+    items.push(item);
+  }
+  assert.ok(placed < 60, 'cells too small for the smallest photo are not used');
+});
+
+test('a layout frame given another shape (a Polaroid) is off its cell', () => {
+  let n = 0;
+  const laid = collage.applyLayout(collage.newCollage('a4l'), 't2', 10, 0, ['p1', 'p2'], () => `n${++n}`).collage;
+  const reshaped = { ...laid, items: laid.items.map((i, k) => (k === 0 ? { ...i, aspect: i.aspect * 0.8 } : i)) };
+  assert.equal(collage.offLayout(reshaped), true);
+});
