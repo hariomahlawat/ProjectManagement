@@ -4,7 +4,7 @@
 // user tripped over, each checked once.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile } = require('./helpers');
+const { openFresh, photoFile, fulfillLikePrism } = require('./helpers');
 
 test('stickers fit their panel, and stamps with words take two cells', async ({ page }) => {
   const errors = await openFresh(page);
@@ -48,7 +48,7 @@ test('with PRISM Photos off, its dialog shows only the message', async ({ page }
 });
 
 test('a missing editor script is said on the page, not left as a dead page', async ({ page }) => {
-  await page.route('**/js/collage/collage-save.js**', (route) => route.fulfill({ status: 404, body: '' }));
+  await page.route('**/js/collage/collage-save.js**', (route) => fulfillLikePrism(route, { status: 404, body: '' }));
   await page.goto('/Tools/Collage');
   await expect(page.locator('[data-alert-text]')).toContainText('could not load all its parts');
   // Nothing on the start screen can be used to begin a collage that could not work.

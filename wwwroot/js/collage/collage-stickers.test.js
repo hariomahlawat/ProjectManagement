@@ -220,6 +220,38 @@ test('a library photo larger than a collage takes is refused before its body is 
   assert.equal(file.name, 'Small.jpg');
 });
 
+test('a 401 or the sign-in page reads as a session that ended; a failure does not', async (t) => {
+  const real = globalThis.fetch;
+  t.after(() => { globalThis.fetch = real; });
+  const answer = (fields) => async () => ({ ok: true, status: 200, redirected: false, headers: new Map([['Content-Type', 'application/json']]), json: async () => ({ stickers: [] }), ...fields });
+  const reason = (promise) => promise.then(() => 'none', (error) => error.reason || 'failed');
+
+  globalThis.fetch = answer({ ok: false, status: 401 });
+  assert.equal(await reason(library.loadStickers()), 'signed-out');
+  const signIn = 'http://127.0.0.1/Identity/Account/Login?ReturnUrl=%2Fx';
+  globalThis.fetch = answer({ redirected: true, url: signIn, headers: new Map([['Content-Type', 'text/html; charset=utf-8']]) });
+  assert.equal(await reason(library.loadLibraryPage({})), 'signed-out');
+  globalThis.fetch = answer({ headers: new Map([['Content-Type', 'text/html; charset=utf-8']]) });
+  assert.equal(await reason(library.loadStickers()), 'signed-out');
+  globalThis.fetch = answer({ redirected: true, url: signIn });
+  assert.equal(await reason(library.readLibraryPhoto({ url: '/Photos/Media/7/original?v=3' })), 'signed-out');
+  // A photo the user can no longer see is sent to the access-denied page: the user is still
+  // signed in, so it is that photo's own failure, and the others are still read.
+  globalThis.fetch = answer({ redirected: true, url: 'http://127.0.0.1/Identity/Account/AccessDenied?ReturnUrl=%2Fx' });
+  assert.equal(await reason(library.readLibraryPhoto({ url: '/Photos/Media/7/original?v=3' })), 'failed');
+  // Under a path base, the sign-in page is the one under it.
+  library.setBasePath('/prism');
+  globalThis.fetch = answer({ redirected: true, url: 'http://127.0.0.1/prism/Identity/Account/Login' });
+  assert.equal(await reason(library.readLibraryPhoto({ url: '/prism/Photos/Media/7/original?v=3' })), 'signed-out');
+  library.setBasePath('');
+
+  globalThis.fetch = answer({ ok: false, status: 500, headers: new Map([['Content-Type', 'text/html']]) });
+  assert.equal(await reason(library.loadStickers()), 'failed');
+  globalThis.fetch = answer({});
+  assert.equal(await reason(library.loadStickers()), 'none');
+  assert.match(library.SIGNED_OUT_MESSAGE, /session has ended/);
+});
+
 test('under a path base, PRISM is asked and trusted only at addresses below it; at the root nothing changes', async (t) => {
   const real = globalThis.fetch;
   t.after(() => {

@@ -67,4 +67,22 @@ async function showSettings(page) {
   await page.locator('.clg-props [data-props-tab="settings"]').click();
 }
 
-module.exports = { openFresh, photoFile, newestDraft, showLayers, showSettings };
+// PRISM's production security headers, the same the test server sends on every answer.
+const productionHeaders = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, 'fixtures', 'production-headers.json'), 'utf8'));
+
+/**
+ * Answers a mocked request (page.route) as PRISM would: PRISM's production security headers, the
+ * answer's own headers, and a JSON body (an object) or a raw one (a string or Buffer).
+ * Every mocked answer goes through this, so no test passes on an answer PRISM would not send.
+ */
+function fulfillLikePrism(route, { status = 200, body = '', contentType, headers = {} } = {}) {
+  const json = body !== null && typeof body === 'object' && !Buffer.isBuffer(body);
+  const type = contentType || (json ? 'application/json; charset=utf-8' : undefined);
+  return route.fulfill({
+    status,
+    headers: { ...productionHeaders, ...(json ? { 'Cache-Control': 'no-store' } : {}), ...(type ? { 'Content-Type': type } : {}), ...headers },
+    body: json ? JSON.stringify(body) : body
+  });
+}
+
+module.exports = { openFresh, photoFile, newestDraft, showLayers, showSettings, productionHeaders, fulfillLikePrism };

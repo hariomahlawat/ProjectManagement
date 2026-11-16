@@ -178,6 +178,7 @@
       search: 'No sticker matches. Try another word.',
       loading: 'Getting the crests and logos from PRISM…',
       failed: 'The crests and logos could not be read from PRISM. The other stickers still work.',
+      signedOut: `${library?.SIGNED_OUT_MESSAGE || 'Your PRISM session has ended.'} The other stickers still work.`,
       empty: "An administrator can add your unit's crests and logos."
     };
 
@@ -188,8 +189,8 @@
         const count = stickers.setUnit(list);
         unitState = 'ready';
         if (count > 0 && !stickerGroupChosen) stickerGroup = 'crests';
-      }).catch(() => {
-        unitState = 'failed';
+      }).catch((error) => {
+        unitState = error?.reason === 'signed-out' ? 'signedOut' : 'failed';
       }).finally(() => {
         renderStickerPanel();
         // A collage opened before the list arrived draws its crests at their listed address now.
