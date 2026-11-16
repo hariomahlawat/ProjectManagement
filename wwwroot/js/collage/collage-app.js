@@ -48,7 +48,6 @@
   // ---------------------------------------------------------------------------
 
   let collage = core.newCollage(core.DEFAULT_SIZE);
-  let history = core.createHistory(collage);
   // A two-finger zoom in progress: no item is dragged or panned meanwhile.
   let pinch = null;
   let selectedId = null;
@@ -64,9 +63,20 @@
   let sequence = 0;
   // Counts the collages opened in this tab; photo imports belong to the one they started in.
   let collageSession = 0;
-  // A keyboard nudge is recorded for Undo once the keys stop; until then it is pending here.
-  // Edits still going on (typing, sliders, nudges): recorded once they pause (collage-edits.js).
-  const edits = window.PrismCollageEdits.createHeldEdits({ record: () => recordQuietly(), keep: () => scheduleDraft() });
+  // Every change reaches Undo and the draft through the change log (collage-changes.js): a
+  // finished change is committed, one still going on (typing, sliders, nudges) is held until it
+  // pauses, and a held change ends before any other user action begins.
+  const changes = window.PrismCollageChanges.createChangeLog({
+    core,
+    getModel: () => collage,
+    onKeep: () => scheduleDraft(),
+    onRecorded: (kind) => afterRecorded(kind)
+  });
+  for (const type of ['pointerdown', 'focusin', 'keydown']) {
+    document.addEventListener(type, (event) => {
+      if (window.PrismCollageChanges.isBoundary(event)) changes.flush();
+    }, true);
+  }
   // The photos the collage uses, by id: { id, name, file, canvas, thumbnail, width, height, aspect }.
   const photos = new Map();
 
@@ -174,7 +184,7 @@
   /** Resets the editor to an empty page; the caller fills it in. */
   function resetEditor() {
     collageSession += 1;
-    edits.drop();
+    changes.drop();
     session.end();
     photos.clear();
     forgetPhotoPreviews();
@@ -201,7 +211,7 @@
     if (layoutKey) {
       collage = core.applyLayout(collage, layoutKey, core.LAYOUT_LIMITS.defaultGap, 0, [], newItemId).collage;
     }
-    history = core.createHistory(collage);
+    changes.start(collage);
     // A new draft: it is first stored once it has a photo.
     session.begin({ id: nextId('d'), off: !room });
     if (!room) setDraftStatus('Not kept as a draft', true);
@@ -227,7 +237,7 @@
       for (let round = 0; round < 5; round += 1) {
         flushNudge();
         kept = await session.saveNow();
-        if (!session.pending && !edits.pending) break;
+        if (!session.pending && !changes.pending) break;
       }
     } finally {
       views.editor.inert = false;
@@ -247,7 +257,7 @@
     }
     resetEditor();
     collage = core.newCollage(core.DEFAULT_SIZE);
-    history = core.createHistory(collage);
+    changes.start(collage);
     showView('start');
     renderDrafts();
   }
@@ -476,7 +486,7 @@
       return;
     }
     collage = model;
-    history = core.createHistory(collage);
+    changes.start(collage);
     session.begin({ id: record.id, created: true, started: record.started || record.saved });
     nameInput.value = record.autoTitle ? '' : record.title;
     refreshTitle();
@@ -1145,21 +1155,27 @@
     if (!views.editor.hidden || session.draft) document.title = `${collageTitle()} · Collage Studio | PRISM ERP`;
   }
 
+  /** A finished change: one Undo step, kept in the draft, and the page and panels redrawn. */
   function commit() {
-    history.record(collage);
+    changes.commit();
+  }
+
+  /** After an Undo step is recorded: everything for a commit, the title and buttons otherwise. */
+  function afterRecorded(kind) {
+    // An unnamed collage's title follows its first words, typed or not.
     refreshTitle();
+    updateUndo();
+    if (kind !== 'commit') return;
     if (panel === 'background') renderBackgroundPanel();
-    scheduleDraft();
     syncPage();
     renderTray();
     renderLayoutPanel();
     renderProps();
-    updateUndo();
   }
 
   function updateUndo() {
-    $('[data-action="undo"]').disabled = !history.canUndo();
-    $('[data-action="redo"]').disabled = !history.canRedo();
+    $('[data-action="undo"]').disabled = !changes.canUndo();
+    $('[data-action="redo"]').disabled = !changes.canRedo();
   }
 
   function restore(next) {
@@ -1484,8 +1500,8 @@
       case 'home': goHome(); break;
       case 'choose': fileInput.click(); break;
       // Undo and Redo end moving a photo inside its frame only when there is a step to take.
-      case 'undo': flushNudge(); if (history.canUndo()) { stopAdjust(false); restore(history.undo()); } break;
-      case 'redo': flushNudge(); if (history.canRedo()) { stopAdjust(false); restore(history.redo()); } break;
+      case 'undo': { const back = changes.undo(); if (back) { stopAdjust(false); restore(back); } else updateUndo(); break; }
+      case 'redo': { const again = changes.redo(); if (again) { stopAdjust(false); restore(again); } else updateUndo(); break; }
       case 'zoom-in': setZoom(zoom * 1.25); break;
       case 'zoom-out': setZoom(zoom / 1.25); break;
       case 'zoom-fit': setZoom(1); break;
@@ -1954,7 +1970,7 @@
       // A frame given its own corners is no longer bound to the layout's.
       if (event.target.dataset.prop === 'radius' && collage.layout) collage.layout = { ...collage.layout, radius: Number(event.target.value) };
       // Recorded even when the slider ends where it began, so the corners above are kept.
-      edits.mark();
+      changes.mark();
       flushNudge();
       renderLayoutPanel();
       return;
@@ -2198,7 +2214,7 @@
   /** Lets go of removed photos that no Undo or Redo step shows any more. */
   function forgetRemovedPhotos() {
     for (const photo of [...photos.values()]) {
-      if (!photo.removed || history.mentions(photo.id)) continue;
+      if (!photo.removed || changes.mentions(photo.id)) continue;
       photos.delete(photo.id);
     }
   }
@@ -2302,17 +2318,9 @@
   // Keyboard and the mouse wheel
   // ---------------------------------------------------------------------------
 
-  /**
-   * Records the collage as it is now as one Undo step and keeps it in the draft, without
-   * redrawing the panels. commit() does this and redraws; held edits (typing, sliders, colour
-   * pickers, nudges) do it once they pause, through holdEdit() and flushNudge().
-   */
+  /** Records the collage as it is now as one Undo step, kept in the draft, without redrawing. */
   function recordQuietly() {
-    history.record(collage);
-    // An unnamed collage's title follows its first words, typed or not.
-    refreshTitle();
-    updateUndo();
-    scheduleDraft();
+    changes.record();
   }
 
   /**
@@ -2321,12 +2329,12 @@
    * else happens (another item, Undo, leaving).
    */
   function holdEdit(pause = 600) {
-    edits.hold(pause);
+    changes.hold(pause);
   }
 
   /** Records a held edit now, so Undo and Redo start from where things really are. */
   function flushNudge() {
-    edits.flush();
+    changes.flush();
   }
 
   document.addEventListener('keydown', (event) => {

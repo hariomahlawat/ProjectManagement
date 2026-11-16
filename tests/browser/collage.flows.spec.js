@@ -179,3 +179,21 @@ test('From PRISM Photos: ticked photos are read in and fill the empty frames', a
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((item) => item.kind === 'photo').length).toBe(2);
   expect(errors).toEqual([]);
 });
+
+test('typing and then at once clicking Bold are two Undo steps', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startBlank(page);
+  await addHeading(page);
+  const bold = page.locator('.clg-props [data-text-toggle="bold"]');
+  const before = (await bold.getAttribute('aria-pressed')) === 'true';
+  await page.locator('.clg-props [data-text]').fill('Welcome home');
+  // Bold straight after typing, well inside the pause that would end the typing on its own.
+  await bold.click();
+  await expect(page.locator('.clg-props [data-text-toggle="bold"]')).toHaveAttribute('aria-pressed', String(!before));
+  await page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => {});
+  await page.keyboard.press('Control+z');
+  // Undo takes back Bold only; the words typed stay.
+  await expect.poll(async () => (await newestDraft(page))?.model.items.find((item) => item.kind === 'text'))
+    .toMatchObject({ text: 'Welcome home', bold: before });
+  expect(errors).toEqual([]);
+});
