@@ -35,7 +35,13 @@ if (root) {
   const viewerStrip = viewer?.querySelector('[data-pbd-viewer-strip]');
   const viewerTitle = viewer?.querySelector('[data-pbd-viewer-title]');
   const viewerCounter = viewer?.querySelector('[data-pbd-viewer-counter]');
-  const usesCapability = root.dataset.usesCapability === 'true';
+  // Whether project slides show capability text, so the inspector offers to write it. It follows
+  // the deck's design (Capability, Key points, Capability and brief), read from each deck payload,
+  // so it is right straight after a design change. Key points only, Brief and Fact sheet show none,
+  // and nor does a deck with no project slides (an executive table).
+  const CAPABILITY_DESIGNS = new Set(['Capability', 'KeyPoints', 'CapabilityAndBrief']);
+  const deckDesign = { design: '' };
+  const usesCapabilityText = () => CAPABILITY_DESIGNS.has(deckDesign.design) && deckShape.mode !== 'ExecutiveTable';
 
   const ROLES = {
     Cover: { section: 'opening', label: 'Cover', about: 'The deck name and description, the project counts and the handling marking.' },
@@ -68,13 +74,13 @@ if (root) {
     PresentationMode: () => ['ProjectCapability', 'ProjectBrief', 'StatusTable'],
     StatusTableBlock: () => ['StatusTable'],
     NarrativeMode: () => ['ProjectCapability', 'ProjectBrief'],
-    ShowPresentStage: () => ['ProjectCapability', 'ProjectBrief'],
-    ShowPresentStatus: () => ['ProjectCapability', 'ProjectBrief'],
+    ShowPresentStage: () => ['ProjectCapability', 'ProjectBrief', 'ProjectKeyPointsOnly'],
+    ShowPresentStatus: () => ['ProjectCapability', 'ProjectBrief', 'ProjectKeyPointsOnly'],
     ShowKeyPoints: projectRoles,
     ProjectDesign: () => ['ProjectKeyPointsOnly', 'ProjectCapability', 'ProjectBrief', 'ProjectUpdateSheet'],
     KeyPointSlide: projectRoles,
     ProjectBriefLayout: () => ['ProjectBrief'],
-    CostMode: () => ['ProjectCapability', 'ProjectBrief', 'StatusTable'],
+    CostMode: () => ['ProjectCapability', 'ProjectBrief', 'ProjectKeyPointsOnly', 'StatusTable'],
     UpdateSheetRows: () => ['ProjectUpdateSheet'],
     UpdateSheetRowOrder: () => ['ProjectUpdateSheet'],
     HideEmptyUpdateSheetValues: () => ['ProjectUpdateSheet'],
@@ -192,6 +198,7 @@ if (root) {
     if (!data) return;
     projects = new Map((data.projects || []).map((project) => [project.projectId, project]));
     gaps = data.contentGaps || {};
+    if (typeof data.projectDesign === 'string') deckDesign.design = data.projectDesign;
   };
   try {
     readStudioData(JSON.parse(root.querySelector('[data-pbd-studio-data]')?.textContent || 'null'));
@@ -784,7 +791,7 @@ if (root) {
       text.append(el('strong', null, gap.label),
         el('small', null, key === 'photo' && project.coverPhotoReadinessReason ? project.coverPhotoReadinessReason : gap.missing));
       item.append(text);
-      if (gap.describe && usesCapability) {
+      if (gap.describe && usesCapabilityText()) {
         const write = describeButton(project, THIS_DECK_ONLY);
         write.title = 'Write the text for this deck. The project’s own record is unchanged.';
         write.prepend(icon('bi-pencil'), document.createTextNode(' '));
@@ -852,7 +859,7 @@ if (root) {
           : el('p', 'pbd-inspector__note', 'No external status remark recorded. The slides show the placeholder.'));
       }
 
-      if (usesCapability && !missing.includes('capabilityOverview')) {
+      if (usesCapabilityText() && !missing.includes('capabilityOverview')) {
         nodes.push(el('h5', 'pbd-inspector__heading', 'Capability overview'));
         nodes.push(el('p', 'pbd-inspector__note', project.briefDescriptionOverride
           ? 'Written for this deck. The project’s own statements are unchanged.'
@@ -1484,7 +1491,7 @@ if (root) {
       });
       if (event.detail.deck.layout) deckShape.layout = event.detail.deck.layout;
       if (event.detail.deck.presentationMode) deckShape.mode = event.detail.deck.presentationMode;
-      readStudioData({ projects: event.detail.deck.projects, contentGaps: event.detail.deck.contentGaps });
+      readStudioData({ projects: event.detail.deck.projects, contentGaps: event.detail.deck.contentGaps, projectDesign: event.detail.deck.projectDesign });
       markUnsavedNotes();
       renderOutline();
       renderStage();

@@ -1593,7 +1593,15 @@ if (root) {
         // A refused change was put back, so the deck is as it was saved: not "Not saved".
         showSaveState('saved');
       }
-      setState(blockStatus, error.message || 'The slides could not be saved.', 'error');
+      // A refused add hides the slide again: focus returns to Add block, and an institution slide
+      // that needs content set up points to its Edit there.
+      const refusedAdd = blockList?.querySelector(`[data-pbd-block][data-type="${changedType}"]`)?.hidden === true;
+      const editable = ['InstitutionalProfile', 'RoleAndCharter', 'FfcGlobalFootprint'].includes(changedType);
+      if (refusedAdd) blockList?.querySelector('[data-pbd-block-library-toggle]')?.focus();
+      setState(
+        blockStatus,
+        `${error.message || 'The slides could not be saved.'}${refusedAdd && editable ? ' Use Edit beside it under Add block to set it up first.' : ''}`,
+        'error');
     } finally {
       setBlocksBusy(false);
     }
