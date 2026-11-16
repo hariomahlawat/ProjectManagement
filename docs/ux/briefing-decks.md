@@ -37,8 +37,9 @@ last-updated deck, so nobody edits a deck they did not pick.
   generated or name. Filtering runs in the page (`project-briefing-library.js`).
 - **Recently deleted** below the table. A deleted deck can be restored for
   `DeletedRetentionDays` (30). After that the next delete removes it for good, as its own step
-  after that delete's save, with one `ProjectBriefing.DeckPurged` audit entry per deck. A purge
-  that fails is logged and retried on the next delete; it never undoes the delete.
+  after that delete's save, in its own transaction with one required `ProjectBriefing.DeckPurged`
+  audit entry per deck: if any entry cannot be written, nothing is removed. A purge that fails is
+  logged and retried on the next delete; it never undoes the delete.
 - `/Workspace/BriefingDecks/{id}` is the Studio. Its bar has "← Briefing decks" and **Switch
   deck** (each deck's purpose and project count); the old saved-decks side panel is gone. An
   unknown or deleted id returns to the library with a one-request notice.
