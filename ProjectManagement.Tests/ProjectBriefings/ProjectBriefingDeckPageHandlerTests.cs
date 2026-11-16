@@ -306,6 +306,11 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         var downloadPage = CreatePage(db, Officer);
         Assert.IsType<RedirectToPageResult>(await downloadPage.OnPostDownloadAsync(deck.Id, CancellationToken.None));
         Assert.Equal(ProjectBriefingDeckService.NotFoundMessage, downloadPage.ErrorMessage);
+        // The library downloads in the page and gets the reason itself, not a redirect that would
+        // use up the message (review 5 fixes).
+        var inPageDownload = await CreatePage(db, Officer, ajax: true).OnPostDownloadAsync(deck.Id, CancellationToken.None);
+        Assert.Equal(400, StatusOf(inPageDownload));
+        Assert.Equal(ProjectBriefingDeckService.NotFoundMessage, MessageOf(inPageDownload));
 
         var duplicatePage = CreatePage(db, Officer);
         Assert.IsType<RedirectToPageResult>(await duplicatePage.OnPostDuplicateAsync(deck.Id, CancellationToken.None));

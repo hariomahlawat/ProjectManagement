@@ -153,9 +153,9 @@ document.addEventListener('click', (event) => {
 
 // Download builds the PowerPoint on the server and returns a file, so the page does not change.
 // It runs as a request: the button stays busy until the file has arrived (or failed), and a
-// second click cannot build it twice (review 4 fixes Low 7, review 5 fixes L2). Anything that is
-// not a PowerPoint (an error message, or the sign-in page after it expired) is shown by opening
-// the page the server answered with.
+// second click cannot build it twice (review 4 fixes Low 7, review 5 fixes L2). A refusal comes
+// back as a message, shown here; anything else that is not a PowerPoint (the sign-in page after it
+// expired) opens as the page the server answered with.
 const fileNameOf = (header) => {
   if (!header) return 'Project_Briefing_Deck.pptx';
   const encoded = header.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
@@ -177,8 +177,19 @@ document.addEventListener('submit', async (event) => {
   }
   const making = window.PrismToast?.show({ tone: 'info', text: 'Making the PowerPoint…', sticky: true });
   try {
-    const response = await fetch(form.action, { method: 'POST', credentials: 'same-origin', body: new FormData(form) });
+    const response = await fetch(form.action, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: new FormData(form),
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
     const type = response.headers.get('content-type') || '';
+    if (!response.redirected && type.includes('json')) {
+      const payload = await response.json().catch(() => null);
+      making?.dismiss?.();
+      window.PrismToast?.show({ tone: 'danger', text: payload?.message || 'The PowerPoint could not be downloaded.' });
+      return;
+    }
     if (!response.ok || response.redirected || !type.includes('presentationml')) {
       // The server's own message (or the sign-in page) is on the page it answered with.
       window.location.assign(response.url || window.location.href);

@@ -1066,6 +1066,20 @@ public sealed class IndexModel : PageModel
 
     // The PowerPoint of a deck this person may see, without recording a generation: how a command
     // user takes a Project Officer's deck they may not change. The deck itself is untouched.
+    // The library downloads in the page: it gets the reason as JSON to show, since a redirect it
+    // follows would use up the one-request message before anyone saw it (review 5 fixes, Codex).
+    // A plain form post keeps the redirect with the message.
+    private IActionResult DownloadFailed(string message, int statusCode)
+    {
+        if (IsAjaxRequest())
+        {
+            return new JsonResult(new { message }) { StatusCode = statusCode };
+        }
+
+        ErrorMessage = message;
+        return RedirectToLibrary();
+    }
+
     public async Task<IActionResult> OnPostDownloadAsync(long deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
@@ -1081,15 +1095,13 @@ public sealed class IndexModel : PageModel
         }
         catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
         {
-            ErrorMessage = exception.Message;
-            return RedirectToLibrary();
+            return DownloadFailed(exception.Message, StatusCodes.Status400BadRequest);
         }
         catch (Exception exception)
         {
             var traceId = HttpContext.TraceIdentifier;
             _logger.LogError(exception, "Project briefing deck download failed. DeckId={DeckId}, TraceId={TraceId}", deckId, traceId);
-            ErrorMessage = $"The PowerPoint could not be made. Reference: {traceId}";
-            return RedirectToLibrary();
+            return DownloadFailed($"The PowerPoint could not be made. Reference: {traceId}", StatusCodes.Status500InternalServerError);
         }
     }
 
