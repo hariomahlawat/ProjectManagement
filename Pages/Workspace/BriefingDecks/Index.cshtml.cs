@@ -932,12 +932,14 @@ public sealed class IndexModel : PageModel
             return BadRequest(new { message = "Select a deck before searching projects." });
         }
 
-        var projects = await _selectionService.SearchAsync(query, 40, cancellationToken);
         var deck = await _deckService.GetEntityAsync(deckId, userId, includeItems: true, cancellationToken);
         if (deck is null)
         {
             return NotFound(new { message = ProjectBriefingDeckService.NotFoundMessage });
         }
+
+        // Only after the deck is known to be editable (review 2 fixes, Low 6).
+        var projects = await _selectionService.SearchAsync(query, 40, cancellationToken);
 
         var membership = deck.Items.ToDictionary(item => item.ProjectId, item => item.SortOrder);
         var rows = projects.Select(project => new ProjectBriefingManageSearchResultVm(
@@ -1135,7 +1137,9 @@ public sealed class IndexModel : PageModel
         long? requestedDeckId,
         CancellationToken cancellationToken)
     {
-        IsCommandUser = User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD);
+        // The database roles access uses, not the sign-in cookie, so wording and access agree
+        // after a role change (review 2 fixes, Low 5).
+        IsCommandUser = await _deckService.IsCommandUserAsync(userId, cancellationToken);
         Decks = await _deckService.ListAsync(userId, cancellationToken);
         DeletedDecks = await _deckService.ListDeletedAsync(userId, cancellationToken);
 

@@ -1397,9 +1397,20 @@ if (root) {
   // set the Gaps count (pbd:studio-ready), however the two modules load (Codex review on #2950);
   // the flag is dropped so a reload does not repeat it.
   const startUrl = new URL(window.location.href);
-  if (startUrl.searchParams.get('generate') === '1') {
+  const generateFlag = startUrl.searchParams.get('generate') === '1';
+  if (generateFlag) {
     startUrl.searchParams.delete('generate');
     window.history.replaceState(window.history.state, '', startUrl);
+  }
+  // Generate needs both the ?generate=1 link and the one-time marker a plain Generate click in the
+  // library leaves in this tab: a pasted link does not generate, and an ordinary Open never
+  // consumes an earlier request. Any marker is cleared on arrival either way.
+  let generateMarked = false;
+  try {
+    generateMarked = window.sessionStorage.getItem(`prism.briefingDecks.generate.${deckId}`) === '1';
+    window.sessionStorage.removeItem(`prism.briefingDecks.generate.${deckId}`);
+  } catch { generateMarked = false; }
+  if (generateFlag && generateMarked) {
     const generateFromLibrary = () => {
       const form = root.querySelector('[data-pbd-generate-form]');
       const button = form?.querySelector('[data-pbd-generate]');
@@ -1609,7 +1620,7 @@ if (root) {
     blockList?.setAttribute('aria-busy', String(busy));
     blockSorters.forEach((sorter) => sorter.option('disabled', busy));
   };
-  const saveBlocks = async (changedType, before) => {
+  const saveBlocks = async (changedType, before, savedMessage = 'Saved.') => {
     if (deckId <= 0 || !root.dataset.blocksUrl) return;
     setBlocksBusy(true);
     setState(blockStatus, 'Saving…', 'saving');
@@ -1628,7 +1639,7 @@ if (root) {
         document.dispatchEvent(new CustomEvent('pbd:settings-saved', { detail: { changed: [setting] } }));
       }
       applyEditorState(payload?.deck);
-      setState(blockStatus, 'Saved.', 'saved');
+      setState(blockStatus, savedMessage, 'saved');
     } catch (error) {
       restoreBlocks(before);
       if (error instanceof RequestError && error.status === 409) {
@@ -1738,9 +1749,25 @@ if (root) {
       if (blocksBusy) return;
       const row = handle.closest('[data-pbd-block]');
       const before = snapshotBlocks();
-      if (row && moveRow(row, event.key === 'ArrowUp' ? -1 : 1)) {
+      const up = event.key === 'ArrowUp';
+      // Say where the slide went, or why it did not move (review 2 fixes, Low 7).
+      const zone = row?.closest('[data-pbd-block-zone]');
+      const zoneName = zone?.closest('section')?.querySelector('h5')?.textContent?.trim() || 'its group';
+      const position = () => {
+        const visible = [...(zone?.querySelectorAll('[data-pbd-block]') || [])].filter((item) => !item.hidden);
+        return `${visible.indexOf(row) + 1} of ${visible.length}`;
+      };
+      if (row && moveRow(row, up ? -1 : 1)) {
         handle.focus();
-        saveBlocks(row.dataset.type, before);
+        saveBlocks(row.dataset.type, before, `${row.dataset.name || 'Slide'} moved to position ${position()} in ${zoneName}.`);
+      } else if (row) {
+        // Stopped by a slide that stays in its place (the cover), or by the end of the group.
+        let next = up ? row.previousElementSibling : row.nextElementSibling;
+        while (next instanceof HTMLElement && next.hidden) next = up ? next.previousElementSibling : next.nextElementSibling;
+        const name = row.dataset.name || 'This slide';
+        setState(blockStatus, next instanceof HTMLElement && next.dataset.name
+          ? `${name} stays ${up ? 'after' : 'before'} ${next.dataset.name}, which keeps its place.`
+          : `${name} is already ${up ? 'first' : 'last'} in ${zoneName}.`, 'saved');
       }
     });
     if (typeof window.Sortable === 'function') {
