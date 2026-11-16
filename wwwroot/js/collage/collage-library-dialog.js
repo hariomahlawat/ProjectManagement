@@ -169,6 +169,7 @@
       const files = [];
       const failed = [];
       const tooBig = [];
+      const tooLarge = [];
       busy(chosen.length === 1 ? 'Getting the photo from PRISM Photos…' : `Getting ${chosen.length} photos from PRISM Photos…`);
       try {
         for (const photo of chosen) {
@@ -178,9 +179,9 @@
             continue;
           }
           try {
-            files.push(await library.readLibraryPhoto(photo));
-          } catch {
-            failed.push(photo.title || 'A photo');
+            files.push(await library.readLibraryPhoto(photo, { maxBytes: core.PHOTO_LIMITS.maxBytes }));
+          } catch (error) {
+            (error?.reason === 'too-large' ? tooLarge : failed).push(photo.title || 'A photo');
           }
           if (forCollage !== session()) return;
         }
@@ -190,10 +191,11 @@
       library_.chosen.clear();
       renderLibraryChosen();
       if (files.length) await addFiles(files, { frameId });
-      if (forCollage !== session() || (!tooBig.length && !failed.length)) return;
+      if (forCollage !== session() || (!tooBig.length && !tooLarge.length && !failed.length)) return;
       // One message for everything left out, after the import's own message if it had one.
       const notes = [currentAlert()];
       if (tooBig.length) notes.push(core.refusedMessage(tooBig.map((name) => ({ name, reason: 'too-many-pixels' }))));
+      if (tooLarge.length) notes.push(core.refusedMessage(tooLarge.map((name) => ({ name, reason: 'too-large' }))));
       if (failed.length) {
         const names = failed.length === 1 ? `“${failed[0]}”` : `${failed.length} photos`;
         notes.push(`${names} could not be read from PRISM Photos. Try again, or add ${failed.length === 1 ? 'it' : 'them'} from your computer.`);

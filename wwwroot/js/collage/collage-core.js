@@ -106,7 +106,8 @@
     const refused = [];
     let room = Math.max(0, PHOTO_LIMITS.maxPhotos - (already || 0));
     for (const file of files) {
-      if (!file.type) refused.push({ name: file.name, reason: 'not-photo' });
+      if (file.unreadable) refused.push({ name: file.name, reason: 'unreadable' });
+      else if (!file.type) refused.push({ name: file.name, reason: 'not-photo' });
       else if (file.size > PHOTO_LIMITS.maxBytes) refused.push({ name: file.name, reason: 'too-large' });
       else if (room <= 0) refused.push({ name: file.name, reason: 'too-many' });
       else { accepted.push(file); room -= 1; }
@@ -1210,8 +1211,21 @@
       redo() { if (at < list.length - 1) at += 1; return JSON.parse(list[at]); },
       canUndo: () => at > 0,
       canRedo: () => at < list.length - 1,
-      current: () => JSON.parse(list[at])
+      current: () => JSON.parse(list[at]),
+      /** True when any step Undo or Redo can reach shows this photo (in a frame or as the background). */
+      mentions: (photoId) => {
+        const mark = `"photo":${JSON.stringify(String(photoId))}`;
+        return list.some((snapshot) => snapshot.includes(mark));
+      }
     };
+  }
+
+  /** The ids of the photos a collage shows: in its items, and as its background. */
+  function photosInUse(collage) {
+    const used = new Set();
+    for (const item of collage?.items || []) if (item.kind === 'photo' && item.photo) used.add(item.photo);
+    if (collage?.background?.type === 'photo' && collage.background.photo) used.add(collage.background.photo);
+    return used;
   }
 
   return Object.freeze({
@@ -1303,6 +1317,7 @@
     DRAFT_UNDO_MS,
     readDraftModel,
     sortDrafts,
+    photosInUse,
     draftToMakeRoom,
     savedAgo,
     createHistory

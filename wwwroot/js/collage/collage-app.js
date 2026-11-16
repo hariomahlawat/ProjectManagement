@@ -299,7 +299,7 @@
       autoTitle: !nameInput.value.trim(),
       model: collage,
       size: collage.size,
-      photos: [...photos.values()],
+      photos: keptPhotos(),
       thumbnail: views.editor.hidden ? '' : pageThumbnail(),
       hasContent: hasContent()
     }),
@@ -1164,6 +1164,11 @@
 
   function restore(next) {
     collage = next;
+    // Undo or Redo bringing back a removed photo puts it back in the tray.
+    for (const id of core.photosInUse(collage)) {
+      const photo = photos.get(id);
+      if (photo?.removed) photo.removed = false;
+    }
     refreshTitle();
     if (panel === 'background') renderBackgroundPanel();
     scheduleDraft();
@@ -1209,7 +1214,7 @@
   /** Photos in the tray that are not on the page, in the order they were added. */
   const sparePhotos = () => {
     const used = new Set(collage.items.filter((item) => item.kind === 'photo').map((item) => item.photo));
-    return [...photos.keys()].filter((id) => !used.has(id));
+    return [...photos.keys()].filter((id) => !used.has(id) && !photos.get(id).removed);
   };
 
   function applyLayoutKey(key) {
@@ -2027,7 +2032,9 @@
     const files = [...fileList];
     if (!files.length) return importQueue;
     const forCollage = collageSession;
-    importQueue = importQueue.then(() => importFiles(files, options, forCollage)).catch(() => {});
+    importQueue = importQueue.then(() => importFiles(files, options, forCollage)).catch(() => {
+      if (forCollage === collageSession) showAlert('The photos could not be added. Try again, or add them one at a time.');
+    });
     return importQueue;
   }
 
@@ -2039,14 +2046,18 @@
     busy(files.length === 1 ? 'Adding the photo…' : `Adding ${files.length} photos…`);
     const added = [];
     try {
-      const entries = await Promise.all(files.map(async (file) => ({
-        file,
-        name: file.name || 'Pasted photo',
-        size: file.size,
-        type: core.sniffImageType(new Uint8Array(await file.slice(0, 16).arrayBuffer()))
-      })));
+      const entries = await Promise.all(files.map(async (file) => {
+        const entry = { file, name: file.name || 'Pasted photo', size: file.size, type: null };
+        try {
+          entry.type = core.sniffImageType(new Uint8Array(await file.slice(0, 16).arrayBuffer()));
+        } catch {
+          // A file that changed or went away after it was picked (a phone's cloud file).
+          entry.unreadable = true;
+        }
+        return entry;
+      }));
       if (!stillOpen()) return;
-      const { accepted, refused } = core.checkPhotos(entries, photos.size);
+      const { accepted, refused } = core.checkPhotos(entries, photosInCollage());
       // One at a time, so a pile of large phone photos is never all decoded at once.
       for (const entry of accepted) {
         let photo;
@@ -2083,7 +2094,7 @@
     busy,
     showAlert,
     addFiles,
-    photoCount: () => photos.size,
+    photoCount: () => photosInCollage(),
     session: () => collageSession,
     frameTarget: () => {
       const selected = selectedItem();
@@ -2107,10 +2118,15 @@
   function renderTrayNow() {
     const used = new Map();
     for (const item of collage.items) if (item.kind === 'photo') used.set(item.photo, (used.get(item.photo) || 0) + 1);
+    const background = collage.background?.type === 'photo' ? collage.background.photo : null;
     tray.textContent = '';
     for (const photo of photos.values()) {
+      if (photo.removed) continue;
+      const tile = document.createElement('div');
+      tile.className = 'clg-tray__item';
       const button = document.createElement('button');
       button.type = 'button';
+      button.className = 'clg-tray__photo';
       button.draggable = true;
       button.dataset.trayPhoto = photo.id;
       button.title = `Add “${photo.name}” to the page`;
@@ -2120,18 +2136,70 @@
       img.alt = '';
       button.appendChild(img);
       const times = used.get(photo.id) || 0;
-      if (times) {
+      if (times || photo.id === background) {
         const badge = document.createElement('span');
         badge.className = 'clg-tray__used';
-        badge.textContent = times > 1 ? `${times}×` : 'Used';
+        badge.textContent = times > 1 ? `${times}×` : times ? 'Used' : 'Background';
         button.appendChild(badge);
       }
-      tray.appendChild(button);
+      tile.appendChild(button);
+      // Only a photo the page does not show can be taken out of the collage.
+      if (!times && photo.id !== background) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'clg-tray__remove';
+        remove.dataset.removePhoto = photo.id;
+        remove.title = 'Remove from this collage';
+        remove.setAttribute('aria-label', `Remove ${photo.name} from this collage`);
+        remove.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
+        tile.appendChild(remove);
+      }
+      tray.appendChild(tile);
     }
-    photoCount.textContent = photos.size ? `${photos.size} of ${core.PHOTO_LIMITS.maxPhotos} photos` : '';
+    const count = photosInCollage();
+    photoCount.textContent = count ? `${count} of ${core.PHOTO_LIMITS.maxPhotos} photos` : '';
+  }
+
+  /** Photos in this collage: the tray's, without ones removed. */
+  function photosInCollage() {
+    let count = 0;
+    for (const photo of photos.values()) if (!photo.removed) count += 1;
+    return count;
+  }
+
+  /** The photos the draft keeps: every photo not removed, and any the page still shows. */
+  function keptPhotos() {
+    const inUse = core.photosInUse(collage);
+    return [...photos.values()].filter((photo) => !photo.removed || inUse.has(photo.id));
+  }
+
+  /**
+   * Takes a photo the page does not show out of the collage: out of the tray, the photo count and
+   * the draft. While Undo can still bring back a step that shows it, it is kept in memory.
+   */
+  function removePhoto(id) {
+    const photo = photos.get(id);
+    if (!photo || core.photosInUse(collage).has(id)) return;
+    photo.removed = true;
+    forgetRemovedPhotos();
+    scheduleDraft();
+    renderTray();
+    announce(`${photo.name} removed from this collage.`);
+    // Focus goes to the next photo in the tray, or to "Add photos" when none is left.
+    (tray.querySelector('[data-tray-photo]') || $('[data-action="choose"]'))?.focus();
+  }
+
+  /** Lets go of removed photos that no Undo or Redo step shows any more. */
+  function forgetRemovedPhotos() {
+    for (const photo of [...photos.values()]) {
+      if (!photo.removed || history.mentions(photo.id)) continue;
+      photos.delete(photo.id);
+    }
   }
 
   tray.addEventListener('click', (event) => {
+    const removing = event.target.closest('[data-remove-photo]');
+    if (removing) { removePhoto(removing.dataset.removePhoto); return; }
     const button = event.target.closest('[data-tray-photo]');
     const photo = button && photos.get(button.dataset.trayPhoto);
     if (!photo) return;
@@ -2202,6 +2270,8 @@
   document.addEventListener('paste', (event) => {
     if (views.editor.hidden || leaving) return;
     if (event.target.closest?.('input, textarea, [contenteditable]')) return;
+    // Paste waits while a dialog (Save, Credits, PRISM Photos, a question) is open.
+    if (root.querySelector('dialog[open]') || document.querySelector('.modal.show')) return;
     const files = [...(event.clipboardData?.files || [])].filter((file) => file.type.startsWith('image/'));
     if (!files.length) {
       showAlert('There is no photo on the clipboard. Copy a photo or a screenshot first.');

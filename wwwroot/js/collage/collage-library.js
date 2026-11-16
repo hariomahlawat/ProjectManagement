@@ -65,13 +65,24 @@
     return stem.toLowerCase().endsWith(ending) ? stem : `${stem}${ending}`;
   }
 
-  /** A listed photo's original, read into the browser as a File, ready for the usual checks. */
-  async function readLibraryPhoto(photo) {
+  /**
+   * A listed photo's original, read into the browser as a File, ready for the usual checks. With
+   * maxBytes, a photo the server says is larger is refused before its body is read (an error whose
+   * reason is 'too-large').
+   */
+  async function readLibraryPhoto(photo, { maxBytes = 0 } = {}) {
     const address = String(photo?.url || '');
     if (!LIBRARY_PICTURE.test(address)) throw new Error('Not a PRISM Photos picture');
     const response = await fetch(address, { credentials: 'same-origin' });
     if (!response.ok) throw new Error(`PRISM Photos picture: ${response.status}`);
+    const tooLarge = () => Object.assign(new Error('Larger than a collage takes'), { reason: 'too-large' });
+    const declared = Number(response.headers?.get?.('Content-Length'));
+    if (maxBytes && declared > maxBytes) {
+      try { await response.body?.cancel(); } catch { /* nothing more to read */ }
+      throw tooLarge();
+    }
     const blob = await response.blob();
+    if (maxBytes && blob.size > maxBytes) throw tooLarge();
     return new File([blob], fileNameFor(photo.title, blob.type), { type: blob.type });
   }
 
