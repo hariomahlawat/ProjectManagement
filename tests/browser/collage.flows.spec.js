@@ -3,7 +3,7 @@
 // The main Collage Studio flows in a real browser (docs/ux/collage-review-fixes.md, PR 11).
 
 const { test, expect } = require('@playwright/test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, photoFile, newestDraft, showLayers } = require('./helpers');
 
 async function startBlank(page) {
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
@@ -31,6 +31,7 @@ test('a draft reopens after a reload with its photo and the words typed', async 
   await expect(card).toContainText('Farewell Col Rao');
   await card.click();
   await expect(page.locator('[data-photo-count]')).toHaveText('1 of 60 photos');
+  await showLayers(page);
   await expect(page.locator('.clg-layer__name')).toContainText(['Farewell Col Rao', 'team.jpg']);
   expect(errors).toEqual([]);
 });

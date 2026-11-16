@@ -5,7 +5,7 @@
 // the layout's frames wait in the tray, and new words do not land on earlier ones.
 
 const { test, expect } = require('@playwright/test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, photoFile, newestDraft, showLayers, showSettings } = require('./helpers');
 
 async function photos(page, count) {
   const files = [];
@@ -19,6 +19,7 @@ test('a photo deleted from a layout leaves its frame empty, and the toast brings
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 3));
   await expect.poll(async () => (await newestDraft(page))?.model.items.map((i) => i.kind)).toEqual(['photo', 'photo', 'photo']);
 
+  await showLayers(page);
   await page.locator('[data-layer-select]').first().click();
   await page.locator('[data-action="delete"][data-for="item"]').click();
   await expect.poll(async () => (await newestDraft(page))?.model.items.map((i) => i.kind).sort()).toEqual(['photo', 'photo', 'slot']);
@@ -74,7 +75,9 @@ test('any photo can have a caption, shown on a strip under it and kept in the dr
   const errors = await openFresh(page);
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
+  await showLayers(page);
   await page.locator('[data-layer-select]').first().click();
+  await showSettings(page);
   const caption = page.locator('.clg-props [data-caption]');
   await expect(caption).toBeVisible();
   await expect(page.locator('#clgCaptionHint')).toContainText('white strip');
@@ -115,9 +118,54 @@ test('Preview leaves out the empty frames, as Save does; a white frame gets a sh
   await page.keyboard.press('Escape');
   expect(await visibleSlots()).toBe(2);
 
+  await showLayers(page);
   const photoRow = page.locator('[data-layer-select]').filter({ hasText: 'p0.jpg' });
   await photoRow.click();
+  await showSettings(page);
   await page.locator('.clg-props [data-finish="frame"][data-value="border"]').click();
   await expect.poll(async () => (await newestDraft(page))?.model.items.find((i) => i.kind === 'photo')).toMatchObject({ frame: 'border', shadow: true });
+  expect(errors).toEqual([]);
+});
+
+test('settings: rarely used groups are folded and stay open once opened; Layers is a tab', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^A4 landscape/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
+  const order = page.locator('.clg-props [data-fold="order"]');
+  await expect(order).not.toHaveAttribute('open', '');
+  await expect(page.locator('.clg-props [data-action="forward"]')).toBeHidden();
+  await order.locator('summary').click();
+  await expect(page.locator('.clg-props [data-action="forward"]')).toBeVisible();
+  // Drawn again after a change, it is still open.
+  await page.locator('.clg-props [data-finish="shape"][data-value="oval"]').click();
+  await expect(page.locator('.clg-props [data-fold="order"]')).toHaveAttribute('open', '');
+
+  // Layers: a tab, with the arrow keys moving between the two tabs.
+  await page.locator('.clg-props [data-props-tab="settings"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.clg-props [data-props-tab="layers"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.clg-props [data-layer-select]')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test('arrow keys on the tabs do not move the selected item; choosing it on the page shows Settings', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^A4 landscape/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
+  await expect(page.locator('[data-draft-status]')).toHaveText('Draft saved in this browser');
+  const before = (await newestDraft(page)).model.items[0];
+  await page.locator('.clg-props [data-props-tab="settings"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForTimeout(700);
+  const after = (await newestDraft(page)).model.items[0];
+  expect([after.x, after.y]).toEqual([before.x, before.y]);
+
+  // Picked in Layers, then chosen again on the page: its settings come back.
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]').first().click();
+  const box = await page.locator('[data-konva] canvas').last().boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator('.clg-props [data-props-tab="settings"]')).toHaveAttribute('aria-selected', 'true');
   expect(errors).toEqual([]);
 });

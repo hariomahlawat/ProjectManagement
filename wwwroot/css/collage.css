@@ -475,6 +475,96 @@
     margin: 0 0 0.5rem;
 }
 
+/* Settings and Layers, two tabs at the top of the settings panel. */
+.clg-props-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin: 0 0 0.75rem;
+    padding: 0.2rem;
+    border-radius: 0.6rem;
+    background: var(--bs-tertiary-bg);
+}
+
+.clg-props-tab {
+    flex: 1 1 0;
+    padding: 0.35rem 0.5rem;
+    border: 0;
+    border-radius: 0.45rem;
+    background: transparent;
+    color: var(--pdft-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.clg-props-tab[aria-selected="true"] {
+    background: var(--bs-body-bg);
+    color: var(--bs-emphasis-color);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--bs-dark) 18%, transparent);
+}
+
+.clg-props-tab:focus-visible {
+    outline: 2px solid var(--clg-accent);
+    outline-offset: 1px;
+}
+
+.clg-props-tab__count {
+    display: inline-block;
+    min-width: 1.3rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--clg-accent) 16%, transparent);
+    font-size: 0.72rem;
+}
+
+/* Groups used less often, folded until opened. */
+.clg-fold {
+    padding: 0;
+}
+
+.clg-fold__title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.65rem 0;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pdft-muted);
+    font-weight: 800;
+}
+
+.clg-fold__title::-webkit-details-marker {
+    display: none;
+}
+
+.clg-fold__title::after {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+    margin-right: 0.2rem;
+}
+
+.clg-fold[open] > .clg-fold__title::after {
+    transform: rotate(-135deg);
+}
+
+.clg-fold__title:focus-visible {
+    outline: 2px solid var(--clg-accent);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+}
+
+.clg-fold__body {
+    padding: 0 0 0.75rem;
+}
+
 .clg-field {
     display: block;
     margin: 0.5rem 0;
