@@ -141,7 +141,8 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-panels.js` | The left drawer and the settings panel with its Settings and Layers tabs |
 | `wwwroot/js/collage/collage-tray.js` | Photos: choosing, dropping, pasting, reading in, the tray, From PRISM Photos |
 | `wwwroot/js/collage/collage-keys.js` | The keyboard and the mouse wheel |
-| `wwwroot/js/collage/collage-app.js` | The editor itself (about 1,250 lines): its state, selection and the toolbar, moving a photo in its frame, the change actions, and creating the parts above. Each part is made once with the helpers it uses and `app`, the editor's view of its own state (read when used, never before it exists) |
+| `wwwroot/js/collage/collage-state.js` | The editor's values as the parts see them: `state` reads them and cannot set them (an assignment throws), each part is handed only the named changes it owns (the tray chooses a photo it placed with `choose(id)`; the page sets its own zoom and scale), and `parts` reaches the parts made later |
+| `wwwroot/js/collage/collage-app.js` | The editor itself: its values, selection and the toolbar, moving a photo in its frame, the change actions, and creating the parts above, each with the helpers it uses, `state` and its own named changes |
 | `wwwroot/css/collage.css` | All styles, Bootstrap variables only (Light and Dark) |
 
 Photo handling keeps memory low: the editor draws a working copy at most 2000 px on its long side,

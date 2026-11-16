@@ -1,6 +1,7 @@
 // PRISM Collage Studio — the keyboard (shortcuts, nudges, Enter and Esc) and the mouse wheel
 // Moved out of the editor in docs/ux/collage-review-2-fixes.md, PR 13; collage-app.js creates it
-// once, handing over the helpers it uses and `app`, the editor's view of its own state.
+// once, handing over the helpers it uses, `state` (the editor's values, read only) and the named
+// changes this part may make (collage-state.js, docs/ux/collage-review-3-fixes.md, PR 10).
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -10,24 +11,24 @@
   'use strict';
 
   function createKeys(deps) {
-    const { app, core, views, stageBox, props, photos, itemById, selectedItem, announce, setShift, stopPreview, setZoom, syncPage, select, stopAdjust, zoomCrop, holdEdit, changeSelected, act, focusTextField, setTarget } = deps;
+    const { state, change, core, views, stageBox, props, photos, itemById, selectedItem, announce, setShift, stopPreview, setZoom, syncPage, select, stopAdjust, zoomCrop, holdEdit, changeSelected, act, focusTextField, setTarget } = deps;
     // ---------------------------------------------------------------------------
     // Keyboard and the mouse wheel
     // ---------------------------------------------------------------------------
 
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Shift') setShift(true);
-      if (views.editor.hidden || app.leaving || document.querySelector('dialog[open]')) return;
+      if (views.editor.hidden || state.leaving || document.querySelector('dialog[open]')) return;
       const typing = event.target.closest?.('input, textarea, select, [contenteditable]');
       // Enter on a button, link or tile belongs to it; only Enter on the page itself acts on the item.
       const onPage = event.target === document.body || stageBox.contains(event.target);
       const key = event.key.toLowerCase();
       const mod = event.ctrlKey || event.metaKey;
-      if (key === 'escape' && app.previewing) { stopPreview(); return; }
+      if (key === 'escape' && state.previewing) { stopPreview(); return; }
       if (key === 'escape') {
         if (typing) event.target.blur();
-        else if (app.adjustId) stopAdjust();
-        else if (app.targetId) setTarget(null);
+        else if (state.adjustId) stopAdjust();
+        else if (state.targetId) setTarget(null);
         else select(null);
         return;
       }
@@ -36,18 +37,18 @@
       if (mod && key === 'z' && !event.shiftKey) { event.preventDefault(); act('undo'); }
       else if (mod && (key === 'y' || (key === 'z' && event.shiftKey))) { event.preventDefault(); act('redo'); }
       else if (mod && key === 'd') { event.preventDefault(); act('duplicate'); }
-      else if ((key === 'delete' || key === 'backspace') && app.selectedId) { event.preventDefault(); act('delete'); }
+      else if ((key === 'delete' || key === 'backspace') && state.selectedId) { event.preventDefault(); act('delete'); }
       else if (key === ']') act(event.shiftKey ? 'front' : 'forward');
       else if (key === '[') act(event.shiftKey ? 'back' : 'backward');
-      else if (key === 'enter' && onPage && selectedItem()?.kind === 'photo' && !app.adjustId) act('adjust');
+      else if (key === 'enter' && onPage && selectedItem()?.kind === 'photo' && !state.adjustId) act('adjust');
       else if (key === 'enter' && onPage && selectedItem()?.kind === 'text') { event.preventDefault(); focusTextField(); }
-      else if (key.startsWith('arrow') && app.selectedId && selectedItem()?.hidden) { event.preventDefault(); announce('It is hidden. Show it from Layers first.'); }
-      else if (key.startsWith('arrow') && app.selectedId && selectedItem()?.locked) { event.preventDefault(); announce('It is locked. Unlock it first.'); }
-      else if (key.startsWith('arrow') && app.selectedId) {
+      else if (key.startsWith('arrow') && state.selectedId && selectedItem()?.hidden) { event.preventDefault(); announce('It is hidden. Show it from Layers first.'); }
+      else if (key.startsWith('arrow') && state.selectedId && selectedItem()?.locked) { event.preventDefault(); announce('It is locked. Unlock it first.'); }
+      else if (key.startsWith('arrow') && state.selectedId) {
         event.preventDefault();
         const step = event.shiftKey ? 10 : 1;
         const item = selectedItem();
-        if (app.adjustId === item.id) {
+        if (state.adjustId === item.id) {
           // Arrows move the photo inside its frame while it is being adjusted.
           const photo = photos.get(item.photo);
           const dx = key === 'arrowleft' ? -step : key === 'arrowright' ? step : 0;
@@ -69,7 +70,7 @@
     window.addEventListener('blur', () => setShift(false));
 
     stageBox.addEventListener('wheel', (event) => {
-      const item = app.adjustId && itemById(app.adjustId);
+      const item = state.adjustId && itemById(state.adjustId);
       if (item) {
         // The wheel zooms the photo inside its frame while it is being adjusted.
         event.preventDefault();
@@ -86,11 +87,8 @@
       }
       if (!event.ctrlKey) return;
       event.preventDefault();
-      setZoom(app.zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1));
+      setZoom(state.zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1));
     }, { passive: false });
-
-
-    return {  };
   }
 
   return Object.freeze({ createKeys });

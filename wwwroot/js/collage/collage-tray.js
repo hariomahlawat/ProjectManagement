@@ -1,6 +1,7 @@
 // PRISM Collage Studio — photos: choosing, dropping and pasting them, reading them in, the tray, and From PRISM Photos
 // Moved out of the editor in docs/ux/collage-review-2-fixes.md, PR 13; collage-app.js creates it
-// once, handing over the helpers it uses and `app`, the editor's view of its own state.
+// once, handing over the helpers it uses, `state` (the editor's values, read only) and the named
+// changes this part may make (collage-state.js, docs/ux/collage-review-3-fixes.md, PR 10).
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -10,7 +11,7 @@
   'use strict';
 
   function createTray(deps) {
-    const { app, $, root, core, library, views, fileInput, stageBox, tray, photoCount, replaceBanner, alertBox, changes, photos, nextId, newItemId, itemById, selectedItem, pageHeight, firstSlot, keepingFocus, announce, showAlert, busy, session, scheduleDraft, stage, world, layout, commit, setPanel } = deps;
+    const { state, change, $, root, core, library, views, fileInput, stageBox, tray, photoCount, replaceBanner, changes, photos, nextId, newItemId, itemById, selectedItem, pageHeight, firstSlot, keepingFocus, announce, showAlert, busy, session, scheduleDraft, stage, world, layout, commit, setPanel } = deps;
     // ---------------------------------------------------------------------------
     // Photos: choose, drop, paste, and the tray
     // ---------------------------------------------------------------------------
@@ -20,7 +21,7 @@
      * selected frame") until a photo is chosen or Cancel is pressed.
      */
     function setTarget(id) {
-      app.targetId = id;
+      change.setTargetId(id);
       const item = id && itemById(id);
       replaceBanner.hidden = !item;
       if (item) {
@@ -49,31 +50,31 @@
     function placePhoto(photo, { frameId = null, at = null, among = 1 } = {}) {
       // A locked frame keeps its photo: the new one goes where it would go with no frame chosen.
       const asked = frameId && itemById(frameId);
-      const frame = (asked && !asked.locked ? asked : null) || (!at ? (core.bestSlotFor(app.collage.items, photo.aspect) || firstSlot()) : null);
-      if (!frame && !at && app.collage.layout) return false;
+      const frame = (asked && !asked.locked ? asked : null) || (!at ? (core.bestSlotFor(state.collage.items, photo.aspect) || firstSlot()) : null);
+      if (!frame && !at && state.collage.layout) return false;
       if (frame && frame.kind === 'slot') {
         const filled = core.fillSlot(frame, photo.id);
-        app.collage.items[app.collage.items.indexOf(frame)] = filled;
-        app.selectedId = filled.id;
+        state.collage.items[state.collage.items.indexOf(frame)] = filled;
+        change.choose(filled.id);
         return true;
       }
       if (frame && frame.kind === 'photo') {
         frame.photo = photo.id;
         frame.crop = { ...core.FULL_CROP };
-        app.selectedId = frame.id;
+        change.choose(frame.id);
         return true;
       }
       // A photo placed freely means the page is no longer a strict grid, so changing the space
       // would not silently take it off the page.
-      app.collage.layout = null;
-      const count = app.collage.items.filter((i) => i.kind === 'photo').length;
+      state.collage.layout = null;
+      const count = state.collage.items.filter((i) => i.kind === 'photo').length;
       // Several photos on a page with no layout go into a neat grid, each fully in view.
-      const place = (!at && core.gridPlace(app.collage.items, app.collage.size, photo.aspect, count + among))
-        || core.placeNewPhoto(app.collage.size, photo.aspect, count);
+      const place = (!at && core.gridPlace(state.collage.items, state.collage.size, photo.aspect, count + among))
+        || core.placeNewPhoto(state.collage.size, photo.aspect, count);
       if (at) { place.x = at.x; place.y = at.y; }
       const item = core.photoItem(newItemId(), photo.id, photo.aspect, place);
-      app.collage.items.push(item);
-      app.selectedId = item.id;
+      state.collage.items.push(item);
+      change.choose(item.id);
       return true;
     }
 
@@ -88,16 +89,16 @@
     function addFiles(fileList, options = {}) {
       const files = [...fileList];
       if (!files.length) return importQueue;
-      const forCollage = app.collageSession;
+      const forCollage = state.collageSession;
       importQueue = importQueue.then(() => importFiles(files, options, forCollage)).catch(() => {
-        if (forCollage === app.collageSession) showAlert('The photos could not be added. Try again, or add them one at a time.');
+        if (forCollage === state.collageSession) showAlert('The photos could not be added. Try again, or add them one at a time.');
       });
       return importQueue;
     }
 
     async function importFiles(files, { at = null, frameId = null } = {}, forCollage) {
       // A collage left before its photos were read gets none of them, and neither does the next.
-      const stillOpen = () => forCollage === app.collageSession;
+      const stillOpen = () => forCollage === state.collageSession;
       if (!stillOpen()) return;
       showAlert('');
       busy(files.length === 1 ? 'Adding the photo…' : `Adding ${files.length} photos…`);
@@ -169,10 +170,10 @@
       showAlert,
       addFiles,
       photoCount: () => photosInCollage(),
-      session: () => app.collageSession,
+      session: () => state.collageSession,
       frameTarget: () => {
         const selected = selectedItem();
-        return app.targetId || (selected?.kind === 'slot' ? selected.id : null);
+        return state.targetId || (selected?.kind === 'slot' ? selected.id : null);
       },
       currentAlert: () => $('[data-alert-text]').textContent
     });
@@ -182,7 +183,7 @@
       fileInput.value = '';
       // An empty frame that is selected takes the photo, as it does from the tray or a paste.
       const selected = selectedItem();
-      addFiles(files, { frameId: app.targetId || (selected?.kind === 'slot' ? selected.id : null) });
+      addFiles(files, { frameId: state.targetId || (selected?.kind === 'slot' ? selected.id : null) });
     });
 
     function renderTray() {
@@ -191,8 +192,8 @@
 
     function renderTrayNow() {
       const used = new Map();
-      for (const item of app.collage.items) if (item.kind === 'photo') used.set(item.photo, (used.get(item.photo) || 0) + 1);
-      const background = app.collage.background?.type === 'photo' ? app.collage.background.photo : null;
+      for (const item of state.collage.items) if (item.kind === 'photo') used.set(item.photo, (used.get(item.photo) || 0) + 1);
+      const background = state.collage.background?.type === 'photo' ? state.collage.background.photo : null;
       tray.textContent = '';
       for (const photo of photos.values()) {
         if (photo.removed) continue;
@@ -243,7 +244,7 @@
 
     /** The photos the draft keeps: every photo not removed, and any the page still shows. */
     function keptPhotos() {
-      const inUse = core.photosInUse(app.collage);
+      const inUse = core.photosInUse(state.collage);
       return [...photos.values()].filter((photo) => !photo.removed || inUse.has(photo.id));
     }
 
@@ -253,7 +254,7 @@
      */
     function removePhoto(id) {
       const photo = photos.get(id);
-      if (!photo || photo.importing || core.photosInUse(app.collage).has(id)) return;
+      if (!photo || photo.importing || core.photosInUse(state.collage).has(id)) return;
       photo.removed = true;
       forgetRemovedPhotos();
       scheduleDraft();
@@ -280,7 +281,7 @@
       if (!photo) return;
       const selected = selectedItem();
       // An empty frame that is selected takes the photo; so does the frame being replaced.
-      const frameId = app.targetId || (selected?.kind === 'slot' ? selected.id : null);
+      const frameId = state.targetId || (selected?.kind === 'slot' ? selected.id : null);
       // Every frame of the layout has a photo: nothing changes, and the user is told how to make room.
       if (!placePhoto(photo, { frameId })) {
         showAlert('Every frame of this layout has a photo. Select a photo and use Replace, delete one to empty its frame, or choose a layout with more frames.');
@@ -351,7 +352,7 @@
     });
 
     document.addEventListener('paste', (event) => {
-      if (views.editor.hidden || app.leaving) return;
+      if (views.editor.hidden || state.leaving) return;
       if (event.target.closest?.('input, textarea, [contenteditable]')) return;
       // Paste waits while a dialog (Save, Credits, PRISM Photos, a question) is open.
       if (root.querySelector('dialog[open]') || document.querySelector('.modal.show')) return;
@@ -362,7 +363,7 @@
       }
       event.preventDefault();
       const selected = selectedItem();
-      addFiles(files, { frameId: app.targetId || (selected?.kind === 'slot' ? selected.id : null) });
+      addFiles(files, { frameId: state.targetId || (selected?.kind === 'slot' ? selected.id : null) });
     });
 
 

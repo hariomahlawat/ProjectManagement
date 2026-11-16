@@ -1,6 +1,7 @@
 // PRISM Collage Studio — the page: the Konva stage and layers, drawing each item (photos, frames, text, stickers), the handles, zoom, Preview and the page's size on screen
 // Moved out of the editor in docs/ux/collage-review-2-fixes.md, PR 13; collage-app.js creates it
-// once, handing over the helpers it uses and `app`, the editor's view of its own state.
+// once, handing over the helpers it uses, `state` (the editor's values, read only) and the named
+// changes this part may make (collage-state.js, docs/ux/collage-review-3-fixes.md, PR 10).
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -10,7 +11,7 @@
   'use strict';
 
   function createPage(deps) {
-    const { app, root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag, adjustHint, emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select, hideToolbar, placeToolbar, showAngle, startAdjust, stopAdjust, startPan, commit, updateUndo } = deps;
+    const { state, parts, change, root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag, emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select, hideToolbar, placeToolbar, showAngle, startAdjust, stopAdjust, startPan, commit, updateUndo } = deps;
     // ---------------------------------------------------------------------------
     // The page (Konva)
     // ---------------------------------------------------------------------------
@@ -29,8 +30,8 @@
     const backgroundShape = new Konva.Shape({
       x: 0, y: 0, width: core.PAGE_WIDTH, height: 10,
       sceneFunc: (context) => {
-        const pixelsPerUnit = app.scale * (backLayer.getCanvas().getPixelRatio?.() || 1);
-        draw.drawBackground(context._context, app.collage.background, core.PAGE_WIDTH, pageHeight(), { photo: backgroundPhoto(), pixelsPerUnit });
+        const pixelsPerUnit = state.scale * (backLayer.getCanvas().getPixelRatio?.() || 1);
+        draw.drawBackground(context._context, state.collage.background, core.PAGE_WIDTH, pageHeight(), { photo: backgroundPhoto(), pixelsPerUnit });
       }
     });
     backWorld.add(pageRect, backgroundShape);
@@ -44,8 +45,8 @@
 
     /** The photo behind the page when the background is a blurred photo: its working copy. */
     function backgroundPhoto() {
-      if (app.collage.background?.type !== 'photo') return null;
-      const photo = photos.get(app.collage.background.photo);
+      if (state.collage.background?.type !== 'photo') return null;
+      const photo = photos.get(state.collage.background.photo);
       return photo ? { source: photo.canvas, width: photo.canvas.width, height: photo.canvas.height } : null;
     }
     const nodes = new Map();
@@ -76,14 +77,14 @@
       borderStroke: accent(),
       borderStrokeWidth: 1.5,
       ignoreStroke: true,
-      boundBoxFunc: (oldBox, newBox) => (Math.abs(newBox.width) < core.ITEM_LIMITS.minWidth * app.scale
-        || Math.abs(newBox.height) < core.ITEM_LIMITS.minWidth * app.scale ? oldBox : newBox)
+      boundBoxFunc: (oldBox, newBox) => (Math.abs(newBox.width) < core.ITEM_LIMITS.minWidth * state.scale
+        || Math.abs(newBox.height) < core.ITEM_LIMITS.minWidth * state.scale ? oldBox : newBox)
     });
     layer.add(transformer);
 
     function setShift(held) {
-      if (held === app.shiftHeld) return;
-      app.shiftHeld = held;
+      if (held === state.shiftHeld) return;
+      change.setShiftHeld(held);
       transformer.rotationSnaps(held ? SHIFT_SNAPS : NORMAL_SNAPS);
       transformer.rotationSnapTolerance(held ? core.ANGLE_SNAP.stepWithShift / 2 : core.ANGLE_SNAP.within);
     }
@@ -113,9 +114,9 @@
         ? stageBox.clientHeight - top - (parseFloat(box.paddingBottom) || 0)
         : Math.max(120, sheetTop - stageBox.getBoundingClientRect().top - top);
       const fit = Math.min((stageBox.clientWidth - 2 * padX) / core.PAGE_WIDTH, (usableHeight - 2 * pad) / height);
-      app.scale = Math.max(0.05, fit * app.zoom);
-      const pageW = core.PAGE_WIDTH * app.scale;
-      const pageH = height * app.scale;
+      change.setScale(Math.max(0.05, fit * state.zoom));
+      const pageW = core.PAGE_WIDTH * state.scale;
+      const pageH = height * state.scale;
       // Rounded up to steps, so a pinch makes new canvases now and then, not at every move.
       const step = 128;
       // A page that fits the view keeps the view's own size (no rounding up past it, which would
@@ -134,14 +135,14 @@
       stageHost.style.width = `${stageW}px`;
       stageHost.style.height = `${stageH}px`;
       world.position({ x: (stageW - pageW) / 2, y: (stageH - pageH) / 2 });
-      world.scale({ x: app.scale, y: app.scale });
+      world.scale({ x: state.scale, y: state.scale });
       pageRect.height(height);
       backgroundShape.height(height);
       backWorld.position(world.position());
       backWorld.scale(world.scale());
       backLayer.batchDraw();
       itemsGroup.clip({ x: 0, y: 0, width: core.PAGE_WIDTH, height });
-      zoomValue.textContent = `${Math.round(app.zoom * 100)}%`;
+      zoomValue.textContent = `${Math.round(state.zoom * 100)}%`;
       layer.batchDraw();
       placeToolbar();
     }
@@ -153,7 +154,7 @@
 
     /** Shows the page alone, without panels or handles; Esc or Exit preview comes back. */
     function startPreview() {
-      app.previewing = true;
+      change.setPreviewing(true);
       stopAdjust(false);
       select(null);
       document.body.classList.add('clg-previewing');
@@ -166,8 +167,8 @@
     }
 
     function stopPreview() {
-      if (!app.previewing) return;
-      app.previewing = false;
+      if (!state.previewing) return;
+      change.setPreviewing(false);
       document.body.classList.remove('clg-previewing');
       layer.listening(true);
       syncPage();
@@ -177,7 +178,7 @@
     }
 
     function setZoom(value) {
-      app.zoom = Math.min(4, Math.max(0.25, value));
+      change.setZoomLevel(Math.min(4, Math.max(0.25, value)));
       layout();
     }
 
@@ -221,7 +222,7 @@
       const item = itemById(shape.id());
       const photo = item && photos.get(item.photo);
       if (!photo) return;
-      const pixelsPerUnit = app.scale * (layer.getCanvas().getPixelRatio?.() || 1);
+      const pixelsPerUnit = state.scale * (layer.getCanvas().getPixelRatio?.() || 1);
       draw.drawPhoto(context._context, item, photo.canvas, photo.canvas.width, photo.canvas.height, pixelsPerUnit);
     }
 
@@ -256,11 +257,11 @@
     /** Waits for every font the collage's text uses, so Save measures and draws the real fonts. */
     async function fontsReady() {
       if (!document.fonts) return;
-      const fonts = new Set(app.collage.items.filter((item) => item.kind === 'text').map((item) => core.fontOf(item, 40)));
+      const fonts = new Set(state.collage.items.filter((item) => item.kind === 'text').map((item) => core.fontOf(item, 40)));
       // A polaroid's caption is written in Caveat (Kalam for Hindi).
-      if (app.collage.items.some((item) => item.frame === 'polaroid' && item.caption)) fonts.add(`40px ${draw.CAPTION_FONT}`);
+      if (state.collage.items.some((item) => item.frame === 'polaroid' && item.caption)) fonts.add(`40px ${draw.CAPTION_FONT}`);
       // Other captions are on a strip, in Mulish (Noto Sans Devanagari for Hindi).
-      if (app.collage.items.some((item) => core.hasCaptionStrip(item))) fonts.add(draw.STRIP_FONT.replace('{size}', '40'));
+      if (state.collage.items.some((item) => core.hasCaptionStrip(item))) fonts.add(draw.STRIP_FONT.replace('{size}', '40'));
       await Promise.all([...fonts].map((font) => document.fonts.load(font, 'Aअ').catch(() => null)));
     }
 
@@ -317,7 +318,7 @@
       if (stickerImages.size <= 80) return;
       // A picture a sticker on the page uses now is never let go, however many there are, or it
       // would be loaded again on every draw.
-      const inUse = new Set(app.collage.items.filter((item) => item.kind === 'sticker').map((item) => stickerSource(item)));
+      const inUse = new Set(state.collage.items.filter((item) => item.kind === 'sticker').map((item) => stickerSource(item)));
       for (const key of stickerImages.keys()) {
         if (stickerImages.size <= 60) break;
         if (key.startsWith('data:') && !inUse.has(key)) stickerImages.delete(key);
@@ -331,7 +332,7 @@
       if (ready) lastStickerImage.set(item.id, ready);
       const image = ready || lastStickerImage.get(item.id);
       if (!image) return;
-      const pixelsPerUnit = app.scale * (layer.getCanvas().getPixelRatio?.() || 1);
+      const pixelsPerUnit = state.scale * (layer.getCanvas().getPixelRatio?.() || 1);
       draw.drawSticker(context._context, item, image, pixelsPerUnit);
     }
 
@@ -339,7 +340,7 @@
       const item = itemById(shape.id());
       if (!item) return;
       const layout = textLayouts.get(item.id) || layoutTextItem(item);
-      const pixelsPerUnit = app.scale * (layer.getCanvas().getPixelRatio?.() || 1);
+      const pixelsPerUnit = state.scale * (layer.getCanvas().getPixelRatio?.() || 1);
       draw.drawText(context._context, item, layout, pixelsPerUnit);
     }
 
@@ -358,15 +359,15 @@
       node.id(item.id);
       node.setAttr('kind', item.kind);
       node.on('pointerdown', (event) => {
-        if (app.adjustId === node.id()) { startPan(node, event); return; }
-        if (app.adjustId) stopAdjust();
+        if (state.adjustId === node.id()) { startPan(node, event); return; }
+        if (state.adjustId) stopAdjust();
         select(node.id());
       });
       node.on('dblclick dbltap', () => {
         const target = itemById(node.id());
         if (target?.kind === 'photo') startAdjust(target.id);
-        else if (target?.kind === 'slot') app.chooseFor(target.id);
-        else if (target?.kind === 'text') app.focusTextField();
+        else if (target?.kind === 'slot') parts.chooseFor(target.id);
+        else if (target?.kind === 'text') parts.focusTextField();
       });
       node.on('dragstart', () => { select(node.id()); hideToolbar(); });
       node.on('dragmove', (event) => snapWhileMoving(node, event.evt));
@@ -378,10 +379,10 @@
         target.y = node.y();
         commit();
       });
-      node.on('transformstart', () => { app.transforming = true; hideToolbar(); });
+      node.on('transformstart', () => { change.setTransforming(true); hideToolbar(); });
       node.on('transform', () => showAngle(node));
       node.on('transformend', () => {
-        app.transforming = false;
+        change.setTransforming(false);
         angleTag.hidden = true;
         const target = itemById(node.id());
         if (!target) return;
@@ -429,8 +430,8 @@
       const item = itemById(node.id());
       if (!item || event?.altKey) { layer.batchDraw(); return; }
       const box = core.turnedHalfBox(item.width, core.itemHeight(item), item.angle);
-      const others = app.collage.items.filter((i) => i.id !== item.id);
-      const snapped = core.snapMove({ x: node.x(), y: node.y(), ...box }, app.collage.size, others, core.SNAP_PIXELS / app.scale);
+      const others = state.collage.items.filter((i) => i.id !== item.id);
+      const snapped = core.snapMove({ x: node.x(), y: node.y(), ...box }, state.collage.size, others, core.SNAP_PIXELS / state.scale);
       node.position({ x: snapped.x, y: snapped.y });
       for (const guide of snapped.guides) {
         const points = guide.axis === 'x' ? [guide.at, -40, guide.at, pageHeight() + 40] : [-40, guide.at, core.PAGE_WIDTH + 40, guide.at];
@@ -443,13 +444,9 @@
     function syncPage() {
       // Moving a photo inside its frame belongs to the selected photo only: whatever selected
       // another item (a click, a photo placed from Photos, a duplicate) ends it.
-      if (app.adjustId && app.adjustId !== app.selectedId) {
-        app.adjustId = null;
-        app.pan = null;
-        adjustHint.hidden = true;
-      }
+      if (state.adjustId && state.adjustId !== state.selectedId) stopAdjust(false);
       const seen = new Set();
-      app.collage.items.forEach((item) => {
+      state.collage.items.forEach((item) => {
         let node = nodes.get(item.id);
         // A filled empty frame becomes a photo with the same id: its node is made again.
         if (node && node.getAttr('kind') !== item.kind) { node.destroy(); node = null; }
@@ -459,20 +456,20 @@
           itemsGroup.add(node);
         }
         applyItem(node, item);
-        node.draggable(app.adjustId !== item.id && !item.locked && !app.pinch);
+        node.draggable(state.adjustId !== item.id && !item.locked && !state.pinch);
         // Preview shows exactly what Save makes: empty frames are left out of both.
-        node.visible(!item.hidden && !(app.previewing && item.kind === 'slot'));
+        node.visible(!item.hidden && !(state.previewing && item.kind === 'slot'));
         seen.add(item.id);
       });
-      app.collage.items.forEach((item) => nodes.get(item.id).moveToTop());
+      state.collage.items.forEach((item) => nodes.get(item.id).moveToTop());
       for (const [id, node] of nodes) {
         if (!seen.has(id)) { node.destroy(); nodes.delete(id); }
       }
-      if (app.selectedId && !seen.has(app.selectedId)) app.selectedId = null;
-      if (app.adjustId && !seen.has(app.adjustId)) stopAdjust(false);
-      if (app.targetId && !seen.has(app.targetId)) app.setTarget(null);
+      if (state.selectedId && !seen.has(state.selectedId)) change.choose(null);
+      if (state.adjustId && !seen.has(state.adjustId)) stopAdjust(false);
+      if (state.targetId && !seen.has(state.targetId)) parts.setTarget(null);
       attachTransformer();
-      emptyHint.hidden = app.collage.items.length > 0;
+      emptyHint.hidden = state.collage.items.length > 0;
       backLayer.batchDraw();
       layer.batchDraw();
       placeToolbar();
@@ -480,11 +477,11 @@
 
     function attachTransformer() {
       // A hidden item keeps its settings and Layers row, but no handles on the page.
-      const node = app.selectedId && !itemById(app.selectedId)?.hidden && nodes.get(app.selectedId);
-      const adjusting = Boolean(app.adjustId && app.adjustId === app.selectedId);
+      const node = state.selectedId && !itemById(state.selectedId)?.hidden && nodes.get(state.selectedId);
+      const adjusting = Boolean(state.adjustId && state.adjustId === state.selectedId);
       transformer.nodes(node ? [node] : []);
-      const isText = Boolean(node && ['text', 'sticker'].includes(itemById(app.selectedId)?.kind));
-      const locked = Boolean(node && itemById(app.selectedId)?.locked);
+      const isText = Boolean(node && ['text', 'sticker'].includes(itemById(state.selectedId)?.kind));
+      const locked = Boolean(node && itemById(state.selectedId)?.locked);
       transformer.enabledAnchors(adjusting || locked ? [] : isText ? CORNER_ANCHORS : ALL_ANCHORS);
       transformer.rotateEnabled(!adjusting && !locked);
       transformer.borderStroke(adjusting ? ADJUST_COLOUR : locked ? LOCKED_COLOUR : accent());
@@ -492,12 +489,12 @@
     }
 
     function syncAll() {
-      sizeSelect.value = app.collage.size;
+      sizeSelect.value = state.collage.size;
       layout();
       syncPage();
-      app.renderTray();
-      app.renderLayoutPanel();
-      app.renderProps();
+      parts.renderTray();
+      parts.renderLayoutPanel();
+      parts.renderProps();
       updateUndo();
     }
 
