@@ -46,7 +46,7 @@
        data-pbd-profile-reopen="@Model.ReopenInstitutionalProfile.ToString().ToLowerInvariant()"
        aria-labelledby="pbd-profile-drawer-title"
        aria-hidden="true">
-    <form method="post" asp-page-handler="SaveInstitutionalProfile" data-pbd-profile-form>
+    <form method="post" asp-page-handler="SaveInstitutionalProfile" data-pbd-profile-form data-pbd-profile-in-deck="@(institutionalProfile.IncludeSlide ? "true" : "false")">
         <input type="hidden" name="DeckId" value="@deck.Id" />
         <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
         <header class="pbd-profile-drawer__header">
@@ -60,12 +60,6 @@
             </button>
         </header>
         <div class="pbd-profile-drawer__body">
-            <input type="checkbox"
-                   name="IncludeInstitutionalProfile"
-                   value="true"
-                   checked="@institutionalProfile.IncludeSlide"
-                   data-pbd-institutional-profile-enable
-                   hidden />
             <div class="pbd-additional-slide-editor-context">
                 <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>
                 <span>
