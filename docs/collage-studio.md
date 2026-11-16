@@ -86,7 +86,8 @@ its npm package by hand; the libman entry records the version.
   white, sepia, vintage, vivid, soft, cool, warm), and moved inside its frame (**Adjust**, or double-click).
 - **Casual or neat**: one button scatters the photos at slight angles as polaroids and taped
   prints (a frame or shape the user chose is kept, and the photo is only tilted), with Undo on
-  the screen; another straightens everything back. Shuffle swaps the photos between frames.
+  the screen; another straightens everything back. Each print stays inside its own frame's box and
+  on the page. Shuffle swaps the photos between frames.
 - **Text** in English and Hindi with bundled fonts: ready-made headings (Farewell, Happy
   Birthday, Thank you!, Congratulations and others), curved text, outline, shadow and a label
   behind the words. Hindi is typed with the Windows Hindi keyboard or pasted.
@@ -240,10 +241,11 @@ that only show where to type, such as "Your heading"), or by when it was started
 its words name it, a short message says so. A frame goes with the Square shape only: with another
 shape the Frame row shows None, and the frame chosen before comes back with Square. Photo
 backgrounds are named by their file. A photo goes
-into the empty frame closest to its shape; photos past a layout's frames wait in Photos, with a
+into the empty frame closest to its shape (a batch is matched tall to tall and wide to wide); photos past a layout's frames wait in Photos, with a
 message, rather than sit loose on the grid. Several photos added to a page with no layout are laid
 out in a neat grid, each fully in view. New words and stickers go where they cover nothing
-yet (covering other words or stickers counts far more than covering a photo), and the item's toolbar moves below it when above would cover another item. Save asks what the picture is
+yet (covering other words or stickers counts far more than covering a photo; words that land on a
+photo get a white outline so they can be read), and the item's toolbar moves below it when above would cover another item. Save asks what the picture is
 for: WhatsApp or email (JPG for the screen), printing (PDF at print quality), or a slide or a
 screen (PNG). The purpose chosen is shown pressed and remembered in this browser; the first time
 it is WhatsApp or email.

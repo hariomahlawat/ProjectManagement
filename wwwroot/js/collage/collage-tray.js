@@ -139,7 +139,14 @@
         // empty frames, then go near the centre.
         // Photos placed freely are laid out in a grid for all of them at once (`among`: those still
         // to come in this batch, this one included).
-        const waiting = placing.filter((photo, index) => !placePhoto(photo, { ...(index === 0 ? { frameId, at } : {}), among: placing.length - index }));
+        // On a layout, the batch is matched to the empty frames by shape (tall to tall) first.
+        const matched = !frameId && !at && state.collage.layout ? core.assignToSlots(state.collage.items, placing) : null;
+        // A photo the matching gave no frame waits in the tray; it never takes a frame meant for another.
+        const waiting = placing.filter((photo, index) => (matched && !matched.has(photo.id)) || !placePhoto(photo, {
+          ...(index === 0 ? { frameId, at } : {}),
+          ...(matched?.has(photo.id) ? { frameId: matched.get(photo.id) } : {}),
+          among: placing.length - index
+        }));
         if (placing.length) {
           setTarget(null);
           commit();

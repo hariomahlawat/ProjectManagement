@@ -1009,6 +1009,12 @@
    */
   function makeCasual(collage) {
     let n = 0;
+    // Each print stays inside the box its frame had (so prints overlap little) and on the page.
+    const settle = (print, before) => {
+      const box = turnedHalfBox(print.width, itemHeight(print), print.angle || 0);
+      const fits = Math.min(1, before.width / (2 * box.halfWidth), itemHeight(before) / (2 * box.halfHeight));
+      return keptOnPage({ ...print, width: Math.max(ITEM_LIMITS.minWidth, print.width * fits) }, collage.size);
+    };
     return {
       ...collage,
       layout: null,
@@ -1017,12 +1023,12 @@
         const i = n++;
         const angle = (i % 2 ? 1 : -1) * (3 + (i * 5) % 6);
         const moved = { ...item, angle, width: item.width * 0.9, x: item.x + ((i * 29) % 21) - 10, y: item.y + ((i * 17) % 17) - 8 };
-        if (item.kind !== 'photo') return moved;
+        if (item.kind !== 'photo') return settle(moved, item);
         // A frame or shape the user chose is kept; the photo is only tilted and moved.
-        if ((item.frame && item.frame !== 'none') || (item.shape && item.shape !== 'rect')) return { ...moved, shadow: true };
+        if ((item.frame && item.frame !== 'none') || (item.shape && item.shape !== 'rect')) return settle({ ...moved, shadow: true }, item);
         // Polaroids, with every third one taped, a shadow and the photo's own shape kept.
         const framed = { ...moved, shape: 'rect', frame: i % 3 === 2 ? 'tape' : 'polaroid', shadow: true };
-        return { ...framed, aspect: outerAspectFor(framed, innerAspect(moved)) };
+        return settle({ ...framed, aspect: outerAspectFor(framed, innerAspect(moved)) }, item);
       })
     };
   }
@@ -1173,6 +1179,37 @@
    * The empty frame whose shape is closest to a photo's (by how much one is wider than the
    * other), so a wide photo goes into a wide frame; the first such frame on a tie, or null.
    */
+  /**
+   * Which empty frame each photo of a batch goes into: the pairs that match best in shape are made
+   * first (a tall photo to a tall frame), so a batch is not filled in order regardless of shape.
+   * `photos` are { id, aspect }; returns a Map from photo id to frame id. Photos left over (more
+   * photos than frames) are not in it.
+   */
+  function assignToSlots(items, photos) {
+    const slots = (items || []).filter((item) => item.kind === 'slot' && !item.hidden && !item.locked && item.aspect > 0);
+    const pairs = [];
+    for (const photo of photos || []) {
+      if (!(photo.aspect > 0)) continue;
+      for (const slot of slots) pairs.push({ photo: photo.id, slot: slot.id, gap: Math.abs(Math.log(slot.aspect / photo.aspect)) });
+    }
+    pairs.sort((a, b) => a.gap - b.gap);
+    const chosen = new Map();
+    const used = new Set();
+    for (const pair of pairs) {
+      if (chosen.has(pair.photo) || used.has(pair.slot)) continue;
+      chosen.set(pair.photo, pair.slot);
+      used.add(pair.slot);
+    }
+    return chosen;
+  }
+
+  /** True when an item lies over a photo on the page by more than a sliver. */
+  function overPhoto(items, item) {
+    const box = turnedHalfBox(item.width, itemHeight(item), item.angle || 0);
+    const frame = { x: item.x, y: item.y, width: 2 * box.halfWidth, aspect: box.halfWidth / box.halfHeight };
+    return (items || []).some((other) => other !== item && other.kind === 'photo' && !other.hidden && coveredShare(frame, other) > LOCK_COVER_LIMIT);
+  }
+
   function bestSlotFor(items, aspect) {
     let best = null;
     let bestGap = Infinity;
@@ -1600,6 +1637,8 @@
     LOCK_BLOCKS,
     lockBlocks,
     lockedFrames,
+    assignToSlots,
+    overPhoto,
     framesLeftOut,
     keptOnPage,
     makeCasual,

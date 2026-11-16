@@ -1023,3 +1023,49 @@ test('a kept locked photo a little wider than half the page leaves out only the 
   assert.deepEqual(cells, [1, 3], 'the right-hand frames stay');
   assert.equal(laid.items.filter((i) => i.kind === 'photo' && !i.locked).length, 2, 'the other photos go into them');
 });
+
+const turnedBox = (i) => {
+  const r = (i.angle || 0) * Math.PI / 180;
+  const h = collage.itemHeight(i);
+  const hw = (i.width * Math.abs(Math.cos(r)) + h * Math.abs(Math.sin(r))) / 2;
+  const hh = (i.width * Math.abs(Math.sin(r)) + h * Math.abs(Math.cos(r))) / 2;
+  return { l: i.x - hw, r: i.x + hw, t: i.y - hh, b: i.y + hh };
+};
+
+test('"Make it casual" keeps every print on the page and each inside its own frame\'s box', () => {
+  for (const [size, key] of [['a4l', 't4'], ['a4p', 't3'], ['a4l', 't6']]) {
+    let n = 0;
+    const frames = collage.layoutFrames(size, key, 12).length;
+    const laid = collage.applyLayout(collage.newCollage(size), key, 12, 0, Array.from({ length: frames }, (_, i) => `p${i}`), () => `n${++n}`).collage;
+    const casual = collage.makeCasual(laid);
+    const height = collage.pageHeight(size);
+    casual.items.forEach((print, k) => {
+      const b = turnedBox(print);
+      assert.ok(b.l >= -30 && b.t >= -30 && b.r <= 1000 + 30 && b.b <= height + 30, `${size} ${key} print ${k} is off the page`);
+      const before = turnedBox(laid.items[k]);
+      // Inside the box its frame had, give or take the nudge.
+      assert.ok(b.r - b.l <= before.r - before.l + 1 && b.b - b.t <= before.b - before.t + 1, `${size} ${key} print ${k} grew past its frame`);
+    });
+  }
+});
+
+test('a batch fills empty frames tall to tall and wide to wide', () => {
+  const slots = [
+    collage.slotItem('wide', { x: 200, y: 200, width: 400, aspect: 1.6 }),
+    collage.slotItem('tall', { x: 700, y: 200, width: 200, aspect: 0.6 })
+  ];
+  const chosen = collage.assignToSlots(slots, [{ id: 'portrait', aspect: 0.75 }, { id: 'landscape', aspect: 1.5 }]);
+  assert.equal(chosen.get('portrait'), 'tall');
+  assert.equal(chosen.get('landscape'), 'wide');
+  // More photos than frames: the worst match is left over.
+  const three = collage.assignToSlots(slots, [{ id: 'a', aspect: 1.5 }, { id: 'b', aspect: 0.6 }, { id: 'c', aspect: 3 }]);
+  assert.deepEqual([...three.keys()].sort(), ['a', 'b']);
+});
+
+test('words over a photo are told apart from words on the empty page', () => {
+  const photo = collage.photoItem('p', 'f', 1.5, { x: 300, y: 300, width: 400 });
+  const over = { id: 't', kind: 'text', x: 300, y: 300, width: 200, aspect: 4, angle: 0 };
+  const away = { ...over, x: 850, y: 600 };
+  assert.equal(collage.overPhoto([photo, over], over), true);
+  assert.equal(collage.overPhoto([photo, away], away), false);
+});
