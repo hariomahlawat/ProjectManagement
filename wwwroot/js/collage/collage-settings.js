@@ -121,7 +121,7 @@
       return `
         <label class="clg-field"><span class="clg-field__label">Words</span>
           <textarea class="form-control form-control-sm clg-text-field" rows="3" maxlength="${core.TEXT_LIMITS.maxLength}" data-text>${escapeHtml(item.text)}</textarea></label>
-        <p class="clg-hint">Type Hindi with the Windows Hindi keyboard, or paste it.</p>
+        <p class="clg-hint"><span class="clg-for-mouse">Type Hindi with the Windows Hindi keyboard, or paste it.</span><span class="clg-for-touch">Type Hindi with your phone’s Hindi keyboard (add Hindi in its keyboard settings), or paste it.</span></p>
         <div class="clg-section">
           <p class="clg-section__title">Font</p>
           <div class="clg-fonts">${fonts}</div>

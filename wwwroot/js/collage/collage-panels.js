@@ -272,11 +272,16 @@
     const layersSection = () => settingsHtml.layersSection(state.collage, state.selectedId);
 
     /** Puts the cursor in the selected text's words, opening its settings. */
-    function focusTextField() {
+    /**
+     * Shows the Words field, and puts the cursor in it unless `focus` is false (a touch screen
+     * would open its keyboard over the page at once).
+     */
+    function focusTextField({ focus = true } = {}) {
       const field = props.querySelector('[data-text]');
       if (!field) return;
       // On a phone the Words field is in the settings sheet, which opens first.
       if (onPhone()) setPropsOpen(true);
+      if (!focus) { field.scrollIntoView({ block: 'nearest' }); return; }
       field.focus();
       field.select();
     }

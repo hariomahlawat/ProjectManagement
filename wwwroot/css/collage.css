@@ -724,6 +724,25 @@
         padding-bottom: var(--clg-sheet);
     }
 
+    /* The selected item's toolbar is docked in a strip at the top of the work surface, kept free
+       for it, so it never covers a photo. */
+    .clg-stage {
+        padding-top: 52px;
+    }
+
+    /* The hint shown while a photo is moved in its frame sits under the toolbar strip, so it never
+       covers the docked toolbar's Done button. */
+    .clg-stage .clg-stage-hint {
+        top: 58px;
+    }
+
+    .clg-toolbar.is-docked {
+        position: fixed;
+        left: 50%;
+        max-width: calc(100vw - 16px);
+        overflow-x: auto;
+    }
+
     .clg-body.is-sheet-open .clg-empty {
         top: calc(50% - var(--clg-sheet) / 2);
     }
