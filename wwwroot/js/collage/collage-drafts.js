@@ -88,18 +88,23 @@
   }
 
   /**
-   * Saves a draft in one go: the draft record and the photos it did not hold yet, so a draft is
-   * never stored half written. Photos already stored are not written again.
+   * Saves a draft in one go: the draft record and every photo it uses that the database does not
+   * hold for it yet, so a draft is never stored half written, and a draft purged by another tab
+   * while it was open comes back whole. Photos already stored are not written again.
    */
-  async function save(draft, newPhotos) {
+  async function save(draft, photos) {
     const db = await open();
     const tx = db.transaction(['drafts', 'photos'], 'readwrite');
+    const finished = done(tx);
     tx.objectStore('drafts').put(draft);
     const store = tx.objectStore('photos');
-    for (const photo of newPhotos || []) {
-      store.put({ key: `${draft.id}/${photo.id}`, draft: draft.id, id: photo.id, name: photo.name, file: photo.file, width: photo.width, height: photo.height });
+    const held = new Set(await request(store.index('draft').getAllKeys(draft.id)));
+    for (const photo of photos || []) {
+      const key = `${draft.id}/${photo.id}`;
+      if (held.has(key)) continue;
+      store.put({ key, draft: draft.id, id: photo.id, name: photo.name, file: photo.file, width: photo.width, height: photo.height });
     }
-    await done(tx);
+    await finished;
   }
 
   /** Hides a draft at once; it can be brought back with restore() until it is purged. */

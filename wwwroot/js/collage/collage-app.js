@@ -175,10 +175,8 @@
   function resetEditor() {
     collageSession += 1;
     edits.drop();
-    window.clearTimeout(draftTimer);
-    draftPending = false;
+    session.end();
     photos.clear();
-    storedPhotos.clear();
     forgetPhotoPreviews();
     selectedId = null;
     adjustId = null;
@@ -186,8 +184,18 @@
     zoom = 1;
   }
 
-  function startCollage(sizeKey, layoutKey) {
-    openRequest += 1;
+  async function startCollage(sizeKey, layoutKey) {
+    const request = ++openRequest;
+    // When this browser already keeps the most drafts it can, the user is asked now, while
+    // choosing, rather than later from the autosave in the middle of their work.
+    views.start.inert = true;
+    let room = true;
+    try {
+      room = drafts ? await session.prepareNew() : true;
+    } finally {
+      views.start.inert = false;
+    }
+    if (request !== openRequest || views.start.hidden) return;
     resetEditor();
     collage = core.newCollage(sizeKey);
     if (layoutKey) {
@@ -195,11 +203,9 @@
     }
     history = core.createHistory(collage);
     // A new draft: it is first stored once it has a photo.
-    draft = { id: nextId('d'), created: false, off: false };
-    draftFailed = '';
-    setDraftStatus('');
+    session.begin({ id: nextId('d'), off: !room });
+    if (!room) setDraftStatus('Not kept as a draft', true);
     nameInput.value = '';
-    draft.started = Date.now();
     refreshTitle();
     sizeSelect.value = collage.size;
     showView('editor');
@@ -220,8 +226,8 @@
       // Anything still waiting (a nudge, a wheel zoom, a change made just before) is saved too.
       for (let round = 0; round < 5; round += 1) {
         flushNudge();
-        kept = await saveDraftNow();
-        if (!draftPending && !edits.pending) break;
+        kept = await session.saveNow();
+        if (!session.pending && !edits.pending) break;
       }
     } finally {
       views.editor.inert = false;
@@ -229,10 +235,10 @@
     }
     // Only when the draft cannot be kept is the user asked: a collage with photos, or a saved
     // draft whose change (even removing its last photo) was not written.
-    if (!kept && (hasContent() || draft?.created)) {
+    if (!kept && (hasContent() || session.draft?.created)) {
       const leave = await askConfirm({
         title: 'Leave this collage?',
-        message: draftProblem() || 'This collage could not be kept as a draft, so it cannot be opened again once you leave. Pictures and PDFs you saved are kept.',
+        message: session.problem() || 'This collage could not be kept as a draft, so it cannot be opened again once you leave. Pictures and PDFs you saved are kept.',
         confirmText: 'Leave collage',
         cancelText: 'Keep working',
         tone: 'warning'
@@ -242,7 +248,6 @@
     resetEditor();
     collage = core.newCollage(core.DEFAULT_SIZE);
     history = core.createHistory(collage);
-    draft = null;
     showView('start');
     renderDrafts();
   }
@@ -250,9 +255,9 @@
   // Phones rarely ask before a page goes away, so the draft is written whenever the page is
   // hidden (another app, another tab, the screen locked) or put away.
   function saveOnLeaving() {
-    if (views.editor.hidden || !draft) return;
+    if (views.editor.hidden || !session.draft) return;
     flushNudge();
-    if (draftPending) saveDraftNow();
+    if (session.pending) session.saveNow();
   }
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveOnLeaving();
@@ -260,6 +265,7 @@
   window.addEventListener('pagehide', saveOnLeaving);
 
   window.addEventListener('beforeunload', (event) => {
+    const draft = session.draft;
     if (views.editor.hidden || !draft) return;
     // A nudge or wheel zoom still waiting counts as a change: recorded now, it marks the draft
     // for saving, so the page asks while it is written.
@@ -268,8 +274,8 @@
     // was just removed still has that change to write.
     if (!draft.created && !hasContent()) return;
     // Saved as a draft already, and not being written now: nothing is lost by leaving.
-    if (draft && draft.created && !draftPending && !draftWriting && !draftFailed) return;
-    saveDraftNow();
+    if (draft.created && !session.pending && !session.writing && !session.failed) return;
+    session.saveNow();
     event.preventDefault();
     // Older browsers need a value here to ask; the text itself is not shown.
     event.returnValue = '';
@@ -282,47 +288,49 @@
   const drafts = window.PrismCollageDrafts || null;
   const draftStatus = $('[data-draft-status]');
   const keepDraftButton = $('[data-action="keep-draft"]');
-  // The draft being edited: { id, created, off }; null on the start screen.
-  let draft = null;
-  let draftTimer = 0;
-  let draftPending = false;
-  // True while a draft is being written; leaving then would lose the latest change.
-  let draftWriting = false;
-  let draftFailed = '';
-  let draftSaving = Promise.resolve(true);
-  let askedToKeep = false;
-  // Photos of this draft already in the browser's database, by id.
-  const storedPhotos = new Set();
+
+  // The draft being edited and the drafts on the start screen (collage-draft-session.js).
+  const session = window.PrismCollageDraftSession.createDraftSession({
+    drafts,
+    core,
+    ask: askConfirm,
+    snapshot: () => ({
+      title: collageTitle(),
+      autoTitle: !nameInput.value.trim(),
+      model: collage,
+      size: collage.size,
+      photos: [...photos.values()],
+      thumbnail: views.editor.hidden ? '' : pageThumbnail(),
+      hasContent: hasContent()
+    }),
+    onStatus: (text, warning) => setDraftStatus(text, warning),
+    onUndo: (state) => {
+      $('[data-draft-undo]').hidden = !state;
+      if (state) {
+        $('[data-draft-undo-text]').textContent = `Draft “${state.title}” deleted.`;
+        announce(`Draft ${state.title} deleted. Undo is on the screen for ten seconds.`);
+      }
+    },
+    onChanged: () => { if (!views.start.hidden) renderDrafts(); }
+  });
 
   function setDraftStatus(text, warning = false) {
     draftStatus.textContent = text;
-    draftStatus.title = warning ? (draftProblem() || text) : '';
+    draftStatus.title = warning ? (session.problem() || text) : '';
     draftStatus.classList.toggle('is-warning', warning);
     // A collage left out of the drafts can be kept again at any time.
-    if (keepDraftButton) keepDraftButton.hidden = !draft?.off;
+    if (keepDraftButton) keepDraftButton.hidden = !session.draft?.off;
     // On a phone the status has room only for its mark, so the reason is shown once in full.
     if (warning && text !== draftWarningShown && window.matchMedia?.('(max-width: 1100px)').matches) {
-      showAlert(draftProblem() || text);
+      showAlert(session.problem() || text);
     }
     draftWarningShown = warning ? text : '';
   }
   let draftWarningShown = '';
 
-  /** Why the draft is not kept, in a sentence, or '' when it is. */
-  function draftProblem() {
-    if (!drafts) return 'Drafts are not available in this browser.';
-    if (draft?.off) return 'This collage is not kept as a draft.';
-    if (draftFailed === 'full') return 'The draft was not saved: this browser has no room left. Delete old drafts on the start screen, or save a picture or a PDF.';
-    if (draftFailed) return 'The draft was not saved: this browser does not keep data here (a private window, or storage turned off). Save a picture or a PDF to keep your work.';
-    return '';
-  }
-
   /** Saves the draft half a second after the last change. */
   function scheduleDraft() {
-    if (!draft || draft.off || !drafts) return;
-    draftPending = true;
-    window.clearTimeout(draftTimer);
-    draftTimer = window.setTimeout(() => { saveDraftNow(); }, 500);
+    session.changed();
   }
 
   /** A small picture of the page for the start screen, without handles or guides. */
@@ -344,97 +352,21 @@
     }
   }
 
-  /**
-   * Saves the draft now: the collage, its picture and any photos not stored yet, in one go.
-   * Resolves true when the draft is kept (or there is nothing to keep yet).
-   */
-  function saveDraftNow() {
-    window.clearTimeout(draftTimer);
-    draftSaving = draftSaving.then(async () => {
-      if (!draft || !drafts) return false;
-      if (draft.off) return false;
-      if (!draftPending && draft.created) return !draftFailed;
-      draftPending = false;
-      // A draft starts once it has a photo or some text; an empty page is not worth keeping.
-      if (!draft.created && !hasContent()) return true;
-      const forDraft = draft;
-      try {
-        if (!forDraft.created) {
-          const { shown } = core.sortDrafts(await drafts.list(), Date.now());
-          const oldest = core.draftToMakeRoom(shown);
-          if (oldest) {
-            const ok = await askConfirm({
-              title: `Delete the oldest draft, “${oldest.title}”?`,
-              message: `Collage Studio keeps up to ${core.MAX_DRAFTS} drafts in this browser. Deleting the oldest makes room for this one.`,
-              confirmText: 'Delete oldest draft',
-              cancelText: 'Do not keep this one',
-              tone: 'warning'
-            });
-            if (!ok) {
-              forDraft.off = true;
-              setDraftStatus('Not kept as a draft', true);
-              return false;
-            }
-            await drafts.purge(oldest.id);
-          }
-        }
-        const newPhotos = [...photos.values()].filter((photo) => !storedPhotos.has(photo.id));
-        const record = {
-          id: forDraft.id,
-          title: collageTitle(),
-          // Not named by the user: the title follows the first words, and the box stays empty.
-          autoTitle: !nameInput.value.trim(),
-          started: forDraft.started || Date.now(),
-          saved: Date.now(),
-          deletedAt: null,
-          model: collage,
-          size: collage.size,
-          photoCount: photos.size,
-          thumbnail: views.editor.hidden ? '' : pageThumbnail()
-        };
-        setDraftStatus('Saving draft…');
-        draftWriting = true;
-        try {
-          await drafts.save(record, newPhotos);
-        } finally {
-          draftWriting = false;
-        }
-        if (forDraft !== draft) return true;
-        newPhotos.forEach((photo) => storedPhotos.add(photo.id));
-        forDraft.created = true;
-        draftFailed = '';
-        setDraftStatus('Draft saved in this browser');
-        if (!askedToKeep) { askedToKeep = true; drafts.keep(); }
-        return true;
-      } catch (error) {
-        draftFailed = drafts.reasonOf(error);
-        if (forDraft === draft) setDraftStatus(draftFailed === 'full' ? 'Draft not saved: no room left' : 'Draft not saved in this browser', true);
-        return false;
-      }
-    });
-    return draftSaving;
-  }
-
-  let undoTimer = 0;
-  let undoDraftId = null;
-
   let draftsExpanded = false;
 
   async function renderDrafts() {
     const section = $('[data-drafts-section]');
     const grid = $('[data-drafts]');
     if (!drafts) { section.hidden = true; return; }
-    let all;
+    let shown;
     try {
-      all = await drafts.list();
+      shown = await session.list();
     } catch {
       section.hidden = true;
       return;
     }
-    const { shown, purge } = core.sortDrafts(all, Date.now());
-    for (const id of purge) if (id !== undoDraftId) drafts.purge(id).catch(() => {});
     grid.textContent = '';
-    section.hidden = !shown.length && !undoDraftId;
+    section.hidden = !shown.length && !session.undoing;
     $('[data-drafts-count]').textContent = shown.length ? String(shown.length) : '';
     // One row of drafts unless asked for all, so starting a new collage stays in view.
     // As many as fit across the grid (cards are at least 200 pixels wide).
@@ -478,34 +410,8 @@
       : '';
   }
 
-  async function deleteDraft(id) {
-    const record = await drafts.get(id).catch(() => null);
-    if (!record) return;
-    // Hidden at once, removed for good once Undo has gone.
-    if (undoDraftId && undoDraftId !== id) drafts.purge(undoDraftId).catch(() => {});
-    await drafts.markDeleted(id, Date.now());
-    undoDraftId = id;
-    $('[data-draft-undo-text]').textContent = `Draft “${record.title}” deleted.`;
-    $('[data-draft-undo]').hidden = false;
-    window.clearTimeout(undoTimer);
-    undoTimer = window.setTimeout(() => {
-      $('[data-draft-undo]').hidden = true;
-      drafts.purge(id).catch(() => {});
-      if (undoDraftId === id) undoDraftId = null;
-      renderDrafts();
-    }, core.DRAFT_UNDO_MS);
-    announce(`Draft ${record.title} deleted. Undo is on the screen for ten seconds.`);
-    renderDrafts();
-  }
-
   async function undoDeleteDraft() {
-    if (!undoDraftId) return;
-    window.clearTimeout(undoTimer);
-    await drafts.restore(undoDraftId);
-    undoDraftId = null;
-    $('[data-draft-undo]').hidden = true;
-    announce('Draft brought back.');
-    renderDrafts();
+    if (await session.restore()) announce('Draft brought back.');
   }
 
   // Counts draft opens and new collages: an open that is overtaken by another open, or by a
@@ -515,17 +421,27 @@
   async function openDraft(id) {
     const request = ++openRequest;
     const stillWanted = () => request === openRequest && !views.start.hidden;
-    let record;
-    let stored;
+    // The start screen cannot be used while a draft opens, so the draft cannot be deleted (or
+    // another one opened) half way through.
+    views.start.inert = true;
     try {
-      record = await drafts.get(id);
-      stored = record ? await drafts.photosOf(id) : [];
+      await readDraft(id, request, stillWanted);
+    } finally {
+      if (request === openRequest) views.start.inert = false;
+    }
+  }
+
+  async function readDraft(id, request, stillWanted) {
+    let found;
+    try {
+      found = await session.read(id);
     } catch {
       if (stillWanted()) showAlert('The draft could not be opened: this browser did not give it back.');
       return;
     }
     if (!stillWanted()) return;
-    if (!record || record.deletedAt) { renderDrafts(); return; }
+    if (!found) { renderDrafts(); return; }
+    const { record, photos: stored } = found;
     resetEditor();
     const forCollage = collageSession;
     busy(stored.length ? `Opening the draft and its ${stored.length} photo${stored.length === 1 ? '' : 's'}…` : 'Opening the draft…');
@@ -545,10 +461,14 @@
         }
         if (forCollage !== collageSession) return;
         photos.set(photo.id, photo);
-        storedPhotos.add(photo.id);
       }
     } finally {
       busy('');
+    }
+    // Deleted or purged (another tab) while its photos were read: it is not opened.
+    if (!(await session.stillThere(id)) || forCollage !== collageSession || request !== openRequest) {
+      if (forCollage === collageSession) { resetEditor(); renderDrafts(); }
+      return;
     }
     const model = core.readDraftModel(record.model, [...photos.keys()]);
     if (!model) {
@@ -557,13 +477,10 @@
     }
     collage = model;
     history = core.createHistory(collage);
-    draft = { id: record.id, created: true, off: false };
-    draftFailed = '';
+    session.begin({ id: record.id, created: true, started: record.started || record.saved });
     nameInput.value = record.autoTitle ? '' : record.title;
-    draft.started = record.started || record.saved;
     refreshTitle();
     sizeSelect.value = collage.size;
-    setDraftStatus('Draft saved in this browser');
     showView('editor');
     setPanel('photos');
     syncAll();
@@ -1219,13 +1136,13 @@
 
   /** The collage's name: what the user typed, or its own title from its words or start time. */
   function collageTitle() {
-    return nameInput.value.trim() || core.autoTitle(collage.items, draft?.started);
+    return nameInput.value.trim() || core.autoTitle(collage.items, session.draft?.started);
   }
 
   /** Shows the collage's own title where no name was typed: in the name box and the tab. */
   function refreshTitle() {
-    nameInput.placeholder = core.autoTitle(collage.items, draft?.started);
-    if (!views.editor.hidden || draft) document.title = `${collageTitle()} · Collage Studio | PRISM ERP`;
+    nameInput.placeholder = core.autoTitle(collage.items, session.draft?.started);
+    if (!views.editor.hidden || session.draft) document.title = `${collageTitle()} · Collage Studio | PRISM ERP`;
   }
 
   function commit() {
@@ -1633,13 +1550,7 @@
       case 'drafts-all': draftsExpanded = !draftsExpanded; renderDrafts(); break;
       case 'keep-draft':
         // Asked again: keeping it may still mean deleting the oldest draft to make room.
-        if (draft?.off) {
-          draft.off = false;
-          if (keepDraftButton) keepDraftButton.hidden = true;
-          draftPending = true;
-          setDraftStatus('Saving draft…');
-          saveDraftNow();
-        }
+        session.keepAgain();
         break;
       case 'library-open': libraryPicker.open(); break;
       case 'library-close': libraryPicker.close(); break;
@@ -1685,10 +1596,12 @@
   }
 
   root.addEventListener('click', (event) => {
+    // While a draft opens (or room is being made for a new one) the start screen waits.
+    if (views.start.inert && views.start.contains(event.target)) return;
     const openOne = event.target.closest('[data-open-draft]');
     if (openOne) { openDraft(openOne.dataset.openDraft); return; }
     const deleteOne = event.target.closest('[data-delete-draft]');
-    if (deleteOne) { deleteDraft(deleteOne.dataset.deleteDraft); return; }
+    if (deleteOne) { session.remove(deleteOne.dataset.deleteDraft); return; }
     const start = event.target.closest('[data-start-size]');
     if (start) { startCollage(start.dataset.startSize); return; }
     const startLayout = event.target.closest('[data-start-layout]');
