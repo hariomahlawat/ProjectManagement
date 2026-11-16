@@ -40,7 +40,8 @@
 
     // Undo for a deleted draft: PRISM's glass toast, as after a delete in the editor
     // (docs/ux/collage-review-3-fixes.md, PR 8). It goes when the session's Undo time is over or
-    // the draft is brought back; its timer line shows the same time.
+    // the draft is brought back. It shows no countdown of its own: the toast's would pause on
+    // hover while the draft's ten seconds do not, and so would promise time that is not there.
     let draftUndoToast = null;
 
     function showDraftUndo(state) {
@@ -52,7 +53,7 @@
       draftUndoToast = window.PrismToast.show({
         tone: 'success',
         text: `Draft “${state.title}” deleted.`,
-        life: core.DRAFT_UNDO_MS,
+        sticky: true,
         action: { label: 'Undo', run: () => { undoDeleteDraft(); } }
       });
       draftUndoToast.element.dataset.draftUndo = '';

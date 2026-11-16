@@ -131,6 +131,8 @@ test('a deleted draft offers Undo in the glass toast, and Undo brings it back', 
   await expect(toast).toBeVisible();
   await expect(toast).toContainText('deleted');
   await expect(page.locator('.clg-undo-bar')).toHaveCount(0);
+  // No countdown of its own: it would pause on hover, while the draft's ten seconds do not.
+  await expect(toast.locator('.prism-toast__timer')).toHaveCount(0);
 
   await toast.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('[data-open-draft]')).toHaveCount(1);
