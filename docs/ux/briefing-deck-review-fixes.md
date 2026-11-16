@@ -59,7 +59,9 @@ the PR 8 changes, which are since merged as #3376.
 6. Creating a deck from a template saves twice; if the second save fails, a deck with default
    settings is left (not reproduced).
 
-## Owner decisions needed
+## Owner decisions
+
+The owner chose every recommended option on 16 Nov 2026: A, B, C and D as recommended below.
 
 - **A (finding 1).** Either the default SDD profile leaves Partnerships out (recommended: it can
   be ticked in the editor), or adding an unconfigured profile opens its editor first.
