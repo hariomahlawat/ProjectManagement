@@ -472,6 +472,37 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void Studio_FocusViewHidesTheChromeInTheSameTab()
+    {
+        var page = Read("Index.cshtml");
+        var css = Read("project-briefing-decks.css").Replace("\r\n", "\n");
+        var focus = Read("project-briefing-focus.js");
+        var studio = Read("project-briefing-studio.js");
+
+        // A real toggle button in the deck header, beside Generate, on the Studio only; the script
+        // runs in <head> so a remembered focus view applies before first paint.
+        Assert.Contains("class=\"btn btn-outline-secondary pbd-focus-toggle\" data-pbd-focus-toggle", page, StringComparison.Ordinal);
+        // The label carries the state; aria-pressed as well made screen readers say it twice.
+        Assert.DoesNotContain("aria-pressed", focus, StringComparison.Ordinal);
+        Assert.Contains("<script src=\"~/js/pages/project-briefing-focus.js\" asp-append-version=\"true\"></script>", page, StringComparison.Ordinal);
+        Assert.True(
+            page.IndexOf("project-briefing-focus.js", StringComparison.Ordinal)
+                < page.IndexOf("@section Scripts", StringComparison.Ordinal),
+            "The focus script must load in the Styles section (in <head>), not with the page scripts.");
+
+        // Same tab: no new window, and Escape is left to dialogs and Present.
+        Assert.DoesNotContain("window.open", focus, StringComparison.Ordinal);
+        Assert.DoesNotContain("keydown", focus, StringComparison.Ordinal);
+        Assert.DoesNotContain("keyup", focus, StringComparison.Ordinal);
+        Assert.Contains("'prism.briefingStudio.focus'", focus, StringComparison.Ordinal);
+
+        // The top bar and rail go from 576px up only, and the Studio measures its height again.
+        Assert.Contains("@media (min-width: 576px) {\n    html[data-pbd-focus] {", css, StringComparison.Ordinal);
+        Assert.Contains("html[data-pbd-focus] .pm-topbar,", css, StringComparison.Ordinal);
+        Assert.Contains("window.addEventListener('pbd:focus-change', setStudioOffset);", studio, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Builder_KeepsSettingsInTheDeckTabSavedInPlace()
     {
         var page = Read("Index.cshtml");

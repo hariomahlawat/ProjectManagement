@@ -220,6 +220,9 @@
     <None Include="..\wwwroot\js\pages\project-briefing-studio.js"
           Link="TestData\ProjectBriefing\project-briefing-studio.js"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\js\pages\project-briefing-focus.js"
+          Link="TestData\ProjectBriefing\project-briefing-focus.js"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\wwwroot\js\pages\project-briefing-confirm.js"
           Link="TestData\ProjectBriefing\project-briefing-confirm.js"
           CopyToOutputDirectory="PreserveNewest" />

@@ -536,3 +536,24 @@ test('the Studio says when its Gaps count is set, before the slides are built', 
   assert.equal(readyEvents, 1, 'said once');
 });
 
+
+test('the Studio measures its height again when the focus view hides or shows the top bar', async () => {
+  let top = 180;
+  const { window, document } = startStudio((win) => {
+    win.HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      const y = this.matches('[data-pbd-studio]') ? top : 0;
+      return { top: y, bottom: y, left: 0, right: 0, width: 0, height: 0, x: 0, y };
+    };
+  });
+  const studio = document.querySelector('[data-pbd-studio]');
+  assert.equal(studio.style.getPropertyValue('--pbd-studio-offset'), '180px');
+
+  // Focus view on: the top bar goes, the editor keeps its size, so only the event tells the Studio.
+  top = 110;
+  window.dispatchEvent(new window.CustomEvent('pbd:focus-change', { detail: { on: true } }));
+  assert.equal(studio.style.getPropertyValue('--pbd-studio-offset'), '110px');
+
+  top = 180;
+  window.dispatchEvent(new window.CustomEvent('pbd:focus-change', { detail: { on: false } }));
+  assert.equal(studio.style.getPropertyValue('--pbd-studio-offset'), '180px');
+});
