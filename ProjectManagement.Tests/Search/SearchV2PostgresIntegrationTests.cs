@@ -1318,6 +1318,79 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         }
     }
 
+    // A lock taken while the pass holds one goes on the same session: the same record (the
+    // extreme of a hash collision) does not wait on itself, and other processes still wait
+    // for the nested record until the outer lock ends.
+    [SearchV2PostgresFact]
+    public async Task NestedRecordLock_SharesTheHeldSession()
+    {
+        await using var host = _database.CreateHost();
+        using var firstScope = host.Services.CreateScope();
+        using var secondScope = host.Services.CreateScope();
+        var first = firstScope.ServiceProvider.GetRequiredService<ISearchIndexCoordinator>();
+        var second = secondScope.ServiceProvider.GetRequiredService<ISearchIndexCoordinator>();
+
+        var outer = await first.LockRecordAsync("IprRecord", "n-1", CancellationToken.None);
+        var same = first.LockRecordAsync("IprRecord", "n-1", CancellationToken.None);
+        await using (await same.WaitAsync(TimeSpan.FromSeconds(5)))
+        {
+        }
+        await using (await first.LockRecordAsync("Project", "n-2", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5)))
+        {
+        }
+
+        var waiting = second.LockRecordAsync("Project", "n-2", CancellationToken.None);
+        await Task.Delay(500);
+        Assert.False(waiting.IsCompleted);
+
+        await outer.DisposeAsync();
+        await using (await waiting.WaitAsync(TimeSpan.FromSeconds(10)))
+        {
+        }
+
+        // After the outer lock ends, the next lock is a fresh one of its own again.
+        Task<IAsyncDisposable> later;
+        await using (await first.LockRecordAsync("Project", "n-3", CancellationToken.None))
+        {
+            later = second.LockRecordAsync("Project", "n-3", CancellationToken.None);
+            await Task.Delay(300);
+            Assert.False(later.IsCompleted);
+        }
+        await using (await later.WaitAsync(TimeSpan.FromSeconds(10)))
+        {
+        }
+    }
+
+    // A Project Officer's new name reaches their IT, MOLTI and SRE projects through the
+    // AspNetUsers trigger, not only at the nightly rebuild.
+    [SearchV2PostgresFact]
+    public async Task OfficerRename_ReindexesTheirItProjects()
+    {
+        await using var host = _database.CreateHost();
+        var id = await host.SeedItProjectAsync(ItProjectModules.Sre, "Harrowgate test bench", "SRE/77/2026");
+        await host.ExecuteAsync($"""UPDATE "ItProjects" SET "ProjectOfficerUserId" = 'search-v2-test-user' WHERE "Id" = {id};""");
+        await host.ResetIndexStateAsync();
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+
+        try
+        {
+            await host.ExecuteAsync("""UPDATE "AspNetUsers" SET "FullName" = 'Quillbrook Officer' WHERE "Id" = 'search-v2-test-user';""");
+            Assert.Equal(1, await host.ScalarAsync<long>($"""SELECT COUNT(*) FROM "SearchIndexWorkItems" WHERE "EntityType" = 'ItProject' AND "EntityKey" = '{id}';"""));
+            Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+
+            Assert.Contains((await host.SearchAsync("quillbrook")).Results, result => result.EntityType == "ItProject" && result.EntityKey == id.ToString());
+
+            // Other changes to the user do not queue anything.
+            await host.ExecuteAsync("""UPDATE "AspNetUsers" SET "AccessFailedCount" = "AccessFailedCount" WHERE "Id" = 'search-v2-test-user';""");
+            Assert.Equal(0, await host.ScalarAsync<long>($"""SELECT COUNT(*) FROM "SearchIndexWorkItems" WHERE "EntityType" = 'ItProject' AND "EntityKey" = '{id}';"""));
+        }
+        finally
+        {
+            await host.ExecuteAsync("""UPDATE "AspNetUsers" SET "FullName" = 'Search V2 Tester' WHERE "Id" = 'search-v2-test-user';""");
+            await host.ExecuteAsync($"""UPDATE "ItProjects" SET "IsDeleted" = TRUE WHERE "Id" = {id};""");
+        }
+    }
+
     [SearchV2PostgresFact]
     public async Task PostgreSql_SetLocalTrigramThresholdGovernsIndexedOperatorsForOneTransactionOnly()
     {
