@@ -209,7 +209,9 @@ public sealed class IndexModel : PageModel
 
     private SearchRequest BuildSearchRequest(bool includeDetailedFacets, bool facetsOnly) => new(
         Query: Q ?? string.Empty,
-        Categories: Category?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+        // One tab at a time: the page shows the first category as the selected tab, so only
+        // that one filters (a hand-edited URL with two must not filter on a tab not shown).
+        Categories: Category?.Where(value => !string.IsNullOrWhiteSpace(value)).Take(1).ToArray(),
         Sources: Source?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
         Cursor: facetsOnly ? null : Cursor,
         PageSize: facetsOnly ? 5 : null,

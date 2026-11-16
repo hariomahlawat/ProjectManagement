@@ -283,6 +283,10 @@ else
                     <div>
                         <strong>Showing basic results.</strong>
                         <span>The full search service is temporarily unavailable, so some records may be missing@(unappliedFilters.Length > 0 ? $" and your {unappliedFilters} {unappliedVerb} not applied" : string.Empty).</span>
+                        @if (unappliedFilters.Length > 0)
+                        {
+                            <a class="pm-gs-banner__action" href="@BuildUrl(Model.Q!, selectedCategory, preserveAdvanced: false)" data-search-remove-unapplied>Remove @(unappliedFilterNames.Count == 1 ? "this filter" : "these filters")</a>
+                        }
                     </div>
                 </div>
             }
@@ -293,6 +297,8 @@ else
                     <div>
                         <strong>Some filters were not applied.</strong>
                         <span>Your @unappliedFilters @unappliedVerb not applied in this search mode, so the results below are not filtered by @(unappliedFilterNames.Count == 1 ? "it" : "them").</span>
+                        @* The filter panel is not shown in this mode, so this is the only way to clear them. *@
+                        <a class="pm-gs-banner__action" href="@BuildUrl(Model.Q!, selectedCategory, preserveAdvanced: false)" data-search-remove-unapplied>Remove @(unappliedFilterNames.Count == 1 ? "this filter" : "these filters")</a>
                     </div>
                 </div>
             }

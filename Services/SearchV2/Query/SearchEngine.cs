@@ -693,7 +693,8 @@ public sealed class SearchEngine : ISearchV2Engine
         if (separator <= 0 || separator == value.Length - 1) return null;
         var source = value[..separator].Trim();
         if (!long.TryParse(value[(separator + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)) return null;
-        return new SearchRelatedResult(source, source, Math.Max(1, count));
+        // No chip whose list would be empty (none of the source's matches are in that project).
+        return count <= 0 ? null : new SearchRelatedResult(source, source, count);
     }
 
     internal static bool ShouldOfferCorrection(NormalizedSearchQuery query, IReadOnlyList<SearchResultChannels> rows)
@@ -1093,13 +1094,33 @@ public sealed class SearchEngine : ISearchV2Engine
             -- the ranked order can have changed; a cursor from before must not continue.
             SELECT LEFT(md5(COUNT(*)::text || ':' || COALESCE(SUM("Id"), 0)::text), 16) AS value
             FROM candidate_scored
-        ), related_source_counts AS (
-            SELECT "CanonicalEntityType", "CanonicalEntityKey", "SourceModule", COUNT(*) AS source_count
+        ), cluster_sources AS (
+            -- The sources in each result's cluster. A related chip opens that source within
+            -- the result's project (Source + Project, which filters on ParentProjectId), or the
+            -- whole source when the result has no project; its count is what that list shows:
+            -- matching records of the source there, one per cluster as the list clusters them.
+            SELECT "CanonicalEntityType", "CanonicalEntityKey", "SourceModule", MAX("ParentProjectId") AS link_project
             FROM candidate_scored
             GROUP BY "CanonicalEntityType", "CanonicalEntityKey", "SourceModule"
+        ), project_source_counts AS (
+            SELECT "ParentProjectId" AS link_project, "SourceModule",
+                   COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS source_count
+            FROM candidate_scored
+            WHERE "ParentProjectId" IS NOT NULL
+            GROUP BY "ParentProjectId", "SourceModule"
+        ), all_source_counts AS (
+            SELECT "SourceModule", COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS source_count
+            FROM candidate_scored
+            GROUP BY "SourceModule"
+        ), related_source_counts AS (
+            SELECT s."CanonicalEntityType", s."CanonicalEntityKey", s."SourceModule",
+                   CASE WHEN s.link_project IS NULL THEN a.source_count ELSE p.source_count END AS source_count
+            FROM cluster_sources s
+            LEFT JOIN project_source_counts p ON p.link_project = s.link_project AND p."SourceModule" = s."SourceModule"
+            LEFT JOIN all_source_counts a ON a."SourceModule" = s."SourceModule"
         ), related AS (
             SELECT "CanonicalEntityType", "CanonicalEntityKey",
-                   STRING_AGG("SourceModule" || ':' || source_count::text, ' · ' ORDER BY source_count DESC, "SourceModule") AS related_sources
+                   STRING_AGG("SourceModule" || ':' || COALESCE(source_count, 0)::text, ' · ' ORDER BY source_count DESC NULLS LAST, "SourceModule") AS related_sources
             FROM related_source_counts
             GROUP BY "CanonicalEntityType", "CanonicalEntityKey"
         ), filtered_candidates AS (
@@ -1441,7 +1462,8 @@ public sealed class SearchEngine : ISearchV2Engine
             Add(command, name, effective[index]);
             names.Add($"@{name}");
         }
-        return $"c.\"{column}\" IN ({string.Join(",", names)})";
+        // Ignoring case, as the values are de-duplicated: "ipr" in a hand-edited URL is "IPR".
+        return $"LOWER(c.\"{column}\") IN ({string.Join(",", names.Select(name => $"LOWER({name})"))})";
     }
 
     private static string? BuildProjectFilter(DbCommand command, IReadOnlyList<int>? projectIds)

@@ -56,6 +56,27 @@ public sealed class SearchPageProjectCoverTests
         Assert.Equal($"/Projects/{withCover.Id}/Photos/41/View/xs?v=3", page.ProjectCovers[withCover.Id]);
     }
 
+    // The page shows the first category as the selected tab; a hand-edited URL with a second
+    // one must not filter on a tab that is not shown.
+    [Fact]
+    public async Task OnlyTheSelectedTabFilters()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        await using var db = new ApplicationDbContext(options);
+        var gateway = new FixedGateway();
+        var page = new IndexModel(gateway, new TestEnvironment(), new DenyAll(), db)
+        {
+            Q = "kestrel",
+            Category = new[] { " ", "Projects", "Documents" },
+            PageContext = new PageContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity("Test")) } },
+            Url = new RecordingUrlHelper()
+        };
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(new[] { "Projects" }, gateway.LastRequest!.Categories);
+    }
+
     private static SearchResult Result(string entityType, string key) => new(
         1, entityType, key, "Project", key, null, "Projects", "Projects", "Kestrel", Array.Empty<SearchTextSegment>(),
         null, "/x", null, Array.Empty<SearchTextSegment>(), null, null, null, null, 1, 1, Array.Empty<SearchRelatedResult>(), null);
@@ -65,8 +86,13 @@ public sealed class SearchPageProjectCoverTests
         private readonly SearchResult[] _results;
         public FixedGateway(params SearchResult[] results) => _results = results;
 
+        public SearchRequest? LastRequest { get; private set; }
+
         public Task<SearchGatewayResponse> SearchAsync(SearchRequest request, ClaimsPrincipal user, CancellationToken cancellationToken)
-            => Task.FromResult(SearchGatewayResponse.Empty(request.Query) with { Results = _results });
+        {
+            LastRequest = request;
+            return Task.FromResult(SearchGatewayResponse.Empty(request.Query) with { Results = _results });
+        }
 
         public Task<IReadOnlyList<SearchSuggestion>> SuggestAsync(string query, ClaimsPrincipal user, int? limit, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<SearchSuggestion>>(Array.Empty<SearchSuggestion>());
