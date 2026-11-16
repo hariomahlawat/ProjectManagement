@@ -144,6 +144,8 @@ test('pending settings saves finish before navigation, posts and generation', ()
 test('the content editors save in place, after a pending settings save (review 2 fixes, PR 4)', () => {
   // One save path for all three editors: it settles the settings first, then queues the post.
   assert.match(source, /async function saveEditorInPlace\(form\) \{\s*if \(!\(form instanceof HTMLFormElement\)\)[\s\S]*?await settleSettingsBeforeLeaving\(\)[\s\S]*?runDeckMutation/);
+  // Locked while it saves, so an edit made mid-save is not marked saved without being sent.
+  assert.match(source, /form\.toggleAttribute\('inert', true\);[\s\S]*?return await sendEditor\(form\);\s*\} finally \{\s*form\.toggleAttribute\('inert', false\);/);
   assert.match(source, /const result = await saveEditorInPlace\(profileForm\);/);
   assert.match(additionalSlidesSource, /const result = await root\.pbdSaveEditor\(form\);/);
   assert.match(additionalSlidesSource, /const result = await root\.pbdSaveEditor\(ffcForm\);/);
