@@ -186,6 +186,8 @@ each in its own worktree.
 - **Browser changes:** no migration and no new setting.
 - **Server changes:**
   - The snapshot change adds no migration.
-  - Sticker addresses are the same when PRISM is served from the site root, as it is today.
+  - Sticker addresses are unchanged when PRISM is served from the site root. How production is
+    actually served has not been checked: confirm the deployed path base before calling this change
+    production-neutral. Under a sub-path, crests that fail today would start to work.
   - The rest is additive: more audit entries, a lower page cap, and tests.
 - **Internet:** nothing needs it.

@@ -104,7 +104,8 @@ its npm package by hand; the libman entry records the version.
   corners (the layout's Rounded corners pass it by), moved inside its frame, replaced or deleted,
   from the toolbar, the settings or the keys. Choosing a layout while photos are locked asks
   first: put them in the new layout too (they stay locked), or keep them where they are, and the
-  layout leaves out the frames they cover. A kept item well off the page is moved just inside it.
+  layout leaves out the frames they cover more than half of (the question says how many). A kept item
+  well off the page is moved just inside it. A stopped action on a locked item says so on the screen.
 - **Undo and Redo** for every change. Moving **Space between photos** puts every photo back in
   the layout; when that undoes a photo moved by hand, a message says so, with Undo.
 - **Save as** PNG, JPEG (optionally under a size in KB) or PDF whose page is the paper's real

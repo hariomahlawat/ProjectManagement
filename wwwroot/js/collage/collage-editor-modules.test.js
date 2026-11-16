@@ -258,7 +258,7 @@ test('tray: a paste in a text field, with no photo, or behind a dialog is left a
 function makeKeys(t, initial = {}) {
   const dom = page(t, '<section data-view="editor"><div data-stage-box></div></section><div data-props><input data-text></div>');
   const editor = editorValues(initial);
-  const { calls, fns } = recorder(['announce', 'setShift', 'stopPreview', 'setZoom', 'syncPage', 'select', 'stopAdjust', 'zoomCrop', 'holdEdit', 'act', 'focusTextField', 'setTarget']);
+  const { calls, fns } = recorder(['announce', 'setShift', 'stopPreview', 'setZoom', 'syncPage', 'select', 'stopAdjust', 'zoomCrop', 'holdEdit', 'act', 'focusTextField', 'setTarget', 'sayLocked']);
   const changeSelected = (fn, record) => {
     calls.changeSelected = (calls.changeSelected || 0) + 1;
     const item = editor.selectedItem();
@@ -312,7 +312,7 @@ test('keys: arrows nudge the selected item and hold the change; Shift moves ten'
   item.locked = true;
   env.press('ArrowLeft');
   assert.equal(item.x, 11);
-  assert.deepEqual(env.calls.announce.at(-1), ['It is locked. Unlock it first.']);
+  assert.equal(env.calls.sayLocked.length, 1, 'a lock says so (on screen and to a screen reader)');
 });
 
 test('keys: nothing reaches the page while typing in a field, but Ctrl+S still opens Save', (t) => {
@@ -647,7 +647,7 @@ function makeActions(t, initial = {}) {
     <button data-action="duplicate">Duplicate</button><button data-action="delete" disabled>Delete</button></section>
     <input data-file-input type="file"><input data-name><select data-size-select></select><div data-props></div></main>`);
   const editor = editorValues(initial);
-  const names = ['announce', 'clearAlert', 'startCollage', 'goHome', 'layer', 'layout', 'startPreview', 'stopPreview', 'setZoom', 'scheduleDraft', 'renderDrafts', 'undoDeleteDraft', 'openDraft', 'select', 'startAdjust', 'stopAdjust', 'refreshTitle', 'commit', 'updateUndo', 'restore', 'lockedNow', 'applyLayoutKey'];
+  const names = ['announce', 'clearAlert', 'startCollage', 'goHome', 'layer', 'layout', 'startPreview', 'stopPreview', 'setZoom', 'scheduleDraft', 'renderDrafts', 'undoDeleteDraft', 'openDraft', 'select', 'startAdjust', 'stopAdjust', 'refreshTitle', 'commit', 'updateUndo', 'restore', 'lockedNow', 'applyLayoutKey', 'sayLocked'];
   const { calls, fns } = recorder(names);
   let ids = 0;
   const actions = require('./collage-actions.js').createActions({
@@ -681,7 +681,7 @@ test('actions: a photo deleted from a layout leaves its frame empty; a locked on
   const env = makeActions(t, { collage, selectedId: 'b' });
   env.actions.act('delete');
   assert.equal(env.values.collage.items[1].kind, 'photo');
-  assert.deepEqual(env.calls.announce.at(-1), ['It is locked. Unlock it first.']);
+  assert.equal(env.calls.sayLocked.length, 1, 'a lock says so (on screen and to a screen reader)');
   assert.equal(env.calls.commit.length, 0);
 
   env.values.selectedId = 'a';

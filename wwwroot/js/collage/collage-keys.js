@@ -11,7 +11,7 @@
   'use strict';
 
   function createKeys(deps) {
-    const { state, change, core, views, stageBox, props, photos, itemById, selectedItem, announce, setShift, stopPreview, setZoom, syncPage, select, stopAdjust, zoomCrop, holdEdit, changeSelected, act, focusTextField, setTarget } = deps;
+    const { state, change, core, views, stageBox, props, photos, itemById, selectedItem, announce, setShift, stopPreview, setZoom, syncPage, select, stopAdjust, zoomCrop, holdEdit, changeSelected, act, focusTextField, setTarget, sayLocked } = deps;
     // ---------------------------------------------------------------------------
     // Keyboard and the mouse wheel
     // ---------------------------------------------------------------------------
@@ -43,7 +43,7 @@
       else if (key === 'enter' && onPage && selectedItem()?.kind === 'photo' && !state.adjustId) act('adjust');
       else if (key === 'enter' && onPage && selectedItem()?.kind === 'text') { event.preventDefault(); focusTextField(); }
       else if (key.startsWith('arrow') && state.selectedId && selectedItem()?.hidden) { event.preventDefault(); announce('It is hidden. Show it from Layers first.'); }
-      else if (key.startsWith('arrow') && state.selectedId && selectedItem()?.locked) { event.preventDefault(); announce('It is locked. Unlock it first.'); }
+      else if (key.startsWith('arrow') && state.selectedId && selectedItem()?.locked) { event.preventDefault(); sayLocked(); }
       else if (key.startsWith('arrow') && state.selectedId) {
         event.preventDefault();
         const step = event.shiftKey ? 10 : 1;
