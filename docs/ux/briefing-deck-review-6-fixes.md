@@ -18,12 +18,15 @@ false. This meets the owner's target of at least 8 for both (16 Nov 2026).
 - **Low 7:** `SetFromPreset` returns nothing and its comment no longer mentions applying a
   template; two comments that named the removed "Additional Slides workspace" are updated.
 
+## Owner decision
+
+- **Low 5: edit audits stay best effort** (owner, 17 Nov 2026). Audit records for edits (create,
+  duplicate, settings, blocks, editors, membership, reorder, notes, photo) are written after the
+  save; a failed audit write is logged and the edit stands. Delete, restore and the purge keep a
+  required record in the same transaction. Do not raise this again as a defect.
+
 ## Open
 
-- **Low 5, owner decision:** audit records for edits (create, duplicate, settings, blocks,
-  editors, membership, reorder, notes, photo) are written after the save, best effort. Delete,
-  restore and the purge save with a required record in one transaction. Making every edit
-  transactional is possible with the same pattern; it adds a transaction to every Studio change.
 - **Low 1:** the Studio header's "Updated … by …" is drawn once and does not follow saves.
 - **Low 6:** the SDD footer-strip rule is checked in the page model, not the service.
 - **Low 8:** the library Download has no behaviour test; many page-script tests still match
