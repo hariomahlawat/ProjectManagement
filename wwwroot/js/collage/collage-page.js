@@ -99,7 +99,8 @@
         const item = state.adjustId && itemById(state.adjustId);
         const node = item && nodes.get(item.id);
         const photo = item && photos.get(item.photo);
-        if (!node || !photo || photo.missing || state.previewing) return;
+        // A hidden photo shows only its outline, never this faint copy.
+        if (!node || !photo || photo.missing || item.hidden || state.previewing) return;
         const inner = core.innerBox(item);
         const region = core.cropRegion(photo.aspect, inner.width / inner.height, item.crop);
         const fullWidth = inner.width / region.width;
@@ -553,7 +554,7 @@
       transformer.rotateEnabled(!adjusting && !locked);
       transformer.borderStroke(adjusting ? ADJUST_COLOUR : locked ? LOCKED_COLOUR : accent());
       transformer.borderDash(adjusting || locked ? [6, 4] : []);
-      ghost.visible(adjusting && !state.previewing);
+      ghost.visible(adjusting && !state.previewing && !itemById(state.selectedId)?.hidden);
     }
 
     function syncAll() {

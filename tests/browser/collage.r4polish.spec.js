@@ -143,3 +143,19 @@ test('a draft written while a photo is moved has no faint photo in its picture',
   expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(25);
   expect(errors).toEqual([]);
 });
+
+test('hiding a photo while it is moved leaves no faint copy of it', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^2 side by side/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await twoColourPhoto(page));
+  await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);
+  await page.locator('[data-toolbar] [data-action="adjust"]').click();
+  await expect(page.locator('[data-toolbar] [data-action="adjust-done"]')).toBeVisible();
+  const ghostShown = () => page.evaluate(() => window.Konva.stages[0].findOne('.adjust-ghost').visible());
+  expect(await ghostShown()).toBe(true);
+  await page.locator('[data-props-tab="layers"]').click();
+  const photoId = (await newestDraft(page)).model.items.find((i) => i.kind === 'photo').id;
+  await page.locator(`[data-layer-hide="${photoId}"]`).click();
+  await expect.poll(ghostShown).toBe(false);
+  expect(errors).toEqual([]);
+});
