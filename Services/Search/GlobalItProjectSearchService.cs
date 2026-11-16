@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.ItProjects;
@@ -34,11 +35,21 @@ public sealed class GlobalItProjectSearchService : IGlobalItProjectSearchService
             return Array.Empty<GlobalSearchHit>();
         }
 
-        var trimmed = query.Trim();
+        // "cabling -fibre": the phrase "cabling", and no record whose text has "fibre" anywhere.
+        var parsed = SearchPhraseQuery.Parse(query);
+        var trimmed = parsed.Phrase.Trim();
         var pattern = SearchLikePattern.Contains(trimmed);
-        var projects = await _dbContext.ItProjects
-            .AsNoTracking()
-            .Where(project => !project.IsDeleted &&
+        var candidates = _dbContext.ItProjects.AsNoTracking().Where(project => !project.IsDeleted);
+        foreach (var excluded in parsed.ExcludedPatterns)
+        {
+            candidates = candidates.Where(project =>
+                !Regex.IsMatch(project.Title, excluded, RegexOptions.IgnoreCase) &&
+                !Regex.IsMatch(project.PppReferenceNumber, excluded, RegexOptions.IgnoreCase) &&
+                !Regex.IsMatch(project.Description, excluded, RegexOptions.IgnoreCase));
+        }
+
+        var projects = await candidates
+            .Where(project =>
                 (EF.Functions.ILike(project.Title, pattern, SearchLikePattern.EscapeCharacter) ||
                  EF.Functions.ILike(project.PppReferenceNumber, pattern, SearchLikePattern.EscapeCharacter) ||
                  EF.Functions.ILike(project.Description, pattern, SearchLikePattern.EscapeCharacter) ||

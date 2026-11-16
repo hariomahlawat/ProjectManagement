@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -35,7 +36,9 @@ namespace ProjectManagement.Services.Search
                 return Array.Empty<GlobalSearchHit>();
             }
 
-            var pattern = SearchLikePattern.Contains(query.Trim());
+            // "cabling -fibre": the phrase "cabling", and no record or file whose text has "fibre".
+            var parsed = SearchPhraseQuery.Parse(query);
+            var pattern = SearchLikePattern.Contains(parsed.Phrase.Trim());
             var recordLimit = Math.Max(1, maxResults);
             var attachmentLimit = Math.Max(1, maxResults / 2);
             var hits = new List<GlobalSearchHit>();
@@ -43,8 +46,17 @@ namespace ProjectManagement.Services.Search
             // ------------------------------------------------------------
             // 1. IPR records
             // ------------------------------------------------------------
-            var records = await _dbContext.IprRecords
-                .AsNoTracking()
+            var recordCandidates = _dbContext.IprRecords.AsNoTracking();
+            foreach (var excluded in parsed.ExcludedPatterns)
+            {
+                recordCandidates = recordCandidates.Where(record =>
+                    !Regex.IsMatch(record.IprFilingNumber, excluded, RegexOptions.IgnoreCase) &&
+                    !Regex.IsMatch(record.Title ?? string.Empty, excluded, RegexOptions.IgnoreCase) &&
+                    !Regex.IsMatch(record.Notes ?? string.Empty, excluded, RegexOptions.IgnoreCase) &&
+                    !Regex.IsMatch(record.FiledBy ?? string.Empty, excluded, RegexOptions.IgnoreCase));
+            }
+
+            var records = await recordCandidates
                 .Where(record =>
                     (EF.Functions.ILike(record.IprFilingNumber, pattern, SearchLikePattern.EscapeCharacter) ||
                      EF.Functions.ILike(record.Title ?? string.Empty, pattern, SearchLikePattern.EscapeCharacter) ||
@@ -76,8 +88,14 @@ namespace ProjectManagement.Services.Search
             // ------------------------------------------------------------
             // 2. IPR attachments (PDF only) - EF friendly
             // ------------------------------------------------------------
-            var attachments = await _dbContext.IprAttachments
-                .AsNoTracking()
+            var attachmentCandidates = _dbContext.IprAttachments.AsNoTracking();
+            foreach (var excluded in parsed.ExcludedPatterns)
+            {
+                attachmentCandidates = attachmentCandidates.Where(attachment =>
+                    !Regex.IsMatch(attachment.OriginalFileName ?? string.Empty, excluded, RegexOptions.IgnoreCase));
+            }
+
+            var attachments = await attachmentCandidates
                 .Where(attachment =>
                     !attachment.IsArchived &&
                     attachment.ContentType == "application/pdf" &&

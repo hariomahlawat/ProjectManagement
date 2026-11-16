@@ -97,10 +97,10 @@ public sealed class SearchGatewayFailureStateTests
         Assert.Single(response.Results);
     }
 
-    // ILIKE sources (IPR, IT projects) get the text without "-word", or they find nothing;
-    // full-text sources keep the typed text and exclude in the database.
+    // Every source gets the typed text: full-text sources exclude with websearch_to_tsquery,
+    // and the ILIKE sources (IPR, IT projects) split it themselves (SearchPhraseQuery).
     [Fact]
-    public async Task RealLegacy_GivesPhraseSourcesTheTextWithoutExclusions()
+    public async Task RealLegacy_GivesEverySourceTheTypedText()
     {
         var services = new ServiceCollection();
         var ipr = new Recording();
@@ -118,8 +118,8 @@ public sealed class SearchGatewayFailureStateTests
 
         await legacy.SearchAsync("cabling -fibre", CancellationToken.None);
 
-        Assert.Equal("cabling", ipr.Query);
-        Assert.Equal("cabling", itProjects.Query);
+        Assert.Equal("cabling -fibre", ipr.Query);
+        Assert.Equal("cabling -fibre", itProjects.Query);
         Assert.Equal("cabling -fibre", projects.Query);
     }
 

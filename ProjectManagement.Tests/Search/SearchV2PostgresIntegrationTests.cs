@@ -517,6 +517,33 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal(0, await host.CountEntriesAsync("ItProject", id.ToString()));
     }
 
+    // The basic engine's IT projects source applies "-word" in the database, over the whole
+    // description: a word past the excerpt still excludes the record (Codex on #3327).
+    [SearchV2PostgresFact]
+    public async Task LegacyItProjects_ExcludeAWordAnywhereInTheDescription()
+    {
+        await using var host = _database.CreateHost();
+        var id = await host.SeedItProjectAsync(ItProjectModules.It, "Thornwick cabling", "IT PPP 88/2026");
+        var description = string.Join(' ', Enumerable.Repeat("structured", 120)) + " with a single-mode fibre spine and T-90 shelters";
+        await host.ExecuteAsync($"""UPDATE "ItProjects" SET "Description" = '{description}' WHERE "Id" = {id};""");
+
+        try
+        {
+            using var scope = host.Services.CreateScope();
+            var legacy = new ProjectManagement.Services.Search.GlobalItProjectSearchService(scope.ServiceProvider.GetRequiredService<ApplicationDbContext>());
+
+            Assert.Empty(await legacy.SearchAsync("thornwick -fibre", 20, CancellationToken.None));
+            Assert.Empty(await legacy.SearchAsync("thornwick -T-90", 20, CancellationToken.None));
+            Assert.Single(await legacy.SearchAsync("thornwick -copper", 20, CancellationToken.None));
+            Assert.Single(await legacy.SearchAsync("thornwick -fib", 20, CancellationToken.None));
+            Assert.Single(await legacy.SearchAsync("Thornwick", 20, CancellationToken.None));
+        }
+        finally
+        {
+            await host.ExecuteAsync($"""UPDATE "ItProjects" SET "IsDeleted" = TRUE WHERE "Id" = {id};""");
+        }
+    }
+
     private static async Task<List<long>> DocumentRowIdsAsync(SearchV2TestHost host, int projectId)
     {
         await using var connection = await host.OpenConnectionAsync();
