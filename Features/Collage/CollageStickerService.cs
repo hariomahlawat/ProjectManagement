@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -37,6 +38,12 @@ public interface ICollageStickerService
 
     Task<CollageStickerOutcome> AddAsync(Stream content, string fileName, string name, string? searchWords, string? actorUserId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Refuses an upload whose request is over the page's size limit, before it is read, with the
+    /// same message and audit entry as a picture over 5 MB.
+    /// </summary>
+    Task<CollageStickerOutcome> RefuseOversizeRequestAsync(long requestBytes, string? actorUserId, CancellationToken cancellationToken = default);
+
     Task<CollageStickerOutcome> RenameAsync(int id, string name, string? searchWords, string? actorUserId, CancellationToken cancellationToken = default);
 
     /// <summary>Moves an active sticker one place earlier (<paramref name="up"/>) or later.</summary>
@@ -57,7 +64,7 @@ public sealed class CollageStickerService : ICollageStickerService
     public const int MaxSide = 1024;
 
     // Enough for a large scanned crest; a bigger picture is refused before it is decoded.
-    private const long MaxDecodePixels = 40_000_000;
+    internal const long MaxDecodePixels = 40_000_000;
 
     private static readonly HashSet<string> AllowedTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -76,9 +83,19 @@ public sealed class CollageStickerService : ICollageStickerService
     private readonly IClock _clock;
     private readonly IVirusScanner? _virusScanner;
     private readonly ILogger<CollageStickerService> _logger;
+    private readonly IMemoryCache? _cache;
+    private readonly IServiceScopeFactory? _scopes;
 
     /// <summary>What the administrator is told when the upload scanner refuses or fails on a picture.</summary>
     public const string ScanRefusedMessage = "The picture did not pass the upload check, so it was not added. Try another picture, or ask the system administrator.";
+
+    public const string TooLargeMessage = "The picture is larger than 5 MB. Choose a smaller one.";
+    public const string WrongTypeMessage = "Use a PNG, JPEG or WebP picture. A PNG with a clear background looks best.";
+    public const string TooManyPixelsMessage = "The picture has too many pixels. Choose a smaller one.";
+    public const string UnreadableMessage = "The picture could not be read. Try saving it again as a PNG.";
+
+    /// <summary>A missing sticker file is named in the log at most once in this time, not on every request for it.</summary>
+    internal static readonly TimeSpan MissingFileWarningInterval = TimeSpan.FromHours(1);
 
     /// <summary>A picture file is only called left over once it is this old, so an upload still saving is never named.</summary>
     internal static readonly TimeSpan LeftoverAge = TimeSpan.FromHours(1);
@@ -90,7 +107,9 @@ public sealed class CollageStickerService : ICollageStickerService
         IAdminAuditService audit,
         IClock clock,
         IVirusScanner? virusScanner = null,
-        ILogger<CollageStickerService>? logger = null)
+        ILogger<CollageStickerService>? logger = null,
+        IMemoryCache? cache = null,
+        IServiceScopeFactory? scopes = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _uploadRoot = uploadRoot ?? throw new ArgumentNullException(nameof(uploadRoot));
@@ -99,6 +118,8 @@ public sealed class CollageStickerService : ICollageStickerService
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _virusScanner = virusScanner;
         _logger = logger ?? NullLogger<CollageStickerService>.Instance;
+        _cache = cache;
+        _scopes = scopes;
     }
 
     public async Task<IReadOnlyList<CollageSticker>> ListActiveAsync(CancellationToken cancellationToken = default) =>
@@ -122,9 +143,12 @@ public sealed class CollageStickerService : ICollageStickerService
         {
             var path = _paths.ToAbsolute(sticker.StorageKey);
             if (File.Exists(path)) return path;
-            _logger.LogWarning(
-                "Collage sticker {StickerId} ('{StickerName}') has no picture file at {StorageKey}; collages that use it show nothing in its place.",
-                sticker.Id, sticker.Name, sticker.StorageKey);
+            if (ShouldWarnMissing(sticker))
+            {
+                _logger.LogWarning(
+                    "Collage sticker {StickerId} ('{StickerName}') has no picture file at {StorageKey}; collages that use it show nothing in its place. This is logged at most once an hour for each sticker.",
+                    sticker.Id, sticker.Name, sticker.StorageKey);
+            }
             return null;
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
@@ -132,6 +156,20 @@ public sealed class CollageStickerService : ICollageStickerService
             _logger.LogWarning(ex, "Collage sticker {StickerId} has a storage key that is not a valid upload path: {StorageKey}.", sticker.Id, sticker.StorageKey);
             return null;
         }
+    }
+
+    /// <summary>
+    /// True when this sticker's missing file has not been named in the log within the last hour.
+    /// Every collage that uses the sticker asks for its picture, so without this one missing file
+    /// would fill the log. Without a cache (some tests) every request is logged.
+    /// </summary>
+    private bool ShouldWarnMissing(CollageSticker sticker)
+    {
+        if (_cache is null) return true;
+        var key = (typeof(CollageStickerService), "missing-file", sticker.Id, sticker.StorageKey);
+        if (_cache.TryGetValue(key, out _)) return false;
+        _cache.Set(key, true, MissingFileWarningInterval);
+        return true;
     }
 
     public async Task<CollageStickerOutcome> AddAsync(
@@ -158,7 +196,10 @@ public sealed class CollageStickerService : ICollageStickerService
         while ((read = await content.ReadAsync(chunk, cancellationToken)) > 0)
         {
             buffer.Write(chunk, 0, read);
-            if (buffer.Length > MaxFileBytes) return CollageStickerOutcome.Refused("The picture is larger than 5 MB. Choose a smaller one.");
+            if (buffer.Length > MaxFileBytes)
+            {
+                return await RefuseAuditedAsync(TooLargeMessage, "The picture is larger than 5 MB.", cleanName, fileName, buffer.Length, actorUserId, cancellationToken);
+            }
         }
         if (buffer.Length == 0) return CollageStickerOutcome.Refused("Choose a picture to upload.");
 
@@ -166,11 +207,11 @@ public sealed class CollageStickerService : ICollageStickerService
         var info = PrismImageCodec.Identify(bytes);
         if (info is null || !AllowedTypes.Contains(info.MimeType))
         {
-            return CollageStickerOutcome.Refused("Use a PNG, JPEG or WebP picture. A PNG with a clear background looks best.");
+            return await RefuseAuditedAsync(WrongTypeMessage, "The file is not a PNG, JPEG or WebP picture.", cleanName, fileName, buffer.Length, actorUserId, cancellationToken);
         }
         if ((long)info.Width * info.Height > MaxDecodePixels)
         {
-            return CollageStickerOutcome.Refused("The picture has too many pixels. Choose a smaller one.");
+            return await RefuseAuditedAsync(TooManyPixelsMessage, $"The picture is {info.Width} by {info.Height} pixels, over the limit of {MaxDecodePixels:N0}.", cleanName, fileName, buffer.Length, actorUserId, cancellationToken);
         }
 
         if (_virusScanner is not null)
@@ -216,7 +257,7 @@ public sealed class CollageStickerService : ICollageStickerService
         }
         catch (PrismImageException)
         {
-            return CollageStickerOutcome.Refused("The picture could not be read. Try saving it again as a PNG.");
+            return await RefuseAuditedAsync(UnreadableMessage, "The picture could not be read.", cleanName, fileName, buffer.Length, actorUserId, cancellationToken);
         }
 
         var folder = Path.Combine(_uploadRoot.RootPath, Folder);
@@ -241,6 +282,8 @@ public sealed class CollageStickerService : ICollageStickerService
         // the next upload's check (LogLeftoverFiles) names it again once it is an hour old.
         _logger.LogInformation("Collage sticker picture {StorageKey} written for '{StickerName}'; saving its record.", $"{Folder}/{fileStem}.png", cleanName);
 
+        var storageKey = $"{Folder}/{fileStem}.png";
+        var commitSent = false;
         CollageStickerOutcome outcome;
         try
         {
@@ -257,7 +300,7 @@ public sealed class CollageStickerService : ICollageStickerService
                 {
                     Name = cleanName,
                     SearchWords = words.Length == 0 ? null : words,
-                    StorageKey = $"{Folder}/{fileStem}.png",
+                    StorageKey = storageKey,
                     Width = width,
                     Height = height,
                     Version = 1,
@@ -270,12 +313,22 @@ public sealed class CollageStickerService : ICollageStickerService
                 await _db.SaveChangesAsync(cancellationToken);
                 await RecordAsync("CollageStickerAdded", sticker, null, actorUserId, $"Added the collage sticker '{sticker.Name}'.", cancellationToken);
                 return CollageStickerOutcome.Done($"Added '{sticker.Name}'.", sticker);
-            }, cancellationToken);
+            }, cancellationToken, onCommitSending: () => commitSent = true);
         }
-        catch
+        catch (Exception ex)
         {
-            // Nothing was saved, so the picture has nothing pointing at it.
-            TryDelete(finalPath);
+            if (!commitSent)
+            {
+                // The transaction was never committed, so nothing was saved and the picture has
+                // nothing pointing at it.
+                TryDelete(finalPath);
+            }
+            else
+            {
+                // COMMIT was sent and then failed, perhaps only on the way back: the row may be
+                // saved. The file goes only when a fresh look shows no row uses it.
+                await DeleteIfUnsavedAsync(storageKey, finalPath, ex);
+            }
             throw;
         }
 
@@ -287,6 +340,64 @@ public sealed class CollageStickerService : ICollageStickerService
 
         await LogLeftoverFilesAsync(folder);
         return outcome;
+    }
+
+    /// <summary>
+    /// After a failed COMMIT: deletes the new picture only when a fresh database context shows that
+    /// no sticker row uses it. When the row is there, or the check itself fails, the file is kept
+    /// and logged; a kept file nothing uses is named later by <see cref="LogLeftoverFilesAsync"/>.
+    /// </summary>
+    private async Task DeleteIfUnsavedAsync(string storageKey, string finalPath, Exception failure)
+    {
+        bool? saved = null;
+        if (_scopes is not null)
+        {
+            try
+            {
+                await using var scope = _scopes.CreateAsyncScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                saved = await db.CollageStickers.AsNoTracking().AnyAsync(s => s.StorageKey == storageKey, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Collage sticker picture {StorageKey}: could not check whether its record was saved after the commit failed.", storageKey);
+            }
+        }
+
+        if (saved == false)
+        {
+            TryDelete(finalPath);
+            return;
+        }
+
+        _logger.LogWarning(
+            failure,
+            saved == true
+                ? "Collage sticker picture {StorageKey} was kept: the commit reported a failure, but its record was saved."
+                : "Collage sticker picture {StorageKey} was kept: the commit reported a failure and it is not known whether its record was saved. If no sticker uses it, a later upload names it in the log.",
+            storageKey);
+    }
+
+    public Task<CollageStickerOutcome> RefuseOversizeRequestAsync(long requestBytes, string? actorUserId, CancellationToken cancellationToken = default) =>
+        RefuseAuditedAsync(TooLargeMessage, $"The upload ({requestBytes:N0} bytes) is over the page's request limit.", null, null, requestBytes, actorUserId, cancellationToken);
+
+    /// <summary>A refused upload: the plain message for the administrator and a Warning entry in the audit log.</summary>
+    private async Task<CollageStickerOutcome> RefuseAuditedAsync(string message, string reason, string? name, string? fileName, long bytes, string? actorUserId, CancellationToken cancellationToken)
+    {
+        await _audit.RecordAsync(new AdminAuditEntry(
+            "CollageStickerRefused",
+            nameof(CollageSticker),
+            EntityId: null,
+            After: new { Name = name, FileName = Path.GetFileName(fileName ?? string.Empty), Bytes = bytes },
+            Reason: reason,
+            Outcome: "Refused",
+            Level: "Warning",
+            ActorUserId: actorUserId,
+            Origin: AuditOrigin,
+            Message: string.IsNullOrEmpty(name)
+                ? "A collage sticker picture was refused: " + reason
+                : $"A collage sticker picture for '{name}' was refused: {reason}"), cancellationToken);
+        return CollageStickerOutcome.Refused(message);
     }
 
     /// <summary>
@@ -424,7 +535,7 @@ public sealed class CollageStickerService : ICollageStickerService
     /// administrators cannot both find room for the sixtieth sticker or renumber the picker at once.
     /// A refused change has written nothing; a failure rolls everything back.
     /// </summary>
-    private async Task<CollageStickerOutcome> ChangeAsync(Func<Task<CollageStickerOutcome>> change, CancellationToken cancellationToken)
+    private async Task<CollageStickerOutcome> ChangeAsync(Func<Task<CollageStickerOutcome>> change, CancellationToken cancellationToken, Action? onCommitSending = null)
     {
         await using var transaction = _db.Database.IsRelational()
             ? await _db.Database.BeginTransactionAsync(cancellationToken)
@@ -437,7 +548,12 @@ public sealed class CollageStickerService : ICollageStickerService
             }
 
             var outcome = await change();
-            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                // From here a failure no longer proves that nothing was saved.
+                onCommitSending?.Invoke();
+                await transaction.CommitAsync(cancellationToken);
+            }
             return outcome;
         }
         catch

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Features.Collage;
@@ -89,8 +90,123 @@ public sealed class CollageStickerTests : IDisposable
         Assert.Empty(await _service.ListAllAsync());
         Assert.False(Directory.Exists(Path.Combine(_root, CollageStickerService.Folder))
             && Directory.EnumerateFiles(Path.Combine(_root, CollageStickerService.Folder)).Any());
+        // A refused picture is in the audit log, like a scanner refusal; a form without a picture
+        // or a name is not an upload and is not.
+        Assert.Equal(2, _audit.Entries.Count);
+        Assert.All(_audit.Entries, e => Assert.Equal(("CollageStickerRefused", "Refused", "Warning", "admin"), (e.Action, e.Outcome, e.Level, e.ActorUserId)));
+        Assert.Contains("not a PNG, JPEG or WebP", _audit.Entries[0].Reason);
+        Assert.Contains("larger than 5 MB", _audit.Entries[1].Reason);
+    }
+
+    [Fact]
+    public async Task A_picture_over_the_pixel_limit_is_refused_before_decoding_and_audited()
+    {
+        // 8000 x 6000 is 48 million pixels, over the 40 million limit, in a file of a few KB.
+        var outcome = await AddAsync("Huge", BlankPng(8000, 6000));
+
+        Assert.False(outcome.Succeeded);
+        Assert.Equal(CollageStickerService.TooManyPixelsMessage, outcome.Message);
+        Assert.Empty(await _service.ListAllAsync());
+        var entry = Assert.Single(_audit.Entries);
+        Assert.Equal("CollageStickerRefused", entry.Action);
+        Assert.Contains("8000 by 6000", entry.Reason);
+    }
+
+    [Fact]
+    public async Task A_picture_that_cannot_be_decoded_is_refused_and_audited()
+    {
+        var outcome = await AddAsync("Broken", BrokenJpeg());
+
+        Assert.False(outcome.Succeeded);
+        Assert.Equal(CollageStickerService.UnreadableMessage, outcome.Message);
+        Assert.Empty(await _service.ListAllAsync());
+        Assert.Equal("CollageStickerRefused", Assert.Single(_audit.Entries).Action);
+        Assert.False(Directory.Exists(Path.Combine(_root, CollageStickerService.Folder))
+            && Directory.EnumerateFiles(Path.Combine(_root, CollageStickerService.Folder)).Any());
+    }
+
+    [Fact]
+    public async Task An_upload_over_the_request_limit_is_refused_with_the_same_message_and_audited()
+    {
+        var outcome = await _service.RefuseOversizeRequestAsync(7_000_000, "admin");
+
+        Assert.False(outcome.Succeeded);
+        Assert.Equal(CollageStickerService.TooLargeMessage, outcome.Message);
+        var entry = Assert.Single(_audit.Entries);
+        Assert.Equal(("CollageStickerRefused", "admin"), (entry.Action, entry.ActorUserId));
+        Assert.Contains("request limit", entry.Reason);
+    }
+
+    [Fact]
+    public async Task The_count_is_taken_again_under_the_lock_so_a_sticker_added_meanwhile_is_counted()
+    {
+        // The first count passes; while the picture is checked another administrator fills the
+        // picker. The second count, under the lock, refuses it and the new picture is removed.
+        var roots = new TestUploadRootProvider(_root);
+        var racing = new CollageStickerService(
+            _db, roots, new UploadPathResolver(roots), _audit,
+            FakeClock.AtUtc(new DateTimeOffset(2026, 11, 15, 6, 0, 0, TimeSpan.Zero)),
+            new FillingScanner(_db), _log);
+
+        var outcome = await racing.AddAsync(new MemoryStream(Png(20, 20)), "crest.png", "Late", null, "admin");
+
+        Assert.False(outcome.Succeeded);
+        Assert.Contains($"already {CollageStickerService.MaxActive}", outcome.Message);
+        Assert.Equal(CollageStickerService.MaxActive, (await _service.ListActiveAsync()).Count);
+        Assert.DoesNotContain(await _service.ListAllAsync(), s => s.Name == "Late");
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(_root, CollageStickerService.Folder)));
         Assert.Empty(_audit.Entries);
     }
+
+    [Fact]
+    public async Task Restore_counts_under_the_lock_and_a_refused_restore_changes_nothing()
+    {
+        for (var i = 0; i < CollageStickerService.MaxActive; i++)
+        {
+            await SeedAsync($"S{i}", i + 1);
+        }
+        var retired = await SeedAsync("Old", 7, retired: true);
+
+        var outcome = await _service.RestoreAsync(retired.Id, "admin");
+
+        Assert.False(outcome.Succeeded);
+        Assert.Contains($"already {CollageStickerService.MaxActive}", outcome.Message);
+        var after = await _service.FindAsync(retired.Id);
+        Assert.Equal((true, 7), (after!.IsRetired, after.SortOrder));
+        Assert.Empty(_audit.Entries);
+    }
+
+    [Fact]
+    public async Task A_missing_picture_file_is_logged_once_an_hour_for_each_sticker()
+    {
+        var clock = new ManualSystemClock(new DateTimeOffset(2026, 11, 15, 6, 0, 0, TimeSpan.Zero));
+        using var cache = new MemoryCache(new MemoryCacheOptions { Clock = clock });
+        var roots = new TestUploadRootProvider(_root);
+        var service = new CollageStickerService(
+            _db, roots, new UploadPathResolver(roots), _audit,
+            FakeClock.AtUtc(clock.UtcNow), logger: _log, cache: cache);
+        var first = await SeedAsync("Gone A", 1);
+        var second = await SeedAsync("Gone B", 2);
+
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Null(service.PicturePathOf(first));
+        }
+        Assert.Null(service.PicturePathOf(second));
+        Assert.Equal(1, MissingWarnings(first));
+        Assert.Equal(1, MissingWarnings(second));
+
+        clock.UtcNow += TimeSpan.FromMinutes(59);
+        service.PicturePathOf(first);
+        Assert.Equal(1, MissingWarnings(first));
+
+        clock.UtcNow += TimeSpan.FromMinutes(2);
+        service.PicturePathOf(first);
+        Assert.Equal(2, MissingWarnings(first));
+    }
+
+    private int MissingWarnings(CollageSticker sticker) =>
+        _log.Entries.Count(e => e.Level == LogLevel.Warning && e.Message.Contains("has no picture file") && e.Message.Contains(sticker.StorageKey));
 
     [Fact]
     public async Task No_more_than_sixty_are_in_use_and_a_retired_one_comes_back_only_when_there_is_room()
@@ -319,6 +435,85 @@ public sealed class CollageStickerTests : IDisposable
             canvas.DrawCircle(width / 2f, height / 2f, Math.Min(width, height) / 3f, new SKPaint { Color = SKColors.DarkRed });
         }
         return PrismImageCodec.EncodePng(bitmap);
+    }
+
+    /// <summary>
+    /// A PNG of one-bit grey pixels, all black, written by hand so a very large picture is a
+    /// small file.
+    /// </summary>
+    internal static byte[] BlankPng(int width, int height)
+    {
+        using var output = new MemoryStream();
+        output.Write(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+        var header = new byte[13];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(0), width);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4), height);
+        header[8] = 1; // bit depth
+        header[9] = 0; // greyscale
+        Chunk(output, "IHDR", header);
+        using var packed = new MemoryStream();
+        using (var zlib = new System.IO.Compression.ZLibStream(packed, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+        {
+            var row = new byte[1 + (width + 7) / 8];
+            for (var y = 0; y < height; y++) zlib.Write(row);
+        }
+        Chunk(output, "IDAT", packed.ToArray());
+        Chunk(output, "IEND", Array.Empty<byte>());
+        return output.ToArray();
+    }
+
+    /// <summary>
+    /// A JPEG whose header reads (40 x 40, three colours) but which names a quantization table it
+    /// never defines, so decoding it fails.
+    /// </summary>
+    internal static byte[] BrokenJpeg() => new byte[]
+    {
+        0xFF, 0xD8,
+        0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x28, 0x00, 0x28, 0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00,
+        0xFF, 0xDA, 0x00, 0x0C, 0x03, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x00, 0x3F, 0x00,
+        0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0,
+        0xFF, 0xD9
+    };
+
+    private static void Chunk(Stream output, string type, byte[] data)
+    {
+        var length = new byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(length, data.Length);
+        output.Write(length);
+        var typed = Encoding.ASCII.GetBytes(type).Concat(data).ToArray();
+        output.Write(typed);
+        var crc = new byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(crc, Crc32(typed));
+        output.Write(crc);
+    }
+
+    private static uint Crc32(byte[] bytes)
+    {
+        var crc = 0xFFFFFFFFu;
+        foreach (var b in bytes)
+        {
+            crc ^= b;
+            for (var k = 0; k < 8; k++) crc = (crc & 1) != 0 ? 0xEDB88320u ^ (crc >> 1) : crc >> 1;
+        }
+        return ~crc;
+    }
+
+    /// <summary>A scanner that passes the picture but, while it "scans", another administrator fills the picker.</summary>
+    private sealed class FillingScanner(ApplicationDbContext db) : IVirusScanner
+    {
+        public async Task ScanAsync(Stream content, string fileName, CancellationToken cancellationToken)
+        {
+            for (var i = 0; i < CollageStickerService.MaxActive; i++)
+            {
+                db.CollageStickers.Add(new CollageSticker { Name = $"Other {i}", StorageKey = $"{CollageStickerService.Folder}/o{i}.png", SortOrder = i + 1 });
+            }
+            await db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private sealed class ManualSystemClock(DateTimeOffset now) : Microsoft.Extensions.Internal.ISystemClock
+    {
+        public DateTimeOffset UtcNow { get; set; } = now;
     }
 
     private sealed class RefusingScanner : IVirusScanner

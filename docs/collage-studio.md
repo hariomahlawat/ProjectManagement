@@ -265,9 +265,17 @@ itself stays the colour the user chose, as it will print.
 - `ProjectManagement.Tests/Tools/CollageApiHostTests.cs` runs the real PRISM host: each of the
   three Collage APIs answers an anonymous request with 401, every `/api/collage` route requires
   authorization, and the library lists each kind of photo at its own page's address.
+- `ProjectManagement.Tests/Admin/CollageStickersAdminHostTests.cs` runs the real host too: a
+  signed-in user who is not an administrator gets 403 from each change on Administration › Crests
+  and logos (Add, Rename, Move, Retire, Restore), even with a valid antiforgery token; an
+  administrator gets past authorization; and an upload over the request limit gets the page's
+  plain message and an audit entry.
 - `ProjectManagement.Tests/Tools/CollageStickerTests.cs` (including the audit before and after,
-  a scanner refusal, and the missing-file and left-over-file log lines),
-  `CollageLibraryPhotosTests.cs`, and
+  every kind of refused upload, the pixel limit, the second count under the lock in Add and the
+  count in Restore, the missing-file warning once an hour, and the left-over-file log line),
+  `CollageStickerCommitTests.cs` (on SQLite: a COMMIT that fails after the row was saved keeps
+  the picture; one that fails before removes it), `CollageLibraryPhotosTests.cs`,
+  `ProjectManagement.Tests/MediaLibrary/MediaLibraryProjectFilterTests.cs`, and
   `CollageStickerPostgresIntegrationTests.cs` on a real PostgreSQL (two uploads at once never pass
   60; a failed audit write rolls the change back and removes the picture), run in the database
   migrations workflow.
@@ -285,7 +293,9 @@ itself stays the colour the user chose, as it will print.
   so drafts keep it. SVG files are refused. A user's own logo as a sticker is not built (owner,
   15 Nov 2026); it can still be added as a photo.
 - **From PRISM Photos** lists what the Photos library's catalogue holds. A photo uploaded moments
-  ago appears once the catalogue has taken it in, as on `/Photos`. Videos are not offered.
+  ago appears once the catalogue has taken it in, as on `/Photos`. Videos are not offered, and
+  its Projects filter lists only projects that have photos (`MediaLibraryQuery.ProjectsOfKindOnly`;
+  the PRISM Photos page itself still lists every project with media).
 - Themes (ready-made Farewell, Picnic and similar designs) are not built.
 
 ## Administration › Crests and logos
@@ -308,7 +318,7 @@ What the audit log records (Administration › Logs, under Reference lists):
 | `CollageStickerUpdated` (renamed) | name, search words, place, retired | the same, changed |
 | `CollageStickerReordered` (moved) | `Order`: every sticker whose place changed, with its old place | `Order`: the same stickers with their new places |
 | `CollageStickerRetired` / `CollageStickerRestored` | name, search words, place, retired | the same, changed (put back goes to the end) |
-| `CollageStickerRefused` (upload refused by the scanner) | none | name, file name and size; outcome Refused, level Warning |
+| `CollageStickerRefused` (upload refused: not a PNG, JPEG or WebP, over 5 MB or over the request limit, too many pixels, unreadable, or refused by the scanner) | none | name, file name and size, and the reason; outcome Refused, level Warning |
 
 A move renumbers the picker from 1, so its one entry lists the moved sticker, its neighbour and
 any other sticker whose number changed. Moves recorded before 16 Nov 2026 are
@@ -318,9 +328,18 @@ If an upload scanner (`IVirusScanner`) is registered and refuses the picture or 
 stored: the administrator sees "The picture did not pass the upload check" and the refusal is in
 the audit log and the server log. PRISM registers no scanner by default.
 
+The page's request limit is 6 MB. An upload whose declared size is over it is refused before the
+body is read (`IndexModel.RefuseOversizeUploadAttribute`, after the authorization check), with
+the same "larger than 5 MB" message and audit entry, instead of the framework's bare 413.
+
+If COMMIT fails after it was sent, the row may still have been saved (a connection dropped on the
+way back). The new picture is then deleted only when a fresh database context shows no sticker
+uses it; otherwise it is kept and logged.
+
 Server log lines worth knowing:
 
-- a warning when a sticker's picture file is missing (the sticker then draws nothing);
+- a warning when a sticker's picture file is missing (the sticker then draws nothing), at most
+  once an hour for each sticker;
 - an information line with the storage key each time a picture is written, before its row is
   saved; and after each successful upload, a warning naming any picture file in
   `collage-stickers/` over an hour old that no sticker uses. Such a file is left when the process
