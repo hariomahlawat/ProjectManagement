@@ -730,6 +730,12 @@
         padding-top: 52px;
     }
 
+    /* The hint shown while a photo is moved in its frame sits under the toolbar strip, so it never
+       covers the docked toolbar's Done button. */
+    .clg-stage .clg-stage-hint {
+        top: 58px;
+    }
+
     .clg-toolbar.is-docked {
         position: fixed;
         left: 50%;

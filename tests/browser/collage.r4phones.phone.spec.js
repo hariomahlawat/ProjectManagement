@@ -57,3 +57,22 @@ test('on a phone, adding words does not put the keyboard over the page, and the 
   expect(await page.evaluate(() => document.activeElement?.matches('[data-text]'))).toBe(false);
   expect(errors).toEqual([]);
 });
+
+test('on a phone, the hint for moving a photo in its frame does not cover the docked Done button', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^A4 landscape/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'one.jpg' }));
+  await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);
+  await page.locator('[data-toolbar] [data-action="adjust"]').click();
+  const done = page.locator('[data-toolbar] [data-action="adjust-done"]');
+  await expect(done).toBeVisible();
+  const hint = page.locator('[data-adjust-hint]');
+  await expect(hint).toBeVisible();
+  const a = await done.boundingBox();
+  const b = await hint.boundingBox();
+  const overlap = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) > 0 && Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) > 0;
+  expect(overlap).toBe(false);
+  await done.click();
+  await expect(done).toBeHidden();
+  expect(errors).toEqual([]);
+});
