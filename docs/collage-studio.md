@@ -78,7 +78,8 @@ its npm package by hand; the libman entry records the version.
   edge), rounded corners, a shape (oval, heart, star, hexagon, arch), a shadow and a look (black and
   white, sepia, vintage, vivid, soft, cool, warm), and moved inside its frame (**Adjust**, or double-click).
 - **Casual or neat**: one button scatters the photos at slight angles as polaroids and taped
-  prints; another straightens everything back. Shuffle swaps the photos between frames.
+  prints (a frame or shape the user chose is kept, and the photo is only tilted), with Undo on
+  the screen; another straightens everything back. Shuffle swaps the photos between frames.
 - **Text** in English and Hindi with bundled fonts: ready-made headings (Farewell, Happy
   Birthday, Thank you!, Congratulations and others), curved text, outline, shadow and a label
   behind the words. Hindi is typed with the Windows Hindi keyboard or pasted.
@@ -136,7 +137,7 @@ delete the oldest.
 | Key | Does |
 | --- | --- |
 | Arrow keys | Move the selected item 1 unit; with Shift, 10. While adjusting, move the photo in its frame |
-| Delete or Backspace | Delete the selected item (not when locked) |
+| Delete or Backspace | Delete the selected item (not when locked). A photo in a layout leaves its frame empty; Undo is offered on the screen |
 | Ctrl+D | Duplicate |
 | `]` / `[` | Bring forward / send backward; with Shift, to the front / back |
 | Enter | When the page has focus: adjust the selected photo, or edit the selected text. On a focused button, Enter presses that button |
@@ -180,8 +181,11 @@ working size, and a picture over 250 million pixels is refused before it is read
 ### First use
 
 The start screen shows one row of drafts (with "Show all") so the layouts for a new collage are
-in view. A collage nobody named is called by the first line of its first text, or by when it was
-started. A photo goes into the empty frame closest to its shape. Save asks what the picture is
+in view. A collage nobody named is called by the first line of its first text (not the words
+that only show where to type, such as "Your heading"), or by when it was started. A photo goes
+into the empty frame closest to its shape; photos past a layout's frames wait in Photos, with a
+message, rather than sit loose on the grid. New words and stickers go where they cover nothing
+yet, and the item's toolbar moves below it when above would cover another item. Save asks what the picture is
 for: WhatsApp or email (JPG for the screen), printing (PDF at print quality), or a slide or a
 screen (PNG).
 

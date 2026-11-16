@@ -28,10 +28,13 @@
    */
   function createChangeLog({ core, getModel, onRecorded = () => {}, onKeep = () => {}, timers }) {
     let history = core.createHistory(getModel());
+    // Counts every step recorded, undone or redone: an offer to undo one step (a toast) is good
+    // only while nothing else has happened since.
+    let version = 0;
     const held = edits.createHeldEdits({
       // Recorded held changes are kept in the draft too: a change marked without being held
       // (a slider let go after the draft was written) would otherwise reach Undo but not the draft.
-      record: () => { history.record(getModel()); onKeep(); onRecorded('quiet'); },
+      record: () => { history.record(getModel()); version += 1; onKeep(); onRecorded('quiet'); },
       keep: () => onKeep(),
       ...(timers ? { timers } : {})
     });
@@ -40,6 +43,7 @@
     function start(model) {
       held.drop();
       history = core.createHistory(model);
+      version += 1;
     }
 
     /** A finished change: one Undo step, kept in the draft. */
@@ -48,6 +52,7 @@
       // still finds one held (made without a user action) joins it in one step.
       held.drop();
       history.record(getModel());
+      version += 1;
       onKeep();
       onRecorded('commit');
     }
@@ -56,6 +61,7 @@
     function record() {
       held.drop();
       history.record(getModel());
+      version += 1;
       onKeep();
       onRecorded('quiet');
     }
@@ -75,6 +81,7 @@
       flush();
       if (!history.canUndo()) return null;
       const model = history.undo();
+      version += 1;
       onKeep();
       return model;
     }
@@ -83,6 +90,7 @@
       flush();
       if (!history.canRedo()) return null;
       const model = history.redo();
+      version += 1;
       onKeep();
       return model;
     }
@@ -95,7 +103,9 @@
       canUndo: () => history.canUndo(),
       canRedo: () => history.canRedo(),
       mentions: (photoId) => history.mentions(photoId),
-      get pending() { return held.pending; }
+      get pending() { return held.pending; },
+      /** Changes each time a step is recorded, undone or redone. */
+      get version() { return version; }
     });
   }
 
