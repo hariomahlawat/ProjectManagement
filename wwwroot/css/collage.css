@@ -863,6 +863,7 @@
 
 .clg-toolbar__text {
     width: auto !important;
+    white-space: nowrap;
     padding: 0 0.6rem !important;
     gap: 0.35rem;
     display: inline-flex !important;
@@ -1143,6 +1144,7 @@
 
 .clg-draft__open small {
     color: var(--pdft-muted);
+    white-space: normal;
 }
 
 .clg-draft__delete {
@@ -1250,8 +1252,45 @@
 
 /* ---------- Text ---------- */
 
+/* The four plain starts: "add" buttons, each in its own font and size. */
 .clg-text-start {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border: 1px dashed var(--pdft-border);
+    border-radius: 10px;
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-emphasis-color);
     text-align: left;
+    line-height: 1.15;
+}
+
+.clg-text-start i {
+    flex: none;
+    color: var(--clg-accent);
+    font-size: 0.9rem;
+}
+
+.clg-text-start:hover,
+.clg-text-start:focus-visible {
+    border-style: solid;
+    border-color: var(--clg-accent);
+    outline: none;
+}
+
+.clg-text-start--heading span {
+    font-size: 1.3rem;
+}
+
+.clg-text-start--subheading span {
+    font-size: 1.05rem;
+}
+
+.clg-text-start--line span,
+.clg-text-start--hindi span {
+    font-size: 0.92rem;
 }
 
 .clg-text-heading {
@@ -1379,13 +1418,15 @@
 
 .clg-stickers {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    /* minmax(0, …): a picture never pushes a column wider than its share of the panel. */
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
 }
 
 .clg-sticker {
     display: grid;
     place-items: center;
+    min-width: 0;
     aspect-ratio: 1;
     padding: 6px;
     border: 0;
@@ -1403,7 +1444,21 @@
 .clg-sticker img {
     width: 100%;
     height: 100%;
+    min-width: 0;
     object-fit: contain;
+}
+
+/* PRISM Photos turned off: the dialog shows only its message and Close. */
+.clg-dialog--library.is-off .clg-library-filters,
+.clg-dialog--library.is-off [data-library-chosen],
+.clg-dialog--library.is-off [data-action="library-add"] {
+    display: none;
+}
+
+/* A stamp with words takes two cells, so the words can be read. */
+.clg-sticker--wide {
+    grid-column: span 2;
+    aspect-ratio: 2;
 }
 
 .clg-credits-link {

@@ -31,11 +31,11 @@
       const [low, high] = FRAME_WIDTHS;
       const size = !framed ? '' : `
         <div class="clg-section">
-          <label class="clg-field"><span class="clg-field__label">Size<output data-out="width">${Math.round(item.width)}</output></span>
+          <label class="clg-field"><span class="clg-field__label">Size<output data-out="width">${core.sliderText('width', item.width)}</output></span>
             <input type="range" min="${low}" max="${high}" step="1" value="${Math.round(Math.min(high, Math.max(low, item.width)))}" data-prop="width" aria-label="Width of the ${item.kind === 'slot' ? 'frame' : 'photo'}, in page units"></label>
         </div>`;
       const corners = item.kind === 'text' || item.kind === 'sticker' ? '' : `
-          <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius">${item.radius || 0}</output></span>
+          <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius">${core.sliderText('radius', item.radius || 0)}</output></span>
             <input type="range" min="0" max="${core.LAYOUT_LIMITS.radiusMax}" step="1" value="${item.radius || 0}" data-prop="radius" aria-label="Rounded corners, in page units"></label>`;
       // Size, and lock, hide, duplicate and delete, are always in view; the rest fold away.
       return `${size}
@@ -193,7 +193,7 @@
             <input type="range" min="${core.ADJUST_LIMITS.bright[0]}" max="${core.ADJUST_LIMITS.bright[1]}" step="1" value="${item.bright ?? 100}" data-prop="bright" aria-label="Brightness, in percent"></label>
           <label class="clg-field"><span class="clg-field__label">Contrast<output data-out="contrast">${item.contrast ?? 100}%</output></span>
             <input type="range" min="${core.ADJUST_LIMITS.contrast[0]}" max="${core.ADJUST_LIMITS.contrast[1]}" step="1" value="${item.contrast ?? 100}" data-prop="contrast" aria-label="Contrast, in percent"></label>
-          <label class="clg-field"><span class="clg-field__label">Warmth<output data-out="warmth">${item.warmth ?? 0}</output></span>
+          <label class="clg-field"><span class="clg-field__label">Warmth<output data-out="warmth">${core.sliderText('warmth', item.warmth ?? 0)}</output></span>
             <input type="range" min="${core.ADJUST_LIMITS.warmth[0]}" max="${core.ADJUST_LIMITS.warmth[1]}" step="1" value="${item.warmth ?? 0}" data-prop="warmth" aria-label="Warmth: below 0 cooler, above 0 warmer"></label>
           ${switchRow('flip', 'Mirror the photo', item.flip)}
           <button type="button" class="btn btn-outline-secondary btn-sm" data-action="reset-look">Reset look</button>`)}`;

@@ -106,7 +106,8 @@
     const refused = [];
     let room = Math.max(0, PHOTO_LIMITS.maxPhotos - (already || 0));
     for (const file of files) {
-      if (file.unreadable) refused.push({ name: file.name, reason: 'unreadable' });
+      // A file named as a photo whose contents are not one is most likely damaged.
+      if (file.unreadable || (!file.type && PHOTO_NAME.test(String(file.name || '')))) refused.push({ name: file.name, reason: 'unreadable' });
       else if (!file.type) refused.push({ name: file.name, reason: 'not-photo' });
       else if (file.size > PHOTO_LIMITS.maxBytes) refused.push({ name: file.name, reason: 'too-large' });
       else if (room <= 0) refused.push({ name: file.name, reason: 'too-many' });
@@ -132,6 +133,9 @@
     const fits = Math.sqrt(CANVAS_LIMITS.maxPixels / area);
     return Math.max(Math.min(CANVAS_LIMITS.minRatio, device), Math.min(device, fits));
   }
+
+  /** A file name that says it is a photo. */
+  const PHOTO_NAME = /\.(jpe?g|png|webp|gif|bmp)$/i;
 
   /** One sentence for photos that were not added, or '' when every photo was. */
   function refusedMessage(refused) {
@@ -1017,6 +1021,25 @@
     return `Collage, ${when.getDate()} ${MONTHS[when.getMonth()]} ${time}`;
   }
 
+  /**
+   * What a slider is at, with its unit: sizes, space and corners as a share of the page's width
+   * (the page is PAGE_WIDTH units across whatever its paper), turns in degrees, and the rest in
+   * percent or times.
+   */
+  function sliderText(prop, value) {
+    const number = Number(value) || 0;
+    if (prop === 'angle') return `${Math.round(number)}°`;
+    if (prop === 'opacity' || prop === 'bright' || prop === 'contrast') return `${Math.round(number)}%`;
+    if (prop === 'zoom') return `${number.toFixed(1)}×`;
+    if (prop === 'warmth') return number > 0 ? `+${Math.round(number)}` : String(Math.round(number));
+    if (prop === 'width') return `${Math.round(number / PAGE_WIDTH * 100)}% of the page`;
+    if (prop === 'radius' || prop === 'gap') {
+      const share = number / PAGE_WIDTH * 100;
+      return number ? `${share < 10 ? share.toFixed(1) : Math.round(share)}% of the page` : 'None';
+    }
+    return String(Math.round(number));
+  }
+
   /** Ready-made words that only show where to type; they never name a collage. */
   const TEXT_PLACEHOLDERS = Object.freeze({ heading: 'Your heading', subheading: 'A subheading', line: 'A line of text', hindi: 'यहाँ लिखें' });
 
@@ -1414,6 +1437,7 @@
     readDraftModel,
     sortDrafts,
     photosInUse,
+    sliderText,
     CAPTION_STRIP,
     hasCaptionStrip,
     captionStripHeight,
