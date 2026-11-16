@@ -49,6 +49,9 @@ public sealed class CollageStickersPageTests
         Assert.Equal("Crest", Assert.Single(page.Active).Name);
         Assert.Equal("Old", Assert.Single(page.Retired).Name);
         Assert.Equal("/api/collage/stickers/1/image?v=1", IndexModel.PictureUrl(page.Active[0]));
+        // Under a path base the thumbnails keep it; at the site root they are unchanged.
+        Assert.Equal("/prism/api/collage/stickers/1/image?v=1", IndexModel.PictureUrl(page.Active[0], "/prism"));
+        Assert.Equal("/api/collage/stickers/1/image?v=1", IndexModel.PictureUrl(page.Active[0], Microsoft.AspNetCore.Http.PathString.Empty));
 
         var result = await page.OnPostAddAsync(null, "Crest", null, CancellationToken.None);
         Assert.IsType<RedirectToPageResult>(result);

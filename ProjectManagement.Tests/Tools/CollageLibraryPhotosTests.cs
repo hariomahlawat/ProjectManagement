@@ -68,6 +68,18 @@ public sealed class CollageLibraryPhotosTests : IClassFixture<WebApplicationFact
     }
 
     [Fact]
+    public async Task A_page_number_past_the_cap_asks_for_the_last_page_allowed()
+    {
+        var library = new StubLibrary(Result());
+        await CallAsync(library, page: 10_000);
+        await CallAsync(library, page: int.MaxValue);
+
+        // 200 pages of 48: the database never skips more than 9,552 rows for the picker.
+        Assert.All(library.Queries, asked => Assert.Equal(CollageApi.LibraryMaxPage, asked.PageNumber));
+        Assert.True((CollageApi.LibraryMaxPage - 1) * CollageApi.LibraryPageSize < 10_000);
+    }
+
+    [Fact]
     public async Task When_the_library_is_off_or_unreadable_nothing_is_listed_and_it_says_so()
     {
         var off = await CallAsync(new StubLibrary(Result()), enabled: false);

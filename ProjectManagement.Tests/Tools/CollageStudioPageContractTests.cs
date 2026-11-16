@@ -143,17 +143,21 @@ public sealed class CollageStudioPageContractTests
         Assert.Contains(@"`\\/ProjectOfficeReports\\/(?:Visits|SocialMedia)\\/ViewPhoto\\/${GUID}\\/Photos\\/${GUID}\\?size=", source, StringComparison.Ordinal);
         Assert.Contains(@"`\\/Photos\\/Media\\/${ID}\\/", source, StringComparison.Ordinal);
         Assert.Contains("const LIBRARY_PICTURE = pictureAddress({ project: 'xl', report: 'original', media: 'original' });", source, StringComparison.Ordinal);
-        Assert.Contains("if (!LIBRARY_PICTURE.test(address)) throw", source, StringComparison.Ordinal);
+        Assert.Contains("if (!isPrismAddress(LIBRARY_PICTURE, address)) throw", source, StringComparison.Ordinal);
         Assert.DoesNotMatch(new Regex(@"https?://", RegexOptions.IgnoreCase), source);
         foreach (var call in NetworkCalls.Where(call => call != "fetch("))
         {
             Assert.DoesNotContain(call, source, StringComparison.Ordinal);
         }
 
-        // Every fetch goes to a fixed PRISM address, never one built at run time, and only reads.
+        // Every fetch goes to a fixed PRISM address under the app's path base (only a plain path,
+        // from the page's data-app-base), never one built from an answer, and only reads.
         var fetches = Regex.Matches(source, @"fetch\(([^,)]+)");
         Assert.Equal(3, fetches.Count);
-        Assert.All(fetches, call => Assert.Contains(call.Groups[1].Value.Trim(), new[] { "STICKERS_URL", "`${LIBRARY_URL}?${query}`", "address" }));
+        Assert.All(fetches, call => Assert.Contains(call.Groups[1].Value.Trim(), new[] { "`${base}${STICKERS_URL}`", "`${base}${LIBRARY_URL}?${query}`", "address" }));
+        Assert.Contains("return text.startsWith(`${base}/`) && pattern.test(text.slice(base.length));", source, StringComparison.Ordinal);
+        var page = File.ReadAllText(Path.Combine(root, "Pages", "Tools", "Collage", "Index.cshtml"));
+        Assert.Contains("data-app-base=\"@Url.Content(\"~/\")\"", page, StringComparison.Ordinal);
         Assert.DoesNotMatch(new Regex(@"method\s*:", RegexOptions.IgnoreCase), source);
     }
 

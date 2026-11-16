@@ -54,7 +54,7 @@
             {
                 var sticker = Model.Active[i];
                 <li class="admin-sticker-list__item">
-                    <img class="admin-sticker-list__picture" src="@ProjectManagement.Areas.Admin.Pages.CollageStickers.IndexModel.PictureUrl(sticker)" alt="" width="64" height="64" loading="lazy" />
+                    <img class="admin-sticker-list__picture" src="@ProjectManagement.Areas.Admin.Pages.CollageStickers.IndexModel.PictureUrl(sticker, HttpContext.Request.PathBase)" alt="" width="64" height="64" loading="lazy" />
                     <div class="admin-sticker-list__copy">
                         <strong>@sticker.Name</strong>
                         @if (!string.IsNullOrWhiteSpace(sticker.SearchWords))
@@ -105,7 +105,7 @@
             @foreach (var sticker in Model.Retired)
             {
                 <li class="admin-sticker-list__item is-retired">
-                    <img class="admin-sticker-list__picture" src="@ProjectManagement.Areas.Admin.Pages.CollageStickers.IndexModel.PictureUrl(sticker)" alt="" width="64" height="64" loading="lazy" />
+                    <img class="admin-sticker-list__picture" src="@ProjectManagement.Areas.Admin.Pages.CollageStickers.IndexModel.PictureUrl(sticker, HttpContext.Request.PathBase)" alt="" width="64" height="64" loading="lazy" />
                     <div class="admin-sticker-list__copy">
                         <strong>@sticker.Name</strong>
                     </div>
