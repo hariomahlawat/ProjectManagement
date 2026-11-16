@@ -17,7 +17,7 @@ const HEADER = `
   <header class="pm-topbar">PRISM</header>
   <header class="pbd-deck-header">
     <h1>Monthly review</h1>
-    <button type="button" class="btn pbd-focus-toggle" aria-pressed="false" data-pbd-focus-toggle>
+    <button type="button" class="btn pbd-focus-toggle" data-pbd-focus-toggle>
       <i class="bi bi-fullscreen" aria-hidden="true" data-pbd-focus-icon></i>
       <span data-pbd-focus-label>Focus</span>
     </button>
@@ -66,7 +66,7 @@ test('the Focus button starts off when nothing is remembered', async () => {
   const { document, button } = await startPage();
 
   assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), false);
-  assert.equal(button.getAttribute('aria-pressed'), 'false');
+  assert.equal(button.textContent.trim(), 'Focus');
   assert.equal(button.querySelector('[data-pbd-focus-label]').textContent, 'Focus');
 });
 
@@ -74,24 +74,26 @@ test('a remembered focus view shows the button pressed as Exit focus', async () 
   const { document, button } = await startPage({ stored: 'on' });
 
   assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), true);
-  assert.equal(button.getAttribute('aria-pressed'), 'true');
+  assert.equal(button.textContent.trim(), 'Exit focus');
   assert.equal(button.querySelector('[data-pbd-focus-label]').textContent, 'Exit focus');
   assert.equal(button.querySelector('[data-pbd-focus-icon]').classList.contains('bi-fullscreen-exit'), true);
 });
 
 test('pressing Focus enters and leaves the view, remembers it and keeps keyboard focus on the button', async () => {
   const { window, document, button, events } = await startPage();
+  // One announcement of the state: the label, not aria-pressed as well.
+  assert.equal(button.hasAttribute('aria-pressed'), false);
 
   press(window, button);
   assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), true);
-  assert.equal(button.getAttribute('aria-pressed'), 'true');
+  assert.equal(button.textContent.trim(), 'Exit focus');
   assert.equal(button.querySelector('[data-pbd-focus-label]').textContent, 'Exit focus');
   assert.equal(window.localStorage.getItem(STORAGE_KEY), 'on');
   assert.equal(document.activeElement, button);
 
   press(window, button);
   assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), false);
-  assert.equal(button.getAttribute('aria-pressed'), 'false');
+  assert.equal(button.textContent.trim(), 'Focus');
   assert.equal(button.querySelector('[data-pbd-focus-label]').textContent, 'Focus');
   assert.equal(window.localStorage.getItem(STORAGE_KEY), null);
   assert.equal(document.activeElement, button);
@@ -116,7 +118,7 @@ test('blocked storage still lets the button work for this page', async () => {
   assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), false);
   press(window, button);
   assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), true);
-  assert.equal(button.getAttribute('aria-pressed'), 'true');
+  assert.equal(button.textContent.trim(), 'Exit focus');
 });
 
 test('the focus view hides the top bar and rail only from 576px, and the button not on phones', () => {
@@ -141,7 +143,7 @@ test('a change in another Studio tab, or a page back from the cache, follows the
   window.localStorage.removeItem(STORAGE_KEY);
   window.dispatchEvent(new window.StorageEvent('storage', { key: STORAGE_KEY, newValue: null }));
   assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), false);
-  assert.equal(button.getAttribute('aria-pressed'), 'false');
+  assert.equal(button.textContent.trim(), 'Focus');
 
   // Back to a cached page after focus was turned on elsewhere.
   window.localStorage.setItem(STORAGE_KEY, 'on');
@@ -149,7 +151,7 @@ test('a change in another Studio tab, or a page back from the cache, follows the
   Object.defineProperty(pageshow, 'persisted', { value: true });
   window.dispatchEvent(pageshow);
   assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), true);
-  assert.equal(button.getAttribute('aria-pressed'), 'true');
+  assert.equal(button.textContent.trim(), 'Exit focus');
 
   // An unrelated key changes nothing.
   window.dispatchEvent(new window.StorageEvent('storage', { key: 'prism.theme', newValue: 'dark' }));

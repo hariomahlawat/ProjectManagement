@@ -5964,7 +5964,7 @@ span.pbd-additional-slide-row__handle {
    rail, so the outline, slide and inspector take the whole window; the deck header (name,
    Generate, Exit focus) stays. project-briefing-focus.js sets html[data-pbd-focus] before first
    paint. Phones (below 576px) ignore it and show no button. */
-.pbd-focus-toggle[aria-pressed="true"] {
+html[data-pbd-focus] .pbd-focus-toggle {
     border-color: var(--pbd-blue);
     background: var(--pbd-blue-soft);
     color: var(--pbd-blue);

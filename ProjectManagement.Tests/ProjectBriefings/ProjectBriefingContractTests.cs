@@ -481,7 +481,9 @@ public sealed class ProjectBriefingContractTests
 
         // A real toggle button in the deck header, beside Generate, on the Studio only; the script
         // runs in <head> so a remembered focus view applies before first paint.
-        Assert.Contains("aria-pressed=\"false\" data-pbd-focus-toggle", page, StringComparison.Ordinal);
+        Assert.Contains("class=\"btn btn-outline-secondary pbd-focus-toggle\" data-pbd-focus-toggle", page, StringComparison.Ordinal);
+        // The label carries the state; aria-pressed as well made screen readers say it twice.
+        Assert.DoesNotContain("aria-pressed", focus, StringComparison.Ordinal);
         Assert.Contains("<script src=\"~/js/pages/project-briefing-focus.js\" asp-append-version=\"true\"></script>", page, StringComparison.Ordinal);
         Assert.True(
             page.IndexOf("project-briefing-focus.js", StringComparison.Ordinal)

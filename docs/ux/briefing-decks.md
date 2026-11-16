@@ -101,7 +101,8 @@ the server; the script inserts only slide HTML and writes all other text as text
 - **Focus** (header, beside Generate; from 576px) hides the PRISM top bar, the footer and the
   workspace rail in the same tab, so the outline, slide and inspector take the whole window;
   the deck header (name, Generate, **Exit focus**) stays, and back, links, autosave and the
-  library's Generate hand-off work as before. The button is a toggle (`aria-pressed`) and keeps
+  library's Generate hand-off work as before. The button's label says what pressing does ("Focus" / "Exit focus"; no
+  `aria-pressed` as well, so screen readers announce the state once) and it keeps
   keyboard focus. The choice is remembered per person in the browser
   (`prism.briefingStudio.focus` in localStorage, as the theme and the rail fold are; PRISM has
   no server-side store for UI choices), and `project-briefing-focus.js` loads in `<head>` so a

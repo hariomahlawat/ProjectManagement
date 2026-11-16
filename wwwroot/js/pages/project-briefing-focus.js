@@ -41,7 +41,8 @@
     var buttons = global.document.querySelectorAll('[data-pbd-focus-toggle]');
     for (var i = 0; i < buttons.length; i++) {
       var button = buttons[i];
-      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+      // The label says what pressing does ("Focus" / "Exit focus"); a pressed state as well would
+      // make screen readers announce it twice ("Exit focus, pressed").
       button.title = on
         ? 'Show the PRISM top bar and workspace navigation again'
         : 'Hide the PRISM top bar and workspace navigation so the Studio has the whole window';
