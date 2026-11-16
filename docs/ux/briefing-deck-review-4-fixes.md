@@ -41,9 +41,13 @@ A fourth cold review of `/Workspace/BriefingDecks` ran after the third fix plan
    - `ApplyPresetInput` and the misplaced comment go.
    - A download is recorded (`ProjectBriefing.PowerPointDownloaded`).
    - An in-page change that fails in the database answers with a message.
-2. **Feedback where the person is** (M2, Low 1, 2, 5, 6, 7 progress). Every in-place save,
+2. **Feedback where the person is** (M2, Low 2, 5, 6, 7 progress). Every in-place save,
    rename and editor reports where it can be seen whatever tab is open; a refused rename says why
-   under the name; an editor returns focus to what opened it; editors redraw from the saved deck;
-   the Role & Charter split, FFC constant and FFC guard are fixed; Download shows progress.
+   under the name; an editor returns focus to what opened it; the Role & Charter split, FFC
+   constant and FFC guard are fixed; Download shows progress. Merged as #3397.
+
+   **Deferred: Low 1** (editors redrawing from the server's normalised values). After a save an
+   editor keeps what was typed as its defaults; what the server changed (trimmed text, default
+   milestones) shows after a reload.
 
 Then a fifth cold review.

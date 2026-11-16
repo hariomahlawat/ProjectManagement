@@ -25,6 +25,21 @@ if (root) {
     }
   }
 
+  // After the sign-in expires the server answers an in-page request by sending the sign-in page
+  // (fetch follows the redirect and gets a 200 page that is not the reply asked for). Nothing was
+  // saved, and the page must say so rather than "Saved" (review 5 fixes, H1). Every in-page
+  // request on this page and in the Studio checks its reply here first.
+  const SIGNED_OUT_MESSAGE = 'Your sign-in has expired, so nothing was saved. Sign in again in a new tab, then try again here.';
+  const checkReply = (response, { file = false } = {}) => {
+    const type = response.headers?.get?.('content-type') || '';
+    const expected = type.includes('json') || (file && type.includes('presentationml'));
+    if (response.redirected || (response.ok && !expected)) {
+      throw new RequestError(SIGNED_OUT_MESSAGE, 401, null);
+    }
+    return response;
+  };
+  root.pbdCheckReply = checkReply;
+
   const requestJson = async (url, options = {}) => {
     const response = await fetch(url, {
       credentials: 'same-origin',
@@ -38,6 +53,7 @@ if (root) {
       }
     });
 
+    checkReply(response);
     const contentType = response.headers.get('content-type') || '';
     const payload = contentType.includes('application/json') ? await response.json() : null;
     if (!response.ok) {
@@ -61,7 +77,9 @@ if (root) {
     }
   };
 
-  const rowVersionInputs = [...root.querySelectorAll('input[name="RowVersion"], input[name="rowVersion"]')];
+  // Every form that posts the deck's version, the Studio's delete dialog included (it sits outside
+  // the page root), follows the version each save produces (review 5 fixes, M1).
+  const rowVersionInputs = [...document.querySelectorAll('input[name="RowVersion"], input[name="rowVersion"]')];
   const currentRowVersion = () => rowVersionInputs[0]?.value || '';
   const updateRowVersion = (value) => {
     if (!value) return;
@@ -1005,6 +1023,7 @@ if (root) {
           body,
           headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
         });
+        checkReply(reply);
         const replyPayload = await reply.json().catch(() => null);
         // A refused save fails inside the queue, so "Saved · shared" never reports it as saved.
         if (reply.status === 409) {
@@ -1133,6 +1152,7 @@ if (root) {
           body,
           headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
         });
+        checkReply(reply);
         const replyPayload = await reply.json().catch(() => null);
         if (reply.status === 409) {
           showConflict(replyPayload?.message);
@@ -1899,6 +1919,7 @@ if (root) {
           body,
           headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
         });
+        checkReply(response);
         const reply = await response.json().catch(() => null);
         if (!response.ok) {
           throw new RequestError(reply?.message || `Projects could not be added (${response.status}).`, response.status, reply);
@@ -2229,6 +2250,7 @@ if (root) {
         headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         signal: searchAbortController.signal
       });
+      checkReply(response);
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.message || `Search failed (${response.status}).`);
       renderSearchResults(payload || []);
@@ -2395,6 +2417,7 @@ if (root) {
           'X-Requested-With': 'XMLHttpRequest'
         }
       });
+      checkReply(response, { file: true });
       const contentType = response.headers.get('content-type') || '';
       if (!response.ok || contentType.includes('json')) {
         const payload = contentType.includes('json') ? await response.json() : null;
@@ -2452,7 +2475,7 @@ if (root) {
     const name = newDeckName.value.trim();
     if (name.length < 3) {
       event.preventDefault();
-      showNewDeckError(name.length === 0 ? 'Give the deck a name.' : 'The name needs at least 3 characters.');
+      showNewDeckError(name.length === 0 ? 'Give the deck a name.' : 'The deck name needs at least 3 characters.');
       newDeckName.focus();
     }
   });

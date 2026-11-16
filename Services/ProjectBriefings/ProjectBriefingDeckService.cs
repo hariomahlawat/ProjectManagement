@@ -1059,10 +1059,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         var validIds = await _selectionService.ValidateProjectIdsAsync(projectIds, cancellationToken);
         var existing = deck.Items.Select(item => item.ProjectId).ToHashSet();
         var additions = validIds.Where(existing.Add).ToArray();
-        const int maximumProjectsPerDeck = 120;
-        if (deck.Items.Count + additions.Length > maximumProjectsPerDeck)
+        if (deck.Items.Count + additions.Length > MaximumProjectsPerDeck)
         {
-            throw new InvalidOperationException($"A briefing deck can contain up to {maximumProjectsPerDeck} projects. Remove projects or use a separate deck.");
+            throw new InvalidOperationException($"A briefing deck can contain up to {MaximumProjectsPerDeck} projects. Remove projects or use a separate deck.");
         }
         if (additions.Length == 0)
         {
@@ -1138,10 +1137,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         var existing = deck.Items.Select(item => item.ProjectId).ToHashSet();
         var additions = validAdditions.Where(existing.Add).ToArray();
-        const int maximumProjectsPerDeck = 120;
-        if (deck.Items.Count + additions.Length > maximumProjectsPerDeck)
+        if (deck.Items.Count + additions.Length > MaximumProjectsPerDeck)
         {
-            throw new InvalidOperationException($"A briefing deck can contain up to {maximumProjectsPerDeck} projects. Remove projects or use a separate deck.");
+            throw new InvalidOperationException($"A briefing deck can contain up to {MaximumProjectsPerDeck} projects. Remove projects or use a separate deck.");
         }
 
         if (removedItems.Length == 0 && additions.Length == 0)
@@ -1456,6 +1454,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     }
 
     public const int DeletedRetentionDays = 30;
+
+    // The most projects one deck can hold.
+    public const int MaximumProjectsPerDeck = 120;
 
     public async Task<IReadOnlyList<ProjectBriefingDeletedDeckVm>> ListDeletedAsync(
         string requestingUserId,

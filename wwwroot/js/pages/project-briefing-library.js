@@ -151,23 +151,68 @@ document.addEventListener('click', (event) => {
   try { window.sessionStorage.setItem(`prism.briefingDecks.generate.${match[1]}`, '1'); } catch { /* opens without generating */ }
 });
 
-// Download builds the PowerPoint on the server and returns a file, so the page does not change:
-// say it is being made and keep a second click from building it again (review 4 fixes, Low 7).
-document.addEventListener('submit', (event) => {
+// Download builds the PowerPoint on the server and returns a file, so the page does not change.
+// It runs as a request: the button stays busy until the file has arrived (or failed), and a
+// second click cannot build it twice (review 4 fixes Low 7, review 5 fixes L2). A refusal comes
+// back as a message, shown here; anything else that is not a PowerPoint (the sign-in page after it
+// expired) opens as the page the server answered with.
+const fileNameOf = (header) => {
+  if (!header) return 'Project_Briefing_Deck.pptx';
+  const encoded = header.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (encoded) {
+    try { return decodeURIComponent(encoded); } catch { /* the plain name below */ }
+  }
+  return header.match(/filename="?([^";]+)"?/i)?.[1] || 'Project_Briefing_Deck.pptx';
+};
+
+document.addEventListener('submit', async (event) => {
   const form = event.target instanceof HTMLFormElement ? event.target : null;
   if (!form || !/handler=Download/i.test(form.getAttribute('action') || '')) return;
+  event.preventDefault();
   const button = form.querySelector('button[type="submit"]');
   if (button instanceof HTMLButtonElement) {
-    if (button.dataset.pbdDownloading === 'true') {
-      event.preventDefault();
-      return;
-    }
+    if (button.dataset.pbdDownloading === 'true') return;
     button.dataset.pbdDownloading = 'true';
     button.setAttribute('aria-disabled', 'true');
-    window.setTimeout(() => {
+  }
+  const making = window.PrismToast?.show({ tone: 'info', text: 'Making the PowerPoint…', sticky: true });
+  try {
+    const response = await fetch(form.action, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: new FormData(form),
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const type = response.headers.get('content-type') || '';
+    if (!response.redirected && type.includes('json')) {
+      const payload = await response.json().catch(() => null);
+      making?.dismiss?.();
+      window.PrismToast?.show({ tone: 'danger', text: payload?.message || 'The PowerPoint could not be downloaded.' });
+      return;
+    }
+    if (!response.ok || response.redirected || !type.includes('presentationml')) {
+      // The server's own message (or the sign-in page) is on the page it answered with.
+      window.location.assign(response.url || window.location.href);
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileNameOf(response.headers.get('content-disposition'));
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    making?.dismiss?.();
+    window.PrismToast?.show({ tone: 'success', text: 'PowerPoint downloaded.' });
+  } catch {
+    making?.dismiss?.();
+    window.PrismToast?.show({ tone: 'danger', text: 'The PowerPoint could not be downloaded. Check the connection and try again.' });
+  } finally {
+    if (button instanceof HTMLButtonElement) {
       delete button.dataset.pbdDownloading;
       button.removeAttribute('aria-disabled');
-    }, 8000);
+    }
   }
-  window.PrismToast?.show({ tone: 'info', text: 'Making the PowerPoint. It downloads when it is ready.' });
 });
