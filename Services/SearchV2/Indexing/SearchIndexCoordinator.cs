@@ -20,12 +20,38 @@ public interface ISearchIndexCoordinator
 
     /// <summary>Returns a held lease, or null while a full rebuild holds the lock.</summary>
     Task<IAsyncDisposable?> TryAcquireIncrementalAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Holds one record's lock while its index rows are read from the source tables and
+    /// written. Incremental passes in different processes run side by side, and a record is
+    /// also rewritten as another record's dependent (a project's ToT rows, an IPR's project)
+    /// outside its own work item; the lock makes the process that reads after a change also
+    /// write after it, so an older read is never written last. Waits for the holder.
+    /// </summary>
+    Task<IAsyncDisposable> LockRecordAsync(string entityType, string entityKey, CancellationToken cancellationToken) =>
+        Task.FromResult<IAsyncDisposable>(NoRecordLock.Instance);
+}
+
+internal sealed class NoRecordLock : IAsyncDisposable
+{
+    public static readonly NoRecordLock Instance = new();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 public sealed class SearchIndexCoordinator : ISearchIndexCoordinator
 {
     /// <summary>ASCII "PRISMSV2". Distinct from the startup migration lock.</summary>
     internal const long AdvisoryLockKey = 0x5052_4953_4D53_5632;
+
+    /// <summary>
+    /// ASCII "SV2R": the first key of a record lock (two-key form, which never overlaps the
+    /// one-key locks). The second key is the hash of the record's type and key.
+    /// </summary>
+    internal const int RecordLockClass = 0x5356_3252;
+
+    /// <summary>How long a record lock waits for another process before the item is retried.</summary>
+    internal static readonly TimeSpan RecordLockWait = TimeSpan.FromSeconds(60);
 
     private readonly ApplicationDbContext _db;
 
@@ -76,6 +102,65 @@ public sealed class SearchIndexCoordinator : ISearchIndexCoordinator
         {
             await connection.DisposeAsync();
             throw;
+        }
+    }
+
+    public async Task<IAsyncDisposable> LockRecordAsync(string entityType, string entityKey, CancellationToken cancellationToken)
+    {
+        if (!_db.Database.IsNpgsql())
+        {
+            return NoRecordLock.Instance;
+        }
+
+        // A transaction lock on its own pooled connection: it ends with the transaction, and a
+        // connection returned to the pool is reset (rolled back), so the lock cannot linger.
+        var connection = new NpgsqlConnection(_db.Database.GetConnectionString());
+        try
+        {
+            await connection.OpenAsync(cancellationToken);
+            var transaction = await connection.BeginTransactionAsync(cancellationToken);
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $"SET LOCAL lock_timeout = '{(int)RecordLockWait.TotalMilliseconds}ms'; "
+                + "SELECT pg_advisory_xact_lock(@class, hashtext(@record));";
+            command.Parameters.AddWithValue("class", RecordLockClass);
+            command.Parameters.AddWithValue("record", entityType + "/" + entityKey);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            return new RecordLock(connection, transaction);
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+    }
+
+    private sealed class RecordLock : IAsyncDisposable
+    {
+        private readonly NpgsqlConnection _connection;
+        private readonly NpgsqlTransaction _transaction;
+
+        public RecordLock(NpgsqlConnection connection, NpgsqlTransaction transaction)
+        {
+            _connection = connection;
+            _transaction = transaction;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try
+            {
+                await _transaction.RollbackAsync();
+            }
+            catch
+            {
+                // Returning the connection to the pool resets it, which ends the transaction.
+            }
+            finally
+            {
+                await _transaction.DisposeAsync();
+                await _connection.DisposeAsync();
+            }
         }
     }
 

@@ -200,6 +200,18 @@ public sealed class SearchIndexWorkerTests
             },
             harness.Store.Replaced);
         Assert.Equal(new long[] { 1 }, harness.Store.Completed);
+
+        // Every dependent row is rewritten under its own lock, one at a time, so another
+        // process indexing that record cannot be overwritten by this pass's older read.
+        Assert.Equal(
+            new[]
+            {
+                "lock Project/42", "unlock Project/42",
+                "lock ProjectTot/42", "unlock ProjectTot/42",
+                "lock ProliferationGranular/8f0c5a43-31b6-4d55-9a37-5b1b0f6c2d11", "unlock ProliferationGranular/8f0c5a43-31b6-4d55-9a37-5b1b0f6c2d11",
+                "lock Training/3e1f9a2b-7c44-4f0e-8b9d-2a6c5d4e3f10", "unlock Training/3e1f9a2b-7c44-4f0e-8b9d-2a6c5d4e3f10"
+            },
+            harness.Coordinator.RecordLocks);
     }
 
     [Fact]
@@ -216,6 +228,12 @@ public sealed class SearchIndexWorkerTests
         // The projects first: until the IPR row is replaced, the index still names project 10.
         Assert.Equal(new[] { "Project/10", "Project/11", "IprRecord/5" }, harness.Store.Replaced);
         Assert.Equal(new long[] { 1 }, harness.Store.Completed);
+
+        // The IPR is read and written under its lock, which it holds while its projects take
+        // theirs (always record, then project: never the other way round).
+        Assert.Equal(
+            new[] { "lock IprRecord/5", "lock Project/10", "unlock Project/10", "lock Project/11", "unlock Project/11", "unlock IprRecord/5" },
+            harness.Coordinator.RecordLocks);
     }
 
     [Fact]
@@ -439,6 +457,25 @@ public sealed class SearchIndexWorkerTests
 
         public Task<IAsyncDisposable?> TryAcquireIncrementalAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IAsyncDisposable?>(IncrementalAvailable ? new Lease() : null);
+
+        /// <summary>"lock X" and "unlock X" for each record lock, in order.</summary>
+        public List<string> RecordLocks { get; } = new();
+
+        public Task<IAsyncDisposable> LockRecordAsync(string entityType, string entityKey, CancellationToken cancellationToken)
+        {
+            var record = entityType + "/" + entityKey;
+            RecordLocks.Add("lock " + record);
+            return Task.FromResult<IAsyncDisposable>(new RecordLock(() => RecordLocks.Add("unlock " + record)));
+        }
+
+        private sealed class RecordLock(Action release) : IAsyncDisposable
+        {
+            public ValueTask DisposeAsync()
+            {
+                release();
+                return ValueTask.CompletedTask;
+            }
+        }
 
         private sealed class Lease : IAsyncDisposable
         {
