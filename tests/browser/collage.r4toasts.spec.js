@@ -64,6 +64,28 @@ async function headingAtTheBottom(page) {
   await expect(page.locator('[data-toolbar]')).toBeVisible();
 }
 
+/**
+ * Zoomed in, with the page scrolled so the toolbar sits at the foot of the window, just where the
+ * toast stack is.
+ */
+async function toolbarAtTheFoot(page) {
+  for (let i = 0; i < 3; i += 1) await page.locator('[data-action="zoom-in"]').filter({ visible: true }).first().click();
+  for (let i = 0; i < 6; i += 1) {
+    await page.evaluate(() => {
+      const box = document.querySelector('[data-stage]');
+      const bar = document.querySelector('[data-toolbar]').getBoundingClientRect();
+      box.scrollTop += bar.bottom - (window.innerHeight - 40);
+      box.scrollLeft += (bar.left + bar.right) / 2 - window.innerWidth / 2;
+      box.dispatchEvent(new Event('scroll'));
+    });
+    await page.waitForTimeout(100);
+  }
+  const foot = await page.evaluate(() => window.innerHeight - document.querySelector('[data-toolbar]').getBoundingClientRect().bottom);
+  expect(foot).toBeLessThan(90);
+  const across = await page.evaluate(() => { const bar = document.querySelector('[data-toolbar]').getBoundingClientRect(); return Math.abs((bar.left + bar.right) / 2 - window.innerWidth / 2); });
+  expect(across).toBeLessThan(150);
+}
+
 for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
   test.describe(`at ${size.width} wide`, () => {
     test.use({ viewport: size });
@@ -72,11 +94,12 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
       const errors = await openFresh(page);
       await headingAtTheBottom(page);
       await expectClear(page);
-      // A second toast on top of the first: the stack is still clear of it.
-      await page.locator('[data-toolbar] [data-action="duplicate"]').click();
-      await alignBottom(page);
-      await page.evaluate(() => window.PrismToast.show({ tone: 'info', text: 'A second message.' }));
-      await expect(page.locator('[data-toolbar]')).toBeVisible();
+      // Zoomed in, the toolbar at the very foot of the window, with two toasts: still clear.
+      await toolbarAtTheFoot(page);
+      await page.evaluate(() => {
+        window.PrismToast.show({ tone: 'info', text: 'A first message.', sticky: true });
+        window.PrismToast.show({ tone: 'info', text: 'A second message.', sticky: true });
+      });
       await expectClear(page);
       expect(errors).toEqual([]);
     });
