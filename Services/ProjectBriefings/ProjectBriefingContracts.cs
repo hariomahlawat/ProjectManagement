@@ -374,7 +374,9 @@ public enum ProjectBriefingSlideRole
     ProjectUpdateSheetContinuation,
     FfcGlobalFootprint,
     FfcCountryBreakdown,
-    Closing
+    Closing,
+    // The "Key points only" project slide: photo beside the key points (blocks plan, PR 5).
+    ProjectKeyPointsOnly
 }
 
 // ProjectId names the project a project slide is about; ListedProjectIds names the projects a

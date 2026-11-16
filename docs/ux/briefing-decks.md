@@ -740,6 +740,17 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
 5. **Project slides block.** Design gallery and parts chips, replacing Layout, "Each project
    gets", the key point slide, the brief layout and the cost step; Key points only in the composer,
    the preview, slide facts ("data moved") and `ProjectBriefingContentGaps`.
+   *Built ahead of this PR, not yet selectable:* the Key points only slide itself is in
+   `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.KeyPointsOnly.cs`
+   (`KeyPointsOnlyPlan` builds one project's slide, role `ProjectKeyPointsOnly`;
+   `ComposeKeyPointsOnlySlides` is the internal test path; tests in
+   `ProjectBriefingKeyPointsOnlySlideTests`). A 6.1 in 16:9 photograph sits on the left and the
+   recorded points run down the right as cards, each under its catalog heading, at 13, 12 or
+   11 pt (the largest every point fits; five 130-character points stay at 12 pt). Stage and cost
+   use the key points layout's line under the title; the status remark, when shown, runs full
+   width under both. Only recorded points show; with none, the column shows a "Key points not
+   recorded" placeholder and nothing else. PR 5 still adds it to `BuildStandardPlans`, the
+   settings and the gaps list.
 6. **Focus view.** Header button, hides the top bar and rail, remembered per person; Escape does
    not leave it (Escape belongs to dialogs and Present); phones unchanged.
 7. **Stage-wise distribution block.** The ARPP-style stage chart and project list for the deck's

@@ -52,6 +52,7 @@ if (root) {
     ProjectBriefContinuation: { section: 'project', label: 'Project brief, continued' },
     ProjectUpdateSheet: { section: 'project', label: 'Update sheet' },
     ProjectUpdateSheetContinuation: { section: 'project', label: 'Update sheet, continued' },
+    ProjectKeyPointsOnly: { section: 'project', label: 'Key points only' },
     FfcGlobalFootprint: { section: 'closing', label: 'FFC footprint', editor: '[data-pbd-ffc-footprint-open]', about: 'Countries supplied with PRISM projects, from live FFC records.' },
     FfcCountryBreakdown: { section: 'closing', label: 'FFC country breakdown', fold: true, editor: '[data-pbd-ffc-footprint-open]', about: 'Country-wise detail behind the FFC footprint.' },
     Closing: { section: 'closing', label: 'Closing', about: 'The closing slide. Choose Jai Hind or Thank You in the deck settings.' }
