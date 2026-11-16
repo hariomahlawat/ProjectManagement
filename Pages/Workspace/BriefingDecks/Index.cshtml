@@ -92,17 +92,6 @@
         is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both;
     var standardNeedsProjectBrief = deck?.NarrativeMode
         is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
-    // The Template picker: the deck's slide design (every deck has one), and whether its settings
-    // moved from that template's since.
-    var templateTitle = deck?.Preset is { } titlePreset
-        ? ProjectBriefingDeckPresets.Get(titlePreset).Title
-        : string.Empty;
-    var templateCustomised = deck?.Preset is not null && deck.PresetAdjusted;
-    var presetStatus = deck?.Preset is { } currentPreset
-        ? deck.PresetAdjusted
-            ? "Started from this template, then customised."
-            : ProjectBriefingDeckPresets.Get(currentPreset).Summary
-        : "Choose a template to apply its settings; you can still change any of them.";
     // Projects and their content gaps for the Studio outline and inspector, in the same shape the
     // membership endpoint returns, so in-place edits can refresh it.
     var studioDataJson = deck is null
@@ -288,7 +277,7 @@
                                             <li class="is-done" data-pbd-progress-step="template">
                                                 <button type="button" data-pbd-progress-tab="deck">
                                                     <span class="pbd-progress__label">Settings</span>
-                                                    <span class="pbd-progress__value" data-pbd-progress-template>@templateTitle@(templateCustomised ? ", customised" : null)</span>
+                                                    <span class="pbd-progress__value" data-pbd-progress-template>@ProjectBriefingProjectSlideDesigns.DisplayName(deck.ProjectDesign)</span>
                                                 </button>
                                             </li>
                                         </ol>
@@ -463,29 +452,6 @@
                                 </div>
 
                                 <div id="pbd-inspector-deck" role="tabpanel" aria-labelledby="pbd-inspector-tab-deck" class="pbd-inspector__panel" data-pbd-inspector-panel="deck" hidden>
-                                    @* Template: the slide design, as one compact picker; it also sets the design's recommended
-                                       settings (docs/ux/briefing-decks.md, Templates are slide designs). *@
-                                    <h4 class="pbd-inspector__heading pbd-inspector__heading--first" id="pbd-template-heading">Template</h4>
-                                    <div class="pbd-template-picker" data-pbd-template-picker>
-                                        <button type="button" class="pbd-template-picker__current" aria-expanded="false" aria-controls="pbd-template-list" data-pbd-template-toggle>
-                                            <span class="pbd-template-picker__text">
-                                                <strong data-pbd-template-current>@templateTitle</strong>
-                                                <small data-pbd-preset-status>@presetStatus</small>
-                                            </span>
-                                            <span class="pbd-template-picker__badge" data-pbd-template-customised hidden="@(!templateCustomised)">customised</span>
-                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
-                                        </button>
-                                        <div class="pbd-presets" id="pbd-template-list" role="group" aria-labelledby="pbd-template-heading" data-pbd-template-list hidden>
-                                            @foreach (var preset in ProjectBriefingDeckPresets.Templates)
-                                            {
-                                                var isCurrent = deck.Preset == preset.Preset;
-                                                <button type="button" class="pbd-preset @(isCurrent ? "is-current" : null)" data-pbd-preset="@preset.Preset" aria-pressed="@(isCurrent ? "true" : "false")">
-                                                    <strong>@preset.Title</strong>
-                                                    <small>@preset.Summary</small>
-                                                </button>
-                                            }
-                                        </div>
-                                    </div>
                                     <p class="pbd-settings-save-status" data-pbd-settings-status aria-live="polite">Changes save as you make them.</p>
                                     <form method="post" asp-page-handler="SaveSettings" id="pbd-settings-form" class="pbd-settings__form pbd-deck-settings" data-pbd-settings-form>
                                         <input type="hidden" name="DeckId" value="@deck.Id" />
@@ -597,71 +563,121 @@
                                         </div>
                                     </details>
 
-                                    <details class="pbd-step" data-pbd-step="project" data-pbd-settings-collapsible data-pbd-settings-section="project" data-pbd-project-slides-step hidden="@(isUpdateSheet || !standardIncludesDetailedSlides)">
+                                    @{
+                                        var currentDesign = deck.ProjectDesign;
+                                        var designChoices = ProjectBriefingProjectSlideDesigns.Choices.ToList();
+                                        // Capability and brief is kept for decks that already use it; it is not offered to others.
+                                        if (currentDesign == ProjectBriefingProjectSlideDesign.CapabilityAndBrief)
+                                        {
+                                            designChoices.Add(ProjectBriefingProjectSlideDesign.CapabilityAndBrief);
+                                        }
+                                        var keyPointPlacement = deck.StandardSlideOptions.KeyPoints;
+                                        var keyPointsOn = keyPointPlacement != ProjectBriefingKeyPointPlacement.None;
+                                        var keyPointsOnCapability = keyPointPlacement == ProjectBriefingKeyPointPlacement.CapabilitySlide
+                                            && deck.NarrativeMode == ProjectBriefingNarrativeMode.Both;
+                                        var showsCostRd = deck.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
+                                        var showsProliferation = deck.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
+                                    }
+                                    <details class="pbd-step" data-pbd-step="project" data-pbd-settings-collapsible data-pbd-settings-section="project">
                                         <summary>
                                             <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">2</span>
                                             <span class="pbd-step__text"><strong>Project slides</strong><small data-pbd-step-summary></small></span>
                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
                                         </summary>
                                         <div class="pbd-step__body">
-                                    <fieldset class="pbd-choice-group" data-pbd-project-content-settings hidden="@(!standardIncludesDetailedSlides)">
-                                        <legend>Each project gets</legend>
-                                            <div class="pbd-seg">
-                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" data-help="One slide of capability statements per project." /><span>Capability</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" data-help="One narrative slide per project." /><span>Brief</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" data-help="A capability slide, then a brief slide, per project." /><span>Both</span></label>
-                                            </div>
-                                            <p class="pbd-seg-help" data-pbd-seg-help="NarrativeMode"></p>
+                                    @* One design for every project in the deck; it sets the layout, what each project gets
+                                       and key points (ProjectBriefingProjectSlideDesigns). *@
+                                    <fieldset class="pbd-choice-group">
+                                        <legend>Design · one for every project</legend>
+                                        <div class="pbd-designs" data-pbd-designs>
+                                            @foreach (var design in designChoices)
+                                            {
+                                                <label class="pbd-design">
+                                                    <input type="radio" name="ProjectDesign" value="@design" checked="@(design == currentDesign)" data-label="@ProjectBriefingProjectSlideDesigns.DisplayName(design)" data-pbd-design />
+                                                    <span class="pbd-design__mini pbd-design__mini--@design.ToString().ToLowerInvariant()" aria-hidden="true">
+                                                        @switch (design)
+                                                        {
+                                                            case ProjectBriefingProjectSlideDesign.KeyPoints:
+                                                                <span class="pbd-design__row"><i class="is-photo"></i><i></i></span><i class="is-band"></i>
+                                                                break;
+                                                            case ProjectBriefingProjectSlideDesign.Brief:
+                                                                <i></i><i class="is-photo"></i>
+                                                                break;
+                                                            case ProjectBriefingProjectSlideDesign.FactSheet:
+                                                                <i class="is-table"></i><i class="is-photo"></i>
+                                                                break;
+                                                            case ProjectBriefingProjectSlideDesign.KeyPointsOnly:
+                                                                <i class="is-photo"></i><span class="pbd-design__points"><i class="is-band"></i><i class="is-band"></i><i class="is-band"></i><i class="is-band"></i><i class="is-band"></i></span>
+                                                                break;
+                                                            default:
+                                                                <i class="is-photo"></i><i></i>
+                                                                break;
+                                                        }
+                                                    </span>
+                                                    <strong>@ProjectBriefingProjectSlideDesigns.DisplayName(design)</strong>
+                                                    <small>@ProjectBriefingProjectSlideDesigns.Description(design)</small>
+                                                </label>
+                                            }
+                                        </div>
                                     </fieldset>
+                                    @* What each project gets follows the design (the server derives it from ProjectDesign); the
+                                       radios stay so the summaries read the same deck. The cost chips below set CostMode; a fact
+                                       sheet shows cost as a sheet row instead. *@
+                                    <div hidden>
+                                        <input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" />
+                                        <input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" />
+                                        <input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" />
+                                        <input type="radio" name="CostMode" value="CostRdOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.CostRdOnly)" />
+                                        <input type="radio" name="CostMode" value="ProliferationOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.ProliferationOnly)" />
+                                        <input type="radio" name="CostMode" value="Both" checked="@(deck.CostMode == ProjectBriefingCostMode.Both)" />
+                                        <input type="radio" name="CostMode" value="None" checked="@(deck.CostMode == ProjectBriefingCostMode.None)" />
+                                    </div>
 
-                                    <div class="pbd-standard-detail-options" data-pbd-detailed-settings hidden="@(!standardIncludesDetailedSlides)">
-                                        <fieldset class="pbd-choice-group">
-                                            <legend>Show on each project slide</legend>
-                                            <div class="pbd-chips">
-                                                <label class="pbd-chip">
-                                                    <input type="checkbox" name="ShowPresentStage" value="true" checked="@deck.StandardSlideOptions.ShowPresentStage" />
-                                                    <span>Present stage</span>
-                                                    <input type="hidden" name="ShowPresentStage" value="false" />
-                                                </label>
-                                                <label class="pbd-chip">
-                                                    <input type="checkbox" name="ShowPresentStatus" value="true" checked="@deck.StandardSlideOptions.ShowPresentStatus" />
-                                                    <span>Status remark</span>
-                                                    <input type="hidden" name="ShowPresentStatus" value="false" />
-                                                </label>
-                                            </div>
-                                        </fieldset>
-
-                                        @{
-                                            var keyPointPlacement = deck.StandardSlideOptions.KeyPoints;
-                                            var keyPointsOn = keyPointPlacement != ProjectBriefingKeyPointPlacement.None;
-                                            var keyPointsOnCapability = keyPointPlacement == ProjectBriefingKeyPointPlacement.CapabilitySlide
-                                                && deck.NarrativeMode == ProjectBriefingNarrativeMode.Both;
-                                        }
-                                        <fieldset class="pbd-choice-group" data-pbd-key-point-settings>
-                                            <legend class="visually-hidden">Key points</legend>
-                                            <label class="pbd-switch">
-                                                <input type="checkbox" role="switch" name="ShowKeyPoints" value="true" checked="@keyPointsOn" data-pbd-key-points-toggle />
-                                                <span class="pbd-switch__track" aria-hidden="true"></span>
-                                                <span class="pbd-switch__text"><strong>Key points</strong><small>Five short points per project, in a band at the foot of the slide, with a larger photograph.</small></span>
+                                    <fieldset class="pbd-choice-group" data-pbd-design-parts hidden="@isUpdateSheet">
+                                        <legend>Show on each slide</legend>
+                                        <div class="pbd-chips">
+                                            <label class="pbd-chip">
+                                                <input type="checkbox" name="ShowPresentStage" value="true" checked="@deck.StandardSlideOptions.ShowPresentStage" />
+                                                <span>Present stage</span>
+                                                <input type="hidden" name="ShowPresentStage" value="false" />
+                                            </label>
+                                            <label class="pbd-chip">
+                                                <input type="checkbox" name="ShowPresentStatus" value="true" checked="@deck.StandardSlideOptions.ShowPresentStatus" />
+                                                <span>Status remark</span>
+                                                <input type="hidden" name="ShowPresentStatus" value="false" />
+                                            </label>
+                                            <label class="pbd-chip">
+                                                <input type="checkbox" checked="@showsCostRd" data-pbd-cost-part="rd" />
+                                                <span>R&amp;D cost</span>
+                                            </label>
+                                            <label class="pbd-chip">
+                                                <input type="checkbox" checked="@showsProliferation" data-pbd-cost-part="proliferation" />
+                                                <span>Proliferation cost</span>
+                                            </label>
+                                            <label class="pbd-chip" data-pbd-key-points-part>
+                                                <input type="checkbox" name="ShowKeyPoints" value="true" checked="@keyPointsOn" data-pbd-key-points-toggle />
+                                                <span>Key points</span>
                                                 <input type="hidden" name="ShowKeyPoints" value="false" />
                                             </label>
-                                            <div class="pbd-seg pbd-key-point-slide" role="radiogroup" aria-label="Slide that shows the key points" data-pbd-key-point-slide hidden="@(!keyPointsOn || deck.NarrativeMode != ProjectBriefingNarrativeMode.Both)">
-                                                <label class="pbd-seg__option"><input type="radio" name="KeyPointSlide" value="ProjectBriefSlide" checked="@(!keyPointsOnCapability)" /><span>On the brief slide</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="KeyPointSlide" value="CapabilitySlide" checked="@keyPointsOnCapability" /><span>On the capability slide</span></label>
-                                            </div>
-                                        </fieldset>
+                                        </div>
+                                        <p class="pbd-seg-help" data-pbd-design-hint></p>
+                                        <div class="pbd-seg pbd-key-point-slide" role="radiogroup" aria-label="Slide that shows the key points" data-pbd-key-point-slide hidden="@(!keyPointsOn || deck.NarrativeMode != ProjectBriefingNarrativeMode.Both)">
+                                            <label class="pbd-seg__option"><input type="radio" name="KeyPointSlide" value="ProjectBriefSlide" checked="@(!keyPointsOnCapability)" /><span>On the brief slide</span></label>
+                                            <label class="pbd-seg__option"><input type="radio" name="KeyPointSlide" value="CapabilitySlide" checked="@keyPointsOnCapability" /><span>On the capability slide</span></label>
+                                        </div>
+                                    </fieldset>
 
-                                        @* The key points layout draws its own brief slide, so the brief layout only matters without key points. *@
-                                        <fieldset class="pbd-choice-group" data-pbd-project-brief-layout-settings hidden="@(!standardNeedsProjectBrief || deck.StandardSlideOptions.KeyPoints != ProjectBriefingKeyPointPlacement.None)">
-                                            <legend>Project Brief layout</legend>
-                                            <div class="pbd-seg">
-                                                <label class="pbd-seg__option"><input type="radio" name="ProjectBriefLayout" value="Automatic" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Automatic)" data-help="Photo emphasis when the photograph and brief suit it, otherwise standard." data-label="Automatic" /><span>Automatic</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="ProjectBriefLayout" value="Standard" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Standard)" data-help="A compact photograph beside a wide brief." data-label="Standard" /><span>Standard</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="ProjectBriefLayout" value="PhotoEmphasis" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.PhotoEmphasis)" data-help="The photograph takes about half the slide." data-label="Photo emphasis" /><span>Photo</span></label>
-                                            </div>
-                                            <p class="pbd-seg-help" data-pbd-seg-help="ProjectBriefLayout"></p>
-                                        </fieldset>
-                                    </div>
+                                    @* The key points layout draws its own brief slide, so the brief layout only matters without key points. *@
+                                    <fieldset class="pbd-choice-group" data-pbd-project-brief-layout-settings hidden="@(isUpdateSheet || !standardNeedsProjectBrief || keyPointsOn)">
+                                        <legend>Brief layout</legend>
+                                        <div class="pbd-seg">
+                                            <label class="pbd-seg__option"><input type="radio" name="ProjectBriefLayout" value="Automatic" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Automatic)" data-help="Photo emphasis when the photograph and brief suit it, otherwise standard." data-label="Automatic" /><span>Automatic</span></label>
+                                            <label class="pbd-seg__option"><input type="radio" name="ProjectBriefLayout" value="Standard" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Standard)" data-help="A compact photograph beside a wide brief." data-label="Standard" /><span>Standard</span></label>
+                                            <label class="pbd-seg__option"><input type="radio" name="ProjectBriefLayout" value="PhotoEmphasis" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.PhotoEmphasis)" data-help="The photograph takes about half the slide." data-label="Photo emphasis" /><span>Photo</span></label>
+                                        </div>
+                                        <p class="pbd-seg-help" data-pbd-seg-help="ProjectBriefLayout"></p>
+                                    </fieldset>
+                                    <p class="pbd-blocks__lead">Own slides, table row only, leave out, photo and speaker notes are set for each project on its slide.</p>
                                         </div>
                                     </details>
 
@@ -706,26 +722,6 @@
                                     </label>
                                     <p class="pbd-update-sheet-composition__validation" data-pbd-update-rows-validation hidden>Select at least one information row.</p>
                                 </div>
-                                        </div>
-                                    </details>
-
-                                    <details class="pbd-step" data-pbd-step="cost" data-pbd-settings-collapsible data-pbd-settings-section="cost" data-pbd-standard-section hidden="@isUpdateSheet">
-                                        <summary>
-                                            <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">3</span>
-                                            <span class="pbd-step__text"><strong>Cost</strong><small data-pbd-step-summary></small></span>
-                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
-                                        </summary>
-                                        <div class="pbd-step__body">
-                                <fieldset class="pbd-choice-group">
-                                    <legend>Cost shown on slides</legend>
-                                            <div class="pbd-seg pbd-seg--grid">
-                                                <label class="pbd-seg__option"><input type="radio" name="CostMode" value="CostRdOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.CostRdOnly)" data-help="The R&amp;D cost with its basis: PNC, L1, AoN or IPA." /><span>Cost (R&amp;D)</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="CostMode" value="ProliferationOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.ProliferationOnly)" data-help="The latest indicative proliferation cost." /><span>Proliferation</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="CostMode" value="Both" checked="@(deck.CostMode == ProjectBriefingCostMode.Both)" data-help="R&amp;D and proliferation cost, shown separately." /><span>Both</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="CostMode" value="None" checked="@(deck.CostMode == ProjectBriefingCostMode.None)" data-help="No cost anywhere in the deck." /><span>None</span></label>
-                                            </div>
-                                            <p class="pbd-seg-help" data-pbd-seg-help="CostMode"></p>
-                                </fieldset>
                                         </div>
                                     </details>
 

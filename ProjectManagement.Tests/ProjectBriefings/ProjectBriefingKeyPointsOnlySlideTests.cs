@@ -14,10 +14,44 @@ using P = DocumentFormat.OpenXml.Presentation;
 
 namespace ProjectManagement.Tests.ProjectBriefings;
 
-// The "Key points only" project slide (docs/ux/briefing-decks.md, blocks plan PR 5). It is not in a
-// deck's slide sequence yet, so these tests compose it through the composer's internal test path.
+// The "Key points only" project slide (docs/ux/briefing-decks.md, blocks plan PR 5). Most tests
+// compose the slide alone through the composer's internal test path; one composes a whole deck set
+// to the design.
 public sealed class ProjectBriefingKeyPointsOnlySlideTests
 {
+    [Fact]
+    public void ADeckSetToKeyPointsOnly_GivesEachProjectOneSuchSlide_AndNoCapabilityOrBriefSlides()
+    {
+        var data = Deck(Project());
+        data = new ProjectBriefingPresentationData
+        {
+            DeckId = data.DeckId,
+            DeckName = data.DeckName,
+            PresentationMode = data.PresentationMode,
+            PresentationTheme = data.PresentationTheme,
+            CostMode = data.CostMode,
+            NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
+            StandardSlideOptions = data.StandardSlideOptions with
+            {
+                KeyPoints = ProjectBriefingKeyPointPlacement.CapabilitySlide,
+                KeyPointsOnly = true
+            },
+            GeneratedAtUtc = data.GeneratedAtUtc,
+            Projects = data.Projects,
+            Summary = data.Summary
+        };
+
+        var composition = new ProjectBriefingSlideComposer(new TestEnvironment(
+                Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot")))
+            .ComposeWithOutline(data);
+
+        var projectSlides = composition.Outline.Where(entry => entry.ProjectId == 901).ToArray();
+        Assert.Equal(ProjectBriefingSlideRole.ProjectKeyPointsOnly, Assert.Single(projectSlides).Role);
+        Assert.DoesNotContain(composition.Outline, entry => entry.Role
+            is ProjectBriefingSlideRole.ProjectCapability or ProjectBriefingSlideRole.ProjectBrief);
+        Assert.Equal(ProjectBriefingSlideRole.ProjectKeyPointsOnly, ProjectBriefingSlideComposer.KeyPointSlide(data));
+    }
+
     private const double Emu = 914400d;
 
     // Recorded key points of a local demo project (VR Bailey Bridge Sml).

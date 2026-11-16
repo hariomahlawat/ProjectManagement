@@ -310,6 +310,15 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         ProjectBriefingPresentationData data,
         IReadOnlyList<ProjectBriefingPresentationProject> orderedProjects)
     {
+        // Key points only: one slide per project, the photograph beside its key points.
+        if (UsesKeyPointsOnly(data))
+        {
+            plans.AddRange(orderedProjects
+                .Where(project => !project.TableRowOnly)
+                .Select(project => KeyPointsOnlyPlan(data, project)));
+            return;
+        }
+
         var includeCapabilities = DrawsCapabilitySlides(data.NarrativeMode);
         var includeProjectBrief = DrawsProjectBriefSlides(data.NarrativeMode);
         // Decks that show key points draw both project slides in the key points layout.

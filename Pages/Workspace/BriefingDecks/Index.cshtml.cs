@@ -332,6 +332,18 @@ public sealed class IndexModel : PageModel
                 ?? throw new KeyNotFoundException("The shared command deck was not found.");
             var additionalSlides = ProjectBriefingDeckConfigurationCodec
                 .Read(existingDeck.SelectionRulesJson);
+            // The design card sets the layout, what each project gets and key points; a page that
+            // posts no design keeps sending those fields itself.
+            var design = ProjectBriefingProjectSlideDesigns.Settings(
+                input.ProjectDesign
+                    ?? ProjectBriefingProjectSlideDesigns.Of(
+                        input.Layout,
+                        input.NarrativeMode,
+                        ProjectBriefingStandardSlideOptions.Default with { KeyPoints = ResolveKeyPointPlacement(input) }),
+                input.NarrativeMode,
+                ResolveKeyPointPlacement(input),
+                input.ShowKeyPoints,
+                input.KeyPointSlide);
 
             await _deckService.UpdateSettingsAsync(
                 input.DeckId,
@@ -340,16 +352,17 @@ public sealed class IndexModel : PageModel
                 {
                     Name = input.Name,
                     Description = input.Description,
-                    Layout = input.Layout,
+                    Layout = design.Layout,
                     // The block list owns what the deck shows (UpdateBlocks); a settings save keeps it.
                     PresentationMode = existingDeck.PresentationMode,
                     CostMode = input.CostMode,
-                    NarrativeMode = input.NarrativeMode,
+                    NarrativeMode = design.NarrativeMode,
                     ProjectBriefLayout = input.ProjectBriefLayout,
                     ShowPresentStage = input.ShowPresentStage,
                     ShowPresentStatus = input.ShowPresentStatus,
                     IncludeStageDistributionTable = input.IncludeStageDistributionTable,
-                    KeyPoints = ResolveKeyPointPlacement(input),
+                    KeyPoints = design.KeyPoints,
+                    KeyPointsOnly = design.KeyPointsOnly,
                     PresentationTheme = input.PresentationTheme,
                     ClosingSlideType = input.ClosingSlideType,
                     InstitutionalProfileOptions = additionalSlides.InstitutionalProfileOptions,
@@ -1742,6 +1755,9 @@ public sealed class IndexModel : PageModel
         public bool ShowPresentStage { get; set; } = true;
         public bool ShowPresentStatus { get; set; } = true;
         public bool IncludeStageDistributionTable { get; set; }
+
+        // The project slide design (Deck tab, Project slides); null from a page without the cards.
+        public ProjectBriefingProjectSlideDesign? ProjectDesign { get; set; }
 
         // Show key points, and the slide they go on when the deck draws both project slides.
         public bool ShowKeyPoints { get; set; }

@@ -134,12 +134,15 @@ public static class ProjectBriefingContentGaps
                 is ProjectBriefingPresentationMode.ExecutiveTable or ProjectBriefingPresentationMode.Combined;
             var detailed = settings.PresentationMode
                 is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
+            var keyPointsOnly = ProjectBriefingProjectSlideDesigns.Of(settings.Layout, settings.NarrativeMode, settings.StandardSlideOptions)
+                == ProjectBriefingProjectSlideDesign.KeyPointsOnly;
             return new Uses(
                 Status: executiveTable || (detailed && settings.StandardSlideOptions.ShowPresentStatus),
                 CostRd: settings.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both,
                 ProliferationCost: settings.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both,
                 Photo: detailed,
-                CapabilityOverview: detailed && settings.NarrativeMode
+                // Key points only shows no capability text, so its absence is not a gap.
+                CapabilityOverview: detailed && !keyPointsOnly && settings.NarrativeMode
                     is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both,
                 ProjectBrief: detailed && settings.NarrativeMode
                     is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both,

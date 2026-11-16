@@ -19,7 +19,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Technical category", page, StringComparison.Ordinal);
         Assert.Contains("Available for proliferation", page, StringComparison.Ordinal);
         Assert.Contains("Manage individually", page, StringComparison.Ordinal);
-        Assert.Contains("Cost (R&amp;D)", page, StringComparison.Ordinal);
+        Assert.Contains("R&amp;D cost", page, StringComparison.Ordinal);
         Assert.Contains("Generate PowerPoint", page, StringComparison.Ordinal);
         Assert.Contains("<legend class=\"form-label\">Template</legend>", page, StringComparison.Ordinal);
         Assert.Contains("Shared decks", page, StringComparison.Ordinal);
@@ -63,8 +63,9 @@ public sealed class ProjectBriefingContractTests
         // The deleted/archived notice moved into the Studio stage.
         Assert.Contains("pbd-stage__notice", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-settings-form", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-preset=", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-standard-section", page, StringComparison.Ordinal);
+        // The Template picker gave way to the design cards in Project slides (blocks plan PR 5).
+        Assert.DoesNotContain("data-pbd-preset=", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"ProjectDesign\"", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-settings-collapsible", page, StringComparison.Ordinal);
     }
 
@@ -96,8 +97,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("<small data-pbd-placeholder-note hidden>", page, StringComparison.Ordinal);
         Assert.Contains("placeholderNote.hidden = openChecks === 0;", studio, StringComparison.Ordinal);
 
-        // A template asks first on a customised deck and can be undone straight after.
-        Assert.Contains("Keep my settings", script, StringComparison.Ordinal);
+        // Templates are no longer applied from the Deck tab; an Undo offered by an older page still works.
+        Assert.DoesNotContain("Keep my settings", script, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"UndoPreset\"", page, StringComparison.Ordinal);
         Assert.Contains("OnPostUndoPresetAsync", model, StringComparison.Ordinal);
         Assert.Contains("root.querySelector('[data-pbd-preset-undo]')?.remove();", script, StringComparison.Ordinal);
@@ -121,7 +122,7 @@ public sealed class ProjectBriefingContractTests
         // Generate is the button beside the progress line, not a step of it (review PR E).
         Assert.DoesNotContain("data-pbd-progress-generate", page, StringComparison.Ordinal);
         Assert.Contains("const renderProgress = (presented, openChecks) =>", studio, StringComparison.Ordinal);
-        Assert.Contains("progressTemplate.textContent", script, StringComparison.Ordinal);
+        Assert.Contains("progressDesign.textContent = designLabel", script, StringComparison.Ordinal);
 
         // How the deck behaves, said once, and the save state by the title.
         Assert.Contains("data-pbd-model-note hidden", page, StringComparison.Ordinal);
@@ -519,7 +520,9 @@ public sealed class ProjectBriefingContractTests
         Assert.True(deckPanel >= 0 && deckPanel < form && form < checksPanel, "The settings form belongs to the Deck tab.");
         Assert.DoesNotContain("data-pbd-deck-advanced", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-steps", page, StringComparison.Ordinal);
-        foreach (var step in new[] { "slides", "project", "sheet", "cost", "look", "handling" })
+        // Cost is two chips in Project slides now (blocks plan PR 5).
+        Assert.DoesNotContain("data-pbd-step=\"cost\"", page, StringComparison.Ordinal);
+        foreach (var step in new[] { "slides", "project", "sheet", "look", "handling" })
         {
             Assert.Contains($"data-pbd-step=\"{step}\"", page, StringComparison.Ordinal);
         }
@@ -527,10 +530,9 @@ public sealed class ProjectBriefingContractTests
         Assert.DoesNotContain("data-pbd-step=\"extra\"", page, StringComparison.Ordinal);
         Assert.Contains("<strong>Slides in this deck</strong>", page, StringComparison.Ordinal);
 
-        // Template picker (Plan: Deck settings): the presets under one compact row, "customised" after changes.
-        Assert.Contains("data-pbd-template-toggle", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-template-customised", page, StringComparison.Ordinal);
-        Assert.Contains("Started from this template, then customised.", script, StringComparison.Ordinal);
+        // No Template picker or "customised" state: a template only starts a deck (blocks plan PR 5).
+        Assert.DoesNotContain("data-pbd-template-toggle", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("customised", script, StringComparison.Ordinal);
         Assert.DoesNotContain(">Purpose</h4>", page, StringComparison.Ordinal);
         Assert.Contains("serializeSettings", script, StringComparison.Ordinal);
         Assert.Contains("beforeunload", script, StringComparison.Ordinal);
@@ -797,7 +799,8 @@ public sealed class ProjectBriefingContractTests
         var dataSource = Read("ProjectBriefingDataService.cs");
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
-        Assert.Contains("<legend>Each project gets</legend>", page, StringComparison.Ordinal);
+        // The design cards set what each project gets; the radios stay hidden for the summaries.
+        Assert.Contains("<legend>Design · one for every project</legend>", page, StringComparison.Ordinal);
         Assert.Contains("value=\"CapabilityOverview\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"ProjectBrief\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"Both\"", page, StringComparison.Ordinal);
@@ -815,21 +818,22 @@ public sealed class ProjectBriefingContractTests
         var script = Read("project-briefing-decks.js");
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
-        Assert.Contains("Project Brief layout", page, StringComparison.Ordinal);
+        Assert.Contains("<legend>Brief layout</legend>", page, StringComparison.Ordinal);
         Assert.Contains("name=\"ProjectBriefLayout\" value=\"Automatic\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"ProjectBriefLayout\" value=\"Standard\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"ProjectBriefLayout\" value=\"PhotoEmphasis\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"ShowPresentStage\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"ShowPresentStatus\"", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-step=\"cost\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-cost-part=\"proliferation\"", page, StringComparison.Ordinal);
         // Compact controls (Plan: Deck settings, PR 3): segmented choices explain only the selected option.
         // What the deck shows is the block list's status table and project slides switches now.
-        foreach (var name in new[] { "Layout", "NarrativeMode", "ProjectBriefLayout", "CostMode", "BrandingScope", "ClosingSlideType" })
+        // What each project gets and cost are design cards and chips now (blocks plan PR 5).
+        foreach (var name in new[] { "Layout", "ProjectBriefLayout", "BrandingScope", "ClosingSlideType" })
         {
             Assert.Contains($"data-pbd-seg-help=\"{name}\"", page, StringComparison.Ordinal);
         }
         Assert.Contains("class=\"pbd-chip\"", page, StringComparison.Ordinal);
-        Assert.Contains("role=\"switch\" name=\"ShowKeyPoints\"", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"ShowKeyPoints\" value=\"true\" checked=\"@keyPointsOn\" data-pbd-key-points-toggle", page, StringComparison.Ordinal);
         Assert.Contains("value=\"CostRdOnly\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"ProliferationOnly\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"Both\"", page, StringComparison.Ordinal);

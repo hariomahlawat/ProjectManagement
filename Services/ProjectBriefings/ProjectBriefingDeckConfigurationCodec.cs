@@ -67,7 +67,10 @@ public sealed record ProjectBriefingStandardSlideOptions(
     bool ShowPresentStage,
     bool ShowPresentStatus,
     bool IncludeStageDistributionTable,
-    ProjectBriefingKeyPointPlacement KeyPoints = ProjectBriefingKeyPointPlacement.None)
+    ProjectBriefingKeyPointPlacement KeyPoints = ProjectBriefingKeyPointPlacement.None,
+    // The Key points only design (ProjectBriefingProjectSlideDesigns); stored beside key points on
+    // the capability slide, so a build that does not know it shows the Key points design.
+    bool KeyPointsOnly = false)
 {
     public static ProjectBriefingStandardSlideOptions Default { get; } =
         new(
@@ -81,15 +84,20 @@ public sealed record ProjectBriefingStandardSlideOptions(
         bool showPresentStage,
         bool showPresentStatus,
         bool includeStageDistributionTable,
-        ProjectBriefingKeyPointPlacement keyPoints = ProjectBriefingKeyPointPlacement.None)
-        => new(
+        ProjectBriefingKeyPointPlacement keyPoints = ProjectBriefingKeyPointPlacement.None,
+        bool keyPointsOnly = false)
+    {
+        var placement = Enum.IsDefined(keyPoints) ? keyPoints : ProjectBriefingKeyPointPlacement.None;
+        return new(
             Enum.IsDefined(projectBriefLayout)
                 ? projectBriefLayout
                 : ProjectBriefingProjectBriefLayout.Automatic,
             showPresentStage,
             showPresentStatus,
             includeStageDistributionTable,
-            Enum.IsDefined(keyPoints) ? keyPoints : ProjectBriefingKeyPointPlacement.None);
+            placement,
+            keyPointsOnly && placement == ProjectBriefingKeyPointPlacement.CapabilitySlide);
+    }
 }
 
 public sealed record ProjectBriefingInstitutionalHistoryMilestone(int Year, string Text);
@@ -611,7 +619,8 @@ public static class ProjectBriefingDeckConfigurationCodec
             ReadBoolean(standard?["showPresentStage"]) ?? true,
             ReadBoolean(standard?["showPresentStatus"]) ?? true,
             ReadBoolean(standard?["includeStageDistributionTable"]) ?? false,
-            ReadEnum(standard?["keyPoints"], ProjectBriefingKeyPointPlacement.None));
+            ReadEnum(standard?["keyPoints"], ProjectBriefingKeyPointPlacement.None),
+            ReadBoolean(standard?["keyPointsOnly"]) ?? false);
 
     private static ProjectBriefingClosingSlideType ReadClosingSlideType(JsonNode? node)
         => ReadEnum(node, ProjectBriefingClosingSlideType.JaiHind);
@@ -790,7 +799,8 @@ public static class ProjectBriefingDeckConfigurationCodec
             configuration.StandardSlideOptions.ShowPresentStage,
             configuration.StandardSlideOptions.ShowPresentStatus,
             configuration.StandardSlideOptions.IncludeStageDistributionTable,
-            configuration.StandardSlideOptions.KeyPoints);
+            configuration.StandardSlideOptions.KeyPoints,
+            configuration.StandardSlideOptions.KeyPointsOnly);
         var normalizedClosingSlideType = Enum.IsDefined(configuration.ClosingSlideType)
             ? configuration.ClosingSlideType
             : ProjectBriefingClosingSlideType.JaiHind;
@@ -843,7 +853,9 @@ public static class ProjectBriefingDeckConfigurationCodec
                 ["showPresentStatus"] = normalizedStandard.ShowPresentStatus,
                 ["includeStageDistributionTable"] = normalizedStandard.IncludeStageDistributionTable,
                 // Older builds ignore the key, so a rolled-back build shows decks without key points.
-                ["keyPoints"] = normalizedStandard.KeyPoints.ToString()
+                ["keyPoints"] = normalizedStandard.KeyPoints.ToString(),
+                // Older builds ignore it and read the deck as the Key points design.
+                ["keyPointsOnly"] = normalizedStandard.KeyPointsOnly
             },
             ["closingSlide"] = normalizedClosingSlideType.ToString(),
             ["institutionalProfile"] = new JsonObject

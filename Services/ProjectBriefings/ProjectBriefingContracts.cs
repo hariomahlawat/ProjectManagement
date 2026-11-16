@@ -100,6 +100,9 @@ public sealed class ProjectBriefingDeckVm
         = ProjectBriefingNarrativeMode.CapabilityOverview;
     public ProjectBriefingStandardSlideOptions StandardSlideOptions { get; init; }
         = ProjectBriefingStandardSlideOptions.Default;
+    // The design of the deck's project slides, read from the settings above.
+    public ProjectBriefingProjectSlideDesign ProjectDesign
+        => ProjectBriefingProjectSlideDesigns.Of(Layout, NarrativeMode, StandardSlideOptions);
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
         = ProjectBriefingPresentationTheme.EditorialLight;
     public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
@@ -322,6 +325,7 @@ public sealed class ProjectBriefingDeckSettingsCommand
     public bool ShowPresentStatus { get; init; } = true;
     public bool IncludeStageDistributionTable { get; init; }
     public ProjectBriefingKeyPointPlacement KeyPoints { get; init; }
+    public bool KeyPointsOnly { get; init; }
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
     public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
         = ProjectBriefingClosingSlideType.JaiHind;
