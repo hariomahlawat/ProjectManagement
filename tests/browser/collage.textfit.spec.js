@@ -45,5 +45,19 @@ test('a heading whose stored size is out of date is given its size as a change t
   await expect.poll(async () => (await newestDraft(page))?.model.items.find((i) => i.kind === 'text')?.width).toBeLessThan(right * 0.5);
   const drawn = await page.evaluate(() => window.Konva.stages[0].find((n) => n.getAttr('kind') === 'text')[0].width());
   expect(drawn).toBeGreaterThan(right * 0.9);
+
+  // Lined up on the left of the page, the words land by their real width, not the old one.
+  const textId = (await newestDraft(page)).model.items.find((i) => i.kind === 'text').id;
+  await page.locator('[data-props-tab="layers"]').click();
+  await page.locator(`[data-layer-select="${textId}"]`).click();
+  await page.locator('[data-props-tab="settings"]').click();
+  await page.locator('.clg-props summary', { hasText: 'Line up' }).click();
+  await page.locator('.clg-props [data-align="left"]').click();
+  await expect.poll(async () => {
+    const text = (await newestDraft(page))?.model.items.find((i) => i.kind === 'text');
+    return text && Math.round(text.x - text.width / 2);
+  }).toBe(0);
+  const lined = (await newestDraft(page)).model.items.find((i) => i.kind === 'text');
+  expect(lined.width).toBeGreaterThan(right * 0.9);
   expect(errors).toEqual([]);
 });

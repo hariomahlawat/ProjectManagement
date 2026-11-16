@@ -634,6 +634,9 @@
   function changeSelected(change, record = true) {
     const item = selectedItem();
     if (!item) return;
+    // Words are measured before the change too: a size kept from before their font arrived
+    // (Undo can bring one back) would put them in the wrong place when lined up on the page.
+    if (item.kind === 'text') fitText(item);
     change(item);
     // Words take the size they need inside the change, so Undo and the draft keep it.
     if (item.kind === 'text') fitText(item);
