@@ -85,6 +85,48 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             ProjectBriefingDeckConfigurationCodec.WithPreset(newer, ProjectBriefingDeckPreset.MonthlyCommandReview));
     }
 
+    // Review 3 fixes, M2: values a newer build added inside lists and choices this build writes
+    // survive its saves, unless the save itself changed that choice.
+    [Fact]
+    public void ListAndChoiceValuesThisBuildDoesNotKnow_SurviveItsSaves()
+    {
+        var json = ProjectBriefingDeckConfigurationCodec.WithOverviewOrder(
+            ProjectBriefingDeckConfigurationCodec.WithPreset(null, ProjectBriefingDeckPreset.MonthlyCommandReview),
+            new[] { ProjectBriefingDeckBlockType.StatusTable });
+        var document = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        document["updateSheet"]!["rows"]!.AsArray().Add("FutureRow");
+        document["overviewOrder"]!.AsArray().Add("FutureBlock");
+        document["standardBriefing"]!["projectBriefLayout"] = "FutureLayout";
+        document["preset"] = "FuturePreset";
+        json = document.ToJsonString();
+
+        // A save that changes none of them: every newer value is still there.
+        json = ProjectBriefingDeckConfigurationCodec.WithSelectionRules(json, "{\"source\":\"manual\"}");
+        var saved = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        Assert.Contains("FutureRow", saved["updateSheet"]!["rows"]!.AsArray().Select(node => node!.GetValue<string>()));
+        Assert.Equal(new[] { "StatusTable", "FutureBlock" }, saved["overviewOrder"]!.AsArray().Select(node => node!.GetValue<string>()));
+        Assert.Equal("FutureLayout", saved["standardBriefing"]!["projectBriefLayout"]!.GetValue<string>());
+        Assert.Equal("FuturePreset", saved["preset"]!.GetValue<string>());
+
+        // This build still reads only what it knows.
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(json);
+        Assert.Equal(new[] { ProjectBriefingDeckBlockType.StatusTable }, configuration.OverviewOrder);
+        Assert.Null(configuration.Preset);
+
+        // A save that sets a choice writes it, and the list keeps its newer value after its own.
+        var current = ProjectBriefingDeckConfigurationCodec.Read(json);
+        json = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
+            json,
+            current.UpdateSheetOptions,
+            current.StandardSlideOptions with { ProjectBriefLayout = ProjectBriefingProjectBriefLayout.PhotoEmphasis },
+            current.ClosingSlideType);
+        json = ProjectBriefingDeckConfigurationCodec.WithOverviewOrder(json, new[] { ProjectBriefingDeckBlockType.StageDistribution });
+        saved = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        Assert.Equal("PhotoEmphasis", saved["standardBriefing"]!["projectBriefLayout"]!.GetValue<string>());
+        Assert.Equal(new[] { "StageDistribution", "FutureBlock" }, saved["overviewOrder"]!.AsArray().Select(node => node!.GetValue<string>()));
+        Assert.Contains("FutureRow", saved["updateSheet"]!["rows"]!.AsArray().Select(node => node!.GetValue<string>()));
+    }
+
     [Fact]
     public void LegacySelectionRules_AreStillUpgradedIntoTheDocument()
     {

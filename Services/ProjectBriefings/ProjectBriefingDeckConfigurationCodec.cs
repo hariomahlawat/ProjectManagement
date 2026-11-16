@@ -863,7 +863,93 @@ public static class ProjectBriefingDeckConfigurationCodec
             merged[key] = value;
         }
 
+        KeepNewerValues(existing, merged, Build(Read(existingJson)));
         return merged.ToJsonString(JsonOptions);
+    }
+
+    // Lists and choices this build writes, with the enum each holds. A newer build may add values
+    // this build cannot read (an update-sheet row, a block type, a key point placement); the
+    // sections above are rebuilt from what this build read, so those values are put back here
+    // (review 3 fixes, M2).
+    private static readonly (string? Section, string Key, Type Values)[] EnumLists =
+    {
+        ("updateSheet", "rows", typeof(ProjectBriefingUpdateSheetRow)),
+        ("institutionalProfile", "modules", typeof(ProjectBriefingInstitutionalProfileModule)),
+        (null, "additionalSlides", typeof(ProjectBriefingAdditionalSlideType)),
+        (null, "overviewOrder", typeof(ProjectBriefingDeckBlockType))
+    };
+
+    private static readonly (string? Section, string Key, Type Values)[] EnumChoices =
+    {
+        ("standardBriefing", "keyPoints", typeof(ProjectBriefingKeyPointPlacement)),
+        ("standardBriefing", "projectBriefLayout", typeof(ProjectBriefingProjectBriefLayout)),
+        (null, "preset", typeof(ProjectBriefingDeckPreset))
+    };
+
+    private static void KeepNewerValues(JsonObject stored, JsonObject merged, JsonObject unchanged)
+    {
+        // A list keeps, after this build's values, every stored value this build cannot read.
+        foreach (var (section, key, values) in EnumLists)
+        {
+            if (SectionOf(stored, section)?[key] is not JsonArray storedList)
+            {
+                continue;
+            }
+
+            var newer = storedList.Where(node => !IsKnown(values, node)).Select(node => node?.DeepClone()).ToArray();
+            var target = SectionOf(merged, section);
+            if (newer.Length == 0 || target is null)
+            {
+                continue;
+            }
+
+            if (target[key] is JsonArray list)
+            {
+                foreach (var node in newer)
+                {
+                    list.Add(node);
+                }
+            }
+            else
+            {
+                target[key] = new JsonArray(newer);
+            }
+        }
+
+        // A choice this build cannot read is kept unless this save changed it: this build read it
+        // as its fallback, so a save that leaves the fallback in place did not touch it.
+        foreach (var (section, key, values) in EnumChoices)
+        {
+            var storedChoice = SectionOf(stored, section)?[key];
+            var target = SectionOf(merged, section);
+            if (storedChoice is null || IsKnown(values, storedChoice) || target is null)
+            {
+                continue;
+            }
+
+            if (JsonNode.DeepEquals(target[key], SectionOf(unchanged, section)?[key]))
+            {
+                target[key] = storedChoice.DeepClone();
+            }
+        }
+    }
+
+    private static JsonObject? SectionOf(JsonObject document, string? section)
+        => section is null ? document : document[section] as JsonObject;
+
+    private static bool IsKnown(Type values, JsonNode? node)
+    {
+        if (node is not JsonValue value)
+        {
+            return false;
+        }
+
+        if (value.TryGetValue<string>(out var text))
+        {
+            return Enum.TryParse(values, text, ignoreCase: true, out var parsed) && Enum.IsDefined(values, parsed!);
+        }
+
+        return value.TryGetValue<int>(out var number) && Enum.IsDefined(values, number);
     }
 
     private static JsonObject Build(ProjectBriefingDeckConfiguration configuration)
