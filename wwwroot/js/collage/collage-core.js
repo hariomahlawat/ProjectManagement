@@ -840,20 +840,28 @@
     const r = Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, Number(radius) || 0));
     const isFrame = (item) => item.kind === 'photo' || item.kind === 'slot';
     const join = locked === 'join';
-    const kept = join ? [] : collage.items.filter((item) => isFrame(item) && item.locked).map((item) => keptOnPage(item, collage.size));
+    const stays = (item) => !isFrame(item) || (!join && item.locked);
+    // Text, stickers and kept frames stay in their order, so nothing above a kept photo goes under it.
+    const others = collage.items.filter(stays).map((item) => (isFrame(item) ? keptOnPage(item, collage.size) : item));
+    const kept = others.filter(isFrame);
     // Each frame keeps its own cell, so a later change of space puts it back in its own place.
     const frames = all.map((frame, cell) => ({ ...frame, cell }))
       .filter((frame) => !kept.some((item) => coveredShare(frame, item) > LOCK_COVER_LIMIT));
     const photos = collage.items.filter((item) => item.kind === 'photo' && (join || !item.locked));
-    const others = collage.items.filter((item) => !isFrame(item)).concat(kept);
+    // Locked empty frames put into the layout keep their id and lock, after the photos.
+    const lockedSlots = join ? collage.items.filter((item) => item.kind === 'slot' && item.locked) : [];
     const sources = photos.map((item) => item.photo);
     for (const id of spare || []) if (sources.length < frames.length && !sources.includes(id)) sources.push(id);
     const placed = frames.map(({ cell, ...place }, index) => {
       const existing = photos[index];
       if (existing) return { ...existing, ...place, cell, angle: 0, radius: r, crop: { ...FULL_CROP } };
       if (index < sources.length) return { ...photoItem(newId(), sources[index], place.aspect, place), cell, radius: r };
+      const slot = lockedSlots.shift();
+      if (slot) return { ...slot, ...place, cell, angle: 0, radius: r };
       return { ...slotItem(newId(), place), cell, radius: r };
     });
+    // Locked empty frames with no frame left for them stay where they are.
+    others.push(...lockedSlots.map((item) => keptOnPage(item, collage.size)));
     const removed = photos.slice(frames.length).map((item) => item.id);
     return {
       collage: { ...collage, layout: { key, gap: Math.min(LAYOUT_LIMITS.gapMax, Math.max(0, Number(gap) || 0)), radius: r }, items: [...placed, ...others] },
