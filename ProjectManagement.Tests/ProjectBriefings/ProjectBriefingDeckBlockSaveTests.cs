@@ -68,6 +68,51 @@ public sealed class ProjectBriefingDeckBlockSaveTests
     }
 
     [Fact]
+    public async Task ALaterSettingsSave_KeepsTheCoverAndPortfolioTheBlockListSwitchedOff()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db);
+        var service = Service(db);
+        await service.UpdateBlocksAsync(deck.Id, UserId, new[]
+        {
+            Block(ProjectBriefingDeckBlockType.Cover, false),
+            Block(ProjectBriefingDeckBlockType.PortfolioSummary, false)
+        }, Version(deck));
+        deck = await db.Set<ProjectBriefingDeck>().SingleAsync();
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+
+        // What the page sends after a theme change: the deck's own values for what the blocks own.
+        await service.UpdateSettingsAsync(deck.Id, UserId, new ProjectBriefingDeckSettingsCommand
+        {
+            Name = deck.Name,
+            Layout = deck.Layout,
+            PresentationMode = deck.PresentationMode,
+            CostMode = deck.CostMode,
+            NarrativeMode = deck.NarrativeMode,
+            ProjectBriefLayout = configuration.StandardSlideOptions.ProjectBriefLayout,
+            ShowPresentStage = configuration.StandardSlideOptions.ShowPresentStage,
+            ShowPresentStatus = configuration.StandardSlideOptions.ShowPresentStatus,
+            PresentationTheme = ProjectBriefingPresentationTheme.GraphiteDark,
+            ClosingSlideType = configuration.ClosingSlideType,
+            InstitutionalProfileOptions = configuration.InstitutionalProfileOptions,
+            RoleCharterOptions = configuration.RoleCharterOptions,
+            FfcGlobalFootprintOptions = configuration.FfcGlobalFootprintOptions,
+            AdditionalSlideOrder = configuration.AdditionalSlideOrder,
+            IncludeCoverSlide = deck.IncludeCoverSlide,
+            IncludePortfolioSummarySlide = deck.IncludePortfolioSummarySlide,
+            IncludeStageSummary = deck.IncludeStageSummary,
+            UpdateSheetRows = configuration.UpdateSheetOptions.Rows,
+            HideEmptyUpdateSheetValues = configuration.UpdateSheetOptions.HideEmptyValues,
+            RowVersion = Version(deck)
+        });
+
+        var saved = await db.Set<ProjectBriefingDeck>().SingleAsync();
+        Assert.Equal(ProjectBriefingPresentationTheme.GraphiteDark, saved.PresentationTheme);
+        Assert.False(saved.IncludeCoverSlide);
+        Assert.False(saved.IncludePortfolioSummarySlide);
+    }
+
+    [Fact]
     public async Task ADeckNeedsTheStatusTableOrTheProjectSlides()
     {
         await using var db = CreateDb();

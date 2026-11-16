@@ -573,10 +573,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         // The established Standard PRISM Briefing always retains its cover and
         // portfolio-summary slides. The new formal update-sheet layout exposes
         // these as explicit user choices.
-        deck.IncludeCoverSlide = command.Layout == ProjectBriefingLayout.StandardBriefing
-            || command.IncludeCoverSlide;
-        deck.IncludePortfolioSummarySlide = command.Layout == ProjectBriefingLayout.StandardBriefing
-            || command.IncludePortfolioSummarySlide;
+        // The block list switches the cover and portfolio summary for every layout (PR 4).
+        deck.IncludeCoverSlide = command.IncludeCoverSlide;
+        deck.IncludePortfolioSummarySlide = command.IncludePortfolioSummarySlide;
         deck.IncludeStageSummary = command.IncludeStageSummary;
         deck.IncludeProjectCategorySummary = command.IncludeProjectCategorySummary;
         deck.IncludeTechnicalCategorySummary = command.IncludeTechnicalCategorySummary;

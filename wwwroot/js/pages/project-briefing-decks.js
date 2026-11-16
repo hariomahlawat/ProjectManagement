@@ -1587,8 +1587,7 @@ if (root) {
     });
     syncStageSummaryOptions();
     syncTemplateSettings();
-    // The hidden inputs moved with a saved change, not an unsaved one.
-    settingsSavedState = serializeSettings();
+    // The mirror inputs are outside the settings form's data, so unsaved settings stay unsaved.
     refreshSettingsSummary();
   };
   const snapshotBlocks = () => blockRows().map((row) => ({
@@ -1637,6 +1636,10 @@ if (root) {
   };
 
   if (blockList) {
+    // The list is drawn for the deck's layout; a layout change (Template) reloads to draw it again.
+    document.addEventListener('pbd:settings-saved', (event) => {
+      if (Array.isArray(event.detail?.changed) && event.detail.changed.includes('Layout')) window.location.reload();
+    });
     blockList.addEventListener('change', (event) => {
       const input = event.target;
       if (!(input instanceof HTMLInputElement) || !input.matches('[data-pbd-block-switch]')) return;

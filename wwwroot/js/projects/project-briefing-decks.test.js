@@ -297,6 +297,10 @@ test('slides in this deck: one switchable, reorderable block list saved in place
   assert.match(slidesStep, /data-pbd-block-handle/);
   // The settings form still reads what the deck shows, from hidden inputs the list keeps current.
   assert.match(slidesStep, /data-pbd-block-mirror/);
+  // Outside the settings form's data, so a block save never marks unsaved settings as saved.
+  assert.equal((slidesStep.match(/<input form="pbd-block-mirror"/g) || []).length, 8);
+  assert.doesNotMatch(source, /The hidden inputs moved with a saved change/);
+  assert.match(source, /event\.detail\.changed\.includes\('Layout'\)\) window\.location\.reload\(\)/);
   assert.match(viewSource, /data-blocks-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateBlocks"\)"/);
   assert.match(source, /body: JSON\.stringify\(\{ deckId, rowVersion: currentRowVersion\(\), blocks: readBlocks\(\) \}\)/);
   assert.match(source, /restoreBlocks\(before\)/);

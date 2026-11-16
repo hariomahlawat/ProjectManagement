@@ -1726,7 +1726,7 @@ public sealed class IndexModel : PageModel
         [Required]
         public ProjectBriefingLayout Layout { get; set; }
 
-        [Required]
+        // Not posted since the block list owns it (PR 4); kept for older pages and ignored.
         public ProjectBriefingPresentationMode PresentationMode { get; set; }
 
         [Required]

@@ -501,16 +501,17 @@
                                 </fieldset>
                                 @* What the deck shows and which summaries it has belong to the block list below; these
                                    hidden inputs follow it so the step summaries and the settings form read the same deck.
-                                   A settings save keeps the deck's own values for them (OnPostSaveSettingsAsync). *@
+                                   They belong to no form (form= names none), so the settings save neither sends nor
+                                   compares them; the server keeps the deck's own values (OnPostSaveSettingsAsync). *@
                                 <div hidden data-pbd-block-mirror>
-                                    <input type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" />
-                                    <input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
-                                    <input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
-                                    <input type="checkbox" name="IncludeCoverSlide" value="true" checked="@deck.IncludeCoverSlide" />
-                                    <input type="checkbox" name="IncludePortfolioSummarySlide" value="true" checked="@deck.IncludePortfolioSummarySlide" />
-                                    <input type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" data-pbd-stage-summary-toggle />
-                                    <input type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" />
-                                    <input type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" />
+                                    <input form="pbd-block-mirror" type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" />
+                                    <input form="pbd-block-mirror" type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
+                                    <input form="pbd-block-mirror" type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludeCoverSlide" value="true" checked="@deck.IncludeCoverSlide" />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludePortfolioSummarySlide" value="true" checked="@deck.IncludePortfolioSummarySlide" />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" data-pbd-stage-summary-toggle />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" />
                                 </div>
                                 @{
                                     var blockZones = new[]
