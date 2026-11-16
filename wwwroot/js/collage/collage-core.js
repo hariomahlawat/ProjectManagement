@@ -210,6 +210,47 @@
     return { ...slot, kind: 'photo', photo, crop: { ...FULL_CROP }, ...PLAIN_FINISH };
   }
 
+  /**
+   * The empty frame a photo leaves when it is taken out of a layout: same id, place, size, turn
+   * and corners, and its cell in the layout, so the layout keeps its shape (a change of space or
+   * page size moves it with the others) and another photo can go in.
+   */
+  function emptyFrame(item) {
+    const slot = { id: item.id, kind: 'slot', x: item.x, y: item.y, width: item.width, aspect: item.aspect, angle: item.angle || 0, opacity: 100, radius: item.radius || 0 };
+    if (Number.isInteger(item.cell)) slot.cell = item.cell;
+    return slot;
+  }
+
+  /**
+   * Where a new item of this half size goes: the first of a few places on the page (centre first,
+   * then down and to the sides) where it covers nothing, or else the one where it covers least.
+   */
+  function freeSpot(items, sizeKey, halfWidth, halfHeight) {
+    const height = pageHeight(sizeKey);
+    const rows = [0.5, 0.3, 0.7, 0.15, 0.85];
+    const columns = [0.5, 0.27, 0.73];
+    const boxes = (items || []).filter((item) => !item.hidden).map((item) => {
+      const box = turnedHalfBox(item.width, itemHeight(item), item.angle || 0);
+      return { x: item.x, y: item.y, hw: box.halfWidth, hh: box.halfHeight };
+    });
+    let best = null;
+    for (const row of rows) {
+      for (const column of columns) {
+        const x = Math.min(PAGE_WIDTH - halfWidth, Math.max(halfWidth, PAGE_WIDTH * column));
+        const y = Math.min(height - halfHeight, Math.max(halfHeight, height * row));
+        let covered = 0;
+        for (const box of boxes) {
+          const w = Math.min(x + halfWidth, box.x + box.hw) - Math.max(x - halfWidth, box.x - box.hw);
+          const h = Math.min(y + halfHeight, box.y + box.hh) - Math.max(y - halfHeight, box.y - box.hh);
+          if (w > 0 && h > 0) covered += w * h;
+        }
+        if (covered === 0) return { x, y };
+        if (!best || covered < best.covered) best = { x, y, covered };
+      }
+    }
+    return { x: best.x, y: best.y };
+  }
+
   // ---------------------------------------------------------------------------
   // The part of a photo a frame shows
   // ---------------------------------------------------------------------------
@@ -305,11 +346,37 @@
     return item.kind === 'photo' && (item.shape || 'rect') === 'rect' && FRAMES[item.frame] && item.frame !== 'none';
   }
 
-  /** The frame's edges in page units: left, right, top and bottom. */
+  /** A caption strip's height, as a fraction of the photo's width. */
+  const CAPTION_STRIP = 0.11;
+
+  /**
+   * Whether a photo shows its caption on a white strip under the picture: any photo with a
+   * caption, except a polaroid, which writes it by hand in its own deep bottom edge.
+   */
+  function hasCaptionStrip(item) {
+    if (item?.kind !== 'photo' || !String(item.caption || '').trim()) return false;
+    return !(isFramed(item) && item.frame === 'polaroid');
+  }
+
+  /** The caption strip's height in page units (0 when there is none). */
+  /** The most of an item's height a caption strip takes, so the picture always keeps room. */
+  const CAPTION_STRIP_MAX_SHARE = 0.4;
+
+  function captionStripHeight(item) {
+    if (!hasCaptionStrip(item)) return 0;
+    // A very wide or flattened photo keeps most of its height for the picture.
+    return Math.min(item.width * CAPTION_STRIP, (item.width / item.aspect) * CAPTION_STRIP_MAX_SHARE);
+  }
+
+  /**
+   * The frame's edges in page units: left, right, top and bottom. A caption strip is under the
+   * picture, inside the frame's bottom edge.
+   */
   function framePads(item) {
-    if (!isFramed(item)) return { left: 0, right: 0, top: 0, bottom: 0 };
+    const strip = captionStripHeight(item);
+    if (!isFramed(item)) return { left: 0, right: 0, top: 0, bottom: strip };
     const frame = FRAMES[item.frame];
-    return { left: item.width * frame.side, right: item.width * frame.side, top: item.width * frame.top, bottom: item.width * frame.bottom };
+    return { left: item.width * frame.side, right: item.width * frame.side, top: item.width * frame.top, bottom: item.width * frame.bottom + strip };
   }
 
   /** The picture area inside the frame, in the item's own units (0, 0 is its top-left corner). */
@@ -332,7 +399,7 @@
    * a polaroid's edges follow its width, so squeezing it flat could otherwise leave no photo.
    */
   function limitFrameAspect(item) {
-    if (!isFramed(item)) return item.aspect;
+    if (!isFramed(item) && !hasCaptionStrip(item)) return item.aspect;
     const pads = framePads(item);
     const minHeight = pads.top + pads.bottom + Math.max(MIN_PICTURE, item.width * 0.1);
     return Math.min(item.aspect, item.width / minHeight);
@@ -352,7 +419,12 @@
     const frame = isFramed(item) ? FRAMES[item.frame] : FRAMES.none;
     const width = item.width;
     const innerWidth = width * (1 - 2 * frame.side);
-    const height = innerWidth / pictureAspect + width * (frame.top + frame.bottom);
+    const withoutStrip = innerWidth / pictureAspect + width * (frame.top + frame.bottom);
+    if (!hasCaptionStrip(item)) return width / withoutStrip;
+    // The inverse of captionStripHeight: the strip is its full height unless that is more than
+    // its share of the whole item, in which case it is that share.
+    const full = withoutStrip + width * CAPTION_STRIP;
+    const height = width * CAPTION_STRIP <= full * CAPTION_STRIP_MAX_SHARE ? full : withoutStrip / (1 - CAPTION_STRIP_MAX_SHARE);
     return width / height;
   }
 
@@ -761,6 +833,8 @@
         const angle = (i % 2 ? 1 : -1) * (3 + (i * 5) % 6);
         const moved = { ...item, angle, width: item.width * 0.9, x: item.x + ((i * 29) % 21) - 10, y: item.y + ((i * 17) % 17) - 8 };
         if (item.kind !== 'photo') return moved;
+        // A frame or shape the user chose is kept; the photo is only tilted and moved.
+        if ((item.frame && item.frame !== 'none') || (item.shape && item.shape !== 'rect')) return { ...moved, shadow: true };
         // Polaroids, with every third one taped, a shadow and the photo's own shape kept.
         const framed = { ...moved, shape: 'rect', frame: i % 3 === 2 ? 'tape' : 'polaroid', shadow: true };
         return { ...framed, aspect: outerAspectFor(framed, innerAspect(moved)) };
@@ -932,7 +1006,8 @@
    * it was started ("Collage, 15 Nov 14:05"), so drafts can be told apart.
    */
   function autoTitle(items, startedAt) {
-    const text = (items || []).find((item) => item.kind === 'text' && String(item.text || '').trim());
+    const placeholders = new Set(Object.values(TEXT_PLACEHOLDERS));
+    const text = (items || []).find((item) => item.kind === 'text' && String(item.text || '').trim() && !placeholders.has(String(item.text).trim()));
     if (text) {
       const line = String(text.text).split('\n').map((part) => part.trim()).find(Boolean) || '';
       if (line) return line.length > 40 ? `${line.slice(0, 39)}…` : line;
@@ -941,6 +1016,9 @@
     const time = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
     return `Collage, ${when.getDate()} ${MONTHS[when.getMonth()]} ${time}`;
   }
+
+  /** Ready-made words that only show where to type; they never name a collage. */
+  const TEXT_PLACEHOLDERS = Object.freeze({ heading: 'Your heading', subheading: 'A subheading', line: 'A line of text', hindi: 'यहाँ लिखें' });
 
   /** Where "Line up on the page" can put an item. */
   const ALIGN_PLACES = Object.freeze(['left', 'centre', 'right', 'top', 'middle', 'bottom']);
@@ -1336,6 +1414,12 @@
     readDraftModel,
     sortDrafts,
     photosInUse,
+    CAPTION_STRIP,
+    hasCaptionStrip,
+    captionStripHeight,
+    emptyFrame,
+    freeSpot,
+    TEXT_PLACEHOLDERS,
     CANVAS_LIMITS,
     canvasPixelRatio,
     draftToMakeRoom,

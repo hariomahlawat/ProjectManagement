@@ -112,6 +112,17 @@ public sealed class SearchIndexCoordinator : ISearchIndexCoordinator
             return NoRecordLock.Instance;
         }
 
+        // A lock taken while this pass already holds one (a ToT or IPR row refreshing its
+        // projects) goes on the same session. Advisory locks are re-entrant within a session,
+        // so a record whose hash equals the held one's cannot wait on itself; and PostgreSQL
+        // sees one session, so its deadlock detection covers the pair. It is released with
+        // the outer lock.
+        if (_held is { } outer)
+        {
+            await AcquireAsync(outer.Connection, outer.Transaction, entityType, entityKey, cancellationToken);
+            return NoRecordLock.Instance;
+        }
+
         // A transaction lock on its own pooled connection: it ends with the transaction, and a
         // connection returned to the pool is reset (rolled back), so the lock cannot linger.
         var connection = new NpgsqlConnection(_db.Database.GetConnectionString());
@@ -119,14 +130,10 @@ public sealed class SearchIndexCoordinator : ISearchIndexCoordinator
         {
             await connection.OpenAsync(cancellationToken);
             var transaction = await connection.BeginTransactionAsync(cancellationToken);
-            await using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = $"SET LOCAL lock_timeout = '{(int)RecordLockWait.TotalMilliseconds}ms'; "
-                + "SELECT pg_advisory_xact_lock(@class, hashtext(@record));";
-            command.Parameters.AddWithValue("class", RecordLockClass);
-            command.Parameters.AddWithValue("record", entityType + "/" + entityKey);
-            await command.ExecuteNonQueryAsync(cancellationToken);
-            return new RecordLock(connection, transaction);
+            await AcquireAsync(connection, transaction, entityType, entityKey, cancellationToken);
+            var held = new RecordLock(connection, transaction, () => _held = null);
+            _held = held;
+            return held;
         }
         catch
         {
@@ -135,19 +142,41 @@ public sealed class SearchIndexCoordinator : ISearchIndexCoordinator
         }
     }
 
+    // The lock this pass holds, if any. A coordinator is scoped to one pass, which indexes
+    // one record at a time.
+    private RecordLock? _held;
+
+    private static async Task AcquireAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string entityType, string entityKey, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"SET LOCAL lock_timeout = '{(int)RecordLockWait.TotalMilliseconds}ms'; "
+            + "SELECT pg_advisory_xact_lock(@class, hashtext(@record));";
+        command.Parameters.AddWithValue("class", RecordLockClass);
+        command.Parameters.AddWithValue("record", entityType + "/" + entityKey);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     private sealed class RecordLock : IAsyncDisposable
     {
         private readonly NpgsqlConnection _connection;
         private readonly NpgsqlTransaction _transaction;
+        private readonly Action _released;
 
-        public RecordLock(NpgsqlConnection connection, NpgsqlTransaction transaction)
+        public RecordLock(NpgsqlConnection connection, NpgsqlTransaction transaction, Action released)
         {
             _connection = connection;
             _transaction = transaction;
+            _released = released;
         }
+
+        public NpgsqlConnection Connection => _connection;
+
+        public NpgsqlTransaction Transaction => _transaction;
 
         public async ValueTask DisposeAsync()
         {
+            _released();
             try
             {
                 await _transaction.RollbackAsync();

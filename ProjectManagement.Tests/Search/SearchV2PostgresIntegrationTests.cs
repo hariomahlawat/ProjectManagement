@@ -1060,6 +1060,41 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal("hyderabad -drone", response.CorrectedQuery);
     }
 
+    // A related chip opens Source + Project; its number is what that list shows. Two trainings
+    // clustered under their project are one result there, so the chip says 1, not 2.
+    [SearchV2PostgresFact]
+    public async Task RelatedChipCount_IsWhatItsLinkLists()
+    {
+        await using var host = _database.CreateHost();
+        SearchProjection UnderProject(SearchProjection entry) => entry with { CanonicalEntityType = "Project", CanonicalEntityKey = "9901", ParentProjectId = 9901 };
+        await host.ActivateAsync(
+            UnderProject(host.Entry("Project", "9901", "Projects", "Projects", "Gyrfalcon trainer", null)),
+            UnderProject(host.Entry("Training", "t-1", "Training tracker", "Trackers", "Gyrfalcon trainer training one", null)),
+            UnderProject(host.Entry("Training", "t-2", "Training tracker", "Trackers", "Gyrfalcon trainer training two", null)));
+
+        var project = Assert.Single((await host.SearchAsync("gyrfalcon")).Results);
+        var chip = Assert.Single(project.RelatedResults);
+        Assert.Equal("Training tracker", chip.SourceModule);
+
+        var linked = await host.SearchAsync(new SearchRequest("gyrfalcon", Sources: new[] { chip.SourceModule }, ProjectIds: new[] { 9901 }));
+        Assert.Equal(linked.FilteredHits, chip.Count);
+        Assert.Equal(1, chip.Count);
+    }
+
+    // A source typed in another case ("training TRACKER" in a hand-edited URL) still filters.
+    [SearchV2PostgresFact]
+    public async Task SourceFilter_IgnoresCase()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9911", "Projects", "Projects", "Merlinfall radar", null),
+            host.Entry("Training", "t-9", "Training tracker", "Trackers", "Merlinfall radar course", null));
+
+        var response = await host.SearchAsync(new SearchRequest("merlinfall", Sources: new[] { "training TRACKER" }));
+
+        Assert.Equal(new[] { "t-9" }, response.Results.Select(result => result.EntityKey).ToArray());
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {
@@ -1280,6 +1315,79 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         await held.DisposeAsync();
         await using (await waiting.WaitAsync(TimeSpan.FromSeconds(10)))
         {
+        }
+    }
+
+    // A lock taken while the pass holds one goes on the same session: the same record (the
+    // extreme of a hash collision) does not wait on itself, and other processes still wait
+    // for the nested record until the outer lock ends.
+    [SearchV2PostgresFact]
+    public async Task NestedRecordLock_SharesTheHeldSession()
+    {
+        await using var host = _database.CreateHost();
+        using var firstScope = host.Services.CreateScope();
+        using var secondScope = host.Services.CreateScope();
+        var first = firstScope.ServiceProvider.GetRequiredService<ISearchIndexCoordinator>();
+        var second = secondScope.ServiceProvider.GetRequiredService<ISearchIndexCoordinator>();
+
+        var outer = await first.LockRecordAsync("IprRecord", "n-1", CancellationToken.None);
+        var same = first.LockRecordAsync("IprRecord", "n-1", CancellationToken.None);
+        await using (await same.WaitAsync(TimeSpan.FromSeconds(5)))
+        {
+        }
+        await using (await first.LockRecordAsync("Project", "n-2", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5)))
+        {
+        }
+
+        var waiting = second.LockRecordAsync("Project", "n-2", CancellationToken.None);
+        await Task.Delay(500);
+        Assert.False(waiting.IsCompleted);
+
+        await outer.DisposeAsync();
+        await using (await waiting.WaitAsync(TimeSpan.FromSeconds(10)))
+        {
+        }
+
+        // After the outer lock ends, the next lock is a fresh one of its own again.
+        Task<IAsyncDisposable> later;
+        await using (await first.LockRecordAsync("Project", "n-3", CancellationToken.None))
+        {
+            later = second.LockRecordAsync("Project", "n-3", CancellationToken.None);
+            await Task.Delay(300);
+            Assert.False(later.IsCompleted);
+        }
+        await using (await later.WaitAsync(TimeSpan.FromSeconds(10)))
+        {
+        }
+    }
+
+    // A Project Officer's new name reaches their IT, MOLTI and SRE projects through the
+    // AspNetUsers trigger, not only at the nightly rebuild.
+    [SearchV2PostgresFact]
+    public async Task OfficerRename_ReindexesTheirItProjects()
+    {
+        await using var host = _database.CreateHost();
+        var id = await host.SeedItProjectAsync(ItProjectModules.Sre, "Harrowgate test bench", "SRE/77/2026");
+        await host.ExecuteAsync($"""UPDATE "ItProjects" SET "ProjectOfficerUserId" = 'search-v2-test-user' WHERE "Id" = {id};""");
+        await host.ResetIndexStateAsync();
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+
+        try
+        {
+            await host.ExecuteAsync("""UPDATE "AspNetUsers" SET "FullName" = 'Quillbrook Officer' WHERE "Id" = 'search-v2-test-user';""");
+            Assert.Equal(1, await host.ScalarAsync<long>($"""SELECT COUNT(*) FROM "SearchIndexWorkItems" WHERE "EntityType" = 'ItProject' AND "EntityKey" = '{id}';"""));
+            Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+
+            Assert.Contains((await host.SearchAsync("quillbrook")).Results, result => result.EntityType == "ItProject" && result.EntityKey == id.ToString());
+
+            // Other changes to the user do not queue anything.
+            await host.ExecuteAsync("""UPDATE "AspNetUsers" SET "AccessFailedCount" = "AccessFailedCount" WHERE "Id" = 'search-v2-test-user';""");
+            Assert.Equal(0, await host.ScalarAsync<long>($"""SELECT COUNT(*) FROM "SearchIndexWorkItems" WHERE "EntityType" = 'ItProject' AND "EntityKey" = '{id}';"""));
+        }
+        finally
+        {
+            await host.ExecuteAsync("""UPDATE "AspNetUsers" SET "FullName" = 'Search V2 Tester' WHERE "Id" = 'search-v2-test-user';""");
+            await host.ExecuteAsync($"""UPDATE "ItProjects" SET "IsDeleted" = TRUE WHERE "Id" = {id};""");
         }
     }
 

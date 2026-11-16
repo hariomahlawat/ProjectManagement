@@ -373,6 +373,7 @@ public sealed class AdminDataJobTidyUpTests : IDisposable
         Assert.Contains("20270103080021_AddCelebrationUserLink", manifest);
         Assert.Contains("20270104080022_AddCollageStickers", manifest);
         Assert.Contains("20270105080023_AddSearchV2ItProjectTriggers", manifest);
+        Assert.Contains("20270106080024_AddSearchV2OfficerRenameTrigger", manifest);
         // Listed, and listed once; a newer migration may follow any of them.
         Assert.Equal(manifest.Length, manifest.Distinct(StringComparer.Ordinal).Count());
     }

@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pdf-tools.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components/prism-toast.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/tools-shared/prism-confirm-standalone.css" asp-append-version="true" />
     @* Fonts for collage text, shipped with PRISM (wwwroot/fonts/collage, SIL Open Font License). *@
     <link rel="stylesheet" href="~/css/fonts/collage-fonts.css" asp-append-version="true" />
@@ -337,6 +338,8 @@
     @* The PRISM confirmation dialog, as on every other page (docs/ux/confirm-dialogs.md). *@
     <partial name="_PrismConfirmDialog" />
     <script src="~/js/components/prism-confirm-dialog.js" asp-append-version="true"></script>
+    @* The shared toast, for Undo after a delete (docs/ux/toasts.md). *@
+    <script src="~/js/components/prism-toast.js" asp-append-version="true"></script>
     @* Konva draws the page; it ships with the application (libman.json). *@
     <script src="~/lib/konva/10.9.1/konva.min.js"></script>
     @* Save as PDF uses the PDF library Photo Tools and PDF Tools ship; "keep it under" uses Photo

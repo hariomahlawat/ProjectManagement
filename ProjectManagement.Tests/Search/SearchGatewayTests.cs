@@ -182,6 +182,26 @@ public sealed class SearchGatewayTests
         Assert.True(ProjectManagement.Areas.Common.Pages.Search.SearchClickThrottle.TryTake("other-" + user, minute));
     }
 
+    // The basic engine searches the text without "-drone" and drops records that contain it
+    // (or a longer form), in the title, excerpt or details; other words are untouched.
+    [Fact]
+    public void LegacyHits_WithAnExcludedWord_AreDropped()
+    {
+        var hits = new[]
+        {
+            new GlobalSearchHit("Projects", "Gunnery simulator", null, "/a", null, 1m, null, null),
+            new GlobalSearchHit("Projects", "Gunnery simulator", "for <mark>Drones</mark> crews", "/b", null, 1m, null, null),
+            new GlobalSearchHit("Projects", "Drone simulator", null, "/c", null, 1m, null, null),
+            new GlobalSearchHit("Projects", "Simulator", null, "/d", null, 1m, null, "Anti-drone cell"),
+            new GlobalSearchHit("Projects", "Simulator", null, "/e", null, 1m, null, "Androne cell")
+        };
+
+        var kept = SearchGateway.WithoutExcludedWords(hits, new[] { "drone" });
+
+        Assert.Equal(new[] { "/a", "/e" }, kept.Select(hit => hit.Url).ToArray());
+        Assert.Same(hits, SearchGateway.WithoutExcludedWords(hits, Array.Empty<string>()));
+    }
+
     [Theory]
     [InlineData("Activities", "Organisation")]
     [InlineData("Projects", "Projects")]

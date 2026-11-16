@@ -156,12 +156,16 @@ public sealed class SearchGateway : ISearchGateway
         var fellBackToLegacy = serveV2ToUser && v2Response is { IsReady: false };
         // As a fallback the basic engine gets the same time limit as a V2 statement: the user
         // may already have waited that long for V2 to fail.
+        // The typed text, exclusions included: the sources that use websearch_to_tsquery leave
+        // out "-word" records in the database, over the whole record and before their result
+        // limit. What comes back is then checked again, so a source that does not understand
+        // the minus cannot show a record whose title, excerpt or details contain the word.
         var legacyRead = await ReadLegacyAuthorizedAsync(
             normalized.Original,
             user,
             fellBackToLegacy ? TimeSpan.FromSeconds(Math.Max(1, _options.QueryTimeoutSeconds)) : null,
             cancellationToken);
-        var legacyResults = legacyRead.Hits;
+        var legacyResults = WithoutExcludedWords(legacyRead.Hits, normalized.Excluded);
 
         var v2Status = v2Response?.ExecutionStatus
             ?? (_options.Enabled ? SearchV2ExecutionStatus.IndexNotReady : SearchV2ExecutionStatus.Disabled);
@@ -356,6 +360,25 @@ public sealed class SearchGateway : ISearchGateway
         }
 
         return _options.ServeV2Roles.Any(role => user.IsInRole(role));
+    }
+
+    /// <summary>
+    /// Basic-engine hits without the records that contain an excluded word in their title,
+    /// excerpt or details. A word also drops its longer forms ("-drone" drops "drones"), close
+    /// to V2's English matching.
+    /// </summary>
+    internal static IReadOnlyList<GlobalSearchHit> WithoutExcludedWords(IReadOnlyList<GlobalSearchHit> hits, IReadOnlyList<string> excluded)
+    {
+        if (excluded.Count == 0 || hits.Count == 0) return hits;
+        var pattern = new System.Text.RegularExpressions.Regex(
+            @"(?<![\p{L}\p{N}])(?:" + string.Join('|', excluded.Select(System.Text.RegularExpressions.Regex.Escape)) + @")",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+        return hits
+            .Where(hit => !pattern.IsMatch(string.Join(' ', hit.Title, StripMarks(hit.Snippet), hit.Extra)))
+            .ToArray();
+
+        static string StripMarks(string? value) => (value ?? string.Empty).Replace("<mark>", string.Empty, StringComparison.OrdinalIgnoreCase).Replace("</mark>", string.Empty, StringComparison.OrdinalIgnoreCase);
     }
 
     // Failed lets the page say "search is unavailable" instead of showing zero results.

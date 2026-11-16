@@ -330,6 +330,11 @@
     }
 }
 
+.clg-field__optional {
+    font-weight: 400;
+    color: var(--bs-secondary-color);
+}
+
 .clg-tray__used {
     position: absolute;
     right: 4px;

@@ -38,6 +38,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Search: third review fixes](ux/search-review-3-fixes.md) | The third review of 15 Nov 2026 (UX 8, code 8): a lost update across processes, document results that do not show why they matched, usage counts, and the 6-PR fix plan. |
 | [Search: fourth review fixes](ux/search-review-4-fixes.md) | The fourth review of 15 Nov 2026 (UX 8, code 8): excerpt anchoring, the minus operator, phone excerpts, and the 5-PR fix plan. |
 | [Search: fifth review fixes](ux/search-review-5-fixes.md) | The fifth review of 16 Nov 2026 (code 8): Search in the Menu, "unavailable" not "no results", stale rows across processes, IT/MOLTI/SRE projects in search, and the 6-PR fix plan. |
+| [Search: sixth review fixes](ux/search-review-6-fixes.md) | The sixth review of 16 Nov 2026 (UX 8, code 8): basic-engine source names and the minus, related-chip counts, officer renames, suggestion order, and the 5-PR fix plan. |
 | [Configuration reference](configuration-reference.md) | Configuration keys and environment overrides. |
 | [Chat](chat.md) | Person-to-person chat: buddy list, docked windows, API/hub contract, privacy position and configuration. |
 | [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |
