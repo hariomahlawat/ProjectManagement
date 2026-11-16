@@ -1114,7 +1114,9 @@ if (root) {
     }
   }
   async function sendEditor(form) {
-    if (!(await settleSettingsBeforeLeaving())) {
+    // The page stays open, so nothing is discarded: a pending settings save must succeed first,
+    // and if it fails the settings stay unsaved (and guarded) and the editor is not sent.
+    if (settingsPending() && !(await saveSettingsNow())) {
       return { ok: false, message: 'The deck settings could not be saved, so this slide was not saved either.' };
     }
     try {
