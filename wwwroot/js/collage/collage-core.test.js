@@ -758,3 +758,16 @@ test('a file that could not be read is refused as damaged, not as "not a photo"'
   assert.deepEqual(refused, [{ name: 'cloud.jpg', reason: 'unreadable' }]);
   assert.match(PC.refusedMessage(refused), /could not be opened/);
 });
+
+test('the page canvas stays under the iPhone canvas limit at any zoom', () => {
+  const PC = require('./collage-core.js');
+  // A phone at zoom 4 on an A4 portrait page: about 1404 × 1972 CSS pixels on a 3× screen.
+  const ratio = PC.canvasPixelRatio(1404, 1972, 3);
+  assert.ok(1404 * ratio * 1972 * ratio <= PC.CANVAS_LIMITS.maxPixels);
+  assert.ok(ratio < 3 && ratio >= 1);
+  // Small enough: the screen's own ratio is kept.
+  assert.equal(PC.canvasPixelRatio(800, 600, 2), 2);
+  assert.equal(PC.canvasPixelRatio(800, 600, undefined), 1);
+  // Never below half a pixel per CSS pixel, however large.
+  assert.equal(PC.canvasPixelRatio(20000, 20000, 2), 0.5);
+});
