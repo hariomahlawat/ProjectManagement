@@ -1215,6 +1215,32 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.NotNull(afterRelease);
     }
 
+    // Two processes rewriting the same record take turns; other records do not wait.
+    [SearchV2PostgresFact]
+    public async Task RecordLock_MakesASecondProcessWaitForTheSameRecordOnly()
+    {
+        await using var host = _database.CreateHost();
+        using var firstScope = host.Services.CreateScope();
+        using var secondScope = host.Services.CreateScope();
+        var first = firstScope.ServiceProvider.GetRequiredService<ISearchIndexCoordinator>();
+        var second = secondScope.ServiceProvider.GetRequiredService<ISearchIndexCoordinator>();
+
+        var held = await first.LockRecordAsync("ProliferationGranular", "p-1", CancellationToken.None);
+
+        await using (await second.LockRecordAsync("ProliferationGranular", "p-2", CancellationToken.None))
+        {
+        }
+
+        var waiting = second.LockRecordAsync("ProliferationGranular", "p-1", CancellationToken.None);
+        await Task.Delay(500);
+        Assert.False(waiting.IsCompleted);
+
+        await held.DisposeAsync();
+        await using (await waiting.WaitAsync(TimeSpan.FromSeconds(10)))
+        {
+        }
+    }
+
     [SearchV2PostgresFact]
     public async Task PostgreSql_SetLocalTrigramThresholdGovernsIndexedOperatorsForOneTransactionOnly()
     {

@@ -247,7 +247,8 @@ public sealed class SearchIndexWorker : BackgroundService
                 try
                 {
                     var builder = scope.ServiceProvider.GetRequiredService<ISearchProjectionBuilder>();
-                    await IndexWithDependentsAsync(store, builder, item.EntityType, item.EntityKey, cancellationToken);
+                    var records = scope.ServiceProvider.GetRequiredService<ISearchIndexCoordinator>();
+                    await IndexWithDependentsAsync(store, builder, item.EntityType, item.EntityKey, cancellationToken, records);
                     await store.CompleteAsync(item, cancellationToken);
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
@@ -273,21 +274,26 @@ public sealed class SearchIndexWorker : BackgroundService
     /// refreshes the project rows it left and joined. Everything runs here, in this pass;
     /// nothing is queued, so a project and its dependents never queue each other in a loop.
     /// A failure fails the work item, and its retry repeats the whole set.
+    /// Each record is read and written under its own lock (<paramref name="records"/>), as
+    /// dependents are rewritten outside their own work items; a ToT or IPR row holds its lock
+    /// while its projects are refreshed, and a project never holds its lock while taking a
+    /// dependent's, so the locks are always taken in that one order.
     /// </summary>
     internal async Task IndexWithDependentsAsync(
         ISearchIndexStore store,
         ISearchProjectionBuilder builder,
         string entityType,
         string entityKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ISearchIndexCoordinator? records = null)
     {
         if (ProjectSummarySources.Contains(entityType))
         {
-            await IndexWithItsProjectsAsync(store, builder, entityType, entityKey, alreadyCurrentProjectId: null, cancellationToken);
+            await IndexWithItsProjectsAsync(store, builder, records, entityType, entityKey, alreadyCurrentProjectId: null, cancellationToken);
             return;
         }
 
-        await ReplaceAsync(store, builder, entityType, entityKey, cancellationToken);
+        await ReplaceAsync(store, builder, records, entityType, entityKey, cancellationToken);
 
         if (string.Equals(entityType, "Project", StringComparison.Ordinal)
             && int.TryParse(entityKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var projectId))
@@ -298,11 +304,11 @@ public sealed class SearchIndexWorker : BackgroundService
                 {
                     // An IPR that has just moved here from another project must refresh that
                     // project too, or its old project keeps the IPR in its summary.
-                    await IndexWithItsProjectsAsync(store, builder, dependent.EntityType, dependent.EntityKey, projectId, cancellationToken);
+                    await IndexWithItsProjectsAsync(store, builder, records, dependent.EntityType, dependent.EntityKey, projectId, cancellationToken);
                 }
                 else
                 {
-                    await ReplaceAsync(store, builder, dependent.EntityType, dependent.EntityKey, cancellationToken);
+                    await ReplaceAsync(store, builder, records, dependent.EntityType, dependent.EntityKey, cancellationToken);
                 }
             }
         }
@@ -316,11 +322,13 @@ public sealed class SearchIndexWorker : BackgroundService
     private async Task IndexWithItsProjectsAsync(
         ISearchIndexStore store,
         ISearchProjectionBuilder builder,
+        ISearchIndexCoordinator? records,
         string entityType,
         string entityKey,
         int? alreadyCurrentProjectId,
         CancellationToken cancellationToken)
     {
+        await using var recordLock = await LockAsync(records, entityType, entityKey, cancellationToken);
         var version = _options.ProjectionVersion;
         var projectsBefore = await store.GetIndexedParentProjectIdsAsync(entityType, entityKey, version, cancellationToken);
         var projections = await builder.BuildEntityAsync(entityType, entityKey, cancellationToken);
@@ -331,19 +339,24 @@ public sealed class SearchIndexWorker : BackgroundService
             .Distinct();
         foreach (var parentId in projects)
         {
-            await ReplaceAsync(store, builder, "Project", parentId.ToString(CultureInfo.InvariantCulture), cancellationToken);
+            await ReplaceAsync(store, builder, records, "Project", parentId.ToString(CultureInfo.InvariantCulture), cancellationToken);
         }
 
         await store.ReplaceEntityAsync(entityType, entityKey, projections, version, cancellationToken);
     }
 
+    private static Task<IAsyncDisposable> LockAsync(ISearchIndexCoordinator? records, string entityType, string entityKey, CancellationToken cancellationToken) =>
+        records?.LockRecordAsync(entityType, entityKey, cancellationToken) ?? Task.FromResult<IAsyncDisposable>(NoRecordLock.Instance);
+
     private async Task ReplaceAsync(
         ISearchIndexStore store,
         ISearchProjectionBuilder builder,
+        ISearchIndexCoordinator? records,
         string entityType,
         string entityKey,
         CancellationToken cancellationToken)
     {
+        await using var recordLock = await LockAsync(records, entityType, entityKey, cancellationToken);
         // Document rows copy a few project facts. When those are unchanged (same stamp, same
         // number of documents), a project edit rewrites only the project row: rewriting every
         // document meant re-reading its OCR text for, say, a change of brief.
