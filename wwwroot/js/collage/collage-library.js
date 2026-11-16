@@ -62,21 +62,38 @@
   /** What the editor says when PRISM answers as if the user had signed out; the collage stays. */
   const SIGNED_OUT_MESSAGE = 'Your PRISM session has ended. Sign in again in another tab, then try again. Your collage is kept in this browser.';
 
+  // PRISM's cookie sign-in page (Program.cs LoginPath), under the path base.
+  const SIGN_IN_PATH = '/Identity/Account/Login';
+
+  /** True when a followed redirect ended on PRISM's sign-in page (not, say, its access-denied page). */
+  function reachedSignIn(response) {
+    try {
+      return new URL(String(response.url || ''), 'http://prism.invalid').pathname.toLowerCase() === `${base}${SIGN_IN_PATH}`.toLowerCase();
+    } catch {
+      return false;
+    }
+  }
+
   /**
-   * True when an answer means the session has ended: 401, or the sign-in page instead of the
-   * answer (PRISM's addresses here never redirect, so a followed redirect is the sign-in page).
+   * True when an answer means the session has ended: 401, a redirect that ended on the sign-in
+   * page, or (for a JSON address) a page where the JSON should be.
    */
   function sessionEnded(response, expectJson = false) {
-    if (response.status === 401 || response.redirected === true) return true;
+    if (response.status === 401) return true;
+    if (response.redirected === true) return reachedSignIn(response);
     if (!expectJson || !response.ok) return false;
     const type = response.headers?.get?.('Content-Type');
     return typeof type === 'string' && /^text\/html/i.test(type);
   }
 
-  /** Throws the error the editor reads as "signed out" (reason 'signed-out'), or a plain one when the answer failed. */
+  /**
+   * Throws the error the editor reads as "signed out" (reason 'signed-out'), or a plain one when
+   * the answer failed. PRISM's addresses here never redirect, so any other redirect (the
+   * access-denied page for a photo the user can no longer see) is a plain failure.
+   */
   function check(response, what, expectJson) {
     if (sessionEnded(response, expectJson)) throw Object.assign(new Error(`${what}: signed out`), { reason: 'signed-out' });
-    if (!response.ok) throw new Error(`${what}: ${response.status}`);
+    if (!response.ok || response.redirected === true) throw new Error(`${what}: ${response.status}`);
   }
 
   /** The administrator's crests and logos, in picker order. Rejects when PRISM cannot be reached. */

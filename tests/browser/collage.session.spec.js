@@ -127,6 +127,29 @@ test('the session ending while ticked photos are read: the session message, and 
   expect(errors.filter((text) => !expectedFailure(text))).toEqual([]);
 });
 
+test('a photo the user may no longer see is left out on its own; the user is still signed in and the others come in', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startWithOnePhoto(page);
+  const picture = (await photoFile(page, { width: 1200, height: 900 })).buffer;
+  await page.route('**/api/collage/library-photos**', (route) => fulfillLikePrism(route, { body: samples.libraryOn }));
+  // Photo 1 is sent to the access-denied page (Forbid on its picture page); photo 2 is read.
+  await page.route('**/Photos/Media/**', (route) => /\/Media\/1\/original/.test(route.request().url())
+    ? fulfillLikePrism(route, { status: 302, headers: { Location: '/Identity/Account/AccessDenied?ReturnUrl=%2FPhotos' } })
+    : fulfillLikePrism(route, { contentType: 'image/jpeg', body: picture }));
+
+  await page.getByRole('button', { name: 'From PRISM Photos' }).click();
+  const dialog = page.locator('[data-library-dialog]');
+  await expect(dialog.locator('[data-library-photo]')).toHaveCount(3);
+  await dialog.locator('[data-library-photo="1"]').click();
+  await dialog.locator('[data-library-photo="2"]').click();
+  await dialog.locator('[data-action="library-add"]').click();
+
+  await expect(page.locator('[data-photo-count]')).toHaveText('2 of 60 photos');
+  await expect(page.locator('[data-alert-text]')).toContainText('could not be read from PRISM Photos');
+  await expect(page.locator('[data-alert-text]')).not.toHaveText(SIGNED_OUT);
+  expect(errors.filter((text) => !expectedFailure(text))).toEqual([]);
+});
+
 test('the crests and logos answering 401: the session message in the Stickers panel, and the collage is kept', async ({ page }) => {
   await page.route('**/api/collage/stickers', (route) => fulfillLikePrism(route, { status: 401, body: '' }));
   const errors = await openFresh(page);
