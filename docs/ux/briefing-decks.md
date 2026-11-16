@@ -733,6 +733,19 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
 3. **Blocks underneath.** The block list in the codec and `ProjectBriefingPresentationData`; the
    composer builds plans from the list instead of the fixed sequence; old decks read into blocks;
    the slide-for-slide equivalence tests; the old settings still written.
+
+   Built (16 Nov 2026), in a smaller first step: nothing new is stored yet. `ProjectBriefingDeckBlocks`
+   (`Services/ProjectBriefings/ProjectBriefingDeckBlocks.cs`) names the blocks (cover, SDD profile,
+   Role & Charter, portfolio summary, stage summary, the two category summaries, status table,
+   project slides, FFC footprint), their zones, and `FromSettings`, which turns a deck's present
+   settings into its block list in the order the composer always used. The composer builds a deck
+   by walking that list (`BuildPlans`, `AddBlockPlans`); `ProjectBriefingPresentationData.Blocks`,
+   when set, replaces the derived list, and switched-off blocks draw nothing. A deck without a
+   status table lists its table-row-only projects after the project slides, as before.
+   `ProjectBriefingBlockEquivalenceTests` composes 90 setting combinations (936 slides) and compares
+   each slide's role, projects and XML with a fixture recorded from the composer before the change.
+   Storing the list in `SelectionRulesJson` (and writing the old settings beside it for rollback)
+   moves to PR 4, with the Deck tab that edits it.
 4. **Deck tab as a block list.** Zones, switch, drag within a zone, remove, Add block library;
    selecting a block opens its settings. The numbered steps for slides and extra slides and the
    template "customised" badge go; Look (theme, insignia, closing) and Handling stay. The outline
