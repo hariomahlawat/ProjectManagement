@@ -11,7 +11,7 @@
   'use strict';
 
   function createPanels(deps) {
-    const { state, change, $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos, selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select, zoomCrop, flushNudge, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected, renderBackgroundPanel, offerUndo } = deps;
+    const { state, change, $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos, selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select, zoomCrop, flushNudge, holdEdit, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected, renderBackgroundPanel, offerUndo } = deps;
     // ---------------------------------------------------------------------------
     // Panels on the left
     // ---------------------------------------------------------------------------
@@ -103,6 +103,8 @@
           if (state.collage.layout) state.collage.layout = { ...state.collage.layout, radius: value };
         }
         syncPage();
+        // Held like every other slider, so a draft written mid-drag (the page hidden) keeps it.
+        holdEdit();
       });
       input.addEventListener('change', () => {
         commit();
@@ -356,9 +358,8 @@
         return;
       }
       if (event.target.dataset.prop) {
-        // A frame given its own corners is no longer bound to the layout's.
-        if (event.target.dataset.prop === 'radius' && state.collage.layout) state.collage.layout = { ...state.collage.layout, radius: Number(event.target.value) };
-        // Recorded even when the slider ends where it began, so the corners above are kept.
+        // One frame's corners are its own: the layout's corners, and the next layout, stay as
+        // they were. The change made while it moved is recorded even when it ends where it began.
         changes.mark();
         flushNudge();
         renderLayoutPanel();

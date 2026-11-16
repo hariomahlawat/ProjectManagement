@@ -136,3 +136,19 @@ test('a change marked and recorded after the draft was written is kept in the dr
   assert.equal(t.log.flush(), true);
   assert.ok(t.keeps > keepsBefore, 'the draft is asked to be written');
 });
+
+test('a commit, record or held change that changes nothing does not count as a change', () => {
+  const t = setUp();
+  const before = t.log.version;
+  t.log.commit();
+  t.log.record();
+  t.log.mark();
+  t.log.flush();
+  assert.equal(t.log.version, before);
+  assert.equal(t.log.canUndo(), false);
+  // Redrawn and kept as before: only the count is spared.
+  assert.deepEqual(t.recorded, ['commit', 'quiet', 'quiet']);
+  t.model = { ...t.model, items: [{ ...t.model.items[0], bold: true }] };
+  t.log.commit();
+  assert.equal(t.log.version, before + 1);
+});

@@ -34,10 +34,18 @@
     const held = edits.createHeldEdits({
       // Recorded held changes are kept in the draft too: a change marked without being held
       // (a slider let go after the draft was written) would otherwise reach Undo but not the draft.
-      record: () => { history.record(getModel()); version += 1; onKeep(); onRecorded('quiet'); },
+      record: () => { step(); onKeep(); onRecorded('quiet'); },
       keep: () => onKeep(),
       ...(timers ? { timers } : {})
     });
+
+    /**
+     * Records the collage as an Undo step. A change that leaves it as it was is no step, and does
+     * not count as something else having happened (an Undo toast stays good).
+     */
+    function step() {
+      if (history.record(getModel())) version += 1;
+    }
 
     /** A new collage, or an opened draft: Undo starts again from it. */
     function start(model) {
@@ -51,8 +59,7 @@
       // Anything held was already made its own step at the start of this action; a change that
       // still finds one held (made without a user action) joins it in one step.
       held.drop();
-      history.record(getModel());
-      version += 1;
+      step();
       onKeep();
       onRecorded('commit');
     }
@@ -60,8 +67,7 @@
     /** A finished change that needs no redraw. */
     function record() {
       held.drop();
-      history.record(getModel());
-      version += 1;
+      step();
       onKeep();
       onRecorded('quiet');
     }

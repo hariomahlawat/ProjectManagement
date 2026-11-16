@@ -108,7 +108,9 @@ its npm package by hand; the libman entry records the version.
   layout leaves out the frames they cover more than half of (the question says how many). A kept item
   well off the page is moved just inside it. A stopped action on a locked item says so on the screen.
 - **Undo and Redo** for every change. Moving **Space between photos** puts every photo back in
-  the layout; when that undoes a photo moved by hand, a message says so, with Undo.
+  the layout; when that undoes a photo moved by hand, a message says so, with Undo. One frame's
+  own corners (its settings) stay its own: the layout's Rounded corners and the next layout are
+  not changed by them, and a change of space keeps them.
 - **Save as** PNG, JPEG (optionally under a size in KB) or PDF whose page is the paper's real
   size; at print quality (300 dpi) or for the screen (1920 px on the long side). The dialog asks
   first **what it is for** (WhatsApp or email: a JPG for the screen; Printing: a PDF at print
@@ -174,7 +176,9 @@ lets go of its picture, and of every smaller copy made to fit a JPG size, even w
 
 Drafts are saved half a second after a change. Opening another draft, going back to the start
 screen or leaving waits for the last write, and a draft that cannot be written says why (for
-example, the browser is out of room). The browser keeps at most 30 drafts; the 31st asks to
+example, the browser is out of room). A change still being written when leaving is never dropped
+silently: the editor asks first. If the browser closes the drafts database, the next save opens
+it again. The browser keeps at most 30 drafts; the 31st asks to
 delete the oldest.
 
 ### Keys
@@ -182,7 +186,7 @@ delete the oldest.
 | Key | Does |
 | --- | --- |
 | Arrow keys | Move the selected item 1 unit; with Shift, 10. While adjusting, move the photo in its frame |
-| Delete or Backspace | Delete the selected item (not when locked). A photo in a layout leaves its frame empty; Undo is offered on the screen |
+| Delete or Backspace | Delete the selected item (not when locked), when the page or the item's own Layers row has focus; on any other button or control the key does nothing. A photo in a layout leaves its frame empty; Undo is offered on the screen |
 | Ctrl+D | Duplicate |
 | `]` / `[` | Bring forward / send backward; with Shift, to the front / back |
 | Enter | When the page has focus: adjust the selected photo, or edit the selected text. On a focused button, Enter presses that button |
@@ -215,7 +219,8 @@ colour pickers, nudges, the wheel) are kept in the draft at once and recorded fo
 pause, or as soon as anything else happens: another item, Undo, leaving (`collage-edits.js`).
 Every user action begins with a boundary (a pointer pressed, focus moved, or a key that is
 neither typing nor a nudge), where a held edit becomes its own step, so typing and then at once
-clicking Bold are two Undo steps. Closing the tab right after typing
+clicking Bold are two Undo steps. A step that changes nothing is not recorded and does not count
+as a change (an Undo message stays good). Closing the tab right after typing
 loses nothing, and the draft is also written when the page is hidden or put away
 (`visibilitychange`, `pagehide`), which phones need.
 
@@ -230,8 +235,9 @@ already, or on **Keep as a draft**; never from the autosave.
 
 A draft photo this browser cannot open now (memory pressure, a damaged file) keeps its place as a
 grey stand-in with its stored file, crop and caption; it comes back when the draft is opened
-where it can be read, and Save leaves it out and says so. Photos are decoded straight at their
-working size, and a picture over 250 million pixels is refused before it is read.
+where it can be read, and Save leaves it out and says so. Leaving a collage lets go of every
+photo's working copy at once, and so does a photo read for a collage that was left meanwhile.
+Photos are decoded straight at their working size, and a picture over 250 million pixels is refused before it is read.
 
 ### First use
 

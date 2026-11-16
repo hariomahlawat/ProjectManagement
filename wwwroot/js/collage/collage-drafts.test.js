@@ -122,11 +122,16 @@ function memoryIndexedDB() {
               db.stores.set(storeName, store);
               return { createIndex: (indexName, indexPath) => { store.indexes.set(indexName, indexPath); } };
             },
-            transaction: (names, mode = 'readonly') => makeTransaction(db, names, mode),
+            transaction: (names, mode = 'readonly') => {
+              if (db.closed) throw new DOMException('The database connection is closing.', 'InvalidStateError');
+              return makeTransaction(db, names, mode);
+            },
             close() { db.closed = true; }
           };
           databases.set(name, db);
         }
+        // Opened again after it was closed: a new connection to the same data.
+        db.closed = false;
         req.result = db;
         if (upgrade) req.onupgradeneeded?.();
         req.onsuccess?.();
@@ -263,6 +268,19 @@ test('an open that errors or is blocked is refused, and a database another tab u
   db.onversionchange();
   assert.equal(db.closed, true);
   await drafts.list();
+  assert.equal(indexedDB.options.opens, 2);
+});
+
+test('a database the browser closes is opened again by the next call', async () => {
+  const indexedDB = memoryIndexedDB();
+  const drafts = loadDrafts({ indexedDB });
+  await drafts.save(record('d1'), []);
+  const db = await drafts.open();
+  // The browser closes the connection (storage cleared, its database process gone).
+  db.close();
+  db.onclose();
+  assert.deepEqual((await drafts.list()).map((d) => d.id), ['d1']);
+  await drafts.save(record('d2'), []);
   assert.equal(indexedDB.options.opens, 2);
 });
 

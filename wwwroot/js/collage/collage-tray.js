@@ -126,7 +126,8 @@
             refused.push({ name: entry.name, reason: error?.reason === 'too-many-pixels' ? 'too-many-pixels' : 'unreadable' });
             continue;
           }
-          if (!stillOpen()) return;
+          // The collage was closed while it was read: its working copy is let go at once.
+          if (!stillOpen()) { window.PrismCollagePhotos.releasePhoto(photo); return; }
           // Not placed yet: it cannot be removed from the tray until the whole batch is in.
           photo.importing = true;
           photos.set(photo.id, photo);

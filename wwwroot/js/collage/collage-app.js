@@ -232,6 +232,8 @@
     namedFromWords = null;
     changes.drop();
     session.end();
+    // Every working copy is let go now, not when the browser next tidies up.
+    for (const photo of photos.values()) window.PrismCollagePhotos.releasePhoto(photo);
     photos.clear();
     forgetPhotoPreviews();
     textLayouts.clear();
@@ -282,12 +284,15 @@
     // last snapshot and be dropped when the editor is cleared.
     views.editor.inert = true;
     let kept = true;
+    // Whether every change was written; one still waiting after five rounds is never dropped
+    // without asking.
+    let settled = false;
     try {
       // Anything still waiting (a nudge, a wheel zoom, a change made just before) is saved too.
       for (let round = 0; round < 5; round += 1) {
         flushNudge();
         kept = await session.saveNow();
-        if (!session.pending && !changes.pending) break;
+        if (!session.pending && !changes.pending) { settled = true; break; }
       }
     } finally {
       views.editor.inert = false;
@@ -295,10 +300,12 @@
     }
     // Only when the draft cannot be kept is the user asked: a collage with photos, or a saved
     // draft whose change (even removing its last photo) was not written.
-    if (!kept && (hasContent() || session.draft?.created)) {
+    if ((!kept || !settled) && (hasContent() || session.draft?.created)) {
       const leave = await askConfirm({
         title: 'Leave this collage?',
-        message: session.problem() || 'This collage could not be kept as a draft, so it cannot be opened again once you leave. Pictures and PDFs you saved are kept.',
+        message: session.problem() || (kept
+          ? 'The last change is still being saved as a draft. Keep working a moment, or leave now and it may not be kept.'
+          : 'This collage could not be kept as a draft, so it cannot be opened again once you leave. Pictures and PDFs you saved are kept.'),
         confirmText: 'Leave collage',
         cancelText: 'Keep working',
         tone: 'warning'
@@ -715,7 +722,7 @@
   } = window.PrismCollagePanels.createPanels({
     state, change: changesFor('setPanel', 'setPropsTab', 'setCollage'), $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos,
     selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select,
-    zoomCrop, flushNudge, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected,
+    zoomCrop, flushNudge, holdEdit, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected,
     renderBackgroundPanel, offerUndo
   });
   // Photos: choosing, dropping and pasting them, reading them in, the tray, and From PRISM Photos
@@ -754,7 +761,8 @@
   renderStickerPanel();
   loadUnitStickers();
   root.querySelector('[data-sticker-search]').addEventListener('input', renderStickerPanel);
-  root.querySelector('[data-bg-pick]').addEventListener('input', (event) => setBackground({ type: 'color', value: event.target.value }, false));
+  // Held like every other slider, so a draft written mid-pick (the page hidden) keeps the colour.
+  root.querySelector('[data-bg-pick]').addEventListener('input', (event) => { setBackground({ type: 'color', value: event.target.value }, false); holdEdit(); });
   root.querySelector('[data-bg-pick]').addEventListener('change', (event) => setBackground({ type: 'color', value: event.target.value }));
   renderDrafts();
   updateUndo();
