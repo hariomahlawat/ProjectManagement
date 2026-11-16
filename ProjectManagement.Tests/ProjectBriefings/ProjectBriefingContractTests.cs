@@ -970,7 +970,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("openProfileDrawer", script, StringComparison.Ordinal);
         Assert.Contains("profileInitialState", script, StringComparison.Ordinal);
         Assert.Contains("OnPostSaveInstitutionalProfileAsync", pageModel, StringComparison.Ordinal);
-        Assert.Contains("OnPostToggleInstitutionalProfileAsync", pageModel, StringComparison.Ordinal);
+        // Switched on and off in the Deck tab's slide list (UpdateBlocks); the old toggle handler is gone.
+        Assert.DoesNotContain("OnPostToggleInstitutionalProfileAsync", pageModel, StringComparison.Ordinal);
         Assert.Contains("InstitutionalProfileOptions = additionalSlides.InstitutionalProfileOptions", pageModel, StringComparison.Ordinal);
         Assert.Contains("AdditionalSlideOrder = additionalSlides.AdditionalSlideOrder", pageModel, StringComparison.Ordinal);
         Assert.Contains("UpdateInstitutionalProfileAsync", deckService, StringComparison.Ordinal);
@@ -1036,7 +1037,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("(Zone: ProjectBriefingDeckZone.Closing, Label: \"Closing\")", page, StringComparison.Ordinal);
         // A fixed slide shows a pin, not a drag handle.
         Assert.Contains("title=\"Fixed in its place\"", page, StringComparison.Ordinal);
-        Assert.Contains("Each approved slide type can be added once", page, StringComparison.Ordinal);
+        // The old Slide library dialog is gone; "+ Slide" opens the Deck tab's library (review fixes PR 3).
+        Assert.DoesNotContain("Each approved slide type can be added once", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-ffc-footprint-open", page, StringComparison.Ordinal);
         Assert.Contains("SaveFfcGlobalFootprint", editor, StringComparison.Ordinal);
         Assert.Contains("Live, read-only PRISM data", editor, StringComparison.Ordinal);

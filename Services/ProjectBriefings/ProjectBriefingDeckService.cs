@@ -82,15 +82,6 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
-    Task ToggleAdditionalSlideAsync(
-        long deckId,
-        string requestingUserId,
-        ProjectBriefingAdditionalSlideType slideType,
-        bool enabled,
-        bool ensureAdded,
-        string rowVersion,
-        CancellationToken cancellationToken = default);
-
     // The Deck tab's block list: which blocks are on and the order of the overview and opening
     // institution slides. The deck's existing settings (cover, summaries, what the deck shows,
     // institution slides) are set to match, so everything that reads them sees the same deck.
@@ -99,20 +90,6 @@ public interface IProjectBriefingDeckService
         long deckId,
         string requestingUserId,
         IReadOnlyList<ProjectBriefingDeckBlock> blocks,
-        string rowVersion,
-        CancellationToken cancellationToken = default);
-
-    Task UpdateAdditionalSlideOrderAsync(
-        long deckId,
-        string requestingUserId,
-        IReadOnlyList<ProjectBriefingAdditionalSlideType> order,
-        string rowVersion,
-        CancellationToken cancellationToken = default);
-
-    Task RemoveAdditionalSlideAsync(
-        long deckId,
-        string requestingUserId,
-        ProjectBriefingAdditionalSlideType slideType,
         string rowVersion,
         CancellationToken cancellationToken = default);
 
@@ -997,49 +974,6 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             "FFC Global Footprint additional slide configuration updated.");
     }
 
-    public async Task ToggleAdditionalSlideAsync(
-        long deckId,
-        string requestingUserId,
-        ProjectBriefingAdditionalSlideType slideType,
-        bool enabled,
-        bool ensureAdded,
-        string rowVersion,
-        CancellationToken cancellationToken = default)
-    {
-        if (!ProjectBriefingAdditionalSlideCatalog.IsRegistered(slideType))
-        {
-            throw new InvalidOperationException("The selected additional slide type is not registered.");
-        }
-
-        var userId = NormalizeUserId(requestingUserId);
-        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
-        EnsureVersion(deck, rowVersion);
-
-        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
-        var (profile, roleCharter, ffcGlobalFootprint) = SwitchAdditionalSlide(configuration, slideType, enabled);
-
-        var order = configuration.AdditionalSlideOrder.ToList();
-        if ((ensureAdded || enabled) && !order.Contains(slideType))
-        {
-            order.Add(slideType);
-        }
-
-        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
-            deck.SelectionRulesJson,
-            profile,
-            roleCharter,
-            ffcGlobalFootprint,
-            order);
-        Touch(deck, userId);
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await AuditAsync(
-            enabled ? "ProjectBriefing.AdditionalSlideEnabled" : "ProjectBriefing.AdditionalSlideDisabled",
-            userId,
-            deck,
-            $"{slideType} additional slide {(enabled ? "enabled" : "disabled")}.");
-    }
-
     public async Task<string> UpdateBlocksAsync(
         long deckId,
         string requestingUserId,
@@ -1211,120 +1145,6 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         return (profile, roleCharter, ffcGlobalFootprint);
-    }
-
-    public async Task UpdateAdditionalSlideOrderAsync(
-        long deckId,
-        string requestingUserId,
-        IReadOnlyList<ProjectBriefingAdditionalSlideType> order,
-        string rowVersion,
-        CancellationToken cancellationToken = default)
-    {
-        var userId = NormalizeUserId(requestingUserId);
-        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
-        EnsureVersion(deck, rowVersion);
-
-        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
-        var normalized = ProjectBriefingDeckConfigurationCodec.NormalizeAdditionalSlideOrder(order);
-        if (configuration.AdditionalSlideOrder.Count != normalized.Count
-            || configuration.AdditionalSlideOrder.Except(normalized).Any()
-            || normalized.Except(configuration.AdditionalSlideOrder).Any())
-        {
-            throw new InvalidOperationException("The additional-slide order must contain every configured slide exactly once.");
-        }
-
-        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
-            deck.SelectionRulesJson,
-            configuration.InstitutionalProfileOptions,
-            configuration.RoleCharterOptions,
-            configuration.FfcGlobalFootprintOptions,
-            normalized);
-        Touch(deck, userId);
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await AuditAsync(
-            "ProjectBriefing.AdditionalSlidesReordered",
-            userId,
-            deck,
-            "Additional slide order updated.");
-    }
-
-
-    public async Task RemoveAdditionalSlideAsync(
-        long deckId,
-        string requestingUserId,
-        ProjectBriefingAdditionalSlideType slideType,
-        string rowVersion,
-        CancellationToken cancellationToken = default)
-    {
-        if (!ProjectBriefingAdditionalSlideCatalog.IsRegistered(slideType))
-        {
-            throw new InvalidOperationException("The selected additional slide type is not registered.");
-        }
-
-        var userId = NormalizeUserId(requestingUserId);
-        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
-        EnsureVersion(deck, rowVersion);
-
-        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
-        var profile = configuration.InstitutionalProfileOptions;
-        var roleCharter = configuration.RoleCharterOptions;
-        var ffcGlobalFootprint = configuration.FfcGlobalFootprintOptions;
-        switch (slideType)
-        {
-            case ProjectBriefingAdditionalSlideType.InstitutionalProfile:
-                profile = ProjectBriefingInstitutionalProfileOptions.Normalize(
-                    false,
-                    profile.Title,
-                    profile.IncludeHistory,
-                    profile.HistoryMilestones,
-                    profile.Modules,
-                    profile.ProjectScope,
-                    profile.MaximumDetailRows,
-                    profile.TrainingHighlightTechnicalCategory,
-                    profile.PartnershipEntries,
-                    profile.IncludeFooterStrip,
-                    profile.FooterStripText,
-                    profile.FooterStripEmphasisValue,
-                    profile.FooterStripStyle,
-                    profile.FooterStripAlignment);
-                break;
-            case ProjectBriefingAdditionalSlideType.RoleAndCharter:
-                roleCharter = ProjectBriefingRoleCharterOptions.Normalize(
-                    false,
-                    roleCharter.Title,
-                    roleCharter.Layout,
-                    roleCharter.UseSharedContent,
-                    roleCharter.RoleStatements,
-                    roleCharter.CharterItems);
-                break;
-            case ProjectBriefingAdditionalSlideType.FfcGlobalFootprint:
-                ffcGlobalFootprint = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
-                    false,
-                    ffcGlobalFootprint.Title,
-                    ffcGlobalFootprint.Layout,
-                    ffcGlobalFootprint.MaximumCountryRows,
-                    ffcGlobalFootprint.IncludeCountryWiseBreakdown);
-                break;
-        }
-
-        var order = configuration.AdditionalSlideOrder
-            .Where(candidate => candidate != slideType)
-            .ToArray();
-        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
-            deck.SelectionRulesJson,
-            profile,
-            roleCharter,
-            ffcGlobalFootprint,
-            order);
-        Touch(deck, userId);
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await AuditAsync(
-            "ProjectBriefing.AdditionalSlideRemoved",
-            userId,
-            deck,
-            $"{slideType} additional slide removed from the deck structure.");
     }
 
     public async Task<int> AddProjectsAsync(

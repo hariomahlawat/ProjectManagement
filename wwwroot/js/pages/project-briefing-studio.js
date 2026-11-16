@@ -66,6 +66,7 @@ if (root) {
   const SETTING_SLIDES = {
     Layout: () => ['ProjectUpdateSheet', 'ProjectCapability', 'ProjectBrief', 'StatusTable'],
     PresentationMode: () => ['ProjectCapability', 'ProjectBrief', 'StatusTable'],
+    StatusTableBlock: () => ['StatusTable'],
     NarrativeMode: () => ['ProjectCapability', 'ProjectBrief'],
     ShowPresentStage: () => ['ProjectCapability', 'ProjectBrief'],
     ShowPresentStatus: () => ['ProjectCapability', 'ProjectBrief'],

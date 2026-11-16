@@ -3,54 +3,6 @@ import { prismConfirm } from './project-briefing-confirm.js';
 const root = document.querySelector('[data-pbd-root]');
 
 if (root) {
-  const additionalSlideList = root.querySelector('[data-pbd-additional-slide-list]');
-  const additionalSlideOrderForm = root.querySelector('[data-pbd-additional-slide-order-form]');
-  const additionalSlideOrderInput = root.querySelector('[data-pbd-additional-slide-order]');
-
-  root.querySelectorAll('[data-pbd-remove-additional-slide-form]').forEach((form) => {
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const name = form.dataset.slideName || 'this slide';
-      const confirmed = await prismConfirm({
-        title: `Remove ${name}?`,
-        message: 'The slide will be removed from this deck. Its deck-specific configuration will be retained and restored if the slide is added again.',
-        confirmText: 'Remove from deck',
-        cancelText: 'Keep slide',
-        tone: 'danger',
-        // The remove button sits in the Extra slides step and reaches this form by its id.
-        returnFocus: root.querySelector(`button[form="${form.id}"]`) || form.querySelector('button[type="submit"]')
-      });
-      if (!confirmed) return;
-      // The page's submit guard skips this form so the two questions never overlap; wait for a
-      // pending settings save here instead.
-      if (typeof root.pbdSettleSettings === 'function' && !(await root.pbdSettleSettings())) return;
-      HTMLFormElement.prototype.submit.call(form);
-    });
-  });
-
-  if (additionalSlideList && additionalSlideOrderForm instanceof HTMLFormElement
-      && additionalSlideOrderInput instanceof HTMLInputElement
-      && typeof window.Sortable === 'function') {
-    new window.Sortable(additionalSlideList, {
-      animation: 150,
-      handle: '[data-pbd-additional-slide-handle]',
-      draggable: '[data-pbd-additional-slide-card][data-can-reorder="true"]',
-      ghostClass: 'is-sorting',
-      chosenClass: 'is-chosen',
-      onMove: (event) => Boolean(
-        event.related?.matches?.('[data-pbd-additional-slide-card][data-can-reorder="true"]')
-      ),
-      onEnd: () => {
-        const order = [...additionalSlideList.querySelectorAll('[data-pbd-additional-slide-card]')]
-          .map((card) => card.dataset.slideType || '')
-          .filter(Boolean);
-        additionalSlideOrderInput.value = order.join(',');
-        // requestSubmit, so the page's submit guard waits for a pending settings save first.
-        additionalSlideOrderForm.requestSubmit();
-      }
-    });
-  }
-
   // Focused editor for the Role & Charter additional slide.
   const drawer = root.querySelector('[data-pbd-role-charter-drawer]');
   const backdrop = root.querySelector('[data-pbd-role-charter-backdrop]');

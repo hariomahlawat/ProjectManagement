@@ -2030,67 +2030,6 @@ body.pbd-profile-drawer-open {
     padding: .72rem;
 }
 
-.pbd-slide-library .modal-header {
-    align-items: flex-start;
-}
-
-.pbd-slide-library .modal-title {
-    margin: 0;
-    color: var(--pbd-ink);
-    font-size: 1.05rem;
-    font-weight: 780;
-}
-
-.pbd-slide-library .modal-header p {
-    margin: .16rem 0 0;
-    color: var(--pbd-muted);
-    font-size: .68rem;
-}
-
-.pbd-slide-library__grid {
-    display: grid;
-    gap: .62rem;
-}
-
-.pbd-slide-library-card {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: .7rem;
-    margin: 0;
-    padding: .72rem;
-    border: 1px solid var(--pbd-border);
-    border-radius: .68rem;
-    background: #fbfcfe;
-}
-
-.pbd-slide-library-card__icon {
-    display: grid;
-    width: 2.45rem;
-    height: 2.45rem;
-    place-items: center;
-    border-radius: .58rem;
-    background: #e9f0ff;
-    color: #315fb8;
-    font-size: 1rem;
-}
-
-.pbd-slide-library-card > span:not(.pbd-slide-library-card__icon) {
-    display: grid;
-    gap: .12rem;
-}
-
-.pbd-slide-library-card strong {
-    color: var(--pbd-ink);
-    font-size: .78rem;
-}
-
-.pbd-slide-library-card small,
-.pbd-slide-library__empty {
-    color: var(--pbd-muted);
-    font-size: .66rem;
-}
-
 .pbd-role-charter-backdrop {
     position: fixed;
     inset: 0;
@@ -2195,17 +2134,6 @@ body.pbd-profile-drawer-open {
         grid-template-columns: 1fr;
     }
 
-}
-
-@media (max-width: 620px) {
-    .pbd-slide-library-card {
-        grid-template-columns: auto minmax(0, 1fr);
-    }
-
-    .pbd-slide-library-card .btn {
-        grid-column: 1 / -1;
-        width: 100%;
-    }
 }
 
 @media print {
@@ -2885,15 +2813,6 @@ body.pbd-profile-drawer-open {
 
 :where([data-bs-theme="dark"]) .pbd-profile-drawer__footer {
     box-shadow: 0 -.4rem 1rem rgba(0, 0, 0, 0.19);
-}
-
-:where([data-bs-theme="dark"]) .pbd-slide-library-card {
-    background: #16181b;
-}
-
-:where([data-bs-theme="dark"]) .pbd-slide-library-card__icon {
-    background: color-mix(in srgb, #6ea8fe 9%, #16181b);
-    color: #6ea8fe;
 }
 
 :where([data-bs-theme="dark"]) .pbd-role-charter-backdrop {
@@ -6299,7 +6218,6 @@ span.pbd-additional-slide-row__handle {
         white-space: nowrap;
     }
 }
-
 
 /* SECTION: Focus view (PR 6 of the blocks plan)
    The Focus button in the deck header hides the PRISM top bar, the footer and the workspace
