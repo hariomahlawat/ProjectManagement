@@ -97,6 +97,24 @@ public sealed class ProjectBriefingDeckPresetServiceTests
         Assert.Equal(ProjectBriefingDeckPreset.ProjectUpdateSheets, Configuration(deck).Preset);
     }
 
+    // Review fixes PR 8: the template goes on before the deck's one save, so creating a deck records
+    // one change (created, from the template) and never leaves a deck with default settings behind.
+    [Fact]
+    public async Task CreatingWithATemplate_IsOneSave_WithOneAuditEntry()
+    {
+        await using var db = CreateDb();
+        var audit = new RecordingAudit();
+        var service = new ProjectBriefingDeckService(db, new NoSelection(), audit, new FixedClock(), NullLogger<ProjectBriefingDeckService>.Instance, ProjectManagement.Tests.ProjectBriefings.FixedDeckRoles.Command);
+
+        var deckId = await service.CreateAsync(
+            UserId, "Monthly", description: null, preset: ProjectBriefingDeckPreset.ProjectUpdateSheets);
+
+        var deck = await db.Set<ProjectBriefingDeck>().SingleAsync(item => item.Id == deckId);
+        Assert.Equal(ProjectBriefingLayout.ProjectUpdateSheet, deck.Layout);
+        var entry = Assert.Single(audit.Actions);
+        Assert.Equal("ProjectBriefing.DeckCreated", entry);
+    }
+
     [Fact]
     public async Task CreatingWithoutATemplate_IsSetUpByHand()
     {
@@ -214,6 +232,24 @@ public sealed class ProjectBriefingDeckPresetServiceTests
         => new(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase($"briefing-deck-preset-{Guid.NewGuid()}")
             .Options);
+
+    private sealed class RecordingAudit : IAuditService
+    {
+        public List<string> Actions { get; } = new();
+
+        public Task LogAsync(
+            string action,
+            string? message = null,
+            string level = "Info",
+            string? userId = null,
+            string? userName = null,
+            IDictionary<string, string?>? data = null,
+            HttpContext? http = null)
+        {
+            Actions.Add(action);
+            return Task.CompletedTask;
+        }
+    }
 
     private sealed class NoAudit : IAuditService
     {

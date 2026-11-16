@@ -109,6 +109,14 @@ The owner chose every recommended option on 16 Nov 2026: A, B, C and D as recomm
 8. **Smaller code tidy** (Low 5, 6). Save replies return the derived settings so the script stops
    repeating the rules, and create-from-template saves once. Then a fresh cold review.
 
+   Built (16 Nov 2026).
+   - Creating a deck from a template applies the template in memory (`SetFromPreset`) before the
+     deck's one save, with one audit entry; a template that fails leaves no deck behind.
+   - The page no longer repeats the server's rules. The hidden "mirror" inputs, and the
+     table-and-slides-to-mode rule that fed them, are gone: nothing read them any more. The
+     design card sets only the layout (which decides the reload); the server derives what each
+     project gets.
+
 PRs 2, 4 and 7 touch different files and can run in parallel. PR 3 goes before PR 5, because both
 touch the slide-adding wording. PR 6 goes after PR 3, because PR 3 removes some of the same
 handlers.

@@ -1413,9 +1413,9 @@ if (root) {
   };
   const keyPointsChip = root.querySelector('[data-pbd-key-points-toggle]');
   const applyDesign = (design) => {
+    // The server works out the rest from the design (ProjectBriefingProjectSlideDesigns); the page
+    // needs only the layout, which decides whether it reloads to draw the other layout's slide list.
     setRadio('Layout', design === 'FactSheet' ? 'ProjectUpdateSheet' : 'StandardBriefing');
-    const narrative = { Capability: 'CapabilityOverview', KeyPoints: 'CapabilityOverview', KeyPointsOnly: 'CapabilityOverview', Brief: 'ProjectBrief', CapabilityAndBrief: 'Both' }[design];
-    if (narrative) setRadio('NarrativeMode', narrative);
     if (keyPointsChip instanceof HTMLInputElement) {
       if (design === 'KeyPoints' || design === 'KeyPointsOnly') keyPointsChip.checked = true;
       if (design === 'Capability') keyPointsChip.checked = false;
@@ -1501,23 +1501,7 @@ if (root) {
     type: row.dataset.type,
     enabled: Boolean(row.querySelector('[data-pbd-block-switch]')?.checked)
   }));
-  const blockOn = (type) => readBlocks().find((block) => block.type === type)?.enabled;
   const mirrorBlocks = () => {
-    const setChecked = (name, value) => {
-      const input = settingsForm?.querySelector(`[data-pbd-block-mirror] input[name="${name}"]`);
-      if (input instanceof HTMLInputElement && typeof value === 'boolean') input.checked = value;
-    };
-    setChecked('IncludeCoverSlide', blockOn('Cover'));
-    setChecked('IncludeStageSummary', blockOn('StageDistribution'));
-    setChecked('IncludeProjectCategorySummary', blockOn('ProjectCategorySummary'));
-    setChecked('IncludeTechnicalCategorySummary', blockOn('TechnicalCategorySummary'));
-    const table = blockOn('StatusTable');
-    const slides = blockOn('ProjectSlides');
-    if (typeof table === 'boolean' && typeof slides === 'boolean') {
-      const mode = table && slides ? 'Combined' : table ? 'ExecutiveTable' : 'DetailedProjects';
-      const radio = settingsForm?.querySelector(`[data-pbd-block-mirror] input[name="PresentationMode"][value="${mode}"]`);
-      if (radio instanceof HTMLInputElement) radio.checked = true;
-    }
     blockRows().forEach((row) => {
       const on = Boolean(row.querySelector('[data-pbd-block-switch]')?.checked);
       row.classList.toggle('is-on', on);
@@ -1539,7 +1523,6 @@ if (root) {
       libraryEmpty.hidden = [...(blockList?.querySelectorAll('[data-pbd-block-library-entry]') || [])].some((item) => !item.hidden);
     }
     syncTemplateSettings();
-    // The mirror inputs are outside the settings form's data, so unsaved settings stay unsaved.
     refreshSettingsSummary();
   };
   const snapshotBlocks = () => blockRows().map((row) => ({

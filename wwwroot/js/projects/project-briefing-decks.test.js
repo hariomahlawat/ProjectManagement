@@ -328,11 +328,8 @@ test('slides in this deck: one switchable, reorderable block list saved in place
   assert.match(slidesStep, /data-pbd-blocks/);
   assert.match(slidesStep, /data-pbd-block-switch/);
   assert.match(slidesStep, /data-pbd-block-handle/);
-  // The settings form still reads what the deck shows, from hidden inputs the list keeps current.
-  assert.match(slidesStep, /data-pbd-block-mirror/);
-  // Outside the settings form's data, so a block save never marks unsaved settings as saved.
-  // The portfolio summary was retired (blocks plan PR 7), so seven.
-  assert.equal((slidesStep.match(/<input form="pbd-block-mirror"/g) || []).length, 7);
+  // The hidden mirror inputs are gone: nothing read them, and the server derives the settings (review fixes PR 8).
+  assert.doesNotMatch(viewSource, /data-pbd-block-mirror/);
   assert.doesNotMatch(source, /The hidden inputs moved with a saved change/);
   assert.match(source, /event\.detail\.changed\.includes\('Layout'\)\) window\.location\.reload\(\)/);
   assert.match(viewSource, /data-blocks-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateBlocks"\)"/);
@@ -361,7 +358,7 @@ test('the stage-wise distribution replaced the stage summary, its table and the 
   assert.doesNotMatch(viewSource, /data-pbd-stage-table-option|IncludeStageDistributionTable/);
   assert.doesNotMatch(source, /syncStageSummaryOptions|PortfolioSummary/);
   assert.match(source, /StageDistribution: 'IncludeStageSummary',/);
-  assert.match(source, /setChecked\('IncludeStageSummary', blockOn\('StageDistribution'\)\);/);
+  assert.doesNotMatch(source, /setChecked\(|const narrative = \{ Capability:/);
   assert.match(studioSource, /StageDistributionList: \{ section: 'portfolio'/);
   assert.match(studioSource, /IncludeStageSummary: \(\) => \['StageDistribution'\],/);
 });
