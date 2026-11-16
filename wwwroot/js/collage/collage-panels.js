@@ -10,7 +10,7 @@
   'use strict';
 
   function createPanels(deps) {
-    const { app, $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos, selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select, zoomCrop, flushNudge, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected, renderBackgroundPanel } = deps;
+    const { app, $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos, selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select, zoomCrop, flushNudge, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected, renderBackgroundPanel, offerUndo } = deps;
     // ---------------------------------------------------------------------------
     // Panels on the left
     // ---------------------------------------------------------------------------
@@ -83,12 +83,16 @@
         : 'Choose a layout to set the space between photos. Rounded corners apply to every photo.';
     }
 
+    // Whether this move of the space slider has put hand-placed or tilted photos back in the layout.
+    let spaceUndid = false;
+
     for (const input of root.querySelectorAll('[data-layout-input]')) {
       input.addEventListener('input', () => {
         const value = Number(input.value);
         const which = input.dataset.layoutInput;
         $(`[data-out="${which}"]`).textContent = core.sliderText(which, value);
         if (which === 'gap' && app.collage.layout) {
+          if (core.offLayout(app.collage)) spaceUndid = true;
           // The space lays the page out again; that is what the hint under the sliders says.
           app.collage = core.reflowLayout(app.collage, value);
         } else if (which === 'radius') {
@@ -99,7 +103,11 @@
         }
         syncPage();
       });
-      input.addEventListener('change', () => commit());
+      input.addEventListener('change', () => {
+        commit();
+        if (spaceUndid) offerUndo('The photos went back into the layout. Undo brings back where they were.');
+        spaceUndid = false;
+      });
     }
 
     // ---------------------------------------------------------------------------

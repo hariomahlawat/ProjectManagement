@@ -46,7 +46,7 @@
      * shape, else (on a page without a layout, or dropped at a point) on its own. On a layout with
      * every frame full it stays in the tray, and false is returned.
      */
-    function placePhoto(photo, { frameId = null, at = null } = {}) {
+    function placePhoto(photo, { frameId = null, at = null, among = 1 } = {}) {
       // A locked frame keeps its photo: the new one goes where it would go with no frame chosen.
       const asked = frameId && itemById(frameId);
       const frame = (asked && !asked.locked ? asked : null) || (!at ? (core.bestSlotFor(app.collage.items, photo.aspect) || firstSlot()) : null);
@@ -67,7 +67,9 @@
       // would not silently take it off the page.
       app.collage.layout = null;
       const count = app.collage.items.filter((i) => i.kind === 'photo').length;
-      const place = core.placeNewPhoto(app.collage.size, photo.aspect, count);
+      // Several photos on a page with no layout go into a neat grid, each fully in view.
+      const place = (!at && core.gridPlace(app.collage.items, app.collage.size, photo.aspect, count + among))
+        || core.placeNewPhoto(app.collage.size, photo.aspect, count);
       if (at) { place.x = at.x; place.y = at.y; }
       const item = core.photoItem(newItemId(), photo.id, photo.aspect, place);
       app.collage.items.push(item);
@@ -133,7 +135,9 @@
         placing.forEach((photo) => { photo.importing = false; });
         // The first photo goes where it was aimed (a frame, or the drop point); the rest fill
         // empty frames, then go near the centre.
-        const waiting = placing.filter((photo, index) => !placePhoto(photo, index === 0 ? { frameId, at } : {}));
+        // Photos placed freely are laid out in a grid for all of them at once (`among`: those still
+        // to come in this batch, this one included).
+        const waiting = placing.filter((photo, index) => !placePhoto(photo, { ...(index === 0 ? { frameId, at } : {}), among: placing.length - index }));
         if (placing.length) {
           setTarget(null);
           commit();

@@ -1298,7 +1298,7 @@
     app, $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos,
     selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select,
     zoomCrop, flushNudge, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected,
-    renderBackgroundPanel
+    renderBackgroundPanel, offerUndo
   });
   // Photos: choosing, dropping and pasting them, reading them in, the tray, and From PRISM Photos
   // (collage-tray.js).

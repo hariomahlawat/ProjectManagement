@@ -178,6 +178,49 @@
     return { x: PAGE_WIDTH / 2 + dx, y: height / 2 + dy, width };
   }
 
+  /**
+   * The cells of a neat grid for `total` photos on a page with no layout: columns and rows chosen
+   * for the page's shape, with a margin round the edge and a gap between cells. Each cell is
+   * { x, y, width, height } (centre and size), in reading order.
+   */
+  function gridCells(sizeKey, total) {
+    const height = pageHeight(sizeKey);
+    const n = Math.max(1, Math.round(total) || 1);
+    const columns = Math.max(1, Math.min(n, Math.round(Math.sqrt(n * PAGE_WIDTH / height))));
+    const rows = Math.ceil(n / columns);
+    const margin = PAGE_WIDTH * 0.04;
+    const gap = PAGE_WIDTH * 0.02;
+    const w = (PAGE_WIDTH - 2 * margin - (columns - 1) * gap) / columns;
+    const h = (height - 2 * margin - (rows - 1) * gap) / rows;
+    const cells = [];
+    for (let i = 0; i < n; i += 1) {
+      const row = Math.floor(i / columns);
+      // A last row with fewer photos is centred.
+      const inRow = row === rows - 1 ? n - row * columns : columns;
+      const shift = (columns - inRow) * (w + gap) / 2;
+      const column = i % columns;
+      cells.push({ x: margin + shift + column * (w + gap) + w / 2, y: margin + row * (h + gap) + h / 2, width: w, height: h });
+    }
+    return cells;
+  }
+
+  /**
+   * Where a photo goes on a page with no layout when `total` photos are being laid out: the first
+   * cell of the grid for `total` that nothing on the page covers yet, the photo fitted inside it.
+   * Null when every cell is taken (the caller then uses placeNewPhoto).
+   */
+  function gridPlace(items, sizeKey, aspect, total) {
+    if (!(total > 1)) return null;
+    const visible = (items || []).filter((item) => !item.hidden && item.kind !== 'slot');
+    for (const cell of gridCells(sizeKey, total)) {
+      const frame = { x: cell.x, y: cell.y, width: cell.width, aspect: cell.width / cell.height };
+      if (visible.some((item) => coveredShare(frame, item) > LOCK_COVER_LIMIT)) continue;
+      const width = Math.max(ITEM_LIMITS.minWidth, Math.min(cell.width, cell.height * aspect) * 0.94);
+      return { x: cell.x, y: cell.y, width };
+    }
+    return null;
+  }
+
   /** How a photo fills its frame: no zoom, centred. */
   const FULL_CROP = Object.freeze({ zoom: 1, x: 0.5, y: 0.5 });
   const MAX_CROP_ZOOM = 4;
@@ -235,7 +278,9 @@
     const columns = [0.5, 0.27, 0.73];
     const boxes = (items || []).filter((item) => !item.hidden).map((item) => {
       const box = turnedHalfBox(item.width, itemHeight(item), item.angle || 0);
-      return { x: item.x, y: item.y, hw: box.halfWidth, hh: box.halfHeight };
+      // Words or a sticker under new words hide them; a photo under them is what words are for.
+      const weight = item.kind === 'photo' || item.kind === 'slot' ? 1 : 12;
+      return { x: item.x, y: item.y, hw: box.halfWidth, hh: box.halfHeight, weight };
     });
     let best = null;
     for (const row of rows) {
@@ -246,7 +291,7 @@
         for (const box of boxes) {
           const w = Math.min(x + halfWidth, box.x + box.hw) - Math.max(x - halfWidth, box.x - box.hw);
           const h = Math.min(y + halfHeight, box.y + box.hh) - Math.max(y - halfHeight, box.y - box.hh);
-          if (w > 0 && h > 0) covered += w * h;
+          if (w > 0 && h > 0) covered += w * h * box.weight;
         }
         if (covered === 0) return { x, y };
         if (!best || covered < best.covered) best = { x, y, covered };
@@ -876,6 +921,18 @@
    * a photo's zoom and the part it shows are kept. Items that are not frames, and locked
    * frames, are left alone.
    */
+  /** True when a frame of the layout has been moved, resized or turned away from its own cell. */
+  function offLayout(collage) {
+    if (!collage.layout) return false;
+    const frames = layoutFrames(collage.size, collage.layout.key, collage.layout.gap);
+    const near = (a, b) => Math.abs(a - b) < 0.5;
+    return collage.items.some((item) => {
+      const frame = Number.isInteger(item.cell) ? frames[item.cell] : null;
+      if (!frame || (item.kind !== 'photo' && item.kind !== 'slot') || item.locked) return false;
+      return !near(item.x, frame.x) || !near(item.y, frame.y) || !near(item.width, frame.width) || Boolean(item.angle);
+    });
+  }
+
   function reflowLayout(collage, gap) {
     if (!collage.layout) return collage;
     const g = Math.min(LAYOUT_LIMITS.gapMax, Math.max(0, Number(gap) || 0));
@@ -1432,6 +1489,8 @@
     refusedMessage,
     workingSize,
     placeNewPhoto,
+    gridCells,
+    gridPlace,
     FULL_CROP,
     MAX_CROP_ZOOM,
     FONTS,
@@ -1475,6 +1534,7 @@
     layoutFrames,
     applyLayout,
     reflowLayout,
+    offLayout,
     LOCK_BLOCKS,
     lockBlocks,
     lockedFrames,
