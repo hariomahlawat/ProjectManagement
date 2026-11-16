@@ -13,9 +13,19 @@
   /**
    * core, draw and stickers are collage-core.js, collage-draw.js and collage-stickers.js;
    * stickerSource(item) is a sticker's picture address; photos is the collage's photo Map;
-   * the colour lists and frame widths are the editor's.
+   * the colour lists and frame widths are the editor's. isOpen(key) says whether a folded group
+   * was left open (docs/ux/collage-review-2-fixes.md, PR 8).
    */
-  function createSettingsHtml({ core, draw, stickers, stickerSource, escapeHtml, photos, FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS }) {
+  function createSettingsHtml({ core, draw, stickers, stickerSource, escapeHtml, photos, FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS, isOpen = () => false }) {
+    /** A group used less often, folded away until opened; it stays open once opened. */
+    function fold(key, title, inner) {
+      return `
+        <details class="clg-section clg-fold" data-fold="${key}"${isOpen(key) ? ' open' : ''}>
+          <summary class="clg-fold__title">${escapeHtml(title)}</summary>
+          <div class="clg-fold__body">${inner}</div>
+        </details>`;
+    }
+
     function arrangeSections(item) {
       const framed = item.kind === 'photo' || item.kind === 'slot';
       const [low, high] = FRAME_WIDTHS;
@@ -27,38 +37,31 @@
       const corners = item.kind === 'text' || item.kind === 'sticker' ? '' : `
           <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius">${item.radius || 0}</output></span>
             <input type="range" min="0" max="${core.LAYOUT_LIMITS.radiusMax}" step="1" value="${item.radius || 0}" data-prop="radius" aria-label="Rounded corners, in page units"></label>`;
+      // Size, and lock, hide, duplicate and delete, are always in view; the rest fold away.
       return `${size}
-        <div class="clg-section">
-          <p class="clg-section__title">Angle</p>
+        ${fold('angle', 'Angle', `
           <label class="clg-field"><span class="clg-field__label">Turn<output data-out="angle">${Math.round(item.angle)}°</output></span>
             <input type="range" min="-180" max="180" step="1" value="${Math.round(item.angle)}" data-prop="angle" aria-label="Angle in degrees"></label>
           <div class="clg-buttons">
             <button type="button" class="btn btn-outline-secondary btn-sm" data-action="rotate-left">−15°</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" data-action="straighten">Straight</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" data-action="rotate-right">+15°</button>
-          </div>
-        </div>
-        <div class="clg-section">
-          <p class="clg-section__title">Look</p>
+          </div>`)}
+        ${fold('see-through', corners ? 'Corners and see-through' : 'See-through', `
           ${corners}
           <label class="clg-field"><span class="clg-field__label">See-through<output data-out="opacity">${item.opacity}%</output></span>
-            <input type="range" min="10" max="100" step="1" value="${item.opacity}" data-prop="opacity" aria-label="How solid it is, in percent"></label>
-        </div>
-        <div class="clg-section">
-          <p class="clg-section__title">Order</p>
+            <input type="range" min="10" max="100" step="1" value="${item.opacity}" data-prop="opacity" aria-label="How solid it is, in percent"></label>`)}
+        ${fold('order', 'Order', `
           <div class="clg-buttons clg-buttons--two">
             <button type="button" class="btn btn-outline-secondary btn-sm" data-action="forward">Bring forward</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" data-action="backward">Send backward</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" data-action="front">To the front</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" data-action="back">To the back</button>
-          </div>
-        </div>
-        <div class="clg-section">
-          <p class="clg-section__title">Line up on the page</p>
+          </div>`)}
+        ${fold('line-up', 'Line up on the page', `
           <div class="clg-buttons">
             ${core.ALIGN_PLACES.map((place) => `<button type="button" class="btn btn-outline-secondary btn-sm" data-align="${place}"${item.locked ? ' disabled' : ''}>${place.charAt(0).toUpperCase() + place.slice(1)}</button>`).join('')}
-          </div>
-        </div>
+          </div>`)}
         <div class="clg-section">
           <div class="clg-buttons clg-buttons--two">
             <button type="button" class="btn btn-outline-secondary btn-sm" data-action="lock" aria-pressed="${Boolean(item.locked)}"><i class="bi ${item.locked ? 'bi-unlock' : 'bi-lock'}" aria-hidden="true"></i> ${item.locked ? 'Unlock' : 'Lock'}</button>
@@ -132,8 +135,7 @@
           <p class="clg-field__label clg-field__label--plain">Colour</p>
           ${swatches('color', TEXT_COLOURS, item.color)}
         </div>
-        <div class="clg-section">
-          <p class="clg-section__title">Effects</p>
+        ${fold('effects', 'Effects: curve, outline, shadow, label', `
           ${range('curve', 'Curve', core.TEXT_LIMITS.curve)}
           ${range('outline', 'Outline', core.TEXT_LIMITS.outline)}
           <p class="clg-field__label clg-field__label--plain">Outline colour</p>
@@ -141,8 +143,7 @@
           ${switchRow('shadow', 'Shadow', item.shadow)}
           ${switchRow('glow', 'Glow', item.glow)}
           <p class="clg-field__label clg-field__label--plain">Label behind the words${item.curve ? ' (straight text only)' : ''}</p>
-          ${swatches('label', LABEL_COLOURS, item.label, true)}
-        </div>`;
+          ${swatches('label', LABEL_COLOURS, item.label, true)}`)}`;
     }
 
     /** Buttons that choose one value of a photo's finish (frame, shape or look). */
@@ -186,6 +187,8 @@
           <p class="clg-section__title">Look</p>
           ${filterOk ? '' : '<p class="clg-hint">This browser cannot show looks; use Edge or Chrome to change them.</p>'}
           <div class="clg-looks">${looks}</div>
+        </div>
+        ${fold('adjust', 'Brightness, contrast, warmth, mirror', `
           <label class="clg-field"><span class="clg-field__label">Brightness<output data-out="bright">${item.bright ?? 100}%</output></span>
             <input type="range" min="${core.ADJUST_LIMITS.bright[0]}" max="${core.ADJUST_LIMITS.bright[1]}" step="1" value="${item.bright ?? 100}" data-prop="bright" aria-label="Brightness, in percent"></label>
           <label class="clg-field"><span class="clg-field__label">Contrast<output data-out="contrast">${item.contrast ?? 100}%</output></span>
@@ -193,11 +196,10 @@
           <label class="clg-field"><span class="clg-field__label">Warmth<output data-out="warmth">${item.warmth ?? 0}</output></span>
             <input type="range" min="${core.ADJUST_LIMITS.warmth[0]}" max="${core.ADJUST_LIMITS.warmth[1]}" step="1" value="${item.warmth ?? 0}" data-prop="warmth" aria-label="Warmth: below 0 cooler, above 0 warmer"></label>
           ${switchRow('flip', 'Mirror the photo', item.flip)}
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="reset-look">Reset look</button>
-        </div>`;
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-action="reset-look">Reset look</button>`)}`;
     }
 
-    return Object.freeze({ arrangeSections, layersSection, swatches, textSections, choiceButtons, switchRow, finishSections });
+    return Object.freeze({ arrangeSections, layersSection, swatches, textSections, choiceButtons, switchRow, finishSections, fold });
   }
 
   return Object.freeze({ createSettingsHtml });

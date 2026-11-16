@@ -996,9 +996,10 @@
   // Selection, toolbar and the angle while turning
   // ---------------------------------------------------------------------------
 
-  function select(id) {
+  function select(id, { fromLayers = false } = {}) {
     if (selectedId === id) return;
     flushNudge();
+    if (id && !fromLayers) propsTab = 'settings';
     selectedId = id;
     if (adjustId && adjustId !== id) stopAdjust(false);
     attachTransformer();
@@ -1522,6 +1523,7 @@
     const item = core.stickerItem(newItemId(), id, place, entry.kind === 'drawn' ? { colour: entry.colour } : {});
     collage.items.push(item);
     selectedId = item.id;
+    propsTab = 'settings';
     stopAdjust(false);
     commit();
     announce('Sticker added.');
@@ -1538,6 +1540,7 @@
     item.y = spot.y;
     collage.items.push(item);
     selectedId = item.id;
+    propsTab = 'settings';
     stopAdjust(false);
     commit();
     announce('Text added. Type the words in the Words box.');
@@ -1606,8 +1609,8 @@
         }
         break;
       case 'preview': startPreview(); break;
-      case 'edit-props': setPropsOpen(true); break;
-      case 'toggle-props': setPropsOpen(!body.classList.contains('is-props-open')); break;
+      case 'edit-props': setPropsOpen(true, 'settings'); break;
+      case 'toggle-props': setPropsOpen(!(body.classList.contains('is-props-open') && propsTab === 'layers'), 'layers'); break;
       case 'close-props': setPropsOpen(false); break;
       case 'close-drawer': setPanel(null); break;
       case 'preview-exit': stopPreview(); break;
@@ -1714,7 +1717,7 @@
     }
     const layerPick = event.target.closest('[data-layer-select]');
     if (layerPick) {
-      select(layerPick.dataset.layerSelect);
+      select(layerPick.dataset.layerSelect, { fromLayers: true });
       const name = layerPick.querySelector('.clg-layer__name')?.textContent || '';
       announce(`Selected ${name}. Arrow keys move it; Delete removes it.`);
       props.querySelector(`[data-layer-select="${layerPick.dataset.layerSelect}"]`)?.focus();
@@ -1781,9 +1784,10 @@
   const onPhone = () => phoneScreen?.matches === true;
 
   /** On a phone, the settings sheet (for the selected item, or the page) open or closed. */
-  function setPropsOpen(open) {
+  function setPropsOpen(open, tab = null) {
     body.classList.toggle('is-props-open', Boolean(open));
-    layersButton?.setAttribute('aria-pressed', String(Boolean(open)));
+    if (tab) showPropsTab(tab, false);
+    layersButton?.setAttribute('aria-pressed', String(Boolean(open) && propsTab === 'layers'));
     if (open && onPhone()) setPanel(null);
     syncSheets();
   }
@@ -1871,12 +1875,60 @@
     keepingFocus(() => renderPropsNow());
   }
 
+  // The settings panel has two tabs: the selected item's settings, and Layers (every item, to
+  // pick, hide or lock), so Layers is never far below a long list of settings.
+  let propsTab = 'settings';
+
   function renderPropsNow() {
-    renderPropsBody();
-    if (selectedItem()?.locked) props.querySelectorAll(LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
-    props.insertAdjacentHTML('afterbegin', '<button type="button" class="clg-sheet-close" data-action="close-props" aria-label="Close settings"><i class="bi bi-x-lg" aria-hidden="true"></i></button>');
-    props.insertAdjacentHTML('beforeend', layersSection());
+    if (propsTab === 'layers') {
+      props.innerHTML = layersSection();
+    } else {
+      renderPropsBody();
+      if (selectedItem()?.locked) props.querySelectorAll(LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
+    }
+    const tab = (key, label, extra = '') => `<button type="button" role="tab" class="clg-props-tab" id="clgTab-${key}" data-props-tab="${key}" aria-selected="${propsTab === key}" tabindex="${propsTab === key ? 0 : -1}">${label}${extra}</button>`;
+    const count = collage.items.length ? ` <span class="clg-props-tab__count">${collage.items.length}</span>` : '';
+    props.insertAdjacentHTML('afterbegin', `<button type="button" class="clg-sheet-close" data-action="close-props" aria-label="Close settings"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+      <div class="clg-props-tabs" role="tablist" aria-label="Settings or Layers">${tab('settings', 'Settings')}${tab('layers', 'Layers', count)}</div>`);
+    layersButton?.setAttribute('aria-pressed', String(body.classList.contains('is-props-open') && propsTab === 'layers'));
   }
+
+  function showPropsTab(key, focus = true) {
+    if (key !== 'settings' && key !== 'layers') return;
+    propsTab = key;
+    renderPropsNow();
+    if (focus) props.querySelector(`[data-props-tab="${key}"]`)?.focus();
+  }
+
+  // Groups used less often fold away; one left open stays open (in this browser).
+  const FOLDS_KEY = 'prism-collage-open-groups';
+  const openFolds = (() => {
+    try {
+      const saved = JSON.parse(window.localStorage?.getItem(FOLDS_KEY) || '[]');
+      return new Set(Array.isArray(saved) ? saved.filter((key) => typeof key === 'string') : []);
+    } catch {
+      return new Set();
+    }
+  })();
+  // 'toggle' does not bubble, so it is heard on the way down.
+  props.addEventListener('toggle', (event) => {
+    const group = event.target.closest?.('[data-fold]');
+    if (!group) return;
+    if (group.open) openFolds.add(group.dataset.fold);
+    else openFolds.delete(group.dataset.fold);
+    try { window.localStorage?.setItem(FOLDS_KEY, JSON.stringify([...openFolds])); } catch { /* not kept; fine */ }
+  }, true);
+
+  props.addEventListener('click', (event) => {
+    const tab = event.target.closest('[data-props-tab]');
+    if (tab) showPropsTab(tab.dataset.propsTab);
+  });
+  props.addEventListener('keydown', (event) => {
+    const tab = event.target.closest?.('[data-props-tab]');
+    if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    showPropsTab(tab.dataset.propsTab === 'settings' ? 'layers' : 'settings');
+  });
 
   function renderPropsBody() {
     const item = selectedItem();
@@ -1953,7 +2005,8 @@
 
   // The settings panel's sections as HTML (collage-settings.js).
   const settingsHtml = window.PrismCollageSettings.createSettingsHtml({
-    core, draw, stickers, stickerSource, escapeHtml, photos, FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS
+    core, draw, stickers, stickerSource, escapeHtml, photos, FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS,
+    isOpen: (key) => openFolds.has(key)
   });
   const { arrangeSections, swatches, textSections, switchRow, finishSections } = settingsHtml;
   const layersSection = () => settingsHtml.layersSection(collage, selectedId);
