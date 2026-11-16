@@ -61,19 +61,25 @@
     syncButtons();
   }
 
+  function notify(on) {
+    global.dispatchEvent(new global.CustomEvent('pbd:focus-change', { detail: { on: on } }));
+  }
+
   function set(on) {
     on = Boolean(on);
     if (on === isOn()) return;
     apply(on);
     writePreference(on);
-    var event;
-    if (typeof global.CustomEvent === 'function') {
-      event = new global.CustomEvent('pbd:focus-change', { detail: { on: on } });
-    } else {
-      event = global.document.createEvent('CustomEvent');
-      event.initCustomEvent('pbd:focus-change', false, false, { on: on });
-    }
-    global.dispatchEvent(event);
+    notify(on);
+  }
+
+  // Another Studio tab changed the choice, or the page came back from the back-forward cache:
+  // follow what is remembered, so the next press does what the person expects.
+  function follow() {
+    var on = readPreference();
+    if (on === isOn()) return;
+    apply(on);
+    notify(on);
   }
 
   function bind() {
@@ -98,5 +104,10 @@
     bind();
   }
 
-  global.PrismBriefingFocus = { isOn: isOn, set: set };
+  global.addEventListener('storage', function (event) {
+    if (event.key === STORAGE_KEY || event.key === null) follow();
+  });
+  global.addEventListener('pageshow', function (event) {
+    if (event.persisted) follow();
+  });
 })(window);

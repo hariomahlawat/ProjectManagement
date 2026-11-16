@@ -63,6 +63,10 @@
         && active.matches('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) {
       return true;
     }
+    // The cards sit under the top bar and point at its controls; while a page hides it (the
+    // Briefing Studio's focus view) they would cover the page instead, so wait for a later page.
+    var topbar = document.querySelector('.pm-topbar');
+    if (topbar && topbar.getClientRects().length === 0) return true;
     return !!document.querySelector('.modal.show, .offcanvas.show, dialog[open], [data-chat-root].has-buddy');
   }
 

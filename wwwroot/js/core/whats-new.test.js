@@ -39,14 +39,19 @@ const pageControls = `
   <button id="launcher" data-chat-launcher></button>
   <input id="field" />`;
 
-async function load({ chat = false, stored = {}, storageThrows = false, focusField = false, modalOpen = false, beforeShow } = {}) {
-  const body = `${chat ? chatCard : ''}${themeCard}${pageControls}${modalOpen ? '<div class="modal show"></div>' : ''}`;
+async function load({ chat = false, stored = {}, storageThrows = false, focusField = false, modalOpen = false, topbar = null, beforeShow } = {}) {
+  const body = `${topbar ? '<header class="pm-topbar">PRISM</header>' : ''}${chat ? chatCard : ''}${themeCard}${pageControls}${modalOpen ? '<div class="modal show"></div>' : ''}`;
   const dom = new JSDOM(`<!doctype html><html><body>${body}</body></html>`, {
     runScripts: 'outside-only',
     url: 'https://prism.local/',
   });
   const { window } = dom;
   window.matchMedia = () => ({ matches: false, addEventListener() {} });
+  // jsdom lays nothing out: a shown top bar needs a box, a hidden one (display: none) has none.
+  if (topbar === 'shown') {
+    const bar = window.document.querySelector('.pm-topbar');
+    bar.getClientRects = () => [{ top: 0, height: 56 }];
+  }
   if (storageThrows) {
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
@@ -178,6 +183,15 @@ test('waits for a later page while a field has focus or a dialog is open', async
 
   const dialog = await load({ modalOpen: true });
   assert.equal(dialog.cardEl.hidden, true);
+});
+
+test('waits while the page hides the top bar (Briefing Studio focus view), and shows under a visible one', async () => {
+  let page = await load({ topbar: 'hidden' });
+  assert.equal(page.cardEl.hidden, true);
+  assert.equal(page.stored('prism.themeIntro'), null, 'a skipped page does not use up a showing');
+
+  page = await load({ topbar: 'shown' });
+  assert.equal(page.cardEl.hidden, false);
 });
 
 test('stays away when the browser cannot remember the answer', async () => {

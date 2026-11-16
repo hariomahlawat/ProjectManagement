@@ -106,7 +106,8 @@ the server; the script inserts only slide HTML and writes all other text as text
   (`prism.briefingStudio.focus` in localStorage, as the theme and the rail fold are; PRISM has
   no server-side store for UI choices), and `project-briefing-focus.js` loads in `<head>` so a
   remembered focus view applies before first paint. Escape does not leave it (Escape belongs to
-  dialogs and Present). The Studio measures `--pbd-studio-offset` again on each change
+  dialogs and Present). Another Studio tab or a page restored from the back-forward cache
+  follows the remembered choice, and What's new cards wait while the top bar is hidden. The Studio measures `--pbd-studio-offset` again on each change
   (`pbd:focus-change`), and the page loses its bottom padding, so the Studio fits the window
   without the page scrolling (1366×768 and 1920×1080 checked). Phones: no button, and a
   remembered focus view is ignored below 576px.

@@ -133,3 +133,26 @@ test('the focus view hides the top bar and rail only from 576px, and the button 
   // Token-only colours (Dark theme follows the --pbd-* tokens).
   assert.doesNotMatch(section, /#[0-9a-fA-F]{3,8}\b|rgba?\(/);
 });
+
+test('a change in another Studio tab, or a page back from the cache, follows the remembered choice', async () => {
+  const { window, document, button, events } = await startPage({ stored: 'on' });
+
+  // Another tab left focus: storage no longer has the key.
+  window.localStorage.removeItem(STORAGE_KEY);
+  window.dispatchEvent(new window.StorageEvent('storage', { key: STORAGE_KEY, newValue: null }));
+  assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), false);
+  assert.equal(button.getAttribute('aria-pressed'), 'false');
+
+  // Back to a cached page after focus was turned on elsewhere.
+  window.localStorage.setItem(STORAGE_KEY, 'on');
+  const pageshow = new window.Event('pageshow');
+  Object.defineProperty(pageshow, 'persisted', { value: true });
+  window.dispatchEvent(pageshow);
+  assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), true);
+  assert.equal(button.getAttribute('aria-pressed'), 'true');
+
+  // An unrelated key changes nothing.
+  window.dispatchEvent(new window.StorageEvent('storage', { key: 'prism.theme', newValue: 'dark' }));
+  assert.equal(document.documentElement.hasAttribute('data-pbd-focus'), true);
+  assert.deepEqual(events, [false, true]);
+});

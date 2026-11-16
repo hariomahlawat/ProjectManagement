@@ -490,7 +490,8 @@ public sealed class ProjectBriefingContractTests
 
         // Same tab: no new window, and Escape is left to dialogs and Present.
         Assert.DoesNotContain("window.open", focus, StringComparison.Ordinal);
-        Assert.DoesNotContain("Escape", focus.Replace("Escape is deliberately not a way out", string.Empty), StringComparison.Ordinal);
+        Assert.DoesNotContain("keydown", focus, StringComparison.Ordinal);
+        Assert.DoesNotContain("keyup", focus, StringComparison.Ordinal);
         Assert.Contains("'prism.briefingStudio.focus'", focus, StringComparison.Ordinal);
 
         // The top bar and rail go from 576px up only, and the Studio measures its height again.

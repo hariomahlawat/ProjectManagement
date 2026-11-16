@@ -5985,6 +5985,9 @@ span.pbd-additional-slide-row__handle {
 
     html[data-pbd-focus] .pm-topbar,
     html[data-pbd-focus] .pm-footer,
+    /* A What's new card already open when focus starts would cover Exit focus (whats-new.js
+       does not open new ones while the top bar is hidden). */
+    html[data-pbd-focus] .pm-whats-new,
     html[data-pbd-focus] .command-workspace--briefing-decks > [data-workspace-rail] {
         display: none !important;
     }
