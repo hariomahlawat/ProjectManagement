@@ -937,3 +937,76 @@ test('a locked empty frame put into the new layout keeps its id and its lock', (
   const one = collage.applyLayout(two, 't2', 10, 0, [], () => `m${++n}`, { locked: 'join' }).collage;
   assert.deepEqual(one.items.map((i) => [i.id, Boolean(i.locked)]), [['a', false], ['S', true], ['S2', true]]);
 });
+
+test('photos on a page with no layout go into a neat grid, each fully in view', () => {
+  const items = [];
+  for (let i = 0; i < 4; i += 1) {
+    const place = collage.gridPlace(items, 'a4p', 4 / 3, 4);
+    assert.ok(place, `photo ${i}`);
+    items.push(collage.photoItem(`p${i}`, `f${i}`, 4 / 3, place));
+  }
+  // No two photos overlap, and every photo is on the page.
+  const height = collage.pageHeight('a4p');
+  for (const a of items) {
+    assert.ok(a.x - a.width / 2 >= 0 && a.x + a.width / 2 <= 1000);
+    assert.ok(a.y - collage.itemHeight(a) / 2 >= 0 && a.y + collage.itemHeight(a) / 2 <= height);
+    for (const b of items) {
+      if (a === b) continue;
+      const w = Math.min(a.x + a.width / 2, b.x + b.width / 2) - Math.max(a.x - a.width / 2, b.x - b.width / 2);
+      const h = Math.min(a.y + collage.itemHeight(a) / 2, b.y + collage.itemHeight(b) / 2) - Math.max(a.y - collage.itemHeight(a) / 2, b.y - collage.itemHeight(b) / 2);
+      assert.ok(!(w > 0 && h > 0), `${a.id} and ${b.id} overlap`);
+    }
+  }
+  // A full grid has no place left; a single photo is left to placeNewPhoto.
+  assert.equal(collage.gridPlace(items, 'a4p', 4 / 3, 4), null);
+  assert.equal(collage.gridPlace([], 'a4p', 4 / 3, 1), null);
+  // Columns follow the page's shape: 6 on a landscape page are 3 across.
+  assert.equal(new Set(collage.gridCells('a4l', 6).map((c) => Math.round(c.y))).size, 2);
+});
+
+test('a layout moved by hand or tilted is off its cells; laid out again it is not', () => {
+  let n = 0;
+  const laid = collage.applyLayout(collage.newCollage('a4l'), 't2', 10, 0, ['p1', 'p2'], () => `n${++n}`).collage;
+  assert.equal(collage.offLayout(laid), false);
+  const tilted = { ...laid, items: laid.items.map((i, k) => (k === 0 ? { ...i, angle: 4 } : i)) };
+  assert.equal(collage.offLayout(tilted), true);
+  assert.equal(collage.offLayout(collage.reflowLayout(tilted, 10)), false);
+  // A locked frame moved by hand does not count: the space never moves it.
+  const lockedMoved = { ...laid, items: laid.items.map((i, k) => (k === 0 ? { ...i, x: i.x + 50, locked: true } : i)) };
+  assert.equal(collage.offLayout(lockedMoved), false);
+});
+
+test('long thin photos each take their own grid cell', () => {
+  const items = [];
+  for (let i = 0; i < 4; i += 1) {
+    const place = collage.gridPlace(items, 'a4p', 16, 4);
+    assert.ok(place, `photo ${i}`);
+    items.push(collage.photoItem(`p${i}`, `f${i}`, 16, place));
+  }
+  assert.equal(new Set(items.map((i) => `${Math.round(i.x)},${Math.round(i.y)}`)).size, 4);
+});
+
+test('a grid photo always fits inside its cell, and a grid too fine is not used', () => {
+  const items = [];
+  let placed = 0;
+  for (let i = 0; i < 60; i += 1) {
+    const place = collage.gridPlace(items, 'a4l', 1 / 4, 60);
+    if (!place) continue;
+    placed += 1;
+    const item = collage.photoItem(`p${i}`, `f${i}`, 1 / 4, place);
+    for (const other of items) {
+      const w = Math.min(item.x + item.width / 2, other.x + other.width / 2) - Math.max(item.x - item.width / 2, other.x - other.width / 2);
+      const h = Math.min(item.y + collage.itemHeight(item) / 2, other.y + collage.itemHeight(other) / 2) - Math.max(item.y - collage.itemHeight(item) / 2, other.y - collage.itemHeight(other) / 2);
+      assert.ok(!(w > 0 && h > 0), `${item.id} overlaps ${other.id}`);
+    }
+    items.push(item);
+  }
+  assert.ok(placed < 60, 'cells too small for the smallest photo are not used');
+});
+
+test('a layout frame given another shape (a Polaroid) is off its cell', () => {
+  let n = 0;
+  const laid = collage.applyLayout(collage.newCollage('a4l'), 't2', 10, 0, ['p1', 'p2'], () => `n${++n}`).collage;
+  const reshaped = { ...laid, items: laid.items.map((i, k) => (k === 0 ? { ...i, aspect: i.aspect * 0.8 } : i)) };
+  assert.equal(collage.offLayout(reshaped), true);
+});

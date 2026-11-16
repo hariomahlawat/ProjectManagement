@@ -105,7 +105,8 @@ its npm package by hand; the libman entry records the version.
   from the toolbar, the settings or the keys. Choosing a layout while photos are locked asks
   first: put them in the new layout too (they stay locked), or keep them where they are, and the
   layout leaves out the frames they cover. A kept item well off the page is moved just inside it.
-- **Undo and Redo** for every change.
+- **Undo and Redo** for every change. Moving **Space between photos** puts every photo back in
+  the layout; when that undoes a photo moved by hand, a message says so, with Undo.
 - **Save as** PNG, JPEG (optionally under a size in KB) or PDF whose page is the paper's real
   size; at print quality (300 dpi) or for the screen (1920 px on the long side). The dialog asks
   first **what it is for** (WhatsApp or email: a JPG for the screen; Printing: a PDF at print
@@ -221,8 +222,9 @@ The start screen shows one row of drafts (with "Show all") so the layouts for a 
 in view. A collage nobody named is called by the first line of its first text (not the words
 that only show where to type, such as "Your heading"), or by when it was started. A photo goes
 into the empty frame closest to its shape; photos past a layout's frames wait in Photos, with a
-message, rather than sit loose on the grid. New words and stickers go where they cover nothing
-yet, and the item's toolbar moves below it when above would cover another item. Save asks what the picture is
+message, rather than sit loose on the grid. Several photos added to a page with no layout are laid
+out in a neat grid, each fully in view. New words and stickers go where they cover nothing
+yet (covering other words or stickers counts far more than covering a photo), and the item's toolbar moves below it when above would cover another item. Save asks what the picture is
 for: WhatsApp or email (JPG for the screen), printing (PDF at print quality), or a slide or a
 screen (PNG). The purpose chosen is shown pressed and remembered in this browser; the first time
 it is WhatsApp or email.
