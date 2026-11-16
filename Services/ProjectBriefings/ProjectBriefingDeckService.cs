@@ -173,14 +173,19 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
+    // Recently deleted decks the person may change. Restore deleted items (Admin, under
+    // AdminPolicies.RecoveryManage) passes asRecoveryAdministrator to see and restore every deck,
+    // command or personal, as it did before decks had owners.
     Task<IReadOnlyList<ProjectBriefingDeletedDeckVm>> ListDeletedAsync(
         string requestingUserId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool asRecoveryAdministrator = false);
 
     Task<ProjectBriefingDeckRestoreResult> RestoreAsync(
         long deckId,
         string requestingUserId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool asRecoveryAdministrator = false);
 
     Task MarkGeneratedAsync(
         long deckId,
@@ -1533,14 +1538,19 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     public async Task<IReadOnlyList<ProjectBriefingDeletedDeckVm>> ListDeletedAsync(
         string requestingUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool asRecoveryAdministrator = false)
     {
         var userId = NormalizeUserId(requestingUserId);
-        var isCommand = await _roles.IsCommandAsync(userId, cancellationToken);
-        var rows = await _db.Set<ProjectBriefingDeck>()
+        IQueryable<ProjectBriefingDeck> restorable = _db.Set<ProjectBriefingDeck>()
             .AsNoTracking()
-            .Restorable(_clock.UtcNow)
-            .EditableBy(userId, isCommand)
+            .Restorable(_clock.UtcNow);
+        if (!asRecoveryAdministrator)
+        {
+            restorable = restorable.EditableBy(userId, await _roles.IsCommandAsync(userId, cancellationToken));
+        }
+
+        var rows = await restorable
             .OrderByDescending(deck => deck.DeletedAtUtc)
             .Select(deck => new
             {
@@ -1575,14 +1585,16 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     public async Task<ProjectBriefingDeckRestoreResult> RestoreAsync(
         long deckId,
         string requestingUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool asRecoveryAdministrator = false)
     {
         var userId = NormalizeUserId(requestingUserId);
         var deck = await _db.Set<ProjectBriefingDeck>()
             .Restorable(_clock.UtcNow)
             .FirstOrDefaultAsync(candidate => candidate.Id == deckId, cancellationToken)
             ?? throw new KeyNotFoundException("The deleted deck was not found or can no longer be restored.");
-        if (await AccessToAsync(deck, userId, cancellationToken) != ProjectBriefingDeckAccessLevel.Edit)
+        if (!asRecoveryAdministrator
+            && await AccessToAsync(deck, userId, cancellationToken) != ProjectBriefingDeckAccessLevel.Edit)
         {
             throw new KeyNotFoundException("The deleted deck was not found or can no longer be restored.");
         }

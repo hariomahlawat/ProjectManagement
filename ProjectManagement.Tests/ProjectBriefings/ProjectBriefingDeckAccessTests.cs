@@ -172,6 +172,29 @@ public sealed class ProjectBriefingDeckAccessTests
     }
 
     [Fact]
+    public async Task RestoreDeletedItems_LetsAnAdministratorRecoverEveryDeck()
+    {
+        await using var db = CreateDb();
+        db.Users.Add(new ApplicationUser { Id = "admin-1", UserName = "admin-1", FullName = "Admin" });
+        await db.SaveChangesAsync();
+        var command = await SeedAsync(db, "Monthly review", Hod, ProjectBriefingDeckScope.Command);
+        var officers = await SeedAsync(db, "Visit deck", Officer, ProjectBriefingDeckScope.Personal);
+        var service = Service(db);
+        await service.DeleteAsync(command.Id, Hod, Version(command));
+        await service.DeleteAsync(officers.Id, Officer, Version(officers));
+
+        // Not command and not the owner: Briefing Studio offers nothing, the Admin page everything.
+        Assert.Empty(await service.ListDeletedAsync("admin-1"));
+        var listed = await service.ListDeletedAsync("admin-1", asRecoveryAdministrator: true);
+        Assert.Equal(new[] { command.Id, officers.Id }.OrderBy(id => id), listed.Select(deck => deck.Id).OrderBy(id => id));
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.RestoreAsync(command.Id, "admin-1"));
+        Assert.Equal(command.Id, (await service.RestoreAsync(command.Id, "admin-1", asRecoveryAdministrator: true)).DeckId);
+        Assert.Equal(officers.Id, (await service.RestoreAsync(officers.Id, "admin-1", asRecoveryAdministrator: true)).DeckId);
+        Assert.Equal(ProjectBriefingDeckScope.Personal, (await db.Set<ProjectBriefingDeck>().SingleAsync(deck => deck.Id == officers.Id)).Scope);
+    }
+
+    [Fact]
     public async Task TheRoleResolver_ReadsComdtAndHodFromIdentityRoles()
     {
         await using var db = CreateDb();
