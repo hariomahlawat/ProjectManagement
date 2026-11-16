@@ -261,9 +261,19 @@
       const item = core.textItem(newItemId(), start[0], { x: core.PAGE_WIDTH / 2, y: pageHeight() / 2 }, start[1]);
       // Measured first, then put where it covers nothing yet (not on top of the heading before it).
       layoutTextItem(item);
-      const spot = core.freeSpot(state.collage.items, state.collage.size, item.width / 2, core.itemHeight(item) / 2);
-      item.x = spot.x;
-      item.y = spot.y;
+      const place = () => {
+        const spot = core.freeSpot(state.collage.items, state.collage.size, item.width / 2, core.itemHeight(item) / 2);
+        item.x = spot.x;
+        item.y = spot.y;
+      };
+      place();
+      // Over a photo, dark words get a white outline so they can be read (the user can change it);
+      // the outline makes them a little larger, so they are measured and placed again.
+      if (!item.outline && core.overPhoto(state.collage.items, item)) {
+        item.outline = 3;
+        layoutTextItem(item);
+        place();
+      }
       placeNewItem(item);
       commit();
       announce('Text added. Type the words in the Words box.');
