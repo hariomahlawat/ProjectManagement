@@ -64,3 +64,25 @@ test('a heading added over photos gets a white outline so it can be read', async
   await expect.poll(async () => (await newestDraft(page))?.model.items.find((i) => i.kind === 'text')?.outline).toBe(3);
   expect(errors).toEqual([]);
 });
+
+test('with more photos than empty frames, the one matched to no frame waits in the tray, with the message', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^2 side by side/ }).click();
+  // One photo fills a frame first, so one empty frame is left.
+  await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'first.jpg' }));
+  await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);
+  // A tall photo, then a photo shaped like the empty frame.
+  const slot = (await newestDraft(page)).model.items.find((i) => i.kind === 'slot');
+  const w = 1200;
+  await page.locator('[data-file-input]').setInputFiles([
+    await photoFile(page, { name: 'tall.jpg', width: 700, height: 1400, colour: '#2e4a7a' }),
+    await photoFile(page, { name: 'matching.jpg', width: w, height: Math.round(w / slot.aspect), colour: '#7a3b2e' })
+  ]);
+  await expect(page.locator('[data-alert-text]')).toContainText('did not fit');
+  await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(2);
+  const model = (await newestDraft(page)).model;
+  const names = Object.fromEntries(await page.evaluate(() => [...document.querySelectorAll('[data-tray-photo]')].map((b) => [b.dataset.trayPhoto, b.getAttribute('aria-label') || b.title || ''])));
+  const filled = model.items.find((i) => i.id === slot.id);
+  expect(names[filled.photo] || '').toContain('matching');
+  expect(errors).toEqual([]);
+});
