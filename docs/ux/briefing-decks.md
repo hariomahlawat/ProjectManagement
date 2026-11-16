@@ -618,3 +618,104 @@ An independent UI/UX review of the deck library (`/Workspace/BriefingDecks`) at 
 Outside this module: the shared "What's new" announcement can cover the page's top-right buttons
 on a first visit.
 
+
+## Plan: Blocks, Project Officer decks and focus view (16 Nov 2026)
+
+The owner asked for two things: Project Officers should be able to make briefing decks too, and the
+deck set-up should be simpler and modular ("the user can choose or design the project slide and
+choose analytics slides for the projects chosen"). Mockup reviewed with the owner:
+https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built from blocks).
+
+**Review: why the deck feels complex**
+
+- The slide order is fixed in `ProjectBriefingSlideComposer.BuildStandardPlans` (cover,
+  after-cover institution slides, portfolio summary, stage summary and table, category summaries,
+  status table, project slides, FFC footprint, closing) and the Deck tab never shows it. Nobody
+  can put the status table before the stage chart.
+- Summary slides are ticks in Extra slides, institution slides are draggable rows in the same
+  step, and the cover and portfolio summary can be switched off only for Fact Sheets.
+- About 20 settings with 8 show-or-hide rules between them: "Each project gets" only with project
+  slides, the key point slide only with Both, the brief layout only without key points. Key points
+  also change the layout of both project slides without saying so.
+- "Template" is both the project slide design and a bundle of settings (cost, stage, status,
+  closing). Any small change marks the deck "customised", and switching template overwrites
+  settings and needs Undo.
+- "Table / Project slides / Both" and "Capability / Brief / Both" are slides switched on or off,
+  written as modes. Cost is a deck setting for Portfolio but sheet rows for Fact Sheets.
+
+**Owner decisions (16 Nov 2026)**
+
+- **Blocks.** A deck is an ordered list of blocks in four zones: Opening, Overview and analytics,
+  Projects, Closing. Each block can be switched off, dragged within its zone or removed; **Add
+  block** opens a library. A template only fills the starting list; after that a deck has no
+  "customised" state.
+- **Project slides are one block** with a **design** and **parts**. Designs: Capability (photo
+  beside capability points), Key points (today's Option B), Brief (narrative with photo; the
+  Automatic / Standard / Photo brief layouts stay inside it), Fact sheet (today's update sheet, its
+  rows chosen and ordered in the block) and the new **Key points only** (a large photo beside the
+  five points with their headings; no brief or capability text). Parts are chips: present stage,
+  status remark, R&D cost, proliferation cost, key points. Anything switched off gives its space to
+  the photo and text. In Key points only, a project without key points shows the gap like other
+  missing content (no fallback to the capability text). Per-project choices (Own slides, Table row
+  only, Leave out, photo, speaker notes) stay as they are.
+- **Overview and analytics blocks** are drawn from the deck's own projects (table row only
+  projects count). Today's: portfolio summary, status table, stage-wise chart, stage-wise table,
+  project-category chart, technical-category chart. New candidates, built only once the owner
+  picks them (no extra figures for their own sake): slowest stages, cost by stage, PDCs due,
+  completed this year.
+- **No free drawing canvas** for the project slide. One design has to fit every project in the
+  deck (long text, missing photos, continuation slides); the composer handles that per design.
+- **Project Officer decks: My decks and Command decks.** A Project Officer makes decks of their
+  own; only that officer edits them. Comdt and HoD decks stay shared between them as today and a
+  Project Officer does not see them. Comdt and HoD can open a Project Officer's deck to view or
+  duplicate it, not change it. A Project Officer can add any project (every signed-in user can
+  already read project information, costs and remarks); Add projects opens on their own projects
+  first. A person who is also HoD or Comdt works as command.
+- **Focus view, not a separate tab.** The Studio is already full width with the rail folded; a
+  separate tab (like Collage Studio) would only gain the top bar's height, and would break back,
+  the library's Generate hand-off and the "fix in project" links. Instead a **Focus** button in
+  the Studio header hides the PRISM top bar and the rail; the deck name, Generate and **Exit
+  focus** stay. Remembered per person, same tab.
+
+**Production continuity**
+
+- Blocks need no database change: they are stored as a `blocks` list in `SelectionRulesJson`
+  through `ProjectBriefingDeckConfigurationCodec`. A deck without `blocks` is read into the same
+  list from its present settings, and must produce the same PowerPoint slide for slide (tested
+  for every template and setting shape the codec accepts, and against the local demo decks).
+- The codec writes a fresh document on each save, so an older build would drop `blocks`. The new
+  build keeps writing the old settings too (columns and `standardBriefing`), set to the nearest
+  equivalent, so a rollback still generates every deck; only an order the old build cannot express
+  falls back to the fixed order, and Key points only reads as Key points.
+- Project Officer access adds one column to `ProjectBriefingDecks` (personal or command, default
+  command), hand-written additive migration; every existing deck stays a command deck, so nothing
+  changes for Comdt or HoD. Rollback: the older build ignores the column but would show personal
+  decks to command users, which is acceptable for a rollback window.
+
+**PRs**
+
+1. This plan.
+2. **Project Officer decks.** Policy `ProjectBriefingDecks.Manage` allows Project Officer; a new
+   deck column marks personal or command decks; one server check in `ProjectBriefingDeckService`
+   (view, edit, duplicate, delete, restore) used by every page handler, the preview, Generate, the
+   project search and photo options, so hiding the menu is never the only guard. Library: "My
+   decks" for a Project Officer; command users see Project Officers' decks read-only with
+   Duplicate. Rail entry under My work in the Personal view; Add projects opens on My projects;
+   `AdminRoleAccessCatalog` lists the role. Handler authorisation tests for each role, checked in
+   the browser as a Project Officer-only user.
+3. **Blocks underneath.** The block list in the codec and `ProjectBriefingPresentationData`; the
+   composer builds plans from the list instead of the fixed sequence; old decks read into blocks;
+   the slide-for-slide equivalence tests; the old settings still written.
+4. **Deck tab as a block list.** Zones, switch, drag within a zone, remove, Add block library;
+   selecting a block opens its settings. The numbered steps for slides and extra slides and the
+   template "customised" badge go; Look (theme, insignia, closing) and Handling stay. The outline
+   and `SETTING_SLIDES` follow blocks.
+5. **Project slides block.** Design gallery and parts chips, replacing Layout, "Each project
+   gets", the key point slide, the brief layout and the cost step; Key points only in the composer,
+   the preview, slide facts ("data moved") and `ProjectBriefingContentGaps`.
+6. **Focus view.** Header button, hides the top bar and rail, remembered per person; Escape does
+   not leave it (Escape belongs to dialogs and Present); phones unchanged.
+7. **Analytics blocks** the owner picks from the candidates above, each a block drawn from the
+   deck's projects with its own slide facts.
+8. **Phones, Dark, docs** (this file's Studio and Deck sections rewritten to the block model, and
+   the access line in `docs/current-state.md`) and a fresh cold review.
