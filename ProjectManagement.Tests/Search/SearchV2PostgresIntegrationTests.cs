@@ -1081,6 +1081,26 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal(1, chip.Count);
     }
 
+    // When the result has no project, its chip opens the whole source; the count is the whole
+    // source's matches too, not one project's (it used to take the cluster's other rows' project).
+    [SearchV2PostgresFact]
+    public async Task RelatedChipCount_WithoutAProject_CountsTheWholeSource()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Training", "t-41", "Training tracker", "Trackers", "Ospreyhold training", null),
+            host.Entry("ProjectTot", "9941", "ToT", "Trackers", "Ospreyhold transfer", null) with { CanonicalEntityType = "Training", CanonicalEntityKey = "t-41", ParentProjectId = 9941 },
+            host.Entry("ProjectTot", "9942", "ToT", "Trackers", "Ospreyhold transfer two", null) with { ParentProjectId = 9942 });
+
+        var training = Assert.Single((await host.SearchAsync("ospreyhold")).Results, result => result.EntityType == "Training");
+        var chip = Assert.Single(training.RelatedResults);
+        Assert.Equal("ToT", chip.SourceModule);
+
+        var linked = await host.SearchAsync(new SearchRequest("ospreyhold", Sources: new[] { "ToT" }));
+        Assert.Equal(linked.FilteredHits, chip.Count);
+        Assert.Equal(2, chip.Count);
+    }
+
     // A source typed in another case ("training TRACKER" in a hand-edited URL) still filters.
     [SearchV2PostgresFact]
     public async Task SourceFilter_IgnoresCase()
