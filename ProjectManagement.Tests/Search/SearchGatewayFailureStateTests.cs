@@ -97,6 +97,64 @@ public sealed class SearchGatewayFailureStateTests
         Assert.Single(response.Results);
     }
 
+    // Every source gets the typed text: full-text sources exclude with websearch_to_tsquery,
+    // and the ILIKE sources (IPR, IT projects) split it themselves (SearchPhraseQuery).
+    [Fact]
+    public async Task RealLegacy_GivesEverySourceTheTypedText()
+    {
+        var services = new ServiceCollection();
+        var ipr = new Recording();
+        var itProjects = new Recording();
+        var projects = new Recording();
+        services.AddSingleton<IGlobalDocRepoSearchService>(new Recording());
+        services.AddSingleton<IGlobalFfcSearchService>(new Recording());
+        services.AddSingleton<IGlobalIprSearchService>(ipr);
+        services.AddSingleton<IGlobalActivitiesSearchService>(new Recording());
+        services.AddSingleton<IGlobalProjectDocumentSearchService>(new Recording());
+        services.AddSingleton<IGlobalProjectReportsSearchService>(new Recording());
+        services.AddSingleton<IGlobalItProjectSearchService>(itProjects);
+        services.AddSingleton<IGlobalProjectSearchService>(projects);
+        var legacy = new GlobalSearchService(services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), NullLogger<GlobalSearchService>.Instance);
+
+        await legacy.SearchAsync("cabling -fibre", CancellationToken.None);
+
+        Assert.Equal("cabling -fibre", ipr.Query);
+        Assert.Equal("cabling -fibre", itProjects.Query);
+        Assert.Equal("cabling -fibre", projects.Query);
+    }
+
+    private sealed class Recording :
+        IGlobalDocRepoSearchService, IGlobalFfcSearchService, IGlobalIprSearchService, IGlobalActivitiesSearchService,
+        IGlobalProjectDocumentSearchService, IGlobalProjectReportsSearchService, IGlobalItProjectSearchService, IGlobalProjectSearchService
+    {
+        public string? Query { get; private set; }
+
+        public Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, int maxResults, CancellationToken cancellationToken)
+        {
+            Query = query;
+            return Task.FromResult<IReadOnlyList<GlobalSearchHit>>(Array.Empty<GlobalSearchHit>());
+        }
+    }
+
+    [Theory]
+    [InlineData("Short description", "anything", "Short description")]
+    public void ItProjectExcerpt_ShortDescriptions_AreShownWhole(string description, string query, string expected)
+    {
+        Assert.Equal(expected, GlobalItProjectSearchService.Excerpt(description, query));
+    }
+
+    [Fact]
+    public void ItProjectExcerpt_StartsNearTheMatch()
+    {
+        var description = string.Join(' ', Enumerable.Repeat("filler", 80)) + " the fibre backbone links every block " + string.Join(' ', Enumerable.Repeat("tail", 40));
+
+        var excerpt = GlobalItProjectSearchService.Excerpt(description, "fibre backbone")!;
+
+        Assert.StartsWith("…", excerpt);
+        Assert.Contains("fibre backbone", excerpt);
+        Assert.True(excerpt.Length <= 242);
+    }
+
     // Eight sources; the first <paramref name="failing"/> throw, the rest find one project.
     private static GlobalSearchService RealLegacy(int failing)
     {

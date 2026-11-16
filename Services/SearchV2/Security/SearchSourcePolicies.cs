@@ -68,6 +68,39 @@ public static class SearchSourcePolicies
             : throw new InvalidOperationException(
                 $"Search source '{sourceModule}' has no entry in {nameof(SearchSourcePolicies)}. Add it with the policy its pages require.");
 
+    // The basic engine's label for each source it has, by Search V2 source name (and its
+    // own labels, which a URL may carry). A V2 source missing here (ARPP) has no basic-engine
+    // source: its filter cannot be applied there.
+    private static readonly IReadOnlyDictionary<string, string> LegacyLabels =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Projects"] = "Projects",
+            ["Project documents"] = "Project documents",
+            ["Document repository"] = "Document Repository",
+            ["FFC"] = "FFC",
+            ["IPR"] = "IPR",
+            ["Activities"] = "Activities",
+            ["Visits"] = "Visits tracker",
+            ["Visits tracker"] = "Visits tracker",
+            ["Social media"] = "Social media tracker",
+            ["Social media tracker"] = "Social media tracker",
+            ["Training tracker"] = "Training tracker",
+            ["ToT"] = "TOT tracker",
+            ["TOT tracker"] = "TOT tracker",
+            ["Proliferation"] = "Proliferation survey",
+            ["Proliferation survey"] = "Proliferation survey",
+            ["IT projects"] = "IT projects",
+            ["MOLTI projects"] = "MOLTI projects",
+            ["SRE projects"] = "SRE projects"
+        };
+
+    /// <summary>
+    /// The basic engine's label for a source filter (V2 "ToT" is its "TOT tracker"), or null
+    /// when the basic engine has no such source.
+    /// </summary>
+    public static string? LegacyLabelFor(string? source) =>
+        !string.IsNullOrWhiteSpace(source) && LegacyLabels.TryGetValue(source.Trim(), out var label) ? label : null;
+
     /// <summary>Deny-by-default visibility check for a source.</summary>
     public static bool IsVisible(string? source, IReadOnlySet<string> allowedPolicies)
     {

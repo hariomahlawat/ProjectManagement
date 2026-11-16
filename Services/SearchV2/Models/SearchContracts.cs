@@ -147,7 +147,8 @@ public sealed record SearchGatewayResponse(
     SearchV2ExecutionStatus V2ExecutionStatus = SearchV2ExecutionStatus.Disabled,
     string? V2DiagnosticId = null,
     bool IsUnavailable = false,
-    bool IsTooShort = false)
+    bool IsTooShort = false,
+    IReadOnlyList<string>? UnappliedSources = null)
 {
     /// <summary>The fewest letters or digits a search must have before any engine runs it.</summary>
     public const int MinimumQueryCharacters = 2;

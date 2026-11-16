@@ -165,7 +165,8 @@ public sealed class SearchGateway : ISearchGateway
             user,
             fellBackToLegacy ? TimeSpan.FromSeconds(Math.Max(1, _options.QueryTimeoutSeconds)) : null,
             cancellationToken);
-        var legacyResults = WithoutExcludedWords(legacyRead.Hits, normalized.Excluded);
+        var legacyResults = WithoutExcludedWords(legacyRead.Hits, normalized.ExcludedTyped);
+        var (legacySources, unappliedSources) = TranslateSourcesForLegacy(request.Sources);
 
         var v2Status = v2Response?.ExecutionStatus
             ?? (_options.Enabled ? SearchV2ExecutionStatus.IndexNotReady : SearchV2ExecutionStatus.Disabled);
@@ -182,12 +183,12 @@ public sealed class SearchGateway : ISearchGateway
         // Disjunctive Legacy facets/counts mirror the V2 page contract: the All
         // count excludes only the active category, while the result list applies
         // both category and source. Legacy remains a bounded/partial candidate set.
-        var allScope = ApplyLegacyFilters(legacyResults, null, request.Sources);
+        var allScope = ApplyLegacyFilters(legacyResults, null, legacySources);
         var categoryFacetScope = allScope;
         var sourceFacetScope = ApplyLegacyFilters(legacyResults, request.Categories, null);
         var categoryFacets = BuildLegacyFacets(categoryFacetScope, static hit => LegacyCategory(hit.Source));
         var sourceFacets = BuildLegacyFacets(sourceFacetScope, static hit => hit.Source);
-        var filtered = ApplyLegacyFilters(legacyResults, request.Categories, request.Sources);
+        var filtered = ApplyLegacyFilters(legacyResults, request.Categories, legacySources);
         var adapted = filtered.Select((hit, index) => AdaptLegacy(hit, normalized, index + 1)).ToArray();
 
         stopwatch.Stop();
@@ -226,7 +227,29 @@ public sealed class SearchGateway : ISearchGateway
             fellBackToLegacy,
             v2Status,
             v2Response?.DiagnosticId,
-            IsUnavailable: legacyRead.Failed);
+            IsUnavailable: legacyRead.Failed,
+            UnappliedSources: unappliedSources);
+    }
+
+    /// <summary>
+    /// Source filters in the basic engine's labels (V2 "ToT" is its "TOT tracker"). A source it
+    /// does not have (ARPP) is returned as not applied instead of filtering every hit away;
+    /// when no selected source applies, the list is not filtered by source at all.
+    /// </summary>
+    internal static (IReadOnlyList<string>? Applied, IReadOnlyList<string> Unapplied) TranslateSourcesForLegacy(IReadOnlyList<string>? sources)
+    {
+        var selected = sources?.Where(static value => !string.IsNullOrWhiteSpace(value)).ToArray() ?? Array.Empty<string>();
+        if (selected.Length == 0) return (null, Array.Empty<string>());
+
+        var applied = new List<string>();
+        var unapplied = new List<string>();
+        foreach (var source in selected)
+        {
+            if (SearchSourcePolicies.LegacyLabelFor(source) is { } label) applied.Add(label);
+            else unapplied.Add(source.Trim());
+        }
+
+        return (applied.Count == 0 ? null : applied.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), unapplied);
     }
 
     public async Task<IReadOnlyList<SearchSuggestion>> SuggestAsync(
@@ -364,19 +387,38 @@ public sealed class SearchGateway : ISearchGateway
 
     /// <summary>
     /// Basic-engine hits without the records that contain an excluded word in their title,
-    /// excerpt or details. A word also drops its longer forms ("-drone" drops "drones"), close
-    /// to V2's English matching.
+    /// excerpt or details. <paramref name="excluded"/> are the exclusions as typed ("-T-90"):
+    /// the word is matched whole, hyphens kept, with its usual endings ("-drone" drops
+    /// "drones", close to V2's English matching, but "-art" keeps "artillery"). A check that
+    /// times out keeps the hit: the database-side exclusion already ran where it could.
     /// </summary>
     internal static IReadOnlyList<GlobalSearchHit> WithoutExcludedWords(IReadOnlyList<GlobalSearchHit> hits, IReadOnlyList<string> excluded)
     {
-        if (excluded.Count == 0 || hits.Count == 0) return hits;
+        var words = excluded
+            .Select(static value => value.TrimStart('-').Trim())
+            .Where(static value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (words.Length == 0 || hits.Count == 0) return hits;
         var pattern = new System.Text.RegularExpressions.Regex(
-            @"(?<![\p{L}\p{N}])(?:" + string.Join('|', excluded.Select(System.Text.RegularExpressions.Regex.Escape)) + @")",
+            @"(?<![\p{L}\p{N}])(?:" + string.Join('|', words.Select(System.Text.RegularExpressions.Regex.Escape)) + @")(?:s|es|ed|ing|er|ers)?(?![\p{L}\p{N}])",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant,
             TimeSpan.FromSeconds(1));
         return hits
-            .Where(hit => !pattern.IsMatch(string.Join(' ', hit.Title, StripMarks(hit.Snippet), hit.Extra)))
+            .Where(hit => !Contains(hit))
             .ToArray();
+
+        bool Contains(GlobalSearchHit hit)
+        {
+            try
+            {
+                return pattern.IsMatch(string.Join(' ', hit.Title, StripMarks(hit.Snippet), hit.Extra));
+            }
+            catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
+            {
+                return false;
+            }
+        }
 
         static string StripMarks(string? value) => (value ?? string.Empty).Replace("<mark>", string.Empty, StringComparison.OrdinalIgnoreCase).Replace("</mark>", string.Empty, StringComparison.OrdinalIgnoreCase);
     }
@@ -403,6 +445,8 @@ public sealed class SearchGateway : ISearchGateway
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
+            // The access lookup may fail too; observe it so its error is not left unobserved.
+            _ = accessTask.ContinueWith(static task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted);
             _logger.LogWarning(ex, "Legacy search failed while Search V2 gateway was active.");
             return new LegacyRead(Array.Empty<GlobalSearchHit>(), true);
         }
@@ -493,7 +537,6 @@ public sealed class SearchGateway : ISearchGateway
             ["Document Repository"] = "Documents",
             ["Project documents"] = "Documents",
             ["Projects"] = "Projects",
-            ["Project portfolio"] = "Projects",
             ["IT projects"] = "Projects",
             ["MOLTI projects"] = "Projects",
             ["SRE projects"] = "Projects",
