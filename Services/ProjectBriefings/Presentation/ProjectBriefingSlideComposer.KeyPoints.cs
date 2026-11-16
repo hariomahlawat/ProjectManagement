@@ -149,21 +149,7 @@ public sealed partial class ProjectBriefingSlideComposer
         ProjectBriefingSlideRole role,
         double maximumPhotoWidth)
     {
-        var statusRows = new List<KeyPointBandRow>(1);
-        if (data.StandardSlideOptions.ShowPresentStatus)
-        {
-            var status = TruncateAtWord(NormalizeExternalStatus(project.ExternalStatus), KeyPointStatusMaximumCharacters)
-                .Replace('\n', ' ');
-            if (!string.IsNullOrWhiteSpace(status))
-            {
-                statusRows.Add(new KeyPointBandRow(
-                    "PRESENT STATUS",
-                    status,
-                    IsStatus: true,
-                    KeyPointBandRowHeight(status, KeyPointStatusMaximumLines)));
-            }
-        }
-
+        var statusRows = KeyPointStatusRows(data, project);
         var keyPointRows = KeyPointSlide(data) == role
             ? project.KeyPoints
                 .Where(point => !string.IsNullOrWhiteSpace(point.Text))
@@ -175,12 +161,7 @@ public sealed partial class ProjectBriefingSlideComposer
                 .ToList()
             : new List<KeyPointBandRow>();
 
-        var bandHeight = statusRows.Count + keyPointRows.Count == 0
-            ? 0d
-            : KeyPointBandPaddingTop
-                + statusRows.Sum(row => row.Height)
-                + (keyPointRows.Count > 0 ? KeyPointBandHeadingHeight + keyPointRows.Sum(row => row.Height) : 0d)
-                + KeyPointBandPaddingBottom;
+        var bandHeight = KeyPointBandHeight(statusRows, keyPointRows);
         var bandY = KeyPointLayoutBottom - bandHeight;
         var rowBottom = bandHeight > 0 ? bandY - KeyPointRowGap : KeyPointLayoutBottom;
         var rowHeight = rowBottom - KeyPointLayoutTop;
@@ -206,6 +187,40 @@ public sealed partial class ProjectBriefingSlideComposer
             statusRows,
             keyPointRows);
     }
+
+    // The present status remark as a band row, when the deck shows it and the project has one.
+    private static IReadOnlyList<KeyPointBandRow> KeyPointStatusRows(
+        ProjectBriefingPresentationData data,
+        ProjectBriefingPresentationProject project)
+    {
+        if (!data.StandardSlideOptions.ShowPresentStatus)
+        {
+            return Array.Empty<KeyPointBandRow>();
+        }
+
+        var status = TruncateAtWord(NormalizeExternalStatus(project.ExternalStatus), KeyPointStatusMaximumCharacters)
+            .Replace('\n', ' ');
+        return string.IsNullOrWhiteSpace(status)
+            ? Array.Empty<KeyPointBandRow>()
+            : new[]
+            {
+                new KeyPointBandRow(
+                    "PRESENT STATUS",
+                    status,
+                    IsStatus: true,
+                    KeyPointBandRowHeight(status, KeyPointStatusMaximumLines))
+            };
+    }
+
+    private static double KeyPointBandHeight(
+        IReadOnlyList<KeyPointBandRow> statusRows,
+        IReadOnlyList<KeyPointBandRow> keyPointRows)
+        => statusRows.Count + keyPointRows.Count == 0
+            ? 0d
+            : KeyPointBandPaddingTop
+                + statusRows.Sum(row => row.Height)
+                + (keyPointRows.Count > 0 ? KeyPointBandHeadingHeight + keyPointRows.Sum(row => row.Height) : 0d)
+                + KeyPointBandPaddingBottom;
 
     private static double KeyPointBandRowHeight(string text, int maximumLines)
     {
@@ -404,28 +419,13 @@ public sealed partial class ProjectBriefingSlideComposer
             return;
         }
 
-        var theme = canvas.Theme;
-        canvas.AddRoundedRect(
-            KeyPointLayoutLeft,
-            layout.BandY,
-            KeyPointLayoutRight - KeyPointLayoutLeft,
-            layout.BandHeight,
-            theme.Surface,
-            theme.Border,
-            .08,
-            "Status and key points band");
-
-        var y = layout.BandY + KeyPointBandPaddingTop;
-        foreach (var row in layout.StatusRows)
-        {
-            AddKeyPointBandRow(canvas, row, y, theme.OperationalAccent, 9.0);
-            y += row.Height;
-        }
-
+        var y = AddKeyPointStatusBand(canvas, layout.BandY, layout.BandHeight, layout.StatusRows);
         if (layout.KeyPointRows.Count == 0)
         {
             return;
         }
+
+        var theme = canvas.Theme;
 
         if (layout.StatusRows.Count > 0)
         {
@@ -468,6 +468,34 @@ public sealed partial class ProjectBriefingSlideComposer
                     .5);
             }
         }
+    }
+
+    // The band's frame and status rows; returns where the rows below the status start.
+    private static double AddKeyPointStatusBand(
+        SlideCanvas canvas,
+        double bandY,
+        double bandHeight,
+        IReadOnlyList<KeyPointBandRow> statusRows)
+    {
+        var theme = canvas.Theme;
+        canvas.AddRoundedRect(
+            KeyPointLayoutLeft,
+            bandY,
+            KeyPointLayoutRight - KeyPointLayoutLeft,
+            bandHeight,
+            theme.Surface,
+            theme.Border,
+            .08,
+            "Status and key points band");
+
+        var y = bandY + KeyPointBandPaddingTop;
+        foreach (var row in statusRows)
+        {
+            AddKeyPointBandRow(canvas, row, y, theme.OperationalAccent, 9.0);
+            y += row.Height;
+        }
+
+        return y;
     }
 
     private static void AddKeyPointBandRow(
