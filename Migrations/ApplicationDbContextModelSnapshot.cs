@@ -6042,6 +6042,13 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Command");
+
                     b.Property<string>("SelectionRulesJson")
                         .HasColumnType("jsonb");
 
@@ -6066,7 +6073,12 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("NormalizedName")
                         .IsUnique()
                         .HasDatabaseName("UX_ProjectBriefingDecks_NormalizedName")
-                        .HasFilter("\"DeletedAtUtc\" IS NULL");
+                        .HasFilter("\"DeletedAtUtc\" IS NULL AND \"Scope\" = 'Command'");
+
+                    b.HasIndex("OwnerUserId", "NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProjectBriefingDecks_Personal_OwnerUserId_NormalizedName")
+                        .HasFilter("\"DeletedAtUtc\" IS NULL AND \"Scope\" = 'Personal'");
 
                     b.ToTable("ProjectBriefingDecks");
                 });

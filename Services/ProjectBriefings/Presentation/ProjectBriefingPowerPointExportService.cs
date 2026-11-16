@@ -33,12 +33,39 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
         string requestingUserId,
         CancellationToken cancellationToken = default)
     {
+        // Generating records the PowerPoint on the deck, so it is for someone who may change it;
+        // checked first so a view-only request does not build the slides for nothing.
+        var access = await _deckService.GetAccessAsync(deckId, requestingUserId, cancellationToken);
+        if (access != ProjectBriefingDeckAccessLevel.Edit)
+        {
+            throw access == ProjectBriefingDeckAccessLevel.View
+                ? new InvalidOperationException(ProjectBriefingDeckService.ViewOnlyMessage)
+                : new KeyNotFoundException(ProjectBriefingDeckService.NotFoundMessage);
+        }
+
         var (data, content, slideCount, _) = await ComposeAsync(deckId, requestingUserId, cancellationToken);
 
         // What these slides say about each project, so the library can tell when the data moves.
         var slideFacts = ProjectBriefingSlideFacts.Write(data);
         await _deckService.MarkGeneratedAsync(deckId, requestingUserId, slideCount, cancellationToken, slideFacts);
+        return Package(data, content, slideCount);
+    }
 
+    public async Task<ProjectBriefingExportResult> DownloadAsync(
+        long deckId,
+        string requestingUserId,
+        CancellationToken cancellationToken = default)
+    {
+        // The deck's data refuses anyone who may not see it (ProjectBriefingDataService).
+        var (data, content, slideCount, _) = await ComposeAsync(deckId, requestingUserId, cancellationToken);
+        return Package(data, content, slideCount);
+    }
+
+    private static ProjectBriefingExportResult Package(
+        ProjectBriefingPresentationData data,
+        byte[] content,
+        int slideCount)
+    {
         var date = TimeZoneInfo.ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst()).ToString("yyyyMMdd");
         var safeName = FileNameSanitizer().Replace(data.DeckName, "_").Trim('_');
         if (string.IsNullOrWhiteSpace(safeName))

@@ -803,6 +803,7 @@ builder.Services.AddScoped<IProjectBriefingCostResolver, ProjectBriefingCostReso
 builder.Services.AddScoped<IProjectBriefingExternalStatusService, ProjectBriefingExternalStatusService>();
 builder.Services.AddScoped<IProjectBriefingUpdateSheetFactsResolver, ProjectBriefingUpdateSheetFactsResolver>();
 builder.Services.AddScoped<IProjectBriefingPhotoLoader, ProjectBriefingPhotoLoader>();
+builder.Services.AddScoped<IProjectBriefingDeckRoleResolver, ProjectBriefingDeckRoleResolver>();
 builder.Services.AddScoped<IProjectBriefingDeckService, ProjectBriefingDeckService>();
 builder.Services.AddScoped<IProjectBriefingInstitutionalProfileService, ProjectBriefingInstitutionalProfileService>();
 builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();

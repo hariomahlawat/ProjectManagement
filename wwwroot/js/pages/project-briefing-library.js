@@ -128,7 +128,7 @@ if (library) {
   try {
     const saved = JSON.parse(window.sessionStorage.getItem(viewKey) || 'null');
     if (saved) {
-      if (saved.scope === 'mine') setScope('mine');
+      if (saved.scope === 'mine' && scopeButtons.length) setScope('mine');
       if (search && typeof saved.query === 'string') search.value = saved.query;
       if (sort && ['edited', 'generated', 'name'].includes(saved.sort)) sort.value = saved.sort;
       order();

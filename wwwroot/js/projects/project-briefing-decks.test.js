@@ -85,7 +85,8 @@ test('add projects opens as a dialog whose selections save in place', () => {
   assert.match(source, /addProjectsModal\?\.show\(\);/);
   assert.match(viewSource, /id="pbd-add-projects-modal"/);
   const addSelectionForms = viewSource.match(/asp-page-handler="AddSelection" class="pbd-(quick-card|inline-form|category-form)" data-pbd-add-selection-form/g) || [];
-  assert.equal(addSelectionForms.length, 5);
+  // Five selections, and My projects for a Project Officer.
+  assert.equal(addSelectionForms.length, 6);
   assert.match(source, /event\.target\.closest\('\[data-pbd-add-selection-form\]'\)/);
   assert.match(source, /'X-Requested-With': 'XMLHttpRequest'/);
   assert.doesNotMatch(viewSource, /data-pbd-selector-details/);

@@ -176,7 +176,7 @@ public sealed class AdminBriefingDecksRecoveryTests
     {
         audit = new RecordingAudit();
         var clock = FakeClock.AtUtc(Now);
-        var service = new ProjectBriefingDeckService(db, new NoSelection(), audit, clock, NullLogger<ProjectBriefingDeckService>.Instance);
+        var service = new ProjectBriefingDeckService(db, new NoSelection(), audit, clock, NullLogger<ProjectBriefingDeckService>.Instance, ProjectManagement.Tests.ProjectBriefings.FixedDeckRoles.Command);
         var page = new DeletedModel(service, new AdminTimeService(clock));
         var httpContext = new DefaultHttpContext
         {

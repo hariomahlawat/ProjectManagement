@@ -43,7 +43,8 @@ public sealed class DeletedModel : PageModel
             return Challenge();
         }
 
-        Decks = await _decks.ListDeletedAsync(userId, cancellationToken);
+        // This page is the administrators' recovery for every deck, command or personal.
+        Decks = await _decks.ListDeletedAsync(userId, cancellationToken, asRecoveryAdministrator: true);
         Header = new AdminPageHeaderModel
         {
             Title = "Restore deleted items",
@@ -63,7 +64,7 @@ public sealed class DeletedModel : PageModel
 
         try
         {
-            var restored = await _decks.RestoreAsync(deckId, userId, cancellationToken);
+            var restored = await _decks.RestoreAsync(deckId, userId, cancellationToken, asRecoveryAdministrator: true);
             TempData[FlashMessageKeys.AdminRecoverySuccess] = restored.Renamed
                 ? $"“{restored.Name}” is back in Briefing Studio. It has a new name because another deck now uses the old one."
                 : $"“{restored.Name}” is back in Briefing Studio.";

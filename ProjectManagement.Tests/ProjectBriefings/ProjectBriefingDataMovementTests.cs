@@ -433,7 +433,7 @@ public sealed class ProjectBriefingDataMovementTests
         });
         await db.SaveChangesAsync();
         var facts = ProjectBriefingSlideFacts.Write(ProjectBriefingLayout.StandardBriefing, ProjectBriefingCostMode.Both, new[] { Fact(1, "DEVP", "a", 1m) });
-        var deckService = new ProjectBriefingDeckService(db, Stub<IProjectBriefingSelectionService>(), new NoAudit(), new FixedClock(), NullLogger<ProjectBriefingDeckService>.Instance);
+        var deckService = new ProjectBriefingDeckService(db, Stub<IProjectBriefingSelectionService>(), new NoAudit(), new FixedClock(), NullLogger<ProjectBriefingDeckService>.Instance, ProjectManagement.Tests.ProjectBriefings.FixedDeckRoles.Command);
 
         // ExecuteUpdate is not supported by the in-memory provider; the stored value is what the
         // list reads, so set it as MarkGeneratedAsync does.
@@ -601,7 +601,8 @@ public sealed class ProjectBriefingDataMovementTests
             Stub<ProjectManagement.Services.Ffc.IFfcFootprintService>(),
             Stub<ProjectManagement.Services.Ffc.Presentation.IFfcPresentationMapRenderer>(),
             new FixedClock(),
-            NullLogger<ProjectBriefingDataService>.Instance);
+            NullLogger<ProjectBriefingDataService>.Instance,
+            FixedDeckRoles.Command);
 
     // A stand-in for a dependency these tests never reach.
     private static T Stub<T>() where T : class => DispatchProxy.Create<T, Unused>();

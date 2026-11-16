@@ -80,7 +80,7 @@ if (root) {
     savedChip.classList.toggle('is-saving', state === 'saving');
     savedChip.classList.toggle('is-error', state === 'error');
     if (savedChipText) {
-      savedChipText.textContent = state === 'saving' ? 'Saving…' : state === 'error' ? 'Not saved' : 'Saved · shared';
+      savedChipText.textContent = state === 'saving' ? 'Saving…' : state === 'error' ? 'Not saved' : (savedChip?.dataset.savedLabel || 'Saved · shared');
     }
   };
   const runDeckMutation = (mutate) => {

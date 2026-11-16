@@ -104,6 +104,17 @@ public sealed class IndexModel : PageModel
     // Opened by a new deck: the Studio starts on Add projects.
     public bool StartWithAddProjects { get; private set; }
 
+    // Comdt and HoD share command decks; anyone else here is a Project Officer with decks of
+    // their own (ProjectBriefingDeckAccessRules). Only wording and the rail follow this; every
+    // deck is checked on the server.
+    public bool IsCommandUser { get; private set; }
+
+    // The open deck is a Project Officer's own (shown as theirs, not as shared).
+    public bool SelectedDeckIsPersonal { get; private set; }
+
+    // How many projects this Project Officer leads, for the "My projects" quick add.
+    public int MyProjectCount { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(long? deckId, string? start, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
@@ -801,7 +812,8 @@ public sealed class IndexModel : PageModel
                     TechnicalCategoryIds = input.TechnicalCategoryIds,
                     ProjectIds = input.ProjectIds,
                     CompletionYearFrom = input.CompletionYearFrom,
-                    CompletionYearTo = input.CompletionYearTo
+                    CompletionYearTo = input.CompletionYearTo,
+                    OfficerUserId = userId
                 },
                 cancellationToken);
 
@@ -1034,10 +1046,15 @@ public sealed class IndexModel : PageModel
         int projectId,
         CancellationToken cancellationToken)
     {
-        RequireUserId();
+        var userId = RequireUserId();
         if (deckId <= 0 || projectId <= 0)
         {
             return BadRequest(new { message = "The photo request is invalid." });
+        }
+
+        if (await _deckService.GetAccessAsync(deckId, userId, cancellationToken) != ProjectBriefingDeckAccessLevel.Edit)
+        {
+            return NotFound(new { message = ProjectBriefingDeckService.NotFoundMessage });
         }
 
         var photos = await _dataService.GetPhotoOptionsAsync(deckId, projectId, cancellationToken);
@@ -1230,6 +1247,34 @@ public sealed class IndexModel : PageModel
         return keys;
     }
 
+    // The PowerPoint of a deck this person may see, without recording a generation: how a command
+    // user takes a Project Officer's deck they may not change. The deck itself is untouched.
+    public async Task<IActionResult> OnPostDownloadAsync(long deckId, CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        try
+        {
+            var result = await _exportService.DownloadAsync(deckId, userId, cancellationToken);
+            return File(result.Content, result.ContentType, result.FileName);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            ErrorMessage = exception.Message;
+            return RedirectToLibrary();
+        }
+        catch (Exception exception)
+        {
+            var traceId = HttpContext.TraceIdentifier;
+            _logger.LogError(exception, "Project briefing deck download failed. DeckId={DeckId}, TraceId={TraceId}", deckId, traceId);
+            ErrorMessage = $"The PowerPoint could not be made. Reference: {traceId}";
+            return RedirectToLibrary();
+        }
+    }
+
     public async Task<IActionResult> OnPostGenerateAsync(long deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
@@ -1309,25 +1354,39 @@ public sealed class IndexModel : PageModel
         long? requestedDeckId,
         CancellationToken cancellationToken)
     {
+        IsCommandUser = User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD);
         Decks = await _deckService.ListAsync(userId, cancellationToken);
         DeletedDecks = await _deckService.ListDeletedAsync(userId, cancellationToken);
 
         // No deck in the address: the library, where a deck is chosen. A deck is never opened
-        // (and so never edited) without the person picking it.
+        // (and so never edited) without the person picking it. The Studio is for decks this person
+        // may change; a Project Officer's deck a command user may only look at stays in the
+        // library, with Download and Duplicate.
         if (requestedDeckId.HasValue)
         {
-            SelectedDeck = await _dataService.GetDeckAsync(requestedDeckId.Value, userId, cancellationToken, includeFfcFootprintSummary: true);
+            var access = await _deckService.GetAccessAsync(requestedDeckId.Value, userId, cancellationToken);
+            if (access == ProjectBriefingDeckAccessLevel.Edit)
+            {
+                SelectedDeck = await _dataService.GetDeckAsync(requestedDeckId.Value, userId, cancellationToken, includeFfcFootprintSummary: true);
+                SelectedDeckIsPersonal = Decks.FirstOrDefault(row => row.Id == requestedDeckId.Value)?.Scope
+                    == ProjectBriefingDeckScope.Personal;
+            }
+
             if (SelectedDeck is null && string.IsNullOrWhiteSpace(ErrorMessage))
             {
-                DeckNotFoundMessage = "That deck was not found. It may have been deleted; deleted decks can be restored from Recently deleted.";
+                DeckNotFoundMessage = access == ProjectBriefingDeckAccessLevel.View
+                    ? "That deck is a Project Officer's own. Download its PowerPoint or duplicate it from the list below; only its owner can change it."
+                    : "That deck was not found. It may have been deleted; deleted decks can be restored from Recently deleted.";
             }
         }
 
         if (SelectedDeck is null)
         {
             Decks = await _dataService.WithDataMovementAsync(Decks, cancellationToken);
-            ContinueDeck = Decks.FirstOrDefault(deck => deck.LastEditedByMe) ?? Decks.FirstOrDefault();
-            MovedDecks = Decks
+            // Continue and Needs attention offer decks this person can open in the Studio.
+            var editable = Decks.Where(deck => deck.CanEdit).ToList();
+            ContinueDeck = editable.FirstOrDefault(deck => deck.LastEditedByMe) ?? editable.FirstOrDefault();
+            MovedDecks = editable
                 .Where(deck => deck.Id != ContinueDeck?.Id && deck.DataMovement is { HasMoved: true })
                 .OrderByDescending(deck => deck.DataMovement!.Total)
                 .ThenByDescending(deck => deck.LastGeneratedAtUtc)
@@ -1338,9 +1397,21 @@ public sealed class IndexModel : PageModel
         {
             SelectionOptions = await _selectionService.GetOptionsAsync(cancellationToken);
             FfcFootprintPreviewSummary = SelectedDeck.FfcFootprintPreviewSummary;
+            if (User.IsInRole(RoleNames.ProjectOfficer))
+            {
+                MyProjectCount = (await _selectionService.ResolveAsync(
+                    new ProjectBriefingSelectionRequest
+                    {
+                        Kind = ProjectBriefingSelectionKind.MyProjects,
+                        OfficerUserId = userId
+                    },
+                    cancellationToken)).ProjectIds.Count;
+            }
         }
 
-        var navigation = await _commandWorkspaceService.GetNavigationShellAsync("briefing-decks", cancellationToken);
+        var navigation = IsCommandUser
+            ? await _commandWorkspaceService.GetNavigationShellAsync("briefing-decks", cancellationToken)
+            : null;
         var hasProjectOfficerAccess = User.IsInRole(RoleNames.ProjectOfficer);
         var personalNavigation = hasProjectOfficerAccess
             ? await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
@@ -1359,16 +1430,16 @@ public sealed class IndexModel : PageModel
 
         CommandRail = new CommandWorkspaceRailVm
         {
-            HasCommandAccess = true,
+            HasCommandAccess = IsCommandUser,
             HasProjectOfficerAccess = hasProjectOfficerAccess,
             HasItoAccess = hasItoAccess,
             LiveItProjectCount = liveItProjectCount,
             AssignedModuleLinks = await AssignedModuleLinksAsync(cancellationToken),
             CanViewDocuments = hasProjectOfficerAccess,
-            ActiveLens = "command",
-            ActiveItem = "command-briefing-decks",
-            ProjectOfficerCount = navigation.ProjectOfficerCount,
-            TotalOngoingProjects = navigation.TotalOngoingProjects,
+            ActiveLens = IsCommandUser ? "command" : "personal",
+            ActiveItem = IsCommandUser ? "command-briefing-decks" : "personal-briefing-decks",
+            ProjectOfficerCount = navigation?.ProjectOfficerCount ?? 0,
+            TotalOngoingProjects = navigation?.TotalOngoingProjects ?? 0,
             AssignedProjectCount = personalNavigation.AssignedProjectCount,
             AssignedTaskCount = personalNavigation.OfficialTaskCount,
             AssignedIdeaCount = personalNavigation.AssignedIdeaCount,
