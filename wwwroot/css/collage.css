@@ -1999,3 +1999,21 @@
 .clg-previewing .clg-skip {
     display: none;
 }
+
+/* ---------- PRISM's toasts in the editor (docs/ux/collage-review-4-fixes.md, PR 3) ----------
+   The stack is lifted above the selected item's toolbar and the phone's bottom bar when they are
+   in its way (collage-messages.js sets --clg-toast-lift), and waits dimmed behind an open dialog. */
+body.is-editing .prism-toasts {
+    translate: 0 calc(-1 * var(--clg-toast-lift, 0px));
+}
+
+body.clg-dialog-open .prism-toasts {
+    z-index: 1;
+    opacity: 0.35;
+    filter: saturate(0.5);
+    pointer-events: none;
+}
+
+body.clg-dialog-open .prism-toasts .prism-toast {
+    pointer-events: none;
+}

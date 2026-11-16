@@ -209,7 +209,8 @@
   const keepingFocus = (render) => focusKeeper.keep(render);
 
   // messages: the live line for screen readers, alerts in the toast stack, and the busy line (collage-messages.js).
-  const { announce, showAlert, clearAlert, changeMadeAfterAlert, busy } = window.PrismCollageMessages.createMessages({ $, announcer, alertBox, busyBox });
+  // PRISM's toasts stay clear of the selected item's toolbar and the phone's bottom bar.
+  const { announce, showAlert, clearAlert, changeMadeAfterAlert, busy, clearEditorToasts } = window.PrismCollageMessages.createMessages({ $, announcer, alertBox, busyBox, views, obstacles: [toolbar, $('.clg-rail')] });
   // ---------------------------------------------------------------------------
   // Views
   // ---------------------------------------------------------------------------
@@ -315,6 +316,8 @@
     resetEditor();
     collage = core.newCollage(core.DEFAULT_SIZE);
     changes.start(collage);
+    // The editor's messages and Undo offers do not follow the user to the start screen.
+    clearEditorToasts();
     showView('start');
     renderDrafts();
   }
