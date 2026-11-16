@@ -254,13 +254,11 @@ test('SDD institutional profile uses a dedicated additional-slide editor with is
 });
 
 
-test('additional-slide workspace exposes a registered slide library and ordered slide instances', () => {
+test('institution slides are blocks in the deck list, and the slide library still adds them', () => {
   assert.match(viewSource, /pbd-additional-slide-library-modal/);
-  assert.match(viewSource, /ProjectBriefingAdditionalSlideType\.InstitutionalProfile/);
-  assert.match(viewSource, /ProjectBriefingAdditionalSlideType\.RoleAndCharter/);
-  assert.match(viewSource, /data-pbd-additional-slide-list/);
-  assert.match(viewSource, /asp-page-handler="ReorderAdditionalSlides"/);
-  assert.match(viewSource, /asp-page-handler="RemoveAdditionalSlide"/);
+  assert.match(viewSource, /ProjectBriefingDeckBlockType\.InstitutionalProfile/);
+  assert.match(viewSource, /ProjectBriefingDeckBlockType\.RoleAndCharter/);
+  assert.match(viewSource, /data-pbd-block-zone/);
   assert.doesNotMatch(viewSource, /name="IncludeInstitutionalProfile"[\s\S]{0,250}pbd-settings-slide-toggle/);
 });
 
@@ -291,25 +289,34 @@ test('briefing workflows use the reusable PRISM confirmation dialog instead of b
   assert.match(confirmSource, /focus: 'cancel'/);
 });
 
-test('institution slides live in the Extra slides step; their forms sit outside the settings form', () => {
-  // Add slide is offered only while a slide type is still missing.
-  assert.match(viewSource, /@if \(missingAdditionalSlideTypes\.Length > 0\)\s*\{\s*<button type="button"\s*class="btn btn-sm btn-link"/);
-  assert.doesNotMatch(viewSource, /data-pbd-add-slide-disabled-tip/);
-  const extraStep = viewSource.slice(viewSource.indexOf('data-pbd-step="extra"'), viewSource.indexOf('data-pbd-step="look"'));
-  assert.match(extraStep, /data-pbd-additional-slides/);
-  assert.match(extraStep, /form="pbd-additional-slide-toggle-@slideKey"/);
-  assert.match(extraStep, /form="pbd-additional-slide-remove-@slideKey"/);
-  assert.doesNotMatch(extraStep, /<form /);
-  assert.match(viewSource, /id="pbd-additional-slide-toggle-@slideKey" data-pbd-additional-slide-toggle-form/);
-  assert.match(source, /const form = toggle\.form \|\| toggle\.closest/);
-  assert.match(source, /\.\.\.institutionSlides\(\)\]\),/);
+test('slides in this deck: one switchable, reorderable block list saved in place', () => {
+  assert.doesNotMatch(viewSource, /data-pbd-step="extra"/);
+  const slidesStep = viewSource.slice(viewSource.indexOf('data-pbd-step="slides"'), viewSource.indexOf('data-pbd-step="project"'));
+  assert.match(slidesStep, /data-pbd-blocks/);
+  assert.match(slidesStep, /data-pbd-block-switch/);
+  assert.match(slidesStep, /data-pbd-block-handle/);
+  // The settings form still reads what the deck shows, from hidden inputs the list keeps current.
+  assert.match(slidesStep, /data-pbd-block-mirror/);
+  // Outside the settings form's data, so a block save never marks unsaved settings as saved.
+  assert.equal((slidesStep.match(/<input form="pbd-block-mirror"/g) || []).length, 8);
+  assert.doesNotMatch(source, /The hidden inputs moved with a saved change/);
+  assert.match(source, /event\.detail\.changed\.includes\('Layout'\)\) window\.location\.reload\(\)/);
+  assert.match(viewSource, /data-blocks-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateBlocks"\)"/);
+  assert.match(source, /body: JSON\.stringify\(\{ deckId, rowVersion: currentRowVersion\(\), blocks: readBlocks\(\) \}\)/);
+  assert.match(source, /restoreBlocks\(before\)/);
+  // One block save at a time, so a failed save cannot undo a newer edit.
+  assert.match(source, /if \(blocksBusy\) return;/);
+  assert.match(source, /sorter\.option\('disabled', busy\)/);
+  assert.match(source, /finally \{\s*setBlocksBusy\(false\);/);
+  assert.match(source, /event\.key === 'ArrowUp' \? -1 : 1/);
+  assert.match(source, /slides: blocksOn\(\)\.join/);
 });
 
 test('FFC Global Footprint is an ERP-backed fixed concluding additional slide', () => {
   assert.match(viewSource, /ProjectBriefingAdditionalSlideType\.FfcGlobalFootprint/);
-  assert.match(viewSource, /Opening slides/);
-  assert.match(viewSource, /Before closing/);
-  assert.match(viewSource, /title="Fixed immediately before the closing slide"/);
+  assert.match(viewSource, /Label: "Opening"/);
+  assert.match(viewSource, /Label: "Closing"/);
+  assert.match(viewSource, /title="Fixed in its place"/);
   assert.match(viewSource, /Each approved slide type can be added once/);
   assert.match(viewSource, /data-pbd-ffc-footprint-open/);
   assert.match(ffcEditorSource, /FfcFootprintPreviewSummary/);

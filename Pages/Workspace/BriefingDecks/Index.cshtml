@@ -143,7 +143,8 @@
           data-item-photo-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateItemPhoto")"
           data-speaker-notes-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateSpeakerNotes")"
           data-photo-options-url="@Url.Page("/Workspace/BriefingDecks/Index", "PhotoOptions")"
-          data-preset-url="@Url.Page("/Workspace/BriefingDecks/Index", "ApplyPreset")">
+          data-preset-url="@Url.Page("/Workspace/BriefingDecks/Index", "ApplyPreset")"
+          data-blocks-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateBlocks")">
         <form method="post" class="pbd-antiforgery" aria-hidden="true">
             @Html.AntiForgeryToken()
         </form>
@@ -498,7 +499,7 @@
                                     <details class="pbd-step" data-pbd-step="slides" data-pbd-settings-collapsible data-pbd-settings-section="slides">
                                         <summary>
                                             <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">1</span>
-                                            <span class="pbd-step__text"><strong>Slides</strong><small data-pbd-step-summary></small></span>
+                                            <span class="pbd-step__text"><strong>Slides in this deck</strong><small data-pbd-step-summary></small></span>
                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
                                         </summary>
                                         <div class="pbd-step__body">
@@ -512,26 +513,86 @@
                                             </div>
                                             <p class="pbd-seg-help" data-pbd-seg-help="Layout"></p>
                                 </fieldset>
-                                <div data-pbd-standard-settings hidden="@isUpdateSheet">
-                                    <fieldset class="pbd-choice-group">
-                                        <legend>What the deck shows</legend>
-                                            <div class="pbd-seg">
-                                                <label class="pbd-seg__option"><input type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" data-help="One status table of projects; no slides per project." /><span>Table</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" data-help="Slides for each project; no status table." /><span>Project slides</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" data-help="The status table first, then slides for each project." /><span>Both</span></label>
-                                            </div>
-                                            <p class="pbd-seg-help" data-pbd-seg-help="PresentationMode"></p>
-                                    </fieldset>
+                                @* What the deck shows and which summaries it has belong to the block list below; these
+                                   hidden inputs follow it so the step summaries and the settings form read the same deck.
+                                   They belong to no form (form= names none), so the settings save neither sends nor
+                                   compares them; the server keeps the deck's own values (OnPostSaveSettingsAsync). *@
+                                <div hidden data-pbd-block-mirror>
+                                    <input form="pbd-block-mirror" type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" />
+                                    <input form="pbd-block-mirror" type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
+                                    <input form="pbd-block-mirror" type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludeCoverSlide" value="true" checked="@deck.IncludeCoverSlide" />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludePortfolioSummarySlide" value="true" checked="@deck.IncludePortfolioSummarySlide" />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" data-pbd-stage-summary-toggle />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" />
+                                    <input form="pbd-block-mirror" type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" />
+                                </div>
+                                @{
+                                    var blockZones = new[]
+                                    {
+                                        (Zone: ProjectBriefingDeckZone.Opening, Label: "Opening"),
+                                        (Zone: ProjectBriefingDeckZone.Overview, Label: "Overview"),
+                                        (Zone: ProjectBriefingDeckZone.Projects, Label: "Projects"),
+                                        (Zone: ProjectBriefingDeckZone.Closing, Label: "Closing")
+                                    };
+                                }
+                                <div class="pbd-blocks" data-pbd-blocks>
+                                    <p class="pbd-blocks__lead">Switch slides on or off and drag them within their group. Each change saves at once.</p>
+                                    @foreach (var group in blockZones)
+                                    {
+                                        var zoneBlocks = deck.Blocks.Where(block => ProjectBriefingDeckBlocks.ZoneOf(block.Type) == group.Zone).ToArray();
+                                        if (zoneBlocks.Length == 0)
+                                        {
+                                            continue;
+                                        }
 
-                                    <fieldset class="pbd-choice-group" data-pbd-project-content-settings hidden="@(!standardIncludesDetailedSlides)">
-                                        <legend>Each project gets</legend>
-                                            <div class="pbd-seg">
-                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" data-help="One slide of capability statements per project." /><span>Capability</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" data-help="One narrative slide per project." /><span>Brief</span></label>
-                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" data-help="A capability slide, then a brief slide, per project." /><span>Both</span></label>
-                                            </div>
-                                            <p class="pbd-seg-help" data-pbd-seg-help="NarrativeMode"></p>
-                                    </fieldset>
+                                        <section class="pbd-blocks__zone" aria-labelledby="pbd-blocks-@group.Zone">
+                                            <h5 id="pbd-blocks-@group.Zone">@group.Label</h5>
+                                            <ul class="pbd-blocks__list" data-pbd-block-zone="@group.Zone">
+                                                @foreach (var block in zoneBlocks)
+                                                {
+                                                    var name = ProjectBriefingDeckBlocks.DisplayName(block.Type);
+                                                    var movable = group.Zone == ProjectBriefingDeckZone.Overview
+                                                        || block.Type is ProjectBriefingDeckBlockType.InstitutionalProfile or ProjectBriefingDeckBlockType.RoleAndCharter;
+                                                    // Update sheets always have their sheets.
+                                                    var alwaysOn = block.Type == ProjectBriefingDeckBlockType.ProjectSlides && isUpdateSheet;
+                                                    <li class="pbd-block @(block.Enabled ? "is-on" : "is-off")" data-pbd-block data-type="@block.Type" data-name="@name" data-movable="@(movable ? "true" : "false")">
+                                                        @if (movable)
+                                                        {
+                                                            <button type="button" class="pbd-block__handle" data-pbd-block-handle aria-label="Move @name. Drag, or press Alt+Up or Alt+Down." aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">
+                                                                <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+                                                            </button>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="pbd-block__handle is-fixed" title="Fixed in its place" aria-hidden="true"><i class="bi bi-pin-angle"></i></span>
+                                                        }
+                                                        <label class="pbd-switch pbd-block__switch">
+                                                            <input type="checkbox" role="switch" checked="@block.Enabled" disabled="@alwaysOn" data-pbd-block-switch />
+                                                            <span class="pbd-switch__track" aria-hidden="true"></span>
+                                                            <span class="pbd-switch__text"><strong>@name</strong><small>@ProjectBriefingDeckBlocks.Description(block.Type)</small></span>
+                                                        </label>
+                                                        @switch (block.Type)
+                                                        {
+                                                            case ProjectBriefingDeckBlockType.InstitutionalProfile:
+                                                                <button type="button" class="btn btn-sm btn-link" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false" aria-label="Edit @name">Edit</button>
+                                                                break;
+                                                            case ProjectBriefingDeckBlockType.RoleAndCharter:
+                                                                <button type="button" class="btn btn-sm btn-link" data-pbd-role-charter-open aria-controls="pbd-role-charter-drawer" aria-expanded="false" aria-label="Edit @name">Edit</button>
+                                                                break;
+                                                            case ProjectBriefingDeckBlockType.FfcGlobalFootprint:
+                                                                <button type="button" class="btn btn-sm btn-link" data-pbd-ffc-footprint-open aria-controls="pbd-ffc-footprint-drawer" aria-expanded="false" aria-label="Edit @name">Edit</button>
+                                                                break;
+                                                            case ProjectBriefingDeckBlockType.StageSummary:
+                                                                <label class="pbd-block__option" data-pbd-stage-table-option><input type="checkbox" name="IncludeStageDistributionTable" value="true" checked="@deck.StandardSlideOptions.IncludeStageDistributionTable" data-pbd-stage-table-toggle /> With a table</label>
+                                                                break;
+                                                        }
+                                                    </li>
+                                                }
+                                            </ul>
+                                        </section>
+                                    }
+                                    <p class="pbd-blocks__status" data-pbd-blocks-status aria-live="polite"></p>
                                 </div>
                                         </div>
                                     </details>
@@ -543,6 +604,16 @@
                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
                                         </summary>
                                         <div class="pbd-step__body">
+                                    <fieldset class="pbd-choice-group" data-pbd-project-content-settings hidden="@(!standardIncludesDetailedSlides)">
+                                        <legend>Each project gets</legend>
+                                            <div class="pbd-seg">
+                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" data-help="One slide of capability statements per project." /><span>Capability</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" data-help="One narrative slide per project." /><span>Brief</span></label>
+                                                <label class="pbd-seg__option"><input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" data-help="A capability slide, then a brief slide, per project." /><span>Both</span></label>
+                                            </div>
+                                            <p class="pbd-seg-help" data-pbd-seg-help="NarrativeMode"></p>
+                                    </fieldset>
+
                                     <div class="pbd-standard-detail-options" data-pbd-detailed-settings hidden="@(!standardIncludesDetailedSlides)">
                                         <fieldset class="pbd-choice-group">
                                             <legend>Show on each project slide</legend>
@@ -658,107 +729,6 @@
                                         </div>
                                     </details>
 
-                                    <details class="pbd-step" data-pbd-step="extra" data-pbd-settings-collapsible data-pbd-settings-section="extra">
-                                        <summary>
-                                            <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">4</span>
-                                            <span class="pbd-step__text"><strong>Extra slides</strong><small data-pbd-step-summary></small></span>
-                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
-                                        </summary>
-                                        <div class="pbd-step__body">
-                                <fieldset class="pbd-choice-group pbd-update-sheet-options" data-pbd-update-settings hidden="@(!isUpdateSheet)">
-                                    <legend>Opening slides</legend>
-                                    <div class="pbd-checks pbd-checks--inline">
-                                        <label><input type="checkbox" name="IncludeCoverSlide" value="true" checked="@deck.IncludeCoverSlide" /> Cover slide</label>
-                                        <label><input type="checkbox" name="IncludePortfolioSummarySlide" value="true" checked="@deck.IncludePortfolioSummarySlide" /> Portfolio summary</label>
-                                    </div>
-                                </fieldset>
-                                    <fieldset class="pbd-checks" data-pbd-standard-settings hidden="@isUpdateSheet">
-                                        <legend>Summary slides</legend>
-                                        <label><input type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" data-pbd-stage-summary-toggle /> Stage-wise summary <small>recommended chart</small></label>
-                                        <label class="pbd-summary-dependent-option" data-pbd-stage-table-option><input type="checkbox" name="IncludeStageDistributionTable" value="true" checked="@deck.StandardSlideOptions.IncludeStageDistributionTable" data-pbd-stage-table-toggle /> Stage-wise distribution table <small>optional supporting slide</small></label>
-                                        <label><input type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" /> Project-category summary <small>left out when every project shares one category</small></label>
-                                        <label><input type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" /> Technical-category summary <small>left out when every project shares one category</small></label>
-                                    </fieldset>
-                                    <section class="pbd-additional-slides" id="pbd-additional-slides" aria-labelledby="pbd-additional-slides-title" data-pbd-additional-slides>
-                                        <div class="pbd-additional-slides__head">
-                                            <h5 id="pbd-additional-slides-title">Institution slides</h5>
-                                            @if (missingAdditionalSlideTypes.Length > 0)
-                                            {
-                                                <button type="button"
-                                                        class="btn btn-sm btn-link"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#pbd-additional-slide-library-modal"
-                                                        title="Add an approved slide type">
-                                                    <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
-                                                </button>
-                                            }
-                                        </div>
-                                        @if (additionalSlideOrder.Count == 0)
-                                        {
-                                            <p class="pbd-additional-slides__empty">None added. Add the SDD profile, Role &amp; Charter or FFC footprint when the briefing needs them.</p>
-                                        }
-                                        else
-                                        {
-                                            <div class="pbd-additional-slide-list" data-pbd-additional-slide-list>
-                                                @for (var slideIndex = 0; slideIndex < additionalSlideOrder.Count; slideIndex++)
-                                                {
-                                                    var slideType = additionalSlideOrder[slideIndex];
-                                                    var enabled = AdditionalSlideIsEnabled(slideType);
-                                                    var definition = AdditionalSlideDefinition(slideType);
-                                                    var canReorder = definition.CanReorder;
-                                                    var detail = slideType switch
-                                                    {
-                                                        ProjectBriefingAdditionalSlideType.InstitutionalProfile => $"After the cover · {institutionalProfile.Modules.Count} modules",
-                                                        ProjectBriefingAdditionalSlideType.RoleAndCharter => $"After the cover · {deck.SlideEstimate.RoleCharterSlides} slide{(deck.SlideEstimate.RoleCharterSlides == 1 ? string.Empty : "s")}",
-                                                        ProjectBriefingAdditionalSlideType.FfcGlobalFootprint => enabled
-                                                            ? $"Before closing · {deck.SlideEstimate.FfcGlobalFootprintSlides} slide{(deck.SlideEstimate.FfcGlobalFootprintSlides == 1 ? string.Empty : "s")}"
-                                                            : "Before closing",
-                                                        _ => string.Empty
-                                                    };
-                                                    var slideKey = slideType.ToString();
-                                                    <article class="pbd-additional-slide-row @(enabled ? "is-enabled" : "is-disabled")"
-                                                             data-pbd-additional-slide-card
-                                                             data-can-reorder="@canReorder.ToString().ToLowerInvariant()"
-                                                             data-slide-type="@slideType"
-                                                             data-slide-name="@AdditionalSlideDisplayName(slideType)">
-                                                        @if (canReorder)
-                                                        {
-                                                            <button type="button" class="pbd-additional-slide-row__handle" data-pbd-additional-slide-handle aria-label="Drag @AdditionalSlideDisplayName(slideType) to reorder">
-                                                                <i class="bi bi-grip-vertical" aria-hidden="true"></i>
-                                                            </button>
-                                                        }
-                                                        else
-                                                        {
-                                                            <span class="pbd-additional-slide-row__handle" title="Fixed immediately before the closing slide" aria-hidden="true"><i class="bi bi-pin-angle" aria-hidden="true"></i></span>
-                                                        }
-                                                        <label class="pbd-switch pbd-additional-slide-row__switch">
-                                                            <input type="checkbox" role="switch" form="pbd-additional-slide-toggle-@slideKey" checked="@enabled" data-pbd-additional-slide-toggle />
-                                                            <span class="pbd-switch__track" aria-hidden="true"></span>
-                                                            <span class="pbd-switch__text"><strong>@AdditionalSlideDisplayName(slideType)</strong><small>@detail</small></span>
-                                                        </label>
-                                                        @if (slideType == ProjectBriefingAdditionalSlideType.InstitutionalProfile)
-                                                        {
-                                                            <button type="button" class="btn btn-sm btn-link" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false">Edit</button>
-                                                        }
-                                                        else if (slideType == ProjectBriefingAdditionalSlideType.RoleAndCharter)
-                                                        {
-                                                            <button type="button" class="btn btn-sm btn-link" data-pbd-role-charter-open aria-controls="pbd-role-charter-drawer" aria-expanded="false">Edit</button>
-                                                        }
-                                                        else if (slideType == ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
-                                                        {
-                                                            <button type="button" class="btn btn-sm btn-link" data-pbd-ffc-footprint-open aria-controls="pbd-ffc-footprint-drawer" aria-expanded="false">Edit</button>
-                                                        }
-                                                        <button type="submit" form="pbd-additional-slide-remove-@slideKey" class="btn btn-sm btn-link text-danger pbd-additional-slide-row__remove" title="Remove from this deck" aria-label="Remove @AdditionalSlideDisplayName(slideType)">
-                                                            <i class="bi bi-x-lg" aria-hidden="true"></i>
-                                                        </button>
-                                                    </article>
-                                                }
-                                            </div>
-                                        }
-                                    </section>
-                                        </div>
-                                    </details>
-
                                     <details class="pbd-step" data-pbd-step="look" data-pbd-settings-collapsible data-pbd-settings-section="look">
                                         <summary>
                                             <span class="pbd-step__number" data-pbd-step-number aria-hidden="true">5</span>
@@ -848,33 +818,6 @@
                                     </div>
                                     </form>
 
-                        @* The institution slides' own forms, outside the settings form (forms cannot nest). *@
-                        <div class="pbd-additional-slide-forms" hidden>
-                            @if (additionalSlideOrder.Count > 0)
-                            {
-                                <form method="post" asp-page-handler="ReorderAdditionalSlides" class="pbd-additional-slide-order-form" data-pbd-additional-slide-order-form>
-                                    <input type="hidden" name="deckId" value="@deck.Id" />
-                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
-                                    <input type="hidden" name="order" value="@string.Join(",", additionalSlideOrder)" data-pbd-additional-slide-order />
-                                </form>
-                            }
-                            @foreach (var slideType in additionalSlideOrder)
-                            {
-                                var slideKey = slideType.ToString();
-                                <form method="post" asp-page-handler="ToggleAdditionalSlide" id="pbd-additional-slide-toggle-@slideKey" data-pbd-additional-slide-toggle-form>
-                                    <input type="hidden" name="deckId" value="@deck.Id" />
-                                    <input type="hidden" name="slideType" value="@slideType" />
-                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
-                                    <input type="hidden" name="ensureAdded" value="false" />
-                                    <input type="hidden" name="enabled" value="@AdditionalSlideIsEnabled(slideType).ToString().ToLowerInvariant()" data-pbd-additional-slide-enabled />
-                                </form>
-                                <form method="post" asp-page-handler="RemoveAdditionalSlide" id="pbd-additional-slide-remove-@slideKey" data-pbd-remove-additional-slide-form data-slide-name="@AdditionalSlideDisplayName(slideType)">
-                                    <input type="hidden" name="deckId" value="@deck.Id" />
-                                    <input type="hidden" name="slideType" value="@slideType" />
-                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
-                                </form>
-                            }
-                        </div>
                                 </div>
 
                                 <div id="pbd-inspector-checks" role="tabpanel" aria-labelledby="pbd-inspector-tab-checks" class="pbd-inspector__panel" data-pbd-inspector-panel="checks" hidden>

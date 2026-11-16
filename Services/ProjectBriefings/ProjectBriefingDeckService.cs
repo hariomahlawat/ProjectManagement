@@ -91,6 +91,17 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
+    // The Deck tab's block list: which blocks are on and the order of the overview and opening
+    // institution slides. The deck's existing settings (cover, summaries, what the deck shows,
+    // institution slides) are set to match, so everything that reads them sees the same deck.
+    // Returns the deck's new version.
+    Task<string> UpdateBlocksAsync(
+        long deckId,
+        string requestingUserId,
+        IReadOnlyList<ProjectBriefingDeckBlock> blocks,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
     Task UpdateAdditionalSlideOrderAsync(
         long deckId,
         string requestingUserId,
@@ -562,10 +573,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         // The established Standard PRISM Briefing always retains its cover and
         // portfolio-summary slides. The new formal update-sheet layout exposes
         // these as explicit user choices.
-        deck.IncludeCoverSlide = command.Layout == ProjectBriefingLayout.StandardBriefing
-            || command.IncludeCoverSlide;
-        deck.IncludePortfolioSummarySlide = command.Layout == ProjectBriefingLayout.StandardBriefing
-            || command.IncludePortfolioSummarySlide;
+        // The block list switches the cover and portfolio summary for every layout (PR 4).
+        deck.IncludeCoverSlide = command.IncludeCoverSlide;
+        deck.IncludePortfolioSummarySlide = command.IncludePortfolioSummarySlide;
         deck.IncludeStageSummary = command.IncludeStageSummary;
         deck.IncludeProjectCategorySummary = command.IncludeProjectCategorySummary;
         deck.IncludeTechnicalCategorySummary = command.IncludeTechnicalCategorySummary;
@@ -856,7 +866,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         EnsureVersion(deck, rowVersion);
         var normalized = ProjectBriefingInstitutionalProfileOptions.Normalize(
-            options.IncludeSlide,
+            // Whether the slide is in the deck belongs to the block list (PR 4): saving the
+            // editor's content keeps it as it is.
+            ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).InstitutionalProfileOptions.IncludeSlide,
             options.Title,
             options.IncludeHistory,
             options.HistoryMilestones,
@@ -908,7 +920,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         EnsureVersion(deck, rowVersion);
         var normalized = ProjectBriefingRoleCharterOptions.Normalize(
-            options.IncludeSlide,
+            // Whether the slide is in the deck belongs to the block list (PR 4): saving the
+            // editor's content keeps it as it is.
+            ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).RoleCharterOptions.IncludeSlide,
             options.Title,
             options.Layout,
             options.UseSharedContent,
@@ -952,7 +966,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         EnsureVersion(deck, rowVersion);
         var normalized = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
-            options.IncludeSlide,
+            // Whether the slide is in the deck belongs to the block list (PR 4): saving the
+            // editor's content keeps it as it is.
+            ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).FfcGlobalFootprintOptions.IncludeSlide,
             options.Title,
             options.Layout,
             options.MaximumCountryRows,
@@ -997,6 +1013,153 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         EnsureVersion(deck, rowVersion);
 
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var (profile, roleCharter, ffcGlobalFootprint) = SwitchAdditionalSlide(configuration, slideType, enabled);
+
+        var order = configuration.AdditionalSlideOrder.ToList();
+        if ((ensureAdded || enabled) && !order.Contains(slideType))
+        {
+            order.Add(slideType);
+        }
+
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
+            deck.SelectionRulesJson,
+            profile,
+            roleCharter,
+            ffcGlobalFootprint,
+            order);
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            enabled ? "ProjectBriefing.AdditionalSlideEnabled" : "ProjectBriefing.AdditionalSlideDisabled",
+            userId,
+            deck,
+            $"{slideType} additional slide {(enabled ? "enabled" : "disabled")}.");
+    }
+
+    public async Task<string> UpdateBlocksAsync(
+        long deckId,
+        string requestingUserId,
+        IReadOnlyList<ProjectBriefingDeckBlock> blocks,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(blocks);
+        if (blocks.Any(block => !Enum.IsDefined(block.Type))
+            || blocks.Select(block => block.Type).Distinct().Count() != blocks.Count)
+        {
+            throw new InvalidOperationException("The slide list is not valid. Reload and try again.");
+        }
+
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
+        EnsureVersion(deck, rowVersion);
+
+        var on = blocks.ToDictionary(block => block.Type, block => block.Enabled);
+        bool Switch(ProjectBriefingDeckBlockType type, bool current) => on.TryGetValue(type, out var value) ? value : current;
+
+        deck.IncludeCoverSlide = Switch(ProjectBriefingDeckBlockType.Cover, deck.IncludeCoverSlide);
+        deck.IncludePortfolioSummarySlide = Switch(ProjectBriefingDeckBlockType.PortfolioSummary, deck.IncludePortfolioSummarySlide);
+        if (deck.Layout == ProjectBriefingLayout.StandardBriefing)
+        {
+            deck.IncludeStageSummary = Switch(ProjectBriefingDeckBlockType.StageSummary, deck.IncludeStageSummary);
+            deck.IncludeProjectCategorySummary = Switch(ProjectBriefingDeckBlockType.ProjectCategorySummary, deck.IncludeProjectCategorySummary);
+            deck.IncludeTechnicalCategorySummary = Switch(ProjectBriefingDeckBlockType.TechnicalCategorySummary, deck.IncludeTechnicalCategorySummary);
+
+            var table = Switch(
+                ProjectBriefingDeckBlockType.StatusTable,
+                deck.PresentationMode is ProjectBriefingPresentationMode.ExecutiveTable or ProjectBriefingPresentationMode.Combined);
+            var slides = Switch(
+                ProjectBriefingDeckBlockType.ProjectSlides,
+                deck.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined);
+            if (!table && !slides)
+            {
+                throw new InvalidOperationException("Keep the status table or the project slides on: a deck needs one of them to show its projects.");
+            }
+
+            deck.PresentationMode = table && slides
+                ? ProjectBriefingPresentationMode.Combined
+                : table ? ProjectBriefingPresentationMode.ExecutiveTable : ProjectBriefingPresentationMode.DetailedProjects;
+        }
+
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var additionalOrder = configuration.AdditionalSlideOrder.ToList();
+        foreach (var block in blocks)
+        {
+            if (ProjectBriefingDeckBlocks.AdditionalSlideFor(block.Type) is not { } slideType)
+            {
+                continue;
+            }
+
+            var inOrder = additionalOrder.Contains(slideType);
+            var stored = slideType switch
+            {
+                ProjectBriefingAdditionalSlideType.InstitutionalProfile => configuration.InstitutionalProfileOptions.IncludeSlide,
+                ProjectBriefingAdditionalSlideType.RoleAndCharter => configuration.RoleCharterOptions.IncludeSlide,
+                _ => configuration.FfcGlobalFootprintOptions.IncludeSlide
+            };
+            if ((inOrder && stored) != block.Enabled || (!inOrder && stored))
+            {
+                var (profile, roleCharter, ffc) = SwitchAdditionalSlide(configuration, slideType, block.Enabled);
+                configuration = configuration with
+                {
+                    InstitutionalProfileOptions = profile,
+                    RoleCharterOptions = roleCharter,
+                    FfcGlobalFootprintOptions = ffc
+                };
+            }
+
+            // An opening slide joins the stored order even while off, so moving it in the list is kept.
+            var opening = ProjectBriefingAdditionalSlideCatalog.Get(slideType).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover;
+            if (!inOrder && (block.Enabled || opening))
+            {
+                additionalOrder.Add(slideType);
+            }
+        }
+
+        // The opening institution slides take the list's order; the others keep their places.
+        var openingOrder = blocks
+            .Select(block => ProjectBriefingDeckBlocks.AdditionalSlideFor(block.Type))
+            .OfType<ProjectBriefingAdditionalSlideType>()
+            .Where(type => additionalOrder.Contains(type)
+                && ProjectBriefingAdditionalSlideCatalog.Get(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
+            .ToList();
+        var openingSlots = additionalOrder
+            .Select((type, index) => (type, index))
+            .Where(item => openingOrder.Contains(item.type))
+            .Select(item => item.index)
+            .ToArray();
+        for (var slot = 0; slot < openingSlots.Length; slot++)
+        {
+            additionalOrder[openingSlots[slot]] = openingOrder[slot];
+        }
+
+        var json = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
+            deck.SelectionRulesJson,
+            configuration.InstitutionalProfileOptions,
+            configuration.RoleCharterOptions,
+            configuration.FfcGlobalFootprintOptions,
+            additionalOrder);
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithOverviewOrder(
+            json,
+            blocks
+                .Select(block => block.Type)
+                .Where(type => ProjectBriefingDeckBlocks.ZoneOf(type) == ProjectBriefingDeckZone.Overview));
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync("ProjectBriefing.DeckBlocksUpdated", userId, deck, "Project briefing deck slides updated.");
+        return Encode(deck.RowVersion);
+    }
+
+    // One institution slide switched on or off, its other choices kept; switching the SDD profile or
+    // Role & Charter on checks its content as the editors do.
+    private static (ProjectBriefingInstitutionalProfileOptions Profile, ProjectBriefingRoleCharterOptions RoleCharter, ProjectBriefingFfcGlobalFootprintOptions Ffc)
+        SwitchAdditionalSlide(
+            ProjectBriefingDeckConfiguration configuration,
+            ProjectBriefingAdditionalSlideType slideType,
+            bool enabled)
+    {
         var profile = configuration.InstitutionalProfileOptions;
         var roleCharter = configuration.RoleCharterOptions;
         var ffcGlobalFootprint = configuration.FfcGlobalFootprintOptions;
@@ -1040,26 +1203,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 break;
         }
 
-        var order = configuration.AdditionalSlideOrder.ToList();
-        if ((ensureAdded || enabled) && !order.Contains(slideType))
-        {
-            order.Add(slideType);
-        }
-
-        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
-            deck.SelectionRulesJson,
-            profile,
-            roleCharter,
-            ffcGlobalFootprint,
-            order);
-        Touch(deck, userId);
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await AuditAsync(
-            enabled ? "ProjectBriefing.AdditionalSlideEnabled" : "ProjectBriefing.AdditionalSlideDisabled",
-            userId,
-            deck,
-            $"{slideType} additional slide {(enabled ? "enabled" : "disabled")}.");
+        return (profile, roleCharter, ffcGlobalFootprint);
     }
 
     public async Task UpdateAdditionalSlideOrderAsync(

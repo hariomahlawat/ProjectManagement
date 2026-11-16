@@ -123,6 +123,128 @@ public static class ProjectBriefingDeckBlocks
         return blocks;
     }
 
+    // Overview blocks only, each once, in the given order: what a deck stores as its overview order.
+    public static IReadOnlyList<ProjectBriefingDeckBlockType> NormalizeOverviewOrder(
+        IEnumerable<ProjectBriefingDeckBlockType>? order)
+        => (order ?? Array.Empty<ProjectBriefingDeckBlockType>())
+            .Where(type => Enum.IsDefined(type) && ZoneOf(type) == ProjectBriefingDeckZone.Overview)
+            .Distinct()
+            .ToArray();
+
+    // Every block the deck's layout can have, switched on or off from its settings, in the order the
+    // deck draws them: the opening (cover first, then the institution slides in their own order),
+    // the overview in the stored order (blocks it does not name keep their usual place after the
+    // named ones), the project slides, and the closing slides. The Deck tab lists exactly these.
+    public static IReadOnlyList<ProjectBriefingDeckBlock> ForDeck(
+        ProjectBriefingLayout layout,
+        ProjectBriefingPresentationMode presentationMode,
+        bool includeCoverSlide,
+        bool includePortfolioSummarySlide,
+        bool includeStageSummary,
+        bool includeProjectCategorySummary,
+        bool includeTechnicalCategorySummary,
+        IReadOnlyList<ProjectBriefingAdditionalSlideType> additionalSlideOrder,
+        Func<ProjectBriefingAdditionalSlideType, bool> additionalSlideEnabled,
+        IReadOnlyList<ProjectBriefingDeckBlockType> overviewOrder)
+    {
+        ArgumentNullException.ThrowIfNull(additionalSlideOrder);
+        ArgumentNullException.ThrowIfNull(additionalSlideEnabled);
+        var standard = layout != ProjectBriefingLayout.ProjectUpdateSheet;
+        var blocks = new List<ProjectBriefingDeckBlock> { new(ProjectBriefingDeckBlockType.Cover, includeCoverSlide) };
+
+        // The institution slides keep their own stored order; ones never added follow, switched off.
+        var additional = additionalSlideOrder
+            .Where(ProjectBriefingAdditionalSlideCatalog.IsRegistered)
+            .Concat(ProjectBriefingAdditionalSlideCatalog.All.Select(definition => definition.Type))
+            .Distinct()
+            .ToArray();
+        blocks.AddRange(additional
+            .Where(type => ProjectBriefingAdditionalSlideCatalog.Get(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
+            .Select(type => new ProjectBriefingDeckBlock(ForAdditionalSlide(type), additionalSlideOrder.Contains(type) && additionalSlideEnabled(type))));
+
+        var overview = new List<ProjectBriefingDeckBlock>
+        {
+            new(ProjectBriefingDeckBlockType.PortfolioSummary, includePortfolioSummarySlide)
+        };
+        if (standard)
+        {
+            overview.Add(new(ProjectBriefingDeckBlockType.StageSummary, includeStageSummary));
+            overview.Add(new(ProjectBriefingDeckBlockType.ProjectCategorySummary, includeProjectCategorySummary));
+            overview.Add(new(ProjectBriefingDeckBlockType.TechnicalCategorySummary, includeTechnicalCategorySummary));
+            overview.Add(new(
+                ProjectBriefingDeckBlockType.StatusTable,
+                presentationMode is ProjectBriefingPresentationMode.ExecutiveTable or ProjectBriefingPresentationMode.Combined));
+        }
+
+        blocks.AddRange(Arrange(overview, overviewOrder));
+        blocks.Add(new(
+            ProjectBriefingDeckBlockType.ProjectSlides,
+            !standard || presentationMode is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined));
+        blocks.AddRange(additional
+            .Where(type => ProjectBriefingAdditionalSlideCatalog.Get(type).Placement == ProjectBriefingAdditionalSlidePlacement.BeforeClosing)
+            .Select(type => new ProjectBriefingDeckBlock(ForAdditionalSlide(type), additionalSlideOrder.Contains(type) && additionalSlideEnabled(type))));
+        return blocks;
+    }
+
+    // Blocks named in the stored order first, in that order; the rest keep their given order.
+    public static IReadOnlyList<ProjectBriefingDeckBlock> Arrange(
+        IReadOnlyList<ProjectBriefingDeckBlock> blocks,
+        IReadOnlyList<ProjectBriefingDeckBlockType> order)
+        => blocks
+            .Select((block, index) => (block, index, rank: IndexOf(order, block.Type)))
+            .OrderBy(item => item.rank < 0 ? int.MaxValue : item.rank)
+            .ThenBy(item => item.index)
+            .Select(item => item.block)
+            .ToArray();
+
+    private static int IndexOf(IReadOnlyList<ProjectBriefingDeckBlockType> order, ProjectBriefingDeckBlockType type)
+    {
+        for (var index = 0; index < order.Count; index++)
+        {
+            if (order[index] == type) return index;
+        }
+
+        return -1;
+    }
+
+    public static string DisplayName(ProjectBriefingDeckBlockType type) => type switch
+    {
+        ProjectBriefingDeckBlockType.Cover => "Cover",
+        ProjectBriefingDeckBlockType.InstitutionalProfile => "SDD profile",
+        ProjectBriefingDeckBlockType.RoleAndCharter => "Role & Charter",
+        ProjectBriefingDeckBlockType.PortfolioSummary => "Portfolio summary",
+        ProjectBriefingDeckBlockType.StageSummary => "Stage-wise summary",
+        ProjectBriefingDeckBlockType.ProjectCategorySummary => "Project-category distribution",
+        ProjectBriefingDeckBlockType.TechnicalCategorySummary => "Technical-category distribution",
+        ProjectBriefingDeckBlockType.StatusTable => "Status table",
+        ProjectBriefingDeckBlockType.ProjectSlides => "Project slides",
+        ProjectBriefingDeckBlockType.FfcGlobalFootprint => "FFC footprint",
+        _ => type.ToString()
+    };
+
+    public static string Description(ProjectBriefingDeckBlockType type) => type switch
+    {
+        ProjectBriefingDeckBlockType.Cover => "Deck name, date and marking",
+        ProjectBriefingDeckBlockType.InstitutionalProfile => "Growth and institutional output",
+        ProjectBriefingDeckBlockType.RoleAndCharter => "Authorised role and functions",
+        ProjectBriefingDeckBlockType.PortfolioSummary => "Counts by lifecycle and stage",
+        ProjectBriefingDeckBlockType.StageSummary => "Where this deck's projects stand",
+        ProjectBriefingDeckBlockType.ProjectCategorySummary => "This deck's projects by project category",
+        ProjectBriefingDeckBlockType.TechnicalCategorySummary => "This deck's projects by technical category",
+        ProjectBriefingDeckBlockType.StatusTable => "One row per project",
+        ProjectBriefingDeckBlockType.ProjectSlides => "Slides for each project",
+        ProjectBriefingDeckBlockType.FfcGlobalFootprint => "Countries and quantities, before closing",
+        _ => string.Empty
+    };
+
+    public static ProjectBriefingAdditionalSlideType? AdditionalSlideFor(ProjectBriefingDeckBlockType type) => type switch
+    {
+        ProjectBriefingDeckBlockType.InstitutionalProfile => ProjectBriefingAdditionalSlideType.InstitutionalProfile,
+        ProjectBriefingDeckBlockType.RoleAndCharter => ProjectBriefingAdditionalSlideType.RoleAndCharter,
+        ProjectBriefingDeckBlockType.FfcGlobalFootprint => ProjectBriefingAdditionalSlideType.FfcGlobalFootprint,
+        _ => null
+    };
+
     public static IReadOnlyList<ProjectBriefingDeckBlock> FromPresentation(ProjectBriefingPresentationData data)
     {
         ArgumentNullException.ThrowIfNull(data);

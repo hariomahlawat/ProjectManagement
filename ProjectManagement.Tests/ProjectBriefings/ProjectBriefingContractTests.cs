@@ -24,8 +24,9 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("<legend class=\"form-label\">Template</legend>", page, StringComparison.Ordinal);
         Assert.Contains("Shared decks", page, StringComparison.Ordinal);
         Assert.Contains("Add projects", page, StringComparison.Ordinal);
-        Assert.Contains("recommended chart", page, StringComparison.Ordinal);
-        Assert.Contains("optional supporting slide", page, StringComparison.Ordinal);
+        // Slides in this deck (PR 4 of the blocks plan): one switchable list instead of tick boxes.
+        Assert.Contains("data-pbd-blocks", page, StringComparison.Ordinal);
+        Assert.Contains("With a table", page, StringComparison.Ordinal);
     }
 
 
@@ -52,12 +53,12 @@ public sealed class ProjectBriefingContractTests
         Assert.DoesNotContain("data-pbd-decks-toggle", page, StringComparison.Ordinal);
         Assert.DoesNotContain("is-decks-collapsed", script, StringComparison.Ordinal);
 
-        // Additional slides live in the inspector's Deck tab, before the Checks tab.
+        // The block list (institution slides included) lives in the inspector's Deck tab, before the Checks tab.
         var deckPanel = page.IndexOf("data-pbd-inspector-panel=\"deck\"", StringComparison.Ordinal);
-        var additional = page.IndexOf("id=\"pbd-additional-slides\"", StringComparison.Ordinal);
+        var additional = page.IndexOf("data-pbd-blocks>", StringComparison.Ordinal);
         var checksPanel = page.IndexOf("data-pbd-inspector-panel=\"checks\"", StringComparison.Ordinal);
         Assert.True(deckPanel >= 0 && deckPanel < additional && additional < checksPanel,
-            "The additional-slide cards belong to the Deck tab.");
+            "The block list belongs to the Deck tab.");
 
         // The deleted/archived notice moved into the Studio stage.
         Assert.Contains("pbd-stage__notice", page, StringComparison.Ordinal);
@@ -333,7 +334,7 @@ public sealed class ProjectBriefingContractTests
             Assert.DoesNotContain("72:28", drawer, StringComparison.Ordinal);
             Assert.DoesNotContain("Additional Slides workspace", drawer, StringComparison.Ordinal);
         }
-        Assert.Contains("in the Deck tab under Extra slides", profile, StringComparison.Ordinal);
+        Assert.Contains("in the Deck tab under Slides in this deck", profile, StringComparison.Ordinal);
 
         // Escape closes each drawer even when focus is outside it.
         Assert.Contains("if (!profileDrawer?.classList.contains('is-open') || profileDrawer.contains(event.target)) return;", decks, StringComparison.Ordinal);
@@ -518,10 +519,13 @@ public sealed class ProjectBriefingContractTests
         Assert.True(deckPanel >= 0 && deckPanel < form && form < checksPanel, "The settings form belongs to the Deck tab.");
         Assert.DoesNotContain("data-pbd-deck-advanced", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-steps", page, StringComparison.Ordinal);
-        foreach (var step in new[] { "slides", "project", "sheet", "cost", "extra", "look", "handling" })
+        foreach (var step in new[] { "slides", "project", "sheet", "cost", "look", "handling" })
         {
             Assert.Contains($"data-pbd-step=\"{step}\"", page, StringComparison.Ordinal);
         }
+        // The Extra slides step became the block list in the first step.
+        Assert.DoesNotContain("data-pbd-step=\"extra\"", page, StringComparison.Ordinal);
+        Assert.Contains("<strong>Slides in this deck</strong>", page, StringComparison.Ordinal);
 
         // Template picker (Plan: Deck settings): the presets under one compact row, "customised" after changes.
         Assert.Contains("data-pbd-template-toggle", page, StringComparison.Ordinal);
@@ -819,7 +823,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("name=\"ShowPresentStatus\"", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-step=\"cost\"", page, StringComparison.Ordinal);
         // Compact controls (Plan: Deck settings, PR 3): segmented choices explain only the selected option.
-        foreach (var name in new[] { "Layout", "PresentationMode", "NarrativeMode", "ProjectBriefLayout", "CostMode", "BrandingScope", "ClosingSlideType" })
+        // What the deck shows is the block list's status table and project slides switches now.
+        foreach (var name in new[] { "Layout", "NarrativeMode", "ProjectBriefLayout", "CostMode", "BrandingScope", "ClosingSlideType" })
         {
             Assert.Contains($"data-pbd-seg-help=\"{name}\"", page, StringComparison.Ordinal);
         }
@@ -979,9 +984,9 @@ public sealed class ProjectBriefingContractTests
         var mainComposer = Read("ProjectBriefingSlideComposer.cs");
         var dataSource = Read("ProjectBriefingDataService.cs");
 
-        Assert.Contains("<h5 id=\"pbd-additional-slides-title\">Institution slides</h5>", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-block-zone", page, StringComparison.Ordinal);
         Assert.Contains("SDD Institutional Profile", additionalSlideCatalog, StringComparison.Ordinal);
-        Assert.Contains("@AdditionalSlideDisplayName(slideType)", page, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingDeckBlocks.DisplayName(block.Type)", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-profile-drawer", profileEditor, StringComparison.Ordinal);
         Assert.Contains("InstitutionalModules", profileEditor, StringComparison.Ordinal);
         Assert.Contains("data-pbd-institutional-history-editor", profileEditor, StringComparison.Ordinal);
@@ -997,7 +1002,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("syncInstitutionalHistoryEditor", script, StringComparison.Ordinal);
         Assert.Contains("syncInstitutionalPartnershipEditor", script, StringComparison.Ordinal);
         Assert.Contains("syncInstitutionalLayoutSummary", script, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-additional-slides", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-blocks", page, StringComparison.Ordinal);
         // One place for additional slides: the settings no longer carry a "Manage slides" summary.
         Assert.DoesNotContain("data-pbd-manage-additional-slides", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-profile-open", page, StringComparison.Ordinal);
@@ -1019,8 +1024,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("configuration.FfcGlobalFootprintOptions", profileUpdate, StringComparison.Ordinal);
         Assert.True(
             page.IndexOf("Content used by this presentation", StringComparison.Ordinal)
-            < page.IndexOf("data-pbd-additional-slides", StringComparison.Ordinal)
-            && page.IndexOf("data-pbd-additional-slides", StringComparison.Ordinal)
+            < page.IndexOf("data-pbd-blocks>", StringComparison.Ordinal)
+            && page.IndexOf("data-pbd-blocks>", StringComparison.Ordinal)
             < page.IndexOf("Projects in this deck", StringComparison.Ordinal),
             "Additional slides must remain visible between preflight and project management.");
 
@@ -1067,10 +1072,10 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("FfcGlobalFootprint", catalog, StringComparison.Ordinal);
         Assert.Contains("BeforeClosing", catalog, StringComparison.Ordinal);
         Assert.Contains("CanReorder: false", catalog, StringComparison.Ordinal);
-        Assert.Contains("Opening slides", page, StringComparison.Ordinal);
-        Assert.Contains("Before closing", page, StringComparison.Ordinal);
+        Assert.Contains("(Zone: ProjectBriefingDeckZone.Opening, Label: \"Opening\")", page, StringComparison.Ordinal);
+        Assert.Contains("(Zone: ProjectBriefingDeckZone.Closing, Label: \"Closing\")", page, StringComparison.Ordinal);
         // A fixed slide shows a pin, not a drag handle.
-        Assert.Contains("title=\"Fixed immediately before the closing slide\"", page, StringComparison.Ordinal);
+        Assert.Contains("title=\"Fixed in its place\"", page, StringComparison.Ordinal);
         Assert.Contains("Each approved slide type can be added once", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-ffc-footprint-open", page, StringComparison.Ordinal);
         Assert.Contains("SaveFfcGlobalFootprint", editor, StringComparison.Ordinal);

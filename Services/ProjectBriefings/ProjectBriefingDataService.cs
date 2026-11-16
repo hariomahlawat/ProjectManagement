@@ -125,6 +125,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             FfcGlobalFootprintOptions = snapshot.FfcGlobalFootprintOptions,
             FfcFootprintPreviewSummary = ffcPreview,
             AdditionalSlideOrder = snapshot.AdditionalSlideOrder,
+            Blocks = snapshot.Blocks,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
@@ -461,7 +462,23 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             StageDistribution = stageDistribution,
             InstitutionalProfile = institutionalProfile,
             RoleCharter = roleCharter,
-            FfcGlobalFootprint = ffcGlobalFootprint
+            FfcGlobalFootprint = ffcGlobalFootprint,
+            // The deck's own order. Switched-off blocks, and summaries with nothing to show, draw
+            // nothing; the composer skips institution slides whose data was not built.
+            Blocks = snapshot.Blocks
+                .Select(block => block.Type switch
+                {
+                    ProjectBriefingDeckBlockType.ProjectCategorySummary => block with
+                    {
+                        Enabled = block.Enabled && ShouldRenderCategorySummary(summary.ProjectCategorySummary)
+                    },
+                    ProjectBriefingDeckBlockType.TechnicalCategorySummary => block with
+                    {
+                        Enabled = block.Enabled && ShouldRenderCategorySummary(summary.TechnicalCategorySummary)
+                    },
+                    _ => block
+                })
+                .ToArray()
         };
     }
 
@@ -599,7 +616,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 deck.RowVersion,
                 Array.Empty<DeckItemSnapshot>())
             {
-                Preset = deckConfiguration.Preset
+                Preset = deckConfiguration.Preset,
+                OverviewOrder = deckConfiguration.OverviewOrder
             };
         }
 
@@ -740,7 +758,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             deck.RowVersion,
             items)
             {
-                Preset = deckConfiguration.Preset
+                Preset = deckConfiguration.Preset,
+                OverviewOrder = deckConfiguration.OverviewOrder
             };
     }
 
@@ -1438,6 +1457,26 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         IReadOnlyList<DeckItemSnapshot> Items)
     {
         public ProjectBriefingDeckPreset? Preset { get; init; }
+        public IReadOnlyList<ProjectBriefingDeckBlockType> OverviewOrder { get; init; } = Array.Empty<ProjectBriefingDeckBlockType>();
+
+        // Every block the deck can have, on or off, in the deck's order (ProjectBriefingDeckBlocks.ForDeck).
+        public IReadOnlyList<ProjectBriefingDeckBlock> Blocks => ProjectBriefingDeckBlocks.ForDeck(
+            Layout,
+            PresentationMode,
+            IncludeCoverSlide,
+            IncludePortfolioSummarySlide,
+            IncludeStageSummary,
+            IncludeProjectCategorySummary,
+            IncludeTechnicalCategorySummary,
+            AdditionalSlideOrder,
+            type => type switch
+            {
+                ProjectBriefingAdditionalSlideType.InstitutionalProfile => InstitutionalProfileOptions.IncludeSlide,
+                ProjectBriefingAdditionalSlideType.RoleAndCharter => RoleCharterOptions.IncludeSlide,
+                ProjectBriefingAdditionalSlideType.FfcGlobalFootprint => FfcGlobalFootprintOptions.IncludeSlide,
+                _ => false
+            },
+            OverviewOrder);
     }
 
     private sealed record DeckItemSnapshot(
