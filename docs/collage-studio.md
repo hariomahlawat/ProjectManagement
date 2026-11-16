@@ -233,7 +233,11 @@ itself stays the colour the user chose, as it will print.
 - Browser tests (`npm run test:browser`, Playwright, see [build-and-test.md](build-and-test.md)):
   make a collage and Save; reopen a draft after a reload; a damaged draft photo kept as a
   stand-in; keyboard only; Save by purpose; frames by shape; the Dark theme; From PRISM Photos with
-  a stubbed library; and a phone (sheets, Layers, `pagehide`). They run on every pull request.
+  a stubbed library; and a phone (sheets, Layers, `pagehide`, the canvas limit, the header).
+  Since the second review also: drafts deleted while opening or from another tab, removing a
+  photo, typing then Bold, keeping the user's choices, captions, Preview and Save, the settings
+  tabs, Ctrl+S, and the polish (stickers fit, units, PRISM Photos off, a missing script). They
+  run on every pull request.
 - `ProjectManagement.Tests/Tools/CollageApiHostTests.cs` runs the real PRISM host: each of the
   three Collage APIs answers an anonymous request with 401, every `/api/collage` route requires
   authorization, and the library lists each kind of photo at its own page's address.

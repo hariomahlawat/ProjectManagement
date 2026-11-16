@@ -853,3 +853,23 @@ test('a caption strip never takes a flat photo\'s picture, and fitting a frame k
     assert.ok(Math.abs(inner.width / inner.height - aspect) < 1e-6, `picture keeps aspect ${aspect}`);
   }
 });
+
+test('sliders say their unit', () => {
+  const PC = require('./collage-core.js');
+  assert.equal(PC.sliderText('width', 482), '48% of the page');
+  assert.equal(PC.sliderText('radius', 12), '1.2% of the page');
+  assert.equal(PC.sliderText('gap', 0), 'None');
+  assert.equal(PC.sliderText('angle', -14.6), '-15°');
+  assert.equal(PC.sliderText('opacity', 80), '80%');
+  assert.equal(PC.sliderText('zoom', 1.25), '1.3×');
+  assert.equal(PC.sliderText('warmth', 12), '+12');
+});
+
+test('a file named as a photo that is not one is called damaged', () => {
+  const PC = require('./collage-core.js');
+  const { refused } = PC.checkPhotos([
+    { name: 'IMG_0042.JPG', size: 10, type: null },
+    { name: 'notes.txt', size: 10, type: null }
+  ], 0);
+  assert.deepEqual(refused.map((r) => r.reason), ['unreadable', 'not-photo']);
+});

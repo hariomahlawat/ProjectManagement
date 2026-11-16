@@ -13,7 +13,28 @@
   const draw = window.PrismCollageDraw;
   const stickers = window.PrismCollageStickers;
   const library = window.PrismCollageLibrary;
-  if (!root || !core || !Konva || !draw || !stickers) return;
+  if (!root) return;
+  // Every part of the editor; a stale or missing script would otherwise leave a dead page.
+  const parts = {
+    PrismCollage: core, Konva, PrismCollageDraw: draw, PrismCollageStickers: stickers,
+    PrismCollageDrafts: window.PrismCollageDrafts, PrismCollageDraftSession: window.PrismCollageDraftSession,
+    PrismCollageEdits: window.PrismCollageEdits, PrismCollageChanges: window.PrismCollageChanges,
+    PrismCollageFocus: window.PrismCollageFocus, PrismCollageRender: window.PrismCollageRender,
+    PrismCollageLibraryDialog: window.PrismCollageLibraryDialog, PrismCollageSettings: window.PrismCollageSettings,
+    PrismCollagePhotos: window.PrismCollagePhotos, PrismCollageSave: window.PrismCollageSave
+  };
+  const missing = Object.keys(parts).filter((name) => !parts[name]);
+  if (missing.length) {
+    const box = root.querySelector('[data-alert]');
+    const text = root.querySelector('[data-alert-text]');
+    if (box && text) {
+      text.textContent = 'Collage Studio could not load all its parts. Reload the page; if this keeps happening, tell the PRISM administrator.';
+      box.hidden = false;
+    }
+    root.querySelectorAll('[data-view="start"] button').forEach((button) => { button.disabled = true; });
+    if (window.console) window.console.error('Collage Studio: missing scripts', missing);
+    return;
+  }
 
   // Asks in the shared PRISM dialog (docs/ux/confirm-dialogs.md); the browser box only if it is missing.
   const askConfirm = (options) => (window.PrismConfirm?.show
@@ -1303,6 +1324,9 @@
   }
 
   /** Ready-made headings and the plain ways to start text, from the Text panel. */
+  // What the four plain starts say on their buttons (the words they add are the placeholders).
+  const TEXT_START_LABELS = Object.freeze({ heading: 'A heading', subheading: 'A subheading', line: 'A line of text', hindi: 'हिंदी में लिखें' });
+
   const TEXT_STARTS = Object.freeze({
     heading: [core.TEXT_PLACEHOLDERS.heading, { font: 'elegant', size: 72 }],
     subheading: [core.TEXT_PLACEHOLDERS.subheading, { font: 'clean', size: 36 }],
@@ -1333,10 +1357,20 @@
       const font = core.FONTS[look.font || 'clean'];
       const el = document.createElement('button');
       el.type = 'button';
-      el.className = big ? 'clg-heading' : 'btn btn-outline-secondary btn-sm clg-text-start';
+      el.className = big ? 'clg-heading' : `clg-text-start clg-text-start--${key}`;
       el.dataset.addText = key;
-      el.textContent = text;
-      el.style.fontFamily = font.css;
+      if (big) el.textContent = text;
+      else {
+        // A plus sign, and the words in their own font and size, as an "add" button.
+        const plus = document.createElement('i');
+        plus.className = 'bi bi-plus-lg';
+        plus.setAttribute('aria-hidden', 'true');
+        const words = document.createElement('span');
+        words.textContent = TEXT_START_LABELS[key] || text;
+        el.append(plus, words);
+        el.setAttribute('aria-label', `Add ${(TEXT_START_LABELS[key] || text).toLowerCase()}`);
+      }
+      (big ? el : el.lastChild).style.fontFamily = font.css;
       el.style.fontWeight = look.bold === false ? '400' : '700';
       if (big) {
         el.style.color = look.color || '#172033';
@@ -1497,7 +1531,7 @@
       const entry = stickers.find(item.id);
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'clg-sticker';
+      button.className = entry.aspect >= 1.6 ? 'clg-sticker clg-sticker--wide' : 'clg-sticker';
       button.dataset.addSticker = item.id;
       const name = entry.label || item.words.split(' ')[0];
       button.title = name;
@@ -1845,8 +1879,8 @@
     gapInput.value = gap;
     gapInput.disabled = !current;
     radiusInput.value = radius;
-    $('[data-out="gap"]').textContent = current ? String(gap) : '—';
-    $('[data-out="radius"]').textContent = String(radius);
+    $('[data-out="gap"]').textContent = current ? core.sliderText('gap', gap) : '—';
+    $('[data-out="radius"]').textContent = core.sliderText('radius', radius);
     $('[data-layout-hint]').textContent = current
       ? 'Changing the space puts the photos back into the layout.'
       : 'Choose a layout to set the space between photos. Rounded corners apply to every photo.';
@@ -1856,7 +1890,7 @@
     input.addEventListener('input', () => {
       const value = Number(input.value);
       const which = input.dataset.layoutInput;
-      $(`[data-out="${which}"]`).textContent = String(value);
+      $(`[data-out="${which}"]`).textContent = core.sliderText(which, value);
       if (which === 'gap' && collage.layout) {
         // The space lays the page out again; that is what the hint under the sliders says.
         collage = core.reflowLayout(collage, value);
@@ -1974,7 +2008,7 @@
       props.innerHTML = `
         <h2 class="clg-panel-title">Sticker <small>${escapeHtml(entry?.label || entry?.emoji || '')}</small></h2>
         <div class="clg-section">
-          <label class="clg-field"><span class="clg-field__label">Size<output data-out="width">${Math.round(item.width)}</output></span>
+          <label class="clg-field"><span class="clg-field__label">Size<output data-out="width">${core.sliderText('width', item.width)}</output></span>
             <input type="range" min="${low}" max="${high}" step="1" value="${Math.round(item.width)}" data-prop="width" aria-label="Size of the sticker, in page units"></label>
           ${entry?.kind === 'drawn' ? `<p class="clg-field__label clg-field__label--plain">Colour</p>${swatches('colour', STICKER_COLOURS, item.colour || entry.colour)}` : ''}
           ${switchRow('flip', 'Mirror', item.flip)}
@@ -2102,10 +2136,7 @@
     }, false);
     const out = props.querySelector(`[data-out="${prop}"]`);
     if (out) {
-      out.textContent = prop === 'angle' ? `${Math.round(value)}°`
-        : prop === 'opacity' || prop === 'bright' || prop === 'contrast' ? `${value}%`
-          : prop === 'size' || prop === 'width' ? `${Math.round(value)}`
-          : prop === 'zoom' ? `${value.toFixed(1)}×` : String(value);
+      out.textContent = core.sliderText(prop, value);
     }
   });
 
