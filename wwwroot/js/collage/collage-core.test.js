@@ -873,3 +873,67 @@ test('a file named as a photo that is not one is called damaged', () => {
   ], 0);
   assert.deepEqual(refused.map((r) => r.reason), ['unreadable', 'not-photo']);
 });
+
+test('a lock stops moving, refilling and removing, and nothing else', () => {
+  const item = { ...collage.photoItem('a', 'p1', 1.5, { x: 100, y: 100, width: 100 }), locked: true };
+  for (const action of ['delete', 'adjust', 'replace', 'fill-slot', 'rotate-left', 'rotate-right', 'straighten', 'fit-photo']) {
+    assert.equal(collage.lockBlocks(item, action), true, action);
+    assert.equal(collage.lockBlocks({ ...item, locked: false }, action), false, action);
+  }
+  for (const action of ['lock', 'hide', 'duplicate', 'forward', 'back']) assert.equal(collage.lockBlocks(item, action), false, action);
+  assert.equal(collage.lockBlocks(null, 'delete'), false);
+});
+
+test('a locked photo kept in place: the new layout leaves out the frames it covers and it stays on the page', () => {
+  let n = 0;
+  const newId = () => `n${++n}`;
+  const height = collage.pageHeight('a4l');
+  // A locked photo over the top right quarter, partly off the right edge.
+  const locked = { ...collage.photoItem('L', 'p9', 1, { x: 900, y: 160, width: 300 }), locked: true };
+  const page = { ...collage.newCollage('a4l'), items: [collage.photoItem('a', 'p1', 1.5, { x: 1, y: 1, width: 100 }), locked] };
+  const { collage: laid } = collage.applyLayout(page, 't4', 10, 0, [], newId);
+  const kept = laid.items.find((i) => i.id === 'L');
+  assert.equal(kept.locked, true);
+  assert.equal(kept.x, 850, 'moved just inside the page');
+  assert.equal(kept.y, 160, 'not moved where it was already inside');
+  // The top right frame (cell 1) is left out; the others keep their own cells.
+  const cells = laid.items.filter((i) => i.id !== 'L').map((i) => i.cell).sort();
+  assert.deepEqual(cells, [0, 2, 3]);
+  assert.deepEqual(laid.items.filter((i) => i.id !== 'L').map((i) => i.kind).sort(), ['photo', 'slot', 'slot']);
+  // A change of space puts each frame back in its own cell; the locked photo stays.
+  const reflowed = collage.reflowLayout(laid, 30);
+  assert.deepEqual(reflowed.items.find((i) => i.id === 'L'), kept);
+  assert.equal(collage.lockedFrames(laid).length, 1);
+});
+
+test('a locked photo put into the new layout fills a frame like the others and stays locked', () => {
+  let n = 0;
+  const locked = { ...collage.photoItem('L', 'p9', 1, { x: 900, y: 200, width: 400 }), locked: true, angle: 12 };
+  const page = { ...collage.newCollage('a4l'), items: [locked, collage.photoItem('a', 'p1', 1.5, { x: 1, y: 1, width: 100 })] };
+  const { collage: laid } = collage.applyLayout(page, 't2', 10, 0, [], () => `n${++n}`, { locked: 'join' });
+  assert.deepEqual(laid.items.map((i) => [i.id, i.cell]), [['L', 0], ['a', 1]]);
+  assert.equal(laid.items[0].locked, true);
+  assert.equal(laid.items[0].angle, 0);
+});
+
+test('a kept locked photo stays under the words above it', () => {
+  let n = 0;
+  const locked = { ...collage.photoItem('L', 'p9', 1, { x: 850, y: 160, width: 300 }), locked: true };
+  const words = { id: 'T', kind: 'text', x: 850, y: 160, width: 200, aspect: 3, angle: 0 };
+  const page = { ...collage.newCollage('a4l'), items: [collage.photoItem('a', 'p1', 1.5, { x: 1, y: 1, width: 100 }), locked, words] };
+  const { collage: laid } = collage.applyLayout(page, 't4', 10, 0, [], () => `n${++n}`);
+  const ids = laid.items.map((i) => i.id);
+  assert.ok(ids.indexOf('L') < ids.indexOf('T'), ids.join(','));
+});
+
+test('a locked empty frame put into the new layout keeps its id and its lock', () => {
+  let n = 0;
+  const slot = { ...collage.slotItem('S', { x: 900, y: 200, width: 300, aspect: 1 }), locked: true };
+  const page = { ...collage.newCollage('a4l'), items: [collage.photoItem('a', 'p1', 1.5, { x: 1, y: 1, width: 100 }), slot] };
+  const { collage: laid } = collage.applyLayout(page, 't2', 10, 0, [], () => `n${++n}`, { locked: 'join' });
+  assert.deepEqual(laid.items.map((i) => [i.id, i.kind, i.cell, Boolean(i.locked)]), [['a', 'photo', 0, false], ['S', 'slot', 1, true]]);
+  // With more locked empty frames than frames left, the rest stay where they are.
+  const two = { ...page, items: [...page.items, { ...slot, id: 'S2' }] };
+  const one = collage.applyLayout(two, 't2', 10, 0, [], () => `m${++n}`, { locked: 'join' }).collage;
+  assert.deepEqual(one.items.map((i) => [i.id, Boolean(i.locked)]), [['a', false], ['S', true], ['S2', true]]);
+});

@@ -47,7 +47,9 @@
      * every frame full it stays in the tray, and false is returned.
      */
     function placePhoto(photo, { frameId = null, at = null } = {}) {
-      const frame = (frameId && itemById(frameId)) || (!at ? (core.bestSlotFor(app.collage.items, photo.aspect) || firstSlot()) : null);
+      // A locked frame keeps its photo: the new one goes where it would go with no frame chosen.
+      const asked = frameId && itemById(frameId);
+      const frame = (asked && !asked.locked ? asked : null) || (!at ? (core.bestSlotFor(app.collage.items, photo.aspect) || firstSlot()) : null);
       if (!frame && !at && app.collage.layout) return false;
       if (frame && frame.kind === 'slot') {
         const filled = core.fillSlot(frame, photo.id);

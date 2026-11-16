@@ -99,6 +99,11 @@ its npm package by hand; the libman entry records the version.
   (beside **Settings**, at the top of the settings panel) to select, hide or lock any item, bring forward and send backward, Duplicate, and Preview (the
   page alone, exactly as Save makes it: empty frames are left out; Esc comes back). A white
   frame put on a photo turns its shadow on, so it shows on a white page.
+- **Lock**: a locked item cannot be moved, resized, turned, given another frame, shape or
+  corners (the layout's Rounded corners pass it by), moved inside its frame, replaced or deleted,
+  from the toolbar, the settings or the keys. Choosing a layout while photos are locked asks
+  first: put them in the new layout too (they stay locked), or keep them where they are, and the
+  layout leaves out the frames they cover. A kept item well off the page is moved just inside it.
 - **Undo and Redo** for every change.
 - **Save as** PNG, JPEG (optionally under a size in KB) or PDF whose page is the paper's real
   size; at print quality (300 dpi) or for the screen (1920 px on the long side). The dialog asks
