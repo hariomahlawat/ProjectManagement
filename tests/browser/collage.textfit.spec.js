@@ -38,5 +38,12 @@ test('a heading whose stored size is out of date is given its size as a change t
   await page.locator('[data-open-draft]').first().click();
   // When the fonts arrive the size is put right, and the draft is written with it.
   await expect.poll(async () => (await newestDraft(page))?.model.items.find((i) => i.kind === 'text')?.width, { timeout: 10000 }).toBeGreaterThan(right * 0.9);
+
+  // Undo brings back the size from before the font arrived; the words are still drawn and
+  // selected at the size they really take (as Save draws them), not the old one.
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await newestDraft(page))?.model.items.find((i) => i.kind === 'text')?.width).toBeLessThan(right * 0.5);
+  const drawn = await page.evaluate(() => window.Konva.stages[0].find((n) => n.getAttr('kind') === 'text')[0].width());
+  expect(drawn).toBeGreaterThan(right * 0.9);
   expect(errors).toEqual([]);
 });

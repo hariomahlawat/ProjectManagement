@@ -236,14 +236,17 @@
     }
 
     function applyItem(node, item) {
-      if (item.kind === 'text') measureTextItem(item);
-      const height = core.itemHeight(item);
+      // Words take the size they are measured at now, as Save draws them (centred on the item's
+      // place), even when the model still holds a size from before their font arrived.
+      const measured = item.kind === 'text' ? measureTextItem(item) : null;
+      const width = measured ? measured.width : item.width;
+      const height = measured ? measured.height : core.itemHeight(item);
       node.setAttrs({
         x: item.x,
         y: item.y,
-        width: item.width,
+        width,
         height,
-        offsetX: item.width / 2,
+        offsetX: width / 2,
         offsetY: height / 2,
         rotation: item.angle,
         opacity: item.opacity / 100,
