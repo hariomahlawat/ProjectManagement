@@ -730,7 +730,9 @@ if (root) {
     if (!profileDrawer || !profileBackdrop) return;
     // Start a pending settings save now, so the profile's own save does not wait for it later.
     if (settingsPending()) saveSettingsNow();
-    profileReturnFocus = launcher || document.activeElement;
+    profileReturnFocus = launcher instanceof HTMLElement && launcher.getClientRects().length > 0
+      ? launcher
+      : document.activeElement;
     profileDrawer.classList.add('is-open');
     profileDrawer.setAttribute('aria-hidden', 'false');
     root.querySelectorAll('[data-pbd-profile-open]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
@@ -1144,6 +1146,11 @@ if (root) {
       // Each editor says it saved in the same place, the slide list's status (review 3 fixes, M3).
       const message = payload?.message || 'Saved.';
       setState(blockStatus, message, 'saved');
+      // The Studio opens on "This slide", where the slide list's status cannot be seen
+      // (review 4 fixes, M2): the save is then said in a toast.
+      if (!blockStatus || blockStatus.getClientRects().length === 0) {
+        window.PrismToast?.show({ tone: 'success', text: message });
+      }
       return { ok: true, message };
     } catch (error) {
       return { ok: false, message: error.message || 'The slide could not be saved.' };
@@ -1204,7 +1211,15 @@ if (root) {
   const settingsName = settingsForm?.querySelector('[data-pbd-settings-name]');
   const settingsDescription = settingsForm?.querySelector('[data-pbd-settings-description]');
   const deckDescriptionText = root.querySelector('[data-pbd-deck-description]');
+  const renameError = root.querySelector('[data-pbd-rename-error]');
+  const showRenameError = (message) => {
+    if (!renameError) return;
+    renameError.textContent = message || '';
+    renameError.hidden = !message;
+    renameName?.setAttribute('aria-invalid', String(Boolean(message)));
+  };
   const setRenaming = (renaming) => {
+    if (!renaming) showRenameError('');
     if (renameForm) renameForm.hidden = !renaming;
     if (titleView) titleView.hidden = renaming;
     if (deckDescriptionText) deckDescriptionText.hidden = renaming || !(settingsDescription?.value || '').trim();
@@ -1229,10 +1244,13 @@ if (root) {
   renameForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = (renameName?.value || '').trim();
-    if (!name) {
+    if (name.length < 3) {
+      // The same rule as the server's (SaveDeckSettingsInput.Name) and the New deck dialog.
+      showRenameError(name ? 'The deck name needs at least 3 characters.' : 'Give the deck a name.');
       renameName?.focus();
       return;
     }
+    showRenameError('');
     const previousName = settingsName?.value || '';
     const previousDescription = settingsDescription?.value || '';
     if (settingsName) settingsName.value = name;
@@ -1247,6 +1265,8 @@ if (root) {
     if (settingsName) settingsName.value = previousName;
     if (settingsDescription) settingsDescription.value = previousDescription;
     setRenaming(true);
+    if (renameName) renameName.value = name;
+    showRenameError(settingsStatus?.textContent?.trim() || 'The name could not be saved. Try again.');
     renameName?.focus();
   });
 

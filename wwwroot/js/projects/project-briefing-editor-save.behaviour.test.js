@@ -22,6 +22,13 @@ const MARKUP = `
   <input type="hidden" name="__RequestVerificationToken" value="token" />
   <div data-deck-id="7">
     <div role="alert" data-pbd-conflict hidden><span data-pbd-conflict-text></span><button type="button" data-pbd-conflict-reload>Reload</button></div>
+    <div data-pbd-deck-title-view><h1>Monthly review</h1><button type="button" data-pbd-rename>Rename</button></div>
+    <form data-pbd-rename-form hidden>
+      <input data-pbd-rename-name />
+      <p data-pbd-rename-error hidden></p>
+      <input data-pbd-rename-description />
+      <button type="submit">Save</button>
+    </form>
     <form action="/settings" data-pbd-settings-form>
       <input type="hidden" name="RowVersion" value="v1" />
       <input type="text" name="Name" value="Monthly review" data-pbd-settings-name />
@@ -55,11 +62,13 @@ const startPage = () => {
     });
   });
   window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+  const toasts = [];
+  window.PrismToast = { show: (options) => { toasts.push(options); return { dismiss() {} }; } };
   if (!window.Element.prototype.scrollIntoView) window.Element.prototype.scrollIntoView = () => {};
   if (!window.CSS) window.CSS = {};
   if (!window.CSS.escape) window.CSS.escape = (value) => String(value).replace(/["\\]/g, '\\$&');
   window.eval(pageSource);
-  return { window, document: window.document, requests };
+  return { window, document: window.document, requests, toasts };
 };
 
 const settle = async (window) => {
@@ -73,7 +82,7 @@ const leaveIsGuarded = (window) => {
 };
 
 test('an editor save sends the form in place and says it saved in the slide list', async () => {
-  const { window, document, requests } = startPage();
+  const { window, document, requests, toasts } = startPage();
   const root = document.querySelector('[data-pbd-root]');
   const form = document.querySelector('[data-pbd-ffc-footprint-form]');
 
@@ -91,6 +100,38 @@ test('an editor save sends the form in place and says it saved in the slide list
   assert.equal(result.message, 'FFC footprint saved.');
   assert.ok(!form.hasAttribute('inert'));
   assert.equal(document.querySelector('[data-pbd-blocks-status]').textContent, 'FFC footprint saved.');
+  // The slide list's status is not on screen (the Studio opens on "This slide"), so a toast says it.
+  assert.equal(toasts.length, 1);
+  assert.equal(toasts[0].text, 'FFC footprint saved.');
+});
+
+test('a rename that is too short or refused says why under the name', async () => {
+  const { window, document, requests } = startPage();
+  const form = document.querySelector('[data-pbd-rename-form]');
+  const name = document.querySelector('[data-pbd-rename-name]');
+  const error = document.querySelector('[data-pbd-rename-error]');
+  document.querySelector('[data-pbd-rename]').click();
+  assert.equal(form.hidden, false);
+
+  name.value = 'ab';
+  form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+  await settle(window);
+  assert.equal(requests.length, 0, 'nothing is sent');
+  assert.equal(error.hidden, false);
+  assert.equal(error.textContent, 'The deck name needs at least 3 characters.');
+
+  name.value = 'Quarterly review';
+  form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+  await settle(window);
+  assert.equal(error.hidden, true);
+  assert.equal(new URL(requests[0].url).pathname, '/settings');
+  requests[0].answer({ message: 'A deck named Quarterly review already exists.' }, 400);
+  await settle(window);
+
+  assert.equal(form.hidden, false, 'the name editor stays open');
+  assert.equal(name.value, 'Quarterly review', 'with what was typed');
+  assert.equal(error.hidden, false);
+  assert.match(error.textContent, /already exists/);
 });
 
 test('when the pending settings cannot be saved, the editor is not sent and leaving is still guarded', async () => {

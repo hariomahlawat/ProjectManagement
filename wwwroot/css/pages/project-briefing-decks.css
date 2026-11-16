@@ -5028,6 +5028,18 @@ span.pbd-additional-slide-row__handle {
     gap: .4rem;
 }
 
+/* Why a name was not saved, under the name (review 4 fixes, M2). */
+.pbd-deck-rename__error {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--pbd-red);
+    font-size: .8rem;
+}
+
+.pbd-deck-rename__error[hidden] {
+    display: none;
+}
+
 /* One banner when a save collides with someone else's change. */
 .pbd-conflict {
     display: flex;

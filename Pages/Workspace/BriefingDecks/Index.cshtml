@@ -215,7 +215,8 @@
                                     <p data-pbd-deck-description @(string.IsNullOrWhiteSpace(deck.Description) ? "hidden" : null)>@deck.Description</p>
                                     <form class="pbd-deck-rename" data-pbd-rename-form hidden>
                                         <label class="visually-hidden" for="pbd-rename-name">Deck name</label>
-                                        <input id="pbd-rename-name" class="form-control" maxlength="160" required data-pbd-rename-name />
+                                        <input id="pbd-rename-name" class="form-control" minlength="3" maxlength="160" required aria-describedby="pbd-rename-error" data-pbd-rename-name />
+                                        <p id="pbd-rename-error" class="pbd-deck-rename__error" role="alert" data-pbd-rename-error hidden></p>
                                         <label class="visually-hidden" for="pbd-rename-description">Description</label>
                                         <input id="pbd-rename-description" class="form-control form-control-sm" maxlength="600" placeholder="Description (optional): purpose, audience or occasion" data-pbd-rename-description />
                                         <div class="pbd-deck-rename__actions">

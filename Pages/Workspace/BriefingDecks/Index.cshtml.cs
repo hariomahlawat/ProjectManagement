@@ -1240,7 +1240,7 @@ public sealed class IndexModel : PageModel
 
     public sealed class CreateDeckInput
     {
-        [Required, StringLength(160, MinimumLength = 3)]
+        [Required(ErrorMessage = "Give the deck a name."), StringLength(160, MinimumLength = 3, ErrorMessage = "The deck name needs 3 to 160 characters.")]
         public string Name { get; set; } = string.Empty;
 
         [StringLength(600)]
@@ -1315,7 +1315,12 @@ public sealed class IndexModel : PageModel
     private static IReadOnlyList<ProjectBriefingRoleCharterEntry> ParseRoleCharterEntries(string? value)
     {
         var result = new List<ProjectBriefingRoleCharterEntry>();
-        foreach (var line in ParseSimpleLines(value))
+        // Split on the tab the editor writes before anything is trimmed: an entry without a lead
+        // phrase is "\t" + text, and its text may itself hold "|" (review 4 fixes, Low 2).
+        var lines = (value ?? string.Empty)
+            .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => !string.IsNullOrWhiteSpace(line));
+        foreach (var line in lines)
         {
             var separator = line.IndexOf('\t');
             if (separator < 0)
@@ -1438,7 +1443,7 @@ public sealed class IndexModel : PageModel
         [Required]
         public long DeckId { get; set; }
 
-        [Required, StringLength(160, MinimumLength = 3)]
+        [Required(ErrorMessage = "Give the deck a name."), StringLength(160, MinimumLength = 3, ErrorMessage = "The deck name needs 3 to 160 characters.")]
         public string Name { get; set; } = string.Empty;
 
         [StringLength(600)]
