@@ -212,8 +212,10 @@ test('a photo dropped on the page goes where it is dropped, and one dropped on a
   await page.getByRole('button', { name: 'Back to the start' }).click();
   await expect(page.locator('[data-view="start"]')).toBeVisible();
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
-  const slots = await page.evaluate(() => window.Konva.stages[0].find('.item').filter((n) => n.getAttr('kind') === 'slot').map((n) => n.id()));
-  expect(slots.length).toBe(3);
+  // The layout's empty frames are drawn once the editor shows.
+  const slotIds = () => page.evaluate(() => window.Konva.stages[0].find('.item').filter((n) => n.getAttr('kind') === 'slot').map((n) => n.id()));
+  await expect.poll(async () => (await slotIds()).length).toBe(3);
+  const slots = await slotIds();
   await dropOrPaste(page, 'drop', await itemCentre(page, slots[1]));
   await expect.poll(async () => (await photoItems(page)).map((i) => i.id)).toEqual([slots[1]]);
   expect(errors).toEqual([]);
