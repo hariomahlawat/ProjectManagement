@@ -227,6 +227,10 @@ for: WhatsApp or email (JPG for the screen), printing (PDF at print quality), or
 screen (PNG). The purpose chosen is shown pressed and remembered in this browser; the first time
 it is WhatsApp or email.
 
+Messages (a photo that did not fit, a file that could not be read, a full layout) show in PRISM's
+toast stack at the bottom, with the Undo offers, never over the page in Preview. Each goes after a
+few seconds or at the user's next change.
+
 ### Phones and the Dark theme
 
 At 820 px wide and below, the panels move to a bar at the bottom. A panel, or the selected item's

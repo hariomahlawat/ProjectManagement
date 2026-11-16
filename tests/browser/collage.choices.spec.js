@@ -64,7 +64,6 @@ test('a tray photo clicked when every frame is full says how to make room', asyn
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 4));
   await expect(page.locator('[data-remove-photo]')).toHaveCount(1);
-  await page.locator('[data-action="alert-close"]').first().click().catch(() => {});
   await page.locator('[data-tray-photo]').last().click();
   await expect(page.locator('[data-alert-text]')).toContainText('Every frame of this layout has a photo');
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(3);

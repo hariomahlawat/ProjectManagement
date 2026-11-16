@@ -1649,7 +1649,9 @@
 .clg-previewing .clg-drawer,
 .clg-previewing .clg-props,
 .clg-previewing .clg-toolbar,
-.clg-previewing .clg-empty {
+.clg-previewing .clg-empty,
+.clg-previewing .clg-alert,
+.clg-previewing .prism-toasts {
     display: none !important;
 }
 
