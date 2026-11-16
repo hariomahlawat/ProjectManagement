@@ -250,14 +250,20 @@ public sealed class IndexModel : PageModel
                 }));
             return RedirectToLibrary();
         }
-        catch (KeyNotFoundException exception)
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
         {
+            // Not found, or a Project Officer's deck a command user may only view.
             ErrorMessage = exception.Message;
             return RedirectToLibrary();
         }
         catch (DbUpdateConcurrencyException)
         {
             ErrorMessage = "The deck was updated by another user and was not deleted. Reload and try again.";
+            return RedirectToPage(new { deckId });
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage = "The deck could not be deleted. Reload and try again.";
             return RedirectToPage(new { deckId });
         }
     }
@@ -722,7 +728,7 @@ public sealed class IndexModel : PageModel
             await _deckService.RemoveProjectAsync(deckId, projectId, userId, rowVersion, cancellationToken);
             StatusMessage = "Project removed from the deck.";
         }
-        catch (KeyNotFoundException exception)
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
         {
             ErrorMessage = exception.Message;
         }
