@@ -1,5 +1,11 @@
 # Collage Studio: fourth review fixes (plan, 16 Nov 2026)
 
+**Status: built.** PRs 1 to 14 were merged on 16 Nov 2026: #3349, #3350, #3354, #3353, #3355,
+#3356, #3360, #3352, #3363, #3362, #3369, #3370, #3351 and #3357, in plan order. PR 15 is the docs,
+and a fresh cold review follows it. A fix for the page shaking with real photos at 1920 wide
+(#3358) was merged along the way. PR 10 was merged before PR 9, since PR 9 was built on it. Where
+the build differs from a row below, the row says so.
+
 All fifteen PRs of [collage-review-3-fixes.md](collage-review-3-fixes.md) were merged on 16 Nov
 2026. A fresh cold review followed. Three new reviewers took part, none of whom had seen the work
 or the earlier plans:
@@ -166,10 +172,10 @@ each in its own worktree.
 | 6 | **Hidden items and Save (U7, Low)**: a faint outline for hidden items in the editor. Save says "N hidden items left out". Purposes not chosen read clearly. A reopened draft says Undo starts again from here | A hidden photo is visible as an outline and named by Save |
 | 7 | **Polish (Low)**: the shape note sits by the shape; the part outside the frame shows dimmed while moving a photo; the empty drafts state; the draft card's trailing dot; the name field looks editable; the crest tile and the Credits link; empty frames are Tab stops | Every UX Low is fixed or written down as a decision |
 | 8 | **Editor bugs (E3, E4, E5, E6, Low)**: one frame's corners stay its own; the space, corners and colour sliders hold their edit; `db.onclose` reopens the database; leaving frees photos (stale imports too); Backspace on a button does nothing; a no-op commit does not count; leaving keeps a pending change | Each bug has a test that fails without the fix |
-| 9 | **Model operations (E1)**: a `collage-model.js` holds the named changes to the collage (place, delete, reorder, set background, set layout and so on). Each change clones, changes and commits. Parts are given these operations, not `state.collage`, `changes` or `photos` | A test finds no part that changes the model directly |
-| 10 | **Text measured outside the model (E2)**: measurements live in a side cache. The model's width changes only inside a commit, and a font load records its change properly | A font load never changes the model unseen (test) |
-| 11 | **Grouped parts (E1, Low)**: the loose helpers become a few grouped interfaces (page, panels, drafts, messages). Parts are created in an order that needs no lazy later-parts view. Dead code and stale comments go | No part is handed more than about ten names |
-| 12 | **Editor tests (gaps)**: two-finger zoom and moving a photo in its frame; leaving and closing the page; cross-tab write-back; a closed database; font loads | Each gap has a browser or unit test |
+| 9 | **Model operations (E1)**: a `collage-model.js` holds the named changes to the collage (place, delete, reorder, set background, set layout and so on). Each change clones, changes and commits. Parts are given these operations, not `state.collage`, `changes` or `photos` | A test finds no part that changes the model directly (built: the collage is frozen everywhere it is set, and `edit`/`editItem` in `collage-model.js` are the one way it changes; the parts make their own changes through them rather than through a list of named operations) |
+| 10 | **Text measured outside the model (E2)**: measurements live in a side cache. The model's width changes only inside a commit, and a font load records its change properly | A font load never changes the model unseen (test) (built: `measureTextItem` caches the layout outside the model; a font load gives words their size as a quiet recorded change; snapping and lining up use the size the words are drawn at) |
+| 11 | **Grouped parts (E1, Low)**: the loose helpers become a few grouped interfaces (page, panels, drafts, messages). Parts are created in an order that needs no lazy later-parts view. Dead code and stale comments go | No part is handed more than about ten names (built: at most twelve, checked by a unit test. The groups are read when used rather than reordering how the parts are made, so a part made before another can still reach it. `collage-app.js` is about 910 lines) |
+| 12 | **Editor tests (gaps)**: two-finger zoom and moving a photo in its frame; leaving and closing the page; cross-tab write-back; a closed database; font loads | Each gap has a browser or unit test (built: gaps already covered elsewhere were not repeated; no bugs were found) |
 | 13 | **Server (S1, S2, Low)**: `CollageSticker` added to the model snapshot, with a test that the Collage tables match it. Sticker addresses built with the path base on the server and in the scripts. The 60-limit refusal audited, and a failed refusal audit shows the plain message. A lower page cap. PostgreSQL tests for Move, Restore and Retire | Each server finding has a test |
 | 14 | **Harness edges (S3)**: mocked answers carry the production headers. Browser tests cover a session ending mid-edit (401 or sign-in redirect) and an API failure. The editor handles both with a plain message | Both cases have browser tests |
 | 15 | **Docs**, then a **fresh cold review** | Scores reported; anything short of 9 gets its own plan |
