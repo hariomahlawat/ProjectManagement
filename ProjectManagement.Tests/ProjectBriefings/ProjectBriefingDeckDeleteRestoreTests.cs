@@ -122,6 +122,26 @@ public sealed class ProjectBriefingDeckDeleteRestoreTests
     }
 
     [Fact]
+    public async Task WhenThePurgeCannotBeAudited_TheDeleteStillStands()
+    {
+        await using var db = CreateDb();
+        var clock = new MutableClock();
+        var old = await SeedAsync(db, "Old review", clock.UtcNow);
+        var other = await SeedAsync(db, "Other review", clock.UtcNow);
+        await Service(db, clock).DeleteAsync(old.Id, UserId, Version(old));
+        clock.Advance(TimeSpan.FromDays(ProjectBriefingDeckService.DeletedRetentionDays + 1));
+        var audit = new NoAudit { FailOn = "ProjectBriefing.DeckPurged" };
+
+        // The required purge record fails: the purge is abandoned (rolled back on PostgreSQL),
+        // and the delete that was asked for is saved and audited all the same.
+        await Service(db, clock, audit).DeleteAsync(other.Id, UserId, Version(other));
+
+        Assert.Equal(new[] { "ProjectBriefing.DeckDeleted" }, audit.Entries.Select(entry => entry.Action).ToArray());
+        var deleted = await db.Set<ProjectBriefingDeck>().AsNoTracking().SingleAsync(deck => deck.Id == other.Id);
+        Assert.NotNull(deleted.DeletedAtUtc);
+    }
+
+    [Fact]
     public async Task DuplicatingADeckWithAVeryLongName_StaysWithinTheNameLimit()
     {
         await using var db = CreateDb();
@@ -194,9 +214,16 @@ public sealed class ProjectBriefingDeckDeleteRestoreTests
             IDictionary<string, string?>? data = null,
             HttpContext? http = null)
         {
+            if (action == FailOn)
+            {
+                throw new DbUpdateException("The audit log is not available.");
+            }
+
             Entries.Add((action, data is null ? new Dictionary<string, string?>() : new Dictionary<string, string?>(data)));
             return Task.CompletedTask;
         }
+
+        public string? FailOn { get; init; }
 
         public List<(string Action, Dictionary<string, string?> Data)> Entries { get; } = new();
     }
