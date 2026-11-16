@@ -2,7 +2,7 @@
 
 // The main Collage Studio flows in a real browser (docs/ux/collage-review-fixes.md, PR 11).
 
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./test');
 const { openFresh, photoFile, newestDraft, showLayers } = require('./helpers');
 
 async function startBlank(page) {
@@ -36,39 +36,45 @@ test('a draft reopens after a reload with its photo and the words typed', async 
   expect(errors).toEqual([]);
 });
 
-test('a draft whose photo cannot be opened keeps it as a grey stand-in, and Save says so', async ({ page }) => {
-  await openFresh(page);
-  await startBlank(page);
-  await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'damaged.jpg' }));
-  await expect(page.locator('[data-draft-status]')).toHaveText('Draft saved in this browser');
+test.describe('a damaged draft photo', () => {
+  // Chromium itself reports "Connecting to blob:" when it fails to load a damaged picture from
+  // the drafts database; the page makes no such request (only image loads, which are allowed).
+  test.use({ cspAllow: [/^Connecting to 'blob:/] });
 
-  // The stored photo is damaged, as can happen when a browser runs out of memory or storage.
-  await page.evaluate(() => new Promise((resolve, reject) => {
-    const open = indexedDB.open('prism-collage-studio');
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const db = open.result;
-      const store = db.transaction('photos', 'readwrite').objectStore('photos');
-      const all = store.getAll();
-      all.onsuccess = () => {
-        const photo = all.result[0];
-        store.put({ ...photo, file: new File([new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3])], photo.name, { type: 'image/jpeg' }) });
-        store.transaction.oncomplete = () => { db.close(); resolve(); };
+  test('a draft whose photo cannot be opened keeps it as a grey stand-in, and Save says so', async ({ page }) => {
+    await openFresh(page);
+    await startBlank(page);
+    await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'damaged.jpg' }));
+    await expect(page.locator('[data-draft-status]')).toHaveText('Draft saved in this browser');
+
+    // The stored photo is damaged, as can happen when a browser runs out of memory or storage.
+    await page.evaluate(() => new Promise((resolve, reject) => {
+      const open = indexedDB.open('prism-collage-studio');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const store = db.transaction('photos', 'readwrite').objectStore('photos');
+        const all = store.getAll();
+        all.onsuccess = () => {
+          const photo = all.result[0];
+          store.put({ ...photo, file: new File([new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3])], photo.name, { type: 'image/jpeg' }) });
+          store.transaction.oncomplete = () => { db.close(); resolve(); };
+        };
       };
-    };
-  }));
+    }));
 
-  await page.reload();
-  await page.locator('[data-open-draft]').first().click();
-  await expect(page.locator('[data-alert-text]')).toContainText('could not be opened just now and shows grey');
-  await addHeading(page);
-  await expect.poll(async () => (await newestDraft(page))?.model.items.map((item) => item.kind)).toEqual(['photo', 'text']);
+    await page.reload();
+    await page.locator('[data-open-draft]').first().click();
+    await expect(page.locator('[data-alert-text]')).toContainText('could not be opened just now and shows grey');
+    await addHeading(page);
+    await expect.poll(async () => (await newestDraft(page))?.model.items.map((item) => item.kind)).toEqual(['photo', 'text']);
 
-  await page.getByRole('button', { name: 'Save as…' }).click();
-  const download = page.waitForEvent('download');
-  await page.locator('[data-action="save-go"]').click();
-  await download;
-  await expect(page.locator('[data-save-result]')).toContainText('One photo shown grey could not be opened');
+    await page.getByRole('button', { name: 'Save as…' }).click();
+    const download = page.waitForEvent('download');
+    await page.locator('[data-action="save-go"]').click();
+    await download;
+    await expect(page.locator('[data-save-result]')).toContainText('One photo shown grey could not be opened');
+  });
 });
 
 test('keyboard only: Enter presses the focused button, focus stays in Settings, Undo takes back one step', async ({ page }) => {
@@ -153,17 +159,10 @@ test('a draft can be deleted and brought back with Undo', async ({ page }) => {
 
 test('From PRISM Photos: ticked photos are read in and fill the empty frames', async ({ page }) => {
   const picture = (await photoFile(page, { width: 1200, height: 900 })).buffer;
-  await page.route('**/api/collage/library-photos**', (route) => route.fulfill({
-    contentType: 'application/json',
-    body: JSON.stringify({
-      available: true,
-      photos: [1, 2, 3].map((id) => ({ id, title: `Library ${id}`, context: 'A project', width: 1200, height: 900, thumbUrl: `/Photos/Media/${id}/thumb?v=1`, url: `/Photos/Media/${id}/original?v=1` })),
-      page: 1,
-      hasMore: false,
-      projects: [{ id: 12, name: 'A project' }],
-      years: [2026]
-    })
-  }));
+  // PRISM's own answer, kept equal to the API by CollageBrowserFixtureTests.
+  const samples = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, 'fixtures', 'collage-api-samples.json'), 'utf8'));
+  await page.route('**/api/collage/library-photos**', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(samples.libraryOn) }));
+
   await page.route('**/Photos/Media/**', (route) => route.fulfill({ contentType: 'image/jpeg', body: picture }));
 
   const errors = await openFresh(page);

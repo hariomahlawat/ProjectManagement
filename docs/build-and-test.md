@@ -65,6 +65,14 @@ npm run test:browser
 
 The tests build the page from the real `Pages/Tools/Collage/Index.cshtml` (`tests/browser/collage-page.js`), serve it with PRISM's own files from `wwwroot` (`tests/browser/serve.js`), and need no database or sign-in. The page builder understands only the Razor the page uses today and fails on anything else, so the test page cannot drift from the real one. The **Collage Studio browser tests** workflow runs them on every pull request; installing Chromium needs the Internet, so on an offline machine run them where a browser can be installed, or rely on CI.
 
+The test page sends PRISM's **production security headers** and answers like the **collage API**, both read from `tests/browser/fixtures`. The .NET test `ProjectManagement.Tests/Tools/CollageBrowserFixtureTests.cs` takes them from the real host (as Production) and the real API handlers and fails when a fixture no longer matches. After a deliberate change to the headers or an answer, write the fixtures again and commit them:
+
+```bash
+PRISM_UPDATE_BROWSER_FIXTURES=1 dotnet test ProjectManagement.Tests --filter "FullyQualifiedName~CollageBrowserFixture"
+```
+
+Every browser test uses `tests/browser/test.js`, which fails the test when the page breaks the Content Security Policy; a test can allow a named message, with its reason (`cspAllow`). On CI a test that passes only on its retry fails the run (`failOnFlakyTests`).
+
 ## Notebook assets
 
 Notebook source inputs include JavaScript under `wwwroot/js`, the Notebook build tooling and the npm manifests. Committed outputs include the Notebook bundle, source map and manifest under `wwwroot/dist`.

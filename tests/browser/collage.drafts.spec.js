@@ -3,7 +3,7 @@
 // Drafts never lose photos when they are deleted while open (docs/ux/collage-review-2-fixes.md,
 // PR 2): from the start screen while the draft opens, or from another tab.
 
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./test');
 const { openFresh, photoFile, showLayers } = require('./helpers');
 
 /** Draft records and photo counts in the drafts database, by draft id. */

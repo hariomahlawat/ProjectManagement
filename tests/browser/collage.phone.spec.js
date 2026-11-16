@@ -3,7 +3,7 @@
 // Collage Studio on a phone-sized screen (docs/ux/collage-review-fixes.md, PR 11). Runs only in
 // the "phone" project of playwright.config.js.
 
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./test');
 const { openFresh, newestDraft } = require('./helpers');
 
 test('on a phone, panels are sheets, new words open their settings, and Layers is always reachable', async ({ page }) => {

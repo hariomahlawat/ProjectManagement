@@ -14,6 +14,8 @@ module.exports = defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
+  // A test that passes only on its retry fails the run, so a flaky test is seen, not hidden.
+  failOnFlakyTests: Boolean(process.env.CI),
   reporter: process.env.CI ? [['list'], ['html', { open: 'never', outputFolder: '../../playwright-report' }]] : 'list',
   outputDir: '../../test-results/collage',
   use: {

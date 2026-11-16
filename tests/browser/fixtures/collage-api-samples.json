@@ -1,0 +1,58 @@
+{
+  "libraryOff": {
+    "available": false,
+    "message": "PRISM Photos is not switched on. Add photos from your computer.",
+    "photos": [],
+    "page": 1,
+    "hasMore": false
+  },
+  "libraryOn": {
+    "available": true,
+    "photos": [
+      {
+        "id": 1,
+        "title": "Library 1",
+        "context": "A project",
+        "date": "1970-01-01T00:00:00+00:00",
+        "width": 1200,
+        "height": 900,
+        "thumbUrl": "/Photos/Media/1/thumb?v=1",
+        "url": "/Photos/Media/1/original?v=1"
+      },
+      {
+        "id": 2,
+        "title": "Library 2",
+        "context": "A project",
+        "date": "1970-01-01T00:00:00+00:00",
+        "width": 1200,
+        "height": 900,
+        "thumbUrl": "/Photos/Media/2/thumb?v=1",
+        "url": "/Photos/Media/2/original?v=1"
+      },
+      {
+        "id": 3,
+        "title": "Library 3",
+        "context": "A project",
+        "date": "1970-01-01T00:00:00+00:00",
+        "width": 1200,
+        "height": 900,
+        "thumbUrl": "/Photos/Media/3/thumb?v=1",
+        "url": "/Photos/Media/3/original?v=1"
+      }
+    ],
+    "page": 1,
+    "hasMore": true,
+    "projects": [
+      {
+        "id": 12,
+        "name": "A project"
+      }
+    ],
+    "years": [
+      2026
+    ]
+  },
+  "stickers": {
+    "stickers": []
+  }
+}

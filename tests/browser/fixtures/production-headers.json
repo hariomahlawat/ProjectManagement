@@ -1,0 +1,6 @@
+{
+  "Content-Security-Policy": "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; frame-src 'self' data: blob:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; style-src-elem 'self'; font-src 'self' data:; object-src 'none'; connect-src 'self';",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "X-Content-Type-Options": "nosniff"
+}
