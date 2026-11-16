@@ -265,8 +265,13 @@
     gap: 6px;
 }
 
-.clg-tray button {
+.clg-tray__item {
     position: relative;
+}
+
+.clg-tray__photo {
+    position: relative;
+    width: 100%;
     aspect-ratio: 1;
     padding: 0;
     border: 0;
@@ -276,8 +281,8 @@
     cursor: grab;
 }
 
-.clg-tray button:hover,
-.clg-tray button:focus-visible {
+.clg-tray__photo:hover,
+.clg-tray__photo:focus-visible {
     outline: 2px solid var(--clg-accent);
     outline-offset: 1px;
 }
@@ -287,6 +292,42 @@
     height: 100%;
     object-fit: cover;
     display: block;
+}
+
+/* Takes a photo the page does not show out of the collage. */
+.clg-tray__remove {
+    position: absolute;
+    right: 3px;
+    top: 3px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--bs-dark) 72%, transparent);
+    color: var(--bs-light);
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+
+.clg-tray__item:hover .clg-tray__remove,
+.clg-tray__remove:focus-visible {
+    opacity: 1;
+}
+
+.clg-tray__remove:focus-visible {
+    outline: 2px solid var(--clg-accent);
+    outline-offset: 1px;
+}
+
+/* Touch screens have no hover: the button is always shown. */
+@media (hover: none) {
+    .clg-tray__remove {
+        opacity: 1;
+    }
 }
 
 .clg-tray__used {

@@ -76,3 +76,25 @@ test('a draft deleted in another tab while open here keeps its photos', async ({
   await other.close();
   expect(errors).toEqual([]);
 });
+
+test('a photo the page does not show can be removed; Undo of its frame brings it back', async ({ page }) => {
+  const errors = await openFresh(page);
+  await draftWithPhotos(page, 2);
+  await expect(page.locator('[data-remove-photo]')).toHaveCount(0);
+
+  // Take the first photo off the page: it stays in the tray, now removable.
+  await page.locator('[data-layer-select]').last().click();
+  await page.locator('[data-action="delete"][data-for="item"]').click();
+  await expect(page.locator('[data-remove-photo]')).toHaveCount(1);
+  await page.locator('[data-remove-photo]').click();
+  await expect(page.locator('[data-photo-count]')).toHaveText('1 of 60 photos');
+  await expect(page.locator('[data-tray-photo]')).toHaveCount(1);
+  await expect.poll(async () => (await stored(page)).map((d) => d.photos)).toEqual([1]);
+
+  // Undo brings back the frame that showed it, and with it the photo.
+  await page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => {});
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('[data-photo-count]')).toHaveText('2 of 60 photos');
+  await expect.poll(async () => (await stored(page)).map((d) => d.photos)).toEqual([2]);
+  expect(errors).toEqual([]);
+});

@@ -71,7 +71,9 @@ its npm package by hand; the libman entry records the version.
   and Banner 3:1. Drafts are listed below, newest first, with Delete and a 10-second Undo.
 - **Photos**: add up to 60 photos (JPEG, PNG, WEBP, GIF or BMP, at most 50 MB each) by the
   button, by dropping them, by pasting, or with **From PRISM Photos** (search by words, project
-  and year, tick the photos, Add). Empty frames fill first. A photo can be turned to any
+  and year, tick the photos, Add). Empty frames fill first. A photo the page does not show can be
+  taken out of the collage with the × on its tray picture (Undo of its frame brings it back);
+  one file that cannot be read is named and the rest go in. A photo can be turned to any
   angle, resized, mirrored, given a frame (white border, polaroid with a caption, tape, torn
   edge), rounded corners, a shape (oval, heart, star, hexagon, arch), a shadow and a look (black and
   white, sepia, vintage, vivid, soft, cool, warm), and moved inside its frame (**Adjust**, or double-click).

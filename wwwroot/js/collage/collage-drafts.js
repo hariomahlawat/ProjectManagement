@@ -90,7 +90,8 @@
   /**
    * Saves a draft in one go: the draft record and every photo it uses that the database does not
    * hold for it yet, so a draft is never stored half written, and a draft purged by another tab
-   * while it was open comes back whole. Photos already stored are not written again.
+   * while it was open comes back whole. Photos already stored are not written again, and stored
+   * photos the draft no longer has (removed from the collage) are deleted.
    */
   async function save(draft, photos) {
     const db = await open();
@@ -99,11 +100,14 @@
     tx.objectStore('drafts').put(draft);
     const store = tx.objectStore('photos');
     const held = new Set(await request(store.index('draft').getAllKeys(draft.id)));
+    const wanted = new Set();
     for (const photo of photos || []) {
       const key = `${draft.id}/${photo.id}`;
+      wanted.add(key);
       if (held.has(key)) continue;
       store.put({ key, draft: draft.id, id: photo.id, name: photo.name, file: photo.file, width: photo.width, height: photo.height });
     }
+    for (const key of held) if (!wanted.has(key)) store.delete(key);
     await finished;
   }
 

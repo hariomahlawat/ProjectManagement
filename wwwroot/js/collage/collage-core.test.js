@@ -732,3 +732,29 @@ test('a draft is read back with only plain, unique ids and sensible shapes and c
   assert.deepEqual([d.crop.x, d.crop.y], [1, 0]);
   assert.equal('cell' in d, false);
 });
+
+test('photos in use: the frames and the background; Undo knows which photos its steps show', () => {
+  const PC = require('./collage-core.js');
+  let model = PC.newCollage(PC.DEFAULT_SIZE);
+  model.items.push({ id: 'i1', kind: 'photo', photo: 'p1' }, { id: 'i2', kind: 'slot' });
+  model.background = { type: 'photo', photo: 'p2' };
+  assert.deepEqual([...PC.photosInUse(model)].sort(), ['p1', 'p2']);
+  const history = PC.createHistory(model);
+  model = { ...model, items: [], background: { type: 'color', value: '#ffffff' } };
+  history.record(model);
+  assert.equal(PC.photosInUse(model).size, 0);
+  assert.equal(history.mentions('p1'), true, 'Undo can bring back the step that shows it');
+  assert.equal(history.mentions('p3'), false);
+  assert.equal(history.mentions('p'), false, 'a different photo whose id starts the same');
+});
+
+test('a file that could not be read is refused as damaged, not as "not a photo"', () => {
+  const PC = require('./collage-core.js');
+  const { accepted, refused } = PC.checkPhotos([
+    { name: 'cloud.jpg', size: 10, type: null, unreadable: true },
+    { name: 'ok.jpg', size: 10, type: 'image/jpeg' }
+  ], 0);
+  assert.equal(accepted.length, 1);
+  assert.deepEqual(refused, [{ name: 'cloud.jpg', reason: 'unreadable' }]);
+  assert.match(PC.refusedMessage(refused), /could not be opened/);
+});

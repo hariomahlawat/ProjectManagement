@@ -132,3 +132,27 @@ test('a library photo is named by its title with the ending of its type', () => 
   assert.equal(library.fileNameFor('IMG_0042.JPG', 'image/jpeg'), 'IMG_0042.JPG');
   assert.equal(library.fileNameFor('', 'image/png'), 'PRISM photo.png');
 });
+
+test('a library photo larger than a collage takes is refused before its body is read', async (t) => {
+  const real = globalThis.fetch;
+  t.after(() => { globalThis.fetch = real; });
+  let bodyRead = false;
+  let cancelled = false;
+  globalThis.fetch = async () => ({
+    ok: true,
+    headers: new Map([['Content-Length', String(60 * 1024 * 1024)]]),
+    body: { cancel: async () => { cancelled = true; } },
+    blob: async () => { bodyRead = true; return new Blob(['x']); }
+  });
+  await assert.rejects(
+    library.readLibraryPhoto({ url: '/Photos/Media/7/original?v=3', title: 'Big' }, { maxBytes: 50 * 1024 * 1024 }),
+    (error) => error.reason === 'too-large');
+  assert.equal(bodyRead, false);
+  assert.equal(cancelled, true);
+
+  // No size given by the server: the body is read, then checked.
+  globalThis.fetch = async () => ({ ok: true, headers: new Map(), blob: async () => new Blob([new Uint8Array(10)], { type: 'image/jpeg' }) });
+  await assert.rejects(library.readLibraryPhoto({ url: '/Photos/Media/7/original?v=3' }, { maxBytes: 5 }), (error) => error.reason === 'too-large');
+  const file = await library.readLibraryPhoto({ url: '/Photos/Media/7/original?v=3', title: 'Small' }, { maxBytes: 50 });
+  assert.equal(file.name, 'Small.jpg');
+});

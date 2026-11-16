@@ -21,10 +21,13 @@ function memoryDrafts() {
     save: async (record, all) => {
       calls.push(['save', record.id]);
       records.set(record.id, { ...record });
+      const wanted = new Set();
       for (const photo of all || []) {
         const key = `${record.id}/${photo.id}`;
+        wanted.add(key);
         if (!photos.has(key)) photos.set(key, { key, draft: record.id, ...photo });
       }
+      for (const key of [...photos.keys()]) if (key.startsWith(`${record.id}/`) && !wanted.has(key)) photos.delete(key);
     },
     markDeleted: async (id, at) => { if (records.has(id)) records.set(id, { ...records.get(id), deletedAt: at }); },
     restore: async (id) => { if (records.has(id)) records.set(id, { ...records.get(id), deletedAt: null }); },
@@ -249,4 +252,17 @@ test('a draft finished writing after the editor moved on does not change the new
   assert.ok(drafts.records.has('d1'));
   assert.equal(statuses.length, count, 'no status for the old draft');
   assert.equal(session.draft.id, 'd2');
+});
+
+test('a photo removed from the collage leaves the draft on its next save', async () => {
+  const { drafts, session, shot } = setUp({ photos: [{ id: 'p1' }, { id: 'p2' }] });
+  session.begin({ id: 'd1' });
+  session.changed();
+  await session.saveNow();
+  assert.deepEqual([...drafts.photos.keys()].sort(), ['d1/p1', 'd1/p2']);
+  shot.photos = [{ id: 'p1' }];
+  session.changed();
+  await session.saveNow();
+  assert.deepEqual([...drafts.photos.keys()], ['d1/p1']);
+  assert.equal(drafts.records.get('d1').photoCount, 1);
 });
