@@ -9,7 +9,6 @@ if (root) {
   const form = root.querySelector('[data-pbd-role-charter-form]');
   const saveButton = root.querySelector('[data-pbd-role-charter-save]');
   const status = root.querySelector('[data-pbd-role-charter-status]');
-  const enable = root.querySelector('[data-pbd-role-charter-enable]');
   const settings = root.querySelector('[data-pbd-role-charter-settings]');
   const sharedChoice = root.querySelector('[data-pbd-role-charter-shared]');
   const customChoice = root.querySelector('[data-pbd-role-charter-custom]');
@@ -143,12 +142,11 @@ if (root) {
   const validate = ({ focus = false } = {}) => {
     syncRole();
     syncCharter();
-    const included = true;
     const shared = Boolean(sharedChoice?.checked);
     const charterOnly = layout?.value === 'CharterOnly' || layout?.value === '3';
     const roleCount = shared ? 2 : contentCount(roleList, '[data-pbd-role-item]', '[data-pbd-role-lead]', '[data-pbd-role-text]');
     const charterCount = shared ? 10 : contentCount(charterList, '[data-pbd-charter-item]', '[data-pbd-charter-lead]', '[data-pbd-charter-text]');
-    valid = !included || (charterCount > 0 && (charterOnly || roleCount > 0));
+    valid = charterCount > 0 && (charterOnly || roleCount > 0);
     validation?.toggleAttribute('hidden', valid);
     if (!valid && focus) {
       if (!charterOnly && roleCount === 0) roleList?.querySelector('input')?.focus();
@@ -301,7 +299,6 @@ if (root) {
     refreshDirty();
     charterList?.lastElementChild?.querySelector('input')?.focus();
   });
-  enable?.addEventListener('change', () => { updateVisibility(); refreshDirty(); });
   sharedChoice?.addEventListener('change', () => { updateVisibility(); refreshDirty(); });
   customChoice?.addEventListener('change', () => { updateVisibility(); refreshDirty(); });
   layout?.addEventListener('change', refreshDirty);

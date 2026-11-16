@@ -334,7 +334,6 @@ if (root) {
   const refreshProfileDirtyState = () => setProfileDirty(serializeForm(profileForm) !== profileInitialState);
 
   // Optional SDD institutional-profile slide.
-  const institutionalProfileEnable = root.querySelector('[data-pbd-institutional-profile-enable]');
   const institutionalProfileSettings = root.querySelector('[data-pbd-institutional-profile-settings]');
   const institutionalHistoryEnable = root.querySelector('[data-pbd-institutional-history-enable]');
   const institutionalHistoryFields = root.querySelector('[data-pbd-institutional-history-fields]');
@@ -575,7 +574,7 @@ if (root) {
   const validateInstitutionalProfile = ({ focus = false } = {}) => {
     // In the deck as the slide list says now, not as the page was drawn (review 2 fixes, PR 4).
     const blockSwitch = root.querySelector('[data-pbd-block][data-type="InstitutionalProfile"] [data-pbd-block-switch]');
-    const enabled = blockSwitch instanceof HTMLInputElement ? blockSwitch.checked : Boolean(institutionalProfileEnable?.checked);
+    const enabled = blockSwitch instanceof HTMLInputElement ? blockSwitch.checked : profileForm?.dataset.pbdProfileInDeck === 'true';
     const historySelected = Boolean(institutionalHistoryEnable?.checked);
     const historyValid = !historySelected || institutionalHistoryCount() > 0;
     const selectedKeys = selectedInstitutionalModuleKeys();
@@ -586,12 +585,13 @@ if (root) {
     const footerText = root.querySelector('input[name="InstitutionalFooterStripText"]')?.value?.trim() || '';
     const footerValue = root.querySelector('input[name="InstitutionalFooterStripEmphasisValue"]')?.value?.trim() || '';
     const footerValid = !footerSelected || Boolean(footerText || footerValue);
-    const valid = !enabled || (hasContent && historyValid && partnershipValid && footerValid);
+    // The server checks the footer strip whether or not the slide is in the deck (review 3 fixes, Low 1).
+    const valid = footerValid && (!enabled || (hasContent && historyValid && partnershipValid));
     profileValid = valid;
     institutionalProfileValidation?.toggleAttribute('hidden', !enabled || hasContent);
     institutionalHistoryValidation?.toggleAttribute('hidden', !enabled || historyValid);
     institutionalPartnershipValidation?.toggleAttribute('hidden', !enabled || partnershipValid);
-    institutionalFooterValidation?.toggleAttribute('hidden', !enabled || footerValid);
+    institutionalFooterValidation?.toggleAttribute('hidden', footerValid);
     institutionalModuleList?.classList.toggle('has-validation-error', enabled && !hasContent);
     institutionalModuleList?.setAttribute('aria-invalid', String(enabled && !hasContent));
     institutionalHistoryEditor?.classList.toggle('has-validation-error', enabled && !historyValid);
@@ -712,7 +712,6 @@ if (root) {
     row.querySelector('[data-pbd-institutional-partnership-text]')?.focus();
   });
 
-  institutionalProfileEnable?.addEventListener('change', syncInstitutionalProfileSettings);
   institutionalHistoryEnable?.addEventListener('change', syncInstitutionalProfileSettings);
   institutionalFooterEnable?.addEventListener('change', syncInstitutionalProfileSettings);
   syncInstitutionalHistoryEditor();
@@ -729,7 +728,7 @@ if (root) {
 
   const openProfileDrawer = (launcher) => {
     if (!profileDrawer || !profileBackdrop) return;
-    // The profile editor saves with a page reload; let a pending settings save finish first.
+    // Start a pending settings save now, so the profile's own save does not wait for it later.
     if (settingsPending()) saveSettingsNow();
     profileReturnFocus = launcher || document.activeElement;
     profileDrawer.classList.add('is-open');
@@ -836,7 +835,6 @@ if (root) {
       profileInitialState = serializeForm(profileForm);
       setProfileDirty(false);
       await closeProfileDrawer({ discard: false, force: true });
-      setState(blockStatus, result.message, 'saved');
       return;
     }
     if (profileSave) profileSave.disabled = false;
@@ -1139,7 +1137,10 @@ if (root) {
         return replyPayload;
       });
       applyEditorState(payload?.deck);
-      return { ok: true, message: payload?.message || 'Saved.' };
+      // Each editor says it saved in the same place, the slide list's status (review 3 fixes, M3).
+      const message = payload?.message || 'Saved.';
+      setState(blockStatus, message, 'saved');
+      return { ok: true, message };
     } catch (error) {
       return { ok: false, message: error.message || 'The slide could not be saved.' };
     }
