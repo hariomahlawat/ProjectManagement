@@ -981,8 +981,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("InstitutionalProfileOptions = additionalSlides.InstitutionalProfileOptions", pageModel, StringComparison.Ordinal);
         Assert.Contains("AdditionalSlideOrder = additionalSlides.AdditionalSlideOrder", pageModel, StringComparison.Ordinal);
         Assert.Contains("UpdateInstitutionalProfileAsync", deckService, StringComparison.Ordinal);
-        var profileUpdateStart = deckService.IndexOf("public async Task UpdateInstitutionalProfileAsync(", StringComparison.Ordinal);
-        var profileUpdateEnd = deckService.IndexOf("public async Task UpdateRoleCharterAsync(", profileUpdateStart, StringComparison.Ordinal);
+        var profileUpdateStart = deckService.IndexOf("public async Task<string> UpdateInstitutionalProfileAsync(", StringComparison.Ordinal);
+        var profileUpdateEnd = deckService.IndexOf("public async Task<string> UpdateRoleCharterAsync(", profileUpdateStart, StringComparison.Ordinal);
         Assert.True(profileUpdateStart >= 0 && profileUpdateEnd > profileUpdateStart);
         var profileUpdate = deckService[profileUpdateStart..profileUpdateEnd];
         Assert.Contains("ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides", profileUpdate, StringComparison.Ordinal);

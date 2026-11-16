@@ -78,6 +78,16 @@ What holds the scores back:
 4. **Institution editors save in place** (M3, Low 8). The SDD profile, Role & Charter and FFC
    footprint editors save over JSON like the rest of the Studio, and follow the slide list's
    in/out state. Each slide has one name everywhere.
+
+   Built (17 Nov 2026).
+   - The SDD profile, Role & Charter and FFC footprint editors save through one page function
+     (`saveEditorInPlace`), in the deck's one-at-a-time queue after any pending settings save.
+     The handlers answer an in-page request with the message, the version their own save
+     produced and the refreshed deck (`EditorReplyAsync`); a plain post still redirects.
+   - After a save the drawer closes, the Studio rebuilds and the form's saved values become its
+     defaults, so Discard returns to them.
+   - The drawers' "In this deck" text and the SDD profile's checks follow the slide list.
+   - Editors, messages and confirmations say "SDD profile", "Role & Charter" and "FFC footprint".
 5. **Design rules in one place** (M4). The design mapping and key-point placement move into
    `ProjectBriefingProjectSlideDesigns`. The page reads the chip rules, hints and notes limit
    from data the server writes.

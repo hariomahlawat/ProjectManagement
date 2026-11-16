@@ -141,10 +141,23 @@ test('pending settings saves finish before navigation, posts and generation', ()
   assert.match(source, /if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{\s*setState\(generateStatus, 'Save the deck settings before generating the PowerPoint\.', 'error'\);/);
 });
 
-test('profile and additional-slide posts wait for a pending settings save', () => {
-  // The profile posts with the deck's row version, so it waits for the settings save to finish.
-  assert.match(source, /if \(settingsPending\(\)\) \{\s*event\.preventDefault\(\);\s*if \(!\(await saveSettingsNow\(\)\)\) \{/);
-  assert.match(source, /profileDirty = false;\s*HTMLFormElement\.prototype\.submit\.call\(profileForm\);/);
+test('the content editors save in place, after a pending settings save (review 2 fixes, PR 4)', () => {
+  // One save path for all three editors: it settles the settings first, then queues the post.
+  assert.match(source, /async function sendEditor\(form\) \{[\s\S]*?if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{[\s\S]*?runDeckMutation/);
+  // It stays on the page, so it never takes the leave-and-discard path.
+  assert.doesNotMatch(source.match(/async function sendEditor\(form\) \{[\s\S]*?\n  \}\n/)?.[0] || '', /settleSettingsBeforeLeaving|settingsDiscarded/);
+  // Locked while it saves, so an edit made mid-save is not marked saved without being sent.
+  // A drawer cannot be dismissed (and its form reset) while its save runs.
+  assert.match(source, /const closeProfileDrawer = async[\s\S]*?if \(profileForm\?\.getAttribute\('aria-busy'\) === 'true'\) return false;/);
+  assert.match(additionalSlidesSource, /const closeDrawer = async[\s\S]*?if \(form\?\.getAttribute\('aria-busy'\) === 'true'\) return false;/);
+  assert.match(additionalSlidesSource, /const closeFfcDrawer = async[\s\S]*?if \(ffcForm\?\.getAttribute\('aria-busy'\) === 'true'\) return false;/);
+  assert.match(source, /form\.toggleAttribute\('inert', true\);[\s\S]*?return await sendEditor\(form\);\s*\} finally \{\s*form\.toggleAttribute\('inert', false\);/);
+  assert.match(source, /const result = await saveEditorInPlace\(profileForm\);/);
+  assert.match(additionalSlidesSource, /const result = await root\.pbdSaveEditor\(form\);/);
+  assert.match(additionalSlidesSource, /const result = await root\.pbdSaveEditor\(ffcForm\);/);
+  // The drawers and the profile checks follow the slide list, not the page as it was drawn.
+  assert.match(source, /label\.textContent = on \? 'In this deck' : 'Not in this deck';/);
+  assert.match(source, /data-type="InstitutionalProfile"\] \[data-pbd-block-switch\]'\);\s*const enabled = blockSwitch instanceof HTMLInputElement/);
   // The old additional-slide forms are gone; slides are added and removed in the Deck tab (review fixes PR 3).
   assert.doesNotMatch(additionalSlidesSource, /additionalSlideOrderForm/);
 });
