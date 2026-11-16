@@ -21,18 +21,14 @@ public sealed class ProjectBriefingDeckPresetServiceTests
     private const string UserId = "user-1";
 
     [Fact]
-    public async Task TheRetiredVisitPreset_CannotBeAppliedOrCreatedFrom()
+    public async Task TheRetiredVisitPreset_CannotBeCreatedFrom()
     {
         // A template is a slide design; the visit preset was only settings.
         await using var db = CreateDb();
-        var deck = await SeedAsync(db, configurationJson: null);
-        var service = Service(db);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ApplyPresetAsync(
-            deck.Id, UserId, ProjectBriefingDeckPreset.VisitOrExternalAudience, Version(deck)));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Service(db).CreateAsync(
             UserId, "Visit deck", description: null, preset: ProjectBriefingDeckPreset.VisitOrExternalAudience));
-        Assert.Null(Configuration(deck).Preset);
+        Assert.Empty(db.Set<ProjectBriefingDeck>());
     }
 
     [Fact]
@@ -125,52 +121,6 @@ public sealed class ProjectBriefingDeckPresetServiceTests
         var deck = await db.Set<ProjectBriefingDeck>().SingleAsync(item => item.Id == deckId);
         Assert.Null(Configuration(deck).Preset);
         Assert.Equal(ProjectBriefingLayout.StandardBriefing, deck.Layout);
-    }
-
-    [Fact]
-    public async Task UndoingATemplate_PutsBackTheSettingsItReplaced()
-    {
-        await using var db = CreateDb();
-        var deck = await SeedAsync(db, configurationJson: null);
-        deck.CostMode = ProjectBriefingCostMode.None;
-        deck.PresentationTheme = ProjectBriefingPresentationTheme.GraphiteDark;
-        await db.SaveChangesAsync();
-        var service = Service(db);
-        var before = Configuration(deck);
-
-        var applied = await service.ApplyPresetAsync(
-            deck.Id, UserId, ProjectBriefingDeckPreset.ProjectUpdateSheets, Version(deck));
-        Assert.Equal(ProjectBriefingLayout.ProjectUpdateSheet, deck.Layout);
-        Assert.Equal(Version(deck), applied.Undo.AppliedRowVersion);
-
-        await service.UndoPresetAsync(UserId, applied.Undo);
-
-        var after = Configuration(deck);
-        Assert.Equal(ProjectBriefingCostMode.None, deck.CostMode);
-        Assert.Equal(ProjectBriefingPresentationTheme.GraphiteDark, deck.PresentationTheme);
-        Assert.Equal(ProjectBriefingLayout.StandardBriefing, deck.Layout);
-        Assert.Null(after.Preset);
-        Assert.False(after.InstitutionalProfileOptions.IncludeSlide);
-        Assert.Equal(before.InstitutionalProfileOptions.Modules, after.InstitutionalProfileOptions.Modules);
-        Assert.Equal(before.AdditionalSlideOrder, after.AdditionalSlideOrder);
-        Assert.Equal(before.ClosingSlideType, after.ClosingSlideType);
-        Assert.Equal(before.UpdateSheetOptions.Rows, after.UpdateSheetOptions.Rows);
-    }
-
-    [Fact]
-    public async Task UndoingATemplate_IsRefusedOnceTheDeckChangedAgain()
-    {
-        await using var db = CreateDb();
-        var deck = await SeedAsync(db, configurationJson: null);
-        var service = Service(db);
-        var applied = await service.ApplyPresetAsync(
-            deck.Id, UserId, ProjectBriefingDeckPreset.ProjectUpdateSheets, Version(deck));
-
-        await service.UpdateSettingsAsync(deck.Id, UserId, RenameCommand(deck, "Changed since"));
-
-        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
-            service.UndoPresetAsync(UserId, applied.Undo));
-        Assert.Equal(ProjectBriefingLayout.ProjectUpdateSheet, deck.Layout);
     }
 
     private static ProjectBriefingDeckSettingsCommand RenameCommand(

@@ -98,11 +98,13 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("<small data-pbd-placeholder-note hidden>", page, StringComparison.Ordinal);
         Assert.Contains("placeholderNote.hidden = openChecks === 0;", studio, StringComparison.Ordinal);
 
-        // Templates are no longer applied from the Deck tab; an Undo offered by an older page still works.
+        // Templates are no longer applied from the Deck tab.
         Assert.DoesNotContain("Keep my settings", script, StringComparison.Ordinal);
-        Assert.Contains("asp-page-handler=\"UndoPreset\"", page, StringComparison.Ordinal);
-        Assert.Contains("OnPostUndoPresetAsync", model, StringComparison.Ordinal);
-        Assert.Contains("root.querySelector('[data-pbd-preset-undo]')?.remove();", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("asp-page-handler=\"UndoPreset\"", page, StringComparison.Ordinal);
+        // Template apply and undo were retired with the Template picker (review fixes PR 6).
+        Assert.DoesNotContain("OnPostUndoPresetAsync", model, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnPostApplyPresetAsync", model, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-pbd-preset-undo", script, StringComparison.Ordinal);
 
         // Success messages clear themselves.
         Assert.Contains("data-pbd-auto-dismiss", page, StringComparison.Ordinal);

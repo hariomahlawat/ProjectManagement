@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -91,16 +90,6 @@ public sealed class IndexModel : PageModel
     [TempData]
     public bool ReopenFfcGlobalFootprint { get; set; }
 
-    // The settings the last template replaced, kept for Undo while the deck is unchanged since.
-    private const string PresetUndoKey = "BriefingPresetUndo";
-    private static readonly JsonSerializerOptions PresetUndoJson = new()
-    {
-        Converters = { new JsonStringEnumConverter() }
-    };
-
-    // Set when the deck was just changed by a template and nothing has changed since.
-    public bool PresetUndoAvailable { get; private set; }
-
     // Opened by a new deck: the Studio starts on Add projects.
     public bool StartWithAddProjects { get; private set; }
 
@@ -121,58 +110,7 @@ public sealed class IndexModel : PageModel
         await LoadPageAsync(userId, deckId, cancellationToken);
         StartWithAddProjects = SelectedDeck is not null
             && string.Equals(start, "projects", StringComparison.Ordinal);
-        PresetUndoAvailable = SelectedDeck is { } deck
-            && ReadPresetUndo() is { } undo
-            && undo.DeckId == deck.Id
-            && string.Equals(undo.AppliedRowVersion, deck.RowVersion, StringComparison.Ordinal);
         return Page();
-    }
-
-    public async Task<IActionResult> OnPostUndoPresetAsync(long deckId, CancellationToken cancellationToken)
-    {
-        var userId = RequireUserId();
-        var undo = ReadPresetUndo();
-        TempData.Remove(PresetUndoKey);
-        if (undo is null || undo.DeckId != deckId)
-        {
-            ErrorMessage = "There is no template change to undo.";
-            return RedirectToPage(new { deckId });
-        }
-
-        try
-        {
-            await _deckService.UndoPresetAsync(userId, undo, cancellationToken);
-            StatusMessage = "Template undone. The deck has its previous settings again.";
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            ErrorMessage = "The deck changed after the template was applied, so it cannot be undone. Choose the settings you want instead.";
-        }
-        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
-        {
-            ErrorMessage = exception.Message;
-        }
-
-        return RedirectToPage(new { deckId });
-    }
-
-    // Peek: the note stays for the Undo post; it is dropped once used or when it no longer applies.
-    private ProjectBriefingPresetUndo? ReadPresetUndo()
-    {
-        if (TempData.Peek(PresetUndoKey) is not string json || string.IsNullOrWhiteSpace(json))
-        {
-            return null;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<ProjectBriefingPresetUndo>(json, PresetUndoJson);
-        }
-        catch (JsonException)
-        {
-            TempData.Remove(PresetUndoKey);
-            return null;
-        }
     }
 
     public async Task<IActionResult> OnPostCreateAsync(
@@ -450,46 +388,6 @@ public sealed class IndexModel : PageModel
         }
     }
 
-    public async Task<IActionResult> OnPostApplyPresetAsync(
-        [FromBody] ApplyPresetInput? input,
-        CancellationToken cancellationToken)
-    {
-        var userId = RequireUserId();
-        if (input is null || input.DeckId <= 0 || string.IsNullOrWhiteSpace(input.RowVersion)
-            || !Enum.IsDefined(input.Preset))
-        {
-            return BadRequest(new { message = "The preset request is invalid." });
-        }
-
-        try
-        {
-            var applied = await _deckService.ApplyPresetAsync(
-                input.DeckId,
-                userId,
-                input.Preset,
-                input.RowVersion,
-                cancellationToken);
-            // The page reloads after a template; it then offers Undo from this note. TempData is
-            // protected by data protection, so the snapshot cannot be altered by the browser.
-            TempData[PresetUndoKey] = JsonSerializer.Serialize(applied.Undo, PresetUndoJson);
-            return new JsonResult(new { saved = true, additionalSlidesChanged = applied.AdditionalSlidesChanged });
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return new JsonResult(new
-            {
-                message = "This deck was updated by another user. Reload to see their changes before choosing a preset."
-            })
-            {
-                StatusCode = StatusCodes.Status409Conflict
-            };
-        }
-        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
-        {
-            return BadRequest(new { message = exception.Message });
-        }
-    }
-
     private bool IsAjaxRequest()
         => string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
 
@@ -714,30 +612,6 @@ public sealed class IndexModel : PageModel
 
         StatusMessage = message;
         return RedirectToPage(new { deckId = input.DeckId });
-    }
-
-    public async Task<IActionResult> OnPostRemoveProjectAsync(
-        long deckId,
-        int projectId,
-        string rowVersion,
-        CancellationToken cancellationToken)
-    {
-        var userId = RequireUserId();
-        try
-        {
-            await _deckService.RemoveProjectAsync(deckId, projectId, userId, rowVersion, cancellationToken);
-            StatusMessage = "Project removed from the deck.";
-        }
-        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
-        {
-            ErrorMessage = exception.Message;
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            ErrorMessage = "The deck was updated by another user. Reload the page before removing the project.";
-        }
-
-        return RedirectToPage(new { deckId });
     }
 
     public async Task<IActionResult> OnPostUpdateMembershipAsync(
@@ -1408,11 +1282,6 @@ public sealed class IndexModel : PageModel
 
         return result;
     }
-
-    private static string AdditionalSlideLabel(ProjectBriefingAdditionalSlideType slideType)
-        => ProjectBriefingAdditionalSlideCatalog.IsRegistered(slideType)
-            ? ProjectBriefingAdditionalSlideCatalog.Get(slideType).DisplayName
-            : "Additional slide";
 
     private static IReadOnlyList<string> ParseSimpleLines(string? value)
         => (value ?? string.Empty)

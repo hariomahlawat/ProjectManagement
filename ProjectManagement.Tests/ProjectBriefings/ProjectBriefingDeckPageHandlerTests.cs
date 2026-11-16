@@ -213,20 +213,6 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         Assert.Null((await ReloadAsync(db, deck)).DeletedAtUtc);
     }
 
-    [Fact]
-    public async Task RemoveProject_ACommandUserIsRefusedWithAMessage()
-    {
-        await using var db = CreateDb();
-        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
-        var page = CreatePage(db, Hod);
-
-        var result = await page.OnPostRemoveProjectAsync(deck.Id, ProjectId, Version(deck), CancellationToken.None);
-
-        Assert.IsType<RedirectToPageResult>(result);
-        Assert.Equal(ProjectBriefingDeckService.ViewOnlyMessage, page.ErrorMessage);
-        Assert.Equal(1, await db.Set<ProjectBriefingDeckItem>().CountAsync(item => item.DeckId == deck.Id));
-    }
-
     // ---- What a command user may still do -----------------------------------------------------
 
     [Fact]

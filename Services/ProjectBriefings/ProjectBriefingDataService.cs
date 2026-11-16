@@ -135,27 +135,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             IncludeTechnicalCategorySummary = snapshot.IncludeTechnicalCategorySummary,
             UpdateSheetOptions = snapshot.UpdateSheetOptions,
             HandlingMarking = snapshot.HandlingMarking,
-            // Every deck has a slide design, so every deck shows a template; customised when its
-            // settings have moved from that template's.
+            // The template the deck started from (or the one its layout matches); the Studio shows the design.
             Preset = ProjectBriefingDeckPresets.TemplateOf(snapshot.Preset, snapshot.Layout),
-            PresetAdjusted = !ProjectBriefingDeckPresets.Matches(
-                ProjectBriefingDeckPresets.TemplateOf(snapshot.Preset, snapshot.Layout),
-                new ProjectBriefingDeckPresetState(
-                    snapshot.Layout,
-                    snapshot.PresentationMode,
-                    snapshot.NarrativeMode,
-                    snapshot.CostMode,
-                    snapshot.StandardSlideOptions.ShowPresentStage,
-                    snapshot.StandardSlideOptions.ShowPresentStatus,
-                    snapshot.IncludeStageSummary,
-                    snapshot.PresentationTheme,
-                    snapshot.ClosingSlideType,
-                    snapshot.UpdateSheetOptions.Rows,
-                    snapshot.UpdateSheetOptions.HideEmptyValues,
-                    snapshot.IncludeCoverSlide,
-                    snapshot.IncludePortfolioSummarySlide,
-                    snapshot.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.InstitutionalProfile)
-                        && snapshot.InstitutionalProfileOptions.IncludeSlide)),
             RowVersion = Encode(snapshot.RowVersion),
             UpdatedAtUtc = snapshot.UpdatedAtUtc,
             CreatedByDisplay = snapshot.CreatedByDisplay,

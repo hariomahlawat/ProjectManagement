@@ -45,22 +45,6 @@ public interface IProjectBriefingDeckService
         ProjectBriefingDeckSettingsCommand command,
         CancellationToken cancellationToken = default);
 
-    // Sets the deck's template, format, content, costs, look and closing from a purpose preset and
-    // remembers the preset. Says whether it also switched on an additional slide, and returns the
-    // settings it replaced so the change can be undone.
-    Task<ProjectBriefingPresetApplied> ApplyPresetAsync(
-        long deckId,
-        string requestingUserId,
-        ProjectBriefingDeckPreset preset,
-        string rowVersion,
-        CancellationToken cancellationToken = default);
-
-    // Puts back the settings a template replaced, while the deck is still as the template left it.
-    Task UndoPresetAsync(
-        string requestingUserId,
-        ProjectBriefingPresetUndo undo,
-        CancellationToken cancellationToken = default);
-
     Task UpdateInstitutionalProfileAsync(
         long deckId,
         string requestingUserId,
@@ -106,13 +90,6 @@ public interface IProjectBriefingDeckService
         string requestingUserId,
         IReadOnlyCollection<int> addProjectIds,
         IReadOnlyCollection<int> removeProjectIds,
-        string rowVersion,
-        CancellationToken cancellationToken = default);
-
-    Task RemoveProjectAsync(
-        long deckId,
-        int projectId,
-        string requestingUserId,
         string rowVersion,
         CancellationToken cancellationToken = default);
 
@@ -577,38 +554,6 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         await AuditAsync("ProjectBriefing.DeckUpdated", userId, deck, "Project briefing deck settings updated.");
     }
 
-    public async Task<ProjectBriefingPresetApplied> ApplyPresetAsync(
-        long deckId,
-        string requestingUserId,
-        ProjectBriefingDeckPreset preset,
-        string rowVersion,
-        CancellationToken cancellationToken = default)
-    {
-        if (!ProjectBriefingDeckPresets.IsTemplate(preset))
-        {
-            throw new InvalidOperationException("The selected template is not available.");
-        }
-
-        var userId = NormalizeUserId(requestingUserId);
-        var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
-        EnsureVersion(deck, rowVersion);
-
-        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
-        var before = CapturePresetUndo(deck, configuration);
-        var additionalSlidesChanged = SetFromPreset(deck, preset);
-        Touch(deck, userId);
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await AuditAsync(
-            "ProjectBriefing.PresetApplied",
-            userId,
-            deck,
-            $"Project briefing deck set from the {ProjectBriefingDeckPresets.Get(preset).Title} preset.");
-        return new ProjectBriefingPresetApplied(
-            additionalSlidesChanged,
-            before with { AppliedRowVersion = Encode(deck.RowVersion) });
-    }
-
     // A template's settings on a deck, in memory (nothing is saved): used when a deck is created from
     // a template and when a template is applied. Returns whether the institution slides changed.
     private static bool SetFromPreset(ProjectBriefingDeck deck, ProjectBriefingDeckPreset preset)
@@ -673,88 +618,6 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithPreset(json, preset);
         return additionalSlidesChanged;
     }
-
-    public async Task UndoPresetAsync(
-        string requestingUserId,
-        ProjectBriefingPresetUndo undo,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(undo);
-        var userId = NormalizeUserId(requestingUserId);
-        var deck = await LoadEditableAsync(undo.DeckId, userId, includeItems: false, cancellationToken);
-        // Only while nothing has changed since the template: otherwise undo would discard later work.
-        EnsureVersion(deck, undo.AppliedRowVersion);
-
-        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
-        deck.Layout = undo.Layout;
-        deck.PresentationMode = undo.PresentationMode;
-        deck.NarrativeMode = undo.NarrativeMode;
-        deck.CostMode = undo.CostMode;
-        deck.PresentationTheme = undo.PresentationTheme;
-        deck.IncludeStageSummary = undo.IncludeStageSummary;
-        deck.IncludeCoverSlide = undo.IncludeCoverSlide;
-        deck.IncludePortfolioSummarySlide = undo.IncludePortfolioSummarySlide;
-
-        var current = configuration.StandardSlideOptions;
-        var standard = ProjectBriefingStandardSlideOptions.Normalize(
-            current.ProjectBriefLayout,
-            undo.ShowPresentStage,
-            undo.ShowPresentStatus,
-            current.IncludeStageDistributionTable,
-            current.KeyPoints,
-            current.KeyPointsOnly);
-        var updateSheet = ProjectBriefingUpdateSheetOptions.Normalize(
-            undo.UpdateSheetRows,
-            undo.HideEmptyUpdateSheetValues);
-        var profile = NormalizeProfile(configuration.InstitutionalProfileOptions with
-        {
-            IncludeSlide = undo.ProfileIncluded,
-            IncludeHistory = undo.ProfileIncludesHistory,
-            Modules = undo.ProfileModules
-        });
-
-        var json = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
-            deck.SelectionRulesJson,
-            updateSheet,
-            standard,
-            undo.ClosingSlideType,
-            profile);
-        json = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlideOrder(json, undo.AdditionalSlideOrder);
-        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithPreset(json, undo.Preset);
-        Touch(deck, userId);
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await AuditAsync(
-            "ProjectBriefing.PresetUndone",
-            userId,
-            deck,
-            "Project briefing deck template change undone.");
-    }
-
-    private static ProjectBriefingPresetUndo CapturePresetUndo(
-        ProjectBriefingDeck deck,
-        ProjectBriefingDeckConfiguration configuration) =>
-        new(
-            deck.Id,
-            AppliedRowVersion: string.Empty,
-            configuration.Preset,
-            deck.Layout,
-            deck.PresentationMode,
-            deck.NarrativeMode,
-            deck.CostMode,
-            deck.PresentationTheme,
-            deck.IncludeStageSummary,
-            deck.IncludeCoverSlide,
-            deck.IncludePortfolioSummarySlide,
-            configuration.UpdateSheetOptions.Rows.ToArray(),
-            configuration.UpdateSheetOptions.HideEmptyValues,
-            configuration.StandardSlideOptions.ShowPresentStage,
-            configuration.StandardSlideOptions.ShowPresentStatus,
-            configuration.ClosingSlideType,
-            configuration.InstitutionalProfileOptions.IncludeSlide,
-            configuration.InstitutionalProfileOptions.IncludeHistory,
-            configuration.InstitutionalProfileOptions.Modules.ToArray(),
-            configuration.AdditionalSlideOrder.ToArray());
 
     /// <summary>
     /// Switches the SDD profile on for a preset without leaving it in a state the editor would refuse:
@@ -1295,26 +1158,6 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             });
 
         return new ProjectBriefingMembershipUpdateResult(Encode(deck.RowVersion), additions.Length, removedItems.Length);
-    }
-
-    public async Task RemoveProjectAsync(
-        long deckId,
-        int projectId,
-        string requestingUserId,
-        string rowVersion,
-        CancellationToken cancellationToken = default)
-    {
-        var userId = NormalizeUserId(requestingUserId);
-        var deck = await LoadEditableAsync(deckId, userId, includeItems: true, cancellationToken);
-        EnsureVersion(deck, rowVersion);
-        var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
-            ?? throw new KeyNotFoundException("The project is not part of this deck.");
-
-        _db.Remove(item);
-        Touch(deck, userId);
-        await _db.SaveChangesAsync(cancellationToken);
-        await AuditAsync("ProjectBriefing.ProjectRemoved", userId, deck, "Project removed from briefing deck.",
-            new Dictionary<string, string?> { ["ProjectId"] = projectId.ToString() });
     }
 
     public async Task<string> ReorderAsync(

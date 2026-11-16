@@ -547,7 +547,7 @@ test('step summaries read each choice by its label, not its description', () => 
 
 test('a settings save names the settings that changed, for the preview to follow', () => {
   assert.match(source, /if \(name && event\.target\.form === settingsForm\) \{\s*changedSettings\.delete\(name\);\s*changedSettings\.add\(name\);/);
-  assert.match(source, /if \(changed\.length\) \{\s*root\.querySelector\('\[data-pbd-preset-undo\]'\)\?\.remove\(\);\s*document\.dispatchEvent\(new CustomEvent\('pbd:settings-saved', \{ detail: \{ changed \} \}\)\);/);
+  assert.match(source, /if \(changed\.length\) \{\s*document\.dispatchEvent\(new CustomEvent\('pbd:settings-saved', \{ detail: \{ changed \} \}\)\);/);
 });
 
 test('settings changed by script (row order, Select all) count as changed for the preview', () => {
