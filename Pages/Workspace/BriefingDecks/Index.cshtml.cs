@@ -273,7 +273,7 @@ public sealed class IndexModel : PageModel
                 userId,
                 includeItems: false,
                 cancellationToken)
-                ?? throw new KeyNotFoundException(ProjectBriefingDeckService.NotFoundMessage);
+                ?? throw await UnavailableDeckAsync(input.DeckId, userId, cancellationToken);
             var additionalSlides = ProjectBriefingDeckConfigurationCodec
                 .Read(existingDeck.SelectionRulesJson);
             // The design card sets the layout, what each project gets and key points; a page that
@@ -352,6 +352,13 @@ public sealed class IndexModel : PageModel
     }
 
     // The Deck tab's block list: which slides are in the deck and in what order. Saved in place.
+    // Why a deck cannot be changed: view-only for a command user on a Project Officer's deck,
+    // otherwise not found (review 2 fixes, Low 1).
+    private async Task<Exception> UnavailableDeckAsync(long deckId, string userId, CancellationToken cancellationToken)
+        => await _deckService.GetAccessAsync(deckId, userId, cancellationToken) == ProjectBriefingDeckAccessLevel.View
+            ? new InvalidOperationException(ProjectBriefingDeckService.ViewOnlyMessage)
+            : new KeyNotFoundException(ProjectBriefingDeckService.NotFoundMessage);
+
     public async Task<IActionResult> OnPostUpdateBlocksAsync(
         [FromBody] UpdateBlocksInput? input,
         CancellationToken cancellationToken)
