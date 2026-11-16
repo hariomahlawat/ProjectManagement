@@ -382,7 +382,7 @@ test('in-place deck edits ask the studio to rebuild with the refreshed deck', ()
   const announcements = source.match(/announceDeckChange\(/g) || [];
   assert.ok(announcements.length >= 3, 'membership, order and overview saves');
   assert.match(source, /announceDeckChange\(\{ hasProjects: .*, deck \}\)/);
-  assert.match(studioSource, /readStudioData\(\{ projects: event\.detail\.deck\.projects, contentGaps: event\.detail\.deck\.contentGaps \}\)/);
+  assert.match(studioSource, /readStudioData\(\{ projects: event\.detail\.deck\.projects, contentGaps: event\.detail\.deck\.contentGaps, projectDesign: event\.detail\.deck\.projectDesign \}\)/);
 });
 
 test('studio drops superseded responses and rebuilds an open viewer strip', () => {
