@@ -50,6 +50,9 @@ public sealed class IndexModel : PageModel
 
     public static string PictureUrl(CollageSticker sticker) => CollageApi.PictureUrl(sticker.Id, sticker.Version);
 
+    /// <summary>A sticker's picture under the app's path base, for the thumbnails on this page.</summary>
+    public static string PictureUrl(CollageSticker sticker, PathString pathBase) => CollageApi.PictureUrl(sticker.Id, sticker.Version, pathBase);
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         var all = await _stickers.ListAllAsync(cancellationToken);

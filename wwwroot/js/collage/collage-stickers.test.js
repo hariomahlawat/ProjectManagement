@@ -219,3 +219,48 @@ test('a library photo larger than a collage takes is refused before its body is 
   const file = await library.readLibraryPhoto({ url: '/Photos/Media/7/original?v=3', title: 'Small' }, { maxBytes: 50 });
   assert.equal(file.name, 'Small.jpg');
 });
+
+test('under a path base, PRISM is asked and trusted only at addresses below it; at the root nothing changes', async (t) => {
+  const real = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = real;
+    library.setBasePath('');
+    stickers.setBasePath('');
+    stickers.setUnit([]);
+  });
+  const asked = [];
+  globalThis.fetch = async (address) => {
+    asked.push(address);
+    if (address.includes('/api/collage/stickers')) return { ok: true, json: async () => ({ stickers: [] }) };
+    return {
+      ok: true,
+      json: async () => ({
+        available: true,
+        photos: [
+          { id: 1, url: '/prism/Photos/Media/1/original?v=1', thumbUrl: '/prism/Photos/Media/1/thumb?v=1' },
+          { id: 2, url: '/Photos/Media/2/original?v=1', thumbUrl: '/Photos/Media/2/thumb?v=1' }
+        ]
+      })
+    };
+  };
+
+  assert.equal(library.setBasePath('/prism/'), '/prism');
+  assert.equal(stickers.setBasePath('/prism/'), '/prism');
+  await library.loadStickers();
+  const page = await library.loadLibraryPage({});
+  assert.deepEqual(asked, ['/prism/api/collage/stickers', '/prism/api/collage/library-photos?page=1']);
+  assert.deepEqual(page.photos.map((photo) => photo.id), [1]);
+  await assert.rejects(library.readLibraryPhoto({ url: '/Photos/Media/2/original?v=1' }), /Not a PRISM Photos picture/);
+
+  assert.equal(stickers.setUnit([
+    { id: 3, name: 'Crest', width: 10, height: 10, url: '/prism/api/collage/stickers/3/image?v=1' },
+    { id: 4, name: 'Root', width: 10, height: 10, url: '/api/collage/stickers/4/image?v=1' }
+  ]), 1);
+  assert.equal(stickers.find('unit:3').url, '/prism/api/collage/stickers/3/image?v=1');
+  assert.equal(stickers.find('unit:9').url, '/prism/api/collage/stickers/9/image');
+
+  // A base that is not a plain path is the site root, which is also what "/" gives.
+  assert.equal(library.setBasePath('//elsewhere.example'), '');
+  assert.equal(stickers.setBasePath('/'), '');
+  assert.equal(stickers.find('unit:9').url, '/api/collage/stickers/9/image');
+});

@@ -20,6 +20,14 @@ public static class CollageApi
     /// <summary>Photos per page of the PRISM Photos picker.</summary>
     public const int LibraryPageSize = 48;
 
+    /// <summary>
+    /// The last page of the PRISM Photos picker that can be asked for: 200 pages of 48 is 9,600
+    /// photos, far more than anyone scrolls through (the search narrows a larger library). A higher
+    /// page number is read as this one, so no request can make the database skip more rows. The
+    /// library itself also turns a page past the end into its real last page.
+    /// </summary>
+    public const int LibraryMaxPage = 200;
+
     public const string LibraryOffMessage = "PRISM Photos is not switched on. Add photos from your computer.";
     public const string LibraryUnavailableMessage = "PRISM Photos cannot be read right now. Try again in a minute, or add photos from your computer.";
 
@@ -51,9 +59,17 @@ public static class CollageApi
             : addresses.Original;
     }
 
-    /// <summary>The address of one sticker's picture; the version makes a changed picture a new address.</summary>
-    public static string PictureUrl(int id, int version) =>
-        string.Create(CultureInfo.InvariantCulture, $"/api/collage/stickers/{id}/image?v={version}");
+    /// <summary>The address of one sticker's picture at the site root; the version makes a changed picture a new address.</summary>
+    public static string PictureUrl(int id, int version) => PictureUrl(id, version, PathString.Empty);
+
+    /// <summary>
+    /// The address of one sticker's picture under the app's path base (the request's PathBase), so
+    /// crests still load when PRISM is served under a sub-path. At the site root it is the same as
+    /// <see cref="PictureUrl(int, int)"/>.
+    /// </summary>
+    public static string PictureUrl(int id, int version, PathString pathBase) =>
+        pathBase.Add(new PathString(string.Create(CultureInfo.InvariantCulture, $"/api/collage/stickers/{id}/image"))).Value
+        + string.Create(CultureInfo.InvariantCulture, $"?v={version}");
 
     public static IServiceCollection AddCollage(this IServiceCollection services)
     {
@@ -88,7 +104,7 @@ public static class CollageApi
                 words = s.SearchWords ?? string.Empty,
                 width = s.Width,
                 height = s.Height,
-                url = PictureUrl(s.Id, s.Version)
+                url = PictureUrl(s.Id, s.Version, httpContext.Request.PathBase)
             })
         });
     }
@@ -144,7 +160,7 @@ public static class CollageApi
             return Results.Ok(new { available = false, message = LibraryOffMessage, photos = Array.Empty<object>(), page = 1, hasMore = false });
         }
 
-        var pageNumber = Math.Clamp(page ?? 1, 1, 10_000);
+        var pageNumber = Math.Clamp(page ?? 1, 1, LibraryMaxPage);
         var words = string.IsNullOrWhiteSpace(q) ? null : q.Trim()[..Math.Min(q.Trim().Length, 200)];
         var first = pageNumber == 1;
         var result = await library.SearchAsync(

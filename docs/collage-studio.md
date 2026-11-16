@@ -311,8 +311,11 @@ itself stays the colour the user chose, as it will print.
   the picture; one that fails before removes it), `CollageLibraryPhotosTests.cs`,
   `ProjectManagement.Tests/MediaLibrary/MediaLibraryProjectFilterTests.cs`, and
   `CollageStickerPostgresIntegrationTests.cs` on a real PostgreSQL (two uploads at once never pass
-  60; a failed audit write rolls the change back and removes the picture), run in the database
-  migrations workflow.
+  60; a failed audit write rolls the change back and removes the picture; Move, Retire and Restore
+  each change the rows with their audit entry, and a failed audit rolls each back), run in the
+  database migrations workflow.
+- `CollageModelSnapshotTests.cs`: the Collage tables in the EF model match the model snapshot
+  (only Collage tables, since the snapshot lags the model elsewhere in the repository).
 
 ## Known limits
 
@@ -342,7 +345,20 @@ retires and puts them back. `Features/Collage/CollageStickerService.cs` checks t
 writes it under the upload root in `collage-stickers/`, and saves each change with its admin
 audit entry in one transaction, under one PostgreSQL advisory lock so the limit of 60 holds when
 two administrators work at once. The table is `CollageStickers` (migration
-`20270104080022_AddCollageStickers`); the pictures are covered by the upload-root backup.
+`20270104080022_AddCollageStickers`, and in the model snapshot since 16 Nov 2026, so a generated
+migration does not create it again; `CollageModelSnapshotTests` checks that every Collage table
+in the model matches the snapshot); the pictures are covered by the upload-root backup.
+
+**Path base.** Sticker picture addresses are built with the request's path base: in the
+`/api/collage/stickers` list, on this page's thumbnails, and in the editor, which reads the base
+from the page's `data-app-base` (`Url.Content("~/")`) in `collage-library.js` and
+`collage-stickers.js`. The Collage APIs and PRISM Photos addresses are read under the same base.
+At the site root every address is unchanged. Whether the deployed PRISM uses a path base has not
+been verified; confirm it on the server before relying on a sub-path.
+
+**PRISM Photos paging.** The picker asks for at most page 200 (`CollageApi.LibraryMaxPage`, 9,600
+photos); a higher page number is read as 200, and the library turns a page past its end into its
+real last page.
 
 What the audit log records (Administration › Logs, under Reference lists):
 
@@ -352,7 +368,11 @@ What the audit log records (Administration › Logs, under Reference lists):
 | `CollageStickerUpdated` (renamed) | name, search words, place, retired | the same, changed |
 | `CollageStickerReordered` (moved) | `Order`: every sticker whose place changed, with its old place | `Order`: the same stickers with their new places |
 | `CollageStickerRetired` / `CollageStickerRestored` | name, search words, place, retired | the same, changed (put back goes to the end) |
-| `CollageStickerRefused` (upload refused: not a PNG, JPEG or WebP, over 5 MB or over the request limit, too many pixels, unreadable, or refused by the scanner) | none | name, file name and size, and the reason; outcome Refused, level Warning |
+| `CollageStickerRefused` (upload refused: not a PNG, JPEG or WebP, over 5 MB or over the request limit, too many pixels, unreadable, or refused by the scanner; or an upload or a put back refused because 60 are already in use) | none | name, file name and size, and the reason; outcome Refused, level Warning |
+
+A refusal changes nothing, so if its audit entry cannot be written the administrator still sees
+the plain message (not an error page) and the failure is in the server log as an error. A
+refusal for the limit of 60 is audited after its transaction, so it cannot break it.
 
 A move renumbers the picker from 1, so its one entry lists the moved sticker, its neighbour and
 any other sticker whose number changed. Moves recorded before 16 Nov 2026 are

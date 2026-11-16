@@ -7,8 +7,9 @@
 //   a chosen set copied to wwwroot/img/collage/stickers/twemoji/ with their licence.
 // Each sticker has search words. Nothing here touches the page or the network.
 //
-// A crest or logo is "unit:<id>". Its picture is PRISM's own PNG at /api/collage/stickers/<id>/image;
-// one that is no longer listed (retired, or not loaded yet) still draws from that address.
+// A crest or logo is "unit:<id>". Its picture is PRISM's own PNG at /api/collage/stickers/<id>/image,
+// under the app's path base (setBasePath, from the page's data-app-base); one that is no longer
+// listed (retired, or not loaded yet) still draws from that address.
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -16,6 +17,8 @@
     module.exports = api;
   } else {
     root.PrismCollageStickers = api;
+    // PRISM may be served under a sub-path; the page names it (Url.Content("~/")).
+    api.setBasePath(root.document?.querySelector('[data-collage]')?.dataset?.appBase);
   }
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
@@ -101,6 +104,22 @@
 
   const UNIT_PICTURE = /^\/api\/collage\/stickers\/[1-9][0-9]{0,8}\/image\?v=[1-9][0-9]{0,8}$/;
   let unit = Object.freeze([]);
+  /**
+   * The app's path base ("" at the site root, "/prism" under a sub-path), from the page's
+   * data-app-base. Anything that is not a plain path is read as the site root.
+   */
+  function cleanBase(value) {
+    const text = String(value || '').trim().replace(/\/+$/, '');
+    return /^(?:\/[A-Za-z0-9._~%!$&'()*+,;=:@-]+)*$/.test(text) ? text : '';
+  }
+
+  let base = '';
+
+  /** Sets the app's path base crest pictures are read under; returns it as used. */
+  function setBasePath(value) {
+    base = cleanBase(value);
+    return base;
+  }
 
   /**
    * The crests and logos PRISM listed, in picker order. Anything that is not a well-formed entry
@@ -114,7 +133,8 @@
       const width = Number(entry?.width);
       const height = Number(entry?.height);
       if (!Number.isInteger(id) || id < 1 || seen.has(id) || !name || !(width > 0) || !(height > 0)) return [];
-      if (typeof entry.url !== 'string' || !UNIT_PICTURE.test(entry.url) || !entry.url.startsWith(`/api/collage/stickers/${id}/`)) return [];
+      const below = typeof entry.url === 'string' && entry.url.startsWith(`${base}/`) ? entry.url.slice(base.length) : '';
+      if (!UNIT_PICTURE.test(below) || !below.startsWith(`/api/collage/stickers/${id}/`)) return [];
       seen.add(id);
       return [Object.freeze({
         id: `unit:${id}`,
@@ -152,7 +172,7 @@
       const listed = unit.find((entry) => entry.id === id);
       if (listed) return { kind: 'unit', ...listed };
       // Retired, or the list has not arrived: PRISM still serves the picture by its address.
-      return { kind: 'unit', id, label: 'Crest or logo', url: `/api/collage/stickers/${id.slice(5)}/image`, aspect: 1, words: '' };
+      return { kind: 'unit', id, label: 'Crest or logo', url: `${base}/api/collage/stickers/${id.slice(5)}/image`, aspect: 1, words: '' };
     }
     if (id.startsWith('draw:')) {
       const entry = DRAWN[id.slice(5)];
@@ -172,5 +192,5 @@
     return entry.svg.replace(/COLOUR/g, safe);
   }
 
-  return Object.freeze({ DRAWN, EMOJI_GROUPS, groups, search, find, drawnSvg, codeOf, setUnit });
+  return Object.freeze({ DRAWN, EMOJI_GROUPS, groups, search, find, drawnSvg, codeOf, setUnit, setBasePath });
 });

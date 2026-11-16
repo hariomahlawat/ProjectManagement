@@ -94,6 +94,9 @@ public sealed class CollageStickerService : ICollageStickerService
     public const string TooManyPixelsMessage = "The picture has too many pixels. Choose a smaller one.";
     public const string UnreadableMessage = "The picture could not be read. Try saving it again as a PNG.";
 
+    /// <summary>What the administrator is told when the picker already holds <see cref="MaxActive"/> stickers.</summary>
+    public static readonly string FullMessage = $"There are already {MaxActive} stickers in use. Retire one first.";
+
     /// <summary>A missing sticker file is named in the log at most once in this time, not on every request for it.</summary>
     internal static readonly TimeSpan MissingFileWarningInterval = TimeSpan.FromHours(1);
 
@@ -187,7 +190,7 @@ public sealed class CollageStickerService : ICollageStickerService
         if (words.Length > CollageSticker.SearchWordsMaxLength) return CollageStickerOutcome.Refused($"Keep the search words to {CollageSticker.SearchWordsMaxLength} letters.");
 
         var active = await _db.CollageStickers.CountAsync(s => !s.IsRetired, cancellationToken);
-        if (active >= MaxActive) return CollageStickerOutcome.Refused($"There are already {MaxActive} stickers in use. Retire one first.");
+        if (active >= MaxActive) return await RefuseFullAsync(cleanName, fileName, 0, actorUserId, cancellationToken);
 
         // Read at most one byte more than allowed, so a large upload is refused without holding it.
         using var buffer = new MemoryStream();
@@ -226,7 +229,7 @@ public sealed class CollageStickerService : ICollageStickerService
                 // A scanner says no by throwing, and a broken scanner throws too. Either way nothing
                 // is stored: the administrator is told plainly, and the refusal is in the audit log.
                 _logger.LogWarning(ex, "Collage sticker upload {FileName} ('{StickerName}') was refused by the upload scanner.", fileName, cleanName);
-                await _audit.RecordAsync(new AdminAuditEntry(
+                await RecordRefusalAsync(new AdminAuditEntry(
                     "CollageStickerRefused",
                     nameof(CollageSticker),
                     EntityId: null,
@@ -284,6 +287,7 @@ public sealed class CollageStickerService : ICollageStickerService
 
         var storageKey = $"{Folder}/{fileStem}.png";
         var commitSent = false;
+        var full = false;
         CollageStickerOutcome outcome;
         try
         {
@@ -292,7 +296,9 @@ public sealed class CollageStickerService : ICollageStickerService
                 // Counted again under the lock: the count above only saved decoding a refused upload.
                 if (await _db.CollageStickers.CountAsync(s => !s.IsRetired, cancellationToken) >= MaxActive)
                 {
-                    return CollageStickerOutcome.Refused($"There are already {MaxActive} stickers in use. Retire one first.");
+                    // Audited after the transaction, below, so a failed audit cannot break it.
+                    full = true;
+                    return CollageStickerOutcome.Refused(FullMessage);
                 }
 
                 var now = _clock.UtcNow;
@@ -335,7 +341,7 @@ public sealed class CollageStickerService : ICollageStickerService
         if (!outcome.Succeeded)
         {
             TryDelete(finalPath);
-            return outcome;
+            return full ? await RefuseFullAsync(cleanName, fileName, buffer.Length, actorUserId, cancellationToken) : outcome;
         }
 
         await LogLeftoverFilesAsync(folder);
@@ -381,10 +387,14 @@ public sealed class CollageStickerService : ICollageStickerService
     public Task<CollageStickerOutcome> RefuseOversizeRequestAsync(long requestBytes, string? actorUserId, CancellationToken cancellationToken = default) =>
         RefuseAuditedAsync(TooLargeMessage, $"The upload ({requestBytes:N0} bytes) is over the page's request limit.", null, null, requestBytes, actorUserId, cancellationToken);
 
+    /// <summary>An upload or a restore refused because the picker is full, audited like the other refusals.</summary>
+    private Task<CollageStickerOutcome> RefuseFullAsync(string? name, string? fileName, long bytes, string? actorUserId, CancellationToken cancellationToken) =>
+        RefuseAuditedAsync(FullMessage, $"There are already {MaxActive} stickers in use.", name, fileName, bytes, actorUserId, cancellationToken);
+
     /// <summary>A refused upload: the plain message for the administrator and a Warning entry in the audit log.</summary>
     private async Task<CollageStickerOutcome> RefuseAuditedAsync(string message, string reason, string? name, string? fileName, long bytes, string? actorUserId, CancellationToken cancellationToken)
     {
-        await _audit.RecordAsync(new AdminAuditEntry(
+        await RecordRefusalAsync(new AdminAuditEntry(
             "CollageStickerRefused",
             nameof(CollageSticker),
             EntityId: null,
@@ -398,6 +408,22 @@ public sealed class CollageStickerService : ICollageStickerService
                 ? "A collage sticker picture was refused: " + reason
                 : $"A collage sticker picture for '{name}' was refused: {reason}"), cancellationToken);
         return CollageStickerOutcome.Refused(message);
+    }
+
+    /// <summary>
+    /// Writes a refusal's audit entry. Nothing was changed, so when the entry cannot be written the
+    /// administrator still gets the plain refusal, not an error page; the failure is logged.
+    /// </summary>
+    private async Task RecordRefusalAsync(AdminAuditEntry entry, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _audit.RecordAsync(entry, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "The audit entry for a refused collage sticker change could not be written: {AuditMessage}", entry.Message);
+        }
     }
 
     /// <summary>
@@ -509,15 +535,19 @@ public sealed class CollageStickerService : ICollageStickerService
             return CollageStickerOutcome.Done($"Retired '{sticker.Name}'. Collages that already use it keep it.", sticker);
         }, cancellationToken);
 
-    public Task<CollageStickerOutcome> RestoreAsync(int id, string? actorUserId, CancellationToken cancellationToken = default) =>
-        ChangeAsync(async () =>
+    public async Task<CollageStickerOutcome> RestoreAsync(int id, string? actorUserId, CancellationToken cancellationToken = default)
+    {
+        string? fullName = null;
+        var outcome = await ChangeAsync(async () =>
         {
             var sticker = await _db.CollageStickers.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
             if (sticker is null) return CollageStickerOutcome.Refused("That sticker is no longer there.");
             if (!sticker.IsRetired) return CollageStickerOutcome.Done("It is already in the picker.", sticker);
             if (await _db.CollageStickers.CountAsync(s => !s.IsRetired, cancellationToken) >= MaxActive)
             {
-                return CollageStickerOutcome.Refused($"There are already {MaxActive} stickers in use. Retire one first.");
+                // Audited after the transaction, below, so a failed audit cannot break it.
+                fullName = sticker.Name;
+                return CollageStickerOutcome.Refused(FullMessage);
             }
             var before = Snapshot(sticker);
             sticker.IsRetired = false;
@@ -527,6 +557,8 @@ public sealed class CollageStickerService : ICollageStickerService
             await RecordAsync("CollageStickerRestored", sticker, before, actorUserId, $"Put the collage sticker '{sticker.Name}' back in the picker.", cancellationToken);
             return CollageStickerOutcome.Done($"'{sticker.Name}' is back in the picker, at the end.", sticker);
         }, cancellationToken);
+        return fullName is null ? outcome : await RefuseFullAsync(fullName, null, 0, actorUserId, cancellationToken);
+    }
 
     /// <summary>
     /// Runs one change to the stickers and its audit entry as one database transaction, so a

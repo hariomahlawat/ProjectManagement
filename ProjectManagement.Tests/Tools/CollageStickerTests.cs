@@ -155,7 +155,10 @@ public sealed class CollageStickerTests : IDisposable
         Assert.Equal(CollageStickerService.MaxActive, (await _service.ListActiveAsync()).Count);
         Assert.DoesNotContain(await _service.ListAllAsync(), s => s.Name == "Late");
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(_root, CollageStickerService.Folder)));
-        Assert.Empty(_audit.Entries);
+        // Refused for the limit, and audited like every other refusal.
+        var entry = Assert.Single(_audit.Entries);
+        Assert.Equal(("CollageStickerRefused", "Refused", "Warning", "admin"), (entry.Action, entry.Outcome, entry.Level, entry.ActorUserId));
+        Assert.Contains($"already {CollageStickerService.MaxActive}", entry.Reason);
     }
 
     [Fact]
@@ -173,7 +176,54 @@ public sealed class CollageStickerTests : IDisposable
         Assert.Contains($"already {CollageStickerService.MaxActive}", outcome.Message);
         var after = await _service.FindAsync(retired.Id);
         Assert.Equal((true, 7), (after!.IsRetired, after.SortOrder));
-        Assert.Empty(_audit.Entries);
+        // Nothing changed, but the refusal is in the audit log.
+        var entry = Assert.Single(_audit.Entries);
+        Assert.Equal(("CollageStickerRefused", "Refused", "admin"), (entry.Action, entry.Outcome, entry.ActorUserId));
+        Assert.Contains("'Old'", entry.Message);
+    }
+
+    [Fact]
+    public async Task An_upload_refused_because_sixty_are_in_use_is_audited()
+    {
+        for (var i = 0; i < CollageStickerService.MaxActive; i++)
+        {
+            await SeedAsync($"S{i}", i + 1);
+        }
+
+        var outcome = await AddAsync("One more", Png(10, 10));
+
+        Assert.False(outcome.Succeeded);
+        Assert.Equal(CollageStickerService.FullMessage, outcome.Message);
+        var entry = Assert.Single(_audit.Entries);
+        Assert.Equal(("CollageStickerRefused", "Refused", "Warning", "admin"), (entry.Action, entry.Outcome, entry.Level, entry.ActorUserId));
+        Assert.Contains($"already {CollageStickerService.MaxActive} stickers in use", entry.Reason);
+    }
+
+    [Fact]
+    public async Task When_a_refusal_cannot_be_audited_the_administrator_still_gets_the_plain_message()
+    {
+        var roots = new TestUploadRootProvider(_root);
+        var failing = new CollageStickerService(
+            _db, roots, new UploadPathResolver(roots), new ThrowingAudit(),
+            FakeClock.AtUtc(new DateTimeOffset(2026, 11, 15, 6, 0, 0, TimeSpan.Zero)),
+            logger: _log);
+
+        var oversize = await failing.RefuseOversizeRequestAsync(7_000_000, "admin");
+        var wrongType = await failing.AddAsync(new MemoryStream(Encoding.UTF8.GetBytes("not a picture")), "x.txt", "Crest", null, "admin");
+        for (var i = 0; i < CollageStickerService.MaxActive; i++)
+        {
+            await SeedAsync($"S{i}", i + 1);
+        }
+        var retired = await SeedAsync("Old", 99, retired: true);
+        var full = await failing.AddAsync(new MemoryStream(Png(10, 10)), "crest.png", "One more", null, "admin");
+        var restore = await failing.RestoreAsync(retired.Id, "admin");
+
+        Assert.Equal(CollageStickerService.TooLargeMessage, oversize.Message);
+        Assert.Equal(CollageStickerService.WrongTypeMessage, wrongType.Message);
+        Assert.Equal(CollageStickerService.FullMessage, full.Message);
+        Assert.Equal(CollageStickerService.FullMessage, restore.Message);
+        Assert.All(new[] { oversize, wrongType, full, restore }, o => Assert.False(o.Succeeded));
+        Assert.Equal(4, _log.Entries.Count(e => e.Level == LogLevel.Error && e.Message.Contains("could not be written")));
     }
 
     [Fact]
@@ -269,6 +319,22 @@ public sealed class CollageStickerTests : IDisposable
         var names = doc.RootElement.GetProperty("stickers").EnumerateArray().Select(e => e.GetProperty("name").GetString()).ToArray();
         Assert.Equal(new[] { "First", "Second" }, names);
         Assert.Matches(@"^/api/collage/stickers/\d+/image\?v=1$", doc.RootElement.GetProperty("stickers")[0].GetProperty("url").GetString());
+    }
+
+    [Fact]
+    public async Task Picture_addresses_carry_the_app_path_base_and_are_unchanged_at_the_site_root()
+    {
+        var sticker = await SeedAsync("Crest", 1);
+
+        var context = new DefaultHttpContext();
+        context.Request.PathBase = "/prism";
+        var result = await CollageApi.StickersAsync(context, _service, CancellationToken.None);
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(Assert.IsAssignableFrom<IValueHttpResult>(result).Value));
+        Assert.Equal($"/prism/api/collage/stickers/{sticker.Id}/image?v=1", doc.RootElement.GetProperty("stickers")[0].GetProperty("url").GetString());
+
+        Assert.Equal("/api/collage/stickers/5/image?v=2", CollageApi.PictureUrl(5, 2, Microsoft.AspNetCore.Http.PathString.Empty));
+        Assert.Equal(CollageApi.PictureUrl(5, 2), CollageApi.PictureUrl(5, 2, Microsoft.AspNetCore.Http.PathString.Empty));
+        Assert.Equal("/a/b/api/collage/stickers/5/image?v=2", CollageApi.PictureUrl(5, 2, "/a/b"));
     }
 
     [Fact]
@@ -543,6 +609,12 @@ public sealed class CollageStickerTests : IDisposable
             Entries.Add(entry);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class ThrowingAudit : IAdminAuditService
+    {
+        public Task RecordAsync(AdminAuditEntry entry, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The audit log could not be written.");
     }
 
     private sealed class TestUploadRootProvider(string root) : IUploadRootProvider

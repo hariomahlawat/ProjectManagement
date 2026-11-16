@@ -108,6 +108,95 @@ public sealed class CollageStickerPostgresIntegrationTests
         }
     }
 
+    [PostgresMigrationFact]
+    public async Task MoveRetireAndRestore_ChangeTheRowsWithTheirAuditEntry_AndAFailedAuditRollsEachBack()
+    {
+        var server = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("PRISM_TEST_POSTGRES_CONNECTION")!);
+        var databaseName = $"prism_test_collage_{Guid.NewGuid():N}"[..40];
+        var maintenance = new NpgsqlConnectionStringBuilder(server.ConnectionString) { Database = "postgres" }.ConnectionString;
+        var target = new NpgsqlConnectionStringBuilder(server.ConnectionString) { Database = databaseName }.ConnectionString;
+        var root = Path.Combine(Path.GetTempPath(), "collage-pg-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        await ExecuteAsync(maintenance, $"CREATE DATABASE \"{databaseName}\"");
+        try
+        {
+            await using (var db = Context(target))
+            {
+                await db.Database.MigrateAsync();
+            }
+            // Three in the picker, numbered 1, 2, 3.
+            foreach (var (name, order) in new[] { ("A", 1), ("B", 2), ("C", 3) })
+            {
+                await ExecuteAsync(target,
+                    "INSERT INTO \"CollageStickers\" (\"Name\", \"StorageKey\", \"Width\", \"Height\", \"Version\", \"SortOrder\", \"IsRetired\", \"CreatedAtUtc\", \"UpdatedAtUtc\") " +
+                    $"VALUES ('{name}', 'collage-stickers/{name}.png', 10, 10, 1, {order}, false, now(), now())");
+            }
+            var a = await CountAsync(target, "SELECT \"Id\" FROM \"CollageStickers\" WHERE \"Name\" = 'A'");
+            var c = await CountAsync(target, "SELECT \"Id\" FROM \"CollageStickers\" WHERE \"Name\" = 'C'");
+
+            // 1. A failed audit rolls each change back: the picker is as it was.
+            await using (var db = Context(target))
+            {
+                var failing = Service(db, root, new FailingAudit());
+                await Assert.ThrowsAsync<InvalidOperationException>(() => failing.MoveAsync(c, up: true, "admin-1"));
+                await Assert.ThrowsAsync<InvalidOperationException>(() => failing.RetireAsync(a, "admin-1"));
+            }
+            Assert.Equal("A,B,C", await OrderAsync(target));
+            Assert.Equal(0, await CountAsync(target, "SELECT COUNT(*) FROM \"CollageStickers\" WHERE \"IsRetired\""));
+            Assert.Equal(0, await CountAsync(target, "SELECT COUNT(*) FROM \"AuditLogs\" WHERE \"Action\" LIKE 'CollageSticker%'"));
+
+            // 2. Move C earlier: B and C swap places, in one audited change.
+            await using (var db = Context(target))
+            {
+                var moved = await Service(db, root, RealAudit(db)).MoveAsync(c, up: true, "admin-1");
+                Assert.True(moved.Succeeded, moved.Message);
+            }
+            Assert.Equal("A,C,B", await OrderAsync(target));
+            Assert.Equal(1, await CountAsync(target, "SELECT COUNT(*) FROM \"AuditLogs\" WHERE \"Action\" = 'CollageStickerReordered'"));
+
+            // 3. Retire A: it leaves the picker, and the row stays for collages that use it.
+            await using (var db = Context(target))
+            {
+                var retired = await Service(db, root, RealAudit(db)).RetireAsync(a, "admin-1");
+                Assert.True(retired.Succeeded, retired.Message);
+            }
+            Assert.Equal("C,B", await OrderAsync(target));
+            Assert.Equal(1, await CountAsync(target, $"SELECT COUNT(*) FROM \"CollageStickers\" WHERE \"Id\" = {a} AND \"IsRetired\""));
+            Assert.Equal(1, await CountAsync(target, "SELECT COUNT(*) FROM \"AuditLogs\" WHERE \"Action\" = 'CollageStickerRetired'"));
+
+            // 4. A failed audit on restore leaves it retired; a good one puts it back at the end.
+            await using (var db = Context(target))
+            {
+                await Assert.ThrowsAsync<InvalidOperationException>(() => Service(db, root, new FailingAudit()).RestoreAsync(a, "admin-1"));
+            }
+            Assert.Equal("C,B", await OrderAsync(target));
+            await using (var db = Context(target))
+            {
+                var restored = await Service(db, root, RealAudit(db)).RestoreAsync(a, "admin-1");
+                Assert.True(restored.Succeeded, restored.Message);
+            }
+            Assert.Equal("C,B,A", await OrderAsync(target));
+            Assert.Equal(1, await CountAsync(target, "SELECT COUNT(*) FROM \"AuditLogs\" WHERE \"Action\" = 'CollageStickerRestored'"));
+        }
+        finally
+        {
+            NpgsqlConnection.ClearAllPools();
+            await ExecuteAsync(maintenance, $"DROP DATABASE IF EXISTS \"{databaseName}\" WITH (FORCE)");
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    /** The names of the stickers in the picker, in picker order. */
+    private static async Task<string> OrderAsync(string connectionString)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(
+            "SELECT string_agg(\"Name\", ',' ORDER BY \"SortOrder\", \"Id\") FROM \"CollageStickers\" WHERE NOT \"IsRetired\"", connection);
+        return (string)(await command.ExecuteScalarAsync())!;
+    }
+
     private static ApplicationDbContext Context(string connection) =>
         new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection).Options);
 
