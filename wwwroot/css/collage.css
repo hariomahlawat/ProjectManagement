@@ -153,8 +153,10 @@
     border-color: var(--pdft-border);
 }
 
+/* The name field shows a ring like every other control when it has the keyboard. */
 .clg-name:focus {
-    outline: none;
+    outline: 2px solid var(--clg-accent);
+    outline-offset: 1px;
     border-color: var(--clg-accent);
     background: var(--pdft-surface);
 }
@@ -247,6 +249,55 @@
     font-size: 1rem;
     font-weight: 800;
     margin: 0 0 0.75rem;
+}
+
+/* A panel's title stays in view while the panel scrolls (docs/ux/collage-review-3-fixes.md,
+   PR 8). Phones keep their sheet header as it is. */
+@media (min-width: 821px) {
+    .clg-drawer .clg-panel-title {
+        position: sticky;
+        top: -1rem;
+        z-index: 3;
+        margin: -1rem -1rem 0.75rem;
+        padding: 1rem 1rem 0.5rem;
+        background: var(--pdft-surface);
+        border-bottom: 1px solid var(--pdft-border);
+    }
+}
+
+/* "Skip to settings": hidden until it has the keyboard, so the page's controls can be passed
+   in one step. */
+.clg-skip {
+    position: absolute;
+    left: 0.75rem;
+    top: 0.4rem;
+    z-index: 30;
+    padding: 0.35rem 0.8rem;
+    border-radius: 8px;
+    background: var(--bs-primary);
+    color: var(--bs-white);
+    font-weight: 700;
+    text-decoration: none;
+    transform: translateY(-200%);
+}
+
+.clg-skip:focus,
+.clg-skip:focus-visible {
+    transform: none;
+    outline: 2px solid var(--bs-emphasis-color);
+    outline-offset: 2px;
+}
+
+.clg-props:focus-visible {
+    outline: 2px solid var(--clg-accent);
+    outline-offset: -2px;
+}
+
+/* Dark theme: buttons that are not chosen keep readable words and icons (at least 4.5:1 on the
+   panels), including when they cannot be used yet. The Save dialog is outside the editor. */
+[data-bs-theme="dark"] .clg-editor .btn-outline-secondary {
+    --bs-btn-color: var(--bs-body-color);
+    --bs-btn-disabled-color: var(--bs-body-color);
 }
 
 .clg-hint {
@@ -1154,23 +1205,6 @@
     background: var(--pdft-surface);
 }
 
-.clg-undo-bar {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    margin-bottom: 0.6rem;
-    padding: 0.3rem 0.4rem 0.3rem 0.8rem;
-    border-radius: 999px;
-    background: var(--bs-emphasis-color);
-    color: var(--bs-body-bg);
-    font-size: 0.86rem;
-}
-
-.clg-undo-bar .btn-link {
-    color: var(--bs-body-bg);
-    font-weight: 800;
-}
-
 @media (max-width: 1100px) {
     .clg-draft-status {
         display: none;
@@ -1864,4 +1898,93 @@
     .clg-more > summary::before {
         transition: none;
     }
+}
+
+/* ---------- Third review, PR 8 (docs/ux/collage-review-3-fixes.md) ---------- */
+
+/* Laptop screens (1366 wide): slimmer side panels, so the page is shown larger by default. */
+@media (min-width: 1101px) and (max-width: 1499px) {
+    .clg {
+        --clg-drawer: 256px;
+        --clg-props: 280px;
+    }
+}
+
+/* Draft cards: each part of "Saved … · A4 landscape · 3 photos" stays whole on its line. */
+.clg-draft__meta {
+    white-space: nowrap;
+}
+
+/* The delete button shows on hover or keyboard focus, and always where there is no hover. */
+.clg-draft__delete {
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.clg-draft:hover .clg-draft__delete,
+.clg-draft:focus-within .clg-draft__delete {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .clg-draft__delete {
+        opacity: 1;
+    }
+}
+
+/* Phone start screen: layouts use the full width, three across, and the page sizes come
+   higher up. */
+@media (max-width: 600px) {
+    .clg-start h1 {
+        font-size: 1.35rem;
+    }
+
+    .clg-lede {
+        font-size: 0.88rem;
+        margin-bottom: 0;
+    }
+
+    .clg-start__heading {
+        font-size: 0.98rem;
+        margin: 1.1rem 0 0.5rem;
+    }
+
+    .clg-start__heading small {
+        display: block;
+        margin: 0.15rem 0 0;
+    }
+
+    .clg-layouts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+
+    .clg-layouts .clg-layout-card {
+        width: auto;
+        padding: 0.45rem;
+    }
+
+    .clg-sizes {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+
+    .clg-size-card {
+        min-width: 0;
+        gap: 0.6rem;
+        padding: 0.6rem 0.7rem;
+    }
+}
+
+/* Phones open the settings as a sheet, and Preview shows only the page: no skip link there. */
+@media (max-width: 820px) {
+    .clg-skip {
+        display: none;
+    }
+}
+
+.clg-previewing .clg-skip {
+    display: none;
 }
