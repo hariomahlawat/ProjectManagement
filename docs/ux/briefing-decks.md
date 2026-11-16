@@ -658,11 +658,21 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
   the photo and text. In Key points only, a project without key points shows the gap like other
   missing content (no fallback to the capability text). Per-project choices (Own slides, Table row
   only, Leave out, photo, speaker notes) stay as they are.
-- **Overview and analytics blocks** are drawn from the deck's own projects (table row only
-  projects count). Today's: portfolio summary, status table, stage-wise chart, stage-wise table,
-  project-category chart, technical-category chart. New candidates, built only once the owner
-  picks them (no extra figures for their own sake): slowest stages, cost by stage, PDCs due,
-  completed this year.
+- **Overview and analytics blocks** (owner, 16 Nov 2026) are exactly four, each drawn from the
+  deck's own projects (table row only projects count):
+  - **Status table**: one row per project, as today.
+  - **Stage-wise distribution**, drawn like the ARPP view on the Analytics page: the stages
+    grouped as Pre-AoN, AoN to SO, Under development and Completed, each bar split by parent
+    category, then a slide listing the projects in those four columns (PDC at Development,
+    completion month and year). It reuses the ARPP drawing (`ArppProgressSlideComposer` /
+    `AnalyticsSlideFrame` rules), fed with the deck's projects instead of an ARPP year; the ARPP
+    headline cards (IPA, listed, delisted) are left out.
+  - **Project-category distribution** and **Technical-category distribution**: today's category
+    slides.
+  The stage-wise distribution replaces today's stage-wise summary and stage-wise table, and the
+  portfolio summary is retired, so there is one stage option and no overlapping counts. These
+  three defaults were set by me and are open to the owner's change (chart only instead of chart
+  and list; keeping the old stage slides or the portfolio summary). No other analytics.
 - **No free drawing canvas** for the project slide. One design has to fit every project in the
   deck (long text, missing photos, continuation slides); the composer handles that per design.
 - **Project Officer decks: My decks and Command decks.** A Project Officer makes decks of their
@@ -715,7 +725,10 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    the preview, slide facts ("data moved") and `ProjectBriefingContentGaps`.
 6. **Focus view.** Header button, hides the top bar and rail, remembered per person; Escape does
    not leave it (Escape belongs to dialogs and Present); phones unchanged.
-7. **Analytics blocks** the owner picks from the candidates above, each a block drawn from the
-   deck's projects with its own slide facts.
+7. **Stage-wise distribution block.** The ARPP-style stage chart and project list for the deck's
+   projects, with its slide facts ("data moved"); the old stage-wise summary, stage-wise table and
+   portfolio summary are retired. This PR changes existing decks on purpose: a deck that had the
+   old stage summary gets the new block in its place, and one that had the portfolio summary loses
+   that slide; the library's "changed since" treats it as a settings change, not data movement.
 8. **Phones, Dark, docs** (this file's Studio and Deck sections rewritten to the block model, and
    the access line in `docs/current-state.md`) and a fresh cold review.
