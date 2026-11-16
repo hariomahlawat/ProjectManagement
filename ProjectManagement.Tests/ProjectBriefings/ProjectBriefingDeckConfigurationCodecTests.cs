@@ -29,6 +29,20 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     }
 
     [Fact]
+    public void AStoredProfileWithoutAModuleList_ReadsEveryModule_AsBefore()
+    {
+        var json = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(null, ProjectBriefingInstitutionalProfileOptions.Default);
+        var document = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        document["institutionalProfile"]!.AsObject().Remove("modules");
+
+        var options = ProjectBriefingDeckConfigurationCodec.Read(document.ToJsonString()).InstitutionalProfileOptions;
+
+        Assert.Equal(ProjectBriefingInstitutionalProfileOptions.AllModules, options.Modules);
+        Assert.Contains(ProjectBriefingInstitutionalProfileModule.Partnerships, ProjectBriefingInstitutionalProfileOptions.AllModules);
+        Assert.DoesNotContain(ProjectBriefingInstitutionalProfileModule.Partnerships, ProjectBriefingInstitutionalProfileOptions.DefaultModules);
+    }
+
+    [Fact]
     public void RecommendedRows_AreCompactSubsetOfAllAvailableRows()
     {
         Assert.Equal(9, ProjectBriefingUpdateSheetOptions.AllRows.Count);

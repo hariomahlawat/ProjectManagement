@@ -292,6 +292,13 @@ test('briefing workflows use the reusable PRISM confirmation dialog instead of b
   assert.match(confirmSource, /focus: 'cancel'/);
 });
 
+test('a refused add returns focus to Add block and points an institution slide to its Edit', () => {
+  assert.match(source, /if \(refusedAdd\) blockList\?\.querySelector\('\[data-pbd-block-library-toggle\]'\)\?\.focus\(\);/);
+  assert.match(source, /Use Edit beside it under Add block to set it up first\./);
+  // The editor still offers every module (Partnerships is only left out of the defaults).
+  assert.match(fs.readFileSync(path.resolve(__dirname, '..', '..', '..', 'Pages', 'Workspace', 'BriefingDecks', '_InstitutionalProfileEditor.cshtml'), 'utf8'), /\.Concat\(ProjectBriefingInstitutionalProfileOptions\.AllModules\)/);
+});
+
 test('add block: optional blocks are removed from the list and added back from a library', () => {
   // Only optional blocks (not the cover or project slides) get Remove and wait in the library.
   assert.match(viewSource, /var optional = ProjectBriefingDeckBlocks\.IsOptional\(block\.Type\);/);
