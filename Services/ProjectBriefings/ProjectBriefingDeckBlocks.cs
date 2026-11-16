@@ -207,6 +207,11 @@ public static class ProjectBriefingDeckBlocks
         return -1;
     }
 
+    // Blocks a deck can do without: they are added from the Deck tab's library and removed from the
+    // list. The cover and the project slides stay listed and are switched on or off in place.
+    public static bool IsOptional(ProjectBriefingDeckBlockType type)
+        => type is not (ProjectBriefingDeckBlockType.Cover or ProjectBriefingDeckBlockType.ProjectSlides);
+
     public static string DisplayName(ProjectBriefingDeckBlockType type) => type switch
     {
         ProjectBriefingDeckBlockType.Cover => "Cover",

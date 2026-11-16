@@ -813,7 +813,16 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    offered it. The composer draws Key points only from the block list; it counts in the slide facts
    (key points shown) and in the gaps (key points expected, capability text not). The Template
    picker and its "customised" badge are gone from the Deck tab; a template only starts a new deck,
-   and the progress line names the design. **Part 2, the Add block library**, is next.
+   and the progress line names the design (#3371).
+
+   **Part 2, the Add block library** (16 Nov 2026). Slides in this deck lists the cover and the
+   project slides with their switches, and every other block only while it is in the deck, with a
+   Remove button (`ProjectBriefingDeckBlocks.IsOptional`). **Add block** opens a library of the
+   blocks not in the deck, grouped Overview and analytics, Institution and Before closing; adding one
+   puts it back in its group where it was last placed. Remove and Add save the list through
+   `UpdateBlocks` as a switch did, so nothing new is stored, a refused change (the last of the status
+   table and project slides) is put back, and a save in progress refuses them. A group with nothing in
+   it says so. Moving skips the blocks waiting in the library.
 6. **Focus view.** Built (16 Nov 2026; see the Studio section). Header button, hides the top bar
    and rail, remembered per person (in the browser); Escape does not leave it (Escape belongs to
    dialogs and Present); phones unchanged.

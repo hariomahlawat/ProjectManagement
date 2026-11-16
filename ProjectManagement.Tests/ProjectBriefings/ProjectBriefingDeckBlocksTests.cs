@@ -203,4 +203,14 @@ public sealed class ProjectBriefingDeckBlocksTests
         public string ContentRootPath { get; set; }
         public IFileProvider ContentRootFileProvider { get; set; }
     }
+
+    [Fact]
+    public void OnlyTheCoverAndProjectSlides_AreNotOptional()
+    {
+        var fixedBlocks = Enum.GetValues<ProjectBriefingDeckBlockType>()
+            .Where(type => !ProjectBriefingDeckBlocks.IsOptional(type))
+            .ToArray();
+
+        Assert.Equal(new[] { ProjectBriefingDeckBlockType.Cover, ProjectBriefingDeckBlockType.ProjectSlides }, fixedBlocks.OrderBy(type => type));
+    }
 }
