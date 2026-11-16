@@ -42,6 +42,61 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.DoesNotContain(ProjectBriefingInstitutionalProfileModule.Partnerships, ProjectBriefingInstitutionalProfileOptions.DefaultModules);
     }
 
+    // Review 2 fixes, PR 2: a key this build does not know (written by a newer build) survives every
+    // save this build makes, at the top of the document and inside the sections it writes.
+    [Fact]
+    public void KeysThisBuildDoesNotKnow_SurviveEverySave()
+    {
+        var json = ProjectBriefingDeckConfigurationCodec.WithPreset(null, ProjectBriefingDeckPreset.MonthlyCommandReview);
+        var document = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        document["futureBlocks"] = new System.Text.Json.Nodes.JsonArray("Timeline");
+        document["standardBriefing"]!.AsObject()["futureDensity"] = "Compact";
+        json = document.ToJsonString();
+
+        var saves = new Func<string, string>[]
+        {
+            current => ProjectBriefingDeckConfigurationCodec.WithPreset(current, null),
+            current => ProjectBriefingDeckConfigurationCodec.WithOverviewOrder(current, new[] { ProjectBriefingDeckBlockType.StatusTable }),
+            current => ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(current, ProjectBriefingStandardSlideOptions.Default),
+            current => ProjectBriefingDeckConfigurationCodec.WithAdditionalSlideOrder(current, Array.Empty<ProjectBriefingAdditionalSlideType>()),
+            current => ProjectBriefingDeckConfigurationCodec.WithSelectionRules(current, "{\"source\":\"manual\"}")
+        };
+        foreach (var save in saves)
+        {
+            json = save(json);
+            var saved = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+            Assert.Equal("Timeline", saved["futureBlocks"]![0]!.GetValue<string>());
+            Assert.Equal("Compact", saved["standardBriefing"]!["futureDensity"]!.GetValue<string>());
+        }
+
+        // What this build owns is still written as usual: the preset was cleared, the order set.
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(json);
+        Assert.Null(configuration.Preset);
+        Assert.Equal(new[] { ProjectBriefingDeckBlockType.StatusTable }, configuration.OverviewOrder);
+        Assert.Null(System.Text.Json.Nodes.JsonNode.Parse(json)!["preset"]);
+    }
+
+    [Fact]
+    public void ADocumentFromAnotherSchemaVersion_IsRefusedRatherThanNested()
+    {
+        var newer = "{\"schema\":\"prism.projectBriefing.deckConfig.v2\",\"blocks\":[\"Cover\"]}";
+
+        Assert.Throws<InvalidOperationException>(() =>
+            ProjectBriefingDeckConfigurationCodec.WithPreset(newer, ProjectBriefingDeckPreset.MonthlyCommandReview));
+    }
+
+    [Fact]
+    public void LegacySelectionRules_AreStillUpgradedIntoTheDocument()
+    {
+        var legacy = "{\"mode\":\"category\",\"categoryIds\":[3]}";
+
+        var json = ProjectBriefingDeckConfigurationCodec.WithPreset(legacy, ProjectBriefingDeckPreset.MonthlyCommandReview);
+
+        var document = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        Assert.Equal("prism.projectBriefing.deckConfig.v1", document["schema"]!.GetValue<string>());
+        Assert.Equal("category", document["selectionRules"]!["mode"]!.GetValue<string>());
+    }
+
     [Fact]
     public void RecommendedRows_AreCompactSubsetOfAllAvailableRows()
     {
