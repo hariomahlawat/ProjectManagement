@@ -67,11 +67,9 @@
 
   /** True when a followed redirect ended on PRISM's sign-in page (not, say, its access-denied page). */
   function reachedSignIn(response) {
-    try {
-      return new URL(String(response.url || ''), 'http://prism.invalid').pathname.toLowerCase() === `${base}${SIGN_IN_PATH}`.toLowerCase();
-    } catch {
-      return false;
-    }
+    // The path of the final address: without its scheme and host, query and fragment.
+    const path = String(response.url || '').replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, '').split(/[?#]/)[0];
+    return path.toLowerCase() === `${base}${SIGN_IN_PATH}`.toLowerCase();
   }
 
   /**
