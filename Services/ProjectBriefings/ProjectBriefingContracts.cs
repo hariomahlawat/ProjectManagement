@@ -376,6 +376,8 @@ public enum ProjectBriefingSlideRole
     FfcGlobalFootprint,
     FfcCountryBreakdown,
     Closing,
+    // The "Key points only" project slide: photo beside the key points (blocks plan, PR 5).
+    ProjectKeyPointsOnly,
     // The stage-wise distribution block (chart, then its project list pages); appended so stored values keep.
     StageDistribution,
     StageDistributionList
