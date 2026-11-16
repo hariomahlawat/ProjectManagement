@@ -9,6 +9,21 @@ public interface IGlobalSearchService
     Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Every Legacy search source failed, so "no results" would be untrue: the caller reports
+/// search as unavailable. One failing source still lets the others answer.
+/// </summary>
+public sealed class GlobalSearchUnavailableException : Exception
+{
+    public GlobalSearchUnavailableException(int failedSources)
+        : base($"All {failedSources} Legacy search sources failed.")
+    {
+        FailedSources = failedSources;
+    }
+
+    public int FailedSources { get; }
+}
+
 // SECTION: Legacy global search implementation
 // Search V2 is the primary long-term engine. This service remains deliberately
 // robust while it is retained for warm-up, shadow comparison and rollback.
@@ -60,7 +75,13 @@ public sealed class GlobalSearchService : IGlobalSearchService
         };
 
         var providerResults = await Task.WhenAll(tasks);
-        var combined = providerResults.SelectMany(result => result).ToList();
+        if (providerResults.All(result => result.Failed))
+        {
+            // Not "no results": nothing could be searched (for example, the database is down).
+            throw new GlobalSearchUnavailableException(providerResults.Length);
+        }
+
+        var combined = providerResults.SelectMany(result => result.Hits).ToList();
         if (combined.Count == 0)
         {
             return Array.Empty<GlobalSearchHit>();
@@ -79,7 +100,9 @@ public sealed class GlobalSearchService : IGlobalSearchService
             .ToList();
     }
 
-    private async Task<IReadOnlyList<GlobalSearchHit>> SafeSearchAsync(
+    private sealed record ProviderResult(IReadOnlyList<GlobalSearchHit> Hits, bool Failed);
+
+    private async Task<ProviderResult> SafeSearchAsync(
         string provider,
         Func<Task<IReadOnlyList<GlobalSearchHit>>> search,
         CancellationToken cancellationToken)
@@ -94,7 +117,7 @@ public sealed class GlobalSearchService : IGlobalSearchService
                 provider,
                 results.Count,
                 stopwatch.ElapsedMilliseconds);
-            return results;
+            return new ProviderResult(results, false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -108,7 +131,7 @@ public sealed class GlobalSearchService : IGlobalSearchService
                 "Legacy search provider {Provider} failed after {ElapsedMilliseconds} ms. Other providers will continue.",
                 provider,
                 stopwatch.ElapsedMilliseconds);
-            return Array.Empty<GlobalSearchHit>();
+            return new ProviderResult(Array.Empty<GlobalSearchHit>(), true);
         }
     }
 }
