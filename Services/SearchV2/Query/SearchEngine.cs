@@ -397,14 +397,23 @@ public sealed class SearchEngine : ISearchV2Engine
         "e.\"Id\", e.\"EntityType\", e.\"NormalizedTitle\", e.\"UpdatedAtUtc\", e.\"CanonicalEntityType\", e.\"CanonicalEntityKey\"";
 
     /// <summary>
-    /// The suggestion ranking after match priority: projects, closeness, most recent. It must
-    /// stay the same as the final ORDER BY of the suggestion query (priority, entity_priority,
-    /// fuzzy_score, "UpdatedAtUtc", "Id"), or the per-branch cap could drop a better suggestion.
+    /// The suggestion ranking after match priority: projects, titles that start with the typed
+    /// text, closeness, most recent. It must stay the same as the final ORDER BY of the
+    /// suggestion query (priority, entity_priority, title_start, fuzzy_score, "UpdatedAtUtc",
+    /// "Id"), or the per-branch cap could drop a better suggestion. Projects stay first, so a
+    /// training row titled "Simulator training" does not lead "simulator".
     /// </summary>
     private static string SuggestionOrder(string alias) =>
-        $"{alias}.p, CASE WHEN {alias}.\"EntityType\" = 'Project' THEN 0 ELSE 1 END, " +
+        $"{alias}.p, CASE WHEN {alias}.\"EntityType\" = 'Project' THEN 0 ELSE 1 END, {TitleStart(alias)}, " +
         $"GREATEST(similarity({alias}.\"NormalizedTitle\", @exact), word_similarity(@exact, {alias}.\"NormalizedTitle\")) DESC, " +
         $"{alias}.\"UpdatedAtUtc\" DESC, {alias}.\"Id\"";
+
+    /// <summary>
+    /// 0 when the title starts with the typed text: "DRONA - MK-3" before "… SIMULATOR (DRONA) …",
+    /// which matches the word just as well but does not lead with it.
+    /// </summary>
+    private static string TitleStart(string alias) =>
+        $"CASE WHEN {alias}.\"NormalizedTitle\" LIKE @prefixLike THEN 0 ELSE 1 END";
 
     /// <summary>One row per record (its best by <see cref="SuggestionOrder"/>), then the best @branchLimit records.</summary>
     private static string CappedSuggestionBranch(string branch) =>
@@ -529,6 +538,7 @@ public sealed class SearchEngine : ISearchV2Engine
                            ) THEN 7
                            ELSE 8
                        END AS priority,
+                       {TitleStart("e")} AS title_start,
                        CASE WHEN e."EntityType" = 'Project' THEN 0 ELSE 1 END AS entity_priority,
                        CASE WHEN e."EntityType" = e."CanonicalEntityType" AND e."EntityKey" = e."CanonicalEntityKey" THEN 0 ELSE 1 END AS canonical_order,
                        GREATEST(similarity(e."NormalizedTitle", @exact), word_similarity(@exact, e."NormalizedTitle")) AS fuzzy_score
@@ -545,7 +555,7 @@ public sealed class SearchEngine : ISearchV2Engine
                 SELECT d.*,
                        ROW_NUMBER() OVER (
                            PARTITION BY d."NormalizedTitle"
-                           ORDER BY d.priority, d.entity_priority, d.fuzzy_score DESC, d."UpdatedAtUtc" DESC, d."Id"
+                           ORDER BY d.priority, d.entity_priority, d.title_start, d.fuzzy_score DESC, d."UpdatedAtUtc" DESC, d."Id"
                        ) AS title_rank
                 FROM deduplicated d
                 WHERE d.canonical_rank = 1
@@ -553,7 +563,7 @@ public sealed class SearchEngine : ISearchV2Engine
             SELECT "Title", "Subtitle", "CanonicalUrl", "SourceModule", "ResultCategory", NULLIF("IdentifierText", '') AS "IdentifierText"
             FROM distinct_titles
             WHERE title_rank = 1
-            ORDER BY priority, entity_priority, fuzzy_score DESC, "UpdatedAtUtc" DESC, "Id"
+            ORDER BY priority, entity_priority, title_start, fuzzy_score DESC, "UpdatedAtUtc" DESC, "Id"
             LIMIT @take;
             """;
         Add(command, "indexVersion", _options.ProjectionVersion);
