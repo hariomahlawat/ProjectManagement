@@ -863,14 +863,16 @@ public static class ProjectBriefingDeckConfigurationCodec
             merged[key] = value;
         }
 
-        KeepNewerValues(existing, merged, Build(Read(existingJson)));
+        KeepNewerListValues(existing, merged);
         return merged.ToJsonString(JsonOptions);
     }
 
-    // Lists and choices this build writes, with the enum each holds. A newer build may add values
-    // this build cannot read (an update-sheet row, a block type, a key point placement); the
-    // sections above are rebuilt from what this build read, so those values are put back here
-    // (review 3 fixes, M2).
+    // Lists this build writes, with the enum each holds. A newer build may add values this build
+    // cannot read (an update-sheet row, a block type); the sections above are rebuilt from what this
+    // build read, so those values are put back here (review 3 fixes, M2). This build cannot show
+    // them, so nobody here could have meant to remove them. A single choice (brief layout, key
+    // points, preset) is different: the person picks it on this page, and picking the value this
+    // build shows cannot be told apart from leaving it, so the saved choice is what was picked.
     private static readonly (string? Section, string Key, Type Values)[] EnumLists =
     {
         ("updateSheet", "rows", typeof(ProjectBriefingUpdateSheetRow)),
@@ -879,14 +881,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         (null, "overviewOrder", typeof(ProjectBriefingDeckBlockType))
     };
 
-    private static readonly (string? Section, string Key, Type Values)[] EnumChoices =
-    {
-        ("standardBriefing", "keyPoints", typeof(ProjectBriefingKeyPointPlacement)),
-        ("standardBriefing", "projectBriefLayout", typeof(ProjectBriefingProjectBriefLayout)),
-        (null, "preset", typeof(ProjectBriefingDeckPreset))
-    };
-
-    private static void KeepNewerValues(JsonObject stored, JsonObject merged, JsonObject unchanged)
+    private static void KeepNewerListValues(JsonObject stored, JsonObject merged)
     {
         // A list keeps, after this build's values, every stored value this build cannot read.
         foreach (var (section, key, values) in EnumLists)
@@ -913,23 +908,6 @@ public static class ProjectBriefingDeckConfigurationCodec
             else
             {
                 target[key] = new JsonArray(newer);
-            }
-        }
-
-        // A choice this build cannot read is kept unless this save changed it: this build read it
-        // as its fallback, so a save that leaves the fallback in place did not touch it.
-        foreach (var (section, key, values) in EnumChoices)
-        {
-            var storedChoice = SectionOf(stored, section)?[key];
-            var target = SectionOf(merged, section);
-            if (storedChoice is null || IsKnown(values, storedChoice) || target is null)
-            {
-                continue;
-            }
-
-            if (JsonNode.DeepEquals(target[key], SectionOf(unchanged, section)?[key]))
-            {
-                target[key] = storedChoice.DeepClone();
             }
         }
     }
