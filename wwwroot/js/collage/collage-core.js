@@ -213,8 +213,16 @@
     if (!(total > 1)) return null;
     const visible = (items || []).filter((item) => !item.hidden && item.kind !== 'slot');
     for (const cell of gridCells(sizeKey, total)) {
-      const frame = { x: cell.x, y: cell.y, width: cell.width, aspect: cell.width / cell.height };
-      if (visible.some((item) => coveredShare(frame, item) > LOCK_COVER_LIMIT)) continue;
+      // A cell is taken when anything covers a real part of it, or a real part of that thing lies
+      // in it (a long thin photo covers little of a cell but is still in it).
+      if (visible.some((item) => {
+        const box = turnedHalfBox(item.width, itemHeight(item), item.angle || 0);
+        const w = Math.min(cell.x + cell.width / 2, item.x + box.halfWidth) - Math.max(cell.x - cell.width / 2, item.x - box.halfWidth);
+        const h = Math.min(cell.y + cell.height / 2, item.y + box.halfHeight) - Math.max(cell.y - cell.height / 2, item.y - box.halfHeight);
+        if (!(w > 0 && h > 0)) return false;
+        const smaller = Math.min(cell.width * cell.height, 4 * box.halfWidth * box.halfHeight);
+        return w * h > smaller * LOCK_COVER_LIMIT;
+      })) continue;
       const width = Math.max(ITEM_LIMITS.minWidth, Math.min(cell.width, cell.height * aspect) * 0.94);
       return { x: cell.x, y: cell.y, width };
     }

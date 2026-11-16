@@ -975,3 +975,13 @@ test('a layout moved by hand or tilted is off its cells; laid out again it is no
   const lockedMoved = { ...laid, items: laid.items.map((i, k) => (k === 0 ? { ...i, x: i.x + 50, locked: true } : i)) };
   assert.equal(collage.offLayout(lockedMoved), false);
 });
+
+test('long thin photos each take their own grid cell', () => {
+  const items = [];
+  for (let i = 0; i < 4; i += 1) {
+    const place = collage.gridPlace(items, 'a4p', 16, 4);
+    assert.ok(place, `photo ${i}`);
+    items.push(collage.photoItem(`p${i}`, `f${i}`, 16, place));
+  }
+  assert.equal(new Set(items.map((i) => `${Math.round(i.x)},${Math.round(i.y)}`)).size, 4);
+});
