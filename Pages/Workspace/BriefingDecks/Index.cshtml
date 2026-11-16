@@ -97,7 +97,7 @@
     var studioDataJson = deck is null
         ? "null"
         : System.Text.Json.JsonSerializer.Serialize(
-            new { projects = deck.Projects, contentGaps = deck.ContentGaps },
+            new { projects = deck.Projects, contentGaps = deck.ContentGaps, projectDesign = deck.ProjectDesign },
             // Enums as names, the same as the in-page JSON responses the Studio also reads.
             new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
             {
@@ -372,7 +372,6 @@
                                  data-layout="@deck.Layout"
                                  data-presentation-mode="@deck.PresentationMode"
                                  data-has-projects="@((presentedProjects!.Length > 0).ToString().ToLowerInvariant())"
-                                 data-uses-capability="@((!isUpdateSheet && standardNeedsCapabilities && standardIncludesDetailedSlides).ToString().ToLowerInvariant())"
                                  data-uses-brief="@((isUpdateSheet || (standardNeedsProjectBrief && standardIncludesDetailedSlides)).ToString().ToLowerInvariant())"
                                  data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")"
                                  data-pbd-start="@(Model.StartWithAddProjects ? "projects" : null)">

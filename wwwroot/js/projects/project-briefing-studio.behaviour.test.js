@@ -59,7 +59,7 @@ const MARKUP = `
   </ol></nav>
   <div data-deck-id="7">
     <section data-pbd-studio data-preview-url="/preview" data-has-projects="true"
-             data-layout="StandardBriefing" data-presentation-mode="Combined" data-uses-capability="false">
+             data-layout="StandardBriefing" data-presentation-mode="Combined">
       <script type="application/json" data-pbd-studio-data>${JSON.stringify({ projects: PROJECTS, contentGaps: GAPS })}</script>
       <span data-pbd-studio-count></span>
       <input type="search" data-pbd-outline-search />
@@ -556,4 +556,81 @@ test('the Studio measures its height again when the focus view hides or shows th
   top = 180;
   window.dispatchEvent(new window.CustomEvent('pbd:focus-change', { detail: { on: false } }));
   assert.equal(studio.style.getPropertyValue('--pbd-studio-offset'), '180px');
+});
+
+// Key points only follow-through (docs/ux/briefing-deck-review-fixes.md, PR 4): the offer to write
+// capability text follows the deck's design, read from each deck payload, without a reload.
+const withDesign = (design, gaps = GAPS) => (window) => {
+  window.document.querySelector('[data-pbd-studio-data]').textContent =
+    JSON.stringify({ projects: PROJECTS, contentGaps: gaps, projectDesign: design });
+};
+const capabilityOffer = (document) => [...document.querySelectorAll('[data-pbd-inspector-panel="slide"] button')]
+  .find((button) => /Write for this deck only|This deck only/.test(button.textContent));
+
+test('the capability offer follows the design, straight after a design change', async () => {
+  const { window, document, requests } = startStudio(withDesign('Capability'));
+  requests[0].answer(payload());
+  await settle(window);
+  outlineRow(document, 'Charlie range').click();
+  assert.ok(capabilityOffer(document), 'the Capability design offers deck-only capability text');
+
+  const deck = (projectDesign) => ({ projects: PROJECTS, contentGaps: GAPS, presentationMode: 'Combined', projectDesign });
+  document.dispatchEvent(new window.CustomEvent('pbd:deck-changed', { detail: { deck: deck('KeyPointsOnly') } }));
+  assert.equal(capabilityOffer(document), undefined, 'Key points only shows no capability text, so none is offered');
+  assert.ok(![...document.querySelectorAll('h5')].some((heading) => heading.textContent === 'Capability overview'));
+
+  document.dispatchEvent(new window.CustomEvent('pbd:deck-changed', { detail: { deck: deck('KeyPoints') } }));
+  assert.ok(capabilityOffer(document), 'the Key points design shows the capability text again');
+
+  for (const design of ['Brief', 'FactSheet']) {
+    document.dispatchEvent(new window.CustomEvent('pbd:deck-changed', { detail: { deck: deck(design) } }));
+    assert.equal(capabilityOffer(document), undefined, `${design} shows no capability text`);
+  }
+  document.dispatchEvent(new window.CustomEvent('pbd:deck-changed', { detail: { deck: deck('CapabilityAndBrief') } }));
+  assert.ok(capabilityOffer(document));
+});
+
+test('a missing capability overview is written for the deck on Capability, and not offered on Brief', async () => {
+  const gaps = { 3: ['capabilityOverview'] };
+  const { window, document, requests } = startStudio(withDesign('Capability', gaps));
+  requests[0].answer(payload({ contentGaps: gaps }));
+  await settle(window);
+  outlineRow(document, 'Charlie range').click();
+
+  const gapAction = () => document.querySelector('.pbd-inspector__gaps li :is(button, a)');
+  assert.equal(gapAction().textContent.trim(), 'This deck only');
+
+  // A gap the server still lists when the design shows no capability text (an older payload).
+  document.dispatchEvent(new window.CustomEvent('pbd:deck-changed', {
+    detail: { deck: { projects: PROJECTS, contentGaps: gaps, presentationMode: 'Combined', projectDesign: 'Brief' } }
+  }));
+  assert.equal(gapAction(), null);
+});
+
+test('on Key points only a stage, status or cost change shows the project slide', async () => {
+  const keyPointsOnly = () => payload({
+    slideCount: 4,
+    slides: [slide(1, 'Cover'), slide(2, 'Alpha simulator'), slide(3, 'Bravo trainer'), slide(4, 'Closing')],
+    outline: [
+      { number: 1, role: 'Cover', projectId: null, listedProjectIds: [] },
+      { number: 2, role: 'ProjectKeyPointsOnly', projectId: 1, listedProjectIds: [] },
+      { number: 3, role: 'ProjectKeyPointsOnly', projectId: 2, listedProjectIds: [] },
+      { number: 4, role: 'Closing', projectId: null, listedProjectIds: [] }
+    ]
+  });
+  const { window, document, requests } = startStudio(withDesign('KeyPointsOnly'));
+  requests[0].answer(keyPointsOnly());
+  await settle(window);
+
+  const changes = ['ShowPresentStage', 'ShowPresentStatus', 'CostMode'];
+  for (const [index, change] of changes.entries()) {
+    document.querySelector('[data-pbd-stage-prev]').click();
+    document.querySelector('[data-pbd-stage-prev]').click();
+    document.querySelector('[data-pbd-stage-prev]').click();
+    assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 1 of 4/);
+    await saveSettings(window, document, [change]);
+    requests[index + 1].answer(keyPointsOnly());
+    await settle(window);
+    assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 2 of 4/, change);
+  }
 });

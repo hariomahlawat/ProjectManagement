@@ -1099,7 +1099,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         };
     }
 
-    private static ProjectBriefingSlideEstimateVm BuildSlideEstimate(
+    internal static ProjectBriefingSlideEstimateVm BuildSlideEstimate(
         ProjectBriefingLayout layout,
         bool includeCoverSlide,
         bool includePortfolioSummarySlide,
@@ -1170,7 +1170,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             };
         }
 
-        // The stage-wise distribution: its chart and, usually, one project list slide.
+        // The stage-wise distribution: its chart and, usually, one project list slide. The list runs
+        // onto more slides when a column is long, but its paging (the composer's
+        // PaginateStageDistributionColumns) measures each project's ARPP band, stage and PDC, which
+        // this view model does not load. So 2 is an estimate; the built deck has the true count.
         var summarySlides = includeStageSummary ? 2 : 0;
         var projectCategoryCount = projects
             .Select(project => project.ProjectCategory ?? "Not categorised")
@@ -1201,8 +1204,12 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             or ProjectBriefingNarrativeMode.Both;
         var includeProjectBrief = narrativeMode is ProjectBriefingNarrativeMode.ProjectBrief
             or ProjectBriefingNarrativeMode.Both;
+        // Key points only draws one slide per project and never continues the capability text
+        // (ProjectBriefingSlideComposer.UsesKeyPointsOnly).
+        var keyPointsOnly = ProjectBriefingProjectSlideDesigns.Of(layout, narrativeMode, standardSlideOptions)
+            == ProjectBriefingProjectSlideDesign.KeyPointsOnly;
         var detailSlides = includesDetailedSlides && includeCapabilities ? slideProjects.Length : 0;
-        var capabilityContinuationSlides = includesDetailedSlides && includeCapabilities
+        var capabilityContinuationSlides = includesDetailedSlides && includeCapabilities && !keyPointsOnly
             ? slideProjects.Sum(project =>
                 ProjectBriefingCapabilityPaginator
                     .Paginate(project.BriefDescription)
