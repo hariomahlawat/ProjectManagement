@@ -152,7 +152,7 @@ test('a draft can be deleted and brought back with Undo', async ({ page }) => {
   await expect(page.locator('[data-open-draft]')).toHaveCount(0);
   await expect(page.locator('[data-draft-undo]')).toBeVisible();
 
-  await page.locator('[data-action="draft-undo"]').click();
+  await page.locator('[data-draft-undo] [data-prism-toast-action]').click();
   await expect(page.locator('[data-open-draft]')).toHaveCount(1);
   expect(errors).toEqual([]);
 });

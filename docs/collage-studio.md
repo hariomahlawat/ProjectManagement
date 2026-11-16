@@ -73,7 +73,8 @@ its npm package by hand; the libman entry records the version.
 
 - **Start**: pick a layout (2 side by side up to a 12 grid and a mosaic of 7) or a blank page in
   one of seven sizes: A4 landscape or portrait, A3 poster, Slide 16:9, Square, Phone status 9:16
-  and Banner 3:1. Drafts are listed below, newest first, with Delete and a 10-second Undo.
+  and Banner 3:1. Drafts are listed below, newest first, with Delete (shown on hover or focus, always on
+  touch screens) and a 10-second Undo in PRISM's glass toast.
 - **Photos**: add up to 60 photos (JPEG, PNG, WEBP, GIF or BMP, at most 50 MB each) by the
   button, by dropping them, by pasting, or with **From PRISM Photos** (search by words, project
   and year, tick the photos, Add). Empty frames fill first. A photo the page does not show can be
@@ -175,7 +176,9 @@ delete the oldest.
 A keyboard user picks an item in the **Layers** list; the page then says how to move it. Photos
 and empty frames have a **Size** slider, so everything can be resized without a mouse. When a
 panel is drawn again after a change, focus goes back to the control that was used, inside that
-panel (`collage-focus.js`). Arrow keys do not move a hidden item.
+panel (`collage-focus.js`). Arrow keys do not move a hidden item. The editor's first Tab stop is
+**Skip to settings**, which takes the keyboard past the top bar, the panels and the page straight
+to the settings panel.
 
 ### The settings panel
 

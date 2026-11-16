@@ -34,15 +34,29 @@
         hasContent: hasContent()
       }),
       onStatus: (text, warning) => setDraftStatus(text, warning),
-      onUndo: (state) => {
-        $('[data-draft-undo]').hidden = !state;
-        if (state) {
-          $('[data-draft-undo-text]').textContent = `Draft “${state.title}” deleted.`;
-          announce(`Draft ${state.title} deleted. Undo is on the screen for ten seconds.`);
-        }
-      },
+      onUndo: (state) => showDraftUndo(state),
       onChanged: () => { if (!views.start.hidden) renderDrafts(); }
     });
+
+    // Undo for a deleted draft: PRISM's glass toast, as after a delete in the editor
+    // (docs/ux/collage-review-3-fixes.md, PR 8). It goes when the session's Undo time is over or
+    // the draft is brought back; its timer line shows the same time.
+    let draftUndoToast = null;
+
+    function showDraftUndo(state) {
+      draftUndoToast?.dismiss();
+      draftUndoToast = null;
+      if (!state) return;
+      announce(`Draft ${state.title} deleted. Undo is on the screen for ten seconds.`);
+      if (!window.PrismToast) return;
+      draftUndoToast = window.PrismToast.show({
+        tone: 'success',
+        text: `Draft “${state.title}” deleted.`,
+        life: core.DRAFT_UNDO_MS,
+        action: { label: 'Undo', run: () => { undoDeleteDraft(); } }
+      });
+      draftUndoToast.element.dataset.draftUndo = '';
+    }
 
     function setDraftStatus(text, warning = false) {
       draftStatus.textContent = text;
@@ -136,7 +150,14 @@
         title.textContent = item.title;
         const meta = document.createElement('small');
         const size = core.SIZES[item.size]?.label || '';
-        meta.textContent = `Saved ${core.savedAgo(item.saved, Date.now())} · ${size} · ${item.photoCount} photo${item.photoCount === 1 ? '' : 's'}`;
+        // Each part stays whole; a narrow card breaks the line only between them.
+        const parts = [`Saved ${core.savedAgo(item.saved, Date.now())}`, size, `${item.photoCount} photo${item.photoCount === 1 ? '' : 's'}`].filter(Boolean);
+        parts.forEach((part, index) => {
+          const span = document.createElement('span');
+          span.className = 'clg-draft__meta';
+          span.textContent = part;
+          meta.append(...(index ? [' · ', span] : [span]));
+        });
         open.append(picture, title, meta);
         open.setAttribute('aria-label', `Open draft ${item.title}, saved ${core.savedAgo(item.saved, Date.now())}`);
         const remove = document.createElement('button');

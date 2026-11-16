@@ -58,7 +58,6 @@
                     <button type="button" class="btn btn-sm btn-link clg-drafts-all" data-action="drafts-all" aria-expanded="false" hidden></button>
                 </div>
                 <p class="clg-hint clg-drafts__note" title="Clearing the browser's data removes drafts.">Kept in this browser on this computer, with their photos, and saved as you work. Save a picture or a PDF to keep a copy. <span data-drafts-space></span></p>
-                <div class="clg-undo-bar" data-draft-undo hidden><span data-draft-undo-text></span> <button type="button" class="btn btn-sm btn-link" data-action="draft-undo">Undo</button></div>
                 <div class="clg-draft-grid" data-drafts></div>
             </section>
             <h2 class="clg-start__heading">Start with a layout <small>A4 landscape; the size can be changed later</small></h2>
@@ -71,6 +70,8 @@
         @* ---------- Editor ---------- *@
         <section class="clg-editor" data-view="editor" aria-labelledby="clgEditorTitle" hidden>
             <h1 id="clgEditorTitle" class="visually-hidden" tabindex="-1">Collage editor</h1>
+            @* Passes the top bar, the panels and the page in one step (docs/ux/collage-review-3-fixes.md, PR 8). *@
+            <a class="clg-skip" href="#clgProps">Skip to settings</a>
             <div class="clg-bar">
                 <button type="button" class="btn btn-outline-secondary btn-sm clg-icon-btn" data-action="home" title="Back to the start" aria-label="Back to the start">
                     <i class="bi bi-arrow-left" aria-hidden="true"></i>
@@ -223,7 +224,7 @@
                     </div>
                 </div>
 
-                <aside class="clg-props" data-props aria-label="Settings"></aside>
+                <aside class="clg-props" id="clgProps" tabindex="-1" data-props aria-label="Settings"></aside>
             </div>
         </section>
 

@@ -90,17 +90,21 @@
       if (views.editor.hidden) return;
       const height = pageHeight();
       const narrow = stageBox.clientWidth < 520;
+      // A slim margin at the sides, so 100% fills most of the work surface on a laptop
+      // (docs/ux/collage-review-3-fixes.md, PR 8); above and below it keeps room for the
+      // rotation handle of an item at the page's edge.
       const pad = narrow ? 16 : 48;
+      const padX = narrow ? 16 : 24;
       // On a phone an open sheet covers the lower half: the page fits in what is left above it.
       const box = getComputedStyle(stageBox);
       const usableHeight = stageBox.clientHeight - (parseFloat(box.paddingTop) || 0) - (parseFloat(box.paddingBottom) || 0);
-      const fit = Math.min((stageBox.clientWidth - 2 * pad) / core.PAGE_WIDTH, (usableHeight - 2 * pad) / height);
+      const fit = Math.min((stageBox.clientWidth - 2 * padX) / core.PAGE_WIDTH, (usableHeight - 2 * pad) / height);
       app.scale = Math.max(0.05, fit * app.zoom);
       const pageW = core.PAGE_WIDTH * app.scale;
       const pageH = height * app.scale;
       // Rounded up to steps, so a pinch makes new canvases now and then, not at every move.
       const step = 128;
-      const stageW = Math.max(stageBox.clientWidth, Math.ceil((pageW + 2 * pad) / step) * step);
+      const stageW = Math.max(stageBox.clientWidth, Math.ceil((pageW + 2 * padX) / step) * step);
       const stageH = Math.max(usableHeight, Math.ceil((pageH + 2 * pad) / step) * step);
       // Each layer stays under the browser's canvas limit at any zoom (core.canvasPixelRatio):
       // set before the stage grows, so a canvas too large is never made.
