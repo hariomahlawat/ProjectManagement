@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Search;
 using ProjectManagement.Services.SearchV2;
 using ProjectManagement.Services.SearchV2.Analytics;
@@ -67,12 +69,70 @@ public sealed class SearchGatewayFailureStateTests
         Assert.Empty(response.Results);
     }
 
+    // The real Legacy engine swallows each source's error so the others can answer. When
+    // every source fails (the database is down), the page must say unavailable, whether
+    // Legacy is the fallback or the configured engine.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RealLegacy_WithEverySourceFailing_IsUnavailable(bool serveV2)
+    {
+        var gateway = CreateGateway(SearchResponse.NotReady("aura"), RealLegacy(failing: 7), serveV2);
+
+        var response = await gateway.SearchAsync(new SearchRequest("aura"), User, CancellationToken.None);
+
+        Assert.True(response.IsUnavailable);
+        Assert.Empty(response.Results);
+    }
+
+    [Fact]
+    public async Task RealLegacy_WithSomeSourcesFailing_StillAnswers()
+    {
+        var gateway = CreateGateway(SearchResponse.NotReady("aura"), RealLegacy(failing: 6), serveV2: false);
+
+        var response = await gateway.SearchAsync(new SearchRequest("aura"), User, CancellationToken.None);
+
+        Assert.False(response.IsUnavailable);
+        Assert.True(response.IsPartial);
+        Assert.Single(response.Results);
+    }
+
+    // Seven sources; the first <paramref name="failing"/> throw, the rest find one project.
+    private static GlobalSearchService RealLegacy(int failing)
+    {
+        var services = new ServiceCollection();
+        var index = 0;
+        Source Next() => new(index++ < failing);
+        services.AddSingleton<IGlobalDocRepoSearchService>(Next());
+        services.AddSingleton<IGlobalFfcSearchService>(Next());
+        services.AddSingleton<IGlobalIprSearchService>(Next());
+        services.AddSingleton<IGlobalActivitiesSearchService>(Next());
+        services.AddSingleton<IGlobalProjectDocumentSearchService>(Next());
+        services.AddSingleton<IGlobalProjectReportsSearchService>(Next());
+        services.AddSingleton<IGlobalProjectSearchService>(Next());
+        return new GlobalSearchService(
+            services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<GlobalSearchService>.Instance);
+    }
+
+    private sealed class Source(bool fails) :
+        IGlobalDocRepoSearchService, IGlobalFfcSearchService, IGlobalIprSearchService, IGlobalActivitiesSearchService,
+        IGlobalProjectDocumentSearchService, IGlobalProjectReportsSearchService, IGlobalProjectSearchService
+    {
+        public Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, int maxResults, CancellationToken cancellationToken) => fails
+            ? throw new InvalidOperationException("database down")
+            : Task.FromResult<IReadOnlyList<GlobalSearchHit>>(new[] { new GlobalSearchHit("Projects", "AURA", null, "/Projects/Overview/1", null, 1m, null, null) });
+    }
+
     private static SearchGateway CreateGateway(SearchResponse v2, Func<IReadOnlyList<GlobalSearchHit>> legacy, bool serveV2)
+        => CreateGateway(v2, new StubLegacy(legacy), serveV2);
+
+    private static SearchGateway CreateGateway(SearchResponse v2, IGlobalSearchService legacy, bool serveV2)
     {
         var options = Options.Create(new SearchV2Options { Enabled = true, ServeV2 = serveV2, ShadowMode = false });
         return new SearchGateway(
             new StubEngine(v2),
-            new StubLegacy(legacy),
+            legacy,
             new SearchQueryNormalizer(),
             new SearchHighlightService(options),
             new NoopAnalytics(),
