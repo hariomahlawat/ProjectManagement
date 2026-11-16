@@ -120,7 +120,14 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-settings.js` | The settings panel's sections as HTML (arranging, Layers, text, frames, shapes and looks), every value escaped |
 | `wwwroot/js/collage/collage-photos.js` | Reading photos at their working size, tray pictures, and grey stand-ins for draft photos that cannot be opened |
 | `wwwroot/js/collage/collage-save.js` | The Save as… dialog and making the PNG, JPG or PDF |
-| `wwwroot/js/collage/collage-app.js` | The editor: panels, Konva stage, toolbar, keys, drafts and Save |
+| `wwwroot/js/collage/collage-draft-session.js` | The draft being edited and the drafts on the start screen: when a draft is written, room for a new one, delete and Undo, purges, other tabs |
+| `wwwroot/js/collage/collage-changes.js` | The change log: the one way a change reaches Undo and the draft, and where a held edit ends |
+| `wwwroot/js/collage/collage-page.js` | The page: the Konva stage and layers, drawing each item, the handles, zoom and Preview |
+| `wwwroot/js/collage/collage-drafts-screen.js` | Drafts in the editor: the draft status, writing the draft and its small picture, the start screen's drafts |
+| `wwwroot/js/collage/collage-panels.js` | The left drawer and the settings panel with its Settings and Layers tabs |
+| `wwwroot/js/collage/collage-tray.js` | Photos: choosing, dropping, pasting, reading in, the tray, From PRISM Photos |
+| `wwwroot/js/collage/collage-keys.js` | The keyboard and the mouse wheel |
+| `wwwroot/js/collage/collage-app.js` | The editor itself (about 1,250 lines): its state, selection and the toolbar, moving a photo in its frame, the change actions, and creating the parts above. Each part is made once with the helpers it uses and `app`, the editor's view of its own state (read when used, never before it exists) |
 | `wwwroot/css/collage.css` | All styles, Bootstrap variables only (Light and Dark) |
 
 Photo handling keeps memory low: the editor draws a copy at most 2000 px on its long side, the
@@ -149,7 +156,7 @@ delete the oldest.
 | `]` / `[` | Bring forward / send backward; with Shift, to the front / back |
 | Enter | When the page has focus: adjust the selected photo, or edit the selected text. On a focused button, Enter presses that button |
 | Ctrl+Z, Ctrl+Y (or Ctrl+Shift+Z) | Undo, redo |
-| Ctrl+S | Save as… |
+| Ctrl+S | Save as… (also while typing in a box) |
 | Shift while turning | 15° steps |
 | Esc | Leave adjusting, deselect, or leave Preview |
 
@@ -214,6 +221,9 @@ button opens the Layers tab even when nothing is selected, so hidden items can a
 shown again. Preview fills the whole screen. Two fingers on the page zoom
 it, around the point between the fingers; one finger moves items. The zoom buttons are hidden on
 phones, and the draft status shows only when something is wrong, with its reason in the alert.
+On a phone the header keeps to one line: "by PRISM" and the page size go (the size is in the
+Page settings), so the collage name has the room; every icon button keeps its name for screen
+readers. Hints speak of tapping on a touch screen and of clicking and keys elsewhere.
 
 Colours come from Bootstrap variables, so the Dark theme needs no rules of its own; the page
 itself stays the colour the user chose, as it will print.
@@ -230,7 +240,11 @@ itself stays the colour the user chose, as it will print.
 - Browser tests (`npm run test:browser`, Playwright, see [build-and-test.md](build-and-test.md)):
   make a collage and Save; reopen a draft after a reload; a damaged draft photo kept as a
   stand-in; keyboard only; Save by purpose; frames by shape; the Dark theme; From PRISM Photos with
-  a stubbed library; and a phone (sheets, Layers, `pagehide`). They run on every pull request.
+  a stubbed library; and a phone (sheets, Layers, `pagehide`, the canvas limit, the header).
+  Since the second review also: drafts deleted while opening or from another tab, removing a
+  photo, typing then Bold, keeping the user's choices, captions, Preview and Save, the settings
+  tabs, Ctrl+S, and the polish (stickers fit, units, PRISM Photos off, a missing script). They
+  run on every pull request.
 - `ProjectManagement.Tests/Tools/CollageApiHostTests.cs` runs the real PRISM host: each of the
   three Collage APIs answers an anonymous request with 401, every `/api/collage` route requires
   authorization, and the library lists each kind of photo at its own page's address.

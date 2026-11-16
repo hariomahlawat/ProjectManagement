@@ -60,6 +60,8 @@
       }
       // A newer search has started; this answer is for the old one.
       if (request !== library_.request) return;
+      // Off: only the message shows, without search, filters or an Add that can do nothing.
+      libraryDialog.classList.toggle('is-off', !page.available);
       if (!page.available) {
         library_.listed = [];
         library_.page = 0;

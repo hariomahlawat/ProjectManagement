@@ -47,3 +47,22 @@ test('zoomed all the way in on a phone, every page canvas stays under the browse
   for (const area of areas) expect(area).toBeLessThanOrEqual(16000000);
   expect(errors).toEqual([]);
 });
+
+test('on a phone the header is one line, every button has a name, and hints speak of tapping', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^A4 landscape/ }).click();
+  await expect(page.locator('[data-view="editor"]')).toBeVisible();
+  // The icon-only buttons are named for screen readers.
+  await expect(page.getByRole('button', { name: 'Save as…' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Preview' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'PRISM' })).toBeAttached();
+  // The brand fits on one line, and the name box has room.
+  const brand = await page.locator('.pdft-brand__text').boundingBox();
+  expect(brand.height).toBeLessThan(30);
+  const name = await page.locator('[data-name]').boundingBox();
+  expect(name.width).toBeGreaterThan(110);
+  // Touch words, not mouse words.
+  await expect(page.locator('[data-empty] .clg-for-touch')).toBeVisible();
+  await expect(page.locator('[data-empty] .clg-for-mouse')).toBeHidden();
+  expect(errors).toEqual([]);
+});

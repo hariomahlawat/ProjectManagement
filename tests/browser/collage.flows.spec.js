@@ -197,3 +197,13 @@ test('typing and then at once clicking Bold are two Undo steps', async ({ page }
     .toMatchObject({ text: 'Welcome home', bold: before });
   expect(errors).toEqual([]);
 });
+
+test('Ctrl+S opens Save even while typing the collage name', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startBlank(page);
+  await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'one.jpg' }));
+  await page.locator('[data-name]').fill('Sports day');
+  await page.keyboard.press('Control+s');
+  await expect(page.locator('[data-save-dialog]')).toBeVisible();
+  expect(errors).toEqual([]);
+});
