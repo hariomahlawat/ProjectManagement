@@ -315,7 +315,14 @@ itself stays the colour the user chose, as it will print.
   photo, typing then Bold, keeping the user's choices, captions, Preview and Save, the settings
   tabs, Ctrl+S, rounded corners, and the polish (stickers fit, units, PRISM Photos off, a missing
   script). Since the third review: a crest from Crests and logos drawn and saved
-  (`collage.crest.spec.js`), and the policy check checked itself (`collage.csp.spec.js`). They
+  (`collage.crest.spec.js`), and the policy check checked itself (`collage.csp.spec.js`). Since
+  the fourth review (`collage.r4tests.spec.js`, `collage.r4tests.phone.spec.js`): two fingers
+  zoom the page on a phone while one finger moves an item; a drag moves a photo in its frame, one
+  Undo takes it back, Done ends it; Back to the start, a hidden page and `pagehide` each write a
+  change the half-second autosave has not; closing asks only while a change is unwritten; and a
+  draft deleted in another tab is written back at once, whole, only when it is open here. The
+  unit test `collage-every-change.test.js` checks that a real collage cannot be written in place
+  (crop, layout, background, items) and that `edit()` leaves every earlier Undo step as it was. They
   run on every pull request, with the page served under PRISM's own Content Security Policy
   (`tests/browser/fixtures/production-headers.json`, taken by `CollageBrowserFixtureTests` from
   the page itself, signed in, under Production settings); a policy violation, seen as a
