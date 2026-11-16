@@ -1122,6 +1122,21 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal(new[] { "t-9" }, response.Results.Select(result => result.EntityKey).ToArray());
     }
 
+    // A title that starts with the typed word comes before one that only contains it, even
+    // when the other is newer ("DRONA - MK-3" before "… SIMULATOR (DRONA) …").
+    [SearchV2PostgresFact]
+    public async Task Suggestions_TitlesStartingWithTheWordComeFirst()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9931", "Projects", "Projects", "Small arms trainer (Brannoc) firing", null),
+            host.Entry("Project", "9932", "Projects", "Projects", "Brannoc mk 3", null) with { UpdatedAtUtc = DateTimeOffset.UtcNow.AddYears(-1) });
+
+        var suggestions = await host.SuggestAsync("brannoc");
+
+        Assert.Equal(new[] { "Brannoc mk 3", "Small arms trainer (Brannoc) firing" }, suggestions.Select(suggestion => suggestion.Title).Take(2).ToArray());
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {
