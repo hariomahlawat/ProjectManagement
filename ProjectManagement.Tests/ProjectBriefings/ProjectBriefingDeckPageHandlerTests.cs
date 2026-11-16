@@ -249,6 +249,32 @@ public sealed class ProjectBriefingDeckPageHandlerTests
 
     // ---- A command deck, seen by a Project Officer --------------------------------------------
 
+    // Review 2 fixes, PR 4: a content editor saved in place answers with the version its own save
+    // produced, and leaves no message behind for the next page load.
+    [Fact]
+    public async Task AContentEditorSavedInPlace_AnswersWithItsOwnVersion()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
+        var page = CreatePage(db, Officer, ajax: true);
+
+        var result = await page.OnPostSaveFfcGlobalFootprintAsync(new IndexModel.SaveFfcGlobalFootprintInput
+        {
+            DeckId = deck.Id,
+            RowVersion = Version(deck),
+            FfcGlobalFootprintTitle = "Friendly Foreign Countries",
+            MaximumCountryRows = 8
+        }, CancellationToken.None);
+
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal(200, json.StatusCode ?? 200);
+        var saved = await ReloadAsync(db, deck);
+        Assert.Equal(Version(saved), json.Value!.GetType().GetProperty("rowVersion")!.GetValue(json.Value) as string);
+        Assert.Null(page.StatusMessage);
+        Assert.Null(page.ErrorMessage);
+        Assert.False(page.ReopenFfcGlobalFootprint);
+    }
+
     [Fact]
     public async Task ACommandDeck_ReadsAsNotFoundForAProjectOfficer()
     {

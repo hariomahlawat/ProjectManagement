@@ -211,7 +211,7 @@ if (root) {
     setDirty(false);
   };
 
-  const confirmRoleCharterDiscard = async (message = 'Your changes to the Role & Charter slide have not been saved.') => {
+  const confirmRoleCharterDiscard = async (message = 'Your changes to Role & Charter have not been saved.') => {
     if (!dirty) return true;
     return prismConfirm({
       title: 'Discard unsaved changes?',
@@ -225,7 +225,11 @@ if (root) {
 
   const closeDrawer = async ({ force = false } = {}) => {
     if (!drawer || !backdrop) return false;
+    // Not while the form is saving: a discard then would reset it to values older than the ones
+    // being saved. Checked again after the question.
+    if (form?.getAttribute('aria-busy') === 'true') return false;
     if (dirty && !force && !(await confirmRoleCharterDiscard())) return false;
+    if (form?.getAttribute('aria-busy') === 'true') return false;
     if (dirty) restoreInitial();
     drawer.classList.remove('is-open');
     drawer.setAttribute('aria-hidden', 'true');
@@ -310,7 +314,7 @@ if (root) {
     refreshDirty();
   });
   form?.addEventListener('change', refreshDirty);
-  form?.addEventListener('submit', (event) => {
+  form?.addEventListener('submit', async (event) => {
     if (!validate({ focus: true })) {
       event.preventDefault();
       return;
@@ -319,13 +323,34 @@ if (root) {
       event.preventDefault();
       return;
     }
+    // Saved in place by the deck page (review 2 fixes, PR 4); a page without it posts as before.
+    if (typeof root.pbdSaveEditor !== 'function') {
+      dirty = false;
+      return;
+    }
+    event.preventDefault();
     if (saveButton) saveButton.disabled = true;
     if (status) {
       status.textContent = 'Saving Role & Charter…';
       status.classList.remove('is-dirty');
       status.classList.add('is-saving');
     }
-    dirty = false;
+    const result = await root.pbdSaveEditor(form);
+    if (result.ok) {
+      root.pbdCommitFormDefaults?.(form);
+      initialRoleMarkup = roleList?.innerHTML || '';
+      initialCharterMarkup = charterList?.innerHTML || '';
+      initialState = serializeForm();
+      setDirty(false);
+      await closeDrawer({ force: true });
+      return;
+    }
+    if (saveButton) saveButton.disabled = false;
+    if (status) {
+      status.textContent = result.message;
+      status.classList.remove('is-saving');
+      status.classList.add('is-dirty');
+    }
   });
 
   document.addEventListener('click', async (event) => {
@@ -446,7 +471,7 @@ if (root) {
 
   const confirmFfcDiscard = async () => !ffcDirty || prismConfirm({
     title: 'Discard unsaved changes?',
-    message: 'Your changes to the FFC Global Footprint slide have not been saved.',
+    message: 'Your changes to the FFC footprint have not been saved.',
     confirmText: 'Discard changes',
     cancelText: 'Keep editing',
     tone: 'danger',
@@ -455,7 +480,10 @@ if (root) {
 
   const closeFfcDrawer = async ({ force = false } = {}) => {
     if (!ffcDrawer || !ffcBackdrop) return false;
+    // Not while the form is saving (see closeDrawer).
+    if (ffcForm?.getAttribute('aria-busy') === 'true') return false;
     if (!force && !(await confirmFfcDiscard())) return false;
+    if (ffcForm?.getAttribute('aria-busy') === 'true') return false;
     if (ffcDirty && ffcForm instanceof HTMLFormElement) {
       ffcForm.reset();
       syncFfcConfiguration();
@@ -485,18 +513,37 @@ if (root) {
     syncFfcConfiguration();
     setFfcDirty(serializeFfc() !== ffcInitialState);
   });
-  ffcForm?.addEventListener('submit', (event) => {
+  ffcForm?.addEventListener('submit', async (event) => {
     if (!ffcDirty) {
       event.preventDefault();
       return;
     }
+    // Saved in place by the deck page (review 2 fixes, PR 4); a page without it posts as before.
+    if (typeof root.pbdSaveEditor !== 'function') {
+      ffcDirty = false;
+      return;
+    }
+    event.preventDefault();
     if (ffcSave instanceof HTMLButtonElement) ffcSave.disabled = true;
     if (ffcStatus) {
-      ffcStatus.textContent = 'Saving FFC Global Footprint…';
+      ffcStatus.textContent = 'Saving FFC footprint…';
       ffcStatus.classList.remove('is-dirty');
       ffcStatus.classList.add('is-saving');
     }
-    ffcDirty = false;
+    const result = await root.pbdSaveEditor(ffcForm);
+    if (result.ok) {
+      root.pbdCommitFormDefaults?.(ffcForm);
+      ffcInitialState = serializeFfc();
+      setFfcDirty(false);
+      await closeFfcDrawer({ force: true });
+      return;
+    }
+    if (ffcSave instanceof HTMLButtonElement) ffcSave.disabled = false;
+    if (ffcStatus) {
+      ffcStatus.textContent = result.message;
+      ffcStatus.classList.remove('is-saving');
+      ffcStatus.classList.add('is-dirty');
+    }
   });
   document.addEventListener('keydown', async (event) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;

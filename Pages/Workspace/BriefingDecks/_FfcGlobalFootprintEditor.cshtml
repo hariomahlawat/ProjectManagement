@@ -25,10 +25,10 @@
         <header class="pbd-profile-drawer__header">
             <div>
                 <span class="pbd-eyebrow">Slide content</span>
-                <h3 id="pbd-ffc-footprint-drawer-title">Configure FFC Global Footprint</h3>
+                <h3 id="pbd-ffc-footprint-drawer-title">FFC footprint</h3>
                 <p>Countries and quantities come from the FFC records and update by themselves. Here you choose how the slide looks.</p>
             </div>
-            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-ffc-footprint-close aria-label="Close FFC Global Footprint editor">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-ffc-footprint-close aria-label="Close FFC footprint editor">
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
             </button>
         </header>
@@ -125,7 +125,7 @@
 
                 <div class="pbd-ffc-footprint-layout-preview @(options.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant ? "is-map-dominant" : string.Empty)"
                      data-pbd-ffc-layout-preview
-                     aria-label="FFC Global Footprint slide composition">
+                     aria-label="FFC footprint slide composition">
                     <div class="pbd-ffc-footprint-layout-preview__metrics" aria-label="Current FFC portfolio headline figures">
                         <span><strong>@summary.CountryCount.ToString("N0")</strong><small>Countries</small></span>
                         <span><strong>@summary.ProjectCount.ToString("N0")</strong><small>Projects</small></span>
