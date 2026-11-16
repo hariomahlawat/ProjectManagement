@@ -863,6 +863,7 @@
 
 .clg-toolbar__text {
     width: auto !important;
+    white-space: nowrap;
     padding: 0 0.6rem !important;
     gap: 0.35rem;
     display: inline-flex !important;
