@@ -145,10 +145,14 @@ panel (`collage-focus.js`). Arrow keys do not move a hidden item.
 
 ### Changes, Undo and drafts
 
-Every change reaches the page, Undo and the draft the same way. Clicks and drags are recorded at
-once (`commit()`). Edits that go on (typing, sliders, colour pickers, nudges, the wheel) are
-kept in the draft at once and recorded for Undo once they pause, or as soon as anything else
-happens: another item, Undo, leaving (`collage-edits.js`). Closing the tab right after typing
+Every change reaches the page, Undo and the draft the same way, through the change log
+(`collage-changes.js`, unit tests in `collage-changes.test.js`); nothing else touches the Undo
+history. Clicks and drags are recorded at once (`commit()`). Edits that go on (typing, sliders,
+colour pickers, nudges, the wheel) are kept in the draft at once and recorded for Undo once they
+pause, or as soon as anything else happens: another item, Undo, leaving (`collage-edits.js`).
+Every user action begins with a boundary (a pointer pressed, focus moved, or a key that is
+neither typing nor a nudge), where a held edit becomes its own step, so typing and then at once
+clicking Bold are two Undo steps. Closing the tab right after typing
 loses nothing, and the draft is also written when the page is hidden or put away
 (`visibilitychange`, `pagehide`), which phones need.
 
