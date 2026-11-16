@@ -94,7 +94,7 @@
         } else if (which === 'radius') {
           // Corners change only the corners: turned photos and their crops stay as they are.
           app.collage.items.forEach((item) => { if (isFrame(item)) item.radius = value; });
-          if (app.collage.layout) app.collage.layout = { ...collage.layout, radius: value };
+          if (app.collage.layout) app.collage.layout = { ...app.collage.layout, radius: value };
         }
         syncPage();
       });
@@ -340,7 +340,7 @@
       }
       if (event.target.dataset.prop) {
         // A frame given its own corners is no longer bound to the layout's.
-        if (event.target.dataset.prop === 'radius' && app.collage.layout) app.collage.layout = { ...collage.layout, radius: Number(event.target.value) };
+        if (event.target.dataset.prop === 'radius' && app.collage.layout) app.collage.layout = { ...app.collage.layout, radius: Number(event.target.value) };
         // Recorded even when the slider ends where it began, so the corners above are kept.
         changes.mark();
         flushNudge();
