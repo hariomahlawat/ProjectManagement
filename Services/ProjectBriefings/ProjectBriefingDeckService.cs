@@ -203,6 +203,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 deck.Scope,
                 deck.LastModifiedByUserId,
                 deck.SelectionRulesJson,
+                deck.NarrativeMode,
                 deck.LastGeneratedSlideCount,
                 deck.LastGeneratedFactsJson,
                 deck.Layout,
@@ -241,7 +242,10 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 row.LastModifiedByDisplay,
                 Encode(row.RowVersion))
             {
-                Purpose = DescribePurpose(row.SelectionRulesJson, row.Layout),
+                Design = ProjectBriefingProjectSlideDesigns.DisplayName(ProjectBriefingProjectSlideDesigns.Of(
+                    row.Layout,
+                    row.NarrativeMode,
+                    ProjectBriefingDeckConfigurationCodec.Read(row.SelectionRulesJson).StandardSlideOptions)),
                 IsMine = row.OwnerUserId == userId || row.LastModifiedByUserId == userId,
                 LastEditedByMe = (row.LastModifiedByUserId ?? row.OwnerUserId) == userId,
                 LastGeneratedSlideCount = row.LastGeneratedSlideCount,
@@ -253,13 +257,6 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 GeneratedFacts = row.LastGeneratedAtUtc is null ? null : ProjectBriefingSlideFacts.Read(row.LastGeneratedFactsJson)
             })
             .ToList();
-    }
-
-    // The template (slide design) the deck uses, as the Studio shows it.
-    private static string DescribePurpose(string? selectionRulesJson, ProjectBriefingLayout layout)
-    {
-        var preset = ProjectBriefingDeckConfigurationCodec.Read(selectionRulesJson).Preset;
-        return ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPresets.TemplateOf(preset, layout)).Title;
     }
 
     public async Task<ProjectBriefingDeck?> GetEntityAsync(
@@ -1524,7 +1521,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 cancellationToken);
         if (updated == 0)
         {
-            throw new KeyNotFoundException("The shared command deck was not found.");
+            throw new KeyNotFoundException(NotFoundMessage);
         }
 
         await TryAuditAsync(

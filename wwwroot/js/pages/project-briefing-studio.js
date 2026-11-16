@@ -50,7 +50,7 @@ if (root) {
     // The stage-wise distribution (blocks plan PR 7) replaced the portfolio summary, stage summary and stage table.
     StageDistribution: { section: 'portfolio', label: 'Stage-wise distribution', about: "This deck's projects by stage, grouped Pre-AoN, AoN to SO, Under development and Completed, each bar split by parent category. Cancelled projects are left out." },
     StageDistributionList: { section: 'portfolio', label: 'Projects by where they stand', fold: true, about: 'Every project in its column, with the Development PDC or the completion month. A long column continues on another slide.' },
-    CategorySummary: { section: 'portfolio', label: 'Category summary', fold: true, about: 'Projects by category. Left out when the deck holds a single category.' },
+    CategorySummary: { section: 'portfolio', label: 'Category distribution', fold: true, about: 'Projects by category. Left out when the deck holds a single category.' },
     StatusTable: { section: 'portfolio', label: 'Status table', fold: true, about: 'Every project with its cost, present stage and latest status remark, in deck order.' },
     ProjectCapability: { section: 'project', label: 'Capability overview' },
     ProjectCapabilityContinuation: { section: 'project', label: 'Capability overview, continued' },

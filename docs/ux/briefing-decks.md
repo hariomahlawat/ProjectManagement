@@ -90,7 +90,7 @@ the server; the script inserts only slide HTML and writes all other text as text
      Opening, Overview, Projects and Closing. The cover and the project slides have switches;
      every other block (SDD profile, Role & Charter, stage-wise distribution, project-category
      and technical-category distributions, status table, FFC footprint) is listed only while it is
-     in the deck, with Remove. **Add block** opens a library of the rest; the institution slides
+     in the deck, with Remove. **Add slide** (also the outline's **+ Slide**) opens a library of the rest; the institution slides
      there have Edit, so their content can be set up before they are added. Overview blocks and
      the two opening institution slides move by their grip (drag, or Alt+Up / Alt+Down). Every
      change saves the list in place (`UpdateBlocks`); a deck must keep the status table or the
