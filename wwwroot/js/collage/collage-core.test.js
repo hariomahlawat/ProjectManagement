@@ -825,3 +825,31 @@ test('"Make it casual" keeps the frames and shapes chosen by hand', () => {
   assert.notEqual(b.angle, 0, 'still tilted');
   assert.equal(b.aspect, heart.aspect);
 });
+
+test('a caption strip takes its room from the picture, inside any frame', () => {
+  const PC = require('./collage-core.js');
+  const plain = PC.photoItem('a', 'p1', 1, { x: 0, y: 0, width: 500 });
+  assert.equal(PC.captionStripHeight(plain), 0);
+  const captioned = { ...plain, caption: '  Annual day  ' };
+  assert.equal(PC.captionStripHeight(captioned), 500 * PC.CAPTION_STRIP);
+  assert.equal(PC.innerBox(captioned).height, 500 - 500 * PC.CAPTION_STRIP);
+  const bordered = { ...captioned, frame: 'border' };
+  assert.equal(PC.framePads(bordered).bottom, 500 * PC.FRAMES.border.bottom + 500 * PC.CAPTION_STRIP);
+  assert.equal(PC.hasCaptionStrip({ ...plain, caption: '   ' }), false, 'spaces are no caption');
+  assert.equal(PC.hasCaptionStrip({ ...captioned, shape: 'heart' }), true, 'a shaped photo has one too');
+});
+
+test('a caption strip never takes a flat photo\'s picture, and fitting a frame keeps the photo whole', () => {
+  const PC = require('./collage-core.js');
+  // A 10:1 photo, 500 wide and 50 high: the strip keeps to 40% of the height.
+  const wide = { ...PC.photoItem('w', 'p1', 10, { x: 0, y: 0, width: 500 }), caption: 'Long caption' };
+  assert.ok(PC.captionStripHeight(wide) <= 50 * 0.4 + 1e-9);
+  assert.ok(PC.innerBox(wide).height >= 50 * 0.6 - 1e-9);
+  // Fitting the frame to a photo with a caption gives a picture area of the photo's own shape.
+  for (const aspect of [1, 1.5, 0.7, 10]) {
+    const item = { ...PC.photoItem('s', 'p1', 1, { x: 0, y: 0, width: 500 }), caption: 'Annual day' };
+    item.aspect = PC.outerAspectFor(item, aspect);
+    const inner = PC.innerBox(item);
+    assert.ok(Math.abs(inner.width / inner.height - aspect) < 1e-6, `picture keeps aspect ${aspect}`);
+  }
+});

@@ -748,6 +748,8 @@
     const fonts = new Set(collage.items.filter((item) => item.kind === 'text').map((item) => core.fontOf(item, 40)));
     // A polaroid's caption is written in Caveat (Kalam for Hindi).
     if (collage.items.some((item) => item.frame === 'polaroid' && item.caption)) fonts.add(`40px ${draw.CAPTION_FONT}`);
+    // Other captions are on a strip, in Mulish (Noto Sans Devanagari for Hindi).
+    if (collage.items.some((item) => core.hasCaptionStrip(item))) fonts.add(draw.STRIP_FONT.replace('{size}', '40'));
     await Promise.all([...fonts].map((font) => document.fonts.load(font, 'Aअ').catch(() => null)));
   }
 

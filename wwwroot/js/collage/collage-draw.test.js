@@ -149,3 +149,28 @@ test('a background fills the whole page: colour, gradient, pattern, texture or b
   const image = photo.calls.find((c) => c[0] === 'drawImage');
   assert.ok(image[4] >= 1000 && image[5] >= 700, 'the photo covers the page');
 });
+
+test('a caption on a photo without a polaroid is written on a white strip under the picture', () => {
+  const ctx = recorder();
+  const item = { ...collage.photoItem('a', 'p1', 1, { x: 0, y: 0, width: 400 }), caption: 'Farewell, Col Rao' };
+  draw.drawPhoto(ctx, item, {}, 1000, 1000, 1);
+  const strip = 400 * collage.CAPTION_STRIP;
+  // The picture stops above the strip.
+  const image = ctx.calls.find((c) => c[0] === 'drawImage');
+  assert.equal(image[9], 400 - strip);
+  // The strip is filled white, and the words are written in its middle.
+  assert.ok(ctx.calls.some((c) => c[0] === 'fillStyle' && c[1] === '#ffffff'));
+  const words = ctx.calls.find((c) => c[0] === 'fillText');
+  assert.equal(words[1], 'Farewell, Col Rao');
+  assert.equal(words[3], 400 - strip / 2);
+  assert.ok(ctx.calls.some((c) => c[0] === 'font' && /Mulish/.test(c[1])));
+});
+
+test('a polaroid keeps its handwritten caption and has no strip', () => {
+  const ctx = recorder();
+  const item = { ...collage.photoItem('a', 'p1', 0.8, { x: 0, y: 0, width: 400 }), frame: 'polaroid', caption: 'Picnic' };
+  assert.equal(collage.hasCaptionStrip(item), false);
+  draw.drawPhoto(ctx, item, {}, 1000, 1000, 1);
+  assert.ok(ctx.calls.some((c) => c[0] === 'font' && c[1].includes(draw.CAPTION_FONT)));
+  assert.ok(!ctx.calls.some((c) => c[0] === 'font' && /Mulish/.test(c[1])));
+});

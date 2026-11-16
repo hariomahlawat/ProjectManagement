@@ -17,6 +17,9 @@
 
   // Caveat ships with PRISM (wwwroot/fonts/collage); Kalam writes a Hindi caption.
   const CAPTION_FONT = 'Caveat, Kalam, cursive';
+  // A caption on a strip under the photo: plain, easy to read, Hindi too.
+  const STRIP_FONT = '600 {size}px Mulish, "Noto Sans Devanagari", sans-serif';
+  const STRIP_TEXT = '#2b2f36';
   const FRAME_WHITE = '#ffffff';
   const POLAROID_WHITE = '#fffefa';
   const TAPE = 'rgba(250, 236, 180, 0.78)';
@@ -79,8 +82,18 @@
       ctx.fill();
       shadow(false);
     } else if (item.shadow) {
-      tracePath(ctx, core.shapePath(shape, 0, 0, width, height, radius));
+      tracePath(ctx, core.shapePath(shape, inner.x, inner.y, inner.width, inner.height, radius));
       shadow(true);
+      ctx.fillStyle = FRAME_WHITE;
+      ctx.fill();
+      shadow(false);
+    }
+
+    // A caption strip on a photo without a frame: white, under the picture.
+    const strip = core.captionStripHeight(item);
+    if (strip && !framed) {
+      tracePath(ctx, core.shapePath('rect', 0, height - strip, width, strip, Math.min(radius, strip / 2)));
+      shadow(item.shadow);
       ctx.fillStyle = FRAME_WHITE;
       ctx.fill();
       shadow(false);
@@ -114,6 +127,18 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(item.caption, width / 2, height - pads.bottom / 2, width - 2 * pads.left);
+    }
+
+    // A caption on its strip, in plain letters.
+    if (strip) {
+      const pads = core.framePads(item);
+      const size = Math.max(5, strip * 0.5);
+      ctx.font = STRIP_FONT.replace('{size}', String(size));
+      ctx.fillStyle = STRIP_TEXT;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const bottomEdge = pads.bottom - strip;
+      ctx.fillText(item.caption, width / 2, height - bottomEdge - strip / 2, Math.max(1, width - 2 * Math.max(pads.left, strip * 0.3)));
     }
 
     // Two strips of tape across the top corners.
@@ -353,5 +378,5 @@
     ctx.restore();
   }
 
-  return Object.freeze({ drawPhoto, drawText, drawSticker, drawBackground, tracePath, canFilter, CAPTION_FONT });
+  return Object.freeze({ drawPhoto, drawText, drawSticker, drawBackground, tracePath, canFilter, CAPTION_FONT, STRIP_FONT });
 });

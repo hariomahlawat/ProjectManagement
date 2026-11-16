@@ -69,3 +69,16 @@ test('a tray photo clicked when every frame is full says how to make room', asyn
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(3);
   expect(errors).toEqual([]);
 });
+
+test('any photo can have a caption, shown on a strip under it and kept in the draft', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^A4 landscape/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
+  await page.locator('[data-layer-select]').first().click();
+  const caption = page.locator('.clg-props [data-caption]');
+  await expect(caption).toBeVisible();
+  await expect(page.locator('#clgCaptionHint')).toContainText('white strip');
+  await caption.fill('Annual day 2026');
+  await expect.poll(async () => (await newestDraft(page))?.model.items[0]?.caption).toBe('Annual day 2026');
+  expect(errors).toEqual([]);
+});
