@@ -2068,20 +2068,26 @@
           continue;
         }
         if (!stillOpen()) return;
+        // Not placed yet: it cannot be removed from the tray until the whole batch is in.
+        photo.importing = true;
         photos.set(photo.id, photo);
         added.push(photo);
       }
+      // A photo removed meanwhile (it cannot be, but a closed collage drops them all) stays out.
+      const placing = added.filter((photo) => photos.get(photo.id) === photo);
+      placing.forEach((photo) => { photo.importing = false; });
       // The first photo goes where it was aimed (a frame, or the drop point); the rest fill
       // empty frames, then go near the centre.
-      added.forEach((photo, index) => placePhoto(photo, index === 0 ? { frameId, at } : {}));
-      if (added.length) {
+      placing.forEach((photo, index) => placePhoto(photo, index === 0 ? { frameId, at } : {}));
+      if (placing.length) {
         setTarget(null);
         commit();
       }
       showAlert(core.refusedMessage(refused));
-      if (added.length) announce(added.length === 1 ? 'Photo added.' : `${added.length} photos added.`);
+      if (placing.length) announce(placing.length === 1 ? 'Photo added.' : `${placing.length} photos added.`);
     } finally {
       busy('');
+      for (const photo of added) photo.importing = false;
     }
   }
 
@@ -2144,7 +2150,7 @@
       }
       tile.appendChild(button);
       // Only a photo the page does not show can be taken out of the collage.
-      if (!times && photo.id !== background) {
+      if (!times && photo.id !== background && !photo.importing) {
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'clg-tray__remove';
@@ -2179,7 +2185,7 @@
    */
   function removePhoto(id) {
     const photo = photos.get(id);
-    if (!photo || core.photosInUse(collage).has(id)) return;
+    if (!photo || photo.importing || core.photosInUse(collage).has(id)) return;
     photo.removed = true;
     forgetRemovedPhotos();
     scheduleDraft();
