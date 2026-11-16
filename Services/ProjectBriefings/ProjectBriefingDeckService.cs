@@ -1376,20 +1376,22 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     private async Task PurgeExpiredAsync(string userId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var expiredBefore = now.AddDays(-DeletedRetentionDays);
-        var expired = await _db.Set<ProjectBriefingDeck>()
-            .Where(candidate => candidate.DeletedAtUtc != null && candidate.DeletedAtUtc < expiredBefore)
-            .ToListAsync(cancellationToken);
-        if (expired.Count == 0)
-        {
-            return;
-        }
-
-        _db.RemoveRange(expired);
+        var expired = new List<ProjectBriefingDeck>();
         try
         {
+            // The query too: a timeout here must not turn the saved delete into an error.
+            expired = await _db.Set<ProjectBriefingDeck>()
+                .Where(candidate => candidate.DeletedAtUtc != null && candidate.DeletedAtUtc < expiredBefore)
+                .ToListAsync(cancellationToken);
+            if (expired.Count == 0)
+            {
+                return;
+            }
+
+            _db.RemoveRange(expired);
             await _db.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             _logger.LogWarning(
                 exception,
