@@ -17,7 +17,9 @@ module.exports = defineConfig({
   // A test that passes only on its retry fails the run, so a flaky test is seen, not hidden.
   failOnFlakyTests: Boolean(process.env.CI),
   reporter: process.env.CI ? [['list'], ['html', { open: 'never', outputFolder: '../../playwright-report' }]] : 'list',
-  outputDir: '../../test-results/collage',
+  // Each port has its own results folder, so two runs at once (each on its own COLLAGE_TEST_PORT)
+  // never write over each other's traces and screenshots.
+  outputDir: `../../test-results/collage-${port}`,
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     trace: 'retain-on-failure',
