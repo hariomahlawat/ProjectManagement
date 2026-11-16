@@ -225,7 +225,7 @@ public sealed class ProjectBriefingExecutiveSummaryTests
         using var document = PresentationDocument.Open(stream, false);
         var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
             .SlideParts.Select(SlideText));
-        Assert.DoesNotContain("Project-category summary", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Project-category distribution", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -246,7 +246,7 @@ public sealed class ProjectBriefingExecutiveSummaryTests
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart)
-            .SlideParts.Where(part => SlideText(part).Contains("Project-category summary", StringComparison.Ordinal)));
+            .SlideParts.Where(part => SlideText(part).Contains("Project-category distribution", StringComparison.Ordinal)));
         Assert.Contains("2 SELECTED PROJECTS · 4 CATEGORIES", SlideText(slide), StringComparison.Ordinal);
         Assert.Equal(4, slide.Slide.Descendants<P.Shape>().Count(shape =>
             shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value?.EndsWith(

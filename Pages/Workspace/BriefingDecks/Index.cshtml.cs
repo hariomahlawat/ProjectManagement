@@ -335,7 +335,7 @@ public sealed class IndexModel : PageModel
                 userId,
                 includeItems: false,
                 cancellationToken)
-                ?? throw new KeyNotFoundException("The shared command deck was not found.");
+                ?? throw new KeyNotFoundException(ProjectBriefingDeckService.NotFoundMessage);
             var additionalSlides = ProjectBriefingDeckConfigurationCodec
                 .Read(existingDeck.SelectionRulesJson);
             // The design card sets the layout, what each project gets and key points; a page that
@@ -760,7 +760,7 @@ public sealed class IndexModel : PageModel
                 input.RowVersion,
                 cancellationToken);
             var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken)
-                ?? throw new KeyNotFoundException("The shared command deck was not found.");
+                ?? throw new KeyNotFoundException(ProjectBriefingDeckService.NotFoundMessage);
 
             return new JsonResult(new
             {
@@ -1006,14 +1006,14 @@ public sealed class IndexModel : PageModel
         var userId = RequireUserId();
         if (deckId <= 0)
         {
-            return BadRequest(new { message = "Select a valid shared deck before searching projects." });
+            return BadRequest(new { message = "Select a deck before searching projects." });
         }
 
         var projects = await _selectionService.SearchAsync(query, 40, cancellationToken);
         var deck = await _deckService.GetEntityAsync(deckId, userId, includeItems: true, cancellationToken);
         if (deck is null)
         {
-            return NotFound(new { message = "The shared command deck was not found." });
+            return NotFound(new { message = ProjectBriefingDeckService.NotFoundMessage });
         }
 
         var membership = deck.Items.ToDictionary(item => item.ProjectId, item => item.SortOrder);

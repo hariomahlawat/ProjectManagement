@@ -100,6 +100,18 @@ The owner chose every recommended option on 16 Nov 2026: A, B, C and D as recomm
    - The profile editor's wording.
    - "Project Officer's deck" in messages.
    - The cost chips say "(slides and status table)".
+
+   Built (16 Nov 2026).
+   - The deck library's **Design** column (was Template), its Continue card and Switch deck name
+     each deck's project slide design.
+   - The category slides are titled "Project-category distribution" and
+     "Technical-category distribution", as in the Deck tab, and the outline calls them
+     "Category distribution". The block equivalence fixture was re-recorded for the new titles.
+   - The Deck tab says **Add slide** throughout.
+   - The SDD profile, Role & Charter and FFC footprint editors say "Slide content" and "Add or
+     remove it, and move it, in the Deck tab under Slides in this deck".
+   - Messages say "The briefing deck was not found." rather than "shared command deck".
+   - Under the parts chips: "The cost choice also sets the status table's cost columns."
 6. **Leftover code** (finding 6). Remove template apply and undo, `PresetAdjusted`, the unused
    handlers and dead script, with the contract test that pins them. The Delete and Remove project
    errors become messages (Low 1).
