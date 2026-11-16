@@ -130,8 +130,14 @@ public sealed class CollageStudioPageContractTests
 
         Assert.Contains($"'{ProjectManagement.Features.Collage.CollageApi.StickersPath}'", source, StringComparison.Ordinal);
         Assert.Contains($"'{ProjectManagement.Features.Collage.CollageApi.LibraryPhotosPath}'", source, StringComparison.Ordinal);
-        // The only pictures it fetches are a listed photo's original from the library's own page.
-        Assert.Contains(@"const LIBRARY_PICTURE = /^\/Photos\/Media\/[1-9][0-9]{0,17}\/original\?v=[0-9]{1,9}$/;", source, StringComparison.Ordinal);
+        // The only pictures it fetches are a listed photo's original, from the page PRISM Photos
+        // uses for its kind (whole same-origin paths; collage-stickers.test.js checks the shapes).
+        Assert.Contains("new RegExp('^(?:' + [", source, StringComparison.Ordinal);
+        Assert.Contains("].join('|') + ')$')", source, StringComparison.Ordinal);
+        Assert.Contains(@"`\\/Projects\\/${ID}\\/Photos\\/${ID}\\/View\\/", source, StringComparison.Ordinal);
+        Assert.Contains(@"`\\/ProjectOfficeReports\\/(?:Visits|SocialMedia)\\/ViewPhoto\\/${GUID}\\/Photos\\/${GUID}\\?size=", source, StringComparison.Ordinal);
+        Assert.Contains(@"`\\/Photos\\/Media\\/${ID}\\/", source, StringComparison.Ordinal);
+        Assert.Contains("const LIBRARY_PICTURE = pictureAddress({ project: 'original', report: 'original', media: 'original' });", source, StringComparison.Ordinal);
         Assert.Contains("if (!LIBRARY_PICTURE.test(address)) throw", source, StringComparison.Ordinal);
         Assert.DoesNotMatch(new Regex(@"https?://", RegexOptions.IgnoreCase), source);
         foreach (var call in NetworkCalls.Where(call => call != "fetch("))

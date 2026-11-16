@@ -7,7 +7,9 @@ const libraryScript = fs.readFileSync(path.resolve(__dirname, 'photos-library.js
 // The page and the timeline partial it renders (also returned on its own while scrolling).
 const photosPage = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/Index.cshtml'), 'utf8')
     + fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/_PhotosTimeline.cshtml'), 'utf8');
-const pageModel = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/Index.cshtml.cs'), 'utf8');
+// The page model, and the resolver it shares with Collage Studio for each kind of photo's addresses.
+const pageModel = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Photos/Index.cshtml.cs'), 'utf8')
+    + fs.readFileSync(path.resolve(__dirname, '../../../Features/MediaLibrary/Services/MediaLibraryItemAddresses.cs'), 'utf8');
 
 test('timeline tiles ask for the small picture and keep the larger thumbnail as a fallback', () => {
     assert.match(photosPage, /src="@\(item\.GridThumbnailUrl \?\? item\.ThumbnailUrl\)"/);

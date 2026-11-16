@@ -103,6 +103,8 @@ public sealed class AuditActionPresentationCatalog : IAuditActionPresentationCat
             ["CollageStickerUpdated"] = new("Collage sticker changed", "bi-pencil-square", "neutral", ListsCategory, "CollageSticker"),
             ["CollageStickerRetired"] = new("Collage sticker retired", "bi-archive", "warning", ListsCategory, "CollageSticker"),
             ["CollageStickerRestored"] = new("Collage sticker put back", "bi-arrow-counterclockwise", "success", ListsCategory, "CollageSticker"),
+            ["CollageStickerReordered"] = new("Collage sticker moved", "bi-arrow-down-up", "neutral", ListsCategory, "CollageSticker"),
+            ["CollageStickerRefused"] = new("Collage sticker upload refused", "bi-shield-exclamation", "warning", ListsCategory, "CollageSticker"),
             ["MasterData.Created"] = new("List item added", "bi-plus-circle", "success", ListsCategory),
             ["MasterData.Updated"] = new("List item changed", "bi-pencil-square", "neutral", ListsCategory),
             ["MasterData.Deactivated"] = new("List item switched off", "bi-slash-circle", "warning", ListsCategory),

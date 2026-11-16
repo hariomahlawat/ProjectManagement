@@ -3,9 +3,11 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Features.Collage;
 using ProjectManagement.Models;
+using ProjectManagement.Services;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Imaging;
 using ProjectManagement.Services.Storage;
@@ -24,6 +26,7 @@ public sealed class CollageStickerTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "collage-stickers-" + Guid.NewGuid().ToString("N"));
     private readonly ApplicationDbContext _db;
     private readonly RecordingAudit _audit = new();
+    private readonly RecordingLogger _log = new();
     private readonly CollageStickerService _service;
 
     public CollageStickerTests()
@@ -38,7 +41,8 @@ public sealed class CollageStickerTests : IDisposable
             roots,
             new UploadPathResolver(roots),
             _audit,
-            FakeClock.AtUtc(new DateTimeOffset(2026, 11, 15, 6, 0, 0, TimeSpan.Zero)));
+            FakeClock.AtUtc(new DateTimeOffset(2026, 11, 15, 6, 0, 0, TimeSpan.Zero)),
+            logger: _log);
     }
 
     public void Dispose()
@@ -178,11 +182,121 @@ public sealed class CollageStickerTests : IDisposable
     [Fact]
     public void Every_sticker_action_has_a_plain_title_in_the_audit_log()
     {
-        foreach (var action in new[] { "CollageStickerAdded", "CollageStickerUpdated", "CollageStickerRetired", "CollageStickerRestored" })
+        foreach (var action in new[] { "CollageStickerAdded", "CollageStickerUpdated", "CollageStickerReordered", "CollageStickerRetired", "CollageStickerRestored", "CollageStickerRefused" })
         {
             var presentation = new AuditActionPresentationCatalog().Describe(action);
             Assert.StartsWith("Collage sticker", presentation.Label);
         }
+    }
+
+    [Fact]
+    public async Task A_move_is_audited_with_every_sticker_whose_place_changed_before_and_after()
+    {
+        var a = await SeedAsync("A", 5);
+        var b = await SeedAsync("B", 5);
+        var c = await SeedAsync("C", 9);
+
+        await _service.MoveAsync(c.Id, up: true, "admin");
+
+        var entry = Assert.Single(_audit.Entries);
+        Assert.Equal("CollageStickerReordered", entry.Action);
+        Assert.Equal(c.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), entry.EntityId);
+        // A was 5 and becomes 1, C was 9 and becomes 2, B was 5 and becomes 3: all three are listed.
+        Assert.Equal(new[] { (a.Id, 5), (c.Id, 9), (b.Id, 5) }, Orders(entry.Before));
+        Assert.Equal(new[] { (a.Id, 1), (c.Id, 2), (b.Id, 3) }, Orders(entry.After));
+
+        _audit.Entries.Clear();
+        await _service.MoveAsync(a.Id, up: false, "admin");
+        var swap = Assert.Single(_audit.Entries);
+        // Only the two that swapped places; nothing else was renumbered.
+        Assert.Equal(new[] { (c.Id, 2), (a.Id, 1) }, Orders(swap.Before));
+        Assert.Equal(new[] { (c.Id, 1), (a.Id, 2) }, Orders(swap.After));
+    }
+
+    [Fact]
+    public async Task Retiring_and_restoring_record_the_state_before_and_after()
+    {
+        var a = await SeedAsync("A", 1);
+        await SeedAsync("B", 2);
+
+        await _service.RetireAsync(a.Id, "admin");
+        await _service.RestoreAsync(a.Id, "admin");
+
+        Assert.Equal(new[] { "CollageStickerRetired", "CollageStickerRestored" }, _audit.Entries.Select(e => e.Action));
+        Assert.Equal((false, 1), State(_audit.Entries[0].Before));
+        Assert.Equal((true, 1), State(_audit.Entries[0].After));
+        Assert.Equal((true, 1), State(_audit.Entries[1].Before));
+        Assert.Equal((false, 3), State(_audit.Entries[1].After));
+        Assert.Equal(new[] { "B", "A" }, (await _service.ListActiveAsync()).Select(s => s.Name));
+    }
+
+    [Fact]
+    public async Task A_scanner_refusal_is_a_plain_message_with_an_audit_entry_and_nothing_is_kept()
+    {
+        var roots = new TestUploadRootProvider(_root);
+        var scanned = new CollageStickerService(
+            _db, roots, new UploadPathResolver(roots), _audit,
+            FakeClock.AtUtc(new DateTimeOffset(2026, 11, 15, 6, 0, 0, TimeSpan.Zero)),
+            new RefusingScanner(), _log);
+
+        var outcome = await scanned.AddAsync(new MemoryStream(Png(20, 20)), "crest.png", "Crest", null, "admin");
+
+        Assert.False(outcome.Succeeded);
+        Assert.Equal(CollageStickerService.ScanRefusedMessage, outcome.Message);
+        Assert.Empty(await _service.ListAllAsync());
+        Assert.False(Directory.Exists(Path.Combine(_root, CollageStickerService.Folder))
+            && Directory.EnumerateFiles(Path.Combine(_root, CollageStickerService.Folder)).Any());
+        var entry = Assert.Single(_audit.Entries);
+        Assert.Equal(("CollageStickerRefused", "Refused", "Warning", "admin"), (entry.Action, entry.Outcome, entry.Level, entry.ActorUserId));
+        Assert.Contains(_log.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("refused by the upload scanner"));
+    }
+
+    [Fact]
+    public async Task A_missing_picture_file_is_logged()
+    {
+        var sticker = await SeedAsync("Gone file", 1);
+
+        Assert.Null(_service.PicturePathOf(sticker));
+
+        Assert.Contains(_log.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("has no picture file") && e.Message.Contains(sticker.StorageKey));
+    }
+
+    [Fact]
+    public async Task An_old_picture_file_that_no_sticker_uses_is_named_in_the_log_after_an_upload()
+    {
+        var folder = Path.Combine(_root, CollageStickerService.Folder);
+        Directory.CreateDirectory(folder);
+        var leftover = Path.Combine(folder, "0123456789abcdef0123456789abcdef.png");
+        var fresh = Path.Combine(folder, "fedcba9876543210fedcba9876543210.png");
+        await File.WriteAllBytesAsync(leftover, Png(4, 4));
+        await File.WriteAllBytesAsync(fresh, Png(4, 4));
+        File.SetLastWriteTimeUtc(leftover, new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc));
+        File.SetLastWriteTimeUtc(fresh, new DateTime(2026, 11, 15, 5, 30, 0, DateTimeKind.Utc));
+
+        var outcome = await AddAsync("Crest", Png(20, 20));
+
+        Assert.True(outcome.Succeeded, outcome.Message);
+        Assert.Contains(_log.Entries, e => e.Level == LogLevel.Information && e.Message.Contains(outcome.Sticker!.StorageKey));
+        var warning = Assert.Single(_log.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("no sticker uses"));
+        Assert.Contains(Path.GetFileName(leftover), warning.Message);
+        Assert.DoesNotContain(Path.GetFileName(fresh), warning.Message);
+        Assert.DoesNotContain(Path.GetFileName(outcome.Sticker!.StorageKey), warning.Message);
+        Assert.True(File.Exists(leftover));
+    }
+
+    private static (int Id, int SortOrder)[] Orders(object? snapshot)
+    {
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(snapshot));
+        return doc.RootElement.GetProperty("Order").EnumerateArray()
+            .Select(e => (e.GetProperty("Id").GetInt32(), e.GetProperty("SortOrder").GetInt32()))
+            .ToArray();
+    }
+
+    private static (bool IsRetired, int SortOrder) State(object? snapshot)
+    {
+        Assert.NotNull(snapshot);
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(snapshot));
+        return (doc.RootElement.GetProperty("IsRetired").GetBoolean(), doc.RootElement.GetProperty("SortOrder").GetInt32());
     }
 
     private Task<CollageStickerOutcome> AddAsync(string name, byte[] bytes, string? words = null) =>
@@ -205,6 +319,24 @@ public sealed class CollageStickerTests : IDisposable
             canvas.DrawCircle(width / 2f, height / 2f, Math.Min(width, height) / 3f, new SKPaint { Color = SKColors.DarkRed });
         }
         return PrismImageCodec.EncodePng(bitmap);
+    }
+
+    private sealed class RefusingScanner : IVirusScanner
+    {
+        public Task ScanAsync(Stream content, string fileName, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Infected: test signature");
+    }
+
+    private sealed class RecordingLogger : ILogger<CollageStickerService>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception)));
     }
 
     private sealed class RecordingAudit : IAdminAuditService

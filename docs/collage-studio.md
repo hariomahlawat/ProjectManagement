@@ -20,8 +20,13 @@ The build plan, owner decisions and the approved mockup are in
     logos), listed by `/api/collage/stickers` and drawn from `/api/collage/stickers/{id}/image`;
     when PRISM cannot be reached the group says so and the other stickers still work;
   - photos picked with **From PRISM Photos**, listed by `/api/collage/library-photos` through the
-    library's own search and visibility rule, and read from `/Photos/Media/{id}/original`, which
-    checks the rule again. A picked photo becomes a file in the browser and goes through the same
+    library's own search and visibility rule, and read from the same address PRISM Photos uses
+    for that kind of photo, so that page checks access again: a project photo from
+    `/Projects/{id}/Photos/{photoId}/View/original`, a visit or social media photo from its
+    `/ProjectOfficeReports/…/ViewPhoto/…` page, and an activity photo or a photo from another
+    folder from `/Photos/Media/{id}/original`. One resolver,
+    `Features/MediaLibrary/Services/MediaLibraryItemAddresses.cs`, gives these addresses to both
+    pages, and `collage-library.js` fetches only those path shapes. A picked photo becomes a file in the browser and goes through the same
     checks as a photo from the computer; from then on it is kept only in the browser like any
     other. The button is shown only when the Photos library is switched on.
 - Nothing the user makes is stored or retained by PRISM. The page model
@@ -211,7 +216,12 @@ itself stays the colour the user chose, as it will print.
   make a collage and Save; reopen a draft after a reload; a damaged draft photo kept as a
   stand-in; keyboard only; Save by purpose; frames by shape; the Dark theme; From PRISM Photos with
   a stubbed library; and a phone (sheets, Layers, `pagehide`). They run on every pull request.
-- `ProjectManagement.Tests/Tools/CollageStickerTests.cs`, `CollageLibraryPhotosTests.cs`, and
+- `ProjectManagement.Tests/Tools/CollageApiHostTests.cs` runs the real PRISM host: each of the
+  three Collage APIs answers an anonymous request with 401, every `/api/collage` route requires
+  authorization, and the library lists each kind of photo at its own page's address.
+- `ProjectManagement.Tests/Tools/CollageStickerTests.cs` (including the audit before and after,
+  a scanner refusal, and the missing-file and left-over-file log lines),
+  `CollageLibraryPhotosTests.cs`, and
   `CollageStickerPostgresIntegrationTests.cs` on a real PostgreSQL (two uploads at once never pass
   60; a failed audit write rolls the change back and removes the picture), run in the database
   migrations workflow.
@@ -243,3 +253,29 @@ writes it under the upload root in `collage-stickers/`, and saves each change wi
 audit entry in one transaction, under one PostgreSQL advisory lock so the limit of 60 holds when
 two administrators work at once. The table is `CollageStickers` (migration
 `20270104080022_AddCollageStickers`); the pictures are covered by the upload-root backup.
+
+What the audit log records (Administration › Logs, under Reference lists):
+
+| Action | Before | After |
+| --- | --- | --- |
+| `CollageStickerAdded` (added) | none | name, search words, place, retired |
+| `CollageStickerUpdated` (renamed) | name, search words, place, retired | the same, changed |
+| `CollageStickerReordered` (moved) | `Order`: every sticker whose place changed, with its old place | `Order`: the same stickers with their new places |
+| `CollageStickerRetired` / `CollageStickerRestored` | name, search words, place, retired | the same, changed (put back goes to the end) |
+| `CollageStickerRefused` (upload refused by the scanner) | none | name, file name and size; outcome Refused, level Warning |
+
+A move renumbers the picker from 1, so its one entry lists the moved sticker, its neighbour and
+any other sticker whose number changed. Moves recorded before 16 Nov 2026 are
+`CollageStickerUpdated` entries without a before state.
+
+If an upload scanner (`IVirusScanner`) is registered and refuses the picture or fails, nothing is
+stored: the administrator sees "The picture did not pass the upload check" and the refusal is in
+the audit log and the server log. PRISM registers no scanner by default.
+
+Server log lines worth knowing:
+
+- a warning when a sticker's picture file is missing (the sticker then draws nothing);
+- an information line with the storage key each time a picture is written, before its row is
+  saved; and after each successful upload, a warning naming any picture file in
+  `collage-stickers/` over an hour old that no sticker uses. Such a file is left when the process
+  stops between writing the file and saving the row. Nothing deletes it; an administrator can.

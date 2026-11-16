@@ -1,11 +1,15 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Features.Collage;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
+using ProjectManagement.Tests.Infrastructure;
 using Xunit;
 
 namespace ProjectManagement.Tests.Tools;
@@ -14,8 +18,15 @@ namespace ProjectManagement.Tests.Tools;
 /// Collage Studio's "From PRISM Photos" list: photos only, through the library's own search (so
 /// its visibility rule decides), paged, and nothing at all when the library is off or unreadable.
 /// </summary>
-public sealed class CollageLibraryPhotosTests
+public sealed class CollageLibraryPhotosTests : IClassFixture<WebApplicationFactory<Program>>
 {
+    private readonly WebApplicationFactory<Program> _factory;
+
+    public CollageLibraryPhotosTests(WebApplicationFactory<Program> factory)
+    {
+        _factory = factory.WithWebHostBuilder(builder => builder.UseCollageTestHost("collage-library"));
+    }
+
     [Fact]
     public async Task It_asks_the_library_for_photos_only_and_lists_their_pictures()
     {
@@ -31,8 +42,9 @@ public sealed class CollageLibraryPhotosTests
         var photo = Assert.Single(json.GetProperty("photos").EnumerateArray());
         Assert.Equal(7, photo.GetProperty("id").GetInt64());
         Assert.Equal("Farewell 2026", photo.GetProperty("title").GetString());
-        Assert.Equal("/Photos/Media/7/thumb?v=3", photo.GetProperty("thumbUrl").GetString());
-        Assert.Equal("/Photos/Media/7/original?v=3", photo.GetProperty("url").GetString());
+        // A project photo is read through the project's own photo page and its access check.
+        Assert.Equal("/Projects/12/Photos/7/View/md?v=v3", photo.GetProperty("thumbUrl").GetString());
+        Assert.Equal("/Projects/12/Photos/7/View/original?v=v3", photo.GetProperty("url").GetString());
         Assert.Equal("Project A", json.GetProperty("projects")[0].GetProperty("name").GetString());
         Assert.True(json.GetProperty("hasMore").GetBoolean());
     }
@@ -65,13 +77,14 @@ public sealed class CollageLibraryPhotosTests
         Assert.Empty(unreadable.GetProperty("photos").EnumerateArray());
     }
 
-    private static async Task<JsonElement> CallAsync(StubLibrary library, string? q = null, int? projectId = null, int? year = null, int? page = null, bool enabled = true)
+    private async Task<JsonElement> CallAsync(StubLibrary library, string? q = null, int? projectId = null, int? year = null, int? page = null, bool enabled = true)
     {
         var options = Options.Create(new MediaLibraryOptions());
         options.Value.Enabled = enabled;
         options.Value.Catalogue.Enabled = enabled;
-        var context = new DefaultHttpContext();
-        var result = await CollageApi.LibraryPhotosAsync(q, projectId, year, page, context, library, options, CancellationToken.None);
+        var context = new DefaultHttpContext { RequestServices = _factory.Services };
+        var links = _factory.Services.GetRequiredService<LinkGenerator>();
+        var result = await CollageApi.LibraryPhotosAsync(q, projectId, year, page, context, library, options, links, CancellationToken.None);
         Assert.Equal("no-store", context.Response.Headers.CacheControl.ToString());
         var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
         return JsonDocument.Parse(JsonSerializer.Serialize(value)).RootElement;
@@ -88,7 +101,7 @@ public sealed class CollageLibraryPhotosTests
 
     private static MediaLibraryQueryItem Item(long id, MediaAssetKind kind, string title) =>
         new(id, Guid.NewGuid(), MediaAssetOrigin.ProjectPhoto, kind, MediaClassification.Photograph,
-            $"p:{id}", "12", "project:12", "project:12", "Project A", string.Empty, "Projects",
+            $"project-photo:{id}", "12", "project:12", "project:12", "Project A", string.Empty, "Projects",
             title, null, null, Guid.NewGuid(), $"{title}.jpg", 1000, DateTimeOffset.UnixEpoch,
             1600, 1200, null, false, id, 3, "v3",
             Array.Empty<MediaLibraryPersonSummary>(), 0, Array.Empty<MediaLibraryAlbumSummary>());
