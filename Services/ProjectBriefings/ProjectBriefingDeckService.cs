@@ -21,6 +21,9 @@ public interface IProjectBriefingDeckService
         CancellationToken cancellationToken = default);
 
     // What the person may do with a live deck: nothing, look at it, or change it.
+    // Whether the person is Comdt or HoD, from the same roles every access check uses.
+    Task<bool> IsCommandUserAsync(string requestingUserId, CancellationToken cancellationToken = default);
+
     Task<ProjectBriefingDeckAccessLevel> GetAccessAsync(
         long deckId,
         string requestingUserId,
@@ -272,6 +275,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ? deck
             : null;
     }
+
+    public Task<bool> IsCommandUserAsync(string requestingUserId, CancellationToken cancellationToken = default)
+        => _roles.IsCommandAsync(NormalizeUserId(requestingUserId), cancellationToken);
 
     public async Task<ProjectBriefingDeckAccessLevel> GetAccessAsync(
         long deckId,
