@@ -6,8 +6,8 @@
 const { test, expect } = require('./test');
 const { openFresh, newestDraft } = require('./helpers');
 
-test('a heading whose stored size is out of date is given its size as a change the draft keeps', async ({ page }) => {
-  const errors = await openFresh(page);
+/** A heading whose stored size is from before its font arrived: opened, put right, then Undone. Returns its real width. */
+async function staleHeading(page) {
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('.clg-rail [data-panel="text"]').click();
   await page.locator('[data-add-text="heading"]').click();
@@ -43,6 +43,12 @@ test('a heading whose stored size is out of date is given its size as a change t
   // selected at the size they really take (as Save draws them), not the old one.
   await page.keyboard.press('Control+z');
   await expect.poll(async () => (await newestDraft(page))?.model.items.find((i) => i.kind === 'text')?.width).toBeLessThan(right * 0.5);
+  return right;
+}
+
+test('a heading whose stored size is out of date is given its size as a change the draft keeps', async ({ page }) => {
+  const errors = await openFresh(page);
+  const right = await staleHeading(page);
   const drawn = await page.evaluate(() => window.Konva.stages[0].find((n) => n.getAttr('kind') === 'text')[0].width());
   expect(drawn).toBeGreaterThan(right * 0.9);
 
@@ -59,5 +65,29 @@ test('a heading whose stored size is out of date is given its size as a change t
   }).toBe(0);
   const lined = (await newestDraft(page)).model.items.find((i) => i.kind === 'text');
   expect(lined.width).toBeGreaterThan(right * 0.9);
+  expect(errors).toEqual([]);
+});
+
+test('a heading with an out-of-date stored size snaps to the page edge by the width it is drawn at', async ({ page }) => {
+  const errors = await openFresh(page);
+  const right = await staleHeading(page);
+  const box = await page.evaluate(() => {
+    const stage = window.Konva.stages[0];
+    const host = stage.container().getBoundingClientRect();
+    const node = stage.find((n) => n.getAttr('kind') === 'text')[0];
+    const page = stage.findOne('.page').getClientRect({ skipShadow: true, skipStroke: true });
+    const r = node.getClientRect({ skipShadow: true, skipStroke: true });
+    return { cx: r.x + host.x + r.width / 2, cy: r.y + host.y + r.height / 2, left: r.x + host.x, pageLeft: page.x + host.x };
+  });
+  // Dragged so its drawn left edge is just inside the page's left edge: it snaps onto the edge.
+  const dx = box.pageLeft + 3 - box.left;
+  await page.mouse.move(box.cx, box.cy);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i += 1) await page.mouse.move(box.cx + (dx * i) / 10, box.cy);
+  await page.mouse.up();
+  await expect.poll(async () => {
+    const text = (await newestDraft(page))?.model.items.find((i) => i.kind === 'text');
+    return text && Math.round(text.x - right / 2);
+  }).toBe(0);
   expect(errors).toEqual([]);
 });

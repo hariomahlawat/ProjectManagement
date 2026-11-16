@@ -495,8 +495,16 @@
       guides.destroyChildren();
       const item = itemById(node.id());
       if (!item || event?.altKey) { layer.batchDraw(); return; }
-      const box = core.turnedHalfBox(item.width, core.itemHeight(item), item.angle);
-      const others = state.collage.items.filter((i) => i.id !== item.id);
+      // Words snap by the size they are drawn at (measured), like the node itself; the model may
+      // still hold a size from before their font arrived.
+      const asDrawn = (each) => {
+        if (each.kind !== 'text') return each;
+        const measured = measureTextItem(each);
+        return { ...each, width: measured.width, aspect: measured.width / Math.max(1, measured.height) };
+      };
+      const drawn = asDrawn(item);
+      const box = core.turnedHalfBox(drawn.width, core.itemHeight(drawn), drawn.angle);
+      const others = state.collage.items.filter((i) => i.id !== item.id).map(asDrawn);
       const snapped = core.snapMove({ x: node.x(), y: node.y(), ...box }, state.collage.size, others, core.SNAP_PIXELS / state.scale);
       node.position({ x: snapped.x, y: snapped.y });
       for (const guide of snapped.guides) {
