@@ -771,3 +771,44 @@ test('the page canvas stays under the iPhone canvas limit at any zoom', () => {
   // Never below half a pixel per CSS pixel, however large.
   assert.equal(PC.canvasPixelRatio(20000, 20000, 2), 0.5);
 });
+
+test('a photo taken out of a layout leaves an empty frame in its place', () => {
+  const PC = require('./collage-core.js');
+  const photo = { ...PC.photoItem('i1', 'p1', 1.5, { x: 200, y: 300, width: 400 }), angle: 5, radius: 12, frame: 'polaroid' };
+  const slot = PC.emptyFrame(photo);
+  assert.deepEqual(slot, { id: 'i1', kind: 'slot', x: 200, y: 300, width: 400, aspect: 1.5, angle: 5, opacity: 100, radius: 12 });
+});
+
+test('a new item goes where it covers nothing yet', () => {
+  const PC = require('./collage-core.js');
+  const heading = { id: 't1', kind: 'text', x: 500, y: 500, width: 600, aspect: 6, angle: 0 };
+  const spot = PC.freeSpot([heading], 'square', 250, 40);
+  const overlapsX = Math.abs(spot.x - heading.x) < 250 + 300;
+  const overlapsY = Math.abs(spot.y - heading.y) < 40 + 50;
+  assert.ok(!(overlapsX && overlapsY), 'clear of the heading');
+  assert.deepEqual(PC.freeSpot([], 'square', 100, 50), { x: 500, y: 500 }, 'the centre when the page is empty');
+  // A hidden item does not count.
+  assert.deepEqual(PC.freeSpot([{ ...heading, hidden: true }], 'square', 250, 40), { x: 500, y: 500 });
+});
+
+test('words that only show where to type never name a collage', () => {
+  const PC = require('./collage-core.js');
+  const started = new Date(2026, 10, 16, 9, 5).getTime();
+  assert.equal(PC.autoTitle([{ kind: 'text', text: PC.TEXT_PLACEHOLDERS.heading }], started), 'Collage, 16 Nov 09:05');
+  assert.equal(PC.autoTitle([{ kind: 'text', text: 'यहाँ लिखें' }, { kind: 'text', text: 'Farewell Col Rao' }], started), 'Farewell Col Rao');
+});
+
+test('"Make it casual" keeps the frames and shapes chosen by hand', () => {
+  const PC = require('./collage-core.js');
+  const plain = PC.photoItem('a', 'p1', 1.5, { x: 200, y: 200, width: 300 });
+  const heart = { ...PC.photoItem('b', 'p2', 1, { x: 600, y: 200, width: 300 }), shape: 'heart' };
+  const torn = { ...PC.photoItem('c', 'p3', 1, { x: 400, y: 600, width: 300 }), frame: 'torn' };
+  const casual = PC.makeCasual({ ...PC.newCollage('square'), items: [plain, heart, torn] });
+  const [a, b, c] = casual.items;
+  assert.equal(a.frame, 'polaroid');
+  assert.equal(b.shape, 'heart');
+  assert.equal(b.frame, heart.frame);
+  assert.equal(c.frame, 'torn');
+  assert.notEqual(b.angle, 0, 'still tilted');
+  assert.equal(b.aspect, heart.aspect);
+});

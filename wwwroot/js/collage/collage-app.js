@@ -1035,10 +1035,18 @@
     toolbar.hidden = false;
     const width = toolbar.offsetWidth;
     const above = rect.y - toolbar.offsetHeight - (adjusting ? 12 : transformer.rotateAnchorOffset() + 18);
-    const top = above >= stageBox.scrollTop + 6 ? above : rect.y + rect.height + 14;
+    const below = rect.y + rect.height + 14;
     const left = Math.min(
       Math.max(rect.x + rect.width / 2, stageBox.scrollLeft + width / 2 + 8),
       stageBox.scrollLeft + stageBox.clientWidth - width / 2 - 8);
+    // Above the item, unless that is off the top or would cover another item and below would not.
+    const covers = (top) => collage.items.some((other) => {
+      if (other.id === item.id || other.hidden) return false;
+      const box = nodes.get(other.id)?.getClientRect();
+      return box && box.x < left + width / 2 && box.x + box.width > left - width / 2
+        && box.y < top + toolbar.offsetHeight && box.y + box.height > top;
+    });
+    const top = above < stageBox.scrollTop + 6 || (covers(above) && !covers(below)) ? below : above;
     toolbar.style.left = `${left}px`;
     toolbar.style.top = `${top}px`;
   }
@@ -1285,10 +1293,10 @@
 
   /** Ready-made headings and the plain ways to start text, from the Text panel. */
   const TEXT_STARTS = Object.freeze({
-    heading: ['Your heading', { font: 'elegant', size: 72 }],
-    subheading: ['A subheading', { font: 'clean', size: 36 }],
-    line: ['A line of text', { font: 'clean', size: 24, bold: false }],
-    hindi: ['यहाँ लिखें', { font: 'hindiHand', size: 48 }],
+    heading: [core.TEXT_PLACEHOLDERS.heading, { font: 'elegant', size: 72 }],
+    subheading: [core.TEXT_PLACEHOLDERS.subheading, { font: 'clean', size: 36 }],
+    line: [core.TEXT_PLACEHOLDERS.line, { font: 'clean', size: 24, bold: false }],
+    hindi: [core.TEXT_PLACEHOLDERS.hindi, { font: 'hindiHand', size: 48 }],
     farewell: ['Farewell', { font: 'script', size: 96, color: '#7a3b1e' }],
     birthday: ['Happy Birthday', { font: 'rounded', size: 80, color: '#c2185b', outline: 4, outlineColor: '#ffffff', curve: 35 }],
     thanks: ['Thank you!', { font: 'hand', size: 80, color: '#1f6f43' }],
@@ -1502,12 +1510,10 @@
   function addSticker(id) {
     const entry = stickers.find(id);
     if (!entry) return;
-    const count = collage.items.filter((i) => i.kind === 'sticker').length;
     const width = entry.kind === 'drawn' ? 180 : entry.kind === 'unit' ? 160 : 110;
-    // Spread round the page, so stickers added one after another do not hide each other.
-    const spots = [[0, 0], [-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25], [0, -0.32], [-0.35, 0], [0.35, 0], [0, 0.32]];
-    const [fx, fy] = spots[count % spots.length];
-    const place = { x: core.PAGE_WIDTH * (0.5 + fx), y: pageHeight() * (0.5 + fy), width, aspect: entry.aspect };
+    // Where it covers nothing yet, so stickers added one after another do not hide each other.
+    const spot = core.freeSpot(collage.items, collage.size, width / 2, width / entry.aspect / 2);
+    const place = { x: spot.x, y: spot.y, width, aspect: entry.aspect };
     const item = core.stickerItem(newItemId(), id, place, entry.kind === 'drawn' ? { colour: entry.colour } : {});
     collage.items.push(item);
     selectedId = item.id;
@@ -1519,14 +1525,39 @@
   function addText(key) {
     const start = TEXT_STARTS[key];
     if (!start) return;
-    const count = collage.items.filter((i) => i.kind === 'text').length;
-    const item = core.textItem(newItemId(), start[0], { x: core.PAGE_WIDTH / 2, y: pageHeight() * (0.2 + (count % 4) * 0.15) }, start[1]);
+    const item = core.textItem(newItemId(), start[0], { x: core.PAGE_WIDTH / 2, y: pageHeight() / 2 }, start[1]);
+    // Measured first, then put where it covers nothing yet (not on top of the heading before it).
+    layoutTextItem(item);
+    const spot = core.freeSpot(collage.items, collage.size, item.width / 2, core.itemHeight(item) / 2);
+    item.x = spot.x;
+    item.y = spot.y;
     collage.items.push(item);
     selectedId = item.id;
     stopAdjust(false);
     commit();
     announce('Text added. Type the words in the Words box.');
     window.requestAnimationFrame(focusTextField);
+  }
+
+  // The one Undo offered on the screen after a delete: good only while nothing else has changed.
+  let undoOffer = null;
+
+  function offerUndo(text) {
+    undoOffer?.dismiss();
+    const version = changes.version;
+    announce(`${text} Undo is on the screen; Ctrl+Z also brings it back.`);
+    if (!window.PrismToast) return;
+    undoOffer = window.PrismToast.show({
+      tone: 'success',
+      text,
+      action: {
+        label: 'Undo',
+        run: () => {
+          if (changes.version === version) act('undo');
+          else announce('Something else has changed since. Use Undo in the toolbar to step back.');
+        }
+      }
+    });
   }
 
   function act(action) {
@@ -1579,10 +1610,17 @@
         // A locked item is kept until it is unlocked.
         if (item?.locked) { announce('It is locked. Unlock it first.'); break; }
         if (item) {
-          collage.items = collage.items.filter((i) => i !== item);
-          selectedId = null;
+          // A photo in a layout leaves its frame empty, so the layout keeps its shape; anything
+          // else (and an empty frame) goes.
+          const leavesFrame = item.kind === 'photo' && Boolean(collage.layout);
+          if (leavesFrame) collage.items[collage.items.indexOf(item)] = core.emptyFrame(item);
+          else collage.items = collage.items.filter((i) => i !== item);
+          selectedId = leavesFrame ? item.id : null;
+          stopAdjust(false);
           commit();
-          announce('Deleted. Ctrl+Z brings it back.');
+          offerUndo(leavesFrame ? 'Photo taken out; its frame is empty.' : `${core.layerName(item)} deleted.`);
+          // Focus goes on to what is left, in the Layers list, rather than to the page.
+          if (!leavesFrame) window.requestAnimationFrame(() => props.querySelector('[data-layer-select]')?.focus());
         }
         break;
       case 'forward': case 'backward': case 'front': case 'back':
@@ -1635,7 +1673,7 @@
         collage = core.makeCasual(collage);
         stopAdjust(false);
         commit();
-        announce('Photos tilted. Ctrl+Z puts them back.');
+        offerUndo('Photos tilted and scattered. Frames and shapes you chose are kept.');
         break;
       case 'straighten-all':
         collage = core.straightenAll(collage);
@@ -2046,19 +2084,25 @@
    * Puts a photo on the page: into `frameId` when given (an empty frame filled, or a photo
    * replaced), else into the first empty frame, else as a new photo near the centre (or at `at`).
    */
+  /**
+   * Puts a photo on the page: in the frame it was aimed at, else the empty frame closest to its
+   * shape, else (on a page without a layout, or dropped at a point) on its own. On a layout with
+   * every frame full it stays in the tray, and false is returned.
+   */
   function placePhoto(photo, { frameId = null, at = null } = {}) {
     const frame = (frameId && itemById(frameId)) || (!at ? (core.bestSlotFor(collage.items, photo.aspect) || firstSlot()) : null);
+    if (!frame && !at && collage.layout) return false;
     if (frame && frame.kind === 'slot') {
       const filled = core.fillSlot(frame, photo.id);
       collage.items[collage.items.indexOf(frame)] = filled;
       selectedId = filled.id;
-      return;
+      return true;
     }
     if (frame && frame.kind === 'photo') {
       frame.photo = photo.id;
       frame.crop = { ...core.FULL_CROP };
       selectedId = frame.id;
-      return;
+      return true;
     }
     // A photo placed freely means the page is no longer a strict grid, so changing the space
     // would not silently take it off the page.
@@ -2069,6 +2113,7 @@
     const item = core.photoItem(newItemId(), photo.id, photo.aspect, place);
     collage.items.push(item);
     selectedId = item.id;
+    return true;
   }
 
   // Reading photos at their working size (collage-photos.js).
@@ -2129,12 +2174,16 @@
       placing.forEach((photo) => { photo.importing = false; });
       // The first photo goes where it was aimed (a frame, or the drop point); the rest fill
       // empty frames, then go near the centre.
-      placing.forEach((photo, index) => placePhoto(photo, index === 0 ? { frameId, at } : {}));
+      const waiting = placing.filter((photo, index) => !placePhoto(photo, index === 0 ? { frameId, at } : {}));
       if (placing.length) {
         setTarget(null);
         commit();
       }
-      showAlert(core.refusedMessage(refused));
+      // Photos past the layout's frames wait in the tray rather than sit loose on the grid.
+      const fitNote = waiting.length
+        ? `${waiting.length === 1 ? 'One photo' : `${waiting.length} photos`} did not fit the layout's frames and ${waiting.length === 1 ? 'is' : 'are'} in Photos: drag ${waiting.length === 1 ? 'it' : 'one'} onto a frame, or choose a layout with more frames.`
+        : '';
+      showAlert([core.refusedMessage(refused), fitNote].filter(Boolean).join(' '));
       if (placing.length) announce(placing.length === 1 ? 'Photo added.' : `${placing.length} photos added.`);
     } finally {
       busy('');
