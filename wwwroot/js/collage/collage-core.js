@@ -770,28 +770,89 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Lock
+  // ---------------------------------------------------------------------------
+
+  /**
+   * What a lock stops, by action name: anything that moves, turns, reshapes, refills or removes
+   * the item. Order, Duplicate (the copy is never locked), Hide and Unlock stay open.
+   */
+  const LOCK_BLOCKS = Object.freeze(['delete', 'adjust', 'replace', 'fill-slot', 'rotate-left', 'rotate-right', 'straighten', 'fit-photo']);
+
+  /** True when the item is locked and the action is one a lock stops. */
+  function lockBlocks(item, action) {
+    return Boolean(item?.locked) && LOCK_BLOCKS.includes(action);
+  }
+
+  /** Locked photos and empty frames: the items a change of layout has to ask about. */
+  function lockedFrames(collage) {
+    return collage.items.filter((item) => (item.kind === 'photo' || item.kind === 'slot') && item.locked);
+  }
+
+  /** How far past the page edge an item may stay (a tilted frame's corner, say), in page units. */
+  const PAGE_EDGE_SLACK = 30;
+
+  /**
+   * The item, moved the least it takes for its turned box to sit inside the page when more than a
+   * little of it is off the page; otherwise as it is.
+   */
+  function keptOnPage(item, sizeKey) {
+    const height = pageHeight(sizeKey);
+    const box = turnedHalfBox(item.width, itemHeight(item), item.angle || 0);
+    const inside = (value, half, limit) => {
+      if (half * 2 >= limit) return limit / 2;
+      const over = Math.max(half - value, value + half - limit);
+      return over > PAGE_EDGE_SLACK ? Math.min(limit - half, Math.max(half, value)) : value;
+    };
+    const x = inside(item.x, box.halfWidth, PAGE_WIDTH);
+    const y = inside(item.y, box.halfHeight, height);
+    return x === item.x && y === item.y ? item : { ...item, x, y };
+  }
+
+  /** How much of a layout frame an item covers, as a share of the frame (0 to 1). */
+  function coveredShare(frame, item) {
+    const box = turnedHalfBox(item.width, itemHeight(item), item.angle || 0);
+    const fw = frame.width / 2;
+    const fh = frame.width / frame.aspect / 2;
+    const w = Math.min(frame.x + fw, item.x + box.halfWidth) - Math.max(frame.x - fw, item.x - box.halfWidth);
+    const h = Math.min(frame.y + fh, item.y + box.halfHeight) - Math.max(frame.y - fh, item.y - box.halfHeight);
+    return w > 0 && h > 0 ? (w * h) / (4 * fw * fh) : 0;
+  }
+
+  /** A frame a locked item covers more of than this is left out of the layout. */
+  const LOCK_COVER_LIMIT = 0.05;
+
   /**
    * The collage arranged in a layout. Its photos fill the frames in their current order, then
    * `spare` photos (ids from the photo store, with their shape) fill what is left, then empty
    * frames wait for photos. Photos beyond the frames leave the page (they stay in Photos) and are
    * returned as `removed`. Every frame is straight, uncut and given the layout's rounded corners.
-   * Locked photos and frames stay exactly where they are and take no part.
+   *
+   * Locked photos and frames: with `locked: 'join'` they go into the layout like the others and
+   * stay locked. Otherwise (`'keep'`, the default) each stays where it is, moved only as far as
+   * it takes to be inside the page, and the layout leaves out every frame it covers, so nothing
+   * overlaps without the user choosing it.
    */
-  function applyLayout(collage, key, gap, radius, spare, newId) {
-    const frames = layoutFrames(collage.size, key, gap);
-    if (!frames.length) return { collage, removed: [] };
+  function applyLayout(collage, key, gap, radius, spare, newId, { locked = 'keep' } = {}) {
+    const all = layoutFrames(collage.size, key, gap);
+    if (!all.length) return { collage, removed: [] };
     const r = Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, Number(radius) || 0));
     const isFrame = (item) => item.kind === 'photo' || item.kind === 'slot';
-    const photos = collage.items.filter((item) => item.kind === 'photo' && !item.locked);
-    const others = collage.items.filter((item) => !isFrame(item) || item.locked);
+    const join = locked === 'join';
+    const kept = join ? [] : collage.items.filter((item) => isFrame(item) && item.locked).map((item) => keptOnPage(item, collage.size));
+    // Each frame keeps its own cell, so a later change of space puts it back in its own place.
+    const frames = all.map((frame, cell) => ({ ...frame, cell }))
+      .filter((frame) => !kept.some((item) => coveredShare(frame, item) > LOCK_COVER_LIMIT));
+    const photos = collage.items.filter((item) => item.kind === 'photo' && (join || !item.locked));
+    const others = collage.items.filter((item) => !isFrame(item)).concat(kept);
     const sources = photos.map((item) => item.photo);
     for (const id of spare || []) if (sources.length < frames.length && !sources.includes(id)) sources.push(id);
-    const placed = frames.map((frame, index) => {
-      const place = { ...frame };
+    const placed = frames.map(({ cell, ...place }, index) => {
       const existing = photos[index];
-      if (existing) return { ...existing, ...place, cell: index, angle: 0, radius: r, crop: { ...FULL_CROP } };
-      if (index < sources.length) return { ...photoItem(newId(), sources[index], place.aspect, place), cell: index, radius: r };
-      return { ...slotItem(newId(), place), cell: index, radius: r };
+      if (existing) return { ...existing, ...place, cell, angle: 0, radius: r, crop: { ...FULL_CROP } };
+      if (index < sources.length) return { ...photoItem(newId(), sources[index], place.aspect, place), cell, radius: r };
+      return { ...slotItem(newId(), place), cell, radius: r };
     });
     const removed = photos.slice(frames.length).map((item) => item.id);
     return {
@@ -1406,6 +1467,10 @@
     layoutFrames,
     applyLayout,
     reflowLayout,
+    LOCK_BLOCKS,
+    lockBlocks,
+    lockedFrames,
+    keptOnPage,
     makeCasual,
     straightenAll,
     shufflePhotos,

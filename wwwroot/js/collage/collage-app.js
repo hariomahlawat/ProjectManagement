@@ -126,7 +126,7 @@
   // A photo used only as the blurred background still makes a picture worth saving.
   const hasContent = () => collage.items.some((item) => ['photo', 'text', 'sticker'].includes(item.kind))
     || (collage.background?.type === 'photo' && photos.has(collage.background.photo));
-  const firstSlot = () => collage.items.find((item) => item.kind === 'slot') || null;
+  const firstSlot = () => collage.items.find((item) => item.kind === 'slot' && !item.locked) || null;
   const isFrame = (item) => item && (item.kind === 'photo' || item.kind === 'slot');
 
   // The editor's own state and later parts, as the modules made from it see them: read when used,
@@ -434,6 +434,9 @@
         ? forWhat !== 'adjusting'
         : !(forWhat === item.kind || forWhat === 'item');
     }
+    for (const button of toolbar.querySelectorAll('[data-action]')) {
+      button.disabled = core.lockBlocks(item, button.dataset.action);
+    }
     const lockButton = toolbar.querySelector('[data-action="lock"]');
     if (lockButton) {
       lockButton.setAttribute('aria-pressed', String(Boolean(item.locked)));
@@ -680,6 +683,7 @@
     '[data-prop="angle"]', '[data-prop="width"]', '[data-prop="size"]',
     '[data-action="rotate-left"]', '[data-action="rotate-right"]', '[data-action="straighten"]',
     '[data-action="fit-photo"]', '[data-finish="frame"]', '[data-finish="shape"]',
+    '[data-prop="radius"]', '[data-prop="zoom"]', '[data-action="adjust"]', '[data-action="replace"]', '[data-action="delete"]',
     '[data-prop="spacing"]', '[data-prop="curve"]', '[data-text-set="font"]', '[data-text-toggle]'
   ].join(', ');
 
@@ -705,10 +709,38 @@
     return [...photos.keys()].filter((id) => !used.has(id) && !photos.get(id).removed);
   };
 
-  function applyLayoutKey(key) {
+  /** A photo or frame just locked: it stops moving inside its frame and waits for no photo. */
+  function lockedNow(item) {
+    if (adjustId === item.id) stopAdjust(false);
+    if (targetId === item.id) setTarget(null);
+  }
+
+  /**
+   * A layout for the page. When photos or frames are locked, the user is asked first whether they
+   * go into the new layout too or stay where they are (the layout then leaves out the frames they
+   * cover); closing the question keeps them where they are.
+   */
+  async function applyLayoutKey(key) {
+    const locked = core.lockedFrames(collage);
+    let choice = 'keep';
+    if (locked.length) {
+      const one = locked.length === 1;
+      const join = await askConfirm({
+        title: one ? '1 photo is locked' : `${locked.length} photos are locked`,
+        message: one
+          ? 'Put it in the new layout too, or keep it where it is? If it stays, the layout leaves out the frames it covers.'
+          : 'Put them in the new layout too, or keep them where they are? If they stay, the layout leaves out the frames they cover.',
+        confirmText: one ? 'Put it in the layout' : 'Put them in the layout',
+        cancelText: one ? 'Keep it where it is' : 'Keep them where they are',
+        tone: 'primary',
+        icon: 'bi-lock'
+      });
+      if (views.editor.hidden) return;
+      choice = join ? 'join' : 'keep';
+    }
     const gap = collage.layout ? collage.layout.gap : core.LAYOUT_LIMITS.defaultGap;
     const radius = collage.layout ? collage.layout.radius : 0;
-    const result = core.applyLayout(collage, key, gap, radius, sparePhotos(), newItemId);
+    const result = core.applyLayout(collage, key, gap, radius, sparePhotos(), newItemId, { locked: choice });
     collage = result.collage;
     selectedId = null;
     stopAdjust(false);
@@ -1006,6 +1038,7 @@
 
   function act(action) {
     const item = selectedItem();
+    if (core.lockBlocks(item, action)) { announce('It is locked. Unlock it first.'); return; }
     switch (action) {
       case 'home': goHome(); break;
       case 'choose': fileInput.click(); break;
@@ -1032,7 +1065,7 @@
       case 'lock':
         if (item) {
           item.locked = !item.locked;
-          if (item.locked && adjustId === item.id) stopAdjust(false);
+          if (item.locked) lockedNow(item);
           commit();
           announce(item.locked ? 'Locked.' : 'Unlocked.');
         }
@@ -1051,8 +1084,6 @@
       case 'close-drawer': setPanel(null); break;
       case 'preview-exit': stopPreview(); break;
       case 'delete':
-        // A locked item is kept until it is unlocked.
-        if (item?.locked) { announce('It is locked. Unlock it first.'); break; }
         if (item) {
           // A photo in a layout leaves its frame empty, so the layout keeps its shape; anything
           // else (and an empty frame) goes.
@@ -1073,7 +1104,6 @@
       case 'rotate-left':
       case 'rotate-right':
       case 'straighten':
-        if (item?.locked) { announce('It is locked. Unlock it first.'); break; }
         if (action === 'rotate-left') changeSelected((i) => { i.angle = core.normaliseAngle(i.angle - 15); });
         else if (action === 'rotate-right') changeSelected((i) => { i.angle = core.normaliseAngle(i.angle + 15); });
         else changeSelected((i) => { i.angle = 0; });
@@ -1102,7 +1132,6 @@
         changeSelected((i) => { Object.assign(i, { look: 'none', bright: 100, contrast: 100, warmth: 0, flip: false }); });
         break;
       case 'fit-photo':
-        if (item?.locked) { announce('It is locked. Unlock it first.'); break; }
         changeSelected((i) => {
           const photo = photos.get(i.photo);
           // A grey stand-in has no shape of its own to fit.
@@ -1168,7 +1197,7 @@
     const layerLock = event.target.closest('[data-layer-lock]');
     if (layerLock) {
       const target = itemById(layerLock.dataset.layerLock);
-      if (target) { target.locked = !target.locked; if (target.locked && adjustId === target.id) stopAdjust(false); commit(); }
+      if (target) { target.locked = !target.locked; if (target.locked) lockedNow(target); commit(); }
       return;
     }
     const backgroundChoice = event.target.closest('[data-background]');

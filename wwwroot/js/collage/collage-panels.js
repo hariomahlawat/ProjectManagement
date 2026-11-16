@@ -93,7 +93,8 @@
           app.collage = core.reflowLayout(app.collage, value);
         } else if (which === 'radius') {
           // Corners change only the corners: turned photos and their crops stay as they are.
-          app.collage.items.forEach((item) => { if (isFrame(item)) item.radius = value; });
+          // A locked frame keeps its own corners.
+          app.collage.items.forEach((item) => { if (isFrame(item) && !item.locked) item.radius = value; });
           if (app.collage.layout) app.collage.layout = { ...app.collage.layout, radius: value };
         }
         syncPage();

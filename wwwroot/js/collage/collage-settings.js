@@ -69,7 +69,7 @@
             <button type="button" class="btn btn-outline-secondary btn-sm" data-action="duplicate"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate</button>
             <button type="button" class="btn btn-outline-danger btn-sm" data-action="delete"${item.locked ? ' disabled' : ''}><i class="bi bi-trash3" aria-hidden="true"></i> Delete</button>
           </div>
-          ${item.locked ? '<p class="clg-hint">Locked: it cannot be moved, resized, turned, given another frame or shape, or deleted until it is unlocked.</p>' : ''}
+          ${item.locked ? '<p class="clg-hint">Locked: it cannot be moved, resized, turned, given another frame, shape or corners, replaced or deleted until it is unlocked.</p>' : ''}
           ${item.hidden ? '<p class="clg-hint">Hidden: it is not on the page or in the saved picture until it is shown again.</p>' : ''}
         </div>`;
     }
