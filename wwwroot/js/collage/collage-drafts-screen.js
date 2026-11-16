@@ -128,6 +128,9 @@
       }
       grid.textContent = '';
       section.hidden = !shown.length && !session.undoing;
+      // The last draft deleted, while its Undo is offered: the heading says what is going on.
+      const empty = $('[data-drafts-empty]');
+      if (empty) empty.hidden = shown.length > 0;
       $('[data-drafts-count]').textContent = shown.length ? String(shown.length) : '';
       // One row of drafts unless asked for all, so starting a new collage stays in view.
       // As many as fit across the grid (cards are at least 200 pixels wide).
@@ -158,7 +161,7 @@
           const span = document.createElement('span');
           span.className = 'clg-draft__meta';
           span.textContent = part;
-          meta.append(...(index ? [' · ', span] : [span]));
+          meta.append(span);
         });
         open.append(picture, title, meta);
         open.setAttribute('aria-label', `Open draft ${item.title}, saved ${core.savedAgo(item.saved, Date.now())}`);

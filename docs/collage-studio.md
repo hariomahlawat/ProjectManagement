@@ -89,7 +89,8 @@ its npm package by hand; the libman entry records the version.
   angle, resized, mirrored, given an optional caption (on a white strip under the photo, or
   handwritten in a polaroid's edge), a frame (white border, polaroid, tape, torn
   edge), rounded corners, a shape (oval, heart, star, hexagon, arch), a shadow and a look (black and
-  white, sepia, vintage, vivid, soft, cool, warm), and moved inside its frame (**Adjust**, or double-click).
+  white, sepia, vintage, vivid, soft, cool, warm), and moved inside its frame (**Adjust**, or double-click); while it is moved, the rest of the
+  photo shows faintly round the frame, so the user sees what can be brought into view.
 - **Casual or neat**: one button scatters the photos at slight angles as polaroids and taped
   prints (a frame or shape the user chose is kept, and the photo is only tilted), with Undo on
   the screen; another straightens everything back. Each print stays inside its own frame's box and
@@ -204,7 +205,8 @@ delete the oldest.
 | Shift while turning | 15° steps |
 | Esc | Leave adjusting, deselect, or leave Preview |
 
-A keyboard user picks an item in the **Layers** list; the page then says how to move it. Photos
+A keyboard user picks an item in the **Layers** list (empty "Add photo" frames too: they are
+reached there, not by Tab on the page, which is one canvas; Add photos fills them first); the page then says how to move it. Photos
 and empty frames have a **Size** slider, so everything can be resized without a mouse. When a
 panel is drawn again after a change, focus goes back to the control that was used, inside that
 panel (`collage-focus.js`). Arrow keys do not move a hidden item. The editor's first Tab stop is
