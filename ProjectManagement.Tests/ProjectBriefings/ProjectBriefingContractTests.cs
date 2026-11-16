@@ -334,7 +334,7 @@ public sealed class ProjectBriefingContractTests
             Assert.DoesNotContain("72:28", drawer, StringComparison.Ordinal);
             Assert.DoesNotContain("Additional Slides workspace", drawer, StringComparison.Ordinal);
         }
-        Assert.Contains("in the Deck tab under Extra slides", profile, StringComparison.Ordinal);
+        Assert.Contains("in the Deck tab under Slides in this deck", profile, StringComparison.Ordinal);
 
         // Escape closes each drawer even when focus is outside it.
         Assert.Contains("if (!profileDrawer?.classList.contains('is-open') || profileDrawer.contains(event.target)) return;", decks, StringComparison.Ordinal);

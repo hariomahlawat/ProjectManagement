@@ -113,6 +113,27 @@ public sealed class ProjectBriefingDeckBlockSaveTests
     }
 
     [Fact]
+    public async Task SavingAnInstitutionSlidesContent_KeepsWhetherTheBlockListHasItOn()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db);
+        var service = Service(db);
+        await service.UpdateBlocksAsync(deck.Id, UserId, new[] { Block(ProjectBriefingDeckBlockType.RoleAndCharter, false) }, Version(deck));
+        deck = await db.Set<ProjectBriefingDeck>().SingleAsync();
+
+        // The editor still posts its own (hidden) inclusion flag; it no longer decides.
+        await service.UpdateRoleCharterAsync(
+            deck.Id,
+            UserId,
+            ProjectBriefingRoleCharterOptions.Default with { IncludeSlide = true, Title = "Our role" },
+            Version(deck));
+
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read((await db.Set<ProjectBriefingDeck>().SingleAsync()).SelectionRulesJson);
+        Assert.False(configuration.RoleCharterOptions.IncludeSlide);
+        Assert.Equal("Our role", configuration.RoleCharterOptions.Title);
+    }
+
+    [Fact]
     public async Task ADeckNeedsTheStatusTableOrTheProjectSlides()
     {
         await using var db = CreateDb();

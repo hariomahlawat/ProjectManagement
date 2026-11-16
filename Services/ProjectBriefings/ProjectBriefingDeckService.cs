@@ -866,7 +866,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         EnsureVersion(deck, rowVersion);
         var normalized = ProjectBriefingInstitutionalProfileOptions.Normalize(
-            options.IncludeSlide,
+            // Whether the slide is in the deck belongs to the block list (PR 4): saving the
+            // editor's content keeps it as it is.
+            ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).InstitutionalProfileOptions.IncludeSlide,
             options.Title,
             options.IncludeHistory,
             options.HistoryMilestones,
@@ -918,7 +920,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         EnsureVersion(deck, rowVersion);
         var normalized = ProjectBriefingRoleCharterOptions.Normalize(
-            options.IncludeSlide,
+            // Whether the slide is in the deck belongs to the block list (PR 4): saving the
+            // editor's content keeps it as it is.
+            ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).RoleCharterOptions.IncludeSlide,
             options.Title,
             options.Layout,
             options.UseSharedContent,
@@ -962,7 +966,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         EnsureVersion(deck, rowVersion);
         var normalized = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
-            options.IncludeSlide,
+            // Whether the slide is in the deck belongs to the block list (PR 4): saving the
+            // editor's content keeps it as it is.
+            ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).FfcGlobalFootprintOptions.IncludeSlide,
             options.Title,
             options.Layout,
             options.MaximumCountryRows,
