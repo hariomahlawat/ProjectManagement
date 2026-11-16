@@ -582,7 +582,7 @@ test('drafts screen: a draft opens into the editor with its photos, name and siz
   assert.equal(env.$('[data-size-select]').value, 'square');
   assert.deepEqual(env.calls.showView, [['editor']]);
   assert.equal(env.$('[data-view="start"]').inert, false);
-  assert.deepEqual(env.calls.announce.at(-1), ['Draft Sports day opened.']);
+  assert.deepEqual(env.calls.announce.at(-1), ['Draft Sports day opened. Undo starts again from here.']);
 });
 
 test('drafts screen: an open asked for before a slower one finishes wins; the slower one stands down', async (t) => {

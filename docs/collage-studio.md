@@ -111,6 +111,7 @@ its npm package by hand; the libman entry records the version.
   the layout; when that undoes a photo moved by hand, a message says so, with Undo. One frame's
   own corners (its settings) stay its own: the layout's Rounded corners and the next layout are
   not changed by them, and a change of space keeps them.
+  Undo steps are not kept with a draft: a reopened draft says that Undo starts again from there.
 - **Save as** PNG, JPEG (optionally under a size in KB) or PDF whose page is the paper's real
   size; at print quality (300 dpi) or for the screen (1920 px on the long side). The dialog asks
   first **what it is for** (WhatsApp or email: a JPG for the screen; Printing: a PDF at print
@@ -121,7 +122,9 @@ its npm package by hand; the libman entry records the version.
   then no purpose shows pressed. Tab stays inside the dialog, and on a phone it fits one screen
   with More options closed. Save reads each
   original photo again at the size its frame needs, so the saved picture is sharper than the
-  screen; empty frames and hidden items are left out.
+  screen; empty frames and hidden items are left out, and Save says how many ("2 hidden items
+  left out"). In the editor a hidden item shows as a faint dashed outline, never in Preview or
+  Save. The purposes not chosen keep full-strength words, so they do not look disabled.
 
 ## How it is built
 
