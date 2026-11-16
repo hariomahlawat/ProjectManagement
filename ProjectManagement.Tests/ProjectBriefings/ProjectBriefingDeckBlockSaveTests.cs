@@ -180,6 +180,35 @@ public sealed class ProjectBriefingDeckBlockSaveTests
     }
 
     [Fact]
+    public async Task MovingOpeningSlidesThatWereNeverOn_IsKept_AndTheyStayOff()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db);
+
+        await Service(db).UpdateBlocksAsync(deck.Id, UserId, new[]
+        {
+            Block(ProjectBriefingDeckBlockType.Cover, true),
+            Block(ProjectBriefingDeckBlockType.RoleAndCharter, false),
+            Block(ProjectBriefingDeckBlockType.InstitutionalProfile, false)
+        }, Version(deck));
+
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read((await db.Set<ProjectBriefingDeck>().SingleAsync()).SelectionRulesJson);
+        Assert.Equal(
+            new[] { ProjectBriefingAdditionalSlideType.RoleAndCharter, ProjectBriefingAdditionalSlideType.InstitutionalProfile },
+            configuration.AdditionalSlideOrder);
+        Assert.False(configuration.RoleCharterOptions.IncludeSlide);
+        Assert.False(configuration.InstitutionalProfileOptions.IncludeSlide);
+        var blocks = ProjectBriefingDeckBlocks.ForDeck(
+            ProjectBriefingLayout.StandardBriefing, ProjectBriefingPresentationMode.DetailedProjects,
+            true, true, false, false, false, configuration.AdditionalSlideOrder,
+            type => false, Array.Empty<ProjectBriefingDeckBlockType>());
+        Assert.Equal(
+            new[] { ProjectBriefingDeckBlockType.RoleAndCharter, ProjectBriefingDeckBlockType.InstitutionalProfile },
+            blocks.Skip(1).Take(2).Select(block => block.Type));
+        Assert.All(blocks.Skip(1).Take(2), block => Assert.False(block.Enabled));
+    }
+
+    [Fact]
     public async Task AnUnknownOrRepeatedBlock_IsRefused()
     {
         await using var db = CreateDb();

@@ -1091,13 +1091,14 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 continue;
             }
 
-            var current = additionalOrder.Contains(slideType) && slideType switch
+            var inOrder = additionalOrder.Contains(slideType);
+            var stored = slideType switch
             {
                 ProjectBriefingAdditionalSlideType.InstitutionalProfile => configuration.InstitutionalProfileOptions.IncludeSlide,
                 ProjectBriefingAdditionalSlideType.RoleAndCharter => configuration.RoleCharterOptions.IncludeSlide,
                 _ => configuration.FfcGlobalFootprintOptions.IncludeSlide
             };
-            if (current != block.Enabled)
+            if ((inOrder && stored) != block.Enabled || (!inOrder && stored))
             {
                 var (profile, roleCharter, ffc) = SwitchAdditionalSlide(configuration, slideType, block.Enabled);
                 configuration = configuration with
@@ -1108,7 +1109,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 };
             }
 
-            if (block.Enabled && !additionalOrder.Contains(slideType))
+            // An opening slide joins the stored order even while off, so moving it in the list is kept.
+            var opening = ProjectBriefingAdditionalSlideCatalog.Get(slideType).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover;
+            if (!inOrder && (block.Enabled || opening))
             {
                 additionalOrder.Add(slideType);
             }
