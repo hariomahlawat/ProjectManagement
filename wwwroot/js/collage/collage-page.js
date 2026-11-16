@@ -40,7 +40,11 @@
     const world = new Konva.Group();
     const itemsGroup = new Konva.Group();
     const guides = new Konva.Group({ listening: false });
-    world.add(itemsGroup, guides);
+    // A hidden item is shown in the editor as a faint dashed outline, so it is not taken for lost;
+    // never in Preview, and Save draws from the model, which leaves it out
+    // (docs/ux/collage-review-4-fixes.md, PR 6).
+    const hiddenOutlines = new Konva.Group({ listening: false });
+    world.add(itemsGroup, hiddenOutlines, guides);
     layer.add(world);
 
     /** The photo behind the page when the background is a blurred photo: its working copy. */
@@ -462,6 +466,29 @@
         seen.add(item.id);
       });
       state.collage.items.forEach((item) => nodes.get(item.id).moveToTop());
+      hiddenOutlines.destroyChildren();
+      if (!state.previewing) {
+        for (const item of state.collage.items) {
+          if (!item.hidden) continue;
+          const height = core.itemHeight(item);
+          hiddenOutlines.add(new Konva.Rect({
+            name: 'hidden-outline',
+            x: item.x,
+            y: item.y,
+            width: item.width,
+            height,
+            offsetX: item.width / 2,
+            offsetY: height / 2,
+            rotation: item.angle,
+            cornerRadius: item.radius || 0,
+            stroke: '#8f9aab',
+            strokeWidth: 1.5,
+            dash: [6, 5],
+            opacity: 0.75,
+            strokeScaleEnabled: false
+          }));
+        }
+      }
       for (const [id, node] of nodes) {
         if (!seen.has(id)) { node.destroy(); nodes.delete(id); }
       }

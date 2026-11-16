@@ -254,7 +254,10 @@
       parts.setPanel('photos');
       syncAll();
       if (unreadable) showAlert(`${unreadable === 1 ? 'One photo' : `${unreadable} photos`} of this draft could not be opened just now and ${unreadable === 1 ? 'shows' : 'show'} grey. ${unreadable === 1 ? 'It keeps its' : 'They keep their'} place in the draft. Close other tabs and open the draft again; Save leaves ${unreadable === 1 ? 'it' : 'them'} out until then.`);
-      announce(`Draft ${record.title} opened.`);
+      // Undo steps live only while the collage is open; the user is told once, as it opens
+      // (docs/ux/collage-review-4-fixes.md, PR 6).
+      announce(`Draft ${record.title} opened. Undo starts again from here.`);
+      window.PrismToast?.show({ tone: 'info', text: 'Draft opened. Undo starts again from here: earlier steps are not kept with the draft.' });
     }
 
 

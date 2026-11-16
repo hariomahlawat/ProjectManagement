@@ -46,3 +46,12 @@ test('Tab wraps at the ends of the dialog and is left alone in between', () => {
   assert.equal(save.wrapFocus(stops, 'body', true), 'save');
   assert.equal(save.wrapFocus([], 'body', false), null);
 });
+
+test('Save says what it leaves out: empty frames and hidden items (docs/ux/collage-review-4-fixes.md, PR 6)', () => {
+  assert.equal(save.leftOutLine(0, 0), '');
+  assert.equal(save.leftOutLine(1, 0), 'The empty frame is left out of the saved picture.');
+  assert.equal(save.leftOutLine(3, 0), 'The 3 empty frames are left out of the saved picture.');
+  assert.equal(save.leftOutLine(0, 1), '1 hidden item left out; show it from Layers to keep it.');
+  assert.equal(save.leftOutLine(0, 2), '2 hidden items left out; show them from Layers to keep them.');
+  assert.equal(save.leftOutLine(2, 2), 'The 2 empty frames are left out of the saved picture. 2 hidden items left out; show them from Layers to keep them.');
+});

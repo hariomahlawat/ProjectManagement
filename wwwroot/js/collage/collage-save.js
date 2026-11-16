@@ -40,6 +40,19 @@
   }
 
   /**
+   * The line in Save saying what the saved picture leaves out: empty frames, and items hidden
+   * from Layers (docs/ux/collage-review-4-fixes.md, PR 6). Empty when nothing is left out.
+   */
+  function leftOutLine(empty, hidden) {
+    const parts = [];
+    if (empty === 1) parts.push('The empty frame is left out of the saved picture.');
+    else if (empty > 1) parts.push(`The ${empty} empty frames are left out of the saved picture.`);
+    if (hidden === 1) parts.push('1 hidden item left out; show it from Layers to keep it.');
+    else if (hidden > 1) parts.push(`${hidden} hidden items left out; show them from Layers to keep them.`);
+    return parts.join(' ');
+  }
+
+  /**
    * Where Tab goes from the control that has focus, so it stays inside a dialog: from the last
    * stop to the first, and with Shift from the first (or from the dialog itself) to the last.
    * Null means the browser's own Tab is right. stops are the dialog's Tab stops in order.
@@ -96,11 +109,10 @@
       targetValue.disabled = !targetOn.checked;
       targetUnit.disabled = !targetOn.checked;
       const empty = getCollage().items.filter((item) => item.kind === 'slot').length;
+      const hidden = getCollage().items.filter((item) => item.kind !== 'slot' && item.hidden).length;
       const emptyLine = $('[data-save-empty]');
-      emptyLine.hidden = !empty;
-      emptyLine.textContent = empty === 1
-        ? 'The empty frame is left out of the saved picture.'
-        : `The ${empty} empty frames are left out of the saved picture.`;
+      emptyLine.textContent = leftOutLine(empty, hidden);
+      emptyLine.hidden = !emptyLine.textContent;
       const typed = targetValue.value.trim();
       saveSummaryLine.textContent = saveSummary({
         format: chosen('format'),
@@ -314,5 +326,5 @@
     });
   }
 
-  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, wrapFocus, tabStops });
+  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops });
 });
