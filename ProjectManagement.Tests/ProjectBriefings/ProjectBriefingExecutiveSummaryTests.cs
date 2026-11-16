@@ -212,27 +212,6 @@ public sealed class ProjectBriefingExecutiveSummaryTests
     }
 
     [Fact]
-    public void Compose_PortfolioUsesRecordedCostTerminologyAndCoverageBars()
-    {
-        var composer = CreateComposer();
-        var (content, _) = composer.Compose(BuildData());
-
-        using var stream = new MemoryStream(content, writable: false);
-        using var document = PresentationDocument.Open(stream, false);
-        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
-        var portfolio = Assert.Single(slides.Where(slide =>
-            SlideText(slide).Contains("Portfolio at a glance", StringComparison.Ordinal)));
-        var text = SlideText(portfolio);
-
-        Assert.Contains("RECORDED R&D COST", text, StringComparison.Ordinal);
-        Assert.Contains("RECORDED PROLIFERATION COST", text, StringComparison.Ordinal);
-        Assert.Contains("2 of 2 projects recorded", text, StringComparison.Ordinal);
-        Assert.Contains("1 of 2 projects recorded", text, StringComparison.Ordinal);
-        Assert.NotNull(ShapeByName(portfolio, "RECORDED R&D COST coverage fill"));
-        Assert.NotNull(ShapeByName(portfolio, "RECORDED PROLIFERATION COST coverage fill"));
-    }
-
-    [Fact]
     public void Compose_SuppressesSingleProjectCategorySummary()
     {
         var composer = CreateComposer();

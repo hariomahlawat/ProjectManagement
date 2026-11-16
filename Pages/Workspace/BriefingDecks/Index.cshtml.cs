@@ -360,7 +360,9 @@ public sealed class IndexModel : PageModel
                     ProjectBriefLayout = input.ProjectBriefLayout,
                     ShowPresentStage = input.ShowPresentStage,
                     ShowPresentStatus = input.ShowPresentStatus,
-                    IncludeStageDistributionTable = input.IncludeStageDistributionTable,
+                    // No longer offered (the stage-wise distribution has its own list, PR 7); kept as stored
+                    // so a rolled-back build still draws the table a deck had.
+                    IncludeStageDistributionTable = additionalSlides.StandardSlideOptions.IncludeStageDistributionTable,
                     KeyPoints = design.KeyPoints,
                     KeyPointsOnly = design.KeyPointsOnly,
                     PresentationTheme = input.PresentationTheme,

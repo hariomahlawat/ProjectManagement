@@ -15,7 +15,7 @@ namespace ProjectManagement.Services.ProjectBriefings;
 public enum ProjectBriefingShownFacts
 {
     None = 0,
-    // The stage name is drawn (a table row, a detail slide, the stage summary).
+    // The stage name is drawn (a table row, a detail slide, the stage-wise distribution).
     Stage = 1,
     // The stage's maturity orders two or more projects' slides.
     StageOrder = 2,
@@ -23,10 +23,11 @@ public enum ProjectBriefingShownFacts
     CostRd = 8,
     IpaCost = 16,
     ProliferationCost = 32,
-    // The lifecycle (ongoing, completed, cancelled): a standard detail slide's subtitle, the
-    // portfolio summary's counts, and the stage summary's status band and ongoing-stage chart.
+    // The lifecycle (ongoing, completed, cancelled): a standard detail slide's subtitle, and the
+    // stage-wise distribution's bands (completed projects; cancelled ones left out).
     Lifecycle = 64,
-    // An update sheet's milestone row: a PDC date in development, else completion or cancellation.
+    // A PDC date in development, else completion or cancellation: an update sheet's milestone row,
+    // and the stage-wise distribution's project list.
     Milestone = 128,
     // The R&D cost's basis label ("PNC", "L1"): standard cost cards and the executive table draw
     // it; update-sheet rows and the portfolio totals show the amount only.
@@ -150,8 +151,9 @@ public static class ProjectBriefingSlideFacts
     //   development, else the completion or cancellation; never the stage name);
     // - a standard detail slide's subtitle draws the lifecycle ("Ongoing", "Cancelled", ...);
     // - a deck that shows key points draws them on the slide it chose (ProjectBriefingSlideComposer.KeyPointSlide);
-    // - the stage summary draws every project's stage; the portfolio summary counts lifecycle
-    //   (ongoing, completed, cancelled) and totals the costs (the IPA cost only on update sheets);
+    // - the stage-wise distribution (standard decks) draws every project's stage, leaves cancelled
+    //   projects out, and lists each project's Development PDC or completion month (blocks plan PR 7;
+    //   it replaced the stage summary and the portfolio summary, which counted lifecycle and costs);
     // - with two or more projects on slides of their own, stage maturity orders the slides.
     public static ProjectBriefingShownFacts Shown(ProjectBriefingPresentationProject project, ProjectBriefingPresentationData data)
     {
@@ -189,15 +191,16 @@ public static class ProjectBriefingSlideFacts
         var proliferationFollowsLifecycle = proliferationMode
             && (inTable || hasOwnSlides)
             && !project.ProliferationCost.IsAvailable;
-        if (data.IncludePortfolioSummarySlide
-            || drawsSubtitle
+        var stageDistribution = !updateSheet && data.IncludeStageSummary;
+        if (drawsSubtitle
             || proliferationFollowsLifecycle
-            || (!updateSheet && data.IncludeStageSummary))
+            || stageDistribution)
         {
             shown |= ProjectBriefingShownFacts.Lifecycle;
         }
 
-        if (hasOwnSlides && updateSheet && rows.Contains(ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus))
+        if (stageDistribution
+            || (hasOwnSlides && updateSheet && rows.Contains(ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus)))
         {
             shown |= ProjectBriefingShownFacts.Milestone;
         }
@@ -212,7 +215,6 @@ public static class ProjectBriefingSlideFacts
 
         if (costRdMode
             && (inTable
-                || data.IncludePortfolioSummarySlide
                 || (hasOwnSlides && (!updateSheet || rows.Contains(ProjectBriefingUpdateSheetRow.ProjectCost)))))
         {
             shown |= ProjectBriefingShownFacts.CostRd;
@@ -222,12 +224,7 @@ public static class ProjectBriefingSlideFacts
             }
         }
 
-        if (updateSheet && data.IncludePortfolioSummarySlide)
-        {
-            shown |= ProjectBriefingShownFacts.IpaCost;
-        }
-
-        if (proliferationMode && (inTable || hasOwnSlides || data.IncludePortfolioSummarySlide))
+        if (proliferationMode && (inTable || hasOwnSlides))
         {
             shown |= ProjectBriefingShownFacts.ProliferationCost;
         }

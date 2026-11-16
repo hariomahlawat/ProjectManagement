@@ -842,5 +842,19 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    Cancelled projects are counted nowhere (the chart subtitle says how many). PR 7 still has to call it
    from the block list, add the two roles to the Studio outline (`project-briefing-studio.js`), record
    the slide facts, and retire the old summary slides. Tests: `ProjectBriefingStageDistributionTests`.
+
+   Built (16 Nov 2026). A new block, **Stage-wise distribution** (`ProjectBriefingDeckBlockType.StageDistribution`),
+   takes the stage summary's place: it uses the deck's existing "stage summary" setting, so a deck
+   that had the stage summary now gets the chart and project list, with no migration, and a stored
+   overview order that named the stage summary keeps the new block in that place
+   (`NormalizeOverviewOrder`). The composer draws it with `AddStageDistributionSlides`; the Studio
+   outline knows both roles. The portfolio summary, the stage-wise summary and its "With a table" are
+   gone from the Deck tab and the composer, and their drawing code was deleted. The stored settings
+   stay (the portfolio summary and stage table switches are kept as they were), so a rolled-back
+   build still draws a deck as it was. Update sheets have no overview slides now; they lose the
+   portfolio summary they had. Slide facts: the stage-wise distribution shows each project's stage,
+   lifecycle (completed; cancelled projects left out) and its Development PDC or completion month
+   (the milestone fact); nothing counts the portfolio's cost totals any more. The block equivalence
+   fixture was re-recorded for the intended change and pins the composer from here.
 8. **Phones, Dark, docs** (this file's Studio and Deck sections rewritten to the block model, and
    the access line in `docs/current-state.md`) and a fresh cold review.

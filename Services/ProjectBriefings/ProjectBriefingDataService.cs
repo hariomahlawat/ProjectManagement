@@ -1076,8 +1076,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         ProjectBriefingNarrativeMode narrativeMode,
         IReadOnlyList<ProjectBriefingProjectVm> projects)
     {
-        var coverAndPortfolioSlides = (includeCoverSlide ? 1 : 0)
-            + (includePortfolioSummarySlide ? 1 : 0);
+        // The cover only: the portfolio summary was retired (blocks plan PR 7).
+        var coverAndPortfolioSlides = includeCoverSlide ? 1 : 0;
         var institutionalProfileSlides = institutionalProfileOptions.IncludeSlide
             && additionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.InstitutionalProfile)
                 ? 1
@@ -1128,9 +1128,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             };
         }
 
-        var summarySlides = includeStageSummary
-            ? 1 + (standardSlideOptions.IncludeStageDistributionTable ? 1 : 0)
-            : 0;
+        // The stage-wise distribution: its chart and, usually, one project list slide.
+        var summarySlides = includeStageSummary ? 2 : 0;
         var projectCategoryCount = projects
             .Select(project => project.ProjectCategory ?? "Not categorised")
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1464,7 +1463,6 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             Layout,
             PresentationMode,
             IncludeCoverSlide,
-            IncludePortfolioSummarySlide,
             IncludeStageSummary,
             IncludeProjectCategorySummary,
             IncludeTechnicalCategorySummary,

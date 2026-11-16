@@ -22,6 +22,8 @@ namespace ProjectManagement.Tests.ProjectBriefings;
 // fixture was recorded from the composer before the change (set PRISM_UPDATE_BLOCK_FIXTURE=1 to
 // record it again): for each of a wide sample of setting combinations, every slide's role, project,
 // listed projects and a digest of its XML. The test composes the same combinations now and compares.
+// Re-recorded in PR 7, which changed decks on purpose: the stage-wise distribution replaced the
+// stage summary, its table and the portfolio summary. Any other change to it is a regression.
 public sealed class ProjectBriefingBlockEquivalenceTests
 {
     private const string FixtureName = "block-equivalence.json";

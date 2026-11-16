@@ -217,12 +217,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 break;
             }
 
-            case ProjectBriefingDeckBlockType.PortfolioSummary:
-                plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data), ProjectBriefingSlideRole.PortfolioSummary));
-                break;
-
-            case ProjectBriefingDeckBlockType.StageSummary:
-                AddStageSummarySlides(plans, data);
+            // The stage summary, stage table and portfolio summary were retired for this (PR 7).
+            case ProjectBriefingDeckBlockType.StageDistribution:
+                AddStageDistributionSlides(plans, data);
                 break;
 
             case ProjectBriefingDeckBlockType.ProjectCategorySummary
@@ -559,24 +556,6 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             "l");
     }
 
-    private static void RenderPortfolioSummary(SlideCanvas canvas, ProjectBriefingPresentationData data)
-        => RenderExecutivePortfolioSummary(canvas, data);
-
-    private static void AddStageSummarySlides(
-        List<SlidePlan> plans,
-        ProjectBriefingPresentationData data)
-    {
-        plans.Add(new SlidePlan(
-            SlidePlanKind.Summary,
-            canvas => RenderStageWiseExecutiveSummary(canvas, data),
-            ProjectBriefingSlideRole.StageSummary));
-
-        if (data.StandardSlideOptions.IncludeStageDistributionTable)
-        {
-            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderStageSummaryTable(canvas, data), ProjectBriefingSlideRole.StageDistributionTable));
-        }
-    }
-
     private static void AddSummaryChartSlides(
         List<SlidePlan> plans,
         ProjectBriefingPresentationData data,
@@ -606,70 +585,6 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 ProjectBriefingSlideRole.CategorySummary));
             rankOffset += capturedPage.Count;
         }
-    }
-
-    private static void RenderStageSummaryTable(
-        SlideCanvas canvas,
-        ProjectBriefingPresentationData data)
-    {
-        AddSlideTitle(canvas, "Stage-wise project distribution");
-        var points = data.Summary.StageSummary;
-        if (points.Count == 0)
-        {
-            AddEmptyMessage(canvas, "No stage data is available for the selected projects.");
-            return;
-        }
-
-        var rows = new List<IReadOnlyList<NativeTableCell>>
-        {
-            new[]
-            {
-                Cell("PRESENT STAGE", 11.5, canvas.Theme.TextOnAccent, true, "l", canvas.Theme.TableHeader),
-                Cell("PROJECTS", 11.5, canvas.Theme.TextOnAccent, true, "r", canvas.Theme.TableHeader),
-                Cell("SHARE", 11.5, canvas.Theme.TextOnAccent, true, "r", canvas.Theme.TableHeader)
-            }
-        };
-
-        var bodyFontSize = points.Count switch
-        {
-            >= 16 => 9.2,
-            >= 13 => 9.8,
-            >= 10 => 10.5,
-            _ => 12.0
-        };
-
-        for (var index = 0; index < points.Count; index++)
-        {
-            var point = points[index];
-            var fill = index % 2 == 0 ? canvas.Theme.TableRow : canvas.Theme.TableAlternateRow;
-            var isZero = point.Count == 0;
-            var textColour = isZero ? canvas.Theme.TextMuted : canvas.Theme.TextPrimary;
-            var share = data.Summary.ProjectCount == 0
-                ? "0%"
-                : $"{point.Count * 100d / data.Summary.ProjectCount:0.#}%";
-            rows.Add(new[]
-            {
-                Cell(point.Label, bodyFontSize, textColour, !isZero, "l", fill),
-                Cell(point.Count.ToString(CultureInfo.InvariantCulture), bodyFontSize, textColour, !isZero, "r", fill),
-                Cell(share, Math.Max(8.8, bodyFontSize - .2), canvas.Theme.TextMuted, false, "r", fill)
-            });
-        }
-
-        var totalFontSize = Math.Max(9.4, bodyFontSize);
-        rows.Add(new[]
-        {
-            Cell("TOTAL SELECTED PROJECTS", totalFontSize, canvas.Theme.TextPrimary, true, "l", canvas.Theme.AccentSoft),
-            Cell(data.Summary.ProjectCount.ToString(CultureInfo.InvariantCulture), totalFontSize, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft),
-            Cell(data.Summary.ProjectCount == 0 ? "0%" : "100%", totalFontSize, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft)
-        });
-
-        var bodyRows = rows.Count - 1;
-        const double availableHeight = 5.70;
-        const double headerHeight = .42;
-        var rowHeight = Math.Min(.46, (availableHeight - headerHeight) / bodyRows);
-        var heights = new List<double> { headerHeight };
-        heights.AddRange(Enumerable.Repeat(rowHeight, bodyRows));
-        canvas.AddNativeTable(1.02, 1.10, new[] { 8.05, 1.75, 1.55 }, heights, rows, "Stage-wise project distribution table");
     }
 
     // Decks without a status table list their table row only projects in a short table of
@@ -1414,31 +1329,6 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             rightInset: .05,
             topInset: .02,
             bottomInset: .02);
-    }
-
-    private static void AddCostCards(
-        SlideCanvas canvas,
-        IReadOnlyList<CostCard> costCards,
-        double x,
-        double y,
-        double width,
-        double height,
-        double gap)
-    {
-        if (costCards.Count == 0 || height <= 0) return;
-
-        if (costCards.Count == 1)
-        {
-            AddInfoCard(canvas, x, y, width, height,
-                costCards[0].Title, costCards[0].Value, costCards[0].Accent, costCards[0].Fill, costCards[0].Note);
-            return;
-        }
-
-        var cardWidth = (width - gap) / 2d;
-        AddInfoCard(canvas, x, y, cardWidth, height,
-            costCards[0].Title, costCards[0].Value, costCards[0].Accent, costCards[0].Fill, costCards[0].Note);
-        AddInfoCard(canvas, x + cardWidth + gap, y, cardWidth, height,
-            costCards[1].Title, costCards[1].Value, costCards[1].Accent, costCards[1].Fill, costCards[1].Note);
     }
 
     private static IReadOnlyList<RichTextParagraph> BuildProjectBriefParagraphs(

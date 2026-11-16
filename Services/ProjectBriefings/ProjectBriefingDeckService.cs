@@ -1065,7 +1065,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.IncludePortfolioSummarySlide = Switch(ProjectBriefingDeckBlockType.PortfolioSummary, deck.IncludePortfolioSummarySlide);
         if (deck.Layout == ProjectBriefingLayout.StandardBriefing)
         {
-            deck.IncludeStageSummary = Switch(ProjectBriefingDeckBlockType.StageSummary, deck.IncludeStageSummary);
+            // The stage-wise distribution took the stage summary's setting (PR 7); a page from before
+            // it may still send the stage summary.
+            deck.IncludeStageSummary = Switch(
+                ProjectBriefingDeckBlockType.StageDistribution,
+                Switch(ProjectBriefingDeckBlockType.StageSummary, deck.IncludeStageSummary));
             deck.IncludeProjectCategorySummary = Switch(ProjectBriefingDeckBlockType.ProjectCategorySummary, deck.IncludeProjectCategorySummary);
             deck.IncludeTechnicalCategorySummary = Switch(ProjectBriefingDeckBlockType.TechnicalCategorySummary, deck.IncludeTechnicalCategorySummary);
 

@@ -41,9 +41,9 @@ if (root) {
     Cover: { section: 'opening', label: 'Cover', about: 'The deck name and description, the project counts and the handling marking.' },
     InstitutionalProfile: { section: 'opening', label: 'SDD profile', editor: '[data-pbd-profile-open]', about: 'History, institutional outputs and partnerships, from PRISM and the profile settings.' },
     RoleCharter: { section: 'opening', label: 'Role & Charter', fold: true, editor: '[data-pbd-role-charter-open]', about: 'The role statements and charter items kept for this deck. A long charter continues on a second slide rather than shrinking below 10 pt.' },
-    PortfolioSummary: { section: 'portfolio', label: 'Portfolio summary', about: 'Selected, completed and ongoing projects, with the recorded costs.' },
-    StageSummary: { section: 'portfolio', label: 'Stage summary', about: 'Ongoing projects by present stage, with the leading stage called out.' },
-    StageDistributionTable: { section: 'portfolio', label: 'Stage table', about: 'The stage-wise counts as an editable table.' },
+    // The stage-wise distribution (blocks plan PR 7) replaced the portfolio summary, stage summary and stage table.
+    StageDistribution: { section: 'portfolio', label: 'Stage-wise distribution', about: "This deck's projects by stage, grouped Pre-AoN, AoN to SO, Under development and Completed, each bar split by parent category. Cancelled projects are left out." },
+    StageDistributionList: { section: 'portfolio', label: 'Projects by where they stand', fold: true, about: 'Every project in its column, with the Development PDC or the completion month. A long column continues on another slide.' },
     CategorySummary: { section: 'portfolio', label: 'Category summary', fold: true, about: 'Projects by category. Left out when the deck holds a single category.' },
     StatusTable: { section: 'portfolio', label: 'Status table', fold: true, about: 'Every project with its cost, present stage and latest status remark, in deck order.' },
     ProjectCapability: { section: 'project', label: 'Capability overview' },
@@ -73,17 +73,15 @@ if (root) {
     ProjectDesign: () => ['ProjectKeyPointsOnly', 'ProjectCapability', 'ProjectBrief', 'ProjectUpdateSheet'],
     KeyPointSlide: projectRoles,
     ProjectBriefLayout: () => ['ProjectBrief'],
-    CostMode: () => ['ProjectCapability', 'ProjectBrief', 'StatusTable', 'PortfolioSummary'],
+    CostMode: () => ['ProjectCapability', 'ProjectBrief', 'StatusTable'],
     UpdateSheetRows: () => ['ProjectUpdateSheet'],
     UpdateSheetRowOrder: () => ['ProjectUpdateSheet'],
     HideEmptyUpdateSheetValues: () => ['ProjectUpdateSheet'],
-    IncludeStageSummary: () => ['StageSummary'],
-    IncludeStageDistributionTable: () => ['StageDistributionTable', 'StageSummary'],
+    IncludeStageSummary: () => ['StageDistribution'],
     // Both category charts share a role; their titles tell them apart.
     IncludeProjectCategorySummary: () => [{ role: 'CategorySummary', title: /project-category/i }],
     IncludeTechnicalCategorySummary: () => [{ role: 'CategorySummary', title: /technical-category/i }],
     IncludeCoverSlide: () => ['Cover'],
-    IncludePortfolioSummarySlide: () => ['PortfolioSummary'],
     BrandingScope: () => ['Cover'],
     ClosingSlideType: () => ['Closing']
   };
@@ -112,7 +110,7 @@ if (root) {
 
   const SECTIONS = [
     { key: 'opening', label: 'Opening' },
-    { key: 'portfolio', label: 'Portfolio' },
+    { key: 'portfolio', label: 'Overview' },
     { key: 'project', label: 'Projects' },
     { key: 'closing', label: 'Closing' },
     { key: 'leftout', label: 'Not in the PowerPoint' }
