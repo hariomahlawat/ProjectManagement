@@ -39,10 +39,6 @@
     }
 
     /**
-     * Puts a photo on the page: into `frameId` when given (an empty frame filled, or a photo
-     * replaced), else into the first empty frame, else as a new photo near the centre (or at `at`).
-     */
-    /**
      * Puts a photo on the page: in the frame it was aimed at, else the empty frame closest to its
      * shape, else (on a page without a layout, or dropped at a point) on its own. On a layout with
      * every frame full it stays in the tray, and false is returned.

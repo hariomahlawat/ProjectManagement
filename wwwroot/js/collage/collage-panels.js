@@ -128,7 +128,14 @@
         renderPropsBody();
         if (selectedItem()?.locked) props.querySelectorAll(LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
       }
-      const tab = (key, label, extra = '') => `<button type="button" role="tab" class="clg-props-tab" id="clgTab-${key}" data-props-tab="${key}" aria-selected="${state.propsTab === key}" tabindex="${state.propsTab === key ? 0 : -1}">${label}${extra}</button>`;
+      // What the tab shows is one tab panel, named by its tab, so a screen reader knows where it is.
+      const panel = document.createElement('div');
+      panel.id = 'clgPropsPanel';
+      panel.setAttribute('role', 'tabpanel');
+      panel.setAttribute('aria-labelledby', `clgTab-${state.propsTab}`);
+      panel.append(...props.childNodes);
+      props.append(panel);
+      const tab = (key, label, extra = '') => `<button type="button" role="tab" class="clg-props-tab" id="clgTab-${key}" aria-controls="clgPropsPanel" data-props-tab="${key}" aria-selected="${state.propsTab === key}" tabindex="${state.propsTab === key ? 0 : -1}">${label}${extra}</button>`;
       const count = state.collage.items.length ? ` <span class="clg-props-tab__count">${state.collage.items.length}</span>` : '';
       props.insertAdjacentHTML('afterbegin', `<button type="button" class="clg-sheet-close" data-action="close-props" aria-label="Close settings"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         <div class="clg-props-tabs" role="tablist" aria-label="Settings or Layers">${tab('settings', 'Settings')}${tab('layers', 'Layers', count)}</div>`);

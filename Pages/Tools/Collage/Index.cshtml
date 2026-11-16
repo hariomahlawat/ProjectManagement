@@ -338,7 +338,7 @@
             <span data-alert-text></span>
             <button type="button" class="btn-close" data-action="alert-close" aria-label="Close"></button>
         </div>
-        <div class="clg-busy" data-busy hidden>
+        <div class="clg-busy" data-busy role="status" aria-live="polite" hidden>
             <div class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></div>
             <span data-busy-text>Adding photos…</span>
         </div>
@@ -375,6 +375,11 @@
     <script src="~/js/collage/collage-tray.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-keys.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-panels.js" asp-append-version="true"></script>
+    <script src="~/js/collage/collage-add-panels.js" asp-append-version="true"></script>
+    <script src="~/js/collage/collage-actions.js" asp-append-version="true"></script>
+    <script src="~/js/collage/collage-start.js" asp-append-version="true"></script>
+    <script src="~/js/collage/collage-toolbar.js" asp-append-version="true"></script>
+    <script src="~/js/collage/collage-messages.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-drafts-screen.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-page.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-app.js" asp-append-version="true"></script>

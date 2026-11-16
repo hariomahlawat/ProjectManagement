@@ -11,7 +11,7 @@
   'use strict';
 
   function createPage(deps) {
-    const { state, parts, change, root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag, emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select, hideToolbar, placeToolbar, showAngle, startAdjust, stopAdjust, startPan, commit, updateUndo } = deps;
+    const { state, parts, change, root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag, emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select, startAdjust, stopAdjust, startPan, commit, updateUndo } = deps;
     // ---------------------------------------------------------------------------
     // The page (Konva)
     // ---------------------------------------------------------------------------
@@ -144,7 +144,7 @@
       itemsGroup.clip({ x: 0, y: 0, width: core.PAGE_WIDTH, height });
       zoomValue.textContent = `${Math.round(state.zoom * 100)}%`;
       layer.batchDraw();
-      placeToolbar();
+      parts.placeToolbar();
     }
 
     const resized = new ResizeObserver(() => layout());
@@ -369,7 +369,7 @@
         else if (target?.kind === 'slot') parts.chooseFor(target.id);
         else if (target?.kind === 'text') parts.focusTextField();
       });
-      node.on('dragstart', () => { select(node.id()); hideToolbar(); });
+      node.on('dragstart', () => { select(node.id()); parts.hideToolbar(); });
       node.on('dragmove', (event) => snapWhileMoving(node, event.evt));
       node.on('dragend', () => {
         guides.destroyChildren();
@@ -379,8 +379,8 @@
         target.y = node.y();
         commit();
       });
-      node.on('transformstart', () => { change.setTransforming(true); hideToolbar(); });
-      node.on('transform', () => showAngle(node));
+      node.on('transformstart', () => { change.setTransforming(true); parts.hideToolbar(); });
+      node.on('transform', () => parts.showAngle(node));
       node.on('transformend', () => {
         change.setTransforming(false);
         angleTag.hidden = true;
@@ -472,7 +472,7 @@
       emptyHint.hidden = state.collage.items.length > 0;
       backLayer.batchDraw();
       layer.batchDraw();
-      placeToolbar();
+      parts.placeToolbar();
     }
 
     function attachTransformer() {

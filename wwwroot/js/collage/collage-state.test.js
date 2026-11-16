@@ -39,7 +39,7 @@ test('a later part is found once it exists, and reading it before then says so',
 test('no editor part writes the editor state itself, or reaches the old shared object', () => {
   const fs = require('node:fs');
   const path = require('node:path');
-  for (const name of ['page', 'drafts-screen', 'panels', 'tray', 'keys']) {
+  for (const name of ['page', 'drafts-screen', 'panels', 'tray', 'keys', 'add-panels', 'actions', 'start', 'toolbar', 'messages']) {
     const source = fs.readFileSync(path.join(__dirname, `collage-${name}.js`), 'utf8').replace(/\/\/.*$/gm, '');
     assert.doesNotMatch(source, /(?<![-\w])app\.\w/, `collage-${name}.js uses the old app object`);
     assert.doesNotMatch(source, /(\+\+|--)\s*state\.\w|state\.\w+\s*(\+\+|--|[-+*/]?=(?!=))/, `collage-${name}.js writes state`);
