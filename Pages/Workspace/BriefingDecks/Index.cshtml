@@ -119,6 +119,12 @@
 @section Styles {
     <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/project-briefing-decks.css" asp-append-version="true" />
+    @if (deck is not null)
+    {
+        @* In <head> without defer, like theme-preference.js: a remembered focus view is applied
+           before first paint, so the top bar does not flash on every Studio load. *@
+        <script src="~/js/pages/project-briefing-focus.js" asp-append-version="true"></script>
+    }
 }
 
 @* The Studio starts with the workspace navigation folded, so the slide gets the room; it keeps
@@ -301,6 +307,14 @@
                                     </form>
                                     <small data-pbd-placeholder-note hidden>Gaps show as placeholders on the slides.</small>
                                 </div>
+                                @* Focus view (blocks plan PR 6): hides the top bar and the rail in this same tab, so back,
+                                   links, autosave and the Generate hand-off keep working. project-briefing-focus.js keeps
+                                   the label, icon and aria-pressed in step with the remembered choice. Not on phones. *@
+                                <button type="button" class="btn btn-outline-secondary pbd-focus-toggle" aria-pressed="false" data-pbd-focus-toggle
+                                        title="Hide the PRISM top bar and workspace navigation so the Studio has the whole window">
+                                    <i class="bi bi-fullscreen" aria-hidden="true" data-pbd-focus-icon></i>
+                                    <span data-pbd-focus-label>Focus</span>
+                                </button>
                                 @if (Model.Decks.Count(saved => saved.CanEdit) > 1)
                                 {
                                     <div class="dropdown">

@@ -98,6 +98,18 @@ the server; the script inserts only slide HTML and writes all other text as text
   in-page request with the refreshed deck, and plain form posts still redirect.
 - The Studio remembers the selected project or slide, the view and the inspector tab for the
   session, so a page reload (settings, additional slides) returns to the same place.
+- **Focus** (header, beside Generate; from 576px) hides the PRISM top bar, the footer and the
+  workspace rail in the same tab, so the outline, slide and inspector take the whole window;
+  the deck header (name, Generate, **Exit focus**) stays, and back, links, autosave and the
+  library's Generate hand-off work as before. The button is a toggle (`aria-pressed`) and keeps
+  keyboard focus. The choice is remembered per person in the browser
+  (`prism.briefingStudio.focus` in localStorage, as the theme and the rail fold are; PRISM has
+  no server-side store for UI choices), and `project-briefing-focus.js` loads in `<head>` so a
+  remembered focus view applies before first paint. Escape does not leave it (Escape belongs to
+  dialogs and Present). The Studio measures `--pbd-studio-offset` again on each change
+  (`pbd:focus-change`), and the page loses its bottom padding, so the Studio fits the window
+  without the page scrolling (1366×768 and 1920×1080 checked). Phones: no button, and a
+  remembered focus view is ignored below 576px.
 - "Missing" has one rule, `ProjectBriefingContentGaps`, applied on the server to the deck's own
   settings (template, format, costs, narrative, update-sheet rows); deleted and archived projects
   are left out.
@@ -764,8 +776,9 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    width under both. Only recorded points show; with none, the column shows a "Key points not
    recorded" placeholder and nothing else. PR 5 still adds it to `BuildStandardPlans`, the
    settings and the gaps list.
-6. **Focus view.** Header button, hides the top bar and rail, remembered per person; Escape does
-   not leave it (Escape belongs to dialogs and Present); phones unchanged.
+6. **Focus view.** Built (16 Nov 2026; see the Studio section). Header button, hides the top bar
+   and rail, remembered per person (in the browser); Escape does not leave it (Escape belongs to
+   dialogs and Present); phones unchanged.
 7. **Stage-wise distribution block.** The ARPP-style stage chart and project list for the deck's
    projects, with its slide facts ("data moved"); the old stage-wise summary, stage-wise table and
    portfolio summary are retired. This PR changes existing decks on purpose: a deck that had the

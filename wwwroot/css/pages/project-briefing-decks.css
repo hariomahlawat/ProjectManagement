@@ -5958,3 +5958,61 @@ span.pbd-additional-slide-row__handle {
     }
 }
 
+
+/* SECTION: Focus view (PR 6 of the blocks plan)
+   The Focus button in the deck header hides the PRISM top bar, the footer and the workspace
+   rail, so the outline, slide and inspector take the whole window; the deck header (name,
+   Generate, Exit focus) stays. project-briefing-focus.js sets html[data-pbd-focus] before first
+   paint. Phones (below 576px) ignore it and show no button. */
+.pbd-focus-toggle[aria-pressed="true"] {
+    border-color: var(--pbd-blue);
+    background: var(--pbd-blue-soft);
+    color: var(--pbd-blue);
+}
+
+.pbd-focus-toggle:focus-visible {
+    outline: 2px solid var(--pbd-blue);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+@media (min-width: 576px) {
+    html[data-pbd-focus] {
+        /* The Studio's sticky panels and slide sizing read this; with no top bar they start at the
+           window's top edge. */
+        --topbar-height: 0px;
+    }
+
+    html[data-pbd-focus] .pm-topbar,
+    html[data-pbd-focus] .pm-footer,
+    html[data-pbd-focus] .command-workspace--briefing-decks > [data-workspace-rail] {
+        display: none !important;
+    }
+
+    html[data-pbd-focus] .command-workspace--briefing-decks {
+        grid-template-columns: minmax(0, 1fr);
+        --cw-below: .75rem;
+    }
+
+    /* With no footer, the page's bottom padding alone made the window scroll past the Studio;
+       the panels already keep 1.5rem below them (--pbd-studio-offset maths), so the editor
+       card's own padding and a small gap are enough. */
+    html[data-pbd-focus] main[role="main"],
+    html[data-pbd-focus] .command-workspace--briefing-decks .cw-workspace-content {
+        padding-bottom: 0 !important;
+    }
+
+    html[data-pbd-focus] .pm-page-shell {
+        padding-bottom: .5rem;
+    }
+
+    html[data-pbd-focus] .pbd-studio {
+        margin-bottom: 0;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .pbd-focus-toggle {
+        display: none !important;
+    }
+}

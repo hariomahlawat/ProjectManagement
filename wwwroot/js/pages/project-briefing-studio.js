@@ -1135,6 +1135,9 @@ if (root) {
   };
   setStudioOffset();
   window.addEventListener('resize', setStudioOffset);
+  // The focus view (project-briefing-focus.js) hides or shows the top bar above the Studio
+  // without changing the editor's own size, so the ResizeObserver below would not notice.
+  window.addEventListener('pbd:focus-change', setStudioOffset);
   const editor = root.closest('.pbd-editor');
   if (editor && typeof window.ResizeObserver === 'function') new window.ResizeObserver(setStudioOffset).observe(editor);
 
