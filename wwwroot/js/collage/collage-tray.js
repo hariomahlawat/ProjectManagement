@@ -165,7 +165,7 @@
         const selected = selectedItem();
         return app.targetId || (selected?.kind === 'slot' ? selected.id : null);
       },
-      currentAlert: () => (alertBox.hidden ? '' : $('[data-alert-text]').textContent)
+      currentAlert: () => $('[data-alert-text]').textContent
     });
 
     fileInput.addEventListener('change', () => {
@@ -327,7 +327,11 @@
       if (fromTray) {
         const photo = photos.get(fromTray);
         if (photo) {
-          placePhoto(photo, { frameId: slot?.id || null, at });
+          // Dropped beside the page with every frame full: nothing changes, and the user is told.
+          if (!placePhoto(photo, { frameId: slot?.id || null, at })) {
+            showAlert('Every frame of this layout has a photo. Select a photo and use Replace, delete one to empty its frame, or choose a layout with more frames.');
+            return;
+          }
           commit();
           announce(slot ? 'Photo placed in the frame.' : 'Photo added.');
         }

@@ -179,9 +179,53 @@
     window.setTimeout(() => { announcer.textContent = text; }, 30);
   }
 
+  /**
+   * A message the user should read: shown in PRISM's toast stack with the Undo offers (one place at
+   * the bottom, never over Preview), gone after a few seconds or at the user's next change. The
+   * text also stays in the page's own alert line, which shows only when the toasts are missing.
+   */
+  const ALERT_LIFE = 9000;
+  let alertToast = null;
+  let alertShown = 0;
+
   function showAlert(text) {
+    alertToast?.dismiss();
+    alertToast = null;
     $('[data-alert-text]').textContent = text;
+    alertShown = text ? Date.now() : 0;
+    if (text && window.PrismToast) {
+      alertBox.hidden = true;
+      const toast = window.PrismToast.show({ tone: 'warning', text, life: ALERT_LIFE });
+      alertToast = toast;
+      // The toast decides when it goes (it waits while the tab is hidden or someone reads it); the
+      // page's own text follows it.
+      const host = toast.element?.parentNode;
+      if (host) {
+        const watch = new MutationObserver(() => {
+          if (toast.element.isConnected) return;
+          watch.disconnect();
+          if (alertToast === toast) clearAlert();
+        });
+        watch.observe(host, { childList: true });
+      }
+      return;
+    }
     alertBox.hidden = !text;
+  }
+
+  /** The message is done with: the user has moved on, or it has faded. */
+  function clearAlert() {
+    if (!alertShown) return;
+    alertToast?.dismiss();
+    alertToast = null;
+    alertShown = 0;
+    $('[data-alert-text]').textContent = '';
+    alertBox.hidden = true;
+  }
+
+  /** The user's next change ends a message shown before it (not one shown by this change). */
+  function changeMadeAfterAlert() {
+    if (alertShown && Date.now() - alertShown > 400) clearAlert();
   }
 
   function busy(text) {
@@ -632,6 +676,7 @@
 
   /** A finished change: one Undo step, kept in the draft, and the page and panels redrawn. */
   function commit() {
+    changeMadeAfterAlert();
     changes.commit();
   }
 
@@ -1048,7 +1093,7 @@
       case 'zoom-in': setZoom(zoom * 1.25); break;
       case 'zoom-out': setZoom(zoom / 1.25); break;
       case 'zoom-fit': setZoom(1); break;
-      case 'alert-close': showAlert(''); break;
+      case 'alert-close': clearAlert(); break;
       case 'duplicate':
         if (item) {
           // A copy is one frame more than the layout has, so the page is no longer a strict
@@ -1077,7 +1122,12 @@
           announce(item.hidden ? 'Hidden. Show it again from Layers.' : 'Shown.');
         }
         break;
-      case 'preview': startPreview(); break;
+      case 'preview':
+        // Preview is the page alone: no message and no Undo offer over it.
+        clearAlert();
+        undoOffer?.dismiss();
+        startPreview();
+        break;
       case 'edit-props': setPropsOpen(true, 'settings'); break;
       case 'toggle-props': setPropsOpen(!(body.classList.contains('is-props-open') && propsTab === 'layers'), 'layers'); break;
       case 'close-props': setPropsOpen(false); break;
