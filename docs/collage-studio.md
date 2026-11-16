@@ -220,7 +220,10 @@ working size, and a picture over 250 million pixels is refused before it is read
 
 The start screen shows one row of drafts (with "Show all") so the layouts for a new collage are
 in view. A collage nobody named is called by the first line of its first text (not the words
-that only show where to type, such as "Your heading"), or by when it was started. A photo goes
+that only show where to type, such as "Your heading"), or by when it was started; the first time
+its words name it, a short message says so. A frame goes with the Square shape only: with another
+shape the Frame row shows None, and the frame chosen before comes back with Square. Photo
+backgrounds are named by their file. A photo goes
 into the empty frame closest to its shape; photos past a layout's frames wait in Photos, with a
 message, rather than sit loose on the grid. Several photos added to a page with no layout are laid
 out in a neat grid, each fully in view. New words and stickers go where they cover nothing

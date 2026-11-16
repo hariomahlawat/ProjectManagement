@@ -1146,13 +1146,17 @@
    * A name for a collage nobody named: the first line of its first text, or the day and time
    * it was started ("Collage, 15 Nov 14:05"), so drafts can be told apart.
    */
-  function autoTitle(items, startedAt) {
+  /** The first line of the collage's first words (not a placeholder), shortened; '' if none. */
+  function autoTitleFromText(items) {
     const placeholders = new Set(Object.values(TEXT_PLACEHOLDERS));
     const text = (items || []).find((item) => item.kind === 'text' && String(item.text || '').trim() && !placeholders.has(String(item.text).trim()));
-    if (text) {
-      const line = String(text.text).split('\n').map((part) => part.trim()).find(Boolean) || '';
-      if (line) return line.length > 40 ? `${line.slice(0, 39)}…` : line;
-    }
+    const line = text ? String(text.text).split('\n').map((part) => part.trim()).find(Boolean) || '' : '';
+    return line.length > 40 ? `${line.slice(0, 39)}…` : line;
+  }
+
+  function autoTitle(items, startedAt) {
+    const fromText = autoTitleFromText(items);
+    if (fromText) return fromText;
     const when = new Date(Number.isFinite(startedAt) ? startedAt : Date.now());
     const time = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
     return `Collage, ${when.getDate()} ${MONTHS[when.getMonth()]} ${time}`;
@@ -1500,6 +1504,7 @@
     refusedMessage,
     workingSize,
     placeNewPhoto,
+    autoTitleFromText,
     gridCells,
     gridPlace,
     FULL_CROP,

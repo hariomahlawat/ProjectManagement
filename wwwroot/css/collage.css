@@ -1544,6 +1544,15 @@
 
 .clg-bg-tile[aria-pressed="true"] img {
     border-color: var(--clg-accent);
+    box-shadow: 0 0 0 2px var(--clg-accent);
+}
+
+/* An example in an empty box is lighter than anything typed, so it never reads as a value. */
+.clg-props input::placeholder,
+.clg-props textarea::placeholder {
+    color: var(--pdft-muted);
+    opacity: 0.6;
+    font-style: italic;
 }
 
 .clg-bg-tile:focus-visible {
