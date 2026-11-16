@@ -504,46 +504,6 @@ public static class ProjectBriefingDeckConfigurationCodec
         return Write(existingJson, current with { SelectionRulesJson = selectionRulesJson });
     }
 
-    public static string WithUpdateSheetOptions(
-        string? existingJson,
-        ProjectBriefingUpdateSheetOptions updateSheetOptions)
-    {
-        var current = Read(existingJson);
-        return Write(existingJson, current with { UpdateSheetOptions = updateSheetOptions });
-    }
-
-    public static string WithStandardSlideOptions(
-        string? existingJson,
-        ProjectBriefingStandardSlideOptions standardSlideOptions)
-    {
-        var current = Read(existingJson);
-        return Write(existingJson, current with { StandardSlideOptions = standardSlideOptions });
-    }
-
-    public static string WithInstitutionalProfileOptions(
-        string? existingJson,
-        ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions)
-    {
-        var current = Read(existingJson);
-        return Write(existingJson, current with { InstitutionalProfileOptions = institutionalProfileOptions });
-    }
-
-    public static string WithRoleCharterOptions(
-        string? existingJson,
-        ProjectBriefingRoleCharterOptions roleCharterOptions)
-    {
-        var current = Read(existingJson);
-        return Write(existingJson, current with { RoleCharterOptions = roleCharterOptions });
-    }
-
-    public static string WithFfcGlobalFootprintOptions(
-        string? existingJson,
-        ProjectBriefingFfcGlobalFootprintOptions options)
-    {
-        var current = Read(existingJson);
-        return Write(existingJson, current with { FfcGlobalFootprintOptions = options });
-    }
-
     public static string WithAdditionalSlideOrder(
         string? existingJson,
         IEnumerable<ProjectBriefingAdditionalSlideType> order)

@@ -38,7 +38,7 @@ public sealed class ProjectBriefingDeckPresetServiceTests
         var stuck = ProjectBriefingInstitutionalProfileOptions.Default with { IncludeSlide = true };
         var deck = await SeedAsync(
             db,
-            ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(null, stuck));
+            CodecTestWrites.WithInstitutionalProfileOptions(null, stuck));
 
         await Service(db).UpdateSettingsAsync(deck.Id, UserId, RenameCommand(deck, "Renamed deck"));
 
@@ -143,9 +143,6 @@ public sealed class ProjectBriefingDeckPresetServiceTests
             PresentationTheme = deck.PresentationTheme,
             ClosingSlideType = configuration.ClosingSlideType,
             InstitutionalProfileOptions = profile ?? configuration.InstitutionalProfileOptions,
-            RoleCharterOptions = configuration.RoleCharterOptions,
-            FfcGlobalFootprintOptions = configuration.FfcGlobalFootprintOptions,
-            AdditionalSlideOrder = configuration.AdditionalSlideOrder,
             UpdateSheetRows = configuration.UpdateSheetOptions.Rows,
             HideEmptyUpdateSheetValues = configuration.UpdateSheetOptions.HideEmptyValues,
             RowVersion = Version(deck)

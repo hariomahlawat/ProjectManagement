@@ -38,7 +38,7 @@ public sealed class ProjectBriefingDeckPresetsTests
         Assert.Equal("VisitOrExternalAudience", JsonNode.Parse(json)!["preset"]!.GetValue<string>());
 
         // Saving other settings keeps the remembered preset.
-        json = ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(
+        json = CodecTestWrites.WithStandardSlideOptions(
             json,
             ProjectBriefingStandardSlideOptions.Default with { ShowPresentStatus = false });
         Assert.Equal(ProjectBriefingDeckPreset.VisitOrExternalAudience, ProjectBriefingDeckConfigurationCodec.Read(json).Preset);

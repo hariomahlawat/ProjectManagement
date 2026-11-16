@@ -31,7 +31,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     [Fact]
     public void AStoredProfileWithoutAModuleList_ReadsEveryModule_AsBefore()
     {
-        var json = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(null, ProjectBriefingInstitutionalProfileOptions.Default);
+        var json = CodecTestWrites.WithInstitutionalProfileOptions(null, ProjectBriefingInstitutionalProfileOptions.Default);
         var document = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
         document["institutionalProfile"]!.AsObject().Remove("modules");
 
@@ -57,7 +57,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         {
             current => ProjectBriefingDeckConfigurationCodec.WithPreset(current, null),
             current => ProjectBriefingDeckConfigurationCodec.WithOverviewOrder(current, new[] { ProjectBriefingDeckBlockType.StatusTable }),
-            current => ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(current, ProjectBriefingStandardSlideOptions.Default),
+            current => CodecTestWrites.WithStandardSlideOptions(current, ProjectBriefingStandardSlideOptions.Default),
             current => ProjectBriefingDeckConfigurationCodec.WithAdditionalSlideOrder(current, Array.Empty<ProjectBriefingAdditionalSlideType>()),
             current => ProjectBriefingDeckConfigurationCodec.WithSelectionRules(current, "{\"source\":\"manual\"}")
         };
@@ -170,7 +170,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             },
             HideEmptyValues: true);
 
-        var encoded = ProjectBriefingDeckConfigurationCodec.WithUpdateSheetOptions(legacy, options);
+        var encoded = CodecTestWrites.WithUpdateSheetOptions(legacy, options);
         var decoded = ProjectBriefingDeckConfigurationCodec.Read(encoded);
 
         Assert.Equal(JsonNode.Parse(legacy)?.ToJsonString(), decoded.SelectionRulesJson);
@@ -181,7 +181,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     [Fact]
     public void WithSelectionRules_PreservesUpdateSheetPreferences()
     {
-        var initial = ProjectBriefingDeckConfigurationCodec.WithUpdateSheetOptions(
+        var initial = CodecTestWrites.WithUpdateSheetOptions(
             null,
             new ProjectBriefingUpdateSheetOptions(
                 new[]
@@ -210,13 +210,13 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     [Fact]
     public void WithStandardSlideOptions_PreservesSelectionAndUpdateSheetPreferences()
     {
-        var initial = ProjectBriefingDeckConfigurationCodec.WithUpdateSheetOptions(
+        var initial = CodecTestWrites.WithUpdateSheetOptions(
             "{\"kind\":\"Ongoing\"}",
             new ProjectBriefingUpdateSheetOptions(
                 new[] { ProjectBriefingUpdateSheetRow.ProjectCost },
                 HideEmptyValues: true));
 
-        var encoded = ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(
+        var encoded = CodecTestWrites.WithStandardSlideOptions(
             initial,
             new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.PhotoEmphasis,
@@ -237,7 +237,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     [Fact]
     public void KeyPoints_RoundTripAndDefaultToNoneForDecksSavedWithoutThem()
     {
-        var encoded = ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(
+        var encoded = CodecTestWrites.WithStandardSlideOptions(
             null,
             ProjectBriefingStandardSlideOptions.Default with { KeyPoints = ProjectBriefingKeyPointPlacement.CapabilitySlide });
 
@@ -255,7 +255,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     [Fact]
     public void WithSelectionRules_PreservesStandardSlidePreferences()
     {
-        var initial = ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(
+        var initial = CodecTestWrites.WithStandardSlideOptions(
             null,
             new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.Standard,
@@ -313,12 +313,12 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         var withSelection = ProjectBriefingDeckConfigurationCodec.WithSelectionRules(
             initial,
             "{\"kind\":\"IndividualProjects\",\"projectIds\":[7]}");
-        var withRows = ProjectBriefingDeckConfigurationCodec.WithUpdateSheetOptions(
+        var withRows = CodecTestWrites.WithUpdateSheetOptions(
             withSelection,
             new ProjectBriefingUpdateSheetOptions(
                 new[] { ProjectBriefingUpdateSheetRow.PresentStatus },
                 HideEmptyValues: false));
-        var withStandard = ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(
+        var withStandard = CodecTestWrites.WithStandardSlideOptions(
             withRows,
             ProjectBriefingStandardSlideOptions.Default);
 
@@ -356,7 +356,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             footerStripStyle: ProjectBriefingInstitutionalFooterStyle.Outline,
             footerStripAlignment: ProjectBriefingInstitutionalFooterAlignment.Center);
 
-        var encoded = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+        var encoded = CodecTestWrites.WithInstitutionalProfileOptions(
             "{\"kind\":\"Ongoing\"}",
             options);
         var decoded = ProjectBriefingDeckConfigurationCodec.Read(encoded);
@@ -376,7 +376,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     [Fact]
     public void PresentationPreferenceUpdates_PreserveInstitutionalProfileConfiguration()
     {
-        var initial = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+        var initial = CodecTestWrites.WithInstitutionalProfileOptions(
             null,
             ProjectBriefingInstitutionalProfileOptions.Normalize(
                 includeSlide: true,
@@ -617,7 +617,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     [Fact]
     public void Read_OneFieldOfTheWrongType_FallsBackForThatFieldOnly()
     {
-        var stored = JsonNode.Parse(ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+        var stored = JsonNode.Parse(CodecTestWrites.WithInstitutionalProfileOptions(
             null,
             ProjectBriefingInstitutionalProfileOptions.Default with
             {
@@ -643,7 +643,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     [Fact]
     public void Write_AfterReadingAMalformedField_KeepsTheRestOfTheConfiguration()
     {
-        var stored = JsonNode.Parse(ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+        var stored = JsonNode.Parse(CodecTestWrites.WithInstitutionalProfileOptions(
             null,
             ProjectBriefingInstitutionalProfileOptions.Default with { Title = "Our profile" }))!.AsObject();
         stored["institutionalProfile"]!.AsObject()["includeSlide"] = "yes";

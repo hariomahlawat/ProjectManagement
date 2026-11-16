@@ -98,6 +98,50 @@ public sealed class ProjectBriefingDeckDeleteRestoreTests
     }
 
     [Fact]
+    public async Task RemovingAnExpiredDeck_IsItsOwnAuditedStep_AfterTheDelete()
+    {
+        await using var db = CreateDb();
+        var clock = new MutableClock();
+        var old = await SeedAsync(db, "Old review", clock.UtcNow);
+        var other = await SeedAsync(db, "Other review", clock.UtcNow);
+        var audit = new NoAudit();
+        var service = Service(db, clock, audit);
+        await service.DeleteAsync(old.Id, UserId, Version(old));
+        clock.Advance(TimeSpan.FromDays(ProjectBriefingDeckService.DeletedRetentionDays + 1));
+
+        await service.DeleteAsync(other.Id, UserId, Version(other));
+
+        // The delete is recorded first, then one entry for each deck removed for good.
+        Assert.Equal(
+            new[] { "ProjectBriefing.DeckDeleted", "ProjectBriefing.DeckDeleted", "ProjectBriefing.DeckPurged" },
+            audit.Entries.Select(entry => entry.Action).ToArray());
+        var purged = audit.Entries[^1].Data;
+        Assert.Equal(old.Id.ToString(), purged["DeckId"]);
+        Assert.Equal("Old review", purged["DeckName"]);
+        Assert.Equal(UserId, purged["DeletedByUserId"]);
+    }
+
+    [Fact]
+    public async Task WhenThePurgeCannotBeAudited_TheDeleteStillStands()
+    {
+        await using var db = CreateDb();
+        var clock = new MutableClock();
+        var old = await SeedAsync(db, "Old review", clock.UtcNow);
+        var other = await SeedAsync(db, "Other review", clock.UtcNow);
+        await Service(db, clock).DeleteAsync(old.Id, UserId, Version(old));
+        clock.Advance(TimeSpan.FromDays(ProjectBriefingDeckService.DeletedRetentionDays + 1));
+        var audit = new NoAudit { FailOn = "ProjectBriefing.DeckPurged" };
+
+        // The required purge record fails: the purge is abandoned (rolled back on PostgreSQL),
+        // and the delete that was asked for is saved and audited all the same.
+        await Service(db, clock, audit).DeleteAsync(other.Id, UserId, Version(other));
+
+        Assert.Equal(new[] { "ProjectBriefing.DeckDeleted" }, audit.Entries.Select(entry => entry.Action).ToArray());
+        var deleted = await db.Set<ProjectBriefingDeck>().AsNoTracking().SingleAsync(deck => deck.Id == other.Id);
+        Assert.NotNull(deleted.DeletedAtUtc);
+    }
+
+    [Fact]
     public async Task DuplicatingADeckWithAVeryLongName_StaysWithinTheNameLimit()
     {
         await using var db = CreateDb();
@@ -139,8 +183,8 @@ public sealed class ProjectBriefingDeckDeleteRestoreTests
 
     private static string Version(ProjectBriefingDeck deck) => Convert.ToBase64String(deck.RowVersion);
 
-    private static ProjectBriefingDeckService Service(ApplicationDbContext db, IClock clock)
-        => new(db, new NoSelection(), new NoAudit(), clock, NullLogger<ProjectBriefingDeckService>.Instance, ProjectManagement.Tests.ProjectBriefings.FixedDeckRoles.Command);
+    private static ProjectBriefingDeckService Service(ApplicationDbContext db, IClock clock, NoAudit? audit = null)
+        => new(db, new NoSelection(), audit ?? new NoAudit(), clock, NullLogger<ProjectBriefingDeckService>.Instance, ProjectManagement.Tests.ProjectBriefings.FixedDeckRoles.Command);
 
     private static ApplicationDbContext CreateDb()
     {
@@ -169,7 +213,19 @@ public sealed class ProjectBriefingDeckDeleteRestoreTests
             string? userName = null,
             IDictionary<string, string?>? data = null,
             HttpContext? http = null)
-            => Task.CompletedTask;
+        {
+            if (action == FailOn)
+            {
+                throw new DbUpdateException("The audit log is not available.");
+            }
+
+            Entries.Add((action, data is null ? new Dictionary<string, string?>() : new Dictionary<string, string?>(data)));
+            return Task.CompletedTask;
+        }
+
+        public string? FailOn { get; init; }
+
+        public List<(string Action, Dictionary<string, string?> Data)> Entries { get; } = new();
     }
 
     private sealed class NoSelection : IProjectBriefingSelectionService

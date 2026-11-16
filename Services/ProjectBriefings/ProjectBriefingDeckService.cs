@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Services;
 
@@ -1349,17 +1350,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         EnsureVersion(deck, rowVersion);
 
         // Soft delete: the deck, its projects, notes and choices stay intact and can be restored
-        // for DeletedRetentionDays. Decks deleted longer ago than that are removed for good here.
+        // for DeletedRetentionDays.
         var now = _clock.UtcNow.ToUniversalTime();
         deck.DeletedAtUtc = now;
         deck.DeletedByUserId = userId;
         deck.RowVersion = NewRowVersion();
-
-        var expiredBefore = now.AddDays(-DeletedRetentionDays);
-        var expired = await _db.Set<ProjectBriefingDeck>()
-            .Where(candidate => candidate.DeletedAtUtc != null && candidate.DeletedAtUtc < expiredBefore)
-            .ToListAsync(cancellationToken);
-        _db.RemoveRange(expired);
 
         await _db.SaveChangesAsync(cancellationToken);
         await TryAuditAsync(
@@ -1371,6 +1366,70 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 ["DeckId"] = deckId.ToString(),
                 ["DeckName"] = deck.Name
             });
+
+        await PurgeExpiredAsync(userId, now, cancellationToken);
+    }
+
+    // Decks deleted longer ago than DeletedRetentionDays are removed for good, each with its own
+    // audit entry (review 2 fixes, Low 3). A separate step after the delete, in its own transaction
+    // with those audit entries: either the decks go and every entry is written, or nothing changes
+    // and the next delete tries again. The delete itself is already saved and audited, so a purge
+    // that fails is logged and never undoes it.
+    private async Task PurgeExpiredAsync(string userId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var expiredBefore = now.AddDays(-DeletedRetentionDays);
+        var expired = new List<ProjectBriefingDeck>();
+        try
+        {
+            expired = await _db.Set<ProjectBriefingDeck>()
+                .Where(candidate => candidate.DeletedAtUtc != null && candidate.DeletedAtUtc < expiredBefore)
+                .ToListAsync(cancellationToken);
+            if (expired.Count == 0)
+            {
+                return;
+            }
+
+            await using var transaction = _db.Database.IsRelational()
+                ? await _db.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+            _db.RemoveRange(expired);
+            await _db.SaveChangesAsync(cancellationToken);
+            foreach (var removed in expired)
+            {
+                // Required, not best effort: a purge without its record is rolled back.
+                await _audit.LogAsync(
+                    "ProjectBriefing.DeckPurged",
+                    $"Project briefing deck removed for good, {DeletedRetentionDays} days after it was deleted.",
+                    userId: userId,
+                    data: new Dictionary<string, string?>
+                    {
+                        ["DeckId"] = removed.Id.ToString(),
+                        ["DeckName"] = removed.Name,
+                        ["DeletedAtUtc"] = removed.DeletedAtUtc?.ToString("O"),
+                        ["DeletedByUserId"] = removed.DeletedByUserId
+                    });
+            }
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                exception,
+                "Expired project briefing decks were not removed; the next delete tries again. DeckIds={DeckIds}",
+                string.Join(",", expired.Select(item => item.Id)));
+            // The transaction rolled back; stop tracking what it would have changed.
+            foreach (var entry in _db.ChangeTracker.Entries()
+                .Where(entry => entry.Entity is ProjectBriefingDeck deck && expired.Contains(deck)
+                    || entry.Entity is AuditLog log && log.Action == "ProjectBriefing.DeckPurged")
+                .ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
+        }
     }
 
     public const int DeletedRetentionDays = 30;

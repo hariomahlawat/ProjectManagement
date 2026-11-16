@@ -979,7 +979,8 @@ public sealed class ProjectBriefingContractTests
         // Switched on and off in the Deck tab's slide list (UpdateBlocks); the old toggle handler is gone.
         Assert.DoesNotContain("OnPostToggleInstitutionalProfileAsync", pageModel, StringComparison.Ordinal);
         Assert.Contains("InstitutionalProfileOptions = additionalSlides.InstitutionalProfileOptions", pageModel, StringComparison.Ordinal);
-        Assert.Contains("AdditionalSlideOrder = additionalSlides.AdditionalSlideOrder", pageModel, StringComparison.Ordinal);
+        // The settings save carries no slide order or other editors' options: each editor saves its own.
+        Assert.DoesNotContain("AdditionalSlideOrder =", pageModel, StringComparison.Ordinal);
         Assert.Contains("UpdateInstitutionalProfileAsync", deckService, StringComparison.Ordinal);
         var profileUpdateStart = deckService.IndexOf("public async Task<string> UpdateInstitutionalProfileAsync(", StringComparison.Ordinal);
         var profileUpdateEnd = deckService.IndexOf("public async Task<string> UpdateRoleCharterAsync(", profileUpdateStart, StringComparison.Ordinal);
