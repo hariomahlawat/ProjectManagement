@@ -67,8 +67,10 @@
       rotationSnaps: NORMAL_SNAPS,
       rotationSnapTolerance: core.ANGLE_SNAP.within,
       rotateAnchorOffset: coarsePointer ? 40 : 30,
-      anchorSize: coarsePointer ? 22 : 12,
-      anchorCornerRadius: coarsePointer ? 11 : 6,
+      anchorSize: coarsePointer ? 14 : 12,
+      anchorCornerRadius: coarsePointer ? 7 : 6,
+      // On a touch screen a handle is drawn small but answers a finger across about 30 px.
+      anchorStyleFunc: (anchor) => { if (coarsePointer) anchor.hitStrokeWidth(16); },
       anchorFill: '#ffffff',
       anchorStroke: accent(),
       borderStroke: accent(),
@@ -86,6 +88,13 @@
       transformer.rotationSnapTolerance(held ? core.ANGLE_SNAP.stepWithShift / 2 : core.ANGLE_SNAP.within);
     }
 
+    /** The top of a sheet open over the page on a phone, in window pixels; null when none is. */
+    function visibleSheetTop() {
+      if (!document.body.contains(stageBox) || !stageBox.closest('.is-sheet-open')) return null;
+      const sheet = [...root.querySelectorAll('.clg-drawer, .clg-props')].find((element) => getComputedStyle(element).position === 'fixed' && element.offsetHeight > 0);
+      return sheet ? sheet.getBoundingClientRect().top : null;
+    }
+
     function layout() {
       if (views.editor.hidden) return;
       const height = pageHeight();
@@ -94,18 +103,26 @@
       // (docs/ux/collage-review-3-fixes.md, PR 8); above and below it keeps room for the
       // rotation handle of an item at the page's edge.
       const pad = narrow ? 16 : 48;
-      const padX = narrow ? 16 : 24;
-      // On a phone an open sheet covers the lower half: the page fits in what is left above it.
+      const padX = narrow ? 8 : 24;
+      // On a phone an open sheet covers the lower part: the page fits in what is left above it,
+      // measured from the sheet itself (it is often shorter than the most it may take).
       const box = getComputedStyle(stageBox);
-      const usableHeight = stageBox.clientHeight - (parseFloat(box.paddingTop) || 0) - (parseFloat(box.paddingBottom) || 0);
+      const top = parseFloat(box.paddingTop) || 0;
+      const sheetTop = visibleSheetTop();
+      const usableHeight = sheetTop === null
+        ? stageBox.clientHeight - top - (parseFloat(box.paddingBottom) || 0)
+        : Math.max(120, sheetTop - stageBox.getBoundingClientRect().top - top);
       const fit = Math.min((stageBox.clientWidth - 2 * padX) / core.PAGE_WIDTH, (usableHeight - 2 * pad) / height);
       app.scale = Math.max(0.05, fit * app.zoom);
       const pageW = core.PAGE_WIDTH * app.scale;
       const pageH = height * app.scale;
       // Rounded up to steps, so a pinch makes new canvases now and then, not at every move.
       const step = 128;
-      const stageW = Math.max(stageBox.clientWidth, Math.ceil((pageW + 2 * padX) / step) * step);
-      const stageH = Math.max(usableHeight, Math.ceil((pageH + 2 * pad) / step) * step);
+      // A page that fits the view keeps the view's own size (no rounding up past it, which would
+      // push the page off centre on a phone).
+      const grown = (need, view) => (need <= view ? view : Math.max(view, Math.ceil(need / step) * step));
+      const stageW = grown(pageW + 2 * padX, stageBox.clientWidth);
+      const stageH = grown(pageH + 2 * pad, usableHeight);
       // Each layer stays under the browser's canvas limit at any zoom (core.canvasPixelRatio):
       // set before the stage grows, so a canvas too large is never made.
       const ratio = core.canvasPixelRatio(stageW, stageH, window.devicePixelRatio || 1);
@@ -129,7 +146,10 @@
       placeToolbar();
     }
 
-    new ResizeObserver(() => layout()).observe(stageBox);
+    const resized = new ResizeObserver(() => layout());
+    resized.observe(stageBox);
+    // On a phone a sheet over the page can grow or shrink (a tray filling up): the page follows.
+    root.querySelectorAll('.clg-drawer, .clg-props').forEach((sheet) => resized.observe(sheet));
 
     /** Shows the page alone, without panels or handles; Esc or Exit preview comes back. */
     function startPreview() {
@@ -482,7 +502,7 @@
     }
 
 
-    return { stage, backLayer, layer, pageRect, world, guides, nodes, transformer, setShift, layout, startPreview, stopPreview, setZoom, applyItem, measureText, textLayouts, layoutTextItem, fontsReady, stickerSource, stickerImage, lastStickerImage, clampedCrop, syncPage, attachTransformer, syncAll };
+    return { stage, backLayer, layer, pageRect, world, guides, nodes, transformer, setShift, layout, visibleSheetTop, startPreview, stopPreview, setZoom, applyItem, measureText, textLayouts, layoutTextItem, fontsReady, stickerSource, stickerImage, lastStickerImage, clampedCrop, syncPage, attachTransformer, syncAll };
   }
 
   return Object.freeze({ createPage });
