@@ -825,3 +825,16 @@ test('"Make it casual" keeps the frames and shapes chosen by hand', () => {
   assert.notEqual(b.angle, 0, 'still tilted');
   assert.equal(b.aspect, heart.aspect);
 });
+
+test('a caption strip takes its room from the picture, inside any frame', () => {
+  const PC = require('./collage-core.js');
+  const plain = PC.photoItem('a', 'p1', 1, { x: 0, y: 0, width: 500 });
+  assert.equal(PC.captionStripHeight(plain), 0);
+  const captioned = { ...plain, caption: '  Annual day  ' };
+  assert.equal(PC.captionStripHeight(captioned), 500 * PC.CAPTION_STRIP);
+  assert.equal(PC.innerBox(captioned).height, 500 - 500 * PC.CAPTION_STRIP);
+  const bordered = { ...captioned, frame: 'border' };
+  assert.equal(PC.framePads(bordered).bottom, 500 * PC.FRAMES.border.bottom + 500 * PC.CAPTION_STRIP);
+  assert.equal(PC.hasCaptionStrip({ ...plain, caption: '   ' }), false, 'spaces are no caption');
+  assert.equal(PC.hasCaptionStrip({ ...captioned, shape: 'heart' }), true, 'a shaped photo has one too');
+});

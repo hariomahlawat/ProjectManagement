@@ -346,11 +346,32 @@
     return item.kind === 'photo' && (item.shape || 'rect') === 'rect' && FRAMES[item.frame] && item.frame !== 'none';
   }
 
-  /** The frame's edges in page units: left, right, top and bottom. */
+  /** A caption strip's height, as a fraction of the photo's width. */
+  const CAPTION_STRIP = 0.11;
+
+  /**
+   * Whether a photo shows its caption on a white strip under the picture: any photo with a
+   * caption, except a polaroid, which writes it by hand in its own deep bottom edge.
+   */
+  function hasCaptionStrip(item) {
+    if (item?.kind !== 'photo' || !String(item.caption || '').trim()) return false;
+    return !(isFramed(item) && item.frame === 'polaroid');
+  }
+
+  /** The caption strip's height in page units (0 when there is none). */
+  function captionStripHeight(item) {
+    return hasCaptionStrip(item) ? item.width * CAPTION_STRIP : 0;
+  }
+
+  /**
+   * The frame's edges in page units: left, right, top and bottom. A caption strip is under the
+   * picture, inside the frame's bottom edge.
+   */
   function framePads(item) {
-    if (!isFramed(item)) return { left: 0, right: 0, top: 0, bottom: 0 };
+    const strip = captionStripHeight(item);
+    if (!isFramed(item)) return { left: 0, right: 0, top: 0, bottom: strip };
     const frame = FRAMES[item.frame];
-    return { left: item.width * frame.side, right: item.width * frame.side, top: item.width * frame.top, bottom: item.width * frame.bottom };
+    return { left: item.width * frame.side, right: item.width * frame.side, top: item.width * frame.top, bottom: item.width * frame.bottom + strip };
   }
 
   /** The picture area inside the frame, in the item's own units (0, 0 is its top-left corner). */
@@ -373,7 +394,7 @@
    * a polaroid's edges follow its width, so squeezing it flat could otherwise leave no photo.
    */
   function limitFrameAspect(item) {
-    if (!isFramed(item)) return item.aspect;
+    if (!isFramed(item) && !hasCaptionStrip(item)) return item.aspect;
     const pads = framePads(item);
     const minHeight = pads.top + pads.bottom + Math.max(MIN_PICTURE, item.width * 0.1);
     return Math.min(item.aspect, item.width / minHeight);
@@ -1383,6 +1404,9 @@
     readDraftModel,
     sortDrafts,
     photosInUse,
+    CAPTION_STRIP,
+    hasCaptionStrip,
+    captionStripHeight,
     emptyFrame,
     freeSpot,
     TEXT_PLACEHOLDERS,

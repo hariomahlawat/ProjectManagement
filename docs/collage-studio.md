@@ -74,7 +74,8 @@ its npm package by hand; the libman entry records the version.
   and year, tick the photos, Add). Empty frames fill first. A photo the page does not show can be
   taken out of the collage with the × on its tray picture (Undo of its frame brings it back);
   one file that cannot be read is named and the rest go in. A photo can be turned to any
-  angle, resized, mirrored, given a frame (white border, polaroid with a caption, tape, torn
+  angle, resized, mirrored, given an optional caption (on a white strip under the photo, or
+  handwritten in a polaroid's edge), a frame (white border, polaroid, tape, torn
   edge), rounded corners, a shape (oval, heart, star, hexagon, arch), a shadow and a look (black and
   white, sepia, vintage, vivid, soft, cool, warm), and moved inside its frame (**Adjust**, or double-click).
 - **Casual or neat**: one button scatters the photos at slight angles as polaroids and taped
