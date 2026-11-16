@@ -33,6 +33,11 @@
       });
     }
 
+    function dropUndoOffer() {
+      undoOffer?.dismiss();
+      undoOffer = null;
+    }
+
     function act(action) {
       const item = selectedItem();
       if (core.lockBlocks(item, action)) { sayLocked(); return; }
@@ -40,8 +45,9 @@
         case 'home': goHome(); break;
         case 'choose': fileInput.click(); break;
         // Undo and Redo end moving a photo inside its frame only when there is a step to take.
-        case 'undo': { const back = changes.undo(); if (back) { stopAdjust(false); restore(back); } else updateUndo(); break; }
-        case 'redo': { const again = changes.redo(); if (again) { stopAdjust(false); restore(again); } else updateUndo(); break; }
+        // A step taken back (or forward again) leaves the Undo offer on the screen out of date.
+        case 'undo': { const back = changes.undo(); if (back) { dropUndoOffer(); stopAdjust(false); restore(back); } else updateUndo(); break; }
+        case 'redo': { const again = changes.redo(); if (again) { dropUndoOffer(); stopAdjust(false); restore(again); } else updateUndo(); break; }
         case 'zoom-in': setZoom(state.zoom * 1.25); break;
         case 'zoom-out': setZoom(state.zoom / 1.25); break;
         case 'zoom-fit': setZoom(1); break;

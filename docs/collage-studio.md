@@ -258,7 +258,11 @@ it is WhatsApp or email.
 
 Messages (a photo that did not fit, a file that could not be read, a full layout) show in PRISM's
 toast stack at the bottom, with the Undo offers, never over the page in Preview. Each goes after a
-few seconds or at the user's next change.
+few seconds or at the user's next change. In the editor the stack moves up out of the way of the
+selected item's toolbar and the phone's bottom bar (`collage-messages.js` sets
+`--clg-toast-lift`); other PRISM pages keep it where it is. An Undo offer goes once its step is
+undone, by the toast, Ctrl+Z or the Undo button. The editor's toasts close when the user goes back
+to the start screen, and wait dimmed behind an open dialog.
 
 ### Phones and the Dark theme
 
