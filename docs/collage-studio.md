@@ -243,8 +243,10 @@ itself stays the colour the user chose, as it will print.
   a stubbed library; and a phone (sheets, Layers, `pagehide`, the canvas limit, the header).
   Since the second review also: drafts deleted while opening or from another tab, removing a
   photo, typing then Bold, keeping the user's choices, captions, Preview and Save, the settings
-  tabs, Ctrl+S, and the polish (stickers fit, units, PRISM Photos off, a missing script). They
-  run on every pull request.
+  tabs, Ctrl+S, rounded corners, and the polish (stickers fit, units, PRISM Photos off, a missing
+  script). They run on every pull request, with the page served under PRISM's own Content Security
+  Policy (`tests/browser/fixtures/production-headers.json`, written from the C# side by
+  `CollageBrowserFixtureTests`); a policy violation fails the test.
 - `ProjectManagement.Tests/Tools/CollageApiHostTests.cs` runs the real PRISM host: each of the
   three Collage APIs answers an anonymous request with 401, every `/api/collage` route requires
   authorization, and the library lists each kind of photo at its own page's address.
