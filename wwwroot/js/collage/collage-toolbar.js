@@ -61,7 +61,9 @@
         ?? [above, below].find(fits)
         ?? Math.min(Math.max(above, stageBox.scrollTop + 6), visibleBottom - height - 6);
       toolbar.style.left = `${left}px`;
-      toolbar.style.top = `${top}px`;
+      // Never below what can be seen: a toolbar past the bottom makes the work surface scroll, and
+      // its scrollbars move the page (which moves the toolbar back again).
+      toolbar.style.top = `${Math.max(stageBox.scrollTop + 6, Math.min(top, stageBox.scrollTop + stageBox.clientHeight - toolbar.offsetHeight - 6))}px`;
     }
 
     function showAngle(node) {

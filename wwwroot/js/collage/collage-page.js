@@ -125,7 +125,10 @@
       const step = 128;
       // A page that fits the view keeps the view's own size (no rounding up past it, which would
       // push the page off centre on a phone).
-      const grown = (need, view) => (need <= view ? view : Math.max(view, Math.ceil(need / step) * step));
+      // A page fitted to the view can come out a hair larger than it (rounding), which must not
+      // round up to the next step: the work surface would scroll, its scrollbars take room, and the
+      // page would be fitted again, over and over (the page shook).
+      const grown = (need, view) => (need <= view + 1 ? view : Math.max(view, Math.ceil(need / step) * step));
       const stageW = grown(pageW + 2 * padX, stageBox.clientWidth);
       const stageH = grown(pageH + 2 * pad, usableHeight);
       // Each layer stays under the browser's canvas limit at any zoom (core.canvasPixelRatio):
@@ -152,7 +155,9 @@
     }
 
     const resized = new ResizeObserver(() => layout());
-    resized.observe(stageBox);
+    // The work surface's own size, not its content box: scrollbars coming and going change the
+    // content box, and fitting the page again on that is what made the page shake.
+    resized.observe(stageBox, { box: 'border-box' });
     // On a phone a sheet over the page can grow or shrink (a tray filling up): the page follows.
     root.querySelectorAll('.clg-drawer, .clg-props').forEach((sheet) => resized.observe(sheet));
 
