@@ -278,9 +278,10 @@ to the start screen, and wait dimmed behind an open dialog.
 At 820 px wide and below, the panels move to a bar at the bottom. A panel, or the selected item's
 settings (the **Settings** button on the toolbar over the item), opens as a sheet over the lower
 half with a close button, and the page fits in the space above it (measured from the sheet, so a
-short sheet leaves a bigger page; at 390 px the page is about 374 px wide). The toolbar stays in
-view, never behind a sheet or over the chosen item, and the handles are small with a wider area to
-touch. The bottom bar's **Layers**
+short sheet leaves a bigger page; at 390 px the page is about 374 px wide). The selected item's
+toolbar is docked in a strip kept free at the top of the work surface, so it never covers a photo,
+and the handles are small with a wider area to touch. Adding words shows the Words box without
+opening the phone's keyboard over the page, and the Hindi hint speaks of the phone's own keyboard. The bottom bar's **Layers**
 button opens the Layers tab even when nothing is selected, so hidden items can always be
 shown again. Preview fills the whole screen. Two fingers on the page zoom
 it, around the point between the fingers; one finger moves items. The zoom buttons are hidden on

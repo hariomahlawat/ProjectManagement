@@ -37,8 +37,17 @@
         lockButton.title = item.locked ? 'Unlock' : 'Lock';
         lockButton.querySelector('i').className = `bi ${item.locked ? 'bi-lock-fill' : 'bi-unlock'}`;
       }
-      const rect = node.getClientRect();
       toolbar.hidden = false;
+      // On a phone the toolbar is docked in a strip kept free at the top of the work surface, so it
+      // never lies over a photo a finger is aiming at.
+      const docked = window.matchMedia?.('(max-width: 820px)').matches === true;
+      toolbar.classList.toggle('is-docked', docked);
+      if (docked) {
+        toolbar.style.left = '';
+        toolbar.style.top = `${stageBox.getBoundingClientRect().top + 6}px`;
+        return;
+      }
+      const rect = node.getClientRect();
       const width = toolbar.offsetWidth;
       const above = rect.y - toolbar.offsetHeight - (adjusting ? 12 : transformer.rotateAnchorOffset() + 18);
       const below = rect.y + rect.height + 14;

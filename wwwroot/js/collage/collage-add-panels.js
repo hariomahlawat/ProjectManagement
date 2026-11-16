@@ -278,7 +278,9 @@
       placeNewItem(item);
       commit();
       announce('Text added. Type the words in the Words box.');
-      window.requestAnimationFrame(parts.focusTextField);
+      // A touch screen shows the Words box without opening its keyboard over the page.
+      const touch = window.matchMedia?.('(pointer: coarse)').matches === true;
+      window.requestAnimationFrame(() => parts.focusTextField({ focus: !touch }));
     }
 
     // The Text, Stickers and Background panels answer their own buttons.
