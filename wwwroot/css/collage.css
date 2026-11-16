@@ -1012,6 +1012,53 @@
     }
 }
 
+/* Words for a mouse and keys, or for a touch screen: only one shows. */
+.clg-for-touch {
+    display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .clg-for-mouse {
+        display: none;
+    }
+
+    .clg-for-touch {
+        display: revert;
+    }
+}
+
+/* A phone's header: the name has the room; the page size is in the Page settings. */
+@media (max-width: 600px) {
+    .clg .pdft-brand__text span {
+        display: none;
+    }
+
+    /* The link back to PRISM keeps its name for screen readers. */
+    .clg .pdft-topbar__back span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .clg .pdft-brand__text {
+        white-space: nowrap;
+    }
+
+    .clg-bar .clg-size {
+        display: none;
+    }
+
+    .clg-bar .clg-name {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 6rem;
+        max-width: none;
+    }
+}
+
 /* ---------- Drafts ---------- */
 
 .clg-draft-status {

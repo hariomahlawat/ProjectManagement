@@ -149,7 +149,7 @@ delete the oldest.
 | `]` / `[` | Bring forward / send backward; with Shift, to the front / back |
 | Enter | When the page has focus: adjust the selected photo, or edit the selected text. On a focused button, Enter presses that button |
 | Ctrl+Z, Ctrl+Y (or Ctrl+Shift+Z) | Undo, redo |
-| Ctrl+S | Save as… |
+| Ctrl+S | Save as… (also while typing in a box) |
 | Shift while turning | 15° steps |
 | Esc | Leave adjusting, deselect, or leave Preview |
 
@@ -214,6 +214,9 @@ button opens the Layers tab even when nothing is selected, so hidden items can a
 shown again. Preview fills the whole screen. Two fingers on the page zoom
 it, around the point between the fingers; one finger moves items. The zoom buttons are hidden on
 phones, and the draft status shows only when something is wrong, with its reason in the alert.
+On a phone the header keeps to one line: "by PRISM" and the page size go (the size is in the
+Page settings), so the collage name has the room; every icon button keeps its name for screen
+readers. Hints speak of tapping on a touch screen and of clicking and keys elsewhere.
 
 Colours come from Bootstrap variables, so the Dark theme needs no rules of its own; the page
 itself stays the colour the user chose, as it will print.

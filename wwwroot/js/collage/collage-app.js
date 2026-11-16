@@ -1633,7 +1633,7 @@
           commit();
           offerUndo(leavesFrame ? 'Photo taken out; its frame is empty.' : `${core.layerName(item)} deleted.`);
           // Focus goes on to what is left, in the Layers list, rather than to the page.
-          if (!leavesFrame) window.requestAnimationFrame(() => props.querySelector('[data-layer-select]')?.focus());
+          if (!leavesFrame) window.requestAnimationFrame(() => (props.querySelector('[data-layer-select]') || props.querySelector('[data-props-tab="layers"]'))?.focus());
         }
         break;
       case 'forward': case 'backward': case 'front': case 'back':
@@ -1947,12 +1947,19 @@
             .map(([key, size]) => `<option value="${key}"${key === collage.size ? ' selected' : ''}>${escapeHtml(size.label)} · ${escapeHtml(size.note)}</option>`).join('')}</select></label>
         <div class="clg-section">
           <p class="clg-section__title">How to</p>
-          <ul class="clg-tips">
+          <ul class="clg-tips clg-for-mouse">
             <li>Click a photo to change it; drag it to move it.</li>
             <li>Drag a corner to resize, or the middle of a side to change the frame's shape. Drag the round handle above it to turn it; it clicks to straight and 45°, and Shift gives 15° steps.</li>
             <li>Double-click a photo to move it inside its frame.</li>
             <li>Pink lines show when a photo lines up with the page or another photo. Hold Alt to move freely.</li>
             <li>Ctrl+Z undoes, Delete removes, Ctrl+D duplicates, and the arrow keys nudge.</li>
+          </ul>
+          <ul class="clg-tips clg-for-touch">
+            <li>Tap a photo to change it; drag it with one finger to move it.</li>
+            <li>Drag a corner to resize it, and the round handle above it to turn it.</li>
+            <li>Tap a photo twice to move it inside its frame.</li>
+            <li>Two fingers on the page zoom in and out.</li>
+            <li>The arrows at the top undo and redo.</li>
           </ul>
         </div>`;
       return;
@@ -2509,9 +2516,9 @@
       else select(null);
       return;
     }
+    if (mod && key === 's') { event.preventDefault(); if (typing) event.target.blur(); act('save-open'); return; }
     if (typing) return;
-    if (mod && key === 's') { event.preventDefault(); act('save-open'); }
-    else if (mod && key === 'z' && !event.shiftKey) { event.preventDefault(); act('undo'); }
+    if (mod && key === 'z' && !event.shiftKey) { event.preventDefault(); act('undo'); }
     else if (mod && (key === 'y' || (key === 'z' && event.shiftKey))) { event.preventDefault(); act('redo'); }
     else if (mod && key === 'd') { event.preventDefault(); act('duplicate'); }
     else if ((key === 'delete' || key === 'backspace') && selectedId) { event.preventDefault(); act('delete'); }
