@@ -476,6 +476,25 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         Assert.False(conflict.ExceptionHandled);
     }
 
+    // Review 6 fixes, Low 2: a delete that fails returns to where it was started.
+    [Theory]
+    [InlineData("library", null)]
+    [InlineData(null, "deck")]
+    public async Task ADeleteThatHitsAConflict_ReturnsToWhereItStarted(string? from, string? expectedDeck)
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
+        var page = CreatePage(db, Officer);
+
+        var result = await page.OnPostDeleteAsync(deck.Id, Convert.ToBase64String(Guid.NewGuid().ToByteArray()), CancellationToken.None, from);
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        var deckId = redirect.RouteValues?["deckId"];
+        Assert.Equal(expectedDeck is null ? null : deck.Id, deckId as long?);
+        Assert.Contains("updated by another user", page.ErrorMessage);
+        Assert.Null((await ReloadAsync(db, deck)).DeletedAtUtc);
+    }
+
     // ---- Set-up -------------------------------------------------------------------------------
 
     private static IndexModel CreatePage(ApplicationDbContext db, string userId, bool ajax = false, NoAudit? audit = null)

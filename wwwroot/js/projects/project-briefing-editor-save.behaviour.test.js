@@ -61,11 +61,11 @@ const startPage = () => {
         json: async () => body
       }),
       // What fetch returns after the sign-in expired: the redirect is followed to the sign-in page.
-      signInPage: () => resolve({
+      signInPage: (url = 'http://localhost/Identity/Account/Login') => resolve({
         ok: true,
         status: 200,
         redirected: true,
-        url: 'http://localhost/Identity/Account/Login',
+        url,
         headers: { get: (name) => (name.toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null) },
         json: async () => { throw new SyntaxError('Unexpected token <'); }
       })
@@ -207,4 +207,15 @@ test('the delete dialog outside the page root posts the version the last save pr
   await saving;
 
   assert.equal(document.querySelector('[data-test-delete-dialog] input[name="rowVersion"]').value, 'v2');
+});
+
+test('a person whose briefing role was removed is told so, not that the sign-in expired', async () => {
+  const { window, document, requests } = startPage();
+  const saving = document.querySelector('[data-pbd-root]').pbdSaveEditor(document.querySelector('[data-pbd-ffc-footprint-form]'));
+  await settle(window);
+  requests[0].signInPage('http://localhost/Identity/Account/AccessDenied?ReturnUrl=%2FWorkspace%2FBriefingDecks%2F7');
+  const result = await saving;
+
+  assert.equal(result.ok, false);
+  assert.equal(result.message, 'You no longer have access to briefing decks. Reload the page.');
 });

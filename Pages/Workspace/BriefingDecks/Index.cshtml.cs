@@ -171,8 +171,14 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostDeleteAsync(
         long deckId,
         string rowVersion,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? from = null)
     {
+        // A delete that fails returns to where it was started: the library list or the Studio
+        // (review 6 fixes, Low 2).
+        IActionResult Back() => string.Equals(from, "library", StringComparison.Ordinal)
+            ? RedirectToLibrary()
+            : RedirectToPage(new { deckId });
         var userId = RequireUserId();
         try
         {
@@ -197,12 +203,12 @@ public sealed class IndexModel : PageModel
         catch (DbUpdateConcurrencyException)
         {
             ErrorMessage = "The deck was updated by another user and was not deleted. Reload and try again.";
-            return RedirectToPage(new { deckId });
+            return Back();
         }
         catch (DbUpdateException)
         {
             ErrorMessage = "The deck could not be deleted. Reload and try again.";
-            return RedirectToPage(new { deckId });
+            return Back();
         }
     }
 

@@ -577,8 +577,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     }
 
     // A template's settings on a deck, in memory (nothing is saved): used when a deck is created from
-    // a template and when a template is applied. Returns whether the institution slides changed.
-    private static bool SetFromPreset(ProjectBriefingDeck deck, ProjectBriefingDeckPreset preset)
+    // a template.
+    private static void SetFromPreset(ProjectBriefingDeck deck, ProjectBriefingDeckPreset preset)
     {
         var target = ProjectBriefingDeckPresets.Get(preset).State;
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
@@ -638,7 +638,6 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithPreset(json, preset);
-        return additionalSlidesChanged;
     }
 
     /// <summary>

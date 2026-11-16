@@ -29,12 +29,18 @@ if (root) {
   // (fetch follows the redirect and gets a 200 page that is not the reply asked for). Nothing was
   // saved, and the page must say so rather than "Saved" (review 5 fixes, H1). Every in-page
   // request on this page and in the Studio checks its reply here first.
+  // A request that only reads (the slide preview, photographs) saved nothing either way, and a
+  // person whose briefing role was removed is sent to Access denied, not to sign in (review 6
+  // fixes, Low 4).
   const SIGNED_OUT_MESSAGE = 'Your sign-in has expired, so nothing was saved. Sign in again in a new tab, then try again here.';
-  const checkReply = (response, { file = false } = {}) => {
+  const SIGNED_OUT_READ_MESSAGE = 'Your sign-in has expired. Sign in again in a new tab, then reload this page.';
+  const NO_ACCESS_MESSAGE = 'You no longer have access to briefing decks. Reload the page.';
+  const checkReply = (response, { file = false, read = false } = {}) => {
     const type = response.headers?.get?.('content-type') || '';
     const expected = type.includes('json') || (file && type.includes('presentationml'));
     if (response.redirected || (response.ok && !expected)) {
-      throw new RequestError(SIGNED_OUT_MESSAGE, 401, null);
+      if (/\/AccessDenied/i.test(response.url || '')) throw new RequestError(NO_ACCESS_MESSAGE, 403, null);
+      throw new RequestError(read ? SIGNED_OUT_READ_MESSAGE : SIGNED_OUT_MESSAGE, 401, null);
     }
     return response;
   };
@@ -626,8 +632,8 @@ if (root) {
   };
 
   const syncInstitutionalProfileSettings = () => {
-    // Inclusion is controlled exclusively from the Additional Slides workspace.
-    // Keep the focused editor available so a disabled slide can be configured before it is enabled.
+    // The slide list decides whether the slide is in the deck; the editor stays available while it
+    // is out, so the slide can be prepared first.
     if (institutionalProfileSettings) institutionalProfileSettings.hidden = false;
     if (institutionalHistoryFields) institutionalHistoryFields.hidden = !institutionalHistoryEnable?.checked;
     if (institutionalFooterFields) institutionalFooterFields.hidden = !institutionalFooterEnable?.checked;
@@ -2250,7 +2256,7 @@ if (root) {
         headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         signal: searchAbortController.signal
       });
-      checkReply(response);
+      checkReply(response, { read: true });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.message || `Search failed (${response.status}).`);
       renderSearchResults(payload || []);
