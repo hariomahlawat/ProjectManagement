@@ -2312,7 +2312,11 @@
     const selected = selectedItem();
     // An empty frame that is selected takes the photo; so does the frame being replaced.
     const frameId = targetId || (selected?.kind === 'slot' ? selected.id : null);
-    placePhoto(photo, { frameId });
+    // Every frame of the layout has a photo: nothing changes, and the user is told how to make room.
+    if (!placePhoto(photo, { frameId })) {
+      showAlert('Every frame of this layout has a photo. Select a photo and use Replace, delete one to empty its frame, or choose a layout with more frames.');
+      return;
+    }
     setTarget(null);
     commit();
     announce(frameId ? 'Photo placed in the frame.' : 'Photo added.');
