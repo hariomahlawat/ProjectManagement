@@ -101,7 +101,14 @@ its npm package by hand; the libman entry records the version.
   frame put on a photo turns its shadow on, so it shows on a white page.
 - **Undo and Redo** for every change.
 - **Save as** PNG, JPEG (optionally under a size in KB) or PDF whose page is the paper's real
-  size; at print quality (300 dpi) or for the screen (1920 px on the long side). Save reads each
+  size; at print quality (300 dpi) or for the screen (1920 px on the long side). The dialog asks
+  first **what it is for** (WhatsApp or email: a JPG for the screen; Printing: a PDF at print
+  quality; A slide or a screen: a PNG for the screen). The chosen purpose shows pressed, with a
+  tick, and a line under it says what Save will make. The type, the quality and "Keep it under"
+  are under **More options**, closed at first; once opened it stays open next time (both choices
+  are remembered in this browser only). A type or quality changed there is what Save makes, and
+  then no purpose shows pressed. Tab stays inside the dialog, and on a phone it fits one screen
+  with More options closed. Save reads each
   original photo again at the size its frame needs, so the saved picture is sharper than the
   screen; empty frames and hidden items are left out.
 

@@ -1774,25 +1774,94 @@
     white-space: nowrap;
 }
 
+/* Save: what it is for comes first, with what it makes; type and quality are under More options
+   (docs/ux/collage-review-3-fixes.md, PR 6). */
 .clg-purpose {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4rem;
-    margin: 0.2rem 0 0.4rem;
+    margin: 0.2rem 0 0.5rem;
 }
 
-/* The purpose the chosen type and quality match. */
-.clg-purpose [data-save-purpose].is-on {
+.clg-purpose__choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.35rem;
+}
+
+.clg-purpose [data-save-purpose] .bi {
+    display: none;
+}
+
+/* The purpose the chosen type and quality match: a thick accent edge, a tint and a tick, so it
+   reads as pressed in Light and Dark alike, and not by colour alone. */
+.clg-purpose [data-save-purpose][aria-pressed="true"] {
     border-color: var(--clg-accent);
-    background: color-mix(in srgb, var(--clg-accent) 14%, transparent);
+    box-shadow: inset 0 0 0 1px var(--clg-accent);
+    background: color-mix(in srgb, var(--clg-accent) 22%, transparent);
     color: var(--bs-emphasis-color);
     font-weight: 700;
 }
 
+.clg-purpose [data-save-purpose][aria-pressed="true"] .bi {
+    display: inline-block;
+}
+
 .clg-purpose__label {
-    margin-right: 0.2rem;
-    color: var(--pdft-muted);
-    font-size: 0.85rem;
+    color: var(--bs-emphasis-color);
+    font-size: 0.95rem;
     font-weight: 700;
+}
+
+.clg-save-summary {
+    margin: 0.5rem 0 0;
+    color: var(--pdft-muted);
+    font-size: 0.86rem;
+}
+
+.clg-more {
+    margin: 0.4rem 0 0;
+    border-top: 1px solid var(--pdft-border);
+    padding-top: 0.4rem;
+}
+
+.clg-more > summary {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding: 0.35rem 0.2rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+}
+
+.clg-more > summary::-webkit-details-marker {
+    display: none;
+}
+
+.clg-more > summary::before {
+    content: "\25B8";
+    display: inline-block;
+    transition: transform 0.15s ease;
+}
+
+.clg-more[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.clg-more > summary:focus-visible {
+    outline: 2px solid var(--clg-accent);
+    outline-offset: 2px;
+}
+
+.clg-more__hint {
+    color: var(--pdft-muted);
+    font-size: 0.8rem;
+    font-weight: 400;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .clg-more > summary::before {
+        transition: none;
+    }
 }
