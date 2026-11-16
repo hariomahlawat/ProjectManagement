@@ -11,7 +11,7 @@
   'use strict';
 
   function createActions(deps) {
-    const { state, parts, root, core, $, views, fileInput, nameInput, sizeSelect, body, props, changes, photos, newItemId, itemById, selectedItem, isFrame, change, announce, clearAlert, startCollage, goHome, layer, layout, startPreview, stopPreview, setZoom, session, scheduleDraft, renderDrafts, undoDeleteDraft, openDraft, select, startAdjust, stopAdjust, refreshTitle, commit, updateUndo, restore, changeSelected, lockedNow, applyLayoutKey } = deps;
+    const { state, parts, root, core, $, views, fileInput, nameInput, sizeSelect, body, props, changes, photos, newItemId, itemById, selectedItem, isFrame, change, announce, clearAlert, startCollage, goHome, layer, layout, startPreview, stopPreview, setZoom, session, scheduleDraft, renderDrafts, undoDeleteDraft, openDraft, select, startAdjust, stopAdjust, refreshTitle, commit, updateUndo, restore, changeSelected, lockedNow, applyLayoutKey, sayLocked } = deps;
     // The one Undo offered on the screen after a delete: good only while nothing else has changed.
     let undoOffer = null;
 
@@ -35,7 +35,7 @@
 
     function act(action) {
       const item = selectedItem();
-      if (core.lockBlocks(item, action)) { announce('It is locked. Unlock it first.'); return; }
+      if (core.lockBlocks(item, action)) { sayLocked(); return; }
       switch (action) {
         case 'home': goHome(); break;
         case 'choose': fileInput.click(); break;

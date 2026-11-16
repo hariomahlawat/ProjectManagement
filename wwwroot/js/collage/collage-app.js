@@ -637,6 +637,12 @@
     }
   }
 
+  /** An action a lock stops: said on the screen as well as to a screen reader. */
+  function sayLocked() {
+    announce('It is locked. Unlock it first.');
+    window.PrismToast?.show({ tone: 'info', text: 'It is locked. Unlock it first (the lock on its toolbar or in Layers).' });
+  }
+
   /** A new item on the page (words, a sticker): selected, with its settings shown. */
   function placeNewItem(item) {
     collage.items.push(item);
@@ -667,11 +673,14 @@
     let choice = 'keep';
     if (locked.length) {
       const one = locked.length === 1;
+      const gapNow = collage.layout ? collage.layout.gap : core.LAYOUT_LIMITS.defaultGap;
+      const { out, of } = core.framesLeftOut(collage, key, gapNow);
+      const staying = out === 0
+        ? `If ${one ? 'it stays' : 'they stay'}, all ${of} frames of the new layout are still used.`
+        : `If ${one ? 'it stays' : 'they stay'}, ${out} of the new layout's ${of} frames ${out === 1 ? 'is' : 'are'} left out, because ${one ? 'it covers' : 'they cover'} most of ${out === 1 ? 'it' : 'them'}.`;
       const join = await askConfirm({
         title: one ? '1 photo is locked' : `${locked.length} photos are locked`,
-        message: one
-          ? 'Put it in the new layout too, or keep it where it is? If it stays, the layout leaves out the frames it covers.'
-          : 'Put them in the new layout too, or keep them where they are? If they stay, the layout leaves out the frames they cover.',
+        message: `${one ? 'Put it in the new layout too, or keep it where it is?' : 'Put them in the new layout too, or keep them where they are?'} ${staying}`,
         confirmText: one ? 'Put it in the layout' : 'Put them in the layout',
         cancelText: one ? 'Keep it where it is' : 'Keep them where they are',
         tone: 'primary',
@@ -697,7 +706,8 @@
   // the Text, Stickers and Background panels (collage-add-panels.js).
   const { renderTextPanel, forgetPhotoPreviews, renderBackgroundPanel, setBackground, loadUnitStickers, renderStickerPanel } = window.PrismCollageAddPanels.createAddPanels({ state, parts: laterParts, root, core, draw, stickers, library, $, views, photos, newItemId, pageHeight, keepingFocus, announce, backLayer, layoutTextItem, stickerSource, syncPage, commit, placeNewItem });
   // the actions: buttons, menu items and keys that change the collage (collage-actions.js).
-  const { offerUndo, act } = window.PrismCollageActions.createActions({ state, parts: laterParts, root, core, $, views, fileInput, nameInput, sizeSelect, body, props, changes, photos, newItemId, itemById, selectedItem, isFrame, change: changesFor('setCollage', 'choose', 'toggleDraftsExpanded'), announce, clearAlert, startCollage, goHome, layer, layout, startPreview, stopPreview, setZoom, session, scheduleDraft, renderDrafts, undoDeleteDraft, openDraft, select, startAdjust, stopAdjust, refreshTitle, commit, updateUndo, restore, changeSelected, lockedNow, applyLayoutKey });
+  const { offerUndo, act } = window.PrismCollageActions.createActions({ state, parts: laterParts, root, core, $, views, fileInput, nameInput, sizeSelect, body, props, changes, photos, newItemId, itemById, selectedItem, isFrame, change: changesFor('setCollage', 'choose', 'toggleDraftsExpanded'), announce, clearAlert, startCollage, goHome, layer, layout, startPreview, stopPreview, setZoom, session, scheduleDraft, renderDrafts, undoDeleteDraft, openDraft, select, startAdjust, stopAdjust, refreshTitle, commit, updateUndo, restore, changeSelected, lockedNow, applyLayoutKey, sayLocked
+  });
   // The panels: the left drawer (layouts and the rest) and the settings panel with its Settings
   // and Layers tabs (collage-panels.js).
   const {
@@ -733,7 +743,7 @@
   window.PrismCollageKeys.createKeys({
     state, change: changesFor(), core, views, stageBox, props, photos, itemById, selectedItem, announce, setShift,
     stopPreview, setZoom, syncPage, select, stopAdjust, zoomCrop, holdEdit, changeSelected, act,
-    focusTextField, setTarget
+    focusTextField, setTarget, sayLocked
   });
   // ---------------------------------------------------------------------------
   // Start

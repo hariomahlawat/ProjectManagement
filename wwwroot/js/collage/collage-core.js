@@ -899,8 +899,28 @@
     return w > 0 && h > 0 ? (w * h) / (4 * fw * fh) : 0;
   }
 
-  /** A frame a locked item covers more of than this is left out of the layout. */
+  /** A grid cell anything covers more of than this is taken (gridPlace). */
   const LOCK_COVER_LIMIT = 0.05;
+
+  /**
+   * A layout frame a kept locked item covers more of than this is left out of the layout. A frame
+   * it only touches stays, so a photo a little wider than half the page does not empty a 4 grid.
+   */
+  const LOCK_LEAVES_OUT = 0.5;
+
+  /** The kept locked items, each moved onto the page, as a new layout would keep them. */
+  function keptLocked(collage) {
+    return collage.items.filter((item) => (item.kind === 'photo' || item.kind === 'slot') && item.locked)
+      .map((item) => keptOnPage(item, collage.size));
+  }
+
+  /** How many of a layout's frames kept locked items would leave out, and how many it has. */
+  function framesLeftOut(collage, key, gap) {
+    const all = layoutFrames(collage.size, key, gap);
+    const kept = keptLocked(collage);
+    const out = all.filter((frame) => kept.some((item) => coveredShare(frame, item) > LOCK_LEAVES_OUT)).length;
+    return { out, of: all.length };
+  }
 
   /**
    * The collage arranged in a layout. Its photos fill the frames in their current order, then
@@ -910,8 +930,8 @@
    *
    * Locked photos and frames: with `locked: 'join'` they go into the layout like the others and
    * stay locked. Otherwise (`'keep'`, the default) each stays where it is, moved only as far as
-   * it takes to be inside the page, and the layout leaves out every frame it covers, so nothing
-   * overlaps without the user choosing it.
+   * it takes to be inside the page, and the layout leaves out every frame it covers more than
+   * half of (the question before says how many).
    */
   function applyLayout(collage, key, gap, radius, spare, newId, { locked = 'keep' } = {}) {
     const all = layoutFrames(collage.size, key, gap);
@@ -925,7 +945,7 @@
     const kept = others.filter(isFrame);
     // Each frame keeps its own cell, so a later change of space puts it back in its own place.
     const frames = all.map((frame, cell) => ({ ...frame, cell }))
-      .filter((frame) => !kept.some((item) => coveredShare(frame, item) > LOCK_COVER_LIMIT));
+      .filter((frame) => !kept.some((item) => coveredShare(frame, item) > LOCK_LEAVES_OUT));
     const photos = collage.items.filter((item) => item.kind === 'photo' && (join || !item.locked));
     // Locked empty frames put into the layout keep their id and lock, after the photos.
     const lockedSlots = join ? collage.items.filter((item) => item.kind === 'slot' && item.locked) : [];
@@ -1580,6 +1600,7 @@
     LOCK_BLOCKS,
     lockBlocks,
     lockedFrames,
+    framesLeftOut,
     keptOnPage,
     makeCasual,
     straightenAll,

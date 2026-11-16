@@ -36,6 +36,8 @@ test('a locked photo cannot be deleted, moved in its frame, replaced or given ot
   // The keys say so and change nothing.
   await page.keyboard.press('Delete');
   await expect(page.locator('[data-announce]')).toHaveText('It is locked. Unlock it first.');
+  // Said on the screen too, not only to a screen reader.
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'It is locked' })).toBeVisible();
 
   // Its own corners are locked in its settings.
   await showSettings(page);
@@ -53,26 +55,28 @@ test('a locked photo cannot be deleted, moved in its frame, replaced or given ot
   expect(errors).toEqual([]);
 });
 
-test('a new layout asks about a locked photo: kept where it is, no frame lies under it', async ({ page }) => {
+test('a new layout asks about a locked photo: kept where it is, only the frames it mostly covers are left out', async ({ page }) => {
   const errors = await openFresh(page);
   const locked = await lockedFirst(page);
   await page.locator('.clg-rail [data-panel="layouts"]').click();
   await page.getByRole('button', { name: /^4 grid/ }).click();
   const dialog = page.locator('[data-prism-confirm-dialog]');
   await expect(dialog).toContainText('1 photo is locked');
+  await expect(dialog).toContainText("2 of the new layout's 4 frames are left out");
   await dialog.getByRole('button', { name: 'Keep it where it is' }).click();
   await expect.poll(async () => (await newestDraft(page))?.model.layout?.key).toBe('t4');
   const model = (await newestDraft(page)).model;
   const kept = model.items.find((i) => i.id === locked.id);
   expect({ x: kept.x, y: kept.y, width: kept.width }).toEqual({ x: locked.x, y: locked.y, width: locked.width });
-  // No other frame overlaps the locked photo by more than a sliver.
+  // The two right-hand frames stay, with the other photos in them; none is mostly under the locked photo.
+  expect(model.items.filter((i) => i.id !== kept.id && i.kind === 'photo').length).toBe(2);
   const box = (i) => ({ l: i.x - i.width / 2, r: i.x + i.width / 2, t: i.y - i.width / i.aspect / 2, b: i.y + i.width / i.aspect / 2 });
   const k = box(kept);
   for (const other of model.items.filter((i) => i.id !== kept.id && (i.kind === 'photo' || i.kind === 'slot'))) {
     const o = box(other);
     const w = Math.min(k.r, o.r) - Math.max(k.l, o.l);
     const h = Math.min(k.b, o.b) - Math.max(k.t, o.t);
-    expect(w > 0 && h > 0 ? (w * h) / ((o.r - o.l) * (o.b - o.t)) : 0).toBeLessThanOrEqual(0.05);
+    expect(w > 0 && h > 0 ? (w * h) / ((o.r - o.l) * (o.b - o.t)) : 0).toBeLessThanOrEqual(0.5);
   }
   expect(errors).toEqual([]);
 });

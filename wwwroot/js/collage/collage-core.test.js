@@ -1010,3 +1010,16 @@ test('a layout frame given another shape (a Polaroid) is off its cell', () => {
   const reshaped = { ...laid, items: laid.items.map((i, k) => (k === 0 ? { ...i, aspect: i.aspect * 0.8 } : i)) };
   assert.equal(collage.offLayout(reshaped), true);
 });
+
+test('a kept locked photo a little wider than half the page leaves out only the frames it mostly covers', () => {
+  let n = 0;
+  const id = () => `n${++n}`;
+  const start = collage.applyLayout(collage.newCollage('a4l'), 't3', collage.LAYOUT_LIMITS.defaultGap, 0, ['p1', 'p2', 'p3'], id).collage;
+  const big = start.items.find((i) => i.cell === 0);
+  const page = { ...start, items: start.items.map((i) => (i === big ? { ...i, locked: true } : i)) };
+  assert.deepEqual(collage.framesLeftOut(page, 't4', collage.LAYOUT_LIMITS.defaultGap), { out: 2, of: 4 });
+  const { collage: laid } = collage.applyLayout(page, 't4', collage.LAYOUT_LIMITS.defaultGap, 0, [], id);
+  const cells = laid.items.filter((i) => i.id !== big.id).map((i) => i.cell).sort();
+  assert.deepEqual(cells, [1, 3], 'the right-hand frames stay');
+  assert.equal(laid.items.filter((i) => i.kind === 'photo' && !i.locked).length, 2, 'the other photos go into them');
+});
