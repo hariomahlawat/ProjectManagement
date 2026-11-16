@@ -411,6 +411,28 @@ public sealed class ProjectBriefingDeckPageHandlerTests
             stored.CharterItems.Select(item => (item.LeadPhrase, item.Text)).ToArray());
     }
 
+    // Review 4 fixes, Low 3: the server refuses an empty footer strip as the page does, before
+    // Normalize would quietly switch it off.
+    [Fact]
+    public async Task AnEmptyFooterStrip_IsRefusedWithTheSameMessageAsThePage()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
+        var page = CreatePage(db, Officer, ajax: true);
+
+        var result = await page.OnPostSaveInstitutionalProfileAsync(new IndexModel.SaveInstitutionalProfileInput
+        {
+            DeckId = deck.Id,
+            RowVersion = Version(deck),
+            InstitutionalProfileTitle = "SDD profile",
+            IncludeInstitutionalFooterStrip = true
+        }, CancellationToken.None);
+
+        Assert.Equal(400, StatusOf(result));
+        Assert.Equal(IndexModel.FooterStripRequiredMessage, MessageOf(result));
+        Assert.Equal(Version(deck), Version(await ReloadAsync(db, deck)));
+    }
+
     // ---- Set-up -------------------------------------------------------------------------------
 
     private static IndexModel CreatePage(ApplicationDbContext db, string userId, bool ajax = false)

@@ -346,14 +346,38 @@ public sealed class IndexModel : PageModel
         return RedirectToPage(new { deckId = input.DeckId });
     }
 
-    // The Deck tab's block list: which slides are in the deck and in what order. Saved in place.
     // Why a deck cannot be changed: view-only for a command user on a Project Officer's deck,
     // otherwise not found (review 2 fixes, Low 1).
+    internal const string FooterStripRequiredMessage = "Enter footer-strip text or a highlighted value for the SDD profile slide.";
+
+    // An in-page change that fails in the database for a reason other than a conflict (a photo
+    // removed between the check and the save, say) answers with a message the page can show,
+    // not an error page (review 4 fixes, Low 8). Conflicts and access are answered by each handler.
+    public override async Task OnPageHandlerExecutionAsync(
+        Microsoft.AspNetCore.Mvc.Filters.PageHandlerExecutingContext context,
+        Microsoft.AspNetCore.Mvc.Filters.PageHandlerExecutionDelegate next)
+    {
+        var executed = await next();
+        if (executed.Exception is DbUpdateException exception
+            && exception is not DbUpdateConcurrencyException
+            && !executed.ExceptionHandled
+            && IsAjaxRequest())
+        {
+            _logger.LogWarning(exception, "Project briefing change failed in the database. Handler={Handler}", context.HandlerMethod?.Name);
+            executed.Result = new JsonResult(new { message = "The change could not be saved because of a database error. Reload and try again." })
+            {
+                StatusCode = StatusCodes.Status500InternalServerError
+            };
+            executed.ExceptionHandled = true;
+        }
+    }
+
     private async Task<Exception> UnavailableDeckAsync(long deckId, string userId, CancellationToken cancellationToken)
         => await _deckService.GetAccessAsync(deckId, userId, cancellationToken) == ProjectBriefingDeckAccessLevel.View
             ? new InvalidOperationException(ProjectBriefingDeckService.ViewOnlyMessage)
             : new KeyNotFoundException(ProjectBriefingDeckService.NotFoundMessage);
 
+    // The Deck tab's block list: which slides are in the deck and in what order. Saved in place.
     public async Task<IActionResult> OnPostUpdateBlocksAsync(
         [FromBody] UpdateBlocksInput? input,
         CancellationToken cancellationToken)
@@ -441,6 +465,15 @@ public sealed class IndexModel : PageModel
 
         try
         {
+            // Checked on what was posted: Normalize switches an empty footer strip off, so the
+            // service never sees one (review 4 fixes, Low 3).
+            if (input.IncludeInstitutionalFooterStrip
+                && string.IsNullOrWhiteSpace(input.InstitutionalFooterStripText)
+                && string.IsNullOrWhiteSpace(input.InstitutionalFooterStripEmphasisValue))
+            {
+                throw new InvalidOperationException(FooterStripRequiredMessage);
+            }
+
             var options = ProjectBriefingInstitutionalProfileOptions.Normalize(
                 input.IncludeInstitutionalProfile,
                 input.InstitutionalProfileTitle,
@@ -1038,6 +1071,7 @@ public sealed class IndexModel : PageModel
         try
         {
             var result = await _exportService.DownloadAsync(deckId, userId, cancellationToken);
+            await _deckService.RecordDownloadAsync(deckId, userId, result.SlideCount);
             return File(result.Content, result.ContentType, result.FileName);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1591,14 +1625,6 @@ public sealed class IndexModel : PageModel
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public ProjectBriefingDeckBlockType Type { get; set; }
         public bool Enabled { get; set; }
-    }
-
-    public sealed class ApplyPresetInput
-    {
-        public long DeckId { get; set; }
-        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
-        public ProjectBriefingDeckPreset Preset { get; set; }
-        public string RowVersion { get; set; } = string.Empty;
     }
 
     public sealed class UpdateDescriptionInput
