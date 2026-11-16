@@ -291,6 +291,7 @@ public sealed class ProjectBriefingDeckPageHandlerTests
     // ---- Every other change, as a command user on a Project Officer's deck (review 2 fixes, PR 7)
 
     [Theory]
+    [InlineData("AddSelection")]
     [InlineData("UpdateMembership")]
     [InlineData("Reorder")]
     [InlineData("UpdateDescription")]
@@ -309,6 +310,11 @@ public sealed class ProjectBriefingDeckPageHandlerTests
 
         var result = handler switch
         {
+            // The selection stub throws if it is asked to resolve: the deck is checked first.
+            "AddSelection" => await page.OnPostAddSelectionAsync(new IndexModel.AddSelectionInput
+            {
+                DeckId = deck.Id, Kind = ProjectBriefingSelectionKind.IndividualProjects, ProjectIds = new List<int> { ProjectId }, RowVersion = before
+            }, CancellationToken.None),
             "UpdateMembership" => await page.OnPostUpdateMembershipAsync(new IndexModel.UpdateMembershipInput
             {
                 DeckId = deck.Id, RemoveProjectIds = new List<int> { ProjectId }, RowVersion = before
