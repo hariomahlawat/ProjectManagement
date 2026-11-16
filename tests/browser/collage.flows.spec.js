@@ -3,7 +3,7 @@
 // The main Collage Studio flows in a real browser (docs/ux/collage-review-fixes.md, PR 11).
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft, showLayers } = require('./helpers');
+const { openFresh, photoFile, newestDraft, showLayers, fulfillLikePrism } = require('./helpers');
 
 async function startBlank(page) {
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
@@ -163,9 +163,9 @@ test('From PRISM Photos: ticked photos are read in and fill the empty frames', a
   const picture = (await photoFile(page, { width: 1200, height: 900 })).buffer;
   // PRISM's own answer, kept equal to the API by CollageBrowserFixtureTests.
   const samples = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, 'fixtures', 'collage-api-samples.json'), 'utf8'));
-  await page.route('**/api/collage/library-photos**', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(samples.libraryOn) }));
+  await page.route('**/api/collage/library-photos**', (route) => fulfillLikePrism(route, { body: samples.libraryOn }));
 
-  await page.route('**/Photos/Media/**', (route) => route.fulfill({ contentType: 'image/jpeg', body: picture }));
+  await page.route('**/Photos/Media/**', (route) => fulfillLikePrism(route, { contentType: 'image/jpeg', body: picture }));
 
   const errors = await openFresh(page);
   await page.getByRole('button', { name: /^2 side by side/ }).click();

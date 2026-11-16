@@ -73,6 +73,8 @@ PRISM_UPDATE_BROWSER_FIXTURES=1 dotnet test ProjectManagement.Tests --filter "Fu
 
 Every browser test uses `tests/browser/test.js`, which fails the test when the page breaks the Content Security Policy. It sees a violation two ways: the page's `securitypolicyviolation` events (an init script passes each to the test at once, with the directive, the blocked address and the script line) and the browser's console message. A test can allow one, with its reason (`cspAllow`: patterns matched against the console text and against the event's `<directive> <blocked>` line); `collage.csp.spec.js` checks the check itself. On CI a test that passes only on its retry fails the run (`failOnFlakyTests`).
 
+A test that replaces an answer with `page.route()` answers through `fulfillLikePrism` in `tests/browser/helpers.js`, so the answer carries the same production headers; `collage.session.spec.js` fails if a spec calls `route.fulfill` directly. That spec also covers a session that ends mid-edit (an `/api/collage` or picture answer of 401, or a redirect to the sign-in page, which the test server serves at `/Identity/Account/Login`) and a PRISM failure (500): the editor shows a plain message and keeps the collage.
+
 The test server listens on port 7399, or on `COLLAGE_TEST_PORT` when it is set, and each port has its own results folder (`test-results/collage-<port>`, for traces and screenshots of failed tests). To run two test runs at once, for example from two worktrees, give each its own port:
 
 ```bash

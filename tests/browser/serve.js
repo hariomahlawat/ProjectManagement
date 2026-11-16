@@ -22,7 +22,10 @@ const TYPES = {
 
 const pages = {
   '/Tools/Collage': () => buildCollagePage({ libraryOn: true }),
-  '/Tools/Collage/no-library': () => buildCollagePage({ libraryOn: false })
+  '/Tools/Collage/no-library': () => buildCollagePage({ libraryOn: false }),
+  // Where PRISM's cookie sign-in sends a request after the session has ended: a page, not an
+  // answer. Tests reach it by redirecting a mocked answer here (collage.session.spec.js).
+  '/Identity/Account/Login': () => '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sign in</title></head><body><form method="post"></form></body></html>'
 };
 
 const fixtures = path.join(__dirname, 'fixtures');

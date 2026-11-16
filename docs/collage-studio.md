@@ -29,6 +29,12 @@ The build plan, owner decisions and the approved mockup are in
     pages, and `collage-library.js` fetches only those path shapes. A picked photo becomes a file in the browser and goes through the same
     checks as a photo from the computer; from then on it is kept only in the browser like any
     other. The button is shown only when the Photos library is switched on.
+  - If the user's PRISM session has ended (an answer of 401, or the sign-in page instead of the
+    answer), the dialog, the page's message for photos being read, and the Crests and logos group
+    say "Your PRISM session has ended. Sign in again in another tab, then try again. Your collage
+    is kept in this browser." No more ticked photos are asked for, and the collage and its draft
+    are untouched. A PRISM failure (for example 500) gets the plain "cannot be read right now"
+    message. `tests/browser/collage.session.spec.js` covers both.
 - Nothing the user makes is stored or retained by PRISM. The page model
   (`Pages/Tools/Collage/Index.cshtml.cs`) has only `OnGet`; there is no form post.
 - The page requires a signed-in user (`[Authorize]`), like the rest of PRISM.

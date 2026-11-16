@@ -59,10 +59,30 @@
 
   const TYPE_ENDINGS = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/bmp': '.bmp' };
 
+  /** What the editor says when PRISM answers as if the user had signed out; the collage stays. */
+  const SIGNED_OUT_MESSAGE = 'Your PRISM session has ended. Sign in again in another tab, then try again. Your collage is kept in this browser.';
+
+  /**
+   * True when an answer means the session has ended: 401, or the sign-in page instead of the
+   * answer (PRISM's addresses here never redirect, so a followed redirect is the sign-in page).
+   */
+  function sessionEnded(response, expectJson = false) {
+    if (response.status === 401 || response.redirected === true) return true;
+    if (!expectJson || !response.ok) return false;
+    const type = response.headers?.get?.('Content-Type');
+    return typeof type === 'string' && /^text\/html/i.test(type);
+  }
+
+  /** Throws the error the editor reads as "signed out" (reason 'signed-out'), or a plain one when the answer failed. */
+  function check(response, what, expectJson) {
+    if (sessionEnded(response, expectJson)) throw Object.assign(new Error(`${what}: signed out`), { reason: 'signed-out' });
+    if (!response.ok) throw new Error(`${what}: ${response.status}`);
+  }
+
   /** The administrator's crests and logos, in picker order. Rejects when PRISM cannot be reached. */
   async function loadStickers() {
     const response = await fetch(`${base}${STICKERS_URL}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`Crests and logos: ${response.status}`);
+    check(response, 'Crests and logos', true);
     const body = await response.json();
     return Array.isArray(body?.stickers) ? body.stickers : [];
   }
@@ -86,7 +106,7 @@
   async function loadLibraryPage(filters) {
     const query = libraryQuery(filters);
     const response = await fetch(`${base}${LIBRARY_URL}?${query}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`PRISM Photos: ${response.status}`);
+    check(response, 'PRISM Photos', true);
     const body = await response.json();
     const photos = (Array.isArray(body?.photos) ? body.photos : []).filter((photo) =>
       Number.isInteger(photo?.id) && photo.id > 0
@@ -118,7 +138,7 @@
     const address = String(photo?.url || '');
     if (!isPrismAddress(LIBRARY_PICTURE, address)) throw new Error('Not a PRISM Photos picture');
     const response = await fetch(address, { credentials: 'same-origin' });
-    if (!response.ok) throw new Error(`PRISM Photos picture: ${response.status}`);
+    check(response, 'PRISM Photos picture', false);
     const tooLarge = () => Object.assign(new Error('Larger than a collage takes'), { reason: 'too-large' });
     const declared = Number(response.headers?.get?.('Content-Length'));
     if (maxBytes && declared > maxBytes) {
@@ -130,5 +150,5 @@
     return new File([blob], fileNameFor(photo.title, blob.type), { type: blob.type });
   }
 
-  return Object.freeze({ STICKERS_URL, LIBRARY_URL, LIBRARY_PICTURE, LIBRARY_THUMB, setBasePath, isPrismAddress, loadStickers, libraryQuery, loadLibraryPage, fileNameFor, readLibraryPhoto });
+  return Object.freeze({ STICKERS_URL, LIBRARY_URL, LIBRARY_PICTURE, LIBRARY_THUMB, setBasePath, isPrismAddress, SIGNED_OUT_MESSAGE, loadStickers, libraryQuery, loadLibraryPage, fileNameFor, readLibraryPhoto });
 });

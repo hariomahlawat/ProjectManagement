@@ -53,9 +53,11 @@
       let page;
       try {
         page = await library.loadLibraryPage({ ...library_.filters, page: asked });
-      } catch {
+      } catch (error) {
         if (request !== library_.request) return;
-        status.textContent = 'PRISM Photos cannot be read right now. Try again in a minute, or add photos from your computer.';
+        status.textContent = error?.reason === 'signed-out'
+          ? library.SIGNED_OUT_MESSAGE
+          : 'PRISM Photos cannot be read right now. Try again in a minute, or add photos from your computer.';
         return;
       }
       // A newer search has started; this answer is for the old one.
@@ -172,9 +174,12 @@
       const failed = [];
       const tooBig = [];
       const tooLarge = [];
+      // Ticked photos not read because the session ended; once it has, no more are asked for.
+      const unread = [];
       busy(chosen.length === 1 ? 'Getting the photo from PRISM Photos…' : `Getting ${chosen.length} photos from PRISM Photos…`);
       try {
         for (const photo of chosen) {
+          if (unread.length) { unread.push(photo); continue; }
           // Refused before it is downloaded, as the same photo from the computer would be.
           if (Number(photo.width) * Number(photo.height) > core.PHOTO_LIMITS.maxPixels) {
             tooBig.push(photo.title || 'A photo');
@@ -183,7 +188,8 @@
           try {
             files.push(await library.readLibraryPhoto(photo, { maxBytes: core.PHOTO_LIMITS.maxBytes }));
           } catch (error) {
-            (error?.reason === 'too-large' ? tooLarge : failed).push(photo.title || 'A photo');
+            if (error?.reason === 'signed-out') unread.push(photo);
+            else (error?.reason === 'too-large' ? tooLarge : failed).push(photo.title || 'A photo');
           }
           if (forCollage !== session()) return;
         }
@@ -193,7 +199,7 @@
       library_.chosen.clear();
       renderLibraryChosen();
       if (files.length) await addFiles(files, { frameId });
-      if (forCollage !== session() || (!tooBig.length && !tooLarge.length && !failed.length)) return;
+      if (forCollage !== session() || (!tooBig.length && !tooLarge.length && !failed.length && !unread.length)) return;
       // One message for everything left out, after the import's own message if it had one.
       const notes = [currentAlert()];
       if (tooBig.length) notes.push(core.refusedMessage(tooBig.map((name) => ({ name, reason: 'too-many-pixels' }))));
@@ -202,6 +208,7 @@
         const names = failed.length === 1 ? `“${failed[0]}”` : `${failed.length} photos`;
         notes.push(`${names} could not be read from PRISM Photos. Try again, or add ${failed.length === 1 ? 'it' : 'them'} from your computer.`);
       }
+      if (unread.length) notes.push(library.SIGNED_OUT_MESSAGE);
       showAlert(notes.filter(Boolean).join(' '));
     }
 
