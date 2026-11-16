@@ -47,21 +47,21 @@ public interface IProjectBriefingDeckService
         ProjectBriefingDeckSettingsCommand command,
         CancellationToken cancellationToken = default);
 
-    Task UpdateInstitutionalProfileAsync(
+    Task<string> UpdateInstitutionalProfileAsync(
         long deckId,
         string requestingUserId,
         ProjectBriefingInstitutionalProfileOptions options,
         string rowVersion,
         CancellationToken cancellationToken = default);
 
-    Task UpdateRoleCharterAsync(
+    Task<string> UpdateRoleCharterAsync(
         long deckId,
         string requestingUserId,
         ProjectBriefingRoleCharterOptions options,
         string rowVersion,
         CancellationToken cancellationToken = default);
 
-    Task UpdateFfcGlobalFootprintAsync(
+    Task<string> UpdateFfcGlobalFootprintAsync(
         long deckId,
         string requestingUserId,
         ProjectBriefingFfcGlobalFootprintOptions options,
@@ -712,7 +712,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
     }
 
-    public async Task UpdateInstitutionalProfileAsync(
+    public async Task<string> UpdateInstitutionalProfileAsync(
         long deckId,
         string requestingUserId,
         ProjectBriefingInstitutionalProfileOptions options,
@@ -764,9 +764,10 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             userId,
             deck,
             "SDD institutional profile slide configuration updated.");
+        return Encode(deck.RowVersion);
     }
 
-    public async Task UpdateRoleCharterAsync(
+    public async Task<string> UpdateRoleCharterAsync(
         long deckId,
         string requestingUserId,
         ProjectBriefingRoleCharterOptions options,
@@ -810,9 +811,10 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             userId,
             deck,
             "Role & Charter additional slide configuration updated.");
+        return Encode(deck.RowVersion);
     }
 
-    public async Task UpdateFfcGlobalFootprintAsync(
+    public async Task<string> UpdateFfcGlobalFootprintAsync(
         long deckId,
         string requestingUserId,
         ProjectBriefingFfcGlobalFootprintOptions options,
@@ -851,6 +853,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             userId,
             deck,
             "FFC Global Footprint additional slide configuration updated.");
+        return Encode(deck.RowVersion);
     }
 
     public async Task<string> UpdateBlocksAsync(

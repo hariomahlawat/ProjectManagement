@@ -393,16 +393,50 @@ public sealed class IndexModel : PageModel
     private bool IsAjaxRequest()
         => string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
 
+    // The content editors (SDD profile, Role & Charter, FFC footprint) save in place like the rest of
+    // the Studio: an in-page request gets the message, the version its own save produced and the
+    // refreshed deck; a plain form post keeps the redirect (review 2 fixes, PR 4).
+    private async Task<IActionResult> EditorReplyAsync(
+        long deckId,
+        string userId,
+        string? rowVersion,
+        int failureStatus,
+        CancellationToken cancellationToken)
+    {
+        if (!IsAjaxRequest())
+        {
+            return RedirectToPage(new { deckId });
+        }
+
+        // TempData is for the redirect; an in-place reply carries its message itself.
+        var error = ErrorMessage;
+        var message = StatusMessage;
+        ErrorMessage = null;
+        StatusMessage = null;
+        ReopenInstitutionalProfile = false;
+        ReopenRoleCharter = false;
+        ReopenFfcGlobalFootprint = false;
+        if (error is not null || rowVersion is null)
+        {
+            return new JsonResult(new { message = error ?? "The slide could not be saved." }) { StatusCode = failureStatus };
+        }
+
+        var deck = await _dataService.GetDeckAsync(deckId, userId, cancellationToken);
+        return new JsonResult(new { saved = true, message, rowVersion, deck });
+    }
+
     public async Task<IActionResult> OnPostSaveInstitutionalProfileAsync(
         [FromForm] SaveInstitutionalProfileInput input,
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
+        string? editorRowVersion = null;
+        var failure = StatusCodes.Status400BadRequest;
         if (!ModelState.IsValid)
         {
-            ErrorMessage = FirstModelError("Review the SDD institutional profile and try again.");
+            ErrorMessage = FirstModelError("Review the SDD profile and try again.");
             ReopenInstitutionalProfile = true;
-            return RedirectToPage(new { deckId = input.DeckId });
+            return await EditorReplyAsync(input.DeckId, userId, editorRowVersion, failure, cancellationToken);
         }
 
         try
@@ -423,16 +457,17 @@ public sealed class IndexModel : PageModel
                 input.InstitutionalFooterStripStyle,
                 input.InstitutionalFooterStripAlignment);
 
-            await _deckService.UpdateInstitutionalProfileAsync(
+            editorRowVersion = await _deckService.UpdateInstitutionalProfileAsync(
                 input.DeckId,
                 userId,
                 options,
                 input.RowVersion,
                 cancellationToken);
-            StatusMessage = "SDD institutional profile saved.";
+            StatusMessage = "SDD profile saved.";
         }
         catch (DbUpdateConcurrencyException)
         {
+            failure = StatusCodes.Status409Conflict;
             ErrorMessage = "This deck was updated by another user. Reload before saving the profile.";
             ReopenInstitutionalProfile = true;
         }
@@ -442,7 +477,7 @@ public sealed class IndexModel : PageModel
             ReopenInstitutionalProfile = true;
         }
 
-        return RedirectToPage(new { deckId = input.DeckId });
+        return await EditorReplyAsync(input.DeckId, userId, editorRowVersion, failure, cancellationToken);
     }
 
     public async Task<IActionResult> OnPostSaveRoleCharterAsync(
@@ -450,11 +485,13 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
+        string? editorRowVersion = null;
+        var failure = StatusCodes.Status400BadRequest;
         if (!ModelState.IsValid)
         {
-            ErrorMessage = FirstModelError("Review the Role & Charter slide and try again.");
+            ErrorMessage = FirstModelError("Review Role & Charter and try again.");
             ReopenRoleCharter = true;
-            return RedirectToPage(new { deckId = input.DeckId });
+            return await EditorReplyAsync(input.DeckId, userId, editorRowVersion, failure, cancellationToken);
         }
 
         try
@@ -466,16 +503,17 @@ public sealed class IndexModel : PageModel
                 input.UseSharedRoleCharterContent,
                 ParseRoleCharterEntries(input.RoleStatementLines),
                 ParseRoleCharterEntries(input.CharterItemLines));
-            await _deckService.UpdateRoleCharterAsync(
+            editorRowVersion = await _deckService.UpdateRoleCharterAsync(
                 input.DeckId,
                 userId,
                 options,
                 input.RowVersion,
                 cancellationToken);
-            StatusMessage = "Role & Charter slide saved.";
+            StatusMessage = "Role & Charter saved.";
         }
         catch (DbUpdateConcurrencyException)
         {
+            failure = StatusCodes.Status409Conflict;
             ErrorMessage = "This deck was updated by another user. Reload before saving Role & Charter.";
             ReopenRoleCharter = true;
         }
@@ -485,7 +523,7 @@ public sealed class IndexModel : PageModel
             ReopenRoleCharter = true;
         }
 
-        return RedirectToPage(new { deckId = input.DeckId });
+        return await EditorReplyAsync(input.DeckId, userId, editorRowVersion, failure, cancellationToken);
     }
 
     public async Task<IActionResult> OnPostSaveFfcGlobalFootprintAsync(
@@ -493,11 +531,13 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
+        string? editorRowVersion = null;
+        var failure = StatusCodes.Status400BadRequest;
         if (!ModelState.IsValid)
         {
-            ErrorMessage = FirstModelError("Review the FFC Global Footprint slide and try again.");
+            ErrorMessage = FirstModelError("Review the FFC footprint and try again.");
             ReopenFfcGlobalFootprint = true;
-            return RedirectToPage(new { deckId = input.DeckId });
+            return await EditorReplyAsync(input.DeckId, userId, editorRowVersion, failure, cancellationToken);
         }
 
         try
@@ -508,17 +548,18 @@ public sealed class IndexModel : PageModel
                 input.FfcGlobalFootprintLayout,
                 input.MaximumCountryRows,
                 input.IncludeCountryWiseBreakdown);
-            await _deckService.UpdateFfcGlobalFootprintAsync(
+            editorRowVersion = await _deckService.UpdateFfcGlobalFootprintAsync(
                 input.DeckId,
                 userId,
                 options,
                 input.RowVersion,
                 cancellationToken);
-            StatusMessage = "FFC Global Footprint slide saved.";
+            StatusMessage = "FFC footprint saved.";
         }
         catch (DbUpdateConcurrencyException)
         {
-            ErrorMessage = "This deck was updated by another user. Reload before saving the FFC Global Footprint slide.";
+            failure = StatusCodes.Status409Conflict;
+            ErrorMessage = "This deck was updated by another user. Reload before saving the FFC footprint.";
             ReopenFfcGlobalFootprint = true;
         }
         catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
@@ -527,7 +568,7 @@ public sealed class IndexModel : PageModel
             ReopenFfcGlobalFootprint = true;
         }
 
-        return RedirectToPage(new { deckId = input.DeckId });
+        return await EditorReplyAsync(input.DeckId, userId, editorRowVersion, failure, cancellationToken);
     }
 
 

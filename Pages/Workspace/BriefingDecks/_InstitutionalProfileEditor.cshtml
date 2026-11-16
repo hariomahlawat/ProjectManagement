@@ -52,7 +52,7 @@
         <header class="pbd-profile-drawer__header">
             <div>
                 <span class="pbd-eyebrow">Slide content</span>
-                <h3 id="pbd-profile-drawer-title">Configure SDD Institutional Profile</h3>
+                <h3 id="pbd-profile-drawer-title">SDD profile</h3>
                 <p>The figures come from PRISM and update by themselves. Here you choose what the slide shows and add the history and partners.</p>
             </div>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-profile-close aria-label="Close SDD profile editor">
@@ -69,7 +69,7 @@
             <div class="pbd-additional-slide-editor-context">
                 <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>
                 <span>
-                    <strong>@(institutionalProfile.IncludeSlide ? "In this deck" : "Not in this deck")</strong>
+                    <strong data-pbd-editor-in-deck="InstitutionalProfile">@(institutionalProfile.IncludeSlide ? "In this deck" : "Not in this deck")</strong>
                     <small>Add or remove it, and move it, in the Deck tab under Slides in this deck.</small>
                 </span>
             </div>

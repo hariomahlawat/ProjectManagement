@@ -21,7 +21,7 @@
         <header class="pbd-profile-drawer__header">
             <div>
                 <span class="pbd-eyebrow">Slide content</span>
-                <h3 id="pbd-role-charter-drawer-title">Configure Role &amp; Charter</h3>
+                <h3 id="pbd-role-charter-drawer-title">Role &amp; Charter</h3>
                 <p>Use the shared authorised content or create a deck-specific selection without changing the institutional master.</p>
             </div>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-role-charter-close aria-label="Close Role and Charter editor">
@@ -39,7 +39,7 @@
             <div class="pbd-additional-slide-editor-context">
                 <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>
                 <span>
-                    <strong>@(options.IncludeSlide ? "In this deck" : "Not in this deck")</strong>
+                    <strong data-pbd-editor-in-deck="RoleAndCharter">@(options.IncludeSlide ? "In this deck" : "Not in this deck")</strong>
                     <small>Add or remove it, and move it, in the Deck tab under Slides in this deck.</small>
                 </span>
             </div>

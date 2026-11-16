@@ -353,9 +353,9 @@ if (root) {
   const institutionalPartnershipList = root.querySelector('[data-pbd-institutional-partnership-list]');
   const institutionalPartnershipValue = root.querySelector('[data-pbd-institutional-partnership-value]');
   const institutionalPartnershipValidation = root.querySelector('[data-pbd-institutional-partnership-validation]');
-  const institutionalModuleInitialOrder = institutionalModuleOrderInput?.value || '';
-  const institutionalHistoryInitialValue = institutionalHistoryValue?.value || '';
-  const institutionalPartnershipInitialValue = institutionalPartnershipValue?.value || '';
+  let institutionalModuleInitialOrder = institutionalModuleOrderInput?.value || '';
+  let institutionalHistoryInitialValue = institutionalHistoryValue?.value || '';
+  let institutionalPartnershipInitialValue = institutionalPartnershipValue?.value || '';
   let draggedInstitutionalModule = null;
 
   const createInstitutionalActionButton = (attribute, label, icon, extraClass = '') => {
@@ -573,7 +573,9 @@ if (root) {
   };
 
   const validateInstitutionalProfile = ({ focus = false } = {}) => {
-    const enabled = Boolean(institutionalProfileEnable?.checked);
+    // In the deck as the slide list says now, not as the page was drawn (review 2 fixes, PR 4).
+    const blockSwitch = root.querySelector('[data-pbd-block][data-type="InstitutionalProfile"] [data-pbd-block-switch]');
+    const enabled = blockSwitch instanceof HTMLInputElement ? blockSwitch.checked : Boolean(institutionalProfileEnable?.checked);
     const historySelected = Boolean(institutionalHistoryEnable?.checked);
     const historyValid = !historySelected || institutionalHistoryCount() > 0;
     const selectedKeys = selectedInstitutionalModuleKeys();
@@ -738,7 +740,7 @@ if (root) {
     window.requestAnimationFrame(() => focusableProfileElements()[0]?.focus());
   };
 
-  const confirmProfileDiscard = async (message = 'Your changes to the SDD Institutional Profile have not been saved.') => {
+  const confirmProfileDiscard = async (message = 'Your changes to the SDD profile have not been saved.') => {
     if (!profileDirty) return true;
     return prismConfirm({
       title: 'Discard unsaved changes?',
@@ -816,34 +818,33 @@ if (root) {
       }
       return;
     }
-    if (!profileDirty) {
-      event.preventDefault();
-      return;
-    }
+    event.preventDefault();
+    if (!profileDirty) return;
     if (profileSave) profileSave.disabled = true;
     if (profileStatus) {
       profileStatus.textContent = 'Saving profile…';
       profileStatus.classList.remove('is-dirty');
       profileStatus.classList.add('is-saving');
     }
-    // Both saves change the deck's row version, so the profile posts only after a pending
-    // settings save has finished (it then carries the new row version).
-    if (settingsPending()) {
-      event.preventDefault();
-      if (!(await saveSettingsNow())) {
-        if (profileSave) profileSave.disabled = false;
-        if (profileStatus) {
-          profileStatus.textContent = 'The deck settings could not be saved, so the profile was not saved either.';
-          profileStatus.classList.remove('is-saving');
-          profileStatus.classList.add('is-dirty');
-        }
-        return;
-      }
-      profileDirty = false;
-      HTMLFormElement.prototype.submit.call(profileForm);
+    // Saved in place through the deck's one-at-a-time queue, after any pending settings save.
+    const result = await saveEditorInPlace(profileForm);
+    if (result.ok) {
+      commitFormDefaults(profileForm);
+      institutionalModuleInitialOrder = institutionalModuleOrderInput?.value || '';
+      institutionalHistoryInitialValue = institutionalHistoryValue?.value || '';
+      institutionalPartnershipInitialValue = institutionalPartnershipValue?.value || '';
+      profileInitialState = serializeForm(profileForm);
+      setProfileDirty(false);
+      await closeProfileDrawer({ discard: false, force: true });
+      setState(blockStatus, result.message, 'saved');
       return;
     }
-    profileDirty = false;
+    if (profileSave) profileSave.disabled = false;
+    if (profileStatus) {
+      profileStatus.textContent = result.message;
+      profileStatus.classList.remove('is-saving');
+      profileStatus.classList.add('is-dirty');
+    }
   });
 
   if (profileDrawer?.dataset.pbdProfileReopen === 'true') {
@@ -1094,6 +1095,53 @@ if (root) {
   };
   root.pbdSettleSettings = settleSettingsBeforeLeaving;
 
+  // The content editors (SDD profile, Role & Charter, FFC footprint) save in place, through the
+  // same queue as every other change, after any pending settings save (review 2 fixes, PR 4).
+  async function saveEditorInPlace(form) {
+    if (!(form instanceof HTMLFormElement)) return { ok: false, message: 'The slide could not be saved.' };
+    if (!(await settleSettingsBeforeLeaving())) {
+      return { ok: false, message: 'The deck settings could not be saved, so this slide was not saved either.' };
+    }
+    try {
+      const payload = await runDeckMutation(async () => {
+        const body = new FormData(form);
+        body.set('RowVersion', currentRowVersion());
+        const reply = await fetch(form.action, {
+          method: 'POST',
+          credentials: 'same-origin',
+          body,
+          headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const replyPayload = await reply.json().catch(() => null);
+        if (reply.status === 409) {
+          showConflict(replyPayload?.message);
+          throw new Error('Not saved: someone else changed this deck.');
+        }
+        if (!reply.ok) throw new Error(replyPayload?.message || `The slide could not be saved (${reply.status}).`);
+        updateRowVersion(replyPayload?.rowVersion);
+        return replyPayload;
+      });
+      applyEditorState(payload?.deck);
+      return { ok: true, message: payload?.message || 'Saved.' };
+    } catch (error) {
+      return { ok: false, message: error.message || 'The slide could not be saved.' };
+    }
+  }
+  // After a save the form's defaults are its saved values, so a later Discard goes back to them.
+  function commitFormDefaults(form) {
+    form?.querySelectorAll('input, textarea, select').forEach((control) => {
+      if (control instanceof HTMLInputElement && (control.type === 'checkbox' || control.type === 'radio')) {
+        control.defaultChecked = control.checked;
+      } else if (control instanceof HTMLSelectElement) {
+        [...control.options].forEach((option) => { option.defaultSelected = option.selected; });
+      } else if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+        control.defaultValue = control.value;
+      }
+    });
+  }
+  root.pbdSaveEditor = saveEditorInPlace;
+  root.pbdCommitFormDefaults = commitFormDefaults;
+
   // Kept under its earlier name: the row, profile-module and stage-summary editors call it.
   const refreshSettingsDirtyState = (delay = 700) => {
     window.clearTimeout(settingsTimer);
@@ -1182,7 +1230,7 @@ if (root) {
 
   const confirmProfileNavigation = async () => {
     if (!profileDirty) return true;
-    const confirmed = await confirmProfileDiscard('Your unsaved SDD Institutional Profile changes will be lost if you continue.');
+    const confirmed = await confirmProfileDiscard('Your unsaved SDD profile changes will be lost if you continue.');
     if (confirmed) setProfileDirty(false);
     return confirmed;
   };
@@ -1210,7 +1258,7 @@ if (root) {
         || submittedForm === settingsForm
         || submittedForm === profileForm
         || submittedForm === renameForm
-        || submittedForm.matches('[data-pbd-generate-form], [data-pbd-add-selection-form], [data-pbd-individual-form]')) return;
+        || submittedForm.matches('[data-pbd-generate-form], [data-pbd-add-selection-form], [data-pbd-individual-form], [data-pbd-role-charter-form], [data-pbd-ffc-footprint-form]')) return;
     if (!settingsPending() && !profileDirty && !notesUnsaved()) return;
 
     event.preventDefault();
@@ -1512,6 +1560,11 @@ if (root) {
     blockList?.querySelectorAll('[data-pbd-block-zone]').forEach((zone) => {
       const empty = zone.parentElement?.querySelector('[data-pbd-block-zone-empty]');
       if (empty instanceof HTMLElement) empty.hidden = [...zone.querySelectorAll('[data-pbd-block]')].some((row) => !row.hidden);
+    });
+    root.querySelectorAll('[data-pbd-editor-in-deck]').forEach((label) => {
+      const row = blockList?.querySelector(`[data-pbd-block][data-type="${label.dataset.pbdEditorInDeck}"]`);
+      const on = row?.querySelector('[data-pbd-block-switch]')?.checked;
+      if (typeof on === 'boolean') label.textContent = on ? 'In this deck' : 'Not in this deck';
     });
     blockList?.querySelectorAll('[data-pbd-block-library-group]').forEach((group) => {
       group.hidden = [...group.querySelectorAll('[data-pbd-block-library-entry]')].every((item) => item.hidden);
