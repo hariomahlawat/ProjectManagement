@@ -15,10 +15,10 @@ public sealed partial class ProjectBriefingSlideComposer
 {
     private const double KeyPointsOnlyPhotoWidth = 6.10;
     private const double KeyPointsOnlyColumnGap = .24;
-    private const double KeyPointsOnlyCardGap = .10;
+    private const double KeyPointsOnlyCardGap = .08;
     private const double KeyPointsOnlyCardMaximumHeight = 1.30;
     private const double KeyPointsOnlyCardPaddingX = .22;
-    private const double KeyPointsOnlyCardPaddingY = .10;
+    private const double KeyPointsOnlyCardPaddingY = .08;
     private const double KeyPointsOnlyHeadingFont = 10.5;
     private const double KeyPointsOnlyHeadingHeight = .22;
     private const double KeyPointsOnlyAccentWidth = .06;
@@ -161,10 +161,11 @@ public sealed partial class ProjectBriefingSlideComposer
             statusBandHeight);
     }
 
-    // The height a card needs for its heading and text at one size. A character is taken as .46 em,
-    // a little wider than the key point band's measure (138 characters of 11 pt in 9.47 in), so
-    // the estimate errs towards more lines.
-    internal const double KeyPointsOnlyCharacterWidthEm = .46;
+    // The height a card needs for its heading and text at one size. A character is taken as half an
+    // em, wider than the key point band's measure (138 characters of 11 pt in 9.47 in, about .45 em):
+    // a point that only just wraps in the preview's Aptos must not gain a line in PowerPoint and
+    // overflow its card, so the estimate errs towards more lines.
+    internal const double KeyPointsOnlyCharacterWidthEm = .50;
 
     private static double KeyPointsOnlyCardContentHeight(string text, double textWidth, double size)
     {
