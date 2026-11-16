@@ -144,9 +144,18 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-app.js` | The editor itself (about 1,250 lines): its state, selection and the toolbar, moving a photo in its frame, the change actions, and creating the parts above. Each part is made once with the helpers it uses and `app`, the editor's view of its own state (read when used, never before it exists) |
 | `wwwroot/css/collage.css` | All styles, Bootstrap variables only (Light and Dark) |
 
-Photo handling keeps memory low: the editor draws a copy at most 2000 px on its long side, the
-tray shows a 240 px thumbnail, and the original file is kept only for Save. Thirty phone photos
-then do not exhaust the browser's memory.
+Photo handling keeps memory low: the editor draws a working copy at most 2000 px on its long side,
+the tray shows a 240 px thumbnail, and the original file is kept only for Save, which reads every
+original again at full quality. All working copies together stay within
+`core.PHOTO_LIMITS.workingPixels` (60 million pixels, about 240 MB): up to 15 photos keep the full
+2000 px, and beyond that each copy gets an equal share (`core.budgetedSize`), about a million
+pixels each at 60 photos (1,154 by 866 for a 4:3 photo). A new batch is decoded at the share for
+the count after it; copies made while there were fewer photos are then drawn again smaller from
+themselves, with no new decoding (`fitBudget` in `collage-photos.js`). Copies are not made larger
+again when photos are removed. A photo removed from the tray is let go (its canvas emptied) as
+soon as no Undo or Redo step can bring it back: checked after every recorded step, since a new
+step drops the Redo steps and, past 100 steps, the oldest one. A draft that turns out damaged
+lets go of the photos already read for it. These sizes were worked out, not measured on a phone.
 
 Each layer of the page is a canvas of at most 16 million pixels at any zoom
 (`core.canvasPixelRatio`); iPhones draw nothing on a canvas over 16.7 million, so zoomed far in on

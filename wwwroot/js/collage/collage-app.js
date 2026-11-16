@@ -707,6 +707,9 @@
     // An unnamed collage's title follows its first words, typed or not.
     refreshTitle();
     updateUndo();
+    // A new step can drop the Redo steps, or the oldest step, that last showed a removed photo:
+    // its working copy is let go now rather than kept until another photo is removed.
+    forgetRemovedPhotos();
     if (kind !== 'commit') return;
     if (panel === 'background') renderBackgroundPanel();
     syncPage();
@@ -1326,7 +1329,8 @@
   // Photos: choosing, dropping and pasting them, reading them in, the tray, and From PRISM Photos
   // (collage-tray.js).
   const {
-    setTarget, chooseFor, readPhoto, missingPhoto, libraryPicker, renderTray, keptPhotos
+    setTarget, chooseFor, readPhoto, missingPhoto, libraryPicker, renderTray, keptPhotos,
+    forgetRemovedPhotos
   } = window.PrismCollageTray.createTray({
     app, $, root, core, library, views, fileInput, stageBox, tray, photoCount, replaceBanner,
     alertBox, changes, photos, nextId, newItemId, itemById, selectedItem, pageHeight, firstSlot,
