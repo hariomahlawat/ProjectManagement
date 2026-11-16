@@ -48,6 +48,10 @@ this plan runs under the standing instruction: merge when CI and Codex are green
    page shows this build's reading, and picking that value cannot be told apart from leaving it
    (Codex on #3394), so keeping the stored one would undo a real choice. Round-trip test with an
    unknown row and block type.
+
+   Superseded for single choices by review 4 fixes, PR 1: a save now writes only what it changed,
+   so a newer single value also survives saves that never touched it (and a re-save of the value
+   the page shows), while picking another value still writes it.
 3. **Editors confirm and agree with the server** (M3, Low 1, 2, 3, 7), after #3390–#3392 merge.
    All three editors show their saved message in the slide list; the footer rule matches the
    server; the dead include boxes and comment go; a jsdom test covers an editor save while a
