@@ -70,6 +70,7 @@ if (root) {
     ShowPresentStage: () => ['ProjectCapability', 'ProjectBrief'],
     ShowPresentStatus: () => ['ProjectCapability', 'ProjectBrief'],
     ShowKeyPoints: projectRoles,
+    ProjectDesign: () => ['ProjectKeyPointsOnly', 'ProjectCapability', 'ProjectBrief', 'ProjectUpdateSheet'],
     KeyPointSlide: projectRoles,
     ProjectBriefLayout: () => ['ProjectBrief'],
     CostMode: () => ['ProjectCapability', 'ProjectBrief', 'StatusTable', 'PortfolioSummary'],

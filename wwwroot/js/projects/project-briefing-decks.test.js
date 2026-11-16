@@ -107,8 +107,8 @@ test('deck settings save themselves in place, one save at a time', () => {
   assert.doesNotMatch(viewSource, /data-pbd-settings-drawer|data-pbd-settings-save/);
 });
 
-test('deck settings hide standard-only sections for update sheets and persist collapsible section state', () => {
-  assert.match(source, /data-pbd-standard-section/);
+test('deck settings hide the parts chips for fact sheets and persist collapsible section state', () => {
+  assert.match(source, /if \(parts\) parts\.hidden = updateSheet;/);
   assert.match(source, /settingsCollapsibleSections/);
   assert.match(source, /settingsSections:\$\{currentSettingsLayout\(\)\}/);
   assert.match(source, /restoreSettingsSectionState/);
@@ -123,8 +123,9 @@ test('settings are numbered steps: closed by default, one open at a time, each w
   // Visible steps are numbered in order; hidden steps take no number.
   assert.match(source, /if \(!step\.hidden\) number \+= 1;/);
   assert.match(viewSource, /data-pbd-step-summary/);
-  // Project slides only when the deck draws them; the brief layout and key points live there.
-  assert.match(source, /projectSlidesStep\.hidden = updateSheet \|\| !includesDetailedSlides\(\);/);
+  // Project slides is always a step: its design and cost chips apply to the status table too.
+  assert.doesNotMatch(viewSource, /data-pbd-project-slides-step/);
+  assert.doesNotMatch(viewSource, /data-pbd-step="cost"/);
 });
 
 test('pending settings saves finish before navigation, posts and generation', () => {
@@ -170,14 +171,13 @@ test('removing an additional slide asks first, then waits for a pending settings
   assert.match(additionalSlidesSource, /if \(!confirmed\) return;[\s\S]*?if \(typeof root\.pbdSettleSettings === 'function' && !\(await root\.pbdSettleSettings\(\)\)\) return;\s*HTMLFormElement\.prototype\.submit\.call\(form\);/);
 });
 
-test('templates apply on the server and the picker shows the current one', () => {
-  assert.match(viewSource, /@foreach \(var preset in ProjectBriefingDeckPresets\.Templates\)/);
-  assert.match(viewSource, /data-pbd-preset="@preset\.Preset"/);
-  assert.match(viewSource, /data-preset-url=/);
-  assert.match(source, /body: JSON\.stringify\(\{ deckId, preset: button\.dataset\.pbdPreset, rowVersion: currentRowVersion\(\) \}\)/);
-  assert.match(source, /deck\.presetAdjusted\s*\?\s*'Started from this template, then customised\.'/);
-  assert.match(source, /if \(templateCustomised\) templateCustomised\.hidden = !\(known && deck\.presetAdjusted\);/);
-  assert.match(viewSource, /data-pbd-template-toggle/);
+test('the Template picker is gone: a template only starts a new deck', () => {
+  assert.doesNotMatch(viewSource, /data-pbd-template-picker/);
+  assert.doesNotMatch(viewSource, /customised/);
+  assert.doesNotMatch(source, /data-pbd-preset\]/);
+  // The new-deck dialog still offers the templates.
+  assert.match(viewSource, /@foreach \(var \(preset, index\) in ProjectBriefingDeckPresets\.Templates/);
+  assert.match(viewSource, /data-pbd-progress-template>@ProjectBriefingProjectSlideDesigns\.DisplayName\(deck\.ProjectDesign\)/);
 });
 
 test('the deck name and description are edited in the header and saved with the settings', () => {
@@ -206,25 +206,28 @@ test('presentation theme previews follow the selected Standard or Project Update
   assert.match(source, /preview\.classList\.toggle\('is-update-sheet', updateSheet\)/);
 });
 
-test('Standard detailed slides expose project-brief design and independent context choices', () => {
-  assert.match(source, /data-pbd-detailed-settings/);
-  assert.match(source, /data-pbd-project-brief-layout-settings/);
+test('project slides: one design for every project, from cards that set the deck settings', () => {
+  assert.match(viewSource, /@foreach \(var design in designChoices\)/);
+  assert.match(viewSource, /name="ProjectDesign" value="@design"/);
+  // Capability and brief stays only for decks that already use it.
+  assert.match(viewSource, /if \(currentDesign == ProjectBriefingProjectSlideDesign\.CapabilityAndBrief\)/);
+  assert.match(source, /setRadio\('Layout', design === 'FactSheet' \? 'ProjectUpdateSheet' : 'StandardBriefing'\);/);
+  assert.match(source, /if \(design === 'KeyPoints' \|\| design === 'KeyPointsOnly'\) keyPointsChip\.checked = true;/);
   assert.match(viewSource, /name="ShowPresentStatus"/);
-  assert.match(source, /includesDetailedSlides\(\)/);
-  assert.match(source, /includesProjectBrief\(\)/);
 });
 
-test('key points: a deck switch, and the slide choice only when the deck draws both project slides', () => {
+test('key points: a chip that swaps Capability and Key points, a band on Brief, fixed on Key points only', () => {
   assert.match(viewSource, /name="ShowKeyPoints"/);
   assert.match(viewSource, /name="KeyPointSlide" value="ProjectBriefSlide"/);
   assert.match(viewSource, /name="KeyPointSlide" value="CapabilitySlide"/);
-  assert.match(source, /\[data-pbd-key-points-toggle\]/);
-  assert.match(source, /keyPointSlide\.hidden = !root\.querySelector\('\[data-pbd-key-points-toggle\]'\)\?\.checked\s*\|\| narrativeMode\(\) !== 'Both'/);
+  assert.match(source, /keyPointsChip\.checked && design === 'Capability' \? 'KeyPoints'/);
+  assert.match(source, /keyPointsToggle\.disabled = design === 'KeyPointsOnly';/);
+  assert.match(source, /keyPointSlide\.hidden = !keyPointsOn \|\| design !== 'CapabilityAndBrief';/);
 });
 
-test('the project brief layout hides while key points are on (the key points layout draws its own)', () => {
-  assert.match(viewSource, /data-pbd-project-brief-layout-settings hidden="@\(!standardNeedsProjectBrief \|\| deck\.StandardSlideOptions\.KeyPoints != ProjectBriefingKeyPointPlacement\.None\)"/);
-  assert.match(source, /\|\| Boolean\(root\.querySelector\('\[data-pbd-key-points-toggle\]'\)\?\.checked\);/);
+test('the brief layout shows for brief designs only while key points are off (the key points layout draws its own)', () => {
+  assert.match(viewSource, /data-pbd-project-brief-layout-settings hidden="@\(isUpdateSheet \|\| !standardNeedsProjectBrief \|\| keyPointsOn\)"/);
+  assert.match(source, /projectBriefLayoutSettings\.hidden = updateSheet \|\| !\['Brief', 'CapabilityAndBrief'\]\.includes\(design\) \|\| keyPointsOn;/);
 });
 
 
@@ -504,7 +507,9 @@ test('segmented choices show help for the selected option only, refreshed with t
   assert.match(source, /const refreshSegmentHelp = \(\) => \{/);
   assert.match(source, /help\.textContent = settingsForm\.querySelector\(`input\[name="\$\{name\}"\]:checked`\)\?\.dataset\.help \|\| '';/);
   assert.match(source, /if \(!settingsForm\) return;\s*refreshSegmentHelp\(\);/);
-  assert.match(viewSource, /<label class="pbd-seg__option"><input type="radio" name="CostMode" value="CostRdOnly"/);
+  // Cost is two chips that set the hidden CostMode choice.
+  assert.match(viewSource, /data-pbd-cost-part="rd"/);
+  assert.match(source, /setRadio\('CostMode', rd && proliferation \? 'Both' : rd \? 'CostRdOnly' : proliferation \? 'ProliferationOnly' : 'None'\);/);
 });
 
 test('step summaries read each choice by its label, not its description', () => {

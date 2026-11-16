@@ -545,7 +545,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.ShowPresentStage,
             command.ShowPresentStatus,
             command.IncludeStageDistributionTable,
-            command.KeyPoints);
+            command.KeyPoints,
+            command.KeyPointsOnly);
         var institutionalProfileOptions = NormalizeProfile(command.InstitutionalProfileOptions);
 
         // Only check the SDD profile when this save changes it. A deck-tab save (name, theme, cost
@@ -628,7 +629,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             target.ShowPresentStatus,
             configuration.StandardSlideOptions.IncludeStageDistributionTable,
             // Presets leave key points as the deck had them.
-            configuration.StandardSlideOptions.KeyPoints);
+            configuration.StandardSlideOptions.KeyPoints,
+            configuration.StandardSlideOptions.KeyPointsOnly);
         var updateSheet = ProjectBriefingUpdateSheetOptions.Normalize(
             target.UpdateSheetRows,
             target.HideEmptyUpdateSheetValues);
@@ -706,7 +708,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             undo.ShowPresentStage,
             undo.ShowPresentStatus,
             current.IncludeStageDistributionTable,
-            current.KeyPoints);
+            current.KeyPoints,
+            current.KeyPointsOnly);
         var updateSheet = ProjectBriefingUpdateSheetOptions.Normalize(
             undo.UpdateSheetRows,
             undo.HideEmptyUpdateSheetValues);
@@ -1936,7 +1939,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ["ProjectBriefLayout"] = standardSlideOptions.ProjectBriefLayout.ToString(),
             ["ShowPresentStage"] = standardSlideOptions.ShowPresentStage.ToString(),
             ["ShowPresentStatus"] = standardSlideOptions.ShowPresentStatus.ToString(),
-            ["KeyPoints"] = standardSlideOptions.KeyPoints.ToString()
+            ["KeyPoints"] = standardSlideOptions.KeyPoints.ToString(),
+            ["KeyPointsOnly"] = standardSlideOptions.KeyPointsOnly.ToString()
         };
         if (extra is not null)
         {

@@ -42,12 +42,22 @@ public sealed partial class ProjectBriefingSlideComposer
         => data.Layout == ProjectBriefingLayout.StandardBriefing
             && data.StandardSlideOptions.KeyPoints != ProjectBriefingKeyPointPlacement.None;
 
+    /// <summary>True when each project gets one "Key points only" slide instead of capability or brief slides.</summary>
+    public static bool UsesKeyPointsOnly(ProjectBriefingPresentationData data)
+        => ProjectBriefingProjectSlideDesigns.Of(data.Layout, data.NarrativeMode, data.StandardSlideOptions)
+            == ProjectBriefingProjectSlideDesign.KeyPointsOnly;
+
     /// <summary>The project slide that carries the key points, or null when the deck shows none.</summary>
     public static ProjectBriefingSlideRole? KeyPointSlide(ProjectBriefingPresentationData data)
     {
         if (!UsesKeyPointLayout(data))
         {
             return null;
+        }
+
+        if (UsesKeyPointsOnly(data))
+        {
+            return ProjectBriefingSlideRole.ProjectKeyPointsOnly;
         }
 
         return data.NarrativeMode switch
@@ -69,6 +79,12 @@ public sealed partial class ProjectBriefingSlideComposer
         ProjectBriefingPresentationData data,
         ProjectBriefingPresentationProject project)
     {
+        // The Key points only slide always has the lifecycle line under its title.
+        if (UsesKeyPointsOnly(data))
+        {
+            return true;
+        }
+
         var briefContinues = DrawsProjectBriefSlides(data.NarrativeMode)
             && ProjectBriefSlideCount(data, project) > 1;
         if (!DrawsCapabilitySlides(data.NarrativeMode))

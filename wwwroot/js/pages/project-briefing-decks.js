@@ -917,6 +917,8 @@ if (root) {
     window.location.reload();
   });
 
+  // The project slide design chosen in Project slides (ProjectBriefingProjectSlideDesigns).
+  const projectDesign = () => settingsForm?.querySelector('input[name="ProjectDesign"]:checked')?.value || '';
   // Each step's one-line summary, read from the form as it stands.
   const settingsValue = (name) => settingsForm?.querySelector(`input[name="${name}"]:checked`)?.value || '';
   const settingsChecked = (name) => Boolean(settingsForm?.querySelector(`input[type="checkbox"][name="${name}"]`)?.checked);
@@ -937,18 +939,19 @@ if (root) {
     .map((row) => row.dataset.name || '');
   const stepSummaries = () => {
     const sheet = isUpdateSheet();
-    const mode = settingsValue('PresentationMode');
-    const narrative = settingsValue('NarrativeMode');
-    const detailed = mode === 'DetailedProjects' || mode === 'Combined';
     const stage = settingsChecked('ShowPresentStage');
     const status = settingsChecked('ShowPresentStatus');
     const keyPoints = settingsChecked('ShowKeyPoints');
-    const project = [stage && status ? 'Stage and status' : stage ? 'Stage' : status ? 'Status remark' : 'No stage or status'];
-    if (keyPoints) {
-      project.push(narrative === 'Both'
-        ? `key points on the ${settingsValue('KeyPointSlide') === 'CapabilitySlide' ? 'capability' : 'brief'} slide`
-        : 'key points');
-    } else if (narrative !== 'CapabilityOverview') {
+    const design = projectDesign();
+    const cost = { CostRdOnly: 'R&D cost', ProliferationOnly: 'proliferation cost', Both: 'both costs', None: 'no cost' }[settingsValue('CostMode')] || '';
+    const project = sheet ? [] : [stage && status ? 'stage and status' : stage ? 'stage' : status ? 'status remark' : 'no stage or status', cost];
+    if (sheet) {
+      // A fact sheet's parts are its rows (Sheet rows).
+    } else if (keyPoints && design === 'CapabilityAndBrief') {
+      project.push(`key points on the ${settingsValue('KeyPointSlide') === 'CapabilitySlide' ? 'capability' : 'brief'} slide`);
+    } else if (keyPoints && design === 'Brief') {
+      project.push('key points');
+    } else if (!keyPoints && ['Brief', 'CapabilityAndBrief'].includes(design)) {
       project.push(`${settingsValueLabel('ProjectBriefLayout').toLowerCase()} brief layout`);
     }
     const rows = settingsForm?.querySelectorAll('input[name="UpdateSheetRows"]:checked').length || 0;
@@ -956,10 +959,8 @@ if (root) {
     const insignia = { None: 'no insignia', CoverAndSummary: 'insignia on cover and summary', AllSlides: 'insignia on all slides' }[settingsValue('BrandingScope')] || '';
     return {
       slides: blocksOn().join(' · ') || 'None',
-      project: [detailed ? { CapabilityOverview: 'Capability', ProjectBrief: 'Brief', Both: 'Capability and brief' }[narrative] : '', ...project]
-        .filter(Boolean).join(' · '),
+      project: [settingsValueLabel('ProjectDesign'), ...project].filter(Boolean).join(' · '),
       sheet: `${rows} ${rows === 1 ? 'row' : 'rows'}${settingsChecked('HideEmptyUpdateSheetValues') ? ' · empty rows hidden' : ''}`,
-      cost: { CostRdOnly: 'Cost (R&D)', ProliferationOnly: 'Proliferation cost', Both: 'Both costs', None: 'No cost' }[settingsValue('CostMode')] || '',
       look: [settingsValueLabel('PresentationTheme'), insignia, settingsValueLabel('ClosingSlideType')].filter(Boolean).join(' · '),
       handling: marking ? `Marked ${marking}` : 'No marking'
     };
@@ -978,26 +979,7 @@ if (root) {
     });
   };
 
-  // The deck's identity and its template line follow every save.
-  const presetStatus = root.querySelector('[data-pbd-preset-status]');
-  const templateCurrent = root.querySelector('[data-pbd-template-current]');
-  const templateCustomised = root.querySelector('[data-pbd-template-customised]');
-  const templateToggle = root.querySelector('[data-pbd-template-toggle]');
-  const templateList = root.querySelector('[data-pbd-template-list]');
-  const presetTitles = Object.fromEntries([...root.querySelectorAll('[data-pbd-preset]')]
-    .map((button) => [button.dataset.pbdPreset, button.querySelector('strong')?.textContent?.trim() || '']));
-  const presetSummaries = Object.fromEntries([...root.querySelectorAll('[data-pbd-preset]')]
-    .map((button) => [button.dataset.pbdPreset, button.querySelector('small')?.textContent?.trim() || '']));
-  const setTemplateListOpen = (open) => {
-    if (templateList) templateList.hidden = !open;
-    templateToggle?.setAttribute('aria-expanded', String(open));
-  };
-  templateToggle?.addEventListener('click', () => setTemplateListOpen(Boolean(templateList?.hidden)));
-  templateList?.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    setTemplateListOpen(false);
-    templateToggle?.focus();
-  });
+  // The deck's identity and its design line follow every save.
   const applySettingsDeck = (deck) => {
     if (!deck) return;
     const name = root.querySelector('[data-pbd-deck-name]');
@@ -1007,25 +989,10 @@ if (root) {
       description.textContent = deck.description || '';
       description.hidden = !deck.description;
     }
-    root.querySelectorAll('[data-pbd-preset]').forEach((button) => {
-      const current = button.dataset.pbdPreset === deck.preset;
-      button.classList.toggle('is-current', current);
-      button.setAttribute('aria-pressed', String(current));
-    });
-    const known = Boolean(deck.preset && presetTitles[deck.preset]);
-    if (templateCurrent && known) templateCurrent.textContent = presetTitles[deck.preset];
-    if (templateCustomised) templateCustomised.hidden = !(known && deck.presetAdjusted);
-    const progressTemplate = root.querySelector('[data-pbd-progress-template]');
-    if (progressTemplate && known) {
-      progressTemplate.textContent = `${presetTitles[deck.preset]}${deck.presetAdjusted ? ', customised' : ''}`;
-    }
-    if (presetStatus) {
-      presetStatus.textContent = !known
-        ? 'Choose a template to apply its settings; you can still change any of them.'
-        : deck.presetAdjusted
-          ? 'Started from this template, then customised.'
-          : presetSummaries[deck.preset];
-    }
+    const progressDesign = root.querySelector('[data-pbd-progress-template]');
+    const designLabel = root.querySelector(`input[name="ProjectDesign"][value="${deck.projectDesign}"]`)
+      ?.closest('label')?.querySelector('strong')?.textContent?.trim();
+    if (progressDesign && designLabel) progressDesign.textContent = designLabel;
   };
 
   const saveSettingsOnce = async () => {
@@ -1183,38 +1150,6 @@ if (root) {
     event.preventDefault();
     event.returnValue = '';
   });
-
-  // Presets: applied on the server from one definition, then the page reloads to show every
-  // setting (the Studio returns to the same slide and tab).
-  root.querySelectorAll('[data-pbd-preset]').forEach((button) => button.addEventListener('click', async () => {
-    // A customised deck loses those choices; Undo is offered afterwards, but ask first.
-    if (templateCustomised && !templateCustomised.hidden) {
-      const title = presetTitles[button.dataset.pbdPreset] || 'this template';
-      const confirmed = await prismConfirm({
-        title: `Apply ${title}?`,
-        message: `This deck's slide, cost and look settings change to the ${title} template, replacing your customised choices. Projects, notes and slide text stay. You can undo straight after.`,
-        confirmText: 'Apply template',
-        cancelText: 'Keep my settings',
-        tone: 'primary',
-        returnFocus: button
-      });
-      if (!confirmed) return;
-    }
-    if (settingsPending() && !(await saveSettingsNow())) return;
-    root.querySelectorAll('[data-pbd-preset]').forEach((other) => { other.disabled = true; });
-    setState(settingsStatus, 'Applying the template…', 'saving');
-    try {
-      await runDeckMutation(() => requestJson(root.dataset.presetUrl, {
-        method: 'POST',
-        body: JSON.stringify({ deckId, preset: button.dataset.pbdPreset, rowVersion: currentRowVersion() })
-      }));
-      window.location.reload();
-    } catch (error) {
-      if (error instanceof RequestError && error.status === 409) showConflict(error.message);
-      setState(settingsStatus, error.message || 'The template could not be applied.', 'error');
-      root.querySelectorAll('[data-pbd-preset]').forEach((other) => { other.disabled = false; });
-    }
-  }));
 
   // Rename and describe the deck where its name is shown.
   const titleView = root.querySelector('[data-pbd-deck-title-view]');
@@ -1449,41 +1384,36 @@ if (root) {
 
   const selectedLayout = currentSettingsLayout;
   const isUpdateSheet = () => selectedLayout() === 'ProjectUpdateSheet';
-  const includesDetailedSlides = () => {
-    if (isUpdateSheet()) return true;
-    const value = root.querySelector('input[name="PresentationMode"]:checked')?.value;
-    return value === 'DetailedProjects' || value === 'Combined';
-  };
-  const narrativeMode = () => isUpdateSheet() ? 'ProjectBrief' : (root.querySelector('input[name="NarrativeMode"]:checked')?.value || 'CapabilityOverview');
-  const includesProjectBrief = () => isUpdateSheet() || ['ProjectBrief', 'Both'].includes(narrativeMode());
 
   const syncTemplateSettings = () => {
     const updateSheet = isUpdateSheet();
-    root.querySelectorAll('[data-pbd-standard-section]').forEach((element) => { element.hidden = updateSheet; });
-    root.querySelectorAll('[data-pbd-standard-settings]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
 
-    const detailedSettings = root.querySelector('[data-pbd-detailed-settings]');
-    if (detailedSettings) detailedSettings.hidden = updateSheet || !includesDetailedSlides();
-    // Steps and choices that only apply to slides for each project.
-    const projectSlidesStep = root.querySelector('[data-pbd-project-slides-step]');
-    if (projectSlidesStep) projectSlidesStep.hidden = updateSheet || !includesDetailedSlides();
-    const projectContent = root.querySelector('[data-pbd-project-content-settings]');
-    if (projectContent) projectContent.hidden = updateSheet || !includesDetailedSlides();
+    const design = projectDesign();
+    const keyPointsToggle = root.querySelector('[data-pbd-key-points-toggle]');
+    const keyPointsOn = Boolean(keyPointsToggle?.checked);
+    const parts = root.querySelector('[data-pbd-design-parts]');
+    if (parts) parts.hidden = updateSheet;
+    // Key points only always shows them; the other designs switch them with the chip.
+    if (keyPointsToggle instanceof HTMLInputElement) keyPointsToggle.disabled = design === 'KeyPointsOnly';
+    const designHint = root.querySelector('[data-pbd-design-hint]');
+    if (designHint) {
+      designHint.textContent = {
+        KeyPointsOnly: 'No brief or capability text. A project without key points shows the gap, like other missing content.',
+        KeyPoints: 'Key points sit in a band at the foot of the slide. Switch them off for the Capability design.',
+        Capability: 'Switch key points on for the Key points design. Anything switched off gives its space to the photo and text.',
+        Brief: 'Key points add a band at the foot of the brief slide. Anything switched off gives its space to the photo and text.',
+        CapabilityAndBrief: 'An older choice, kept for this deck: two slides per project.'
+      }[design] || '';
+    }
     const projectBriefLayoutSettings = root.querySelector('[data-pbd-project-brief-layout-settings]');
     if (projectBriefLayoutSettings) {
-      projectBriefLayoutSettings.hidden = updateSheet
-        || !includesDetailedSlides()
-        || !includesProjectBrief()
-        // The key points layout draws its own brief slide.
-        || Boolean(root.querySelector('[data-pbd-key-points-toggle]')?.checked);
+      // The key points layout draws its own brief slide.
+      projectBriefLayoutSettings.hidden = updateSheet || !['Brief', 'CapabilityAndBrief'].includes(design) || keyPointsOn;
     }
     // The slide choice matters only when the deck draws both project slides.
     const keyPointSlide = root.querySelector('[data-pbd-key-point-slide]');
-    if (keyPointSlide) {
-      keyPointSlide.hidden = !root.querySelector('[data-pbd-key-points-toggle]')?.checked
-        || narrativeMode() !== 'Both';
-    }
+    if (keyPointSlide) keyPointSlide.hidden = !keyPointsOn || design !== 'CapabilityAndBrief';
     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
     root.querySelectorAll('[data-pbd-theme-preview]').forEach((preview) => {
       preview.classList.toggle('is-update-sheet', updateSheet);
@@ -1495,8 +1425,47 @@ if (root) {
     validateUpdateSheetRows();
     refreshSettingsSummary();
   };
-  root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"], [data-pbd-key-points-toggle]')
+  root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"]')
     .forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
+
+  // Project slides: a design card sets the layout, what each project gets and key points; the
+  // server derives them from ProjectDesign too. Moving to or from a fact sheet changes the layout,
+  // which reloads the page to draw the deck's blocks again.
+  const setRadio = (name, value) => {
+    const radio = settingsForm?.querySelector(`input[name="${name}"][value="${value}"]`);
+    if (radio instanceof HTMLInputElement) radio.checked = true;
+  };
+  const keyPointsChip = root.querySelector('[data-pbd-key-points-toggle]');
+  const applyDesign = (design) => {
+    setRadio('Layout', design === 'FactSheet' ? 'ProjectUpdateSheet' : 'StandardBriefing');
+    const narrative = { Capability: 'CapabilityOverview', KeyPoints: 'CapabilityOverview', KeyPointsOnly: 'CapabilityOverview', Brief: 'ProjectBrief', CapabilityAndBrief: 'Both' }[design];
+    if (narrative) setRadio('NarrativeMode', narrative);
+    if (keyPointsChip instanceof HTMLInputElement) {
+      if (design === 'KeyPoints' || design === 'KeyPointsOnly') keyPointsChip.checked = true;
+      if (design === 'Capability') keyPointsChip.checked = false;
+    }
+    syncTemplateSettings();
+  };
+  root.querySelectorAll('[data-pbd-design]').forEach((card) => card.addEventListener('change', () => {
+    if (card instanceof HTMLInputElement && card.checked) applyDesign(card.value);
+  }));
+  // Key points on a capability slide is the Key points design, and off is Capability.
+  keyPointsChip?.addEventListener('change', () => {
+    const design = projectDesign();
+    const swap = keyPointsChip.checked && design === 'Capability' ? 'KeyPoints'
+      : !keyPointsChip.checked && design === 'KeyPoints' ? 'Capability' : '';
+    if (swap) setRadio('ProjectDesign', swap);
+    syncTemplateSettings();
+  });
+  // The two cost chips are the deck's cost choice (status table and project slides).
+  const costChips = [...root.querySelectorAll('[data-pbd-cost-part]')];
+  costChips.forEach((chip) => chip.addEventListener('change', () => {
+    const on = (part) => Boolean(costChips.find((other) => other.dataset.pbdCostPart === part)?.checked);
+    const rd = on('rd');
+    const proliferation = on('proliferation');
+    setRadio('CostMode', rd && proliferation ? 'Both' : rd ? 'CostRdOnly' : proliferation ? 'ProliferationOnly' : 'None');
+    syncTemplateSettings();
+  }));
   stageSummaryToggle?.addEventListener('change', () => {
     syncStageSummaryOptions();
     refreshSettingsDirtyState();

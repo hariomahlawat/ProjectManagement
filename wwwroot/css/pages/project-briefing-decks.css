@@ -4243,59 +4243,132 @@ html:has(.pbd-viewer[open]) {
     color: var(--pbd-red);
 }
 
-/* Template: the current template as one row; the three templates open beneath it. */
-.pbd-template-picker {
+/* Project slides: one card per design, a small sketch of the slide above its name. */
+.pbd-designs {
     display: grid;
-    gap: .4rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
 }
 
-.pbd-template-picker__current {
-    display: flex;
-    align-items: center;
-    gap: .6rem;
-    width: 100%;
-    padding: .6rem .7rem;
+.pbd-design {
+    position: relative;
+    display: grid;
+    gap: .15rem;
+    margin: 0;
+    padding: .45rem;
     border: 1px solid var(--pbd-border);
     border-radius: .6rem;
     background: var(--pm-card, var(--pbd-surface));
     color: var(--pbd-ink);
-    text-align: left;
+    cursor: pointer;
+    transition: border-color .15s ease, box-shadow .15s ease;
 }
 
-.pbd-template-picker__current:hover,
-.pbd-template-picker__current:focus-visible {
+/* An odd last card spans the row, its sketch kept to one column's width. */
+.pbd-design:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+}
+
+.pbd-design:last-child:nth-child(odd) .pbd-design__mini {
+    max-width: calc(50% - .25rem);
+}
+
+.pbd-design input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.pbd-design:hover {
     border-color: var(--pbd-blue);
 }
 
-.pbd-template-picker__text {
-    display: grid;
-    flex: 1 1 auto;
-    gap: .1rem;
-    min-width: 0;
-}
-
-.pbd-template-picker__text strong {
-    font-size: .88rem;
-}
-
-.pbd-template-picker__text small {
-    color: var(--pbd-muted);
-    font-size: .76rem;
-    line-height: 1.35;
-}
-
-.pbd-template-picker__badge {
-    flex: none;
-    padding: .1rem .5rem;
-    border-radius: 999px;
+.pbd-design:has(input:checked) {
+    border-color: var(--pbd-blue);
     background: var(--pbd-blue-soft);
-    color: var(--pbd-blue);
-    font-size: .7rem;
-    font-weight: 700;
+    box-shadow: 0 0 0 1px var(--pbd-blue);
 }
 
-.pbd-template-picker__badge[hidden] {
-    display: none;
+.pbd-design:has(input:focus-visible) {
+    outline: 2px solid var(--pbd-blue);
+    outline-offset: 2px;
+}
+
+.pbd-design strong {
+    margin-top: .2rem;
+    font-size: .82rem;
+}
+
+.pbd-design small {
+    color: var(--pbd-muted);
+    font-size: .72rem;
+    line-height: 1.3;
+}
+
+.pbd-design__mini {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 3px;
+    aspect-ratio: 16 / 9;
+    padding: 4px;
+    border: 1px solid var(--pbd-border);
+    border-radius: .3rem;
+    background: var(--pbd-surface);
+}
+
+.pbd-design__mini i {
+    display: block;
+    min-height: 0;
+    border-radius: 2px;
+    background: var(--pbd-border);
+}
+
+.pbd-design__mini i.is-photo {
+    background: repeating-linear-gradient(135deg, var(--pbd-border) 0 4px, var(--pbd-canvas) 4px 8px);
+}
+
+.pbd-design__mini i.is-band {
+    background: color-mix(in srgb, var(--pbd-blue) 22%, var(--pbd-surface));
+}
+
+.pbd-design__mini i.is-table {
+    background: repeating-linear-gradient(180deg, var(--pbd-border) 0 3px, var(--pbd-surface) 3px 7px);
+}
+
+.pbd-design__mini--keypoints {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr .45fr;
+}
+
+.pbd-design__mini--brief {
+    grid-template-columns: 1.3fr 1fr;
+}
+
+.pbd-design__mini--factsheet {
+    grid-template-columns: 1fr 1fr;
+}
+
+.pbd-design__mini--keypointsonly {
+    grid-template-columns: 1.1fr 1fr;
+}
+
+.pbd-design__row {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 3px;
+    min-height: 0;
+}
+
+.pbd-design__points {
+    display: grid;
+    gap: 3px;
+    min-height: 0;
+}
+
+.pbd-chip input:disabled ~ span {
+    opacity: .6;
+    cursor: not-allowed;
 }
 
 .pbd-template-picker__current > .bi {

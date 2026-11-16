@@ -797,6 +797,23 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    width under both. Only recorded points show; with none, the column shows a "Key points not
    recorded" placeholder and nothing else. PR 5 still adds it to `BuildStandardPlans`, the
    settings and the gaps list.
+
+   Built in two parts (16 Nov 2026). **Part 1, the design cards:** the Deck tab's Project slides
+   step opens with one card per design (Capability, Key points, Brief, Fact sheet, Key points only),
+   and "Show on each slide" chips below: present stage, status remark, R&D cost, proliferation cost
+   and key points. A design is not stored on its own: `ProjectBriefingProjectSlideDesigns` reads it
+   from the settings decks already had (layout, what each project gets, key points) and writes it
+   back as them, so the server derives those from the posted `ProjectDesign`. Key points only is the
+   one new setting, `keyPointsOnly` beside `keyPoints` in `standardBriefing`; an older build ignores
+   it and shows the Key points design. The key points chip on Capability switches to Key points (and
+   off again), adds a band on Brief, and is fixed on for Key points only. The two cost chips are the
+   deck's cost choice, so the Cost step is gone; Fact sheet hides the chips (its rows are chosen in
+   Sheet rows) and changing to or from it reloads the page, as any layout change does. A deck that
+   uses "Capability and brief" (two slides per project) keeps it as a sixth card; other decks are not
+   offered it. The composer draws Key points only from the block list; it counts in the slide facts
+   (key points shown) and in the gaps (key points expected, capability text not). The Template
+   picker and its "customised" badge are gone from the Deck tab; a template only starts a new deck,
+   and the progress line names the design. **Part 2, the Add block library**, is next.
 6. **Focus view.** Built (16 Nov 2026; see the Studio section). Header button, hides the top bar
    and rail, remembered per person (in the browser); Escape does not leave it (Escape belongs to
    dialogs and Present); phones unchanged.
