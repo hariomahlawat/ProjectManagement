@@ -17,6 +17,7 @@ test('a collage starts, takes a photo and saves a PNG', async ({ page }) => {
   await expect(page.locator('[data-draft-status]')).toHaveText('Draft saved in this browser');
 
   await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'A slide or a screen' }).click();
   const download = page.waitForEvent('download');
   await page.locator('[data-action="save-go"]').click();
   const file = await download;

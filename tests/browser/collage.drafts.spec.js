@@ -4,7 +4,7 @@
 // PR 2): from the start screen while the draft opens, or from another tab.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile } = require('./helpers');
+const { openFresh, photoFile, showLayers } = require('./helpers');
 
 /** Draft records and photo counts in the drafts database, by draft id. */
 async function stored(page) {
@@ -83,6 +83,7 @@ test('a photo the page does not show can be removed; Undo of its frame brings it
   await expect(page.locator('[data-remove-photo]')).toHaveCount(0);
 
   // Take the first photo off the page: it stays in the tray, now removable.
+  await showLayers(page);
   await page.locator('[data-layer-select]').last().click();
   await page.locator('[data-action="delete"][data-for="item"]').click();
   await expect(page.locator('[data-remove-photo]')).toHaveCount(1);

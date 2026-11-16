@@ -95,9 +95,10 @@ its npm package by hand; the libman entry records the version.
   groups with a search box.
 - **Background**: colours, gradients, patterns and textures, or one of the photos softly
   blurred.
-- **Arrange**: snap guides to the page and other items, Line up on the page, a Layers list to
-  select, hide or lock any item, bring forward and send backward, Duplicate, and Preview (the
-  page alone; Esc comes back).
+- **Arrange**: snap guides to the page and other items, Line up on the page, a **Layers** tab
+  (beside **Settings**, at the top of the settings panel) to select, hide or lock any item, bring forward and send backward, Duplicate, and Preview (the
+  page alone, exactly as Save makes it: empty frames are left out; Esc comes back). A white
+  frame put on a photo turns its shadow on, so it shows on a white page.
 - **Undo and Redo** for every change.
 - **Save as** PNG, JPEG (optionally under a size in KB) or PDF whose page is the paper's real
   size; at print quality (300 dpi) or for the screen (1920 px on the long side). Save reads each
@@ -157,6 +158,14 @@ and empty frames have a **Size** slider, so everything can be resized without a 
 panel is drawn again after a change, focus goes back to the control that was used, inside that
 panel (`collage-focus.js`). Arrow keys do not move a hidden item.
 
+### The settings panel
+
+The settings panel has two tabs: **Settings** for the selected item (or the page), and **Layers**
+for every item. Choosing an item on the page shows its settings; choosing it in Layers keeps
+Layers open, so a keyboard user can pick and move items one after another. Groups used less often
+(angle, corners and see-through, order, line up, text effects, brightness and contrast) are
+folded; one opened stays open, remembered in this browser.
+
 ### Changes, Undo and drafts
 
 Every change reaches the page, Undo and the draft the same way, through the change log
@@ -193,14 +202,15 @@ into the empty frame closest to its shape; photos past a layout's frames wait in
 message, rather than sit loose on the grid. New words and stickers go where they cover nothing
 yet, and the item's toolbar moves below it when above would cover another item. Save asks what the picture is
 for: WhatsApp or email (JPG for the screen), printing (PDF at print quality), or a slide or a
-screen (PNG).
+screen (PNG). The purpose chosen is shown pressed and remembered in this browser; the first time
+it is WhatsApp or email.
 
 ### Phones and the Dark theme
 
 At 820 px wide and below, the panels move to a bar at the bottom. A panel, or the selected item's
 settings (the **Settings** button on the toolbar over the item), opens as a sheet over the lower
 half with a close button, and the page fits in the space above it. The bottom bar's **Layers**
-button opens the settings and Layers even when nothing is selected, so hidden items can always be
+button opens the Layers tab even when nothing is selected, so hidden items can always be
 shown again. Preview fills the whole screen. Two fingers on the page zoom
 it, around the point between the fingers; one finger moves items. The zoom buttons are hidden on
 phones, and the draft status shows only when something is wrong, with its reason in the alert.

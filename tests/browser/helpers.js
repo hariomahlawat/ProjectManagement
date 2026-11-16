@@ -57,4 +57,14 @@ async function newestDraft(page) {
   }));
 }
 
-module.exports = { openFresh, photoFile, newestDraft };
+/** Opens the Layers tab of the settings panel (docs/ux/collage-review-2-fixes.md, PR 8). */
+async function showLayers(page) {
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+}
+
+/** Opens the Settings tab of the settings panel. */
+async function showSettings(page) {
+  await page.locator('.clg-props [data-props-tab="settings"]').click();
+}
+
+module.exports = { openFresh, photoFile, newestDraft, showLayers, showSettings };
