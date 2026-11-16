@@ -779,6 +779,19 @@ test('a photo taken out of a layout leaves an empty frame in its place', () => {
   assert.deepEqual(slot, { id: 'i1', kind: 'slot', x: 200, y: 300, width: 400, aspect: 1.5, angle: 5, opacity: 100, radius: 12 });
 });
 
+test('an emptied frame keeps its cell, so a change of space still moves it with the layout', () => {
+  const PC = require('./collage-core.js');
+  let model = PC.applyLayout(PC.newCollage('a4l'), Object.keys(PC.LAYOUTS)[1], PC.LAYOUT_LIMITS.defaultGap, 0, ['p1', 'p2', 'p3', 'p4'], (() => { let n = 0; return () => `i${n += 1}`; })()).collage;
+  const photo = model.items.find((i) => i.kind === 'photo');
+  assert.ok(Number.isInteger(photo.cell));
+  model = { ...model, items: model.items.map((i) => (i === photo ? PC.emptyFrame(i) : i)) };
+  const emptied = model.items.find((i) => i.id === photo.id);
+  assert.equal(emptied.cell, photo.cell);
+  const wider = PC.reflowLayout(model, PC.LAYOUT_LIMITS.defaultGap + 20);
+  const moved = wider.items.find((i) => i.id === photo.id);
+  assert.notDeepEqual([moved.x, moved.width], [emptied.x, emptied.width], 'it moved with the layout');
+});
+
 test('a new item goes where it covers nothing yet', () => {
   const PC = require('./collage-core.js');
   const heading = { id: 't1', kind: 'text', x: 500, y: 500, width: 600, aspect: 6, angle: 0 };

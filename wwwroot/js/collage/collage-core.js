@@ -212,10 +212,13 @@
 
   /**
    * The empty frame a photo leaves when it is taken out of a layout: same id, place, size, turn
-   * and corners, so the layout keeps its shape and another photo can go in.
+   * and corners, and its cell in the layout, so the layout keeps its shape (a change of space or
+   * page size moves it with the others) and another photo can go in.
    */
   function emptyFrame(item) {
-    return { id: item.id, kind: 'slot', x: item.x, y: item.y, width: item.width, aspect: item.aspect, angle: item.angle || 0, opacity: 100, radius: item.radius || 0 };
+    const slot = { id: item.id, kind: 'slot', x: item.x, y: item.y, width: item.width, aspect: item.aspect, angle: item.angle || 0, opacity: 100, radius: item.radius || 0 };
+    if (Number.isInteger(item.cell)) slot.cell = item.cell;
+    return slot;
   }
 
   /**
