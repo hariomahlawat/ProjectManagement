@@ -292,6 +292,14 @@ test('briefing workflows use the reusable PRISM confirmation dialog instead of b
   assert.match(confirmSource, /focus: 'cancel'/);
 });
 
+test('a save keeps the row version it produced, not a re-read deck\'s (review 2 fixes, PR 3)', () => {
+  assert.doesNotMatch(source, /updateRowVersion\([^)]*deck\?*\.rowVersion\)/);
+  assert.match(source, /updateRowVersion\(replyPayload\?\.rowVersion\);/);
+  // A conflict while adding projects shows the conflict banner like every other save.
+  assert.match(source, /throw new RequestError\(reply\?\.message \|\| `Projects could not be added/);
+  assert.match(source, /if \(error instanceof RequestError && error\.status === 409\) showConflict\(error\.message\);\s*setState\(addProjectsStatus/);
+});
+
 test('one word for the pieces of a deck: slide (review fixes PR 5)', () => {
   assert.doesNotMatch(viewSource, /Add block/);
   assert.match(viewSource, /<\/i> Add slide/);

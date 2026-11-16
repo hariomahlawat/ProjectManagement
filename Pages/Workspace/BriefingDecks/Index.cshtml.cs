@@ -266,6 +266,7 @@ public sealed class IndexModel : PageModel
             return Fail(FirstModelError("Review the deck settings and try again."));
         }
 
+        string? settingsRowVersion = null;
         try
         {
             var existingDeck = await _deckService.GetEntityAsync(
@@ -289,7 +290,7 @@ public sealed class IndexModel : PageModel
                 input.ShowKeyPoints,
                 input.KeyPointSlide);
 
-            await _deckService.UpdateSettingsAsync(
+            settingsRowVersion = await _deckService.UpdateSettingsAsync(
                 input.DeckId,
                 userId,
                 new ProjectBriefingDeckSettingsCommand
@@ -344,7 +345,8 @@ public sealed class IndexModel : PageModel
         if (isAjax)
         {
             var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
-            return new JsonResult(new { saved = true, deck });
+            // The version this save produced; the re-read deck may already carry someone else's.
+            return new JsonResult(new { saved = true, rowVersion = settingsRowVersion, deck });
         }
 
         StatusMessage = "Deck settings saved.";
@@ -565,6 +567,7 @@ public sealed class IndexModel : PageModel
         }
 
         string message;
+        string? addedRowVersion = null;
         try
         {
             var selection = await _selectionService.ResolveAsync(
@@ -592,9 +595,10 @@ public sealed class IndexModel : PageModel
                 selection.SelectionRulesJson,
                 input.RowVersion,
                 cancellationToken);
-            message = added == 0
+            addedRowVersion = added.RowVersion;
+            message = added.Added == 0
                 ? "All matching projects are already in this deck."
-                : $"{added} project{(added == 1 ? string.Empty : "s")} added — {selection.RuleSummary}.";
+                : $"{added.Added} project{(added.Added == 1 ? string.Empty : "s")} added — {selection.RuleSummary}.";
         }
         catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
         {
@@ -614,7 +618,7 @@ public sealed class IndexModel : PageModel
         if (isAjax)
         {
             var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
-            return new JsonResult(new { saved = true, message, deck });
+            return new JsonResult(new { saved = true, message, rowVersion = addedRowVersion, deck });
         }
 
         StatusMessage = message;
@@ -648,6 +652,7 @@ public sealed class IndexModel : PageModel
                 saved = true,
                 result.AddedCount,
                 result.RemovedCount,
+                rowVersion = result.RowVersion,
                 deck
             });
         }
