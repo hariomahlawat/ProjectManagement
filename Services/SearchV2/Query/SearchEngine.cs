@@ -1104,35 +1104,6 @@ public sealed class SearchEngine : ISearchV2Engine
             -- the ranked order can have changed; a cursor from before must not continue.
             SELECT LEFT(md5(COUNT(*)::text || ':' || COALESCE(SUM("Id"), 0)::text), 16) AS value
             FROM candidate_scored
-        ), cluster_sources AS (
-            -- The sources in each result's cluster. A related chip opens that source within
-            -- the result's project (Source + Project, which filters on ParentProjectId), or the
-            -- whole source when the result has no project; its count is what that list shows:
-            -- matching records of the source there, one per cluster as the list clusters them.
-            SELECT "CanonicalEntityType", "CanonicalEntityKey", "SourceModule", MAX("ParentProjectId") AS link_project
-            FROM candidate_scored
-            GROUP BY "CanonicalEntityType", "CanonicalEntityKey", "SourceModule"
-        ), project_source_counts AS (
-            SELECT "ParentProjectId" AS link_project, "SourceModule",
-                   COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS source_count
-            FROM candidate_scored
-            WHERE "ParentProjectId" IS NOT NULL
-            GROUP BY "ParentProjectId", "SourceModule"
-        ), all_source_counts AS (
-            SELECT "SourceModule", COUNT(DISTINCT ("CanonicalEntityType", "CanonicalEntityKey")) AS source_count
-            FROM candidate_scored
-            GROUP BY "SourceModule"
-        ), related_source_counts AS (
-            SELECT s."CanonicalEntityType", s."CanonicalEntityKey", s."SourceModule",
-                   CASE WHEN s.link_project IS NULL THEN a.source_count ELSE p.source_count END AS source_count
-            FROM cluster_sources s
-            LEFT JOIN project_source_counts p ON p.link_project = s.link_project AND p."SourceModule" = s."SourceModule"
-            LEFT JOIN all_source_counts a ON a."SourceModule" = s."SourceModule"
-        ), related AS (
-            SELECT "CanonicalEntityType", "CanonicalEntityKey",
-                   STRING_AGG("SourceModule" || ':' || COALESCE(source_count, 0)::text, ' · ' ORDER BY source_count DESC NULLS LAST, "SourceModule") AS related_sources
-            FROM related_source_counts
-            GROUP BY "CanonicalEntityType", "CanonicalEntityKey"
         ), filtered_candidates AS (
             SELECT c.*
             FROM candidate_scored c
@@ -1144,7 +1115,7 @@ public sealed class SearchEngine : ISearchV2Engine
             -- cluster is ranked by the best evidence of any member.
             SELECT x."Id", x."EntityType", x."EntityKey", x."CanonicalEntityType", x."CanonicalEntityKey", x."ParentProjectId",
                    x."SourceModule", x."ResultCategory", x."Status", x."FileType", x."EventDateUtc", x."UpdatedAtUtc",
-                   x.cluster_tier AS tier, x.entity_priority, x.cluster_score AS fusion_score, x.channels, r.related_sources
+                   x.cluster_tier AS tier, x.entity_priority, x.cluster_score AS fusion_score, x.channels
             FROM (
                 SELECT c.*,
                        ROW_NUMBER() OVER (
@@ -1155,7 +1126,6 @@ public sealed class SearchEngine : ISearchV2Engine
                        MAX(c.fusion_score) OVER (PARTITION BY c."CanonicalEntityType", c."CanonicalEntityKey") AS cluster_score
                 FROM filtered_candidates c
             ) x
-            JOIN related r USING ("CanonicalEntityType", "CanonicalEntityKey")
             WHERE x.cluster_rank = 1
         ), ranked AS (
             SELECT c.*,
@@ -1330,9 +1300,37 @@ public sealed class SearchEngine : ISearchV2Engine
                            @maxSnippetSourceCharacters)
                    END AS "NarrativeText",
                    p."Status", p."FileType", p."EventDateUtc", p."UpdatedAtUtc", e."MetadataJson"::text AS "MetadataJson",
-                   p.tier, p.entity_priority, p.fusion_score, p.channels, p.global_rank::int AS "GlobalRank", p.related_sources AS "RelatedSources"
+                   p.tier, p.entity_priority, p.fusion_score, p.channels, p.global_rank::int AS "GlobalRank", r.related_sources AS "RelatedSources"
             FROM page p
             JOIN "SearchEntries" e ON e."Id" = p."Id"
+            -- Related chips, for this page's results only. A chip opens its source within the
+            -- result's project (Source + Project, which filters on ParentProjectId), or the
+            -- whole source when the result has no project, as the page builds the link; its
+            -- count is what that list shows: matching records of the source there, one per
+            -- cluster. DISTINCT subqueries, not COUNT(DISTINCT), which always sorts.
+            LEFT JOIN LATERAL (
+                SELECT STRING_AGG(m."SourceModule" || ':' || n.source_count::text, ' · ' ORDER BY n.source_count DESC, m."SourceModule") AS related_sources
+                FROM (
+                    SELECT COALESCE(p."ParentProjectId",
+                                    CASE WHEN p."CanonicalEntityType" = 'Project' AND p."CanonicalEntityKey" ~ '^[0-9]+$' AND LENGTH(p."CanonicalEntityKey") < 10
+                                         THEN p."CanonicalEntityKey"::int END) AS link_project
+                ) l
+                CROSS JOIN (
+                    SELECT DISTINCT c."SourceModule"
+                    FROM candidate_scored c
+                    WHERE c."CanonicalEntityType" = p."CanonicalEntityType" AND c."CanonicalEntityKey" = p."CanonicalEntityKey"
+                ) m
+                CROSS JOIN LATERAL (
+                    SELECT COUNT(*) AS source_count
+                    FROM (
+                        SELECT DISTINCT o."CanonicalEntityType", o."CanonicalEntityKey"
+                        FROM candidate_scored o
+                        WHERE o."SourceModule" = m."SourceModule"
+                          AND (l.link_project IS NULL OR o."ParentProjectId" = l.link_project)
+                    ) d
+                ) n
+                WHERE n.source_count > 0
+            ) r ON TRUE
             -- Where the excerpt starts: the first word-start hit of a typed word or stem
             -- inflection (anchor_pattern). One regular expression per row over the body,
             -- lower-cased once.
