@@ -147,6 +147,10 @@ test('the content editors save in place, after a pending settings save (review 2
   // It stays on the page, so it never takes the leave-and-discard path.
   assert.doesNotMatch(source.match(/async function sendEditor\(form\) \{[\s\S]*?\n  \}\n/)?.[0] || '', /settleSettingsBeforeLeaving|settingsDiscarded/);
   // Locked while it saves, so an edit made mid-save is not marked saved without being sent.
+  // A drawer cannot be dismissed (and its form reset) while its save runs.
+  assert.match(source, /const closeProfileDrawer = async[\s\S]*?if \(profileForm\?\.getAttribute\('aria-busy'\) === 'true'\) return false;/);
+  assert.match(additionalSlidesSource, /const closeDrawer = async[\s\S]*?if \(form\?\.getAttribute\('aria-busy'\) === 'true'\) return false;/);
+  assert.match(additionalSlidesSource, /const closeFfcDrawer = async[\s\S]*?if \(ffcForm\?\.getAttribute\('aria-busy'\) === 'true'\) return false;/);
   assert.match(source, /form\.toggleAttribute\('inert', true\);[\s\S]*?return await sendEditor\(form\);\s*\} finally \{\s*form\.toggleAttribute\('inert', false\);/);
   assert.match(source, /const result = await saveEditorInPlace\(profileForm\);/);
   assert.match(additionalSlidesSource, /const result = await root\.pbdSaveEditor\(form\);/);

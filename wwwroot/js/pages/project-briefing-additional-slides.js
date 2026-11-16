@@ -225,7 +225,11 @@ if (root) {
 
   const closeDrawer = async ({ force = false } = {}) => {
     if (!drawer || !backdrop) return false;
+    // Not while the form is saving: a discard then would reset it to values older than the ones
+    // being saved. Checked again after the question.
+    if (form?.getAttribute('aria-busy') === 'true') return false;
     if (dirty && !force && !(await confirmRoleCharterDiscard())) return false;
+    if (form?.getAttribute('aria-busy') === 'true') return false;
     if (dirty) restoreInitial();
     drawer.classList.remove('is-open');
     drawer.setAttribute('aria-hidden', 'true');
@@ -476,7 +480,10 @@ if (root) {
 
   const closeFfcDrawer = async ({ force = false } = {}) => {
     if (!ffcDrawer || !ffcBackdrop) return false;
+    // Not while the form is saving (see closeDrawer).
+    if (ffcForm?.getAttribute('aria-busy') === 'true') return false;
     if (!force && !(await confirmFfcDiscard())) return false;
+    if (ffcForm?.getAttribute('aria-busy') === 'true') return false;
     if (ffcDirty && ffcForm instanceof HTMLFormElement) {
       ffcForm.reset();
       syncFfcConfiguration();
