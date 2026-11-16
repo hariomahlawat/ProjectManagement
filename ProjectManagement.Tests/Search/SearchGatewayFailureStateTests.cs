@@ -77,7 +77,7 @@ public sealed class SearchGatewayFailureStateTests
     [InlineData(false)]
     public async Task RealLegacy_WithEverySourceFailing_IsUnavailable(bool serveV2)
     {
-        var gateway = CreateGateway(SearchResponse.NotReady("aura"), RealLegacy(failing: 7), serveV2);
+        var gateway = CreateGateway(SearchResponse.NotReady("aura"), RealLegacy(failing: 8), serveV2);
 
         var response = await gateway.SearchAsync(new SearchRequest("aura"), User, CancellationToken.None);
 
@@ -88,7 +88,7 @@ public sealed class SearchGatewayFailureStateTests
     [Fact]
     public async Task RealLegacy_WithSomeSourcesFailing_StillAnswers()
     {
-        var gateway = CreateGateway(SearchResponse.NotReady("aura"), RealLegacy(failing: 6), serveV2: false);
+        var gateway = CreateGateway(SearchResponse.NotReady("aura"), RealLegacy(failing: 7), serveV2: false);
 
         var response = await gateway.SearchAsync(new SearchRequest("aura"), User, CancellationToken.None);
 
@@ -97,7 +97,7 @@ public sealed class SearchGatewayFailureStateTests
         Assert.Single(response.Results);
     }
 
-    // Seven sources; the first <paramref name="failing"/> throw, the rest find one project.
+    // Eight sources; the first <paramref name="failing"/> throw, the rest find one project.
     private static GlobalSearchService RealLegacy(int failing)
     {
         var services = new ServiceCollection();
@@ -109,6 +109,7 @@ public sealed class SearchGatewayFailureStateTests
         services.AddSingleton<IGlobalActivitiesSearchService>(Next());
         services.AddSingleton<IGlobalProjectDocumentSearchService>(Next());
         services.AddSingleton<IGlobalProjectReportsSearchService>(Next());
+        services.AddSingleton<IGlobalItProjectSearchService>(Next());
         services.AddSingleton<IGlobalProjectSearchService>(Next());
         return new GlobalSearchService(
             services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
@@ -117,7 +118,7 @@ public sealed class SearchGatewayFailureStateTests
 
     private sealed class Source(bool fails) :
         IGlobalDocRepoSearchService, IGlobalFfcSearchService, IGlobalIprSearchService, IGlobalActivitiesSearchService,
-        IGlobalProjectDocumentSearchService, IGlobalProjectReportsSearchService, IGlobalProjectSearchService
+        IGlobalProjectDocumentSearchService, IGlobalProjectReportsSearchService, IGlobalItProjectSearchService, IGlobalProjectSearchService
     {
         public Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, int maxResults, CancellationToken cancellationToken) => fails
             ? throw new InvalidOperationException("database down")

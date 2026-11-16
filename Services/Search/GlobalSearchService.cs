@@ -54,6 +54,7 @@ public sealed class GlobalSearchService : IGlobalSearchService
         using var projectScope = _scopeFactory.CreateScope();
         using var projectDocumentScope = _scopeFactory.CreateScope();
         using var reportsScope = _scopeFactory.CreateScope();
+        using var itProjectScope = _scopeFactory.CreateScope();
 
         var docService = docScope.ServiceProvider.GetRequiredService<DocRepo.IGlobalDocRepoSearchService>();
         var ffcService = ffcScope.ServiceProvider.GetRequiredService<IGlobalFfcSearchService>();
@@ -62,6 +63,7 @@ public sealed class GlobalSearchService : IGlobalSearchService
         var projectService = projectScope.ServiceProvider.GetRequiredService<IGlobalProjectSearchService>();
         var projectDocumentService = projectDocumentScope.ServiceProvider.GetRequiredService<IGlobalProjectDocumentSearchService>();
         var reportsService = reportsScope.ServiceProvider.GetRequiredService<IGlobalProjectReportsSearchService>();
+        var itProjectService = itProjectScope.ServiceProvider.GetRequiredService<IGlobalItProjectSearchService>();
 
         var tasks = new[]
         {
@@ -71,7 +73,8 @@ public sealed class GlobalSearchService : IGlobalSearchService
             SafeSearchAsync("Activities", () => actService.SearchAsync(query, 20, cancellationToken), cancellationToken),
             SafeSearchAsync("Projects", () => projectService.SearchAsync(query, 20, cancellationToken), cancellationToken),
             SafeSearchAsync("Project documents", () => projectDocumentService.SearchAsync(query, 20, cancellationToken), cancellationToken),
-            SafeSearchAsync("Project Office trackers", () => reportsService.SearchAsync(query, 20, cancellationToken), cancellationToken)
+            SafeSearchAsync("Project Office trackers", () => reportsService.SearchAsync(query, 20, cancellationToken), cancellationToken),
+            SafeSearchAsync("IT, MOLTI and SRE projects", () => itProjectService.SearchAsync(query, 20, cancellationToken), cancellationToken)
         };
 
         var providerResults = await Task.WhenAll(tasks);

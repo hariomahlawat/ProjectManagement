@@ -30,6 +30,10 @@ public static class SearchSourcePolicies
             ["ToT"] = ProjectOfficeReportsPolicies.ViewTotTracker,
             ["Proliferation"] = ProjectOfficeReportsPolicies.ViewProliferationTracker,
             ["ARPP"] = ProjectOfficeReportsPolicies.ViewArpp,
+            // One source per module, each with its own pages' policy (ItProjectModules names).
+            ["IT projects"] = Policies.ItProjects.View,
+            ["MOLTI projects"] = Policies.MoltiProjects.View,
+            ["SRE projects"] = Policies.SreProjects.View,
 
             // Legacy fan-out source labels that differ from the V2 names
             // ("Document Repository" matches "Document repository" case-insensitively).

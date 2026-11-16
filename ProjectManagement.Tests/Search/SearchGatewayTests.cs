@@ -185,6 +185,9 @@ public sealed class SearchGatewayTests
     [Theory]
     [InlineData("Activities", "Organisation")]
     [InlineData("Projects", "Projects")]
+    [InlineData("IT projects", "Projects")]
+    [InlineData("MOLTI projects", "Projects")]
+    [InlineData("SRE projects", "Projects")]
     [InlineData("Project documents", "Documents")]
     [InlineData("Document Repository", "Documents")]
     [InlineData("TOT tracker", "Trackers")]
@@ -373,7 +376,10 @@ public sealed class SearchSourcePoliciesTests
                 ProjectOfficeReportsPolicies.ViewTotTracker,
                 ProjectOfficeReportsPolicies.ViewTrainingTracker,
                 ProjectOfficeReportsPolicies.ViewProliferationTracker,
-                ProjectOfficeReportsPolicies.ViewArpp
+                ProjectOfficeReportsPolicies.ViewArpp,
+                Policies.ItProjects.View,
+                Policies.MoltiProjects.View,
+                Policies.SreProjects.View
             }.OrderBy(value => value, StringComparer.Ordinal),
             SearchSourcePolicies.AllPolicies.OrderBy(value => value, StringComparer.Ordinal));
     }
@@ -382,6 +388,9 @@ public sealed class SearchSourcePoliciesTests
     [InlineData("Document repository", Policies.Documents.View)]
     [InlineData("Document Repository", Policies.Documents.View)]
     [InlineData("IPR", Policies.Ipr.View)]
+    [InlineData("IT projects", Policies.ItProjects.View)]
+    [InlineData("MOLTI projects", Policies.MoltiProjects.View)]
+    [InlineData("SRE projects", Policies.SreProjects.View)]
     [InlineData("Visits", ProjectOfficeReportsPolicies.ViewVisits)]
     [InlineData("Visits tracker", ProjectOfficeReportsPolicies.ViewVisits)]
     [InlineData("ToT", ProjectOfficeReportsPolicies.ViewTotTracker)]

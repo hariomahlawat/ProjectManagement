@@ -549,6 +549,7 @@ builder.Services.AddScoped<IGlobalDocRepoSearchService, GlobalDocRepoSearchServi
 builder.Services.AddScoped<IGlobalFfcSearchService, GlobalFfcSearchService>();
 builder.Services.AddScoped<IGlobalIprSearchService, GlobalIprSearchService>();
 builder.Services.AddScoped<IGlobalActivitiesSearchService, GlobalActivitiesSearchService>();
+builder.Services.AddScoped<IGlobalItProjectSearchService, GlobalItProjectSearchService>();
 builder.Services.AddScoped<IGlobalProjectSearchService, GlobalProjectSearchService>();
 builder.Services.AddScoped<IGlobalProjectReportsSearchService, GlobalProjectReportsSearchService>();
 // SECTION: Project document OCR option binding
