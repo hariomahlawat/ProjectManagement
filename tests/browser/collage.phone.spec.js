@@ -35,3 +35,15 @@ test('on a phone, panels are sheets, new words open their settings, and Layers i
   await expect.poll(async () => (await newestDraft(page))?.model.items.map((item) => item.text)).toContain('Before leaving');
   expect(errors).toEqual([]);
 });
+
+test('zoomed all the way in on a phone, every page canvas stays under the browser limit', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^A4 portrait/ }).click();
+  await expect(page.locator('[data-view="editor"]')).toBeVisible();
+  // The zoom buttons are hidden on phones; the same zoom a pinch gives, as far as it goes.
+  await page.evaluate(() => { for (let i = 0; i < 12; i += 1) document.querySelector('[data-action="zoom-in"]').click(); });
+  const areas = await page.evaluate(() => [...document.querySelectorAll('[data-konva] canvas')].map((c) => c.width * c.height));
+  expect(areas.length).toBeGreaterThan(0);
+  for (const area of areas) expect(area).toBeLessThanOrEqual(16000000);
+  expect(errors).toEqual([]);
+});

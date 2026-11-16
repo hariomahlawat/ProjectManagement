@@ -188,6 +188,9 @@
     session.end();
     photos.clear();
     forgetPhotoPreviews();
+    textLayouts.clear();
+    lastStickerImage.clear();
+    thumbnail = { url: '', at: 0, fresh: false, behind: false };
     selectedId = null;
     adjustId = null;
     targetId = null;
@@ -228,6 +231,7 @@
   async function goHome() {
     if (leaving) return;
     leaving = true;
+    freshThumbnail();
     // The editor is locked while the draft is written, so no change can slip in after the
     // last snapshot and be dropped when the editor is cleared.
     views.editor.inert = true;
@@ -267,6 +271,7 @@
   function saveOnLeaving() {
     if (views.editor.hidden || !session.draft) return;
     flushNudge();
+    freshThumbnail();
     if (session.pending) session.saveNow();
   }
   document.addEventListener('visibilitychange', () => {
@@ -310,7 +315,7 @@
       model: collage,
       size: collage.size,
       photos: keptPhotos(),
-      thumbnail: views.editor.hidden ? '' : pageThumbnail(),
+      thumbnail: views.editor.hidden ? '' : draftThumbnail(),
       hasContent: hasContent()
     }),
     onStatus: (text, warning) => setDraftStatus(text, warning),
@@ -340,7 +345,28 @@
 
   /** Saves the draft half a second after the last change. */
   function scheduleDraft() {
+    thumbnail.behind = true;
     session.changed();
+  }
+
+  // The start screen's picture of the draft is made again at most every few seconds while
+  // editing (drawing the whole page for it each half second was a cost on phones), and always
+  // when leaving the collage.
+  const THUMBNAIL_EVERY_MS = 5000;
+  let thumbnail = { url: '', at: 0, fresh: false, behind: false };
+
+  function draftThumbnail() {
+    const now = Date.now();
+    if (thumbnail.fresh || !thumbnail.url || now - thumbnail.at >= THUMBNAIL_EVERY_MS) {
+      thumbnail = { url: pageThumbnail(), at: now, fresh: false, behind: false };
+    }
+    return thumbnail.url;
+  }
+
+  /** Leaving: the draft is written once more if its picture is older than the page. */
+  function freshThumbnail() {
+    thumbnail.fresh = true;
+    if (thumbnail.behind && session.draft?.created) session.changed();
   }
 
   /** A small picture of the page for the start screen, without handles or guides. */
@@ -585,8 +611,17 @@
     scale = Math.max(0.05, fit * zoom);
     const pageW = core.PAGE_WIDTH * scale;
     const pageH = height * scale;
-    const stageW = Math.max(stageBox.clientWidth, pageW + 2 * pad);
-    const stageH = Math.max(usableHeight, pageH + 2 * pad);
+    // Rounded up to steps, so a pinch makes new canvases now and then, not at every move.
+    const step = 128;
+    const stageW = Math.max(stageBox.clientWidth, Math.ceil((pageW + 2 * pad) / step) * step);
+    const stageH = Math.max(usableHeight, Math.ceil((pageH + 2 * pad) / step) * step);
+    // Each layer stays under the browser's canvas limit at any zoom (core.canvasPixelRatio):
+    // set before the stage grows, so a canvas too large is never made.
+    const ratio = core.canvasPixelRatio(stageW, stageH, window.devicePixelRatio || 1);
+    for (const each of [backLayer, layer]) {
+      const canvas = each.getCanvas();
+      if (Math.abs(canvas.getPixelRatio() - ratio) > 0.01) canvas.setPixelRatio(ratio);
+    }
     stage.size({ width: stageW, height: stageH });
     stageHost.style.width = `${stageW}px`;
     stageHost.style.height = `${stageH}px`;

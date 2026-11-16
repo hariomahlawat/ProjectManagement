@@ -115,6 +115,24 @@
     return { accepted, refused };
   }
 
+  /**
+   * The largest canvas, in pixels, the editor gives the browser for each layer of the page. iPhones
+   * draw nothing on a canvas over 16,777,216 pixels; the page keeps a margin below that.
+   */
+  const CANVAS_LIMITS = { maxPixels: 16000000, minRatio: 0.5 };
+
+  /**
+   * The pixel ratio for a page canvas of this size: the screen's own, made smaller when the canvas
+   * would pass the limit (zoomed far in on a phone). The page then looks a little softer instead
+   * of going blank.
+   */
+  function canvasPixelRatio(width, height, deviceRatio) {
+    const device = Number.isFinite(deviceRatio) && deviceRatio > 0 ? deviceRatio : 1;
+    const area = Math.max(1, width) * Math.max(1, height);
+    const fits = Math.sqrt(CANVAS_LIMITS.maxPixels / area);
+    return Math.max(Math.min(CANVAS_LIMITS.minRatio, device), Math.min(device, fits));
+  }
+
   /** One sentence for photos that were not added, or '' when every photo was. */
   function refusedMessage(refused) {
     if (!refused.length) return '';
@@ -1318,6 +1336,8 @@
     readDraftModel,
     sortDrafts,
     photosInUse,
+    CANVAS_LIMITS,
+    canvasPixelRatio,
     draftToMakeRoom,
     savedAgo,
     createHistory

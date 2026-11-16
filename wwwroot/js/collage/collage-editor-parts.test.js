@@ -155,3 +155,42 @@ test('the settings panel HTML escapes names and offers Size only for photos and 
   assert.match(layers, /data-layer-select="i2" aria-current="true"/);
   assert.equal(html.layersSection({ items: [] }, null), '');
 });
+
+function fakeCanvasMaker(canvases) {
+  return () => {
+    const ctx = new Proxy({ calls: [] }, {
+      get: (target, name) => (name in target ? target[name] : (...args) => { target.calls.push([name, ...args]); return { addColorStop() {} }; }),
+      set: (target, name, value) => { target[name] = value; return true; }
+    });
+    const canvas = {
+      width: 0, height: 0, getContext: () => ctx, ctx,
+      toBlob: (done) => done({ arrayBuffer: async () => new ArrayBuffer(4) })
+    };
+    canvases.push(canvas);
+    return canvas;
+  };
+}
+
+test('a Save that fails lets go of its picture; smaller copies for a JPG size are let go too', async () => {
+  const canvases = [];
+  const renderer = createRenderer({
+    core, draw,
+    measureText: () => ({ width: 10, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2 }),
+    fontsReady: async () => {},
+    stickerImage: async () => null,
+    makeCanvas: fakeCanvasMaker(canvases),
+    decode: async () => { throw new Error('out of memory'); }
+  });
+  const collage = { ...core.newCollage('a4l'), items: [core.photoItem('a', 'p1', 1.5, { x: 300, y: 200, width: 300 })] };
+  const photos = new Map([['p1', { id: 'p1', file: 'f', width: 3000, height: 2000, aspect: 1.5 }]]);
+  await assert.rejects(renderer.drawCollage(collage, photos, 1920, 1357), /out of memory/);
+  assert.equal(canvases[0].width, 0);
+  assert.equal(canvases[0].height, 0);
+
+  const source = { width: 1000, height: 800, getContext: () => null, toBlob: (done) => done({ arrayBuffer: async () => new ArrayBuffer(8) }) };
+  const bytes = await renderer.scaledBytes(source, 500, 400, 'image/jpeg', 0.8);
+  assert.equal(bytes.length, 4);
+  const copy = canvases.at(-1);
+  assert.equal(copy.width, 0, 'the smaller copy is let go');
+  assert.equal(source.width, 1000, 'the picture itself is kept for the next try');
+});

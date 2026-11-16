@@ -120,12 +120,13 @@
       goButton.disabled = true;
       saveResult.hidden = false;
       saveResult.textContent = 'Making the picture…';
+      let canvas = null;
       try {
         const wanted = core.savePixels(getCollage().size, quality);
         const fits = renderer.largestCanvas(wanted.width, wanted.height);
         if (!fits) throw new Error('canvas');
         const drawn = await renderer.drawCollage(getCollage(), photos, fits.width, fits.height);
-        const canvas = drawn.canvas;
+        canvas = drawn.canvas;
         saveLeftOut = drawn.leftOutPhotos;
         saveStickersLeftOut = drawn.leftOutStickers;
         const stem = core.fileStem(collageTitle());
@@ -144,7 +145,7 @@
           name = `${stem}.jpg`;
           if (targetBytes && photoTools) {
             const result = await photoTools.encodeToTarget({
-              encode: (w, h, q) => renderer.toBytes(renderer.scaledCanvas(canvas, w, h), type, q),
+              encode: (w, h, q) => renderer.scaledBytes(canvas, w, h, type, q),
               lossy: true,
               width,
               height,
@@ -169,8 +170,8 @@
           pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
           bytes = await pdf.save();
         }
-        canvas.width = 0;
-        canvas.height = 0;
+        renderer.release(canvas);
+        canvas = null;
         download(bytes, type, name);
         const sizeText = photoTools ? photoTools.formatBytes(bytes.length) : `${Math.ceil(bytes.length / 1000)} KB`;
         const parts = [`Saved “${name}”`, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText];
@@ -187,6 +188,8 @@
       } catch {
         saveResult.textContent = 'The collage could not be saved. Try Screen quality, or close other tabs and try again.';
       } finally {
+        // A failed save lets go of its picture too.
+        renderer.release(canvas);
         saving = false;
         goButton.disabled = false;
       }

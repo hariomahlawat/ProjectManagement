@@ -119,6 +119,13 @@ Photo handling keeps memory low: the editor draws a copy at most 2000 px on its 
 tray shows a 240 px thumbnail, and the original file is kept only for Save. Thirty phone photos
 then do not exhaust the browser's memory.
 
+Each layer of the page is a canvas of at most 16 million pixels at any zoom
+(`core.canvasPixelRatio`); iPhones draw nothing on a canvas over 16.7 million, so zoomed far in on
+a phone the page turns a little softer instead of blank. The stage grows in steps of 128 pixels, so
+a pinch makes new canvases now and then rather than at every move. The draft's small picture for
+the start screen is made at most every five seconds while editing, and always on leaving. Save
+lets go of its picture, and of every smaller copy made to fit a JPG size, even when it fails.
+
 Drafts are saved half a second after a change. Opening another draft, going back to the start
 screen or leaving waits for the last write, and a draft that cannot be written says why (for
 example, the browser is out of room). The browser keeps at most 30 drafts; the 31st asks to

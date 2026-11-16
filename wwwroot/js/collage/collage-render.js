@@ -50,11 +50,23 @@
       return null;
     }
 
-    /** Draws the collage from the original photos, each read only as large as its frame needs. */
+    /**
+     * Draws the collage from the original photos, each read only as large as its frame needs.
+     * When drawing fails, the canvas is let go before the error is passed on.
+     */
     async function drawCollage(collage, photos, width, height) {
       const canvas = makeCanvas();
       canvas.width = width;
       canvas.height = height;
+      try {
+        return await drawOnto(canvas, collage, photos, width, height);
+      } catch (error) {
+        release(canvas);
+        throw error;
+      }
+    }
+
+    async function drawOnto(canvas, collage, photos, width, height) {
       const context = canvas.getContext('2d');
       context.imageSmoothingQuality = 'high';
       const s = width / core.PAGE_WIDTH;
@@ -68,11 +80,14 @@
         const bitmap = await decode(photo.file, { resizeWidth: Math.min(photo.width, width), resizeQuality: 'high' });
         backPhoto = { source: bitmap, width: bitmap.width, height: bitmap.height };
       }
-      context.save();
-      context.scale(s, s);
-      draw.drawBackground(context, collage.background, core.PAGE_WIDTH, height / s, { photo: backPhoto, pixelsPerUnit: s });
-      context.restore();
-      backPhoto?.source.close?.();
+      try {
+        context.save();
+        context.scale(s, s);
+        draw.drawBackground(context, collage.background, core.PAGE_WIDTH, height / s, { photo: backPhoto, pixelsPerUnit: s });
+        context.restore();
+      } finally {
+        backPhoto?.source.close?.();
+      }
       await fontsReady();
       const stickerPictures = new Map();
       for (const item of core.itemsToSave(collage)) {
@@ -132,6 +147,26 @@
       canvas.toBlob((blob) => (blob ? blob.arrayBuffer().then((buffer) => resolve(new Uint8Array(buffer)), reject) : reject(new Error('encode'))), type, quality);
     });
 
+    /** Lets go of a canvas's pixels at once, rather than when the browser next tidies up. */
+    function release(canvas) {
+      if (!canvas) return;
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+
+    /**
+     * Encodes the canvas drawn at this size; a smaller copy made for it is let go straight
+     * after, so the size search for a JPG holds one copy at a time.
+     */
+    async function scaledBytes(source, width, height, type, quality) {
+      const small = scaledCanvas(source, width, height);
+      try {
+        return await toBytes(small, type, quality);
+      } finally {
+        if (small !== source) release(small);
+      }
+    }
+
     /** The canvas drawn smaller, for the size search when a JPG must fit a file size. */
     function scaledCanvas(source, width, height) {
       if (width === source.width && height === source.height) return source;
@@ -145,7 +180,7 @@
     }
 
 
-    return Object.freeze({ largestCanvas, drawCollage, scaledCanvas, toBytes });
+    return Object.freeze({ largestCanvas, drawCollage, scaledCanvas, scaledBytes, toBytes, release });
   }
 
   return Object.freeze({ createRenderer });
