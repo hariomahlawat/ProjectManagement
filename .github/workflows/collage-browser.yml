@@ -42,5 +42,5 @@ jobs:
           name: collage-browser-report
           path: |
             playwright-report/
-            test-results/collage/
+            test-results/collage-*/
           retention-days: 7

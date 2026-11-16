@@ -73,6 +73,12 @@ PRISM_UPDATE_BROWSER_FIXTURES=1 dotnet test ProjectManagement.Tests --filter "Fu
 
 Every browser test uses `tests/browser/test.js`, which fails the test when the page breaks the Content Security Policy. It sees a violation two ways: the page's `securitypolicyviolation` events (an init script passes each to the test at once, with the directive, the blocked address and the script line) and the browser's console message. A test can allow one, with its reason (`cspAllow`: patterns matched against the console text and against the event's `<directive> <blocked>` line); `collage.csp.spec.js` checks the check itself. On CI a test that passes only on its retry fails the run (`failOnFlakyTests`).
 
+The test server listens on port 7399, or on `COLLAGE_TEST_PORT` when it is set, and each port has its own results folder (`test-results/collage-<port>`, for traces and screenshots of failed tests). To run two test runs at once, for example from two worktrees, give each its own port:
+
+```bash
+COLLAGE_TEST_PORT=7481 npm run test:browser
+```
+
 ## Notebook assets
 
 Notebook source inputs include JavaScript under `wwwroot/js`, the Notebook build tooling and the npm manifests. Committed outputs include the Notebook bundle, source map and manifest under `wwwroot/dist`.

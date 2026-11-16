@@ -97,9 +97,18 @@
     const db = await open();
     const tx = db.transaction(['drafts', 'photos'], 'readwrite');
     const finished = done(tx);
+    // A write refused at once (a full disk, in some browsers) ends the transaction before it is
+    // awaited below: that is handled here, not left as an unhandled rejection, and the save is
+    // refused with the transaction's own error, so a full browser is still said to be full.
+    finished.catch(() => {});
     tx.objectStore('drafts').put(draft);
     const store = tx.objectStore('photos');
-    const held = new Set(await request(store.index('draft').getAllKeys(draft.id)));
+    let held;
+    try {
+      held = new Set(await request(store.index('draft').getAllKeys(draft.id)));
+    } catch (error) {
+      throw tx.error || error;
+    }
     const wanted = new Set();
     for (const photo of photos || []) {
       const key = `${draft.id}/${photo.id}`;
