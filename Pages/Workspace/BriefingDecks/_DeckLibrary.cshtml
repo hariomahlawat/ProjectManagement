@@ -269,6 +269,7 @@
                                         <form method="post" asp-page-handler="Delete" data-pbd-library-delete data-deck-name="@deck.Name" data-confirm-detail="It moves to Recently deleted and can be restored for @ProjectBriefingDeckService.DeletedRetentionDays days." data-page-handled data-confirm="Delete “@deck.Name”? It moves to Recently deleted and can be restored for @ProjectBriefingDeckService.DeletedRetentionDays days.">
                                             <input type="hidden" name="deckId" value="@deck.Id" />
                                             <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                            <input type="hidden" name="from" value="library" />
                                             <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Delete</button>
                                         </form>
                                     </li>

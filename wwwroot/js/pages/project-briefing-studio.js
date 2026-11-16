@@ -8,7 +8,8 @@ const root = document.querySelector('[data-pbd-studio]');
 if (root) {
   const page = root.closest('[data-pbd-root]') || document;
   // The deck page's reply check (an expired sign-in is not a reply; review 5 fixes, H1).
-  const checkReply = (response) => (typeof page.pbdCheckReply === 'function' ? page.pbdCheckReply(response) : response);
+  // The Studio's own requests only read (the preview and photographs).
+  const checkReply = (response) => (typeof page.pbdCheckReply === 'function' ? page.pbdCheckReply(response, { read: true }) : response);
   const outlineNav = root.querySelector('[data-pbd-outline]');
   const searchInput = root.querySelector('[data-pbd-outline-search]');
   const filterBox = root.querySelector('[data-pbd-outline-filter]');

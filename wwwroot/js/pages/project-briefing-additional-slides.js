@@ -132,8 +132,8 @@ if (root) {
 
   const updateVisibility = () => {
     const shared = Boolean(sharedChoice?.checked);
-    // Inclusion is controlled from the Additional Slides workspace. The editor
-    // remains available while the slide is disabled so it can be prepared first.
+    // The slide list decides whether the slide is in the deck; the editor stays available while it
+    // is out, so the slide can be prepared first.
     if (settings instanceof HTMLElement) settings.hidden = false;
     if (sharedSummary instanceof HTMLElement) sharedSummary.hidden = !shared;
     if (customContent instanceof HTMLElement) customContent.hidden = shared;
@@ -144,9 +144,13 @@ if (root) {
     syncCharter();
     const shared = Boolean(sharedChoice?.checked);
     const charterOnly = layout?.value === 'CharterOnly' || layout?.value === '3';
-    const roleCount = shared ? 2 : contentCount(roleList, '[data-pbd-role-item]', '[data-pbd-role-lead]', '[data-pbd-role-text]');
-    const charterCount = shared ? 10 : contentCount(charterList, '[data-pbd-charter-item]', '[data-pbd-charter-lead]', '[data-pbd-charter-text]');
-    valid = charterCount > 0 && (charterOnly || roleCount > 0);
+    const roleCount = contentCount(roleList, '[data-pbd-role-item]', '[data-pbd-role-lead]', '[data-pbd-role-text]');
+    const charterCount = contentCount(charterList, '[data-pbd-charter-item]', '[data-pbd-charter-lead]', '[data-pbd-charter-text]');
+    // As the server checks it (ValidateRoleCharter): only a slide in the deck, using its own
+    // content, needs entries (review 6 fixes, Low 3).
+    const blockSwitch = document.querySelector('[data-pbd-block][data-type="RoleAndCharter"] [data-pbd-block-switch]');
+    const inDeck = blockSwitch instanceof HTMLInputElement ? blockSwitch.checked : true;
+    valid = !inDeck || shared || (charterCount > 0 && (charterOnly || roleCount > 0));
     validation?.toggleAttribute('hidden', valid);
     if (!valid && focus) {
       if (!charterOnly && roleCount === 0) roleList?.querySelector('input')?.focus();
