@@ -232,6 +232,14 @@
         img.loading = 'lazy';
         img.src = stickerSource({ sticker: item.id, colour: '' });
         button.appendChild(img);
+        // A crest or logo carries its name, since its picture alone may not say which unit it is.
+        if (entry.kind === 'unit') {
+          button.classList.add('clg-sticker--named');
+          const label = document.createElement('span');
+          label.className = 'clg-sticker__name';
+          label.textContent = name;
+          button.appendChild(label);
+        }
         return button;
       }));
       const none = root.querySelector('[data-sticker-none]');

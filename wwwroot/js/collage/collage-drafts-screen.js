@@ -100,6 +100,9 @@
       const shown = parts.transformer.visible();
       parts.transformer.visible(false);
       parts.guides.visible(false);
+      // The faint photo shown while a photo is moved in its frame is not part of the collage.
+      const ghosts = parts.stage.find('.adjust-ghost').filter((node) => node.visible());
+      ghosts.forEach((node) => node.visible(false));
       const width = core.PAGE_WIDTH * state.scale;
       try {
         return parts.stage.toDataURL({
@@ -111,6 +114,7 @@
       } finally {
         parts.transformer.visible(shown);
         parts.guides.visible(true);
+        ghosts.forEach((node) => node.visible(true));
       }
     }
 
@@ -128,6 +132,9 @@
       }
       grid.textContent = '';
       section.hidden = !shown.length && !session.undoing;
+      // The last draft deleted, while its Undo is offered: the heading says what is going on.
+      const empty = $('[data-drafts-empty]');
+      if (empty) empty.hidden = shown.length > 0;
       $('[data-drafts-count]').textContent = shown.length ? String(shown.length) : '';
       // One row of drafts unless asked for all, so starting a new collage stays in view.
       // As many as fit across the grid (cards are at least 200 pixels wide).
@@ -158,7 +165,7 @@
           const span = document.createElement('span');
           span.className = 'clg-draft__meta';
           span.textContent = part;
-          meta.append(...(index ? [' · ', span] : [span]));
+          meta.append(span);
         });
         open.append(picture, title, meta);
         open.setAttribute('aria-label', `Open draft ${item.title}, saved ${core.savedAgo(item.saved, Date.now())}`);

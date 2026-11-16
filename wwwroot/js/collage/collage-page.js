@@ -86,6 +86,42 @@
     });
     layer.add(transformer);
 
+    /**
+     * While a photo is moved in its frame, the whole photo shows faintly over the work surface, so
+     * the user sees what can be brought into view. It is drawn above the page's clip, with the
+     * photo node's own turn and place, and never in Preview or Save (Save draws the model alone).
+     */
+    const ghost = new Konva.Shape({
+      name: 'adjust-ghost',
+      listening: false,
+      visible: false,
+      sceneFunc: (context) => {
+        const item = state.adjustId && itemById(state.adjustId);
+        const node = item && nodes.get(item.id);
+        const photo = item && photos.get(item.photo);
+        // A hidden photo shows only its outline, never this faint copy.
+        if (!node || !photo || photo.missing || item.hidden || state.previewing) return;
+        const inner = core.innerBox(item);
+        const region = core.cropRegion(photo.aspect, inner.width / inner.height, item.crop);
+        const fullWidth = inner.width / region.width;
+        const fullHeight = inner.height / region.height;
+        const m = node.getAbsoluteTransform().getMatrix();
+        const native = context._context;
+        native.save();
+        native.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
+        // A mirrored photo is mirrored here the same way drawPhoto mirrors it, about its picture area.
+        if (item.flip) {
+          native.translate(inner.x * 2 + inner.width, 0);
+          native.scale(-1, 1);
+        }
+        native.globalAlpha = 0.35;
+        native.drawImage(photo.canvas, inner.x - region.x * fullWidth, inner.y - region.y * fullHeight, fullWidth, fullHeight);
+        native.restore();
+      }
+    });
+    layer.add(ghost);
+    transformer.moveToTop();
+
     function setShift(held) {
       if (held === state.shiftHeld) return;
       change.setShiftHeld(held);
@@ -518,6 +554,7 @@
       transformer.rotateEnabled(!adjusting && !locked);
       transformer.borderStroke(adjusting ? ADJUST_COLOUR : locked ? LOCKED_COLOUR : accent());
       transformer.borderDash(adjusting || locked ? [6, 4] : []);
+      ghost.visible(adjusting && !state.previewing && !itemById(state.selectedId)?.hidden);
     }
 
     function syncAll() {

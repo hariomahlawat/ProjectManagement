@@ -180,12 +180,12 @@
         <div class="clg-section">
           <p class="clg-section__title">Frame</p>
           <div class="clg-choices">${choiceButtons('frame', Object.entries(core.FRAMES).map(([k, v]) => [k, v.label]), square ? frame : 'none', (v) => !square && v !== 'none')}</div>
-          ${square ? '' : `<p class="clg-hint" data-frame-note>A frame goes with the Square shape only${frame !== 'none' && core.FRAMES[frame] ? `; the ${escapeHtml(core.FRAMES[frame].label)} frame comes back if you choose Square` : ''}.</p>`}
           ${switchRow('shadow', 'Shadow', item.shadow)}
         </div>
         <div class="clg-section">
           <p class="clg-section__title">Shape</p>
           <div class="clg-choices">${choiceButtons('shape', Object.entries(core.SHAPES), shape)}</div>
+          ${square ? '' : `<p class="clg-hint" data-frame-note>A frame goes with the Square shape only${frame !== 'none' && core.FRAMES[frame] ? `; the ${escapeHtml(core.FRAMES[frame].label)} frame comes back if you choose Square` : ''}.</p>`}
         </div>
         <div class="clg-section">
           <p class="clg-section__title">Look</p>

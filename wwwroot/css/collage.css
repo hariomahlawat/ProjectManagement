@@ -153,6 +153,16 @@
     border-color: var(--pdft-border);
 }
 
+/* The name looks like something to type in, even before it is pointed at. */
+.clg-name {
+    border-bottom: 1px dashed var(--pdft-muted);
+}
+
+.clg-name::placeholder {
+    color: var(--bs-emphasis-color);
+    opacity: 0.75;
+}
+
 /* The name field shows a ring like every other control when it has the keyboard. */
 .clg-name:focus {
     outline: 2px solid var(--clg-accent);
@@ -1509,6 +1519,25 @@
 }
 
 /* A stamp with words takes two cells, so the words can be read. */
+.clg-sticker--named {
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 2px;
+}
+
+.clg-sticker--named img {
+    max-height: 100%;
+    min-height: 0;
+}
+
+.clg-sticker__name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    color: var(--bs-emphasis-color);
+}
+
 .clg-sticker--wide {
     grid-column: span 2;
     aspect-ratio: 2;
@@ -1951,6 +1980,10 @@
 /* Draft cards: each part of "Saved … · A4 landscape · 3 photos" stays whole on its line. */
 .clg-draft__meta {
     white-space: nowrap;
+}
+
+.clg-draft__meta + .clg-draft__meta::before {
+    content: " · ";
 }
 
 /* The delete button shows on hover or keyboard focus, and always where there is no hover. */
