@@ -1060,6 +1060,41 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.Equal("hyderabad -drone", response.CorrectedQuery);
     }
 
+    // A related chip opens Source + Project; its number is what that list shows. Two trainings
+    // clustered under their project are one result there, so the chip says 1, not 2.
+    [SearchV2PostgresFact]
+    public async Task RelatedChipCount_IsWhatItsLinkLists()
+    {
+        await using var host = _database.CreateHost();
+        SearchProjection UnderProject(SearchProjection entry) => entry with { CanonicalEntityType = "Project", CanonicalEntityKey = "9901", ParentProjectId = 9901 };
+        await host.ActivateAsync(
+            UnderProject(host.Entry("Project", "9901", "Projects", "Projects", "Gyrfalcon trainer", null)),
+            UnderProject(host.Entry("Training", "t-1", "Training tracker", "Trackers", "Gyrfalcon trainer training one", null)),
+            UnderProject(host.Entry("Training", "t-2", "Training tracker", "Trackers", "Gyrfalcon trainer training two", null)));
+
+        var project = Assert.Single((await host.SearchAsync("gyrfalcon")).Results);
+        var chip = Assert.Single(project.RelatedResults);
+        Assert.Equal("Training tracker", chip.SourceModule);
+
+        var linked = await host.SearchAsync(new SearchRequest("gyrfalcon", Sources: new[] { chip.SourceModule }, ProjectIds: new[] { 9901 }));
+        Assert.Equal(linked.FilteredHits, chip.Count);
+        Assert.Equal(1, chip.Count);
+    }
+
+    // A source typed in another case ("training TRACKER" in a hand-edited URL) still filters.
+    [SearchV2PostgresFact]
+    public async Task SourceFilter_IgnoresCase()
+    {
+        await using var host = _database.CreateHost();
+        await host.ActivateAsync(
+            host.Entry("Project", "9911", "Projects", "Projects", "Merlinfall radar", null),
+            host.Entry("Training", "t-9", "Training tracker", "Trackers", "Merlinfall radar course", null));
+
+        var response = await host.SearchAsync(new SearchRequest("merlinfall", Sources: new[] { "training TRACKER" }));
+
+        Assert.Equal(new[] { "t-9" }, response.Results.Select(result => result.EntityKey).ToArray());
+    }
+
     [SearchV2PostgresFact]
     public async Task CorrectionFailure_StillServesTheValidV2Response()
     {
