@@ -423,7 +423,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("asp-page-handler=\"Create\" novalidate data-pbd-new-form", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-new-name-error hidden", page, StringComparison.Ordinal);
         Assert.Contains("newDeckModal?.addEventListener('hidden.bs.modal', () => {\n    newDeckForm?.reset();", decks.Replace("\r\n", "\n"), StringComparison.Ordinal);
-        Assert.Contains("'The name needs at least 3 characters.'", decks, StringComparison.Ordinal);
+        Assert.Contains("'The deck name needs at least 3 characters.'", decks, StringComparison.Ordinal);
         Assert.Contains(".pbd-modal .form-label small {\n    color: var(--pbd-muted);\n    font-size: .75rem;", css.Replace("\r\n", "\n"), StringComparison.Ordinal);
 
         // Deck links take the shared focus ring.

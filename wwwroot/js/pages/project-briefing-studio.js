@@ -7,6 +7,8 @@ const root = document.querySelector('[data-pbd-studio]');
 
 if (root) {
   const page = root.closest('[data-pbd-root]') || document;
+  // The deck page's reply check (an expired sign-in is not a reply; review 5 fixes, H1).
+  const checkReply = (response) => (typeof page.pbdCheckReply === 'function' ? page.pbdCheckReply(response) : response);
   const outlineNav = root.querySelector('[data-pbd-outline]');
   const searchInput = root.querySelector('[data-pbd-outline-search]');
   const filterBox = root.querySelector('[data-pbd-outline-filter]');
@@ -374,6 +376,7 @@ if (root) {
         credentials: 'same-origin',
         headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
       });
+      checkReply(response);
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.message || `The photographs could not be loaded (${response.status}).`);
       if (photoPicker.projectId !== project.projectId) return;
@@ -1195,6 +1198,7 @@ if (root) {
         },
         signal: request.signal
       });
+      checkReply(response);
       const payload = await response.json().catch(() => null);
       // A newer request (or an emptied deck) superseded this one: drop its response.
       if (request.signal.aborted) return;

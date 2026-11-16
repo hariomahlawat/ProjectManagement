@@ -221,13 +221,17 @@ public sealed class ProjectBriefingDeckPageHandlerTests
     {
         await using var db = CreateDb();
         var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
-        var page = CreatePage(db, Comdt);
+        var audit = new NoAudit();
+        var page = CreatePage(db, Comdt, audit: audit);
 
         var result = await page.OnPostDownloadAsync(deck.Id, CancellationToken.None);
 
         Assert.IsType<FileContentResult>(result);
         // A download is not a generation: the officer's deck is untouched.
         Assert.Null((await ReloadAsync(db, deck)).LastGeneratedAtUtc);
+        // It is recorded, though: this is how a command user takes a Project Officer's deck
+        // (review 4 fixes, Low 7).
+        Assert.Contains(("ProjectBriefing.PowerPointDownloaded", (string?)deck.Id.ToString()), audit.Entries);
     }
 
     [Fact]
@@ -433,13 +437,47 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         Assert.Equal(Version(deck), Version(await ReloadAsync(db, deck)));
     }
 
+    // Review 4 fixes, Low 8: an in-page change that fails in the database (not a conflict) answers
+    // with a message the page can show; a conflict is left to the handler.
+    [Fact]
+    public async Task ADatabaseErrorInAnInPageChange_AnswersWithAMessage()
+    {
+        await using var db = CreateDb();
+        var page = CreatePage(db, Officer, ajax: true);
+        var pageContext = new Microsoft.AspNetCore.Mvc.RazorPages.PageContext(new Microsoft.AspNetCore.Mvc.ActionContext(
+            page.HttpContext,
+            new Microsoft.AspNetCore.Routing.RouteData(),
+            new Microsoft.AspNetCore.Mvc.RazorPages.CompiledPageActionDescriptor()));
+        var filters = Array.Empty<Microsoft.AspNetCore.Mvc.Filters.IFilterMetadata>();
+
+        async Task<Microsoft.AspNetCore.Mvc.Filters.PageHandlerExecutedContext> Run(Exception exception)
+        {
+            var executed = new Microsoft.AspNetCore.Mvc.Filters.PageHandlerExecutedContext(pageContext, filters, null, page)
+            {
+                Exception = exception
+            };
+            await page.OnPageHandlerExecutionAsync(
+                new Microsoft.AspNetCore.Mvc.Filters.PageHandlerExecutingContext(pageContext, filters, null, new Dictionary<string, object?>(), page),
+                () => Task.FromResult(executed));
+            return executed;
+        }
+
+        var failed = await Run(new DbUpdateException("The photo no longer exists."));
+        Assert.True(failed.ExceptionHandled);
+        Assert.Equal(500, StatusOf(failed.Result!));
+        Assert.Contains("database error", MessageOf(failed.Result!));
+
+        var conflict = await Run(new DbUpdateConcurrencyException("Someone else saved."));
+        Assert.False(conflict.ExceptionHandled);
+    }
+
     // ---- Set-up -------------------------------------------------------------------------------
 
-    private static IndexModel CreatePage(ApplicationDbContext db, string userId, bool ajax = false)
+    private static IndexModel CreatePage(ApplicationDbContext db, string userId, bool ajax = false, NoAudit? audit = null)
     {
         var clock = new FixedClock();
         var deckService = new ProjectBriefingDeckService(
-            db, new NoSelection(), new NoAudit(), clock, NullLogger<ProjectBriefingDeckService>.Instance, Roles);
+            db, new NoSelection(), audit ?? new NoAudit(), clock, NullLogger<ProjectBriefingDeckService>.Instance, Roles);
         var dataService = new StubDataService(deckService);
         var exportService = new ProjectBriefingPowerPointExportService(
             dataService,
@@ -605,7 +643,12 @@ public sealed class ProjectBriefingDeckPageHandlerTests
             string? userName = null,
             IDictionary<string, string?>? data = null,
             HttpContext? http = null)
-            => Task.CompletedTask;
+        {
+            Entries.Add((action, data?.TryGetValue("DeckId", out var deckId) == true ? deckId : null));
+            return Task.CompletedTask;
+        }
+
+        public List<(string Action, string? DeckId)> Entries { get; } = new();
     }
 
     private sealed class NoSelection : IProjectBriefingSelectionService

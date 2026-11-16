@@ -40,7 +40,8 @@ const MARKUP = `
       <input type="text" name="FfcGlobalFootprintTitle" value="FFC footprint" />
     </form>
   </div>
-</div>`;
+</div>
+<form data-test-delete-dialog><input type="hidden" name="rowVersion" value="v1" /></form>`;
 
 const startPage = () => {
   const dom = new JSDOM(`<!doctype html><html><body>${MARKUP}</body></html>`, {
@@ -58,6 +59,15 @@ const startPage = () => {
         status,
         headers: { get: (name) => (name.toLowerCase() === 'content-type' ? 'application/json; charset=utf-8' : null) },
         json: async () => body
+      }),
+      // What fetch returns after the sign-in expired: the redirect is followed to the sign-in page.
+      signInPage: () => resolve({
+        ok: true,
+        status: 200,
+        redirected: true,
+        url: 'http://localhost/Identity/Account/Login',
+        headers: { get: (name) => (name.toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null) },
+        json: async () => { throw new SyntaxError('Unexpected token <'); }
       })
     });
   });
@@ -155,4 +165,46 @@ test('when the pending settings cannot be saved, the editor is not sent and leav
   assert.equal(requests.length, 1, 'the editor was not sent');
   assert.equal(window.__confirmAsked, undefined, 'no leave-the-page question');
   assert.ok(leaveIsGuarded(window), 'the unsaved name is still guarded');
+});
+
+test('after the sign-in expires, an editor save says nothing was saved and keeps the edit', async () => {
+  const { window, document, requests, toasts } = startPage();
+  const root = document.querySelector('[data-pbd-root]');
+  const saving = root.pbdSaveEditor(document.querySelector('[data-pbd-ffc-footprint-form]'));
+  await settle(window);
+  requests[0].signInPage();
+  const result = await saving;
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /sign-in has expired, so nothing was saved/);
+  assert.equal(toasts.length, 0, 'no "saved" toast');
+  assert.notEqual(document.querySelector('[data-pbd-blocks-status]').textContent, 'Saved.');
+});
+
+test('after the sign-in expires, a settings change stays unsaved and leaving stays guarded', async () => {
+  const { window, document, requests } = startPage();
+  const name = document.querySelector('[data-pbd-settings-name]');
+  name.value = 'Monthly review, December';
+  name.dispatchEvent(new window.Event('input', { bubbles: true }));
+  // The autosave runs after its pause for typing.
+  await new Promise((resolve) => window.setTimeout(resolve, 1400));
+  await settle(window);
+  assert.equal(requests.length, 1);
+  requests[0].signInPage();
+  await settle(window);
+
+  assert.match(document.querySelector('[data-pbd-settings-status]').textContent, /sign-in has expired/);
+  const event = new window.Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(event);
+  assert.ok(event.defaultPrevented, 'the unsaved change is still guarded');
+});
+
+test('the delete dialog outside the page root posts the version the last save produced', async () => {
+  const { window, document, requests } = startPage();
+  const saving = document.querySelector('[data-pbd-root]').pbdSaveEditor(document.querySelector('[data-pbd-ffc-footprint-form]'));
+  await settle(window);
+  requests[0].answer({ saved: true, message: 'FFC footprint saved.', rowVersion: 'v2', deck: null });
+  await saving;
+
+  assert.equal(document.querySelector('[data-test-delete-dialog] input[name="rowVersion"]').value, 'v2');
 });

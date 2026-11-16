@@ -328,7 +328,8 @@ public sealed class IndexModel : PageModel
         }
         catch (DbUpdateException)
         {
-            return Fail("The deck settings could not be saved. A deck with the same name may already exist.");
+            // A name clash is refused earlier with its own message; this is a database failure.
+            return Fail("The deck settings could not be saved because of a database error. Reload and try again.");
         }
         catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
         {
