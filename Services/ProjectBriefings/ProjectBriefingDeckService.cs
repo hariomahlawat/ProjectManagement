@@ -42,7 +42,9 @@ public interface IProjectBriefingDeckService
         string requestingUserId,
         CancellationToken cancellationToken = default);
 
-    Task UpdateSettingsAsync(
+    // Each change returns the deck's version after its own save, so the page keeps that version and
+    // not one read afterwards (another user's save in between would otherwise be adopted silently).
+    Task<string> UpdateSettingsAsync(
         long deckId,
         string requestingUserId,
         ProjectBriefingDeckSettingsCommand command,
@@ -80,7 +82,7 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
-    Task<int> AddProjectsAsync(
+    Task<ProjectBriefingProjectsAdded> AddProjectsAsync(
         long deckId,
         string requestingUserId,
         IReadOnlyCollection<int> projectIds,
@@ -481,7 +483,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         return duplicate.Id;
     }
 
-    public async Task UpdateSettingsAsync(
+    public async Task<string> UpdateSettingsAsync(
         long deckId,
         string requestingUserId,
         ProjectBriefingDeckSettingsCommand command,
@@ -555,6 +557,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         await _db.SaveChangesAsync(cancellationToken);
         await AuditAsync("ProjectBriefing.DeckUpdated", userId, deck, "Project briefing deck settings updated.");
+        return Encode(deck.RowVersion);
     }
 
     // A template's settings on a deck, in memory (nothing is saved): used when a deck is created from
@@ -1029,7 +1032,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         return (profile, roleCharter, ffcGlobalFootprint);
     }
 
-    public async Task<int> AddProjectsAsync(
+    public async Task<ProjectBriefingProjectsAdded> AddProjectsAsync(
         long deckId,
         string requestingUserId,
         IReadOnlyCollection<int> projectIds,
@@ -1051,7 +1054,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
         if (additions.Length == 0)
         {
-            return 0;
+            return new ProjectBriefingProjectsAdded(0, Encode(deck.RowVersion));
         }
 
         var nextOrder = deck.Items.Count == 0 ? 10 : deck.Items.Max(item => item.SortOrder) + 10;
@@ -1082,7 +1085,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             deck,
             $"{additions.Length} project(s) added to briefing deck.",
             new Dictionary<string, string?> { ["ProjectIds"] = string.Join(",", additions) });
-        return additions.Length;
+        return new ProjectBriefingProjectsAdded(additions.Length, Encode(deck.RowVersion));
     }
 
     public async Task<ProjectBriefingMembershipUpdateResult> UpdateMembershipAsync(

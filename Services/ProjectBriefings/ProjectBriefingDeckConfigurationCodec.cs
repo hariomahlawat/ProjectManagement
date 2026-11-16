@@ -481,7 +481,7 @@ public static class ProjectBriefingDeckConfigurationCodec
     public static string WithPreset(string? existingJson, ProjectBriefingDeckPreset? preset)
     {
         var current = Read(existingJson);
-        return Write(current with { Preset = preset });
+        return Write(existingJson, current with { Preset = preset });
     }
 
     private static ProjectBriefingDeckPreset? ReadPreset(JsonNode? node)
@@ -495,13 +495,13 @@ public static class ProjectBriefingDeckConfigurationCodec
     public static string WithOverviewOrder(string? existingJson, IEnumerable<ProjectBriefingDeckBlockType> order)
     {
         var current = Read(existingJson);
-        return Write(current with { OverviewOrder = ProjectBriefingDeckBlocks.NormalizeOverviewOrder(order) });
+        return Write(existingJson, current with { OverviewOrder = ProjectBriefingDeckBlocks.NormalizeOverviewOrder(order) });
     }
 
     public static string WithSelectionRules(string? existingJson, string? selectionRulesJson)
     {
         var current = Read(existingJson);
-        return Write(current with { SelectionRulesJson = selectionRulesJson });
+        return Write(existingJson, current with { SelectionRulesJson = selectionRulesJson });
     }
 
     public static string WithUpdateSheetOptions(
@@ -509,7 +509,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingUpdateSheetOptions updateSheetOptions)
     {
         var current = Read(existingJson);
-        return Write(current with { UpdateSheetOptions = updateSheetOptions });
+        return Write(existingJson, current with { UpdateSheetOptions = updateSheetOptions });
     }
 
     public static string WithStandardSlideOptions(
@@ -517,7 +517,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingStandardSlideOptions standardSlideOptions)
     {
         var current = Read(existingJson);
-        return Write(current with { StandardSlideOptions = standardSlideOptions });
+        return Write(existingJson, current with { StandardSlideOptions = standardSlideOptions });
     }
 
     public static string WithInstitutionalProfileOptions(
@@ -525,7 +525,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions)
     {
         var current = Read(existingJson);
-        return Write(current with { InstitutionalProfileOptions = institutionalProfileOptions });
+        return Write(existingJson, current with { InstitutionalProfileOptions = institutionalProfileOptions });
     }
 
     public static string WithRoleCharterOptions(
@@ -533,7 +533,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingRoleCharterOptions roleCharterOptions)
     {
         var current = Read(existingJson);
-        return Write(current with { RoleCharterOptions = roleCharterOptions });
+        return Write(existingJson, current with { RoleCharterOptions = roleCharterOptions });
     }
 
     public static string WithFfcGlobalFootprintOptions(
@@ -541,7 +541,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingFfcGlobalFootprintOptions options)
     {
         var current = Read(existingJson);
-        return Write(current with { FfcGlobalFootprintOptions = options });
+        return Write(existingJson, current with { FfcGlobalFootprintOptions = options });
     }
 
     public static string WithAdditionalSlideOrder(
@@ -549,7 +549,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         IEnumerable<ProjectBriefingAdditionalSlideType> order)
     {
         var current = Read(existingJson);
-        return Write(current with { AdditionalSlideOrder = NormalizeAdditionalSlideOrder(order) });
+        return Write(existingJson, current with { AdditionalSlideOrder = NormalizeAdditionalSlideOrder(order) });
     }
 
     public static string WithAdditionalSlides(
@@ -560,7 +560,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         IEnumerable<ProjectBriefingAdditionalSlideType> order)
     {
         var current = Read(existingJson);
-        return Write(current with
+        return Write(existingJson, current with
         {
             InstitutionalProfileOptions = institutionalProfileOptions,
             RoleCharterOptions = roleCharterOptions,
@@ -576,7 +576,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingClosingSlideType closingSlideType)
     {
         var current = Read(existingJson);
-        return Write(current with
+        return Write(existingJson, current with
         {
             UpdateSheetOptions = updateSheetOptions,
             StandardSlideOptions = standardSlideOptions,
@@ -592,7 +592,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions)
     {
         var current = Read(existingJson);
-        return Write(current with
+        return Write(existingJson, current with
         {
             UpdateSheetOptions = updateSheetOptions,
             StandardSlideOptions = standardSlideOptions,
@@ -797,7 +797,76 @@ public static class ProjectBriefingDeckConfigurationCodec
     private static string? ReadText(JsonNode? node)
         => node is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 
-    private static string Write(ProjectBriefingDeckConfiguration configuration)
+    // The keys this build writes at the top of the document. Any other key, and any unknown key
+    // inside the sections below, came from a newer build and is kept as it was (review 2 fixes,
+    // PR 2): a deck saved here during a rolling deploy or after a rollback keeps every setting.
+    private static readonly string[] OwnedKeys =
+    {
+        "schema", "selectionRules", "updateSheet", "standardBriefing", "closingSlide",
+        "institutionalProfile", "roleCharter", "ffcGlobalFootprint", "additionalSlides",
+        "preset", "overviewOrder"
+    };
+
+    private static string Write(string? existingJson, ProjectBriefingDeckConfiguration configuration)
+    {
+        var written = Build(configuration);
+        if (string.IsNullOrWhiteSpace(existingJson))
+        {
+            return written.ToJsonString(JsonOptions);
+        }
+
+        JsonObject? existing;
+        try
+        {
+            existing = JsonNode.Parse(existingJson) as JsonObject;
+        }
+        catch (JsonException)
+        {
+            existing = null;
+        }
+
+        if (existing is null || existing["schema"] is null)
+        {
+            // Not this document type (legacy selection rules): it was read into selectionRules.
+            return written.ToJsonString(JsonOptions);
+        }
+
+        if (!string.Equals(ReadText(existing["schema"]), Schema, StringComparison.Ordinal))
+        {
+            // Saved by a build with another document version. Writing this build's shape over it
+            // would lose or nest the newer settings, so the change is refused instead.
+            throw new InvalidOperationException(
+                "This deck was saved by a newer version of PRISM. Ask the administrator to update PRISM before changing it.");
+        }
+
+        var merged = (JsonObject)existing.DeepClone();
+        foreach (var key in OwnedKeys)
+        {
+            if (!written.TryGetPropertyValue(key, out var value))
+            {
+                merged.Remove(key);
+                continue;
+            }
+
+            if (value is JsonObject section && merged[key] is JsonObject stored)
+            {
+                foreach (var (name, child) in section.ToArray())
+                {
+                    section.Remove(name);
+                    stored[name] = child;
+                }
+
+                continue;
+            }
+
+            written.Remove(key);
+            merged[key] = value;
+        }
+
+        return merged.ToJsonString(JsonOptions);
+    }
+
+    private static JsonObject Build(ProjectBriefingDeckConfiguration configuration)
     {
         var normalizedUpdateSheet = ProjectBriefingUpdateSheetOptions.Normalize(
             configuration.UpdateSheetOptions.Rows,
@@ -921,7 +990,7 @@ public static class ProjectBriefingDeckConfigurationCodec
             root["overviewOrder"] = ToEnumArray(overviewOrder);
         }
 
-        return root.ToJsonString(JsonOptions);
+        return root;
     }
 
     private static JsonArray ToRoleCharterEntryArray(IEnumerable<ProjectBriefingRoleCharterEntry> entries)
