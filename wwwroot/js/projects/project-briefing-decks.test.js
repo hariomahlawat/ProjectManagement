@@ -304,6 +304,10 @@ test('slides in this deck: one switchable, reorderable block list saved in place
   assert.match(viewSource, /data-blocks-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "UpdateBlocks"\)"/);
   assert.match(source, /body: JSON\.stringify\(\{ deckId, rowVersion: currentRowVersion\(\), blocks: readBlocks\(\) \}\)/);
   assert.match(source, /restoreBlocks\(before\)/);
+  // One block save at a time, so a failed save cannot undo a newer edit.
+  assert.match(source, /if \(blocksBusy\) return;/);
+  assert.match(source, /sorter\.option\('disabled', busy\)/);
+  assert.match(source, /finally \{\s*setBlocksBusy\(false\);/);
   assert.match(source, /event\.key === 'ArrowUp' \? -1 : 1/);
   assert.match(source, /slides: blocksOn\(\)\.join/);
 });

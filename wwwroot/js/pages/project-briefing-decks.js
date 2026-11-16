@@ -1603,8 +1603,18 @@ if (root) {
     });
     mirrorBlocks();
   };
+  // One block save at a time: while it runs the list takes no other change, so a failed save puts
+  // back only what it changed and never undoes an edit made after it.
+  let blocksBusy = false;
+  const blockSorters = [];
+  const setBlocksBusy = (busy) => {
+    blocksBusy = busy;
+    blockList?.setAttribute('aria-busy', String(busy));
+    blockSorters.forEach((sorter) => sorter.option('disabled', busy));
+  };
   const saveBlocks = async (changedType, before) => {
     if (deckId <= 0 || !root.dataset.blocksUrl) return;
+    setBlocksBusy(true);
     setState(blockStatus, 'Saving…', 'saving');
     try {
       const payload = await runDeckMutation(async () => {
@@ -1632,10 +1642,19 @@ if (root) {
         showSaveState('saved');
       }
       setState(blockStatus, error.message || 'The slides could not be saved.', 'error');
+    } finally {
+      setBlocksBusy(false);
     }
   };
 
   if (blockList) {
+    // While a save runs, a switch click is refused (the switch keeps its state) rather than queued.
+    blockList.addEventListener('click', (event) => {
+      if (blocksBusy && event.target instanceof Element && event.target.closest('[data-pbd-block-switch], .pbd-block__switch')) {
+        event.preventDefault();
+        setState(blockStatus, 'Saving the last change… try again in a moment.', 'saving');
+      }
+    }, true);
     // The list is drawn for the deck's layout; a layout change (Template) reloads to draw it again.
     document.addEventListener('pbd:settings-saved', (event) => {
       if (Array.isArray(event.detail?.changed) && event.detail.changed.includes('Layout')) window.location.reload();
@@ -1659,6 +1678,7 @@ if (root) {
       const handle = event.target instanceof HTMLElement ? event.target.closest('[data-pbd-block-handle]') : null;
       if (!handle || !event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
       event.preventDefault();
+      if (blocksBusy) return;
       const row = handle.closest('[data-pbd-block]');
       const before = snapshotBlocks();
       if (row && moveRow(row, event.key === 'ArrowUp' ? -1 : 1)) {
@@ -1669,7 +1689,7 @@ if (root) {
     if (typeof window.Sortable === 'function') {
       blockList.querySelectorAll('[data-pbd-block-zone]').forEach((list) => {
         let before = null;
-        new window.Sortable(list, {
+        blockSorters.push(new window.Sortable(list, {
           handle: '[data-pbd-block-handle]',
           draggable: '[data-pbd-block][data-movable="true"]',
           filter: '[data-movable="false"]',
@@ -1681,7 +1701,7 @@ if (root) {
             if (event.oldIndex === event.newIndex || !before) return;
             saveBlocks(event.item?.dataset.type, before);
           }
-        });
+        }));
       });
     }
   }
