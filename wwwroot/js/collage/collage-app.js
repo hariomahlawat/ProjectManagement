@@ -419,8 +419,8 @@
       for (const node of nodes.values()) { node.stopDrag(); node.draggable(false); }
       // A move inside a frame begun by the first finger is put back and not kept.
       if (pan) {
-        const panned = itemById(pan.id);
-        if (panned) panned.crop = { ...pan.crop };
+        const started = pan;
+        editItem(started.id, (panned) => { panned.crop = { ...started.crop }; }, 'live');
         pan = null;
         syncPage();
       }
