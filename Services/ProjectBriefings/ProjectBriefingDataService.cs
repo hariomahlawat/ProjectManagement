@@ -9,6 +9,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Ffc;
 using ProjectManagement.Services.Ffc.Presentation;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Utilities;
 using ProjectManagement.Services.ProjectBriefings.Presentation;
 
 namespace ProjectManagement.Services.ProjectBriefings;
@@ -406,6 +407,11 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             }));
 
         var summary = BuildPresentationSummary(projects);
+        var generatedAtUtc = _clock.UtcNow.ToUniversalTime();
+        // PDCs are judged against the generation day in IST, as every other dated slide is.
+        var generatedOn = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(generatedAtUtc, TimeZoneHelper.GetIst()).DateTime);
+        var stageDistribution = await new ProjectBriefingStageDistributionResolver(_db)
+            .ResolveAsync(projects, generatedOn, cancellationToken);
         var institutionalProfile = snapshot.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.InstitutionalProfile)
             ? await _institutionalProfileService.BuildAsync(
                 snapshot.InstitutionalProfileOptions,
@@ -449,9 +455,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 && ShouldRenderCategorySummary(summary.TechnicalCategorySummary),
             UpdateSheetOptions = snapshot.UpdateSheetOptions,
             HandlingMarking = snapshot.HandlingMarking,
-            GeneratedAtUtc = _clock.UtcNow.ToUniversalTime(),
+            GeneratedAtUtc = generatedAtUtc,
             Projects = projects,
             Summary = summary,
+            StageDistribution = stageDistribution,
             InstitutionalProfile = institutionalProfile,
             RoleCharter = roleCharter,
             FfcGlobalFootprint = ffcGlobalFootprint

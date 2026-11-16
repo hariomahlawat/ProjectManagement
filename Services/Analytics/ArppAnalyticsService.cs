@@ -235,11 +235,15 @@ namespace ProjectManagement.Services.Analytics
                 rows.Count(row => row.Category == ArppCategory.CommittedLiability),
                 rows.Count(row => row.Category == ArppCategory.CarryForward));
 
+            // The bands come from the one shared rule (ProjectProgressBands), as the briefing decks' stage-wise
+            // distribution does.
+            static ArppProgressBucket BucketOf(Standing item) =>
+                ProjectProgressBands.Resolve(item.Lifecycle, item.InWork, item.PastAon, item.SupplyOrderPlaced);
             var pastAon = standings.Where(item => item.PastAon == true).ToList();
-            var withSo = ongoing.Where(item => item.InWork && item.SupplyOrderPlaced == true).ToList();
+            var withSo = ongoing.Where(item => BucketOf(item) == ArppProgressBucket.UnderDevelopment).ToList();
             var beforeSo = ongoing.Where(item => item.InWork && item.SupplyOrderPlaced != true).ToList();
-            var preAon = beforeSo.Where(item => item.PastAon == false).ToList();
-            var aonToSo = beforeSo.Where(item => item.PastAon == true && item.SupplyOrderPlaced == false).ToList();
+            var preAon = ongoing.Where(item => BucketOf(item) == ArppProgressBucket.PreAon).ToList();
+            var aonToSo = ongoing.Where(item => BucketOf(item) == ArppProgressBucket.AonToSupplyOrder).ToList();
             var cardNotKnown = beforeSo.Count - preAon.Count - aonToSo.Count + lifecycleNotKnown.Count;
 
             // One line per listed project for the progress slides, in the same buckets as the cards.
@@ -252,18 +256,6 @@ namespace ProjectManagement.Services.Analytics
                     .Select(project => new { project.Id, project.CompletedOn, project.CompletedYear, project.CompletedMonth })
                     .ToListAsync(cancellationToken))
                 .ToDictionary(project => project.Id);
-            var preAonIds = preAon.Select(item => item.ProjectId).ToHashSet();
-            var aonToSoIds = aonToSo.Select(item => item.ProjectId).ToHashSet();
-            var withSoIds = withSo.Select(item => item.ProjectId).ToHashSet();
-            ArppProgressBucket BucketOf(Standing item) => item.Lifecycle switch
-            {
-                LifecycleAsOf.Completed => ArppProgressBucket.Completed,
-                LifecycleAsOf.Cancelled => ArppProgressBucket.Cancelled,
-                LifecycleAsOf.Active when withSoIds.Contains(item.ProjectId) => ArppProgressBucket.UnderDevelopment,
-                LifecycleAsOf.Active when aonToSoIds.Contains(item.ProjectId) => ArppProgressBucket.AonToSupplyOrder,
-                LifecycleAsOf.Active when preAonIds.Contains(item.ProjectId) => ArppProgressBucket.PreAon,
-                _ => ArppProgressBucket.NotKnown
-            };
             // The completion that placed a project in Completed: on a past date, the one the position service
             // read (a project completed then and reactivated since keeps it); today, the project's record.
             (DateOnly? On, int? Year, short? Month) CompletionOf(Standing item) =>
@@ -271,15 +263,9 @@ namespace ProjectManagement.Services.Analytics
                     ? fromPosition
                     : completion.TryGetValue(item.ProjectId, out var done) ? (done.CompletedOn, done.CompletedYear, done.CompletedMonth) : (null, null, null);
             static string? CompletionLabel((DateOnly? On, int? Year, short? Month) done) =>
-                done.On is { } on
-                    ? on.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
-                    : done.Year is { } year
-                        ? done.Month is { } month and >= 1 and <= 12
-                            ? new DateOnly(year, month, 1).ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
-                            : year.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                        : null;
+                ProjectProgressBands.CompletionLabel(done.On, done.Year, done.Month);
             static DateOnly? CompletionSort((DateOnly? On, int? Year, short? Month) done) =>
-                done.On ?? (done.Year is { } y ? new DateOnly(y, done.Month is { } m and >= 1 and <= 12 ? m : 1, 1) : null);
+                ProjectProgressBands.CompletionSort(done.On, done.Year, done.Month);
 
             var projectLines = standings
                 .Select(item =>
@@ -401,27 +387,12 @@ namespace ProjectManagement.Services.Analytics
                     .ToListAsync(cancellationToken))
                 .GroupBy(stage => stage.ProjectId)
                 .ToDictionary(group => group.Key, group => group.Select(stage => stage.Status).ToList());
+            IReadOnlyCollection<StageStatus> AonStatusesOf(int projectId) =>
+                aonStatuses.TryGetValue(projectId, out var statuses) ? statuses : Array.Empty<StageStatus>();
             bool IsAonSkipped(ArppFyProjectUpdateRow row) =>
-                !row.AonDate.HasValue
-                && aonStatuses.TryGetValue(row.ProjectId, out var statuses)
-                && !statuses.Contains(StageStatus.Completed)
-                && statuses.Contains(StageStatus.Skipped);
-            bool IsPastAon(ArppFyProjectUpdateRow row)
-            {
-                if (row.AonDate.HasValue)
-                {
-                    return true;
-                }
-
-                if (aonStatuses.TryGetValue(row.ProjectId, out var statuses))
-                {
-                    return statuses.Contains(StageStatus.Completed) || statuses.Contains(StageStatus.Skipped);
-                }
-
-                return IsInWork(row)
-                    && !string.IsNullOrWhiteSpace(row.CurrentStageCode)
-                    && StagePhases.Of(row.CurrentStageCode) != StagePhase.PreAon;
-            }
+                ProjectProgressBands.IsAonSkipped(row.AonDate, AonStatusesOf(row.ProjectId));
+            bool IsPastAon(ArppFyProjectUpdateRow row) =>
+                ProjectProgressBands.IsPastAon(row.AonDate, AonStatusesOf(row.ProjectId), IsInWork(row), row.CurrentStageCode);
 
             var result = new List<Standing>(approved.Count);
             foreach (var row in approved)
@@ -442,12 +413,7 @@ namespace ProjectManagement.Services.Analytics
                 result.Add(new Standing(
                     row.ProjectId,
                     row.ProjectName,
-                    lifecycle switch
-                    {
-                        ProjectLifecycleStatus.Completed => LifecycleAsOf.Completed,
-                        ProjectLifecycleStatus.Cancelled => LifecycleAsOf.Cancelled,
-                        _ => LifecycleAsOf.Active
-                    },
+                    ProjectProgressBands.LifecycleOf(lifecycle),
                     inWork,
                     code,
                     name,
@@ -513,17 +479,8 @@ namespace ProjectManagement.Services.Analytics
         private static bool IsInWork(ArppFyProjectUpdateRow row) =>
             row.LifecycleStatus == ProjectLifecycleStatus.Active && !row.IsArchived;
 
-        private static bool HasSupplyOrderEvidence(ArppFyProjectUpdateRow row)
-        {
-            if (row.SupplyOrderDate.HasValue)
-            {
-                return true;
-            }
-
-            // Lower maturity numbers are further along; being *in* the Supply Order stage is not yet an order.
-            var maturity = ProjectStageMaturityOrder.Resolve(row.LifecycleStatus, row.CurrentStageCode);
-            return maturity != ProjectStageMaturityOrder.Unknown && maturity < ProjectStageMaturityOrder.SupplyOrder;
-        }
+        private static bool HasSupplyOrderEvidence(ArppFyProjectUpdateRow row) =>
+            ProjectProgressBands.HasSupplyOrderEvidence(row.SupplyOrderDate, row.LifecycleStatus, row.CurrentStageCode);
 
         private static string Trimmed(string? value) => string.IsNullOrWhiteSpace(value) ? "Not recorded" : value.Trim();
 

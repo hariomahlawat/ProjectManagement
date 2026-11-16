@@ -786,5 +786,16 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    portfolio summary are retired. This PR changes existing decks on purpose: a deck that had the
    old stage summary gets the new block in its place, and one that had the portfolio summary loses
    that slide; the library's "changed since" treats it as a settings change, not data movement.
+   *Built ahead of the switch-over (16 Nov 2026), not yet in any deck:* the two slides are
+   `AddStageDistributionSlides` in
+   `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageDistribution.cs` (outline
+   roles `StageDistribution` and `StageDistributionList`; the list continues on further slides when a
+   column is long). Their facts are `ProjectBriefingPresentationData.StageDistribution`, filled for every
+   deck by `ProjectBriefingStageDistributionResolver` (parent category through the category hierarchy,
+   AoN, supply order and Development PDC from `ProjectFormalUpdateFactsResolver`, completion month), and
+   the band rule is `Services/Analytics/ProjectProgressBands.cs`, which Analytics › ARPP now uses too.
+   Cancelled projects are counted nowhere (the chart subtitle says how many). PR 7 still has to call it
+   from the block list, add the two roles to the Studio outline (`project-briefing-studio.js`), record
+   the slide facts, and retire the old summary slides. Tests: `ProjectBriefingStageDistributionTests`.
 8. **Phones, Dark, docs** (this file's Studio and Deck sections rewritten to the block model, and
    the access line in `docs/current-state.md`) and a fresh cold review.
