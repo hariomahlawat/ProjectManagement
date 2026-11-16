@@ -997,9 +997,14 @@
   // ---------------------------------------------------------------------------
 
   function select(id, { fromLayers = false } = {}) {
+    // Choosing an item anywhere but the Layers list shows its settings, even when it was already
+    // selected from Layers (so double-click and Enter can reach the Words box).
+    if (id && !fromLayers && propsTab !== 'settings') {
+      propsTab = 'settings';
+      if (selectedId === id) { renderProps(); return; }
+    }
     if (selectedId === id) return;
     flushNudge();
-    if (id && !fromLayers) propsTab = 'settings';
     selectedId = id;
     if (adjustId && adjustId !== id) stopAdjust(false);
     attachTransformer();
@@ -1927,6 +1932,8 @@
     const tab = event.target.closest?.('[data-props-tab]');
     if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
+    // The keys move between the tabs only; they never reach the page's nudge.
+    event.stopPropagation();
     showPropsTab(tab.dataset.propsTab === 'settings' ? 'layers' : 'settings');
   });
 

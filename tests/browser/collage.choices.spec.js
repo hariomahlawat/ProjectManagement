@@ -147,3 +147,25 @@ test('settings: rarely used groups are folded and stay open once opened; Layers 
   await expect(page.locator('.clg-props [data-layer-select]')).toHaveCount(1);
   expect(errors).toEqual([]);
 });
+
+test('arrow keys on the tabs do not move the selected item; choosing it on the page shows Settings', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^A4 landscape/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
+  await expect(page.locator('[data-draft-status]')).toHaveText('Draft saved in this browser');
+  const before = (await newestDraft(page)).model.items[0];
+  await page.locator('.clg-props [data-props-tab="settings"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForTimeout(700);
+  const after = (await newestDraft(page)).model.items[0];
+  expect([after.x, after.y]).toEqual([before.x, before.y]);
+
+  // Picked in Layers, then chosen again on the page: its settings come back.
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]').first().click();
+  const box = await page.locator('[data-konva] canvas').last().boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator('.clg-props [data-props-tab="settings"]')).toHaveAttribute('aria-selected', 'true');
+  expect(errors).toEqual([]);
+});
