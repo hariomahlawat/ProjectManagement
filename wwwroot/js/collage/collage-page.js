@@ -92,6 +92,7 @@
      * photo node's own turn and place, and never in Preview or Save (Save draws the model alone).
      */
     const ghost = new Konva.Shape({
+      name: 'adjust-ghost',
       listening: false,
       visible: false,
       sceneFunc: (context) => {
@@ -107,6 +108,11 @@
         const native = context._context;
         native.save();
         native.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
+        // A mirrored photo is mirrored here the same way drawPhoto mirrors it, about its picture area.
+        if (item.flip) {
+          native.translate(inner.x * 2 + inner.width, 0);
+          native.scale(-1, 1);
+        }
         native.globalAlpha = 0.35;
         native.drawImage(photo.canvas, inner.x - region.x * fullWidth, inner.y - region.y * fullHeight, fullWidth, fullHeight);
         native.restore();

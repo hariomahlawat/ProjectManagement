@@ -100,6 +100,9 @@
       const shown = parts.transformer.visible();
       parts.transformer.visible(false);
       parts.guides.visible(false);
+      // The faint photo shown while a photo is moved in its frame is not part of the collage.
+      const ghosts = parts.stage.find('.adjust-ghost').filter((node) => node.visible());
+      ghosts.forEach((node) => node.visible(false));
       const width = core.PAGE_WIDTH * state.scale;
       try {
         return parts.stage.toDataURL({
@@ -111,6 +114,7 @@
       } finally {
         parts.transformer.visible(shown);
         parts.guides.visible(true);
+        ghosts.forEach((node) => node.visible(true));
       }
     }
 
