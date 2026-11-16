@@ -1099,6 +1099,18 @@ if (root) {
   // same queue as every other change, after any pending settings save (review 2 fixes, PR 4).
   async function saveEditorInPlace(form) {
     if (!(form instanceof HTMLFormElement)) return { ok: false, message: 'The slide could not be saved.' };
+    // The form cannot be edited while it saves, so what the editor then marks as saved is exactly
+    // what was sent; an edit made mid-save would otherwise become a default without being saved.
+    form.toggleAttribute('inert', true);
+    form.setAttribute('aria-busy', 'true');
+    try {
+      return await sendEditor(form);
+    } finally {
+      form.toggleAttribute('inert', false);
+      form.removeAttribute('aria-busy');
+    }
+  }
+  async function sendEditor(form) {
     if (!(await settleSettingsBeforeLeaving())) {
       return { ok: false, message: 'The deck settings could not be saved, so this slide was not saved either.' };
     }
