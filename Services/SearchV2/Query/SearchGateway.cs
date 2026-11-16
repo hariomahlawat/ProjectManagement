@@ -156,10 +156,12 @@ public sealed class SearchGateway : ISearchGateway
         var fellBackToLegacy = serveV2ToUser && v2Response is { IsReady: false };
         // As a fallback the basic engine gets the same time limit as a V2 statement: the user
         // may already have waited that long for V2 to fail.
-        // The searched text, without "-word" exclusions (the basic engine would look for
-        // them); records containing an excluded word are then dropped, as V2 does.
+        // The typed text, exclusions included: the sources that use websearch_to_tsquery leave
+        // out "-word" records in the database, over the whole record and before their result
+        // limit. What comes back is then checked again, so a source that does not understand
+        // the minus cannot show a record whose title, excerpt or details contain the word.
         var legacyRead = await ReadLegacyAuthorizedAsync(
-            normalized.Searched,
+            normalized.Original,
             user,
             fellBackToLegacy ? TimeSpan.FromSeconds(Math.Max(1, _options.QueryTimeoutSeconds)) : null,
             cancellationToken);
