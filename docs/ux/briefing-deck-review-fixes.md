@@ -97,6 +97,15 @@ The owner chose every recommended option on 16 Nov 2026: A, B, C and D as recomm
 7. **Tests** (finding 7). Page-handler tests for a Project Officer and a command user on a
    personal deck: UpdateBlocks, SaveSettings, Generate, PhotoOptions, Delete. Plus one test that
    runs the block-list save: a refused change puts the block back and focus lands sensibly.
+   - **Built** (16 Nov). `ProjectBriefingDeckPageHandlerTests` posts to the page handlers with
+     the real deck service: the owner can change, generate, delete and pick photos; a command user
+     gets a message (never a 500) on each, and can still Download and Duplicate; a command deck
+     reads as not found to a Project Officer. Delete and Remove project now catch the view-only
+     refusal, and Delete a failed save (Low 1).
+     `project-briefing-deck-blocks.behaviour.test.js` runs `saveBlocks` in jsdom: a refused switch
+     or Remove puts the slide back with the server's message, a 409 shows the conflict banner.
+   - Found: a command user's settings save says "The shared command deck was not found." rather
+     than the view-only message (for PR 5's wording).
 8. **Smaller code tidy** (Low 5, 6). Save replies return the derived settings so the script stops
    repeating the rules, and create-from-template saves once. Then a fresh cold review.
 
