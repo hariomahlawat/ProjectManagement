@@ -4660,6 +4660,106 @@ span.pbd-additional-slide-row__handle {
     text-decoration: none;
 }
 
+/* Slides in this deck: the block list in the Deck tab, one group per zone. */
+.pbd-blocks {
+    display: grid;
+    gap: .75rem;
+}
+
+.pbd-blocks__lead {
+    margin: 0;
+    color: var(--pbd-muted);
+    font-size: .8rem;
+}
+
+.pbd-blocks__zone h5 {
+    margin: 0 0 .35rem;
+    color: var(--pbd-muted);
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+}
+
+.pbd-blocks__list {
+    display: grid;
+    gap: .35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pbd-block {
+    display: grid;
+    grid-template-columns: 1.1rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .4rem;
+    padding: .4rem .5rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .55rem;
+    background: var(--pbd-surface);
+}
+
+.pbd-block.is-off .pbd-switch__text {
+    opacity: .65;
+}
+
+.pbd-block.is-sorting {
+    opacity: .5;
+}
+
+.pbd-block.is-chosen {
+    border-color: var(--pbd-blue);
+}
+
+.pbd-block__handle {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--pbd-muted);
+    cursor: grab;
+}
+
+.pbd-block__handle:focus-visible {
+    border-radius: .25rem;
+    outline: none;
+    box-shadow: var(--pm-focus-ring);
+}
+
+.pbd-block__handle.is-fixed {
+    cursor: default;
+    opacity: .5;
+}
+
+.pbd-block__switch {
+    min-width: 0;
+}
+
+.pbd-block .btn-link {
+    padding: .1rem .3rem;
+    font-size: .78rem;
+    text-decoration: none;
+}
+
+.pbd-block__option {
+    display: flex;
+    gap: .3rem;
+    align-items: center;
+    color: var(--pbd-muted);
+    font-size: .76rem;
+    white-space: nowrap;
+}
+
+.pbd-block__option.is-disabled {
+    opacity: .5;
+}
+
+.pbd-blocks__status {
+    min-height: 1rem;
+    margin: 0;
+    font-size: .78rem;
+}
+
 /* Themes: two small swatches side by side, without their descriptions. */
 .pbd-deck-settings .pbd-step .pbd-theme-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));

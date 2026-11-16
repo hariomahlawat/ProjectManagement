@@ -931,14 +931,10 @@ if (root) {
       help.textContent = settingsForm.querySelector(`input[name="${name}"]:checked`)?.dataset.help || '';
     });
   };
-  const sentence = (parts) => {
-    const text = parts.filter(Boolean).join(', ');
-    return text ? text.charAt(0).toUpperCase() + text.slice(1) : 'None';
-  };
-  // The institution slides switched on, by name, for the Extra slides summary.
-  const institutionSlides = () => [...root.querySelectorAll('[data-pbd-additional-slide-card]')]
-    .filter((card) => card.querySelector('[data-pbd-additional-slide-toggle]')?.checked)
-    .map((card) => card.dataset.slideName || '');
+  // The slides switched on in the block list, in order, for the Slides in this deck summary.
+  const blocksOn = () => [...root.querySelectorAll('[data-pbd-block]')]
+    .filter((row) => row.querySelector('[data-pbd-block-switch]')?.checked)
+    .map((row) => row.dataset.name || '');
   const stepSummaries = () => {
     const sheet = isUpdateSheet();
     const mode = settingsValue('PresentationMode');
@@ -959,21 +955,11 @@ if (root) {
     const marking = (settingsForm?.querySelector('input[name="HandlingMarking"]')?.value || '').trim();
     const insignia = { None: 'no insignia', CoverAndSummary: 'insignia on cover and summary', AllSlides: 'insignia on all slides' }[settingsValue('BrandingScope')] || '';
     return {
-      slides: sheet
-        ? 'Update sheets'
-        : [{ ExecutiveTable: 'Status table', DetailedProjects: 'Project slides', Combined: 'Table and project slides' }[mode],
-          detailed ? { CapabilityOverview: 'capability overview', ProjectBrief: 'project brief', Both: 'capability and brief' }[narrative] : '']
-          .filter(Boolean).join(' · '),
-      project: project.join(' · '),
+      slides: blocksOn().join(' · ') || 'None',
+      project: [detailed ? { CapabilityOverview: 'Capability', ProjectBrief: 'Brief', Both: 'Capability and brief' }[narrative] : '', ...project]
+        .filter(Boolean).join(' · '),
       sheet: `${rows} ${rows === 1 ? 'row' : 'rows'}${settingsChecked('HideEmptyUpdateSheetValues') ? ' · empty rows hidden' : ''}`,
       cost: { CostRdOnly: 'Cost (R&D)', ProliferationOnly: 'Proliferation cost', Both: 'Both costs', None: 'No cost' }[settingsValue('CostMode')] || '',
-      extra: sheet
-        ? sentence([settingsChecked('IncludeCoverSlide') && 'cover', settingsChecked('IncludePortfolioSummarySlide') && 'portfolio summary', ...institutionSlides()])
-        : sentence([
-          settingsChecked('IncludeStageSummary') && (settingsChecked('IncludeStageDistributionTable') ? 'stage summary with table' : 'stage summary'),
-          settingsChecked('IncludeProjectCategorySummary') && 'category summary',
-          settingsChecked('IncludeTechnicalCategorySummary') && 'technical summary',
-          ...institutionSlides()]),
       look: [settingsValueLabel('PresentationTheme'), insignia, settingsValueLabel('ClosingSlideType')].filter(Boolean).join(' · '),
       handling: marking ? `Marked ${marking}` : 'No marking'
     };
@@ -1555,6 +1541,147 @@ if (root) {
     if (generateButton) generateButton.disabled = presented === 0;
     announceDeckChange({ hasProjects: presented > 0, deck });
   };
+
+  // Slides in this deck: the block list in the Deck tab. A switch or a move saves the whole list in
+  // place (UpdateBlocks); the hidden settings inputs then follow it, and the Studio rebuilds and
+  // shows the slide the change affects.
+  const blockList = root.querySelector('[data-pbd-blocks]');
+  const blockStatus = root.querySelector('[data-pbd-blocks-status]');
+  // The setting each block stands for, so the Studio follows the change (SETTING_SLIDES).
+  const BLOCK_SETTINGS = {
+    Cover: 'IncludeCoverSlide',
+    PortfolioSummary: 'IncludePortfolioSummarySlide',
+    StageSummary: 'IncludeStageSummary',
+    ProjectCategorySummary: 'IncludeProjectCategorySummary',
+    TechnicalCategorySummary: 'IncludeTechnicalCategorySummary',
+    StatusTable: 'PresentationMode',
+    ProjectSlides: 'PresentationMode'
+  };
+  const blockRows = () => (blockList ? [...blockList.querySelectorAll('[data-pbd-block]')] : []);
+  const readBlocks = () => blockRows().map((row) => ({
+    type: row.dataset.type,
+    enabled: Boolean(row.querySelector('[data-pbd-block-switch]')?.checked)
+  }));
+  const blockOn = (type) => readBlocks().find((block) => block.type === type)?.enabled;
+  const mirrorBlocks = () => {
+    const setChecked = (name, value) => {
+      const input = settingsForm?.querySelector(`[data-pbd-block-mirror] input[name="${name}"]`);
+      if (input instanceof HTMLInputElement && typeof value === 'boolean') input.checked = value;
+    };
+    setChecked('IncludeCoverSlide', blockOn('Cover'));
+    setChecked('IncludePortfolioSummarySlide', blockOn('PortfolioSummary'));
+    setChecked('IncludeStageSummary', blockOn('StageSummary'));
+    setChecked('IncludeProjectCategorySummary', blockOn('ProjectCategorySummary'));
+    setChecked('IncludeTechnicalCategorySummary', blockOn('TechnicalCategorySummary'));
+    const table = blockOn('StatusTable');
+    const slides = blockOn('ProjectSlides');
+    if (typeof table === 'boolean' && typeof slides === 'boolean') {
+      const mode = table && slides ? 'Combined' : table ? 'ExecutiveTable' : 'DetailedProjects';
+      const radio = settingsForm?.querySelector(`[data-pbd-block-mirror] input[name="PresentationMode"][value="${mode}"]`);
+      if (radio instanceof HTMLInputElement) radio.checked = true;
+    }
+    blockRows().forEach((row) => {
+      const on = Boolean(row.querySelector('[data-pbd-block-switch]')?.checked);
+      row.classList.toggle('is-on', on);
+      row.classList.toggle('is-off', !on);
+    });
+    syncStageSummaryOptions();
+    syncTemplateSettings();
+    // The hidden inputs moved with a saved change, not an unsaved one.
+    settingsSavedState = serializeSettings();
+    refreshSettingsSummary();
+  };
+  const snapshotBlocks = () => blockRows().map((row) => ({
+    row,
+    parent: row.parentElement,
+    checked: Boolean(row.querySelector('[data-pbd-block-switch]')?.checked)
+  }));
+  const restoreBlocks = (snapshot) => {
+    snapshot.forEach(({ row, parent, checked }) => {
+      parent?.append(row);
+      const input = row.querySelector('[data-pbd-block-switch]');
+      if (input instanceof HTMLInputElement) input.checked = checked;
+    });
+    mirrorBlocks();
+  };
+  const saveBlocks = async (changedType, before) => {
+    if (deckId <= 0 || !root.dataset.blocksUrl) return;
+    setState(blockStatus, 'Saving…', 'saving');
+    try {
+      const payload = await runDeckMutation(async () => {
+        const reply = await requestJson(root.dataset.blocksUrl, {
+          method: 'POST',
+          body: JSON.stringify({ deckId, rowVersion: currentRowVersion(), blocks: readBlocks() })
+        });
+        updateRowVersion(reply?.rowVersion);
+        return reply;
+      });
+      mirrorBlocks();
+      const setting = BLOCK_SETTINGS[changedType];
+      if (setting) {
+        root.querySelector('[data-pbd-preset-undo]')?.remove();
+        document.dispatchEvent(new CustomEvent('pbd:settings-saved', { detail: { changed: [setting] } }));
+      }
+      applyEditorState(payload?.deck);
+      setState(blockStatus, 'Saved.', 'saved');
+    } catch (error) {
+      restoreBlocks(before);
+      if (error instanceof RequestError && error.status === 409) {
+        showConflict(error.message);
+      } else if (!savesRunning) {
+        // A refused change was put back, so the deck is as it was saved: not "Not saved".
+        showSaveState('saved');
+      }
+      setState(blockStatus, error.message || 'The slides could not be saved.', 'error');
+    }
+  };
+
+  if (blockList) {
+    blockList.addEventListener('change', (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement) || !input.matches('[data-pbd-block-switch]')) return;
+      const row = input.closest('[data-pbd-block]');
+      const before = snapshotBlocks().map((item) => (item.row === row ? { ...item, checked: !input.checked } : item));
+      saveBlocks(row?.dataset.type, before);
+    });
+
+    // Moving: drag a row by its grip within its group, or Alt+Up / Alt+Down on the grip.
+    const moveRow = (row, direction) => {
+      const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+      if (!sibling || sibling.dataset.movable !== 'true') return false;
+      if (direction < 0) sibling.before(row); else sibling.after(row);
+      return true;
+    };
+    blockList.addEventListener('keydown', (event) => {
+      const handle = event.target instanceof HTMLElement ? event.target.closest('[data-pbd-block-handle]') : null;
+      if (!handle || !event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+      event.preventDefault();
+      const row = handle.closest('[data-pbd-block]');
+      const before = snapshotBlocks();
+      if (row && moveRow(row, event.key === 'ArrowUp' ? -1 : 1)) {
+        handle.focus();
+        saveBlocks(row.dataset.type, before);
+      }
+    });
+    if (typeof window.Sortable === 'function') {
+      blockList.querySelectorAll('[data-pbd-block-zone]').forEach((list) => {
+        let before = null;
+        new window.Sortable(list, {
+          handle: '[data-pbd-block-handle]',
+          draggable: '[data-pbd-block][data-movable="true"]',
+          filter: '[data-movable="false"]',
+          preventOnFilter: false,
+          ghostClass: 'is-sorting',
+          chosenClass: 'is-chosen',
+          onStart: () => { before = snapshotBlocks(); },
+          onEnd: (event) => {
+            if (event.oldIndex === event.newIndex || !before) return;
+            saveBlocks(event.item?.dataset.type, before);
+          }
+        });
+      });
+    }
+  }
 
   const updateMembership = async (addProjectIds = [], removeProjectIds = [], statusElement = membershipStatus) => {
     if (deckId <= 0 || (addProjectIds.length === 0 && removeProjectIds.length === 0)) return null;

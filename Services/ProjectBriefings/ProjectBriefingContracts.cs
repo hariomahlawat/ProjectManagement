@@ -86,6 +86,9 @@ public sealed record ProjectBriefingDeckRestoreResult(long DeckId, string Name, 
 
 public sealed class ProjectBriefingDeckVm
 {
+    // Every block the deck can have, on or off, in its order: what the Deck tab lists.
+    public IReadOnlyList<ProjectBriefingDeckBlock> Blocks { get; init; } = Array.Empty<ProjectBriefingDeckBlock>();
+
     public long Id { get; init; }
     public string Name { get; init; } = string.Empty;
     public string? Description { get; init; }

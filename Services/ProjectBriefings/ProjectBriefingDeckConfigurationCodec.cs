@@ -410,6 +410,11 @@ public sealed record ProjectBriefingDeckConfiguration(
     // The purpose preset the deck was last set from; null for decks set up by hand or saved by
     // older builds. Older builds ignore the key when reading.
     public ProjectBriefingDeckPreset? Preset { get; init; }
+
+    // The order the person gave the overview blocks (status table, summaries) in the Deck tab;
+    // empty keeps the order decks have always had (ProjectBriefingDeckBlocks.Arrange).
+    public IReadOnlyList<ProjectBriefingDeckBlockType> OverviewOrder { get; init; }
+        = Array.Empty<ProjectBriefingDeckBlockType>();
 }
 
 /// <summary>
@@ -447,7 +452,9 @@ public static class ProjectBriefingDeckConfigurationCodec
                 ReadFfcGlobalFootprintOptions(root["ffcGlobalFootprint"] as JsonObject),
                 ReadAdditionalSlideOrder(root["additionalSlides"] as JsonArray))
             {
-                Preset = ReadPreset(root["preset"])
+                Preset = ReadPreset(root["preset"]),
+                OverviewOrder = ProjectBriefingDeckBlocks.NormalizeOverviewOrder(
+                    ReadEnumArray<ProjectBriefingDeckBlockType>(root["overviewOrder"] as JsonArray))
             };
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException)
@@ -469,6 +476,12 @@ public static class ProjectBriefingDeckConfigurationCodec
             && ProjectBriefingDeckPresets.IsDefined(preset)
                 ? preset
                 : null;
+
+    public static string WithOverviewOrder(string? existingJson, IEnumerable<ProjectBriefingDeckBlockType> order)
+    {
+        var current = Read(existingJson);
+        return Write(current with { OverviewOrder = ProjectBriefingDeckBlocks.NormalizeOverviewOrder(order) });
+    }
 
     public static string WithSelectionRules(string? existingJson, string? selectionRulesJson)
     {
@@ -880,6 +893,12 @@ public static class ProjectBriefingDeckConfigurationCodec
         if (configuration.Preset is { } preset && ProjectBriefingDeckPresets.IsDefined(preset))
         {
             root["preset"] = preset.ToString();
+        }
+
+        var overviewOrder = ProjectBriefingDeckBlocks.NormalizeOverviewOrder(configuration.OverviewOrder);
+        if (overviewOrder.Count > 0)
+        {
+            root["overviewOrder"] = ToEnumArray(overviewOrder);
         }
 
         return root.ToJsonString(JsonOptions);

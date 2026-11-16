@@ -750,6 +750,24 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    selecting a block opens its settings. The numbered steps for slides and extra slides and the
    template "customised" badge go; Look (theme, insignia, closing) and Handling stay. The outline
    and `SETTING_SLIDES` follow blocks.
+
+   Built (16 Nov 2026). The first Deck tab step is **Slides in this deck**: every block the deck's
+   layout can have, grouped Opening, Overview, Projects, Closing, each with a switch (and Edit for
+   the SDD profile, Role & Charter and FFC footprint, "With a table" under the stage summary).
+   Overview blocks and the two opening institution slides move by their grip (drag, or Alt+Up /
+   Alt+Down); the cover, project slides and FFC footprint stay in place. Every switch or move saves
+   the list in place (`OnPostUpdateBlocksAsync` → `ProjectBriefingDeckService.UpdateBlocksAsync`),
+   which sets the deck's existing settings to match (cover, portfolio and summary switches, what
+   the deck shows from the status table and project slides switches, the institution slides'
+   switches and opening order) and stores the overview order as `overviewOrder` in
+   `SelectionRulesJson`. `ProjectBriefingDeckBlocks.ForDeck` reads it all back in order; the data
+   service hands that list to the composer, so the slides follow. A deck needs the status table or
+   the project slides; switching both off is refused and put back. The old Extra slides step and
+   "What the deck shows" are gone (hidden inputs keep the step summaries and settings form reading
+   the same deck; a settings save keeps the deck's own values for them); "Each project gets" moved
+   to Project slides. Not in this PR, left for PR 5: an Add block library (every block is listed,
+   on or off, instead) and retiring the Template picker and its "customised" badge, which PR 5's
+   design picker replaces.
 5. **Project slides block.** Design gallery and parts chips, replacing Layout, "Each project
    gets", the key point slide, the brief layout and the cost step; Key points only in the composer,
    the preview, slide facts ("data moved") and `ProjectBriefingContentGaps`.

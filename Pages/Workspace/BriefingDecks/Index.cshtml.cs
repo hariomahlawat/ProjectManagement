@@ -341,7 +341,8 @@ public sealed class IndexModel : PageModel
                     Name = input.Name,
                     Description = input.Description,
                     Layout = input.Layout,
-                    PresentationMode = input.PresentationMode,
+                    // The block list owns what the deck shows (UpdateBlocks); a settings save keeps it.
+                    PresentationMode = existingDeck.PresentationMode,
                     CostMode = input.CostMode,
                     NarrativeMode = input.NarrativeMode,
                     ProjectBriefLayout = input.ProjectBriefLayout,
@@ -356,11 +357,11 @@ public sealed class IndexModel : PageModel
                     FfcGlobalFootprintOptions = additionalSlides.FfcGlobalFootprintOptions,
                     AdditionalSlideOrder = additionalSlides.AdditionalSlideOrder,
                     BrandingScope = input.BrandingScope,
-                    IncludeCoverSlide = input.IncludeCoverSlide,
-                    IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
-                    IncludeStageSummary = input.IncludeStageSummary,
-                    IncludeProjectCategorySummary = input.IncludeProjectCategorySummary,
-                    IncludeTechnicalCategorySummary = input.IncludeTechnicalCategorySummary,
+                    IncludeCoverSlide = existingDeck.IncludeCoverSlide,
+                    IncludePortfolioSummarySlide = existingDeck.IncludePortfolioSummarySlide,
+                    IncludeStageSummary = existingDeck.IncludeStageSummary,
+                    IncludeProjectCategorySummary = existingDeck.IncludeProjectCategorySummary,
+                    IncludeTechnicalCategorySummary = existingDeck.IncludeTechnicalCategorySummary,
                     UpdateSheetRows = ResolveUpdateSheetRows(input.UpdateSheetRows, input.UpdateSheetRowOrder),
                     HideEmptyUpdateSheetValues = input.HideEmptyUpdateSheetValues,
                     HandlingMarking = input.HandlingMarking,
@@ -389,6 +390,43 @@ public sealed class IndexModel : PageModel
 
         StatusMessage = "Deck settings saved.";
         return RedirectToPage(new { deckId = input.DeckId });
+    }
+
+    // The Deck tab's block list: which slides are in the deck and in what order. Saved in place.
+    public async Task<IActionResult> OnPostUpdateBlocksAsync(
+        [FromBody] UpdateBlocksInput? input,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        if (input is null || input.DeckId <= 0 || string.IsNullOrWhiteSpace(input.RowVersion) || input.Blocks is null)
+        {
+            return BadRequest(new { message = "The slide list is invalid." });
+        }
+
+        try
+        {
+            var rowVersion = await _deckService.UpdateBlocksAsync(
+                input.DeckId,
+                userId,
+                input.Blocks
+                    .Select(block => new ProjectBriefingDeckBlock(block.Type, block.Enabled))
+                    .ToArray(),
+                input.RowVersion,
+                cancellationToken);
+            var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
+            return new JsonResult(new { saved = true, rowVersion, deck });
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new JsonResult(new { message = "The deck was updated by another user. Reload before changing its slides." })
+            {
+                StatusCode = StatusCodes.Status409Conflict
+            };
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
     }
 
     public async Task<IActionResult> OnPostApplyPresetAsync(
@@ -1810,6 +1848,20 @@ public sealed class IndexModel : PageModel
         public long DeckId { get; set; }
         public List<int> ProjectIds { get; set; } = new();
         public string RowVersion { get; set; } = string.Empty;
+    }
+
+    public sealed class UpdateBlocksInput
+    {
+        public long DeckId { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
+        public List<UpdateBlockInput>? Blocks { get; set; }
+    }
+
+    public sealed class UpdateBlockInput
+    {
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public ProjectBriefingDeckBlockType Type { get; set; }
+        public bool Enabled { get; set; }
     }
 
     public sealed class ApplyPresetInput
