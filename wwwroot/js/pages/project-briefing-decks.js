@@ -850,17 +850,6 @@ if (root) {
     window.setTimeout(() => openProfileDrawer(), 0);
   }
 
-  root.querySelectorAll('[data-pbd-additional-slide-toggle]').forEach((toggle) => {
-    toggle.addEventListener('change', () => {
-      // The switch sits in the Extra slides step; its form is outside the settings form.
-      const form = toggle.form || toggle.closest('[data-pbd-additional-slide-toggle-form]');
-      const enabledInput = form?.querySelector('[data-pbd-additional-slide-enabled]');
-      if (enabledInput instanceof HTMLInputElement) enabledInput.value = String(toggle.checked);
-      // requestSubmit, so the page's submit guard waits for a pending settings save first.
-      if (form instanceof HTMLFormElement) form.requestSubmit();
-    });
-  });
-
   const serializeSettings = () => serializeForm(settingsForm);
   // Settings changed since the last save, latest last.
   const changedSettings = new Set();
@@ -1222,7 +1211,7 @@ if (root) {
         || submittedForm === settingsForm
         || submittedForm === profileForm
         || submittedForm === renameForm
-        || submittedForm.matches('[data-pbd-generate-form], [data-pbd-add-selection-form], [data-pbd-individual-form], [data-pbd-remove-additional-slide-form]')) return;
+        || submittedForm.matches('[data-pbd-generate-form], [data-pbd-add-selection-form], [data-pbd-individual-form]')) return;
     if (!settingsPending() && !profileDirty && !notesUnsaved()) return;
 
     event.preventDefault();
@@ -1504,7 +1493,7 @@ if (root) {
     StageDistribution: 'IncludeStageSummary',
     ProjectCategorySummary: 'IncludeProjectCategorySummary',
     TechnicalCategorySummary: 'IncludeTechnicalCategorySummary',
-    StatusTable: 'PresentationMode',
+    StatusTable: 'StatusTableBlock',
     ProjectSlides: 'PresentationMode'
   };
   const blockRows = () => (blockList ? [...blockList.querySelectorAll('[data-pbd-block]')] : []);
@@ -1632,6 +1621,18 @@ if (root) {
     // Remove and Add block: set the block's box and save the list as a switch does.
     const libraryToggle = blockList.querySelector('[data-pbd-block-library-toggle]');
     const library = blockList.querySelector('[data-pbd-block-library]');
+    // The outline's "+ Slide" opens this library: the Deck tab, Slides in this deck, then the library.
+    root.querySelectorAll('[data-pbd-open-block-library]').forEach((button) => button.addEventListener('click', () => {
+      root.querySelector('[data-pbd-inspector-tab="deck"]')?.click();
+      const step = blockList.closest('[data-pbd-step]');
+      if (step instanceof HTMLDetailsElement) step.open = true;
+      if (library instanceof HTMLElement) library.hidden = false;
+      libraryToggle?.setAttribute('aria-expanded', 'true');
+      const first = [...(library?.querySelectorAll('[data-pbd-block-add]') || [])]
+        .find((item) => !item.closest('[hidden]'));
+      (first || libraryToggle)?.scrollIntoView({ block: 'nearest' });
+      (first || libraryToggle)?.focus();
+    }));
     const setLibraryOpen = (open) => {
       if (library instanceof HTMLElement) library.hidden = !open;
       libraryToggle?.setAttribute('aria-expanded', String(open));

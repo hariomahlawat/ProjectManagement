@@ -145,10 +145,8 @@ test('profile and additional-slide posts wait for a pending settings save', () =
   // The profile posts with the deck's row version, so it waits for the settings save to finish.
   assert.match(source, /if \(settingsPending\(\)\) \{\s*event\.preventDefault\(\);\s*if \(!\(await saveSettingsNow\(\)\)\) \{/);
   assert.match(source, /profileDirty = false;\s*HTMLFormElement\.prototype\.submit\.call\(profileForm\);/);
-  // Programmatic slide posts go through the submit guard rather than around it.
-  assert.match(source, /if \(form instanceof HTMLFormElement\) form\.requestSubmit\(\);/);
-  assert.match(additionalSlidesSource, /additionalSlideOrderForm\.requestSubmit\(\);/);
-  assert.doesNotMatch(additionalSlidesSource, /additionalSlideOrderForm\.submit\(\)/);
+  // The old additional-slide forms are gone; slides are added and removed in the Deck tab (review fixes PR 3).
+  assert.doesNotMatch(additionalSlidesSource, /additionalSlideOrderForm/);
 });
 
 test('in-place deck changes run one at a time with the latest row version', () => {
@@ -165,10 +163,10 @@ test('in-place deck changes run one at a time with the latest row version', () =
   assert.ok(rowVersionReads.length > 0);
 });
 
-test('removing an additional slide asks first, then waits for a pending settings save', () => {
-  assert.match(source, /\[data-pbd-individual-form\], \[data-pbd-remove-additional-slide-form\]'\)\) return;/);
+test('the old additional-slide remove form and its submit guard are gone', () => {
+  assert.doesNotMatch(source, /data-pbd-remove-additional-slide-form|data-pbd-additional-slide-toggle/);
   assert.match(source, /root\.pbdSettleSettings = settleSettingsBeforeLeaving;/);
-  assert.match(additionalSlidesSource, /if \(!confirmed\) return;[\s\S]*?if \(typeof root\.pbdSettleSettings === 'function' && !\(await root\.pbdSettleSettings\(\)\)\) return;\s*HTMLFormElement\.prototype\.submit\.call\(form\);/);
+  assert.doesNotMatch(additionalSlidesSource, /data-pbd-remove-additional-slide-form/);
 });
 
 test('the Template picker is gone: a template only starts a new deck', () => {
@@ -245,7 +243,6 @@ test('SDD institutional profile uses a dedicated additional-slide editor with is
   assert.match(source, /serializeForm\(profileForm\)/);
   assert.match(source, /setProfileDirty/);
   assert.match(source, /confirmProfileDiscard/);
-  assert.match(source, /data-pbd-additional-slide-toggle/);
   assert.match(source, /syncInstitutionalProfileSettings/);
   assert.match(source, /syncInstitutionalModuleOrder/);
   assert.match(source, /restoreInstitutionalModuleOrder/);
@@ -257,8 +254,14 @@ test('SDD institutional profile uses a dedicated additional-slide editor with is
 });
 
 
-test('institution slides are blocks in the deck list, and the slide library still adds them', () => {
-  assert.match(viewSource, /pbd-additional-slide-library-modal/);
+test('institution slides are blocks in the deck list; "+ Slide" opens the Add slide library', () => {
+  // One way to add a slide (review fixes PR 3): the old Slide library dialog is gone.
+  assert.doesNotMatch(viewSource, /pbd-additional-slide-library-modal|asp-page-handler="ToggleAdditionalSlide"/);
+  assert.match(viewSource, /data-pbd-open-block-library/);
+  assert.match(source, /root\.querySelectorAll\('\[data-pbd-open-block-library\]'\)/);
+  // Adding the status table shows the table in the preview.
+  assert.match(source, /StatusTable: 'StatusTableBlock',/);
+  assert.match(studioSource, /StatusTableBlock: \(\) => \['StatusTable'\],/);
   assert.match(viewSource, /ProjectBriefingDeckBlockType\.InstitutionalProfile/);
   assert.match(viewSource, /ProjectBriefingDeckBlockType\.RoleAndCharter/);
   assert.match(viewSource, /data-pbd-block-zone/);
@@ -270,9 +273,6 @@ test('Role and Charter uses an isolated structured editor with dirty-state and r
   assert.match(additionalSlidesSource, /confirmRoleCharterDiscard/);
   assert.match(additionalSlidesSource, /createEntry\('role'/);
   assert.match(additionalSlidesSource, /createEntry\('charter'/);
-  assert.match(additionalSlidesSource, /data-pbd-additional-slide-handle/);
-  assert.match(additionalSlidesSource, /new window\.Sortable/);
-  assert.match(additionalSlidesSource, /title: `Remove \$\{name\}\?`/);
 });
 
 
@@ -347,17 +347,14 @@ test('slides in this deck: one switchable, reorderable block list saved in place
 });
 
 test('FFC Global Footprint is an ERP-backed fixed concluding additional slide', () => {
-  assert.match(viewSource, /ProjectBriefingAdditionalSlideType\.FfcGlobalFootprint/);
+  assert.match(viewSource, /ProjectBriefingDeckBlockType\.FfcGlobalFootprint/);
   assert.match(viewSource, /Label: "Opening"/);
   assert.match(viewSource, /Label: "Closing"/);
   assert.match(viewSource, /title="Fixed in its place"/);
-  assert.match(viewSource, /Each approved slide type can be added once/);
   assert.match(viewSource, /data-pbd-ffc-footprint-open/);
   assert.match(ffcEditorSource, /FfcFootprintPreviewSummary/);
   assert.match(additionalSlidesSource, /data-pbd-ffc-footprint-drawer/);
   assert.match(additionalSlidesSource, /confirmFfcDiscard/);
-  assert.match(additionalSlidesSource, /onMove/);
-  assert.match(additionalSlidesSource, /data-can-reorder/);
 });
 
 test('the stage-wise distribution replaced the stage summary, its table and the portfolio summary', () => {

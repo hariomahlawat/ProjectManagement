@@ -80,6 +80,15 @@ The owner chose every recommended option on 16 Nov 2026: A, B, C and D as recomm
 3. **One way to add slides** (finding 2, decision B; Low 3). **+ Slide** opens Add block; the old
    dialog, `ToggleAdditionalSlide` and the other additional-slide handlers and their script go.
    Adding the status table jumps the preview to the table.
+
+   Built (16 Nov 2026). The outline's **+ Slide** opens the Deck tab on Slides in this deck with
+   the Add slide library open and focus on its first entry. Gone:
+   - the Slide library dialog and its styles;
+   - the page handlers `ToggleInstitutionalProfile`, `ToggleAdditionalSlide`, `MoveAdditionalSlide`,
+     `ReorderAdditionalSlides` and `RemoveAdditionalSlide`, with the service methods only they used;
+   - the script for the additional-slide list, its order form and remove form.
+
+   Adding the status table now shows the table in the preview (a `StatusTableBlock` setting key).
 4. **Key points only follow-through** (findings 3, 4; Low 3). The inspector's capability offer
    follows the design from each deck payload; the slide estimate branches on the design and counts
    the stage-wise list's pages. The preview follows stage, status and cost changes on Key points

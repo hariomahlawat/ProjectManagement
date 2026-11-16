@@ -64,28 +64,6 @@
         ?? ProjectBriefingRoleCharterOptions.Default;
     var ffcGlobalFootprint = deck?.FfcGlobalFootprintOptions
         ?? ProjectBriefingFfcGlobalFootprintOptions.Default;
-    var additionalSlideOrder = deck?.AdditionalSlideOrder
-        ?? Array.Empty<ProjectBriefingAdditionalSlideType>();
-    var configuredAdditionalSlideTypes = additionalSlideOrder.ToHashSet();
-    var availableAdditionalSlideTypes = ProjectBriefingAdditionalSlideCatalog.All;
-    var missingAdditionalSlideTypes = availableAdditionalSlideTypes
-        .Where(definition => !configuredAdditionalSlideTypes.Contains(definition.Type))
-        .ToArray();
-    bool AdditionalSlideIsEnabled(ProjectBriefingAdditionalSlideType type) => type switch
-    {
-        ProjectBriefingAdditionalSlideType.InstitutionalProfile => institutionalProfile.IncludeSlide,
-        ProjectBriefingAdditionalSlideType.RoleAndCharter => roleCharter.IncludeSlide,
-        ProjectBriefingAdditionalSlideType.FfcGlobalFootprint => ffcGlobalFootprint.IncludeSlide,
-        _ => false
-    };
-    ProjectBriefingAdditionalSlideDefinition AdditionalSlideDefinition(ProjectBriefingAdditionalSlideType type)
-        => ProjectBriefingAdditionalSlideCatalog.Get(type);
-    string AdditionalSlideDisplayName(ProjectBriefingAdditionalSlideType type)
-        => AdditionalSlideDefinition(type).DisplayName;
-    string AdditionalSlideDescription(ProjectBriefingAdditionalSlideType type)
-        => AdditionalSlideDefinition(type).Description;
-    string AdditionalSlideIcon(ProjectBriefingAdditionalSlideType type)
-        => AdditionalSlideDefinition(type).IconCssClass;
     var standardIncludesDetailedSlides = deck?.PresentationMode
         is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
     var standardNeedsCapabilities = deck?.NarrativeMode
@@ -388,12 +366,10 @@
                                         <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-open-selector>
                                             <i class="bi bi-plus-lg" aria-hidden="true"></i> Projects
                                         </button>
-                                        @if (missingAdditionalSlideTypes.Length > 0)
-                                        {
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#pbd-additional-slide-library-modal">
-                                                <i class="bi bi-plus-lg" aria-hidden="true"></i> Slide
-                                            </button>
-                                        }
+                                        @* One way to add a slide: this opens the Deck tab's Add slide library. *@
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-open-block-library>
+                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Slide
+                                        </button>
                                     </div>
                                 </header>
                                 <label class="pbd-outline__search">
@@ -942,49 +918,6 @@
                         @await Html.PartialAsync("_InstitutionalProfileEditor", Model)
                         @await Html.PartialAsync("_RoleCharterEditor", Model)
                         @await Html.PartialAsync("_FfcGlobalFootprintEditor", Model)
-
-                        <div class="modal fade" id="pbd-additional-slide-library-modal" tabindex="-1" aria-labelledby="pbd-additional-slide-library-title" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content pbd-slide-library">
-                                    <div class="modal-header">
-                                        <div>
-                                            <span class="pbd-eyebrow">Slide library</span>
-                                            <h3 class="modal-title" id="pbd-additional-slide-library-title">Add an additional slide</h3>
-                                            <p>Choose from approved templates. Each approved slide type can be added once.</p>
-                                        </div>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        @if (missingAdditionalSlideTypes.Length == 0)
-                                        {
-                                            <p class="pbd-slide-library__empty">All currently available slide types are already configured.</p>
-                                        }
-                                        else
-                                        {
-                                            <div class="pbd-slide-library__grid">
-                                                @foreach (var definition in missingAdditionalSlideTypes)
-                                                {
-                                                    var slideType = definition.Type;
-                                                    <form method="post" asp-page-handler="ToggleAdditionalSlide" class="pbd-slide-library-card">
-                                                        <input type="hidden" name="deckId" value="@deck.Id" />
-                                                        <input type="hidden" name="slideType" value="@slideType" />
-                                                        <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
-                                                        <input type="hidden" name="enabled" value="true" />
-                                                        <input type="hidden" name="ensureAdded" value="true" />
-                                                        <span class="pbd-slide-library-card__icon" aria-hidden="true"><i class="bi @AdditionalSlideIcon(slideType)"></i></span>
-                                                        <span>
-                                                            <strong>@AdditionalSlideDisplayName(slideType)</strong>
-                                                            <small>@AdditionalSlideDescription(slideType)</small>
-                                                        </span>
-                                                        <button type="submit" class="btn btn-sm btn-primary">Add</button>
-                                                    </form>
-                                                }
-                                            </div>
-                                        }
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
 
                         <div class="modal fade pbd-add-projects" id="pbd-add-projects-modal" tabindex="-1" aria-labelledby="pbd-add-projects-title" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
