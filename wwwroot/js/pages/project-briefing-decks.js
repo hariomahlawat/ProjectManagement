@@ -754,7 +754,11 @@ if (root) {
 
   const closeProfileDrawer = async ({ discard = true, force = false } = {}) => {
     if (!profileDrawer || !profileBackdrop) return false;
+    // Not while the form is saving (saveEditorInPlace marks it busy): a discard then would reset
+    // the form to values older than the ones being saved. Checked again after the question.
+    if (profileForm?.getAttribute('aria-busy') === 'true') return false;
     if (profileDirty && !force && !(await confirmProfileDiscard())) return false;
+    if (profileForm?.getAttribute('aria-busy') === 'true') return false;
     if (discard && profileDirty && profileForm instanceof HTMLFormElement) {
       profileForm.reset();
       restoreInstitutionalModuleOrder(institutionalModuleInitialOrder);
