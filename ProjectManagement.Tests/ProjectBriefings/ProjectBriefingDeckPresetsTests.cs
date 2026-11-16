@@ -9,54 +9,6 @@ namespace ProjectManagement.Tests.ProjectBriefings;
 public sealed class ProjectBriefingDeckPresetsTests
 {
     [Fact]
-    public void EveryPreset_MatchesItsOwnSettings()
-    {
-        Assert.Equal(3, ProjectBriefingDeckPresets.All.Count);
-        Assert.All(ProjectBriefingDeckPresets.All, definition =>
-            Assert.True(ProjectBriefingDeckPresets.Matches(definition.Preset, definition.State)));
-    }
-
-    [Fact]
-    public void ChangingASettingThePresetDecides_MarksItAdjusted()
-    {
-        var monthly = ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPreset.MonthlyCommandReview).State;
-
-        Assert.False(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.MonthlyCommandReview, monthly with { CostMode = ProjectBriefingCostMode.None }));
-        Assert.False(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.MonthlyCommandReview, monthly with { PresentationTheme = ProjectBriefingPresentationTheme.GraphiteDark }));
-        var visit = ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPreset.VisitOrExternalAudience).State;
-        Assert.False(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.VisitOrExternalAudience, visit with { IncludesInstitutionalProfile = false }));
-    }
-
-    [Fact]
-    public void APresetThatLeavesTheProfileAlone_IsNotAdjustedByIt()
-    {
-        // Applying Monthly or Update sheets keeps an SDD profile the deck already had.
-        var monthly = ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPreset.MonthlyCommandReview).State;
-        var sheets = ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPreset.ProjectUpdateSheets).State;
-
-        Assert.True(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.MonthlyCommandReview, monthly with { IncludesInstitutionalProfile = true }));
-        Assert.True(ProjectBriefingDeckPresets.Matches(ProjectBriefingDeckPreset.ProjectUpdateSheets, sheets with { IncludesInstitutionalProfile = true }));
-    }
-
-    [Fact]
-    public void SettingsOutsideTheTemplate_DoNotCountAsAdjustments()
-    {
-        // An update-sheet deck ignores standard-briefing choices; a standard deck ignores sheet rows.
-        var sheets = ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPreset.ProjectUpdateSheets).State;
-        var monthly = ProjectBriefingDeckPresets.Get(ProjectBriefingDeckPreset.MonthlyCommandReview).State;
-
-        Assert.True(ProjectBriefingDeckPresets.Matches(
-            ProjectBriefingDeckPreset.ProjectUpdateSheets,
-            sheets with { PresentationMode = ProjectBriefingPresentationMode.ExecutiveTable, CostMode = ProjectBriefingCostMode.None }));
-        Assert.True(ProjectBriefingDeckPresets.Matches(
-            ProjectBriefingDeckPreset.MonthlyCommandReview,
-            monthly with { UpdateSheetRows = new[] { ProjectBriefingUpdateSheetRow.ProjectCost }, HideEmptyUpdateSheetValues = true }));
-        Assert.False(ProjectBriefingDeckPresets.Matches(
-            ProjectBriefingDeckPreset.ProjectUpdateSheets,
-            sheets with { HideEmptyUpdateSheetValues = true }));
-    }
-
-    [Fact]
     public void TheTemplatesOffered_AreTheTwoSlideDesigns()
     {
         // A template is a slide design; the visit preset was only settings and is not offered.

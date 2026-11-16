@@ -110,7 +110,6 @@
           data-item-photo-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateItemPhoto")"
           data-speaker-notes-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateSpeakerNotes")"
           data-photo-options-url="@Url.Page("/Workspace/BriefingDecks/Index", "PhotoOptions")"
-          data-preset-url="@Url.Page("/Workspace/BriefingDecks/Index", "ApplyPreset")"
           data-blocks-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateBlocks")">
         <form method="post" class="pbd-antiforgery" aria-hidden="true">
             @Html.AntiForgeryToken()
@@ -153,17 +152,6 @@
                 <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
                 <span>@Model.ErrorMessage</span>
             </div>
-        }
-        @if (deck is not null && Model.PresetUndoAvailable)
-        {
-            <form method="post" asp-page-handler="UndoPreset" class="alert alert-info pbd-alert pbd-undo" role="status" data-pbd-preset-undo>
-                <input type="hidden" name="deckId" value="@deck.Id" />
-                <i class="bi bi-magic" aria-hidden="true"></i>
-                <span>Template applied: @(deck.Preset is { } applied ? ProjectBriefingDeckPresets.Get(applied).Title : "settings changed").</span>
-                <button type="submit" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Undo
-                </button>
-            </form>
         }
         @if (!string.IsNullOrWhiteSpace(Model.DeckNotFoundMessage))
         {

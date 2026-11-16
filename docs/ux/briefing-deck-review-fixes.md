@@ -115,6 +115,19 @@ The owner chose every recommended option on 16 Nov 2026: A, B, C and D as recomm
 6. **Leftover code** (finding 6). Remove template apply and undo, `PresetAdjusted`, the unused
    handlers and dead script, with the contract test that pins them. The Delete and Remove project
    errors become messages (Low 1).
+
+   Built (16 Nov 2026). Removed:
+   - Template apply and undo: the `ApplyPreset` and `UndoPreset` handlers, the Undo banner, its
+     TempData note, `data-preset-url`, the script that removed the banner,
+     `ApplyPresetAsync`/`UndoPresetAsync` and the undo record.
+   - `PresetAdjusted` (worked out on every page load), with `ProjectBriefingDeckPresets.Matches`
+     and their tests.
+   - The `RemoveProject` handler and `RemoveProjectAsync`. The inspector's Remove from deck saves
+     through `UpdateMembership`.
+   - A label helper only the removed handlers used.
+
+   The Delete error message came with PR 7. Old audit rows that name "PresetApplied" and
+   "PresetUndone" still read correctly (the audit catalog keeps them).
 7. **Tests** (finding 7). Page-handler tests for a Project Officer and a command user on a
    personal deck: UpdateBlocks, SaveSettings, Generate, PhotoOptions, Delete. Plus one test that
    runs the block-list save: a refused change puts the block back and focus lands sensibly.

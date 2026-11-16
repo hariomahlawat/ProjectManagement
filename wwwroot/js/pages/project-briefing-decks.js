@@ -1019,7 +1019,6 @@ if (root) {
       applyEditorState(payload?.deck);
       // The Studio shows a slide the change affects once it has rebuilt the slides.
       if (changed.length) {
-        root.querySelector('[data-pbd-preset-undo]')?.remove();
         document.dispatchEvent(new CustomEvent('pbd:settings-saved', { detail: { changed } }));
       }
       applySettingsDeck(payload?.deck);
@@ -1448,7 +1447,6 @@ if (root) {
 
   // The Studio listens for this and rebuilds after any in-place change.
   const announceDeckChange = (detail = {}) => {
-    root.querySelector('[data-pbd-preset-undo]')?.remove();
     document.dispatchEvent(new CustomEvent('pbd:deck-changed', { detail }));
   };
 
@@ -1563,7 +1561,6 @@ if (root) {
       mirrorBlocks();
       const setting = BLOCK_SETTINGS[changedType];
       if (setting) {
-        root.querySelector('[data-pbd-preset-undo]')?.remove();
         document.dispatchEvent(new CustomEvent('pbd:settings-saved', { detail: { changed: [setting] } }));
       }
       applyEditorState(payload?.deck);

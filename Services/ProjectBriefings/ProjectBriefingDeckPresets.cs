@@ -126,35 +126,4 @@ public static class ProjectBriefingDeckPresets
 
     public static bool IsDefined(ProjectBriefingDeckPreset preset) => All.Any(definition => definition.Preset == preset);
 
-    // Whether the deck still has every setting its preset decides. Only the settings that matter
-    // for the chosen template are compared: an update-sheet deck ignores standard-briefing
-    // choices, and a standard deck ignores the update-sheet rows. The SDD profile counts only
-    // for a preset that adds it; the others leave it as the deck had it.
-    public static bool Matches(ProjectBriefingDeckPreset preset, ProjectBriefingDeckPresetState current)
-    {
-        ArgumentNullException.ThrowIfNull(current);
-        var expected = Get(preset).State;
-        if (current.Layout != expected.Layout
-            || current.PresentationTheme != expected.PresentationTheme
-            || current.ClosingSlideType != expected.ClosingSlideType
-            || (expected.IncludesInstitutionalProfile && !current.IncludesInstitutionalProfile))
-        {
-            return false;
-        }
-
-        if (expected.Layout == ProjectBriefingLayout.ProjectUpdateSheet)
-        {
-            return current.UpdateSheetRows.SequenceEqual(expected.UpdateSheetRows)
-                && current.HideEmptyUpdateSheetValues == expected.HideEmptyUpdateSheetValues
-                && current.IncludeCoverSlide == expected.IncludeCoverSlide
-                && current.IncludePortfolioSummarySlide == expected.IncludePortfolioSummarySlide;
-        }
-
-        return current.PresentationMode == expected.PresentationMode
-            && current.NarrativeMode == expected.NarrativeMode
-            && current.CostMode == expected.CostMode
-            && current.ShowPresentStage == expected.ShowPresentStage
-            && current.ShowPresentStatus == expected.ShowPresentStatus
-            && current.IncludeStageSummary == expected.IncludeStageSummary;
-    }
 }
