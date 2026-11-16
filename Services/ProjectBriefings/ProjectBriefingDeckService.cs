@@ -1343,17 +1343,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         EnsureVersion(deck, rowVersion);
 
         // Soft delete: the deck, its projects, notes and choices stay intact and can be restored
-        // for DeletedRetentionDays. Decks deleted longer ago than that are removed for good here.
+        // for DeletedRetentionDays.
         var now = _clock.UtcNow.ToUniversalTime();
         deck.DeletedAtUtc = now;
         deck.DeletedByUserId = userId;
         deck.RowVersion = NewRowVersion();
-
-        var expiredBefore = now.AddDays(-DeletedRetentionDays);
-        var expired = await _db.Set<ProjectBriefingDeck>()
-            .Where(candidate => candidate.DeletedAtUtc != null && candidate.DeletedAtUtc < expiredBefore)
-            .ToListAsync(cancellationToken);
-        _db.RemoveRange(expired);
 
         await _db.SaveChangesAsync(cancellationToken);
         await TryAuditAsync(
@@ -1365,6 +1359,58 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 ["DeckId"] = deckId.ToString(),
                 ["DeckName"] = deck.Name
             });
+
+        await PurgeExpiredAsync(userId, now, cancellationToken);
+    }
+
+    // Decks deleted longer ago than DeletedRetentionDays are removed for good, each with its own
+    // audit entry (review 2 fixes, Low 3). A separate step after the delete: the delete has already
+    // been saved, so a purge that fails (another delete removed the same deck first, say) is
+    // logged and tried again on the next delete, and never undoes it.
+    private async Task PurgeExpiredAsync(string userId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var expiredBefore = now.AddDays(-DeletedRetentionDays);
+        var expired = await _db.Set<ProjectBriefingDeck>()
+            .Where(candidate => candidate.DeletedAtUtc != null && candidate.DeletedAtUtc < expiredBefore)
+            .ToListAsync(cancellationToken);
+        if (expired.Count == 0)
+        {
+            return;
+        }
+
+        _db.RemoveRange(expired);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Expired project briefing decks were not removed; the next delete tries again. DeckIds={DeckIds}",
+                string.Join(",", expired.Select(item => item.Id)));
+            foreach (var entry in _db.ChangeTracker.Entries<ProjectBriefingDeck>().Where(entry => entry.State == EntityState.Deleted).ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
+
+            return;
+        }
+
+        foreach (var removed in expired)
+        {
+            await TryAuditAsync(
+                "ProjectBriefing.DeckPurged",
+                $"Project briefing deck removed for good, {DeletedRetentionDays} days after it was deleted.",
+                userId,
+                new Dictionary<string, string?>
+                {
+                    ["DeckId"] = removed.Id.ToString(),
+                    ["DeckName"] = removed.Name,
+                    ["DeletedAtUtc"] = removed.DeletedAtUtc?.ToString("O"),
+                    ["DeletedByUserId"] = removed.DeletedByUserId
+                });
+        }
     }
 
     public const int DeletedRetentionDays = 30;

@@ -333,12 +333,6 @@ public sealed class ProjectBriefingDeckSettingsCommand
         = ProjectBriefingClosingSlideType.JaiHind;
     public ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions { get; init; }
         = ProjectBriefingInstitutionalProfileOptions.Default;
-    public ProjectBriefingRoleCharterOptions RoleCharterOptions { get; init; }
-        = ProjectBriefingRoleCharterOptions.Default;
-    public ProjectBriefingFfcGlobalFootprintOptions FfcGlobalFootprintOptions { get; init; }
-        = ProjectBriefingFfcGlobalFootprintOptions.Default;
-    public IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder { get; init; }
-        = new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile };
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
     public bool IncludeCoverSlide { get; init; } = true;
     public bool IncludePortfolioSummarySlide { get; init; } = true;

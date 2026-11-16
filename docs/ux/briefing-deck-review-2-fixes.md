@@ -111,5 +111,15 @@ What holds the scores back:
 8. **Dead code and purge** (Low 2, 3). Remove the unused codec methods and command fields; move
    the expired-deck purge to its own audited step. Then a third cold review.
 
+   Built (17 Nov 2026).
+   - Removed the codec's single-section writers (`WithUpdateSheetOptions`,
+     `WithStandardSlideOptions`, `WithInstitutionalProfileOptions`, `WithRoleCharterOptions`,
+     `WithFfcGlobalFootprintOptions`); tests write through `WithPresentationOptions`
+     (`CodecTestWrites`).
+   - Removed the settings command's `RoleCharterOptions`, `FfcGlobalFootprintOptions` and
+     `AdditionalSlideOrder`; each editor saves its own slide.
+   - The expired-deck purge runs after the delete's save, writes `ProjectBriefing.DeckPurged` per
+     deck, and is logged rather than thrown when it fails.
+
 PR 2 and PR 7 touch their own files and run in parallel with PR 3. PR 4 follows PR 3, since both
 change the save path in the page script. PR 5 follows PR 4, and PR 6 can run beside PR 5.

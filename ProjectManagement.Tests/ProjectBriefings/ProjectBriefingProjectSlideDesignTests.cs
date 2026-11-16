@@ -167,7 +167,7 @@ public sealed class ProjectBriefingProjectSlideDesignTests
     [Fact]
     public void KeyPointsOnly_IsStored_AndAnOlderBuildReadsTheKeyPointsDesign()
     {
-        var json = ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(
+        var json = CodecTestWrites.WithStandardSlideOptions(
             null,
             ProjectBriefingStandardSlideOptions.Default with
             {
