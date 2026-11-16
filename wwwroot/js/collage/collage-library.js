@@ -12,8 +12,23 @@
 
   const STICKERS_URL = '/api/collage/stickers';
   const LIBRARY_URL = '/api/collage/library-photos';
-  // The only pictures fetched: a listed photo's original from the library's own page.
-  const LIBRARY_PICTURE = /^\/Photos\/Media\/[1-9][0-9]{0,17}\/original\?v=[0-9]{1,9}$/;
+  // The only pictures fetched: a listed photo's original, from the same page PRISM Photos uses
+  // for its kind (MediaLibraryItemAddressResolver on the server), so that page checks access.
+  // Same-origin paths only, each with exactly its own query string and nothing more.
+  const ID = '[1-9][0-9]{0,17}';
+  const GUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+  const VERSION = '[A-Za-z0-9]{1,128}';
+  const pictureAddress = (sizes) => new RegExp('^(?:' + [
+    // A project photo: the project's photo page.
+    `\\/Projects\\/${ID}\\/Photos\\/${ID}\\/View\\/(?:${sizes.project})(?:\\?v=${VERSION})?`,
+    // A visit or social media photo: that record's photo page.
+    `\\/ProjectOfficeReports\\/(?:Visits|SocialMedia)\\/ViewPhoto\\/${GUID}\\/Photos\\/${GUID}\\?size=(?:${sizes.report})(?:&v=${VERSION})?`,
+    // An activity photo or a photo from another folder: the library's own page.
+    `\\/Photos\\/Media\\/${ID}\\/(?:${sizes.media})\\?v=[0-9]{1,9}`
+  ].join('|') + ')$');
+  // A project photo's page has no "original"; xl is its largest size.
+  const LIBRARY_PICTURE = pictureAddress({ project: 'xl', report: 'original', media: 'original' });
+  const LIBRARY_THUMB = pictureAddress({ project: 'md', report: 'md|feed', media: 'thumb' });
   const TYPE_ENDINGS = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/bmp': '.bmp' };
 
   /** The administrator's crests and logos, in picker order. Rejects when PRISM cannot be reached. */
@@ -46,7 +61,8 @@
     if (!response.ok) throw new Error(`PRISM Photos: ${response.status}`);
     const body = await response.json();
     const photos = (Array.isArray(body?.photos) ? body.photos : []).filter((photo) =>
-      Number.isInteger(photo?.id) && photo.id > 0 && LIBRARY_PICTURE.test(String(photo.url || '')));
+      Number.isInteger(photo?.id) && photo.id > 0
+      && LIBRARY_PICTURE.test(String(photo.url || '')) && LIBRARY_THUMB.test(String(photo.thumbUrl || '')));
     return {
       available: body?.available === true,
       message: typeof body?.message === 'string' ? body.message : '',
@@ -86,5 +102,5 @@
     return new File([blob], fileNameFor(photo.title, blob.type), { type: blob.type });
   }
 
-  return Object.freeze({ STICKERS_URL, LIBRARY_URL, LIBRARY_PICTURE, loadStickers, libraryQuery, loadLibraryPage, fileNameFor, readLibraryPhoto });
+  return Object.freeze({ STICKERS_URL, LIBRARY_URL, LIBRARY_PICTURE, LIBRARY_THUMB, loadStickers, libraryQuery, loadLibraryPage, fileNameFor, readLibraryPhoto });
 });

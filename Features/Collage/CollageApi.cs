@@ -23,9 +23,33 @@ public static class CollageApi
     public const string LibraryOffMessage = "PRISM Photos is not switched on. Add photos from your computer.";
     public const string LibraryUnavailableMessage = "PRISM Photos cannot be read right now. Try again in a minute, or add photos from your computer.";
 
-    /// <summary>One photo's picture in the library; the library's own page checks it may be seen.</summary>
-    public static string LibraryPictureUrl(long id, string variant, int cacheVersion) =>
-        string.Create(CultureInfo.InvariantCulture, $"/Photos/Media/{id}/{variant}?v={cacheVersion}");
+    /// <summary>
+    /// One library photo's thumbnail and original, at the same addresses PRISM Photos uses for its
+    /// kind: project, visit and social-media photos through their own pages (and their own access
+    /// checks), everything else through /Photos/Media.
+    /// </summary>
+    public static MediaLibraryItemAddresses LibraryPictureAddresses(MediaLibraryQueryItem item, HttpContext httpContext, LinkGenerator links)
+    {
+        ArgumentNullException.ThrowIfNull(httpContext);
+        ArgumentNullException.ThrowIfNull(links);
+        return MediaLibraryItemAddressResolver.Resolve(
+            item,
+            (page, values) => links.GetPathByPage(httpContext, page, handler: null, values: values),
+            path => path.StartsWith("~/", StringComparison.Ordinal) ? httpContext.Request.PathBase + path[1..] : path);
+    }
+
+    /// <summary>
+    /// The picture the collage reads for a library photo: its original, except for a project photo,
+    /// whose page serves sizes up to xl and no "original"; xl is its largest.
+    /// </summary>
+    public static string CollagePictureAddress(MediaLibraryQueryItem item, MediaLibraryItemAddresses addresses)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(addresses);
+        return item.Origin == ProjectManagement.Features.MediaLibrary.Domain.MediaAssetOrigin.ProjectPhoto
+            ? addresses.Display
+            : addresses.Original;
+    }
 
     /// <summary>The address of one sticker's picture; the version makes a changed picture a new address.</summary>
     public static string PictureUrl(int id, int version) =>
@@ -98,7 +122,8 @@ public static class CollageApi
     /// <summary>
     /// Photos from the PRISM Photos library for the collage picker: photos only, newest first,
     /// one page at a time, through the library's own search, so its visibility rule decides what
-    /// is listed (and /Photos/Media decides again for each picture). The first page also carries
+    /// is listed (and each kind's own picture page decides again for each picture, see
+    /// <see cref="MediaLibraryItemAddressResolver"/>). The first page also carries
     /// the projects and years to narrow the list by. When the library is off or cannot be read,
     /// the answer says so and lists nothing.
     /// </summary>
@@ -110,6 +135,7 @@ public static class CollageApi
         HttpContext httpContext,
         IMediaLibraryQueryService library,
         IOptions<MediaLibraryOptions> options,
+        LinkGenerator links,
         CancellationToken cancellationToken)
     {
         httpContext.Response.Headers[HeaderNames.CacheControl] = "no-store";
@@ -147,16 +173,17 @@ public static class CollageApi
             available = true,
             photos = result.Items
                 .Where(item => item.Kind == ProjectManagement.Features.MediaLibrary.Domain.MediaAssetKind.Photo)
-                .Select(item => new
+                .Select(item => (Item: item, Addresses: LibraryPictureAddresses(item, httpContext, links)))
+                .Select(row => new
                 {
-                    id = item.Id,
-                    title = string.IsNullOrWhiteSpace(item.Title) ? item.OriginalFileName : item.Title,
-                    context = item.ContextTitle,
-                    date = item.MediaDateUtc,
-                    width = item.Width,
-                    height = item.Height,
-                    thumbUrl = LibraryPictureUrl(item.Id, "thumb", item.CacheVersion),
-                    url = LibraryPictureUrl(item.Id, "original", item.CacheVersion)
+                    id = row.Item.Id,
+                    title = string.IsNullOrWhiteSpace(row.Item.Title) ? row.Item.OriginalFileName : row.Item.Title,
+                    context = row.Item.ContextTitle,
+                    date = row.Item.MediaDateUtc,
+                    width = row.Item.Width,
+                    height = row.Item.Height,
+                    thumbUrl = row.Addresses.Thumbnail,
+                    url = CollagePictureAddress(row.Item, row.Addresses)
                 }),
             page = result.PageNumber,
             hasMore = result.HasNextPage,

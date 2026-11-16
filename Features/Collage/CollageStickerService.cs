@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -74,6 +75,13 @@ public sealed class CollageStickerService : ICollageStickerService
     private readonly IAdminAuditService _audit;
     private readonly IClock _clock;
     private readonly IVirusScanner? _virusScanner;
+    private readonly ILogger<CollageStickerService> _logger;
+
+    /// <summary>What the administrator is told when the upload scanner refuses or fails on a picture.</summary>
+    public const string ScanRefusedMessage = "The picture did not pass the upload check, so it was not added. Try another picture, or ask the system administrator.";
+
+    /// <summary>A picture file is only called left over once it is this old, so an upload still saving is never named.</summary>
+    internal static readonly TimeSpan LeftoverAge = TimeSpan.FromHours(1);
 
     public CollageStickerService(
         ApplicationDbContext db,
@@ -81,7 +89,8 @@ public sealed class CollageStickerService : ICollageStickerService
         IUploadPathResolver paths,
         IAdminAuditService audit,
         IClock clock,
-        IVirusScanner? virusScanner = null)
+        IVirusScanner? virusScanner = null,
+        ILogger<CollageStickerService>? logger = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _uploadRoot = uploadRoot ?? throw new ArgumentNullException(nameof(uploadRoot));
@@ -89,6 +98,7 @@ public sealed class CollageStickerService : ICollageStickerService
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _virusScanner = virusScanner;
+        _logger = logger ?? NullLogger<CollageStickerService>.Instance;
     }
 
     public async Task<IReadOnlyList<CollageSticker>> ListActiveAsync(CancellationToken cancellationToken = default) =>
@@ -111,10 +121,15 @@ public sealed class CollageStickerService : ICollageStickerService
         try
         {
             var path = _paths.ToAbsolute(sticker.StorageKey);
-            return File.Exists(path) ? path : null;
+            if (File.Exists(path)) return path;
+            _logger.LogWarning(
+                "Collage sticker {StickerId} ('{StickerName}') has no picture file at {StorageKey}; collages that use it show nothing in its place.",
+                sticker.Id, sticker.Name, sticker.StorageKey);
+            return null;
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
+            _logger.LogWarning(ex, "Collage sticker {StickerId} has a storage key that is not a valid upload path: {StorageKey}.", sticker.Id, sticker.StorageKey);
             return null;
         }
     }
@@ -161,7 +176,28 @@ public sealed class CollageStickerService : ICollageStickerService
         if (_virusScanner is not null)
         {
             buffer.Position = 0;
-            await _virusScanner.ScanAsync(buffer, fileName ?? "sticker", cancellationToken);
+            try
+            {
+                await _virusScanner.ScanAsync(buffer, fileName ?? "sticker", cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A scanner says no by throwing, and a broken scanner throws too. Either way nothing
+                // is stored: the administrator is told plainly, and the refusal is in the audit log.
+                _logger.LogWarning(ex, "Collage sticker upload {FileName} ('{StickerName}') was refused by the upload scanner.", fileName, cleanName);
+                await _audit.RecordAsync(new AdminAuditEntry(
+                    "CollageStickerRefused",
+                    nameof(CollageSticker),
+                    EntityId: null,
+                    After: new { Name = cleanName, FileName = Path.GetFileName(fileName ?? string.Empty), Bytes = buffer.Length },
+                    Reason: "The upload scanner refused the picture or could not check it.",
+                    Outcome: "Refused",
+                    Level: "Warning",
+                    ActorUserId: actorUserId,
+                    Origin: AuditOrigin,
+                    Message: $"A collage sticker picture for '{cleanName}' was refused by the upload check."), cancellationToken);
+                return CollageStickerOutcome.Refused(ScanRefusedMessage);
+            }
         }
 
         // The stored picture is drawn afresh from the pixels: nothing the uploader sent is kept.
@@ -201,6 +237,10 @@ public sealed class CollageStickerService : ICollageStickerService
             throw;
         }
 
+        // If the process stops before the row below is saved, this line names the file left behind;
+        // the next upload's check (LogLeftoverFiles) names it again once it is an hour old.
+        _logger.LogInformation("Collage sticker picture {StorageKey} written for '{StickerName}'; saving its record.", $"{Folder}/{fileStem}.png", cleanName);
+
         CollageStickerOutcome outcome;
         try
         {
@@ -239,8 +279,47 @@ public sealed class CollageStickerService : ICollageStickerService
             throw;
         }
 
-        if (!outcome.Succeeded) TryDelete(finalPath);
+        if (!outcome.Succeeded)
+        {
+            TryDelete(finalPath);
+            return outcome;
+        }
+
+        await LogLeftoverFilesAsync(folder);
         return outcome;
+    }
+
+    /// <summary>
+    /// Names, in the log, picture files in the sticker folder that no sticker uses and that are
+    /// over an hour old: what an upload leaves when the process stops between writing the file and
+    /// saving its row. Nothing is deleted. It runs after a successful upload, which is rare, and
+    /// never fails it.
+    /// </summary>
+    internal async Task LogLeftoverFilesAsync(string folder)
+    {
+        try
+        {
+            var cutoff = _clock.UtcNow.UtcDateTime - LeftoverAge;
+            var old = Directory.EnumerateFiles(folder)
+                .Where(path => path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
+                .Where(path => File.GetLastWriteTimeUtc(path) < cutoff)
+                .Select(path => Path.GetFileName(path))
+                .ToList();
+            if (old.Count == 0) return;
+
+            var keys = await _db.CollageStickers.AsNoTracking().Select(s => s.StorageKey).ToListAsync(CancellationToken.None);
+            var used = new HashSet<string>(keys.Select(key => Path.GetFileName(key)), StringComparer.OrdinalIgnoreCase);
+            var leftovers = old.Where(name => !used.Contains(name)).OrderBy(name => name, StringComparer.Ordinal).ToList();
+            if (leftovers.Count == 0) return;
+
+            _logger.LogWarning(
+                "Collage sticker folder {Folder} holds {Count} picture file(s) that no sticker uses: {Files}. An upload stopped before its record was saved; the files can be deleted.",
+                folder, leftovers.Count, string.Join(", ", leftovers.Take(20)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Data.Common.DbException)
+        {
+            _logger.LogDebug(ex, "Collage sticker folder {Folder} could not be checked for left-over files.", folder);
+        }
     }
 
     public async Task<CollageStickerOutcome> RenameAsync(int id, string name, string? searchWords, string? actorUserId, CancellationToken cancellationToken = default)
@@ -277,6 +356,7 @@ public sealed class CollageStickerService : ICollageStickerService
             var other = up ? index - 1 : index + 1;
             if (other < 0 || other >= active.Count) return CollageStickerOutcome.Done("It is already there.", active[index]);
 
+            var oldOrder = active.ToDictionary(s => s.Id, s => s.SortOrder);
             (active[index], active[other]) = (active[other], active[index]);
             // Numbered afresh, so equal or missing numbers from older rows cannot keep two in one place.
             var now = _clock.UtcNow;
@@ -288,7 +368,19 @@ public sealed class CollageStickerService : ICollageStickerService
             }
             await _db.SaveChangesAsync(cancellationToken);
             var moved = active[other];
-            await RecordAsync("CollageStickerUpdated", moved, null, actorUserId, $"Moved the collage sticker '{moved.Name}' {(up ? "earlier" : "later")} in the picker.", cancellationToken);
+
+            // One entry for the move, with every sticker whose place changed (the renumbering
+            // included): the old places in Before and the new ones in After.
+            var changed = active.Where(s => oldOrder[s.Id] != s.SortOrder).ToList();
+            await _audit.RecordAsync(new AdminAuditEntry(
+                "CollageStickerReordered",
+                nameof(CollageSticker),
+                moved.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                Before: new { Order = changed.Select(s => new { s.Id, s.Name, SortOrder = oldOrder[s.Id] }).ToArray() },
+                After: new { Order = changed.Select(s => new { s.Id, s.Name, s.SortOrder }).ToArray() },
+                ActorUserId: actorUserId,
+                Origin: AuditOrigin,
+                Message: $"Moved the collage sticker '{moved.Name}' {(up ? "earlier" : "later")} in the picker."), cancellationToken);
             return CollageStickerOutcome.Done("Moved.", moved);
         }, cancellationToken);
 
@@ -298,10 +390,11 @@ public sealed class CollageStickerService : ICollageStickerService
             var sticker = await _db.CollageStickers.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
             if (sticker is null) return CollageStickerOutcome.Refused("That sticker is no longer there.");
             if (sticker.IsRetired) return CollageStickerOutcome.Done("It is already retired.", sticker);
+            var before = Snapshot(sticker);
             sticker.IsRetired = true;
             sticker.UpdatedAtUtc = _clock.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
-            await RecordAsync("CollageStickerRetired", sticker, null, actorUserId, $"Retired the collage sticker '{sticker.Name}'. Collages that use it keep it.", cancellationToken);
+            await RecordAsync("CollageStickerRetired", sticker, before, actorUserId, $"Retired the collage sticker '{sticker.Name}'. Collages that use it keep it.", cancellationToken);
             return CollageStickerOutcome.Done($"Retired '{sticker.Name}'. Collages that already use it keep it.", sticker);
         }, cancellationToken);
 
@@ -315,11 +408,12 @@ public sealed class CollageStickerService : ICollageStickerService
             {
                 return CollageStickerOutcome.Refused($"There are already {MaxActive} stickers in use. Retire one first.");
             }
+            var before = Snapshot(sticker);
             sticker.IsRetired = false;
             sticker.SortOrder = await NextSortOrderAsync(cancellationToken);
             sticker.UpdatedAtUtc = _clock.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
-            await RecordAsync("CollageStickerRestored", sticker, null, actorUserId, $"Put the collage sticker '{sticker.Name}' back in the picker.", cancellationToken);
+            await RecordAsync("CollageStickerRestored", sticker, before, actorUserId, $"Put the collage sticker '{sticker.Name}' back in the picker.", cancellationToken);
             return CollageStickerOutcome.Done($"'{sticker.Name}' is back in the picker, at the end.", sticker);
         }, cancellationToken);
 

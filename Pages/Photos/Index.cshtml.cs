@@ -21,7 +21,7 @@ namespace ProjectManagement.Pages.Photos;
 public sealed partial class IndexModel : PageModel
 {
     private const int PageSize = 120;
-    private const string GridThumbnailSize = "sm";
+    private const string GridThumbnailSize = MediaLibraryItemAddressResolver.GridThumbnailSize;
     private const int CollectionPageSize = 48;
     private const int AlbumPageSize = 48;
 
@@ -774,74 +774,9 @@ public sealed partial class IndexModel : PageModel
             _ => MediaSource.ExternalFolder
         };
 
-        var id = ExtractEntityId(row.SourceEntityId);
-        var parentId = row.ParentEntityId ?? ExtractParentId(row.ContextKey);
-        var version = row.VersionToken;
-
-        string thumbnail;
-        string display;
-        string original;
-        string? gridThumbnail = null;
-        string? download = null;
-        string? sourceUrl;
-
-        switch (row.Origin)
-        {
-            case MediaAssetOrigin.ProjectPhoto:
-                display = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "xl", v = version }) ?? string.Empty;
-                thumbnail = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "md", v = version }) ?? display;
-                gridThumbnail = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = GridThumbnailSize, v = version });
-                original = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "original", v = version }) ?? display;
-                download = Url.Page("/Projects/Photos/Download", new { id = parentId, photoId = id, size = "original" });
-                sourceUrl = Url.Page("/Projects/Photos/Index", new { id = parentId });
-                break;
-
-            case MediaAssetOrigin.ProjectVideo:
-                thumbnail = Url.Page("/Projects/Videos/Poster", new { id = parentId, videoId = id, v = version })
-                            ?? Url.Content("~/img/placeholders/project-video-placeholder.svg");
-                display = Url.Page("/Projects/Videos/Stream", new { id = parentId, videoId = id, v = version }) ?? string.Empty;
-                original = display;
-                sourceUrl = Url.Page("/Projects/Videos/Index", new { id = parentId });
-                break;
-
-            case MediaAssetOrigin.VisitPhoto:
-                display = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "xl", v = version }) ?? string.Empty;
-                thumbnail = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "md", v = version }) ?? display;
-                gridThumbnail = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = GridThumbnailSize, v = version });
-                original = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "original", v = version }) ?? display;
-                sourceUrl = Url.Page("/Visits/Details", new { area = "ProjectOfficeReports", id = parentId });
-                break;
-
-            case MediaAssetOrigin.SocialMediaEventPhoto:
-                display = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "story", v = version }) ?? string.Empty;
-                thumbnail = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "feed", v = version }) ?? display;
-                original = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "original", v = version }) ?? display;
-                sourceUrl = Url.Page("/SocialMedia/Details", new { area = "ProjectOfficeReports", id = parentId });
-                break;
-
-            case MediaAssetOrigin.ActivityPhoto:
-                display = Url.Page("/Photos/Media", new { id = row.Id, variant = "preview", v = row.CacheVersion }) ?? string.Empty;
-                thumbnail = Url.Page("/Photos/Media", new { id = row.Id, variant = "thumb", v = row.CacheVersion }) ?? display;
-                original = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", v = row.CacheVersion }) ?? display;
-                download = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", download = true, v = row.CacheVersion });
-                sourceUrl = Url.Page("/Activities/Details", new { id = parentId });
-                break;
-
-            default:
-                display = Url.Page("/Photos/Media", new
-                {
-                    id = row.Id,
-                    variant = row.Kind == MediaAssetKind.Photo ? "preview" : "original",
-                    v = row.CacheVersion
-                }) ?? string.Empty;
-                thumbnail = row.Kind == MediaAssetKind.Photo
-                    ? Url.Page("/Photos/Media", new { id = row.Id, variant = "thumb", v = row.CacheVersion }) ?? display
-                    : Url.Content("~/img/placeholders/project-video-placeholder.svg");
-                original = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", v = row.CacheVersion }) ?? display;
-                download = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", download = true, v = row.CacheVersion });
-                sourceUrl = Url.Page("/Photos/Index", new { Source = "external", Q = row.ParentEntityId });
-                break;
-        }
+        // Each kind of photo is shown through its own page and access check; see
+        // MediaLibraryItemAddressResolver, which the Collage Studio picker uses too.
+        var addresses = MediaLibraryItemAddressResolver.Resolve(row, (page, values) => Url.Page(page, values), path => Url.Content(path));
 
         var displayMetadata = MediaDisplayMetadataFormatter.Format(
             row.Origin,
@@ -876,12 +811,12 @@ public sealed partial class IndexModel : PageModel
             FileSizeBytes = row.FileSizeBytes,
             Albums = row.Albums.Select(album => new AlbumSummary(album.Id, album.Name)).ToList(),
             MediaDate = row.MediaDateUtc.ToLocalTime().DateTime,
-            ThumbnailUrl = thumbnail,
-            GridThumbnailUrl = gridThumbnail,
-            DisplayUrl = display,
-            OriginalUrl = original,
-            DownloadUrl = download,
-            SourceUrl = sourceUrl,
+            ThumbnailUrl = addresses.Thumbnail,
+            GridThumbnailUrl = addresses.GridThumbnail,
+            DisplayUrl = addresses.Display,
+            OriginalUrl = addresses.Original,
+            DownloadUrl = addresses.Download,
+            SourceUrl = addresses.Source,
             Width = row.Width,
             Height = row.Height,
             DurationSeconds = row.DurationSeconds,
@@ -1536,21 +1471,8 @@ public sealed partial class IndexModel : PageModel
         // is normalized to "all" before this path is entered; no classification is inferred.
         => Classification == "all";
 
-    private static string ExtractEntityId(string sourceEntityId)
-    {
-        var separator = sourceEntityId.IndexOf(':');
-        return separator >= 0 && separator + 1 < sourceEntityId.Length
-            ? sourceEntityId[(separator + 1)..]
-            : sourceEntityId;
-    }
-
     private static string ExtractParentId(string contextKey)
-    {
-        var separator = contextKey.IndexOf(':');
-        return separator >= 0 && separator + 1 < contextKey.Length
-            ? contextKey[(separator + 1)..]
-            : contextKey;
-    }
+        => MediaLibraryItemAddressResolver.ParentIdOf(contextKey);
 
     private static bool Contains(string? value, string query)
         => !string.IsNullOrWhiteSpace(value) && value.Contains(query, StringComparison.CurrentCultureIgnoreCase);

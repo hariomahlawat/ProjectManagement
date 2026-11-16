@@ -119,12 +119,75 @@ test('PRISM Photos is asked only for words, a project, a year and a page', () =>
   assert.equal(library.libraryQuery({ q: 'x'.repeat(300) }).length, 'q='.length + 200 + '&page=1'.length);
 });
 
-test('only a listed photo original from the library page is ever fetched', async () => {
-  assert.ok(library.LIBRARY_PICTURE.test('/Photos/Media/7/original?v=3'));
-  assert.ok(!library.LIBRARY_PICTURE.test('/Photos/Media/7/thumb?v=3'));
-  assert.ok(!library.LIBRARY_PICTURE.test('https://example.com/Photos/Media/7/original?v=3'));
-  assert.ok(!library.LIBRARY_PICTURE.test('/Photos/Media/7/original?v=3&x=1'));
+const VISIT = '0f8fad5b-d9cb-469f-a165-70867728950e';
+const PHOTO = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+
+test('only a listed photo original from its own kind of page is ever fetched', async () => {
+  // The addresses CollageApiHostTests checks the server gives, one per kind of photo.
+  const originals = [
+    '/Projects/12/Photos/41/View/xl?v=3',
+    '/Projects/12/Photos/41/View/xl',
+    `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original&v=a1b2`,
+    `/ProjectOfficeReports/SocialMedia/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original&v=c3d4`,
+    `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original`,
+    '/Photos/Media/7/original?v=3'
+  ];
+  for (const address of originals) assert.ok(library.LIBRARY_PICTURE.test(address), address);
+
+  const refused = [
+    '/Photos/Media/7/thumb?v=3',
+    '/Projects/12/Photos/41/View/md?v=3',
+    `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=md&v=a1b2`,
+    'https://example.com/Photos/Media/7/original?v=3',
+    '//example.com/Photos/Media/7/original?v=3',
+    '//example.com/Projects/12/Photos/41/View/original?v=3',
+    'https://example.com/Projects/12/Photos/41/View/original?v=3',
+    '/Photos/Media/7/original?v=3&x=1',
+    // A project photo's page has no "original" size.
+    '/Projects/12/Photos/41/View/original?v=3',
+    '/Projects/12/Photos/41/View/original?v=3&x=1',
+    '/Projects/12/Photos/41/View/original?x=1',
+    `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original&v=a1b2&x=1`,
+    `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?v=a1b2&size=original`,
+    `/ProjectOfficeReports/Other/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original`,
+    '/Projects/12/Photos/41/View/original/../../../../Admin?v=3',
+    '/Projects/0/Photos/41/View/original?v=3',
+    '/Photos/Media/7/original?v=3#x',
+    '\\\\example.com/Photos/Media/7/original?v=3',
+    ''
+  ];
+  for (const address of refused) assert.ok(!library.LIBRARY_PICTURE.test(address), address);
   await assert.rejects(library.readLibraryPhoto({ url: '//example.com/a.jpg' }));
+  await assert.rejects(library.readLibraryPhoto({ url: '/Projects/12/Photos/41/View/original?v=3&x=1' }));
+});
+
+test('a thumbnail is shown only from its own kind of page', () => {
+  assert.ok(library.LIBRARY_THUMB.test('/Projects/12/Photos/41/View/md?v=3'));
+  assert.ok(library.LIBRARY_THUMB.test(`/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=md&v=a1b2`));
+  assert.ok(library.LIBRARY_THUMB.test(`/ProjectOfficeReports/SocialMedia/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=feed&v=c3d4`));
+  assert.ok(library.LIBRARY_THUMB.test('/Photos/Media/7/thumb?v=3'));
+  assert.ok(!library.LIBRARY_THUMB.test('/Photos/Media/7/original?v=3'));
+  assert.ok(!library.LIBRARY_THUMB.test('//example.com/Photos/Media/7/thumb?v=3'));
+  assert.ok(!library.LIBRARY_THUMB.test('/Photos/Media/7/thumb?v=3&x=1'));
+});
+
+test('a listed photo with an address from elsewhere is dropped from the page', async (t) => {
+  const real = globalThis.fetch;
+  t.after(() => { globalThis.fetch = real; });
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      available: true,
+      photos: [
+        { id: 1, url: '/Projects/12/Photos/41/View/xl?v=3', thumbUrl: '/Projects/12/Photos/41/View/md?v=3' },
+        { id: 2, url: `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original&v=a1`, thumbUrl: `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=md&v=a1` },
+        { id: 3, url: 'https://example.com/a.jpg', thumbUrl: '/Photos/Media/3/thumb?v=1' },
+        { id: 4, url: '/Photos/Media/4/original?v=1', thumbUrl: '//example.com/t.jpg' }
+      ]
+    })
+  });
+  const page = await library.loadLibraryPage({});
+  assert.deepEqual(page.photos.map((photo) => photo.id), [1, 2]);
 });
 
 test('a library photo is named by its title with the ending of its type', () => {
