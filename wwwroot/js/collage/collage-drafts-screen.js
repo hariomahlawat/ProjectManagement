@@ -1,6 +1,7 @@
 // PRISM Collage Studio — drafts in the editor: the draft status, writing the draft, its small picture, and the drafts on the start screen (open, delete, Undo)
 // Moved out of the editor in docs/ux/collage-review-2-fixes.md, PR 13; collage-app.js creates it
-// once, handing over the helpers it uses and `app`, the editor's view of its own state.
+// once, handing over the helpers it uses, `state` (the editor's values, read only) and the named
+// changes this part may make (collage-state.js, docs/ux/collage-review-3-fixes.md, PR 10).
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -10,7 +11,7 @@
   'use strict';
 
   function createDraftsScreen(deps) {
-    const { app, core, askConfirm, $, views, nameInput, sizeSelect, THUMBNAIL_EVERY_MS, changes, photos, pageHeight, hasContent, announce, showAlert, busy, showView, resetEditor, syncAll, collageTitle, refreshTitle } = deps;
+    const { state, parts, change, core, askConfirm, $, views, nameInput, sizeSelect, THUMBNAIL_EVERY_MS, changes, photos, pageHeight, hasContent, announce, showAlert, busy, showView, resetEditor, syncAll, collageTitle, refreshTitle } = deps;
     // ---------------------------------------------------------------------------
     // Drafts (kept in this browser)
     // ---------------------------------------------------------------------------
@@ -27,14 +28,14 @@
       snapshot: () => ({
         title: collageTitle(),
         autoTitle: !nameInput.value.trim(),
-        model: app.collage,
-        size: app.collage.size,
-        photos: app.keptPhotos(),
+        model: state.collage,
+        size: state.collage.size,
+        photos: parts.keptPhotos(),
         thumbnail: views.editor.hidden ? '' : draftThumbnail(),
         hasContent: hasContent()
       }),
       onStatus: (text, warning) => setDraftStatus(text, warning),
-      onUndo: (state) => showDraftUndo(state),
+      onUndo: (deleted) => showDraftUndo(deleted),
       onChanged: () => { if (!views.start.hidden) renderDrafts(); }
     });
 
@@ -44,15 +45,15 @@
     // hover while the draft's ten seconds do not, and so would promise time that is not there.
     let draftUndoToast = null;
 
-    function showDraftUndo(state) {
+    function showDraftUndo(deleted) {
       draftUndoToast?.dismiss();
       draftUndoToast = null;
-      if (!state) return;
-      announce(`Draft ${state.title} deleted. Undo is on the screen for ten seconds.`);
+      if (!deleted) return;
+      announce(`Draft ${deleted.title} deleted. Undo is on the screen for ten seconds.`);
       if (!window.PrismToast) return;
       draftUndoToast = window.PrismToast.show({
         tone: 'success',
-        text: `Draft “${state.title}” deleted.`,
+        text: `Draft “${deleted.title}” deleted.`,
         sticky: true,
         action: { label: 'Undo', run: () => { undoDeleteDraft(); } }
       });
@@ -75,41 +76,41 @@
 
     /** Saves the draft half a second after the last change. */
     function scheduleDraft() {
-      app.thumbnail.behind = true;
+      state.thumbnail.behind = true;
       session.changed();
     }
 
 
     function draftThumbnail() {
       const now = Date.now();
-      if (app.thumbnail.fresh || !app.thumbnail.url || now - app.thumbnail.at >= THUMBNAIL_EVERY_MS) {
-        app.thumbnail = { url: pageThumbnail(), at: now, fresh: false, behind: false };
+      if (state.thumbnail.fresh || !state.thumbnail.url || now - state.thumbnail.at >= THUMBNAIL_EVERY_MS) {
+        change.setThumbnail({ url: pageThumbnail(), at: now, fresh: false, behind: false });
       }
-      return app.thumbnail.url;
+      return state.thumbnail.url;
     }
 
     /** Leaving: the draft is written once more if its picture is older than the page. */
     function freshThumbnail() {
-      app.thumbnail.fresh = true;
-      if (app.thumbnail.behind && session.draft?.created) session.changed();
+      state.thumbnail.fresh = true;
+      if (state.thumbnail.behind && session.draft?.created) session.changed();
     }
 
     /** A small picture of the page for the start screen, without handles or guides. */
     function pageThumbnail() {
-      const shown = app.transformer.visible();
-      app.transformer.visible(false);
-      app.guides.visible(false);
-      const width = core.PAGE_WIDTH * app.scale;
+      const shown = parts.transformer.visible();
+      parts.transformer.visible(false);
+      parts.guides.visible(false);
+      const width = core.PAGE_WIDTH * state.scale;
       try {
-        return app.stage.toDataURL({
-          x: app.world.x(), y: app.world.y(), width, height: pageHeight() * app.scale,
+        return parts.stage.toDataURL({
+          x: parts.world.x(), y: parts.world.y(), width, height: pageHeight() * state.scale,
           pixelRatio: Math.min(4, 320 / Math.max(1, width)), mimeType: 'image/jpeg', quality: 0.8
         });
       } catch {
         return '';
       } finally {
-        app.transformer.visible(shown);
-        app.guides.visible(true);
+        parts.transformer.visible(shown);
+        parts.guides.visible(true);
       }
     }
 
@@ -134,10 +135,10 @@
       const allButton = $('[data-action="drafts-all"]');
       if (allButton) {
         allButton.hidden = shown.length <= row;
-        allButton.textContent = app.draftsExpanded ? 'Show fewer drafts' : `Show all ${shown.length} drafts`;
-        allButton.setAttribute('aria-expanded', String(app.draftsExpanded));
+        allButton.textContent = state.draftsExpanded ? 'Show fewer drafts' : `Show all ${shown.length} drafts`;
+        allButton.setAttribute('aria-expanded', String(state.draftsExpanded));
       }
-      for (const item of app.draftsExpanded ? shown : shown.slice(0, row)) {
+      for (const item of state.draftsExpanded ? shown : shown.slice(0, row)) {
         const card = document.createElement('div');
         card.className = 'clg-draft';
         const open = document.createElement('button');
@@ -152,8 +153,8 @@
         const meta = document.createElement('small');
         const size = core.SIZES[item.size]?.label || '';
         // Each part stays whole; a narrow card breaks the line only between them.
-        const parts = [`Saved ${core.savedAgo(item.saved, Date.now())}`, size, `${item.photoCount} photo${item.photoCount === 1 ? '' : 's'}`].filter(Boolean);
-        parts.forEach((part, index) => {
+        const details = [`Saved ${core.savedAgo(item.saved, Date.now())}`, size, `${item.photoCount} photo${item.photoCount === 1 ? '' : 's'}`].filter(Boolean);
+        details.forEach((part, index) => {
           const span = document.createElement('span');
           span.className = 'clg-draft__meta';
           span.textContent = part;
@@ -183,15 +184,15 @@
 
 
     async function openDraft(id) {
-      const request = ++app.openRequest;
-      const stillWanted = () => request === app.openRequest && !views.start.hidden;
+      const request = change.nextOpenRequest();
+      const stillWanted = () => request === state.openRequest && !views.start.hidden;
       // The start screen cannot be used while a draft opens, so the draft cannot be deleted (or
       // another one opened) half way through.
       views.start.inert = true;
       try {
         await readDraft(id, request, stillWanted);
       } finally {
-        if (request === app.openRequest) views.start.inert = false;
+        if (request === state.openRequest) views.start.inert = false;
       }
     }
 
@@ -207,7 +208,7 @@
       if (!found) { renderDrafts(); return; }
       const { record, photos: stored } = found;
       resetEditor();
-      const forCollage = app.collageSession;
+      const forCollage = state.collageSession;
       busy(stored.length ? `Opening the draft and its ${stored.length} photo${stored.length === 1 ? '' : 's'}…` : 'Opening the draft…');
       let unreadable = 0;
       try {
@@ -216,23 +217,23 @@
           let photo;
           try {
             // Sized for every photo of the draft, so all working copies stay within the budget.
-            photo = await app.readPhoto({ file: entry.file, name: entry.name }, entry.id, { count: stored.length });
+            photo = await parts.readPhoto({ file: entry.file, name: entry.name }, entry.id, { count: stored.length });
           } catch {
             // Kept as a grey stand-in with its file, so the draft keeps the photo's place, crop and
             // caption, and the photo comes back when the draft is opened again on a browser that
             // can read it. Save leaves it out and says so.
-            photo = app.missingPhoto(entry);
+            photo = parts.missingPhoto(entry);
             unreadable += 1;
           }
-          if (forCollage !== app.collageSession) return;
+          if (forCollage !== state.collageSession) return;
           photos.set(photo.id, photo);
         }
       } finally {
         busy('');
       }
       // Deleted or purged (another tab) while its photos were read: it is not opened.
-      if (!(await session.stillThere(id)) || forCollage !== app.collageSession || request !== app.openRequest) {
-        if (forCollage === app.collageSession) { resetEditor(); renderDrafts(); }
+      if (!(await session.stillThere(id)) || forCollage !== state.collageSession || request !== state.openRequest) {
+        if (forCollage === state.collageSession) { resetEditor(); renderDrafts(); }
         return;
       }
       const model = core.readDraftModel(record.model, [...photos.keys()]);
@@ -244,14 +245,14 @@
         showAlert('This draft was made by a newer version of PRISM, or is damaged, and cannot be opened here.');
         return;
       }
-      app.collage = model;
-      changes.start(app.collage);
+      change.setCollage(model);
+      changes.start(state.collage);
       session.begin({ id: record.id, created: true, started: record.started || record.saved });
       nameInput.value = record.autoTitle ? '' : record.title;
       refreshTitle();
-      sizeSelect.value = app.collage.size;
+      sizeSelect.value = state.collage.size;
       showView('editor');
-      app.setPanel('photos');
+      parts.setPanel('photos');
       syncAll();
       if (unreadable) showAlert(`${unreadable === 1 ? 'One photo' : `${unreadable} photos`} of this draft could not be opened just now and ${unreadable === 1 ? 'shows' : 'show'} grey. ${unreadable === 1 ? 'It keeps its' : 'They keep their'} place in the draft. Close other tabs and open the draft again; Save leaves ${unreadable === 1 ? 'it' : 'them'} out until then.`);
       announce(`Draft ${record.title} opened.`);

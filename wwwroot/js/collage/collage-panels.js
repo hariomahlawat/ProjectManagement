@@ -1,6 +1,7 @@
 // PRISM Collage Studio — the panels: the left drawer (layouts and the rest) and the settings panel with its Settings and Layers tabs
 // Moved out of the editor in docs/ux/collage-review-2-fixes.md, PR 13; collage-app.js creates it
-// once, handing over the helpers it uses and `app`, the editor's view of its own state.
+// once, handing over the helpers it uses, `state` (the editor's values, read only) and the named
+// changes this part may make (collage-state.js, docs/ux/collage-review-3-fixes.md, PR 10).
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -10,7 +11,7 @@
   'use strict';
 
   function createPanels(deps) {
-    const { app, $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos, selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select, zoomCrop, flushNudge, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected, renderBackgroundPanel, offerUndo } = deps;
+    const { state, change, $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos, selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select, zoomCrop, flushNudge, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected, renderBackgroundPanel, offerUndo } = deps;
     // ---------------------------------------------------------------------------
     // Panels on the left
     // ---------------------------------------------------------------------------
@@ -23,14 +24,14 @@
     function setPropsOpen(open, tab = null) {
       body.classList.toggle('is-props-open', Boolean(open));
       if (tab) showPropsTab(tab, false);
-      layersButton?.setAttribute('aria-pressed', String(Boolean(open) && app.propsTab === 'layers'));
+      layersButton?.setAttribute('aria-pressed', String(Boolean(open) && state.propsTab === 'layers'));
       if (open && onPhone()) setPanel(null);
       syncSheets();
     }
 
     /** Marks whether a sheet covers the lower half, so the page fits above it. */
     function syncSheets() {
-      const sheet = onPhone() && (body.classList.contains('is-props-open') || Boolean(app.panel));
+      const sheet = onPhone() && (body.classList.contains('is-props-open') || Boolean(state.panel));
       body.classList.toggle('is-sheet-open', sheet);
       window.requestAnimationFrame(layout);
       window.setTimeout(layout, 60);
@@ -39,7 +40,7 @@
     phoneScreen?.addEventListener?.('change', syncSheets);
 
     function setPanel(name) {
-      app.panel = name;
+      change.setPanel(name);
       if (name && onPhone()) {
         body.classList.remove('is-props-open');
         layersButton?.setAttribute('aria-pressed', 'false');
@@ -57,7 +58,7 @@
     }
 
     for (const button of root.querySelectorAll('[data-panel]')) {
-      button.addEventListener('click', () => setPanel(app.panel === button.dataset.panel ? null : button.dataset.panel));
+      button.addEventListener('click', () => setPanel(state.panel === button.dataset.panel ? null : button.dataset.panel));
     }
 
     function renderLayoutPanel() {
@@ -65,7 +66,7 @@
     }
 
     function renderLayoutPanelNow() {
-      const current = app.collage.layout;
+      const current = state.collage.layout;
       for (const button of layoutGrid.querySelectorAll('[data-layout]')) {
         button.setAttribute('aria-pressed', String(current?.key === button.dataset.layout));
       }
@@ -91,15 +92,15 @@
         const value = Number(input.value);
         const which = input.dataset.layoutInput;
         $(`[data-out="${which}"]`).textContent = core.sliderText(which, value);
-        if (which === 'gap' && app.collage.layout) {
-          if (core.offLayout(app.collage)) spaceUndid = true;
+        if (which === 'gap' && state.collage.layout) {
+          if (core.offLayout(state.collage)) spaceUndid = true;
           // The space lays the page out again; that is what the hint under the sliders says.
-          app.collage = core.reflowLayout(app.collage, value);
+          change.setCollage(core.reflowLayout(state.collage, value));
         } else if (which === 'radius') {
           // Corners change only the corners: turned photos and their crops stay as they are.
           // A locked frame keeps its own corners.
-          app.collage.items.forEach((item) => { if (isFrame(item) && !item.locked) item.radius = value; });
-          if (app.collage.layout) app.collage.layout = { ...app.collage.layout, radius: value };
+          state.collage.items.forEach((item) => { if (isFrame(item) && !item.locked) item.radius = value; });
+          if (state.collage.layout) state.collage.layout = { ...state.collage.layout, radius: value };
         }
         syncPage();
       });
@@ -121,22 +122,22 @@
     }
 
     function renderPropsNow() {
-      if (app.propsTab === 'layers') {
+      if (state.propsTab === 'layers') {
         props.innerHTML = layersSection();
       } else {
         renderPropsBody();
         if (selectedItem()?.locked) props.querySelectorAll(LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
       }
-      const tab = (key, label, extra = '') => `<button type="button" role="tab" class="clg-props-tab" id="clgTab-${key}" data-props-tab="${key}" aria-selected="${app.propsTab === key}" tabindex="${app.propsTab === key ? 0 : -1}">${label}${extra}</button>`;
-      const count = app.collage.items.length ? ` <span class="clg-props-tab__count">${app.collage.items.length}</span>` : '';
+      const tab = (key, label, extra = '') => `<button type="button" role="tab" class="clg-props-tab" id="clgTab-${key}" data-props-tab="${key}" aria-selected="${state.propsTab === key}" tabindex="${state.propsTab === key ? 0 : -1}">${label}${extra}</button>`;
+      const count = state.collage.items.length ? ` <span class="clg-props-tab__count">${state.collage.items.length}</span>` : '';
       props.insertAdjacentHTML('afterbegin', `<button type="button" class="clg-sheet-close" data-action="close-props" aria-label="Close settings"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         <div class="clg-props-tabs" role="tablist" aria-label="Settings or Layers">${tab('settings', 'Settings')}${tab('layers', 'Layers', count)}</div>`);
-      layersButton?.setAttribute('aria-pressed', String(body.classList.contains('is-props-open') && app.propsTab === 'layers'));
+      layersButton?.setAttribute('aria-pressed', String(body.classList.contains('is-props-open') && state.propsTab === 'layers'));
     }
 
     function showPropsTab(key, focus = true) {
       if (key !== 'settings' && key !== 'layers') return;
-      app.propsTab = key;
+      change.setPropsTab(key);
       renderPropsNow();
       if (focus) props.querySelector(`[data-props-tab="${key}"]`)?.focus();
     }
@@ -180,7 +181,7 @@
           <h2 class="clg-panel-title">Page</h2>
           <label class="clg-field"><span class="clg-field__label">Size</span>
             <select class="form-select form-select-sm" data-page-size>${Object.entries(core.SIZES)
-              .map(([key, size]) => `<option value="${key}"${key === app.collage.size ? ' selected' : ''}>${escapeHtml(size.label)} · ${escapeHtml(size.note)}</option>`).join('')}</select></label>
+              .map(([key, size]) => `<option value="${key}"${key === state.collage.size ? ' selected' : ''}>${escapeHtml(size.label)} · ${escapeHtml(size.note)}</option>`).join('')}</select></label>
           <div class="clg-section">
             <p class="clg-section__title">How to</p>
             <ul class="clg-tips clg-for-mouse">
@@ -231,7 +232,7 @@
         return;
       }
       const photo = photos.get(item.photo);
-      const adjusting = app.adjustId === item.id;
+      const adjusting = state.adjustId === item.id;
       const zoomValueNow = item.crop?.zoom || 1;
       props.innerHTML = `
         <h2 class="clg-panel-title">Photo <small title="${escapeHtml(photo?.name || '')}">${escapeHtml(photo?.name || '')}</small></h2>
@@ -259,7 +260,7 @@
       isOpen: (key) => openFolds.has(key)
     });
     const { arrangeSections, swatches, textSections, switchRow, finishSections } = settingsHtml;
-    const layersSection = () => settingsHtml.layersSection(app.collage, app.selectedId);
+    const layersSection = () => settingsHtml.layersSection(state.collage, state.selectedId);
 
     /** Puts the cursor in the selected text's words, opening its settings. */
     function focusTextField() {
@@ -349,7 +350,7 @@
       }
       if (event.target.dataset.prop) {
         // A frame given its own corners is no longer bound to the layout's.
-        if (event.target.dataset.prop === 'radius' && app.collage.layout) app.collage.layout = { ...app.collage.layout, radius: Number(event.target.value) };
+        if (event.target.dataset.prop === 'radius' && state.collage.layout) state.collage.layout = { ...state.collage.layout, radius: Number(event.target.value) };
         // Recorded even when the slider ends where it began, so the corners above are kept.
         changes.mark();
         flushNudge();
