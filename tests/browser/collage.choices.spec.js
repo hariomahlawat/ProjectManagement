@@ -4,7 +4,7 @@
 // deleting a photo from a layout leaves its frame, deletes offer Undo on the screen, photos past
 // the layout's frames wait in the tray, and new words do not land on earlier ones.
 
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./test');
 const { openFresh, photoFile, newestDraft, showLayers, showSettings } = require('./helpers');
 
 async function photos(page, count) {
