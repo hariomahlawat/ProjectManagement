@@ -1004,7 +1004,7 @@ if (root) {
           throw new Error('Not saved: someone else changed this deck.');
         }
         if (!reply.ok) throw new Error(replyPayload?.message || `The settings could not be saved (${reply.status}).`);
-        updateRowVersion(replyPayload?.deck?.rowVersion);
+        updateRowVersion(replyPayload?.rowVersion);
         return { response: reply, payload: replyPayload };
       });
       // Every setting whose saved value moved, including ones set by script (row order, Select
@@ -1474,7 +1474,7 @@ if (root) {
     latestProjects = projects;
     reconcileSearchMembership(projects);
     const presented = projects.filter((project) => project.isPresented).length;
-    updateRowVersion(deck.rowVersion);
+    // A re-read deck never replaces the version a save produced (review 2 fixes, PR 3).
     updateLeftOutNotice(projects);
     if (generateButton) generateButton.disabled = presented === 0;
     announceDeckChange({ hasProjects: presented > 0, deck });
@@ -1708,7 +1708,7 @@ if (root) {
           method: 'POST',
           body: JSON.stringify({ deckId, addProjectIds, removeProjectIds, rowVersion: currentRowVersion() })
         });
-        updateRowVersion(reply?.deck?.rowVersion);
+        updateRowVersion(reply?.rowVersion);
         return reply;
       });
       applyEditorState(payload?.deck);
@@ -1788,8 +1788,10 @@ if (root) {
           headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
         });
         const reply = await response.json().catch(() => null);
-        if (!response.ok) throw new Error(reply?.message || `Projects could not be added (${response.status}).`);
-        updateRowVersion(reply?.deck?.rowVersion);
+        if (!response.ok) {
+          throw new RequestError(reply?.message || `Projects could not be added (${response.status}).`, response.status, reply);
+        }
+        updateRowVersion(reply?.rowVersion);
         return reply;
       });
       applyEditorState(payload?.deck);
@@ -1806,6 +1808,8 @@ if (root) {
         button.firstChild.setAttribute('aria-hidden', 'true');
       }
     } catch (error) {
+      // Someone else changed the deck: the same banner as every other save (review 2 fixes, PR 3).
+      if (error instanceof RequestError && error.status === 409) showConflict(error.message);
       setState(addProjectsStatus, error.message || 'Projects could not be added.', 'error');
     } finally {
       button?.removeAttribute('disabled');

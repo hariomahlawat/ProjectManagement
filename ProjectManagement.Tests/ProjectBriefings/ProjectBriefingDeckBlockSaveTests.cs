@@ -80,7 +80,7 @@ public sealed class ProjectBriefingDeckBlockSaveTests
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
 
         // What the page sends after a theme change: the deck's own values for what the blocks own.
-        await service.UpdateSettingsAsync(deck.Id, UserId, new ProjectBriefingDeckSettingsCommand
+        var returnedVersion = await service.UpdateSettingsAsync(deck.Id, UserId, new ProjectBriefingDeckSettingsCommand
         {
             Name = deck.Name,
             Layout = deck.Layout,
@@ -105,6 +105,8 @@ public sealed class ProjectBriefingDeckBlockSaveTests
         });
 
         var saved = await db.Set<ProjectBriefingDeck>().SingleAsync();
+        // Review 2 fixes, PR 3: the save returns the version it wrote, for the page to keep.
+        Assert.Equal(Version(saved), returnedVersion);
         Assert.Equal(ProjectBriefingPresentationTheme.GraphiteDark, saved.PresentationTheme);
         Assert.False(saved.IncludeCoverSlide);
         Assert.False(saved.IncludePortfolioSummarySlide);

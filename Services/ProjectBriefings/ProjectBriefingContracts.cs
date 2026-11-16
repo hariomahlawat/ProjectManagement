@@ -305,6 +305,9 @@ public sealed record ProjectBriefingManageSearchResultVm(
     bool IsSelected,
     int? SortOrder);
 
+// How many projects were added, and the deck's version after that save.
+public sealed record ProjectBriefingProjectsAdded(int Added, string RowVersion);
+
 public sealed record ProjectBriefingMembershipUpdateResult(
     string RowVersion,
     int AddedCount,

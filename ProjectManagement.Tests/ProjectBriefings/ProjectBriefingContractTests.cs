@@ -872,7 +872,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("updateMembership", script, StringComparison.Ordinal);
         Assert.Contains("sessionStorage", script, StringComparison.Ordinal);
         // An in-page Add projects request is answered with the refreshed deck, not a redirect.
-        Assert.Contains("return new JsonResult(new { saved = true, message, deck });", handler, StringComparison.Ordinal);
+        Assert.Contains("return new JsonResult(new { saved = true, message, rowVersion = addedRowVersion, deck });", handler, StringComparison.Ordinal);
         Assert.Contains("UpdateMembershipAsync", service, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefing.MembershipUpdated", service, StringComparison.Ordinal);
     }
