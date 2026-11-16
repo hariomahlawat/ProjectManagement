@@ -91,10 +91,10 @@
                     <button type="button" class="btn btn-outline-secondary clg-zoom__value" data-action="zoom-fit" title="Fit the page" aria-label="Fit the page" data-zoom-value>100%</button>
                     <button type="button" class="btn btn-outline-secondary" data-action="zoom-in" title="Zoom in" aria-label="Zoom in"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
                 </div>
-                <button type="button" class="btn btn-outline-secondary btn-sm clg-preview-btn" data-action="preview" title="See the page alone (Esc to come back)">
+                <button type="button" class="btn btn-outline-secondary btn-sm clg-preview-btn" data-action="preview" title="See the page alone (Esc to come back)" aria-label="Preview">
                     <i class="bi bi-eye" aria-hidden="true"></i> <span>Preview</span>
                 </button>
-                <button type="button" class="btn btn-primary btn-sm clg-save-btn" data-action="save-open">
+                <button type="button" class="btn btn-primary btn-sm clg-save-btn" data-action="save-open" aria-label="Save as…">
                     <i class="bi bi-download" aria-hidden="true"></i> <span>Save as…</span>
                 </button>
             </div>
@@ -139,7 +139,7 @@
                                 <i class="bi bi-images" aria-hidden="true"></i> From PRISM Photos
                             </button>
                         }
-                        <p class="clg-hint">Or drop photos on the page, or paste one with Ctrl+V. Empty frames fill first. Click a photo below to add it again, or drag it onto the page or into a frame.</p>
+                        <p class="clg-hint"><span class="clg-for-mouse">Or drop photos on the page, or paste one with Ctrl+V. Empty frames fill first. Click a photo below to add it again, or drag it onto the page or into a frame.</span><span class="clg-for-touch">Empty frames fill first. Tap a photo below to add it again; tap an empty frame first to put it there.</span></p>
                         <p class="clg-hint clg-count" data-photo-count></p>
                         <div class="clg-tray" data-tray></div>
                     </section>
@@ -215,10 +215,10 @@
                     </div>
                     <div class="clg-angle" data-angle hidden></div>
                     <button type="button" class="btn btn-light btn-sm clg-preview-exit" data-action="preview-exit" data-preview-exit hidden><i class="bi bi-x-lg" aria-hidden="true"></i> Exit preview</button>
-                    <div class="clg-stage-hint" data-adjust-hint hidden>Drag to move the photo in its frame · scroll or use the slider to zoom · Esc when done</div>
+                    <div class="clg-stage-hint" data-adjust-hint hidden><span class="clg-for-mouse">Drag to move the photo in its frame · scroll or use the slider to zoom · Esc when done</span><span class="clg-for-touch">Drag to move the photo in its frame · use the Zoom slider · Done when finished</span></div>
                     <div class="clg-empty" data-empty>
                         <i class="bi bi-images" aria-hidden="true"></i>
-                        <p>Add photos, drop them here, or paste one with Ctrl+V.</p>
+                        <p><span class="clg-for-mouse">Add photos, drop them here, or paste one with Ctrl+V.</span><span class="clg-for-touch">Add photos from this phone or from PRISM Photos.</span></p>
                         <button type="button" class="btn btn-primary btn-sm" data-action="choose">Add photos</button>
                     </div>
                 </div>
