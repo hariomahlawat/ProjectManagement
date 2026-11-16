@@ -421,7 +421,7 @@
   // The page: the Konva stage and layers, drawing each item (photos, frames, text, stickers), the
   // handles, zoom, Preview and the page's size on screen (collage-page.js).
   const {
-    stage, backLayer, layer, pageRect, world, guides, nodes, transformer, setShift, layout,
+    stage, backLayer, layer, pageRect, world, guides, nodes, transformer, setShift, layout, visibleSheetTop,
     startPreview, stopPreview, setZoom, applyItem, measureText, textLayouts, layoutTextItem,
     fontsReady, stickerSource, stickerImage, lastStickerImage, clampedCrop, syncPage,
     attachTransformer, syncAll
@@ -508,7 +508,14 @@
       return box && box.x < left + width / 2 && box.x + box.width > left - width / 2
         && box.y < top + toolbar.offsetHeight && box.y + box.height > top;
     });
-    const top = above < stageBox.scrollTop + 6 || (covers(above) && !covers(below)) ? below : above;
+    // Only where it can be seen: not off the top, and not behind a sheet open over the page.
+    const sheetTop = visibleSheetTop();
+    const visibleBottom = stageBox.scrollTop + (sheetTop === null ? stageBox.clientHeight : sheetTop - stageBox.getBoundingClientRect().top);
+    const height = toolbar.offsetHeight;
+    const fits = (t) => t >= stageBox.scrollTop + 6 && t + height <= visibleBottom - 6;
+    const top = [above, below].find((t) => fits(t) && !covers(t))
+      ?? [above, below].find(fits)
+      ?? Math.min(Math.max(above, stageBox.scrollTop + 6), visibleBottom - height - 6);
     toolbar.style.left = `${left}px`;
     toolbar.style.top = `${top}px`;
   }
