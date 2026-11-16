@@ -163,7 +163,7 @@ public sealed class IndexModel : PageModel
         }
         catch (DbUpdateException)
         {
-            ErrorMessage = "The deck could not be duplicated because the shared deck was updated. Reload and try again.";
+            ErrorMessage = "The deck could not be duplicated because of a database error. Reload and try again.";
             return RedirectToPage(new { deckId });
         }
     }
@@ -580,10 +580,7 @@ public sealed class IndexModel : PageModel
         var userId = RequireUserId();
         // The Studio's Add projects dialog posts in place and refreshes from the returned deck;
         // a plain form post keeps the redirect with a status message.
-        var isAjax = string.Equals(
-            Request.Headers["X-Requested-With"],
-            "XMLHttpRequest",
-            StringComparison.OrdinalIgnoreCase);
+        var isAjax = IsAjaxRequest();
         IActionResult Fail(string message, int statusCode = StatusCodes.Status400BadRequest)
         {
             if (isAjax)
@@ -604,6 +601,12 @@ public sealed class IndexModel : PageModel
         string? addedRowVersion = null;
         try
         {
+            // Only a deck this person may change runs the selection query (review 3 fixes, M4).
+            if (await _deckService.GetAccessAsync(input.DeckId, userId, cancellationToken) != ProjectBriefingDeckAccessLevel.Edit)
+            {
+                throw await UnavailableDeckAsync(input.DeckId, userId, cancellationToken);
+            }
+
             var selection = await _selectionService.ResolveAsync(
                 new ProjectBriefingSelectionRequest
                 {
@@ -929,12 +932,14 @@ public sealed class IndexModel : PageModel
             return BadRequest(new { message = "Select a deck before searching projects." });
         }
 
-        var projects = await _selectionService.SearchAsync(query, 40, cancellationToken);
         var deck = await _deckService.GetEntityAsync(deckId, userId, includeItems: true, cancellationToken);
         if (deck is null)
         {
             return NotFound(new { message = ProjectBriefingDeckService.NotFoundMessage });
         }
+
+        // Only after the deck is known to be editable (review 2 fixes, Low 6).
+        var projects = await _selectionService.SearchAsync(query, 40, cancellationToken);
 
         var membership = deck.Items.ToDictionary(item => item.ProjectId, item => item.SortOrder);
         var rows = projects.Select(project => new ProjectBriefingManageSearchResultVm(
@@ -1056,10 +1061,7 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostGenerateAsync(long deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
-        var isAjax = string.Equals(
-            Request.Headers["X-Requested-With"],
-            "XMLHttpRequest",
-            StringComparison.OrdinalIgnoreCase);
+        var isAjax = IsAjaxRequest();
 
         try
         {
@@ -1132,7 +1134,9 @@ public sealed class IndexModel : PageModel
         long? requestedDeckId,
         CancellationToken cancellationToken)
     {
-        IsCommandUser = User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD);
+        // The database roles access uses, not the sign-in cookie, so wording and access agree
+        // after a role change (review 2 fixes, Low 5).
+        IsCommandUser = await _deckService.IsCommandUserAsync(userId, cancellationToken);
         Decks = await _deckService.ListAsync(userId, cancellationToken);
         DeletedDecks = await _deckService.ListDeletedAsync(userId, cancellationToken);
 

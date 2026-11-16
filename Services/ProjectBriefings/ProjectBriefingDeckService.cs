@@ -21,6 +21,9 @@ public interface IProjectBriefingDeckService
         CancellationToken cancellationToken = default);
 
     // What the person may do with a live deck: nothing, look at it, or change it.
+    // Whether the person is Comdt or HoD, from the same roles every access check uses.
+    Task<bool> IsCommandUserAsync(string requestingUserId, CancellationToken cancellationToken = default);
+
     Task<ProjectBriefingDeckAccessLevel> GetAccessAsync(
         long deckId,
         string requestingUserId,
@@ -274,6 +277,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ? deck
             : null;
     }
+
+    public Task<bool> IsCommandUserAsync(string requestingUserId, CancellationToken cancellationToken = default)
+        => _roles.IsCommandAsync(NormalizeUserId(requestingUserId), cancellationToken);
 
     public async Task<ProjectBriefingDeckAccessLevel> GetAccessAsync(
         long deckId,
@@ -1370,20 +1376,22 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     private async Task PurgeExpiredAsync(string userId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var expiredBefore = now.AddDays(-DeletedRetentionDays);
-        var expired = await _db.Set<ProjectBriefingDeck>()
-            .Where(candidate => candidate.DeletedAtUtc != null && candidate.DeletedAtUtc < expiredBefore)
-            .ToListAsync(cancellationToken);
-        if (expired.Count == 0)
-        {
-            return;
-        }
-
-        _db.RemoveRange(expired);
+        var expired = new List<ProjectBriefingDeck>();
         try
         {
+            // The query too: a timeout here must not turn the saved delete into an error.
+            expired = await _db.Set<ProjectBriefingDeck>()
+                .Where(candidate => candidate.DeletedAtUtc != null && candidate.DeletedAtUtc < expiredBefore)
+                .ToListAsync(cancellationToken);
+            if (expired.Count == 0)
+            {
+                return;
+            }
+
+            _db.RemoveRange(expired);
             await _db.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             _logger.LogWarning(
                 exception,

@@ -387,7 +387,9 @@ public sealed class ProjectBriefingContractTests
         // Generate from the library opens the deck and runs the Studio's Generate; no bare post.
         Assert.DoesNotContain("asp-page-handler=\"Generate\"", library, StringComparison.Ordinal);
         Assert.Contains("asp-route-generate=\"1\"", library, StringComparison.Ordinal);
-        Assert.Contains("if (startUrl.searchParams.get('generate') === '1') {", script, StringComparison.Ordinal);
+        // Generate needs the link flag and the library's one-time marker (review 2 fixes, PR 6).
+        Assert.Contains("const generateFlag = startUrl.searchParams.get('generate') === '1';", script, StringComparison.Ordinal);
+        Assert.Contains("if (generateFlag && generateMarked) {", script, StringComparison.Ordinal);
         Assert.Contains("form.requestSubmit();", script, StringComparison.Ordinal);
         // It waits for the Studio to set the Gaps count, however the modules load (Codex, #2950).
         Assert.Contains("document.addEventListener('pbd:studio-ready', generateFromLibrary, { once: true });", script, StringComparison.Ordinal);

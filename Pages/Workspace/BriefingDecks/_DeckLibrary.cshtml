@@ -213,6 +213,11 @@
                                     <a class="pbd-library__moved" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id"
                                        title="@string.Join(" · ", deck.DataMovement.Describe())">@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? "change" : "changes") since</a>
                                 }
+                                else if (deck.DataMovement.HasMoved)
+                                {
+                                    @* A Project Officer's deck a command user can only view: the count, without a link. *@
+                                    <small class="pbd-library__moved" title="@string.Join(" · ", deck.DataMovement.Describe())">@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? "change" : "changes") since</small>
+                                }
                                 else
                                 {
                                     <small class="pbd-library__current">up to date</small>
