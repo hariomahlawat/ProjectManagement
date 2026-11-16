@@ -448,7 +448,8 @@ if (root) {
   // Speaker notes: written into the PowerPoint's notes for the project's first slide. Each
   // project keeps its own draft until it is saved, through rebuilds, other saves and moving
   // between projects.
-  const NOTES_MAX = 4000;
+  // The limit the server enforces (ProjectBriefingDeckService.SpeakerNotesMaxLength), written on the page.
+  const NOTES_MAX = Number.parseInt(root.dataset.speakerNotesMax || '', 10);
   const notesDrafts = new Map();
   const hasOwnSlides = (project) => !project.isDeletedOrArchived
     && (project.presentation || 'Slides') === 'Slides'

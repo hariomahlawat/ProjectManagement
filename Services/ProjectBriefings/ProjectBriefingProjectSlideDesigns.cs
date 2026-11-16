@@ -105,6 +105,97 @@ public static class ProjectBriefingProjectSlideDesigns
             _ => throw new InvalidOperationException("Choose a design for the project slides.")
         };
 
+    // Where key points go when the person switches them on: the only project slide the content
+    // draws, or with both slides, the one chosen.
+    public static ProjectBriefingKeyPointPlacement KeyPointPlacement(
+        ProjectBriefingNarrativeMode narrativeMode,
+        bool showKeyPoints,
+        ProjectBriefingKeyPointPlacement keyPointSlide)
+    {
+        if (!showKeyPoints)
+        {
+            return ProjectBriefingKeyPointPlacement.None;
+        }
+
+        return narrativeMode switch
+        {
+            ProjectBriefingNarrativeMode.CapabilityOverview => ProjectBriefingKeyPointPlacement.CapabilitySlide,
+            ProjectBriefingNarrativeMode.ProjectBrief => ProjectBriefingKeyPointPlacement.ProjectBriefSlide,
+            _ => keyPointSlide == ProjectBriefingKeyPointPlacement.CapabilitySlide
+                ? ProjectBriefingKeyPointPlacement.CapabilitySlide
+                : ProjectBriefingKeyPointPlacement.ProjectBriefSlide
+        };
+    }
+
+    // The settings a Deck tab save stands for: the posted design, or for a page that posts none
+    // (an older page during a deploy), the design its own fields describe.
+    public static ProjectBriefingProjectSlideDesignSettings Resolve(
+        ProjectBriefingProjectSlideDesign? design,
+        ProjectBriefingLayout layout,
+        ProjectBriefingNarrativeMode narrativeMode,
+        bool showKeyPoints,
+        ProjectBriefingKeyPointPlacement keyPointSlide)
+    {
+        var keyPoints = KeyPointPlacement(narrativeMode, showKeyPoints, keyPointSlide);
+        return Settings(
+            design ?? Of(layout, narrativeMode, ProjectBriefingStandardSlideOptions.Default with { KeyPoints = keyPoints }),
+            narrativeMode,
+            keyPoints,
+            showKeyPoints,
+            keyPointSlide);
+    }
+
+    // The Deck tab's rules for each design. They are written on the design's card, so the page
+    // script does not repeat them (review 2 fixes, PR 5).
+
+    // The layout a design draws; a fact sheet is the update sheet.
+    public static ProjectBriefingLayout Layout(ProjectBriefingProjectSlideDesign design)
+        => design == ProjectBriefingProjectSlideDesign.FactSheet
+            ? ProjectBriefingLayout.ProjectUpdateSheet
+            : ProjectBriefingLayout.StandardBriefing;
+
+    // Whether choosing the design switches key points on (true) or off (false); null keeps the choice.
+    public static bool? KeyPointsWhenChosen(ProjectBriefingProjectSlideDesign design) => design switch
+    {
+        ProjectBriefingProjectSlideDesign.KeyPoints or ProjectBriefingProjectSlideDesign.KeyPointsOnly => true,
+        ProjectBriefingProjectSlideDesign.Capability => false,
+        _ => null
+    };
+
+    // Key points only always shows them; the chip cannot switch them off.
+    public static bool KeyPointsLocked(ProjectBriefingProjectSlideDesign design)
+        => design == ProjectBriefingProjectSlideDesign.KeyPointsOnly;
+
+    // The design the key point chip turns this one into: key points on a capability slide is the
+    // Key points design, and off is Capability.
+    public static ProjectBriefingProjectSlideDesign WithKeyPoints(ProjectBriefingProjectSlideDesign design, bool on)
+        => (design, on) switch
+        {
+            (ProjectBriefingProjectSlideDesign.Capability, true) => ProjectBriefingProjectSlideDesign.KeyPoints,
+            (ProjectBriefingProjectSlideDesign.KeyPoints, false) => ProjectBriefingProjectSlideDesign.Capability,
+            _ => design
+        };
+
+    // A brief slide whose layout the person chooses. The key points layout draws its own, so the
+    // choice shows only while key points are off.
+    public static bool UsesBriefLayout(ProjectBriefingProjectSlideDesign design)
+        => design is ProjectBriefingProjectSlideDesign.Brief or ProjectBriefingProjectSlideDesign.CapabilityAndBrief;
+
+    // Two project slides, so the person chooses which one carries the key points.
+    public static bool OffersKeyPointSlide(ProjectBriefingProjectSlideDesign design)
+        => design == ProjectBriefingProjectSlideDesign.CapabilityAndBrief;
+
+    // The line under the chips while the design is chosen.
+    public static string Hint(ProjectBriefingProjectSlideDesign design) => design switch
+    {
+        ProjectBriefingProjectSlideDesign.KeyPointsOnly => "No brief or capability text. A project without key points shows the gap, like other missing content.",
+        ProjectBriefingProjectSlideDesign.KeyPoints => "Key points sit in a band at the foot of the slide. Switch them off for the Capability design.",
+        ProjectBriefingProjectSlideDesign.Capability => "Switch key points on for the Key points design. Anything switched off gives its space to the photo and text.",
+        ProjectBriefingProjectSlideDesign.Brief => "Key points add a band at the foot of the brief slide. Anything switched off gives its space to the photo and text.",
+        ProjectBriefingProjectSlideDesign.CapabilityAndBrief => "An older choice, kept for this deck: two slides per project.",
+        _ => string.Empty
+    };
+
     public static string DisplayName(ProjectBriefingProjectSlideDesign design) => design switch
     {
         ProjectBriefingProjectSlideDesign.Capability => "Capability",

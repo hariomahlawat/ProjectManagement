@@ -58,7 +58,7 @@ const MARKUP = `
     <li data-pbd-progress-step="checks"><button type="button" data-pbd-progress-tab="checks"><span data-pbd-progress-checks></span></button></li>
   </ol></nav>
   <div data-deck-id="7">
-    <section data-pbd-studio data-preview-url="/preview" data-has-projects="true"
+    <section data-pbd-studio data-preview-url="/preview" data-has-projects="true" data-speaker-notes-max="4000"
              data-layout="StandardBriefing" data-presentation-mode="Combined">
       <script type="application/json" data-pbd-studio-data>${JSON.stringify({ projects: PROJECTS, contentGaps: GAPS })}</script>
       <span data-pbd-studio-count></span>

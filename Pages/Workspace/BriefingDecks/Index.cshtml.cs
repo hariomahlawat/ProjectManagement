@@ -279,14 +279,10 @@ public sealed class IndexModel : PageModel
                 .Read(existingDeck.SelectionRulesJson);
             // The design card sets the layout, what each project gets and key points; a page that
             // posts no design keeps sending those fields itself.
-            var design = ProjectBriefingProjectSlideDesigns.Settings(
-                input.ProjectDesign
-                    ?? ProjectBriefingProjectSlideDesigns.Of(
-                        input.Layout,
-                        input.NarrativeMode,
-                        ProjectBriefingStandardSlideOptions.Default with { KeyPoints = ResolveKeyPointPlacement(input) }),
+            var design = ProjectBriefingProjectSlideDesigns.Resolve(
+                input.ProjectDesign,
+                input.Layout,
                 input.NarrativeMode,
-                ResolveKeyPointPlacement(input),
                 input.ShowKeyPoints,
                 input.KeyPointSlide);
 
@@ -1434,24 +1430,6 @@ public sealed class IndexModel : PageModel
         public int MaximumCountryRows { get; set; } = 8;
 
         public bool IncludeCountryWiseBreakdown { get; set; }
-    }
-
-    // Key points go on the only project slide the content draws; with both, on the chosen one.
-    internal static ProjectBriefingKeyPointPlacement ResolveKeyPointPlacement(SaveDeckSettingsInput input)
-    {
-        if (!input.ShowKeyPoints)
-        {
-            return ProjectBriefingKeyPointPlacement.None;
-        }
-
-        return input.NarrativeMode switch
-        {
-            ProjectBriefingNarrativeMode.CapabilityOverview => ProjectBriefingKeyPointPlacement.CapabilitySlide,
-            ProjectBriefingNarrativeMode.ProjectBrief => ProjectBriefingKeyPointPlacement.ProjectBriefSlide,
-            _ => input.KeyPointSlide == ProjectBriefingKeyPointPlacement.CapabilitySlide
-                ? ProjectBriefingKeyPointPlacement.CapabilitySlide
-                : ProjectBriefingKeyPointPlacement.ProjectBriefSlide
-        };
     }
 
     public sealed class SaveDeckSettingsInput

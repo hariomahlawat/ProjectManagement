@@ -91,6 +91,14 @@ What holds the scores back:
 5. **Design rules in one place** (M4). The design mapping and key-point placement move into
    `ProjectBriefingProjectSlideDesigns`. The page reads the chip rules, hints and notes limit
    from data the server writes.
+
+   Built (17 Nov 2026).
+   - `ProjectBriefingProjectSlideDesigns` holds key-point placement and `Resolve` (from the page
+     model), and each design's card rules: layout, key points when chosen, locked, the chip's swap,
+     brief layout, key point slide choice and hint.
+   - Each design card carries those rules as data attributes; the page script names no design.
+   - The Brief-layout and key-point-slide visibility in Razor uses the same rules.
+   - The Studio reads the speaker-notes limit from the page (`SpeakerNotesMaxLength`).
 6. **Small honest fixes** (M5, Low 1, 5, 6, 7, 9):
    - the library shows the change count on view-only decks;
    - SaveSettings gives the view-only message;

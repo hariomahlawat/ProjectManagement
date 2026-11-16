@@ -214,23 +214,36 @@ test('project slides: one design for every project, from cards that set the deck
   assert.match(viewSource, /name="ProjectDesign" value="@design"/);
   // Capability and brief stays only for decks that already use it.
   assert.match(viewSource, /if \(currentDesign == ProjectBriefingProjectSlideDesign\.CapabilityAndBrief\)/);
-  assert.match(source, /setRadio\('Layout', design === 'FactSheet' \? 'ProjectUpdateSheet' : 'StandardBriefing'\);/);
-  assert.match(source, /if \(design === 'KeyPoints' \|\| design === 'KeyPointsOnly'\) keyPointsChip\.checked = true;/);
+  // The card carries the design's rules (ProjectBriefingProjectSlideDesigns); the script reads them.
+  assert.match(viewSource, /data-layout="@ProjectBriefingProjectSlideDesigns\.Layout\(design\)"/);
+  assert.match(viewSource, /data-hint="@ProjectBriefingProjectSlideDesigns\.Hint\(design\)"/);
+  assert.match(source, /setRadio\('Layout', card\.dataset\.layout \|\| 'StandardBriefing'\);/);
+  assert.match(source, /keyPointsChip\.checked = card\.dataset\.keyPoints === 'on';/);
   assert.match(viewSource, /name="ShowPresentStatus"/);
+});
+
+test('design rules live on the server: the script names no design', () => {
+  for (const name of ['Capability', 'KeyPoints', 'KeyPointsOnly', 'Brief', 'FactSheet', 'CapabilityAndBrief']) {
+    assert.doesNotMatch(source, new RegExp(`'${name}'`), name);
+  }
+  assert.doesNotMatch(source, /No brief or capability text/);
+  assert.doesNotMatch(studioSource, /NOTES_MAX = 4000/);
+  assert.match(studioSource, /const NOTES_MAX = Number\.parseInt\(root\.dataset\.speakerNotesMax/);
+  assert.match(viewSource, /data-speaker-notes-max="@ProjectBriefingDeckService\.SpeakerNotesMaxLength"/);
 });
 
 test('key points: a chip that swaps Capability and Key points, a band on Brief, fixed on Key points only', () => {
   assert.match(viewSource, /name="ShowKeyPoints"/);
   assert.match(viewSource, /name="KeyPointSlide" value="ProjectBriefSlide"/);
   assert.match(viewSource, /name="KeyPointSlide" value="CapabilitySlide"/);
-  assert.match(source, /keyPointsChip\.checked && design === 'Capability' \? 'KeyPoints'/);
-  assert.match(source, /keyPointsToggle\.disabled = design === 'KeyPointsOnly';/);
-  assert.match(source, /keyPointSlide\.hidden = !keyPointsOn \|\| design !== 'CapabilityAndBrief';/);
+  assert.match(source, /const swap = designRule\(keyPointsChip\.checked \? 'withKeyPoints' : 'withoutKeyPoints'\);/);
+  assert.match(source, /keyPointsToggle\.disabled = designRule\('keyPointsLocked'\) === 'true';/);
+  assert.match(source, /keyPointSlide\.hidden = !keyPointsOn \|\| designRule\('keyPointSlide'\) !== 'true';/);
 });
 
 test('the brief layout shows for brief designs only while key points are off (the key points layout draws its own)', () => {
-  assert.match(viewSource, /data-pbd-project-brief-layout-settings hidden="@\(isUpdateSheet \|\| !standardNeedsProjectBrief \|\| keyPointsOn\)"/);
-  assert.match(source, /projectBriefLayoutSettings\.hidden = updateSheet \|\| !\['Brief', 'CapabilityAndBrief'\]\.includes\(design\) \|\| keyPointsOn;/);
+  assert.match(viewSource, /data-pbd-project-brief-layout-settings hidden="@\(isUpdateSheet \|\| !ProjectBriefingProjectSlideDesigns\.UsesBriefLayout\(currentDesign\) \|\| keyPointsOn\)"/);
+  assert.match(source, /projectBriefLayoutSettings\.hidden = updateSheet \|\| designRule\('briefLayout'\) !== 'true' \|\| keyPointsOn;/);
 });
 
 
