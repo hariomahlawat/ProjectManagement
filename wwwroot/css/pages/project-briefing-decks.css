@@ -4253,6 +4253,10 @@ html:has(.pbd-viewer[open]) {
 .pbd-design {
     position: relative;
     display: grid;
+    /* The text wraps inside the card rather than widening it (two cards fit a phone's inspector). */
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    overflow-wrap: anywhere;
     gap: .15rem;
     margin: 0;
     padding: .45rem;
@@ -4317,23 +4321,30 @@ html:has(.pbd-viewer[open]) {
     background: var(--pbd-surface);
 }
 
+/* Sketch greys come from the muted text colour, so they read on Light and Dark cards alike. */
 .pbd-design__mini i {
     display: block;
     min-height: 0;
     border-radius: 2px;
-    background: var(--pbd-border);
+    background: color-mix(in srgb, var(--pbd-muted) 32%, var(--pbd-surface));
 }
 
 .pbd-design__mini i.is-photo {
-    background: repeating-linear-gradient(135deg, var(--pbd-border) 0 4px, var(--pbd-canvas) 4px 8px);
+    background: repeating-linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--pbd-muted) 40%, var(--pbd-surface)) 0 4px,
+        color-mix(in srgb, var(--pbd-muted) 18%, var(--pbd-surface)) 4px 8px);
 }
 
 .pbd-design__mini i.is-band {
-    background: color-mix(in srgb, var(--pbd-blue) 22%, var(--pbd-surface));
+    background: color-mix(in srgb, var(--pbd-blue) 35%, var(--pbd-surface));
 }
 
 .pbd-design__mini i.is-table {
-    background: repeating-linear-gradient(180deg, var(--pbd-border) 0 3px, var(--pbd-surface) 3px 7px);
+    background: repeating-linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--pbd-muted) 40%, var(--pbd-surface)) 0 3px,
+        var(--pbd-surface) 3px 7px);
 }
 
 .pbd-design__mini--keypoints {
@@ -4867,6 +4878,30 @@ span.pbd-additional-slide-row__handle {
 .pbd-block__remove:focus-visible {
     outline: none;
     box-shadow: var(--pm-focus-ring);
+}
+
+/* Touch screens: the list's small controls get finger-sized targets. */
+@media (pointer: coarse) {
+    .pbd-block__remove {
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: .85rem;
+    }
+
+    .pbd-block__handle {
+        min-width: 1.75rem;
+        min-height: 2.5rem;
+    }
+
+    .pbd-block .btn-link,
+    .pbd-block-library__entry .btn-link,
+    .pbd-block-library__toggle {
+        min-height: 2.5rem;
+    }
+
+    .pbd-block {
+        grid-template-columns: 1.75rem minmax(0, 1fr) auto auto;
+    }
 }
 
 .pbd-blocks__empty {

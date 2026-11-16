@@ -298,6 +298,8 @@ test('add block: optional blocks are removed from the list and added back from a
   assert.match(viewSource, /hidden="@\(optional && !block\.Enabled\)"/);
   assert.match(viewSource, /data-pbd-block-remove aria-label="Remove @name from the deck"/);
   assert.match(viewSource, /data-pbd-block-library-entry="@block\.Type" hidden="@block\.Enabled"/);
+  // A group with nothing to add is hidden from the first render, not only after a change.
+  assert.match(viewSource, /data-pbd-block-library-group hidden="@groupBlocks\.All\(block => block\.Enabled\)"/);
   assert.match(viewSource, /data-pbd-block-add="@block\.Type"/);
   // An institution slide can be edited from the library before it is added (the SDD profile must
   // pass its checks to be added).

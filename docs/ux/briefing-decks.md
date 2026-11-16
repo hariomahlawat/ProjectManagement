@@ -1,9 +1,9 @@
 # Briefing decks (`/Workspace/BriefingDecks`)
 
 Comdt and HoD users build shared PowerPoint briefing decks from live PRISM data, and Project
-Officers build decks of their own (16 Nov 2026). This document
-records what the module does today, the problems found in the review of 1 Nov 2026, and the
-agreed plan to turn the builder into a **Briefing Studio**.
+Officers build decks of their own (16 Nov 2026). The sections up to "Review findings" describe
+the module as it is today; the dated sections after them are the plans and reviews that got it
+here, kept as history.
 
 ## Where it lives
 
@@ -24,7 +24,8 @@ agreed plan to turn the builder into a **Briefing Studio**.
 last-updated deck, so nobody edits a deck they did not pick.
 
 - **New deck** asks for a name and a template (Portfolio or Fact Sheets), then opens the
-  Studio on Add projects.
+  Studio on Add projects. A template only fills the new deck's starting settings; the Studio
+  has no template picker and no "customised" state.
 - **Continue**: the deck the person last edited (else the latest), with Open in Studio and
   Generate PowerPoint.
 - **All decks** table: deck and description, template (Portfolio or Fact Sheets, from the
@@ -40,9 +41,8 @@ last-updated deck, so nobody edits a deck they did not pick.
   unknown or deleted id returns to the library with a one-request notice.
 - **Data moved since last generated** (PR 2). Each generation keeps, per presented project, the
   facts its slides drew and which ones they drew (`LastGeneratedFactsJson`,
-  `ProjectBriefingSlideFacts`): the stage, read as the slides read it (its name where a table row, detail slide or the stage summary shows it; its maturity where it orders two or more projects' slides; its lifecycle for a standard project slide's subtitle (capability slides and brief continuations), the portfolio summary's counts and the stage summary's status band; the update sheet's milestone row exactly as `ProjectBriefingUpdateSheetPlanner.DescribeMilestone` draws it: the PDC date in development, else the completion or cancellation), the external status remark (date and a digest of its text) and the costs
-  drawn (the R&D cost, with its basis label where cost cards or the executive table draw it, the proliferation cost by cost mode, the IPA cost in
-  an update sheet's portfolio totals). `ProjectBriefingSlideFacts.Shown` mirrors the composer:
+  `ProjectBriefingSlideFacts`): the stage, read as the slides read it (its name where a table row, detail slide or the stage-wise distribution shows it; its maturity where it orders two or more projects' slides; its lifecycle for a standard project slide's subtitle (capability slides and brief continuations) and the stage-wise distribution; the milestone exactly as `ProjectBriefingUpdateSheetPlanner.DescribeMilestone` draws it (the PDC date in development, else the completion or cancellation), on an update sheet's row or in the stage-wise distribution's list; and the distribution's band, which supply-order and AoN evidence can move without the stage changing), the external status remark (date and a digest of its text), the key points where a slide shows them, and the costs
+  drawn (the R&D cost, with its basis label where cost cards or the executive table draw it, and the proliferation cost by cost mode). `ProjectBriefingSlideFacts.Shown` mirrors the composer:
   "Show present stage/status", the update sheet's selected rows, table-row-only projects, the
   summary slides and the cost mode. The library rebuilds today's facts with
   `GetCurrentSlideFactsAsync` (the same cost resolver, external status service and stage rule as
@@ -65,7 +65,7 @@ project for project slides), which the outline uses instead of reading slide tex
 shrunk to 960px and sent once each, however many slides use them. Every text value is encoded on
 the server; the script inserts only slide HTML and writes all other text as text.
 
-- **Outline** (left): Opening, Portfolio, one group per present stage (in the deck's maturity
+- **Outline** (left): Opening, Overview, one group per present stage (in the deck's maturity
   order), then Closing. A project's slides share one row; runs of status-table, category and FFC
   breakdown pages fold into one row. Project rows carry an amber count of missing content.
   Search filters by title, stage and category. Drag a project row by its grip, or press Alt+Up or
@@ -82,17 +82,38 @@ the server; the script inserts only slide HTML and writes all other text as text
 - **Inspector** (right): **This slide** shows a project's costs, status remark, capability
   source and slide numbers, with Open project, Remove from deck and the deck-specific capability
   overview (saved through the existing editor). Other slides explain what they show and offer
-  Deck settings or, for the SDD profile, Role & Charter and FFC slides, Edit slide content.
-  **Deck** starts with the purpose presets, then the additional-slide cards (enable, edit,
-  reorder, remove; these still save with a page reload) and every option under **All settings**.
-  A preset applies its settings on the server and the page reloads once; the Deck tab then says
-  "Set from <preset>", with ", adjusted" once any setting the preset decides has changed. Each
-  other change saves itself in place a moment later, one save at a time; leaving the page,
-  posting another form or generating waits for a pending save. The deck name and description
-  are edited in the header (the pencil beside the name) and saved with the settings. A save that
-  collides with someone else's change shows one banner with Reload. **Checks** counts,
-  per item, how many projects lack it, and **Show** narrows the outline to them. Remove from deck
-  asks for confirmation first.
+  the Deck tab or, for the SDD profile, Role & Charter and FFC slides, Edit slide content.
+  **Gaps** counts, per item, how many projects lack it, and **Show** narrows the outline to them.
+  Remove from deck asks for confirmation first.
+- **Deck tab**, in numbered steps that open one at a time, each with a one-line summary:
+  1. **Slides in this deck**: the deck as blocks (`ProjectBriefingDeckBlocks`) in four groups,
+     Opening, Overview, Projects and Closing. The cover and the project slides have switches;
+     every other block (SDD profile, Role & Charter, stage-wise distribution, project-category
+     and technical-category distributions, status table, FFC footprint) is listed only while it is
+     in the deck, with Remove. **Add block** opens a library of the rest; the institution slides
+     there have Edit, so their content can be set up before they are added. Overview blocks and
+     the two opening institution slides move by their grip (drag, or Alt+Up / Alt+Down). Every
+     change saves the list in place (`UpdateBlocks`); a deck must keep the status table or the
+     project slides. The order is stored as `overviewOrder` in `SelectionRulesJson`.
+  2. **Project slides**: one design for every project (Capability, Key points, Brief, Fact sheet,
+     Key points only; "Capability and brief" only for decks that already use it), and "Show on
+     each slide" chips: present stage, status remark, R&D cost, proliferation cost, key points.
+     A design is read from and written as the deck's existing settings
+     (`ProjectBriefingProjectSlideDesigns`); Key points only is the one new setting. The cost
+     chips are the deck's cost choice, for the status table too. Brief has its layout
+     (Automatic, Standard, Photo) while key points are off. Changing to or from Fact sheet
+     reloads the page, which draws the list for the new layout.
+  3. **Sheet rows** (Fact sheet only): the rows on each sheet, ticked and ordered.
+  4. **Look** (theme, insignia, closing) and 5. **Handling** (marking).
+  Settings save themselves in place a moment after the last change, one save at a time; leaving
+  the page, posting another form or generating waits for a pending save. The deck name and
+  description are edited in the header (the pencil beside the name). A save that collides with
+  someone else's change shows one banner with Reload. On touch screens the list's Remove, grip
+  and Edit controls are finger-sized (40px).
+- **Project Officers' decks** (`ProjectBriefingDeckAccessRules`): a Project Officer's decks are
+  their own; Comdt and HoD see them in the library as "<owner>'s deck · view only" with
+  Download PowerPoint and Duplicate to change it, and do not open them in the Studio. Add
+  projects starts a Project Officer on **My projects**.
 - **Add projects** is a dialog with the earlier selection methods (quick add, recently completed,
   project and technical category, individual search). Each saves in place: the handler answers an
   in-page request with the refreshed deck, and plain form posts still redirect.
@@ -113,11 +134,11 @@ the server; the script inserts only slide HTML and writes all other text as text
   without the page scrolling (1366×768 and 1920×1080 checked). Phones: no button, and a
   remembered focus view is ignored below 576px.
 - "Missing" has one rule, `ProjectBriefingContentGaps`, applied on the server to the deck's own
-  settings (template, format, costs, narrative, update-sheet rows); deleted and archived projects
-  are left out.
+  settings (design, what the deck shows, costs, update-sheet rows); deleted and archived projects
+  are left out. Key points only expects key points and not capability text.
 - Adding, removing or reordering projects and saving a capability overview rebuild the slides
-  about a second later and keep the same project selected. Settings saves update the slides the
-  same way; applying a preset reloads the page.
+  about a second later and keep the same project selected. Settings and block saves update the
+  slides the same way and show a slide the change affects.
 - Widths: three panes from 1400px (outline about 18rem, inspector about 23rem; 20rem and 26rem
   from 2200px); below 1400px the inspector moves under the slide; below 900px one column. The
   shared-deck list folds into a strip above the Studio at every width.
@@ -858,3 +879,10 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    fixture was re-recorded for the intended change and pins the composer from here.
 8. **Phones, Dark, docs** (this file's Studio and Deck sections rewritten to the block model, and
    the access line in `docs/current-state.md`) and a fresh cold review.
+
+   Built (16 Nov 2026). Phones (375px): nothing in the Deck tab is wider than the screen (a design
+   card's text now wraps inside the card), and on touch screens Remove, the grip, Edit and Add
+   block are 40px targets. Dark: the design sketches take their greys from the muted text colour,
+   so they read on dark cards (they were nearly invisible). The Add block library no longer shows
+   a group heading with nothing under it on first load. This file's Studio section describes the
+   Deck tab as it now is; `docs/current-state.md` names Project Officers.

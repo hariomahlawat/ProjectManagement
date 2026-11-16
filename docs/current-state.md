@@ -51,7 +51,8 @@ The current EF model and service registrations show these broad domains:
 - Notebook
 - Action tasks and sprints
 - Calendars and celebrations
-- Publications, brochures, compendiums and briefing decks
+- Publications, brochures and compendiums
+- Briefing decks (`/Workspace/BriefingDecks`): PowerPoint decks built from live project data as blocks (cover, institution slides, stage-wise distribution and category charts, status table, project slides in one of five designs, FFC footprint). Comdt and HoD share command decks; Project Officers make decks of their own, which command users can download or duplicate but not change (see [ux/briefing-decks.md](ux/briefing-decks.md))
 - Search
 - PDF Tools: a standalone, browser-only PDF editor for users' own files; it stores nothing in PRISM (see [pdf-tools.md](pdf-tools.md))
 - Photo Tools: a standalone tool for users' own photos (reduce size, passport photos and signatures, print sheets, an editor with clean-ups, filters, mark up and blur, and Remove background); everything runs in the browser except Remove background, whose model runs on the PRISM server and is off until an administrator installs it, and Passport photo, which asks the server where the face is (the Photos library's face detector) and uses Remove background's model when its colour method cannot change a background; it stores nothing in PRISM (see [photo-tools.md](photo-tools.md) and [photo-tools-background-removal.md](photo-tools-background-removal.md))
