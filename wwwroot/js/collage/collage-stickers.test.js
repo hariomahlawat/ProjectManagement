@@ -125,8 +125,8 @@ const PHOTO = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
 test('only a listed photo original from its own kind of page is ever fetched', async () => {
   // The addresses CollageApiHostTests checks the server gives, one per kind of photo.
   const originals = [
-    '/Projects/12/Photos/41/View/original?v=3',
-    '/Projects/12/Photos/41/View/original',
+    '/Projects/12/Photos/41/View/xl?v=3',
+    '/Projects/12/Photos/41/View/xl',
     `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original&v=a1b2`,
     `/ProjectOfficeReports/SocialMedia/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original&v=c3d4`,
     `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original`,
@@ -143,6 +143,8 @@ test('only a listed photo original from its own kind of page is ever fetched', a
     '//example.com/Projects/12/Photos/41/View/original?v=3',
     'https://example.com/Projects/12/Photos/41/View/original?v=3',
     '/Photos/Media/7/original?v=3&x=1',
+    // A project photo's page has no "original" size.
+    '/Projects/12/Photos/41/View/original?v=3',
     '/Projects/12/Photos/41/View/original?v=3&x=1',
     '/Projects/12/Photos/41/View/original?x=1',
     `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original&v=a1b2&x=1`,
@@ -177,7 +179,7 @@ test('a listed photo with an address from elsewhere is dropped from the page', a
     json: async () => ({
       available: true,
       photos: [
-        { id: 1, url: '/Projects/12/Photos/41/View/original?v=3', thumbUrl: '/Projects/12/Photos/41/View/md?v=3' },
+        { id: 1, url: '/Projects/12/Photos/41/View/xl?v=3', thumbUrl: '/Projects/12/Photos/41/View/md?v=3' },
         { id: 2, url: `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=original&v=a1`, thumbUrl: `/ProjectOfficeReports/Visits/ViewPhoto/${VISIT}/Photos/${PHOTO}?size=md&v=a1` },
         { id: 3, url: 'https://example.com/a.jpg', thumbUrl: '/Photos/Media/3/thumb?v=1' },
         { id: 4, url: '/Photos/Media/4/original?v=1', thumbUrl: '//example.com/t.jpg' }

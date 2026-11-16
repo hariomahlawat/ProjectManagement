@@ -38,6 +38,19 @@ public static class CollageApi
             path => path.StartsWith("~/", StringComparison.Ordinal) ? httpContext.Request.PathBase + path[1..] : path);
     }
 
+    /// <summary>
+    /// The picture the collage reads for a library photo: its original, except for a project photo,
+    /// whose page serves sizes up to xl and no "original"; xl is its largest.
+    /// </summary>
+    public static string CollagePictureAddress(MediaLibraryQueryItem item, MediaLibraryItemAddresses addresses)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(addresses);
+        return item.Origin == ProjectManagement.Features.MediaLibrary.Domain.MediaAssetOrigin.ProjectPhoto
+            ? addresses.Display
+            : addresses.Original;
+    }
+
     /// <summary>The address of one sticker's picture; the version makes a changed picture a new address.</summary>
     public static string PictureUrl(int id, int version) =>
         string.Create(CultureInfo.InvariantCulture, $"/api/collage/stickers/{id}/image?v={version}");
@@ -170,7 +183,7 @@ public static class CollageApi
                     width = row.Item.Width,
                     height = row.Item.Height,
                     thumbUrl = row.Addresses.Thumbnail,
-                    url = row.Addresses.Original
+                    url = CollagePictureAddress(row.Item, row.Addresses)
                 }),
             page = result.PageNumber,
             hasMore = result.HasNextPage,

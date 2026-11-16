@@ -44,7 +44,8 @@ public sealed class CollageLibraryPhotosTests : IClassFixture<WebApplicationFact
         Assert.Equal("Farewell 2026", photo.GetProperty("title").GetString());
         // A project photo is read through the project's own photo page and its access check.
         Assert.Equal("/Projects/12/Photos/7/View/md?v=v3", photo.GetProperty("thumbUrl").GetString());
-        Assert.Equal("/Projects/12/Photos/7/View/original?v=v3", photo.GetProperty("url").GetString());
+        // Its largest size: the project photo page serves xs to xl and no "original".
+        Assert.Equal("/Projects/12/Photos/7/View/xl?v=v3", photo.GetProperty("url").GetString());
         Assert.Equal("Project A", json.GetProperty("projects")[0].GetProperty("name").GetString());
         Assert.True(json.GetProperty("hasMore").GetBoolean());
     }

@@ -26,7 +26,8 @@
     // An activity photo or a photo from another folder: the library's own page.
     `\\/Photos\\/Media\\/${ID}\\/(?:${sizes.media})\\?v=[0-9]{1,9}`
   ].join('|') + ')$');
-  const LIBRARY_PICTURE = pictureAddress({ project: 'original', report: 'original', media: 'original' });
+  // A project photo's page has no "original"; xl is its largest size.
+  const LIBRARY_PICTURE = pictureAddress({ project: 'xl', report: 'original', media: 'original' });
   const LIBRARY_THUMB = pictureAddress({ project: 'md', report: 'md|feed', media: 'thumb' });
   const TYPE_ENDINGS = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/bmp': '.bmp' };
 

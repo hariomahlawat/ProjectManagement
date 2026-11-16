@@ -137,7 +137,7 @@ public sealed class CollageStudioPageContractTests
         Assert.Contains(@"`\\/Projects\\/${ID}\\/Photos\\/${ID}\\/View\\/", source, StringComparison.Ordinal);
         Assert.Contains(@"`\\/ProjectOfficeReports\\/(?:Visits|SocialMedia)\\/ViewPhoto\\/${GUID}\\/Photos\\/${GUID}\\?size=", source, StringComparison.Ordinal);
         Assert.Contains(@"`\\/Photos\\/Media\\/${ID}\\/", source, StringComparison.Ordinal);
-        Assert.Contains("const LIBRARY_PICTURE = pictureAddress({ project: 'original', report: 'original', media: 'original' });", source, StringComparison.Ordinal);
+        Assert.Contains("const LIBRARY_PICTURE = pictureAddress({ project: 'xl', report: 'original', media: 'original' });", source, StringComparison.Ordinal);
         Assert.Contains("if (!LIBRARY_PICTURE.test(address)) throw", source, StringComparison.Ordinal);
         Assert.DoesNotMatch(new Regex(@"https?://", RegexOptions.IgnoreCase), source);
         foreach (var call in NetworkCalls.Where(call => call != "fetch("))

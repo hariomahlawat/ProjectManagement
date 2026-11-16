@@ -67,7 +67,7 @@ public sealed class CollageApiHostTests : IClassFixture<WebApplicationFactory<Pr
 
     [Theory]
     [InlineData(MediaAssetOrigin.ProjectPhoto, "project-photo:41", "12", "project:12", "3",
-        "/Projects/12/Photos/41/View/md?v=3", "/Projects/12/Photos/41/View/original?v=3")]
+        "/Projects/12/Photos/41/View/md?v=3", "/Projects/12/Photos/41/View/xl?v=3")]
     [InlineData(MediaAssetOrigin.VisitPhoto, "visit-photo:" + VisitPhotoId, VisitId, "visit:" + VisitId, "a1b2",
         "/ProjectOfficeReports/Visits/ViewPhoto/" + VisitId + "/Photos/" + VisitPhotoId + "?size=md&v=a1b2",
         "/ProjectOfficeReports/Visits/ViewPhoto/" + VisitId + "/Photos/" + VisitPhotoId + "?size=original&v=a1b2")]
