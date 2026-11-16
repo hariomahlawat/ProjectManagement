@@ -85,6 +85,47 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             ProjectBriefingDeckConfigurationCodec.WithPreset(newer, ProjectBriefingDeckPreset.MonthlyCommandReview));
     }
 
+    // Review 3 fixes, M2: values a newer build added inside lists this build writes survive its
+    // saves. A single choice is what the person picked on this build's page.
+    [Fact]
+    public void ListValuesThisBuildDoesNotKnow_SurviveItsSaves_AndAChoiceIsWhatWasPicked()
+    {
+        var json = ProjectBriefingDeckConfigurationCodec.WithOverviewOrder(
+            ProjectBriefingDeckConfigurationCodec.WithPreset(null, ProjectBriefingDeckPreset.MonthlyCommandReview),
+            new[] { ProjectBriefingDeckBlockType.StatusTable });
+        var document = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        document["updateSheet"]!["rows"]!.AsArray().Add("FutureRow");
+        document["overviewOrder"]!.AsArray().Add("FutureBlock");
+        document["standardBriefing"]!["projectBriefLayout"] = "FutureLayout";
+        document["preset"] = "FuturePreset";
+        json = document.ToJsonString();
+
+        // A save that changes none of them: the newer list values are still there.
+        json = ProjectBriefingDeckConfigurationCodec.WithSelectionRules(json, "{\"source\":\"manual\"}");
+        var saved = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        Assert.Contains("FutureRow", saved["updateSheet"]!["rows"]!.AsArray().Select(node => node!.GetValue<string>()));
+        Assert.Equal(new[] { "StatusTable", "FutureBlock" }, saved["overviewOrder"]!.AsArray().Select(node => node!.GetValue<string>()));
+
+        // This build still reads only what it knows.
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(json);
+        Assert.Equal(new[] { ProjectBriefingDeckBlockType.StatusTable }, configuration.OverviewOrder);
+        Assert.Null(configuration.Preset);
+
+        // A choice is written as picked, even the value this build reads an unknown one as (Codex,
+        // #3394): picking Automatic replaces a newer layout. The list keeps its newer value.
+        var current = ProjectBriefingDeckConfigurationCodec.Read(json);
+        json = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
+            json,
+            current.UpdateSheetOptions,
+            current.StandardSlideOptions with { ProjectBriefLayout = ProjectBriefingProjectBriefLayout.Automatic },
+            current.ClosingSlideType);
+        json = ProjectBriefingDeckConfigurationCodec.WithOverviewOrder(json, new[] { ProjectBriefingDeckBlockType.StageDistribution });
+        saved = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        Assert.Equal("Automatic", saved["standardBriefing"]!["projectBriefLayout"]!.GetValue<string>());
+        Assert.Equal(new[] { "StageDistribution", "FutureBlock" }, saved["overviewOrder"]!.AsArray().Select(node => node!.GetValue<string>()));
+        Assert.Contains("FutureRow", saved["updateSheet"]!["rows"]!.AsArray().Select(node => node!.GetValue<string>()));
+    }
+
     [Fact]
     public void LegacySelectionRules_AreStillUpgradedIntoTheDocument()
     {

@@ -823,7 +823,71 @@ public static class ProjectBriefingDeckConfigurationCodec
             merged[key] = value;
         }
 
+        KeepNewerListValues(existing, merged);
         return merged.ToJsonString(JsonOptions);
+    }
+
+    // Lists this build writes, with the enum each holds. A newer build may add values this build
+    // cannot read (an update-sheet row, a block type); the sections above are rebuilt from what this
+    // build read, so those values are put back here (review 3 fixes, M2). This build cannot show
+    // them, so nobody here could have meant to remove them. A single choice (brief layout, key
+    // points, preset) is different: the person picks it on this page, and picking the value this
+    // build shows cannot be told apart from leaving it, so the saved choice is what was picked.
+    private static readonly (string? Section, string Key, Type Values)[] EnumLists =
+    {
+        ("updateSheet", "rows", typeof(ProjectBriefingUpdateSheetRow)),
+        ("institutionalProfile", "modules", typeof(ProjectBriefingInstitutionalProfileModule)),
+        (null, "additionalSlides", typeof(ProjectBriefingAdditionalSlideType)),
+        (null, "overviewOrder", typeof(ProjectBriefingDeckBlockType))
+    };
+
+    private static void KeepNewerListValues(JsonObject stored, JsonObject merged)
+    {
+        // A list keeps, after this build's values, every stored value this build cannot read.
+        foreach (var (section, key, values) in EnumLists)
+        {
+            if (SectionOf(stored, section)?[key] is not JsonArray storedList)
+            {
+                continue;
+            }
+
+            var newer = storedList.Where(node => !IsKnown(values, node)).Select(node => node?.DeepClone()).ToArray();
+            var target = SectionOf(merged, section);
+            if (newer.Length == 0 || target is null)
+            {
+                continue;
+            }
+
+            if (target[key] is JsonArray list)
+            {
+                foreach (var node in newer)
+                {
+                    list.Add(node);
+                }
+            }
+            else
+            {
+                target[key] = new JsonArray(newer);
+            }
+        }
+    }
+
+    private static JsonObject? SectionOf(JsonObject document, string? section)
+        => section is null ? document : document[section] as JsonObject;
+
+    private static bool IsKnown(Type values, JsonNode? node)
+    {
+        if (node is not JsonValue value)
+        {
+            return false;
+        }
+
+        if (value.TryGetValue<string>(out var text))
+        {
+            return Enum.TryParse(values, text, ignoreCase: true, out var parsed) && Enum.IsDefined(values, parsed!);
+        }
+
+        return value.TryGetValue<int>(out var number) && Enum.IsDefined(values, number);
     }
 
     private static JsonObject Build(ProjectBriefingDeckConfiguration configuration)

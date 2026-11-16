@@ -42,9 +42,12 @@ this plan runs under the standing instruction: merge when CI and Codex are green
 1. **This plan, and the server items** (M4, Low 4, Low 5). Add projects checks the deck before it
    resolves the selection, and is in the per-role handler test; Duplicate's database error says
    so; one ajax check.
-2. **Codec keeps newer array and enum values** (M2). Owned arrays keep stored entries this build
-   does not know; an enum value this build cannot read is kept when the save leaves it at the
-   value this build read it as. Round-trip tests with an unknown row, block type and enum value.
+2. **Codec keeps newer list values** (M2). Owned lists (update-sheet rows, profile modules,
+   additional slides, overview order) keep stored entries this build does not know, after its
+   own. A single choice (brief layout, key points, preset) is saved as the person picked it: the
+   page shows this build's reading, and picking that value cannot be told apart from leaving it
+   (Codex on #3394), so keeping the stored one would undo a real choice. Round-trip test with an
+   unknown row and block type.
 3. **Editors confirm and agree with the server** (M3, Low 1, 2, 3, 7), after #3390–#3392 merge.
    All three editors show their saved message in the slide list; the footer rule matches the
    server; the dead include boxes and comment go; a jsdom test covers an editor save while a
