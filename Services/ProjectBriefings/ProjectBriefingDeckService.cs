@@ -422,15 +422,22 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             RowVersion = NewRowVersion()
         };
 
-        _db.Add(deck);
-        await _db.SaveChangesAsync(cancellationToken);
-        await AuditAsync("ProjectBriefing.DeckCreated", userId, deck, "Project briefing deck created.");
-
-        // The template is applied the same way as choosing it in the Studio.
+        // The template's settings go on before the deck's one save, so a template that cannot be
+        // applied leaves no deck behind with default settings (review fixes PR 8).
         if (preset is { } template)
         {
-            await ApplyPresetAsync(deck.Id, userId, template, Encode(deck.RowVersion), cancellationToken);
+            SetFromPreset(deck, template);
         }
+
+        _db.Add(deck);
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            "ProjectBriefing.DeckCreated",
+            userId,
+            deck,
+            preset is { } chosen
+                ? $"Project briefing deck created from the {ProjectBriefingDeckPresets.Get(chosen).Title} template."
+                : "Project briefing deck created.");
 
         return deck.Id;
     }
@@ -586,9 +593,28 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         var deck = await LoadEditableAsync(deckId, userId, includeItems: false, cancellationToken);
         EnsureVersion(deck, rowVersion);
 
-        var target = ProjectBriefingDeckPresets.Get(preset).State;
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
         var before = CapturePresetUndo(deck, configuration);
+        var additionalSlidesChanged = SetFromPreset(deck, preset);
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            "ProjectBriefing.PresetApplied",
+            userId,
+            deck,
+            $"Project briefing deck set from the {ProjectBriefingDeckPresets.Get(preset).Title} preset.");
+        return new ProjectBriefingPresetApplied(
+            additionalSlidesChanged,
+            before with { AppliedRowVersion = Encode(deck.RowVersion) });
+    }
+
+    // A template's settings on a deck, in memory (nothing is saved): used when a deck is created from
+    // a template and when a template is applied. Returns whether the institution slides changed.
+    private static bool SetFromPreset(ProjectBriefingDeck deck, ProjectBriefingDeckPreset preset)
+    {
+        var target = ProjectBriefingDeckPresets.Get(preset).State;
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
 
         deck.Layout = target.Layout;
         deck.PresentationMode = target.PresentationMode;
@@ -645,17 +671,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithPreset(json, preset);
-        Touch(deck, userId);
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await AuditAsync(
-            "ProjectBriefing.PresetApplied",
-            userId,
-            deck,
-            $"Project briefing deck set from the {ProjectBriefingDeckPresets.Get(preset).Title} preset.");
-        return new ProjectBriefingPresetApplied(
-            additionalSlidesChanged,
-            before with { AppliedRowVersion = Encode(deck.RowVersion) });
+        return additionalSlidesChanged;
     }
 
     public async Task UndoPresetAsync(

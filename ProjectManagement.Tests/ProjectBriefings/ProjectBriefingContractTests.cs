@@ -625,7 +625,9 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("<strong>Rows on each sheet</strong>", page, StringComparison.Ordinal);
         Assert.Contains("The project name stays the title", page, StringComparison.Ordinal);
         Assert.Contains("Hide rows with nothing recorded", page, StringComparison.Ordinal);
-        Assert.Contains("name=\"IncludeCoverSlide\"", page, StringComparison.Ordinal);
+        // The cover is a switch in the slide list; its old hidden form input is gone (review fixes PR 8).
+        Assert.Contains("data-pbd-block-switch", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-pbd-block-mirror", page, StringComparison.Ordinal);
         // The portfolio summary was retired (blocks plan PR 7).
         Assert.DoesNotContain("name=\"IncludePortfolioSummarySlide\"", page, StringComparison.Ordinal);
 
