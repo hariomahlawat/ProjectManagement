@@ -88,6 +88,8 @@ public sealed class CollageStickersPageTests
             AddCalled = true;
             return Task.FromResult(CollageStickerOutcome.Done("Added."));
         }
+        public Task<CollageStickerOutcome> RefuseOversizeRequestAsync(long requestBytes, string? actorUserId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CollageStickerOutcome.Refused(CollageStickerService.TooLargeMessage));
         public Task<CollageStickerOutcome> RenameAsync(int id, string name, string? searchWords, string? actorUserId, CancellationToken cancellationToken = default) => Task.FromResult(CollageStickerOutcome.Done("Saved."));
         public Task<CollageStickerOutcome> MoveAsync(int id, bool up, string? actorUserId, CancellationToken cancellationToken = default) => Task.FromResult(CollageStickerOutcome.Done("Moved."));
         public Task<CollageStickerOutcome> RetireAsync(int id, string? actorUserId, CancellationToken cancellationToken = default) => Task.FromResult(CollageStickerOutcome.Done("Retired."));

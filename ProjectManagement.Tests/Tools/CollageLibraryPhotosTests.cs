@@ -37,6 +37,8 @@ public sealed class CollageLibraryPhotosTests : IClassFixture<WebApplicationFact
         Assert.Equal(("farewell", "photo", "all", 12, 2026, 1, CollageApi.LibraryPageSize, "newest"),
             (asked.Query, asked.Kind, asked.Source, asked.ProjectId, asked.Year, asked.PageNumber, asked.PageSize, asked.Sort));
         Assert.True(asked.IncludeFilterFacets);
+        // Its Projects filter offers only projects that have photos.
+        Assert.True(asked.ProjectsOfKindOnly);
 
         Assert.True(json.GetProperty("available").GetBoolean());
         var photo = Assert.Single(json.GetProperty("photos").EnumerateArray());

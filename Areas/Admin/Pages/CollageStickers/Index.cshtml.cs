@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
@@ -18,10 +20,13 @@ namespace ProjectManagement.Areas.Admin.Pages.CollageStickers;
 /// </summary>
 [Authorize(Policy = AdminPolicies.CollageStickersManage)]
 // The service refuses anything over 5 MB; the request limit leaves room for the form around it.
-[RequestFormLimits(MultipartBodyLengthLimit = 6_000_000)]
-[RequestSizeLimit(6_000_000)]
+[RequestFormLimits(MultipartBodyLengthLimit = IndexModel.RequestLimitBytes)]
+[RequestSizeLimit(IndexModel.RequestLimitBytes)]
+[IndexModel.RefuseOversizeUpload]
 public sealed class IndexModel : PageModel
 {
+    public const long RequestLimitBytes = 6_000_000;
+
     private readonly ICollageStickerService _stickers;
 
     public IndexModel(ICollageStickerService stickers)
@@ -87,9 +92,46 @@ public sealed class IndexModel : PageModel
         return RedirectToPage();
     }
 
-    private string? UserId()
+    private string? UserId() => UserIdOf(User);
+
+    private static string? UserIdOf(ClaimsPrincipal user)
     {
-        var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var id = user.FindFirstValue(ClaimTypes.NameIdentifier);
         return string.IsNullOrWhiteSpace(id) ? null : id;
+    }
+
+    /// <summary>
+    /// An upload over the request limit would meet the framework's bare "413 Payload Too Large"
+    /// page once the form is read. This filter looks at the declared length first and answers as
+    /// the page does for any refused picture: a plain message on the page and an audit entry. It
+    /// runs after the page's authorization (order 0), so only administrators reach it, and before
+    /// the size limit (900) and the antiforgery check (1000), which would read the body. The body
+    /// is never read here; a request with no declared length still meets the framework's limit.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class)]
+    internal sealed class RefuseOversizeUploadAttribute : Attribute, IAsyncAuthorizationFilter, IOrderedFilter
+    {
+        public int Order => 500;
+
+        public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
+        {
+            var request = context.HttpContext.Request;
+            if (context.Result is not null
+                || !HttpMethods.IsPost(request.Method)
+                || request.ContentLength is not long length
+                || length <= RequestLimitBytes)
+            {
+                return;
+            }
+
+            var services = context.HttpContext.RequestServices;
+            var outcome = await services.GetRequiredService<ICollageStickerService>()
+                .RefuseOversizeRequestAsync(length, UserIdOf(context.HttpContext.User), context.HttpContext.RequestAborted);
+            var tempData = services.GetRequiredService<ITempDataDictionaryFactory>().GetTempData(context.HttpContext);
+            tempData[FlashMessageKeys.AdminCollageStickersError] = outcome.Message;
+            // Stopping here skips the filter that normally saves TempData, so it is saved now.
+            tempData.Save();
+            context.Result = new RedirectToPageResult("/CollageStickers/Index", new { area = "Admin" });
+        }
     }
 }

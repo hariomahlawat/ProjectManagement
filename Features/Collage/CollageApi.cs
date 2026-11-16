@@ -160,7 +160,8 @@ public static class CollageApi
                 PageSize: LibraryPageSize,
                 IncludePeople: false,
                 Sort: "newest",
-                IncludeFilterFacets: first),
+                IncludeFilterFacets: first,
+                ProjectsOfKindOnly: true),
             cancellationToken);
 
         if (!result.IsAvailable || !result.IsPrimaryQuerySuccessful)

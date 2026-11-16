@@ -371,7 +371,10 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             MediaLibraryQueryOperation.Projects,
             async () =>
             {
-                var projectRows = await BuildBaseQuery()
+                var projectAssets = request.ProjectsOfKindOnly
+                    ? ApplyKind(BuildBaseQuery(), request.Kind)
+                    : BuildBaseQuery();
+                var projectRows = await projectAssets
                     .Where(asset => asset.ProjectId.HasValue)
                     .Select(asset => new { Id = asset.ProjectId!.Value, Name = asset.ContextTitle })
                     .Distinct()
