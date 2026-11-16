@@ -77,8 +77,14 @@ public class RoleBasedNavigationProviderTests
         var main = Section(await NavigateAsAsync(Array.Empty<string>()), NavigationSectionKeys.Main);
 
         Assert.Equal(
-            new[] { "Dashboard", "My Workspace", "Calendar", "Notebook", "Photos", "FFC", "Documents" },
+            new[] { "Search", "Dashboard", "My Workspace", "Calendar", "Notebook", "Photos", "FFC", "Documents" },
             main.Children.Select(link => link.Text));
+
+        // Search opens the search page for everyone signed in, like the top-bar box.
+        var search = main.Children.Single(link => link.Text == "Search");
+        Assert.Equal("Common", search.Area);
+        Assert.Equal("/Search/Index", search.Page);
+        Assert.Null(search.AuthorizationPolicy);
 
         var ffc = main.Children.Single(link => link.Text == "FFC");
         Assert.Equal("ProjectOfficeReports", ffc.Area);

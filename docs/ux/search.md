@@ -40,6 +40,9 @@ uses it through `navigation/global-search.js` (loaded by `site.js`); the Search 
 - **Shortcuts.** Ctrl+K (⌘K on Apple devices; the hint follows the platform) and `/` outside a
   text field focus the visible search box. Where the top-bar box is hidden (narrow screens),
   Ctrl+K opens the Search page.
+- **Ways in.** The top-bar box on every page (a magnifier on phones), Ctrl+K or `/`, and
+  "Search", the first item under Main in Menu. Menu is the only way to the empty Search page
+  on desktop, as an empty top-bar search is held back.
 
 ## Landing page
 

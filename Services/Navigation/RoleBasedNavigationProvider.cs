@@ -81,9 +81,18 @@ public class RoleBasedNavigationProvider : INavigationProvider
     // ===========================
     // MAIN: the top-bar areas, in the top bar's order. Below 768px the top tabs are
     // hidden and the drawer is the only primary navigation, so it must hold all of them.
+    // Search comes first: the top bar has it as a box, and people who look for it in
+    // Menu must find it there too.
     // ===========================
     private static IReadOnlyList<NavigationItem> BuildMainItems() => new NavigationItem[]
     {
+        new()
+        {
+            Text = "Search",
+            Area = "Common",
+            Page = "/Search/Index",
+            Icon = "bi-search"
+        },
         new()
         {
             Text = "Dashboard",
