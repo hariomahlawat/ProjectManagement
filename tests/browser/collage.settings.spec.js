@@ -69,3 +69,30 @@ test('the collage says once that it is named after its first words', async ({ pa
   await expect(note).toHaveCount(1);
   expect(errors).toEqual([]);
 });
+
+test('the naming note comes for each collage, also for a saved draft opened later', async ({ page }) => {
+  const errors = await openFresh(page);
+  const note = page.locator('[data-prism-toast]').filter({ hasText: 'named after its first words' });
+  const addWords = async (text) => {
+    await page.locator('.clg-rail [data-panel="text"]').click();
+    await page.locator('[data-add-text="heading"]').click();
+    await page.locator('.clg-props [data-text]').fill(text);
+  };
+  // A draft with a photo and no words yet.
+  await onePhoto(page);
+  await page.getByRole('button', { name: 'Back to the start' }).click();
+  // Another collage, named by its words: the note.
+  await page.getByRole('button', { name: /^A4 portrait/ }).click();
+  await addWords('Second collage');
+  await expect(note).toHaveCount(1);
+  await note.locator('[data-prism-toast-close]').click();
+  await expect(note).toHaveCount(0);
+  await page.getByRole('button', { name: 'Back to the start' }).click();
+
+  // The first draft opened again: its first words bring the note again.
+  await page.locator('[data-open-draft]').filter({ hasNotText: 'Second collage' }).first().click();
+  await expect(page.locator('[data-photo-count]')).toHaveText('1 of 60 photos');
+  await addWords('First collage');
+  await expect(note).toHaveCount(1);
+  expect(errors).toEqual([]);
+});

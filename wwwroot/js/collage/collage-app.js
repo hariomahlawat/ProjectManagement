@@ -99,6 +99,10 @@
   let sequence = 0;
   // Counts the collages opened in this tab; photo imports belong to the one they started in.
   let collageSession = 0;
+  // Whether the open collage is named after its words (null until its title is first shown), and
+  // the collage that has said so: the note comes once, when the words first take over the name.
+  let namedFromWords = null;
+  let namedFromWordsSaidFor = null;
   // Every change reaches Undo and the draft through the change log (collage-changes.js): a
   // finished change is committed, one still going on (typing, sliders, nudges) is held until it
   // pauses, and a held change ends before any other user action begins.
@@ -301,6 +305,7 @@
   /** Resets the editor to an empty page; the caller fills it in. */
   function resetEditor() {
     collageSession += 1;
+    namedFromWords = null;
     changes.drop();
     session.end();
     photos.clear();
@@ -336,7 +341,6 @@
     session.begin({ id: nextId('d'), off: !room });
     if (!room) setDraftStatus('Not kept as a draft', true);
     nameInput.value = '';
-    namedFromWordsSaid = Boolean(nameInput.value.trim()) || Boolean(core.autoTitleFromText(collage.items));
     refreshTitle();
     sizeSelect.value = collage.size;
     showView('editor');
@@ -345,8 +349,6 @@
   }
 
   let leaving = false;
-  // Whether this collage has said it is named after its words (once per collage).
-  let namedFromWordsSaid = false;
 
   async function goHome() {
     if (leaving) return;
@@ -659,8 +661,10 @@
     const fromWords = !nameInput.value.trim() && core.autoTitleFromText(collage.items);
     nameInput.title = fromWords ? 'Named after your first words until you type a name here' : '';
     // Said once for each collage, the first time its words name it.
-    if (fromWords && !namedFromWordsSaid && collage.items.length) {
-      namedFromWordsSaid = true;
+    const before = namedFromWords;
+    namedFromWords = Boolean(fromWords);
+    if (before === false && namedFromWords && namedFromWordsSaidFor !== collageSession) {
+      namedFromWordsSaidFor = collageSession;
       window.PrismToast?.show({ tone: 'info', text: 'This collage is named after its first words until you type a name at the top.' });
     }
     if (!views.editor.hidden || session.draft) document.title = `${collageTitle()} · Collage Studio | PRISM ERP`;
