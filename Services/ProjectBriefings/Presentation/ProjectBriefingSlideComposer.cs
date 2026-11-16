@@ -55,7 +55,17 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             throw new FileNotFoundException("Project briefing PowerPoint template was not found.", _templatePath);
         }
 
-        var plans = BuildPlans(data);
+        return ComposePlans(data, BuildPlans(data));
+    }
+
+    private ProjectBriefingComposition ComposePlans(ProjectBriefingPresentationData data, List<SlidePlan> plans)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        if (!File.Exists(_templatePath))
+        {
+            throw new FileNotFoundException("Project briefing PowerPoint template was not found.", _templatePath);
+        }
+
         var templateBytes = File.ReadAllBytes(_templatePath);
         using var stream = new MemoryStream(templateBytes.Length + 4_000_000);
         stream.Write(templateBytes, 0, templateBytes.Length);

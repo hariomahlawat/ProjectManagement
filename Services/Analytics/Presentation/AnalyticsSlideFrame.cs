@@ -146,6 +146,34 @@ internal static class AnalyticsSlideFrame
             insets: new PptxInsets(.16, .08, .08, .06));
     }
 
+    /// <summary>
+    /// A parent category's colour, as the Analytics charts draw it (--pm-chart-cat-*, light or dark): DCD blue,
+    /// CoE green, Other R&amp;D amber, anything else neutral. The ARPP slides and the briefing decks' stage-wise
+    /// distribution both use it.
+    /// </summary>
+    public static string CategoryColor(string category, bool dark = false)
+    {
+        var key = (category ?? string.Empty).Trim().ToLowerInvariant();
+        if (key.StartsWith("dcd", StringComparison.Ordinal)) return dark ? "6EA8FE" : "2563EB";
+        if (key.Contains("coe") || key.Contains("centre of excellence") || key.Contains("center of excellence")) return dark ? "4ADE80" : "16A34A";
+        if (key.Contains("other") || key.Contains("r&d")) return dark ? "FBBF24" : "D97706";
+        return dark ? "6B7280" : "9AA3B2";
+    }
+
+    /// <summary>The top of a count axis: the first round figure above the tallest bar.</summary>
+    public static int NiceAxisTop(int max)
+    {
+        if (max <= 0) return 5;
+        foreach (var top in new[] { 5, 10, 15, 20, 25, 30, 40, 50, 60, 80, 100 })
+        {
+            if (max < top) return top;
+        }
+        return (int)Math.Ceiling(max / 50d) * 50;
+    }
+
+    /// <summary>The grid step for an axis that tops out at <paramref name="top"/>.</summary>
+    public static int AxisStep(int top) => top <= 5 ? 1 : top <= 10 ? 2 : top <= 25 ? 5 : 10;
+
     public static string Date(DateOnly date) => date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
 
     /// <summary>A tag ("Oct 2026", "Not known") never splits across lines.</summary>

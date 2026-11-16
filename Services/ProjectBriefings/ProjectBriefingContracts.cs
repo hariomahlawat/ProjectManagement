@@ -1,4 +1,5 @@
 using ProjectManagement.Models;
+using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Services.Ffc;
 
@@ -374,7 +375,10 @@ public enum ProjectBriefingSlideRole
     ProjectUpdateSheetContinuation,
     FfcGlobalFootprint,
     FfcCountryBreakdown,
-    Closing
+    Closing,
+    // The stage-wise distribution block (chart, then its project list pages); appended so stored values keep.
+    StageDistribution,
+    StageDistributionList
 }
 
 // ProjectId names the project a project slide is about; ListedProjectIds names the projects a
@@ -450,6 +454,21 @@ public sealed class ProjectBriefingPresentationData
     public ProjectBriefingInstitutionalProfileData? InstitutionalProfile { get; init; }
     public ProjectBriefingRoleCharterData? RoleCharter { get; init; }
     public ProjectBriefingFfcGlobalFootprintData? FfcGlobalFootprint { get; init; }
+    // Where each presented project stands for the stage-wise distribution slides (Pre-AoN, AoN to SO,
+    // Under development, Completed), resolved once by ProjectBriefingStageDistributionResolver.
+    public ProjectBriefingStageDistributionData StageDistribution { get; init; } = new();
+}
+
+/// <summary>
+/// The deck's projects as the stage-wise distribution slides show them: one line per presented project (its
+/// parent category, band by the shared <c>ProjectProgressBands</c> rule, stage, Development PDC and completion
+/// month), the parent categories in their own order, and the date the PDCs are judged against.
+/// </summary>
+public sealed class ProjectBriefingStageDistributionData
+{
+    public DateOnly AsOf { get; init; }
+    public IReadOnlyList<string> CategoryOrder { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<ArppProjectLineVm> Lines { get; init; } = Array.Empty<ArppProjectLineVm>();
 }
 
 public sealed class ProjectBriefingPhotoOptionVm

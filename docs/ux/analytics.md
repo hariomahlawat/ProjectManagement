@@ -19,6 +19,7 @@ the page; only the ARPP mode checks a further policy.
 | Ongoing, Completed and CoE aggregation | `Services/Analytics/PortfolioAnalyticsService.cs` (`ProjectManagement.Tests/CoeAnalyticsTests.cs`); the page passes the IST "as of" day in |
 | Insights aggregation | `Services/Analytics/ProjectAnalyticsService.cs` (`ProjectManagement.Tests/ProjectAnalyticsServiceStageTimeTests.cs`) |
 | ARPP rules | `Services/Analytics/ArppAnalyticsService.cs` (`ProjectManagement.Tests/ArppAnalyticsServiceTests.cs`) |
+| Progress bands (Pre-AoN, AoN to SO, Under development, Completed), shared with the briefing decks' stage-wise distribution | `Services/Analytics/ProjectProgressBands.cs` |
 | AR/VR proliferation and training (CoE mode) | `Services/Analytics/ArVrImpactAnalyticsService.cs` (`ProjectManagement.Tests/ArVrImpactAnalyticsServiceTests.cs`), over the proliferation tracker's approved aggregates and the training tracker's reach and training-year rules |
 | Median and stage order shared by the three services | `Services/Analytics/AnalyticsAggregation.cs` |
 | Styles | `wwwroot/css/analytics.css` (tokens only) |

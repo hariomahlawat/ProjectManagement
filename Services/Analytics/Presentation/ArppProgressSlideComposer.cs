@@ -37,12 +37,6 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
     private const string Faint = "7A7F8C";
     private const string Grid = "E4E7EC";
 
-    // The light-theme category colours of the Analytics charts (--pm-chart-cat-*).
-    private const string DcdColor = "2563EB";
-    private const string CoeColor = "16A34A";
-    private const string OtherColor = "D97706";
-    private const string NeutralColor = "9AA3B2";
-
     private readonly string _templatePath;
     private readonly LogoPaths _logoPaths;
 
@@ -198,7 +192,7 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
                 .Select(stage => (stage.Key, group, stage.ToList())));
         }
 
-        var top = NiceTop(slots.Select(item => item.Lines.Count).DefaultIfEmpty(0).Max());
+        var top = NiceAxisTop(slots.Select(item => item.Lines.Count).DefaultIfEmpty(0).Max());
         const double plotLeft = Left + .45, plotRight = Right, plotTop = 3.3, plotBottom = 6.2;
         var plotHeight = plotBottom - plotTop;
         var slot = (plotRight - plotLeft) / Math.Max(1, slots.Count);
@@ -227,7 +221,7 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
                 insets: new PptxInsets(.05, 0, .05, .08));
         }
 
-        var step = top <= 5 ? 1 : top <= 10 ? 2 : top <= 25 ? 5 : 10;
+        var step = AxisStep(top);
         for (var tick = 0; tick <= top; tick += step)
         {
             var y = plotBottom - plotHeight * tick / top;
@@ -520,25 +514,9 @@ public sealed class ArppProgressSlideComposer : IArppProgressSlideComposer
         return ordered;
     }
 
-    private static string ColorOf(string category)
-    {
-        var key = category.Trim().ToLowerInvariant();
-        if (key.StartsWith("dcd", StringComparison.Ordinal)) return DcdColor;
-        if (key.Contains("coe") || key.Contains("centre of excellence") || key.Contains("center of excellence")) return CoeColor;
-        if (key.Contains("other") || key.Contains("r&d")) return OtherColor;
-        return NeutralColor;
-    }
+    private static string ColorOf(string category) => CategoryColor(category);
 
     private static bool Same(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
-    private static int NiceTop(int max)
-    {
-        if (max <= 0) return 5;
-        foreach (var top in new[] { 5, 10, 15, 20, 25, 30, 40, 50, 60, 80, 100 })
-        {
-            if (max < top) return top;
-        }
-        return (int)Math.Ceiling(max / 50d) * 50;
-    }
     // END SECTION
 }
