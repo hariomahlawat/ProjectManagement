@@ -99,6 +99,10 @@
   let sequence = 0;
   // Counts the collages opened in this tab; photo imports belong to the one they started in.
   let collageSession = 0;
+  // Whether the open collage is named after its words (null until its title is first shown), and
+  // the collage that has said so: the note comes once, when the words first take over the name.
+  let namedFromWords = null;
+  let namedFromWordsSaidFor = null;
   // Every change reaches Undo and the draft through the change log (collage-changes.js): a
   // finished change is committed, one still going on (typing, sliders, nudges) is held until it
   // pauses, and a held change ends before any other user action begins.
@@ -301,6 +305,7 @@
   /** Resets the editor to an empty page; the caller fills it in. */
   function resetEditor() {
     collageSession += 1;
+    namedFromWords = null;
     changes.drop();
     session.end();
     photos.clear();
@@ -652,6 +657,16 @@
   /** Shows the collage's own title where no name was typed: in the name box and the tab. */
   function refreshTitle() {
     nameInput.placeholder = core.autoTitle(collage.items, session.draft?.started);
+    // Until the user names it, the collage is called by its first words; the field says so.
+    const fromWords = !nameInput.value.trim() && core.autoTitleFromText(collage.items);
+    nameInput.title = fromWords ? 'Named after your first words until you type a name here' : '';
+    // Said once for each collage, the first time its words name it.
+    const before = namedFromWords;
+    namedFromWords = Boolean(fromWords);
+    if (before === false && namedFromWords && namedFromWordsSaidFor !== collageSession) {
+      namedFromWordsSaidFor = collageSession;
+      window.PrismToast?.show({ tone: 'info', text: 'This collage is named after its first words until you type a name at the top.' });
+    }
     if (!views.editor.hidden || session.draft) document.title = `${collageTitle()} · Collage Studio | PRISM ERP`;
   }
 
@@ -942,7 +957,8 @@
     root.querySelector('[data-bg-patterns]').replaceChildren(...Object.entries(core.PATTERNS).map(([key, entry]) => backgroundTile({ type: 'pattern', key }, entry.label)));
     root.querySelector('[data-bg-textures]').replaceChildren(...Object.entries(core.TEXTURES).map(([key, entry]) => backgroundTile({ type: 'texture', key }, entry.label)));
     const onPage = [...new Set(collage.items.filter((item) => item.kind === 'photo').map((item) => item.photo))].slice(0, 9);
-    root.querySelector('[data-bg-photos]').replaceChildren(...onPage.map((id, n) => backgroundTile({ type: 'photo', photo: id }, `Photo ${n + 1}, blurred`)));
+    // Each photo by its own name, so the user knows which one goes behind the page.
+    root.querySelector('[data-bg-photos]').replaceChildren(...onPage.map((id, n) => backgroundTile({ type: 'photo', photo: id }, `${photos.get(id)?.name || `Photo ${n + 1}`}, blurred`)));
     root.querySelector('[data-bg-photos-none]').hidden = onPage.length > 0;
   }
 
@@ -1253,7 +1269,7 @@
     const backgroundChoice = event.target.closest('[data-background]');
     if (backgroundChoice) {
       setBackground(JSON.parse(backgroundChoice.dataset.background));
-      announce('Background changed. Ctrl+Z puts the last one back.');
+      announce(`Background: ${backgroundChoice.getAttribute('aria-label')}. Ctrl+Z puts the last one back.`);
       return;
     }
     const stickerButton = event.target.closest('[data-add-sticker]');

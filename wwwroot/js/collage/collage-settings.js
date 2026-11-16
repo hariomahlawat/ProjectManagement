@@ -170,13 +170,13 @@
       return `
         <div class="clg-section">
           <label class="clg-field"><span class="clg-field__label">Caption <span class="clg-field__optional">(optional)</span></span>
-            <input type="text" class="form-control form-control-sm" maxlength="${core.CAPTION_MAX}" value="${escapeHtml(item.caption || '')}" placeholder="Last day at office" data-caption aria-describedby="clgCaptionHint"></label>
+            <input type="text" class="form-control form-control-sm" maxlength="${core.CAPTION_MAX}" value="${escapeHtml(item.caption || '')}" placeholder="e.g. Last day at office" data-caption aria-describedby="clgCaptionHint"></label>
           <p class="clg-hint" id="clgCaptionHint">${polaroid ? 'Written by hand in the Polaroid’s white edge.' : 'Shown on a white strip under the photo.'} Up to ${core.CAPTION_MAX} letters.</p>
         </div>
         <div class="clg-section">
           <p class="clg-section__title">Frame</p>
-          <div class="clg-choices">${choiceButtons('frame', Object.entries(core.FRAMES).map(([k, v]) => [k, v.label]), frame, (v) => !square && v !== 'none')}</div>
-          ${square ? '' : '<p class="clg-hint">Frames go with the Square shape.</p>'}
+          <div class="clg-choices">${choiceButtons('frame', Object.entries(core.FRAMES).map(([k, v]) => [k, v.label]), square ? frame : 'none', (v) => !square && v !== 'none')}</div>
+          ${square ? '' : `<p class="clg-hint" data-frame-note>A frame goes with the Square shape only${frame !== 'none' && core.FRAMES[frame] ? `; the ${escapeHtml(core.FRAMES[frame].label)} frame comes back if you choose Square` : ''}.</p>`}
           ${switchRow('shadow', 'Shadow', item.shadow)}
         </div>
         <div class="clg-section">
