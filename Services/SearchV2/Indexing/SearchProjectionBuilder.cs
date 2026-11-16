@@ -14,6 +14,7 @@ using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Arpp;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.SearchV2.Models;
@@ -150,6 +151,7 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
         yield return await BuildTotsAsync(null, cancellationToken);
         yield return await BuildProliferationAsync(null, cancellationToken);
         yield return await BuildArppAsync(null, cancellationToken);
+        yield return await BuildItProjectsAsync(null, cancellationToken);
     }
 
     public async Task<IReadOnlyList<SearchProjection>> BuildEntityAsync(
@@ -188,6 +190,8 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                 => await BuildProliferationAsync(proliferationId, cancellationToken),
             "ArppIssue" when long.TryParse(entityKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var arppId)
                 => await BuildArppAsync(arppId, cancellationToken),
+            "ItProject" when int.TryParse(entityKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var itProjectId)
+                => await BuildItProjectsAsync(itProjectId, cancellationToken),
             _ => Array.Empty<SearchProjection>()
         };
     }
@@ -1164,6 +1168,97 @@ public sealed partial class SearchProjectionBuilder : ISearchProjectionBuilder
                     }
                 });
         }).ToArray();
+    }
+
+    /// <summary>
+    /// IT, MOLTI and SRE projects (one table, <see cref="ItProject.Module"/> tells them apart).
+    /// Each module is its own source, so each follows its own pages' policy, and its rows
+    /// open that module's page. Status and stage come from the module's own rule
+    /// (<see cref="ItProjectStatus"/>), in that module's words. Trashed projects are left out;
+    /// dropped ones stay, marked Dropped, as their board keeps them.
+    /// </summary>
+    private async Task<IReadOnlyList<SearchProjection>> BuildItProjectsAsync(int? itProjectId, CancellationToken cancellationToken)
+    {
+        var query = _db.ItProjects.AsNoTracking().Where(project => !project.IsDeleted);
+        if (itProjectId.HasValue) query = query.Where(project => project.Id == itProjectId.Value);
+        var projects = await query
+            .Include(project => project.Stages)
+            .Include(project => project.FinancialYears)
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+        if (projects.Count == 0) return Array.Empty<SearchProjection>();
+
+        var officerIds = projects
+            .Select(project => project.ProjectOfficerUserId)
+            .Where(id => !string.IsNullOrEmpty(id))
+            .Distinct()
+            .ToArray();
+        var officers = officerIds.Length == 0
+            ? new Dictionary<string, string>()
+            : await _db.Users.AsNoTracking()
+                .Where(user => officerIds.Contains(user.Id))
+                .Select(user => new { user.Id, user.FullName, user.Rank })
+                .ToDictionaryAsync(user => user.Id, user => JoinNonEmpty(user.Rank, user.FullName)?.Replace(" · ", " ", StringComparison.Ordinal) ?? string.Empty, cancellationToken);
+
+        return projects
+            .Where(project => ItProjectModules.IsKnown(project.Module))
+            .Select(project =>
+            {
+                var module = ItProjectModules.Get(project.Module);
+                var status = ItProjectStatus.Resolve(project);
+                var statusText = status.Kind switch
+                {
+                    ItProjectStatusKind.NotStarted => "Not started",
+                    ItProjectStatusKind.InProgress => "In progress",
+                    ItProjectStatusKind.Completed => "Completed",
+                    _ => "Dropped"
+                };
+                var fy = "FY " + Utilities.FinancialYearHelper.Format(project.FinancialYearStart);
+                var stage = status.Kind == ItProjectStatusKind.InProgress ? status.CurrentStageLabel : null;
+                var officer = project.ProjectOfficerUserId is { Length: > 0 } officerId && officers.TryGetValue(officerId, out var name) && name.Length > 0
+                    ? name
+                    : null;
+                // The case number of the project's first year and of every later year.
+                var references = Values(new[] { project.PppReferenceNumber }
+                    .Concat(project.FinancialYears.OrderBy(year => year.FinancialYearStart).Select(year => year.PppReferenceNumber))
+                    .ToArray());
+                var key = project.Id.ToString(CultureInfo.InvariantCulture);
+                return Project(
+                    "ItProject",
+                    key,
+                    "ItProject",
+                    key,
+                    null,
+                    module.Name,
+                    "Projects",
+                    project.Title,
+                    JoinNonEmpty(module.Singular, string.Join(" · ", references), fy, stage is null ? statusText : $"At {stage}"),
+                    $"{module.RoutePrefix}/{key}",
+                    references.Length == 0 ? null : string.Join(' ', references),
+                    null,
+                    // Only what the subtitle does not already say: the card shows this line when the
+                    // description does not match. Module, year and stage stay searchable as terms.
+                    officer is null ? null : "Project Officer " + officer,
+                    project.Description,
+                    statusText,
+                    null,
+                    null,
+                    new DateTimeOffset(DateTime.SpecifyKind(project.UpdatedAtUtc, DateTimeKind.Utc)),
+                    BuildTerms(identifiers: references, people: officer is null ? null : Values(officer), contexts: Values(module.Singular, fy, stage)),
+                    new
+                    {
+                        itProjectId = project.Id,
+                        module = project.Module,
+                        matchFields = new Dictionary<string, string?>
+                        {
+                            [$"{module.ListName} reference number"] = references.Length == 0 ? null : string.Join(" · ", references),
+                            ["Project Officer"] = officer,
+                            ["Stage"] = stage,
+                            ["Description"] = project.Description
+                        }
+                    });
+            })
+            .ToArray();
     }
 
     /// <summary>"ToT not required", in the words the project pages use.</summary>

@@ -196,7 +196,7 @@ public sealed class SearchV2SourceContractTests
         Assert.Contains("5 AS tier", engine, StringComparison.Ordinal);
         Assert.Contains("searchTextQuality", engine, StringComparison.Ordinal);
         Assert.Contains("searchTextQuality", projection, StringComparison.Ordinal);
-        Assert.Contains("public int ProjectionVersion { get; set; } = 10;", options, StringComparison.Ordinal);
+        Assert.Contains("public int ProjectionVersion { get; set; } = 11;", options, StringComparison.Ordinal);
     }
 
     [Fact]

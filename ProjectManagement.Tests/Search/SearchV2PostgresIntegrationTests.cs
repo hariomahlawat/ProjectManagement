@@ -11,6 +11,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.ItProjects;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.SearchV2;
 using ProjectManagement.Services.SearchV2.Analytics;
@@ -473,6 +474,47 @@ public sealed class SearchV2PostgresIntegrationTests : IClassFixture<SearchV2Pos
         Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
 
         Assert.Empty(await DocumentRowIdsAsync(host, projectId));
+    }
+
+    // IT, MOLTI and SRE projects are their own sources: found by title and reference number,
+    // opening their module's page, shown only with that module's policy, kept current by the
+    // triggers, and gone when trashed.
+    [SearchV2PostgresFact]
+    public async Task MoltiProjects_AreSearchableUnderTheirOwnModuleAndPolicy()
+    {
+        await using var host = _database.CreateHost();
+        var id = await host.SeedItProjectAsync(ItProjectModules.Molti, "Wrenfield cabling", "MOLTI 07/2026");
+        await host.ResetIndexStateAsync();
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+
+        var hit = Assert.Single((await host.SearchAsync("wrenfield")).Results, result => result.EntityType == "ItProject");
+        Assert.Equal(id.ToString(), hit.EntityKey);
+        Assert.Equal("MOLTI projects", hit.SourceModule);
+        Assert.Equal("Projects", hit.Category);
+        Assert.Equal($"/MoltiProjects/{id}", hit.Url);
+        Assert.Contains((await host.SearchAsync("MOLTI 07/2026")).Results, result => result.EntityKey == id.ToString() && result.EntityType == "ItProject");
+
+        host.Access.Policies = new[] { Policies.ItProjects.View, Policies.SreProjects.View };
+        Assert.DoesNotContain((await host.SearchAsync("wrenfield")).Results, result => result.EntityType == "ItProject");
+        host.Access.Policies = SearchSourcePolicies.AllPolicies;
+
+        await host.ExecuteAsync($"""UPDATE "ItProjects" SET "Title" = 'Kestrelmoor cabling' WHERE "Id" = {id};""");
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+        Assert.Contains((await host.SearchAsync("kestrelmoor")).Results, result => result.EntityKey == id.ToString() && result.EntityType == "ItProject");
+
+        // The basic engine finds it too, by title and by reference number, under the module's label.
+        using (var scope = host.Services.CreateScope())
+        {
+            var legacy = new ProjectManagement.Services.Search.GlobalItProjectSearchService(scope.ServiceProvider.GetRequiredService<ApplicationDbContext>());
+            var legacyHit = Assert.Single(await legacy.SearchAsync("kestrelmoor", 20, CancellationToken.None));
+            Assert.Equal("MOLTI projects", legacyHit.Source);
+            Assert.Equal($"/MoltiProjects/{id}", legacyHit.Url);
+            Assert.Single(await legacy.SearchAsync("07/2026", 20, CancellationToken.None));
+        }
+
+        await host.ExecuteAsync($"""UPDATE "ItProjects" SET "IsDeleted" = TRUE WHERE "Id" = {id};""");
+        Assert.True(await host.Worker.RunOnceAsync(CancellationToken.None));
+        Assert.Equal(0, await host.CountEntriesAsync("ItProject", id.ToString()));
     }
 
     private static async Task<List<long>> DocumentRowIdsAsync(SearchV2TestHost host, int projectId)
@@ -1535,6 +1577,29 @@ internal sealed class SearchV2TestHost : IAsyncDisposable
             RowVersion = Guid.NewGuid().ToByteArray()
         };
         db.Projects.Add(project);
+        await db.SaveChangesAsync();
+        return project.Id;
+    }
+
+    public async Task<int> SeedItProjectAsync(string module, string title, string reference)
+    {
+        using var scope = _services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var creatorId = await EnsureUserAsync(db);
+        var project = new ItProject
+        {
+            Module = module,
+            Title = title,
+            PppReferenceNumber = reference,
+            FinancialYearStart = 2026,
+            Description = "Structured cabling for the training wing",
+            CreatedByUserId = creatorId,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow,
+            RowVersion = Guid.NewGuid().ToByteArray(),
+            Stages = ItProjectStages.NewStageRows()
+        };
+        db.ItProjects.Add(project);
         await db.SaveChangesAsync();
         return project.Id;
     }

@@ -471,6 +471,9 @@ public sealed class SearchGateway : ISearchGateway
             ["Project documents"] = "Documents",
             ["Projects"] = "Projects",
             ["Project portfolio"] = "Projects",
+            ["IT projects"] = "Projects",
+            ["MOLTI projects"] = "Projects",
+            ["SRE projects"] = "Projects",
             ["Activities"] = "Organisation"
         };
 
