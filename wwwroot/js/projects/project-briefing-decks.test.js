@@ -292,6 +292,27 @@ test('briefing workflows use the reusable PRISM confirmation dialog instead of b
   assert.match(confirmSource, /focus: 'cancel'/);
 });
 
+test('add block: optional blocks are removed from the list and added back from a library', () => {
+  // Only optional blocks (not the cover or project slides) get Remove and wait in the library.
+  assert.match(viewSource, /var optional = ProjectBriefingDeckBlocks\.IsOptional\(block\.Type\);/);
+  assert.match(viewSource, /hidden="@\(optional && !block\.Enabled\)"/);
+  assert.match(viewSource, /data-pbd-block-remove aria-label="Remove @name from the deck"/);
+  assert.match(viewSource, /data-pbd-block-library-entry="@block\.Type" hidden="@block\.Enabled"/);
+  assert.match(viewSource, /data-pbd-block-add="@block\.Type"/);
+  // An institution slide can be edited from the library before it is added (the SDD profile must
+  // pass its checks to be added).
+  assert.match(viewSource, /data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false" aria-label="Edit @libraryName before adding it"/);
+  assert.match(viewSource, /aria-controls="pbd-block-library" data-pbd-block-library-toggle/);
+  // Both go through the block save a switch uses, so a refused change is put back the same way.
+  assert.match(source, /input\.dispatchEvent\(new Event\('change', \{ bubbles: true \}\)\);/);
+  assert.match(source, /if \(row\.dataset\.optional === 'true'\) row\.hidden = !on;/);
+  // Moving and dragging skip the blocks waiting in the library.
+  assert.match(source, /while \(sibling instanceof HTMLElement && sibling\.hidden\) sibling = step\(sibling\);/);
+  assert.match(source, /draggable: '\[data-pbd-block\]\[data-movable="true"\]:not\(\[hidden\]\)'/);
+  // A save in progress refuses Remove and Add as it refuses a switch.
+  assert.match(source, /\[data-pbd-block-remove\], \[data-pbd-block-add\]'\)\) \{\s*event\.preventDefault\(\);\s*event\.stopPropagation\(\);/);
+});
+
 test('slides in this deck: one switchable, reorderable block list saved in place', () => {
   assert.doesNotMatch(viewSource, /data-pbd-step="extra"/);
   const slidesStep = viewSource.slice(viewSource.indexOf('data-pbd-step="slides"'), viewSource.indexOf('data-pbd-step="project"'));

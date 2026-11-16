@@ -503,7 +503,7 @@
                                     };
                                 }
                                 <div class="pbd-blocks" data-pbd-blocks>
-                                    <p class="pbd-blocks__lead">Switch slides on or off and drag them within their group. Each change saves at once.</p>
+                                    <p class="pbd-blocks__lead">Drag slides within their group, remove the ones you do not need and add others from the library. Each change saves at once.</p>
                                     @foreach (var group in blockZones)
                                     {
                                         var zoneBlocks = deck.Blocks.Where(block => ProjectBriefingDeckBlocks.ZoneOf(block.Type) == group.Zone).ToArray();
@@ -511,6 +511,8 @@
                                         {
                                             continue;
                                         }
+
+                                        var zoneEmpty = zoneBlocks.All(block => ProjectBriefingDeckBlocks.IsOptional(block.Type) && !block.Enabled);
 
                                         <section class="pbd-blocks__zone" aria-labelledby="pbd-blocks-@group.Zone">
                                             <h5 id="pbd-blocks-@group.Zone">@group.Label</h5>
@@ -522,7 +524,9 @@
                                                         || block.Type is ProjectBriefingDeckBlockType.InstitutionalProfile or ProjectBriefingDeckBlockType.RoleAndCharter;
                                                     // Update sheets always have their sheets.
                                                     var alwaysOn = block.Type == ProjectBriefingDeckBlockType.ProjectSlides && isUpdateSheet;
-                                                    <li class="pbd-block @(block.Enabled ? "is-on" : "is-off")" data-pbd-block data-type="@block.Type" data-name="@name" data-movable="@(movable ? "true" : "false")">
+                                                    var optional = ProjectBriefingDeckBlocks.IsOptional(block.Type);
+                                                    @* An optional block not in the deck waits in the Add block library below. *@
+                                                    <li class="pbd-block @(block.Enabled ? "is-on" : "is-off")" data-pbd-block data-type="@block.Type" data-name="@name" data-movable="@(movable ? "true" : "false")" data-optional="@(optional ? "true" : "false")" hidden="@(optional && !block.Enabled)">
                                                         @if (movable)
                                                         {
                                                             <button type="button" class="pbd-block__handle" data-pbd-block-handle aria-label="Move @name. Drag, or press Alt+Up or Alt+Down." aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">
@@ -533,11 +537,22 @@
                                                         {
                                                             <span class="pbd-block__handle is-fixed" title="Fixed in its place" aria-hidden="true"><i class="bi bi-pin-angle"></i></span>
                                                         }
-                                                        <label class="pbd-switch pbd-block__switch">
-                                                            <input type="checkbox" role="switch" checked="@block.Enabled" disabled="@alwaysOn" data-pbd-block-switch />
-                                                            <span class="pbd-switch__track" aria-hidden="true"></span>
-                                                            <span class="pbd-switch__text"><strong>@name</strong><small>@ProjectBriefingDeckBlocks.Description(block.Type)</small></span>
-                                                        </label>
+                                                        @if (optional)
+                                                        {
+                                                            @* The hidden box holds whether the block is in the deck; Remove and Add set it. *@
+                                                            <span class="pbd-block__text">
+                                                                <input type="checkbox" hidden checked="@block.Enabled" data-pbd-block-switch />
+                                                                <strong>@name</strong><small>@ProjectBriefingDeckBlocks.Description(block.Type)</small>
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <label class="pbd-switch pbd-block__switch">
+                                                                <input type="checkbox" role="switch" checked="@block.Enabled" disabled="@alwaysOn" data-pbd-block-switch />
+                                                                <span class="pbd-switch__track" aria-hidden="true"></span>
+                                                                <span class="pbd-switch__text"><strong>@name</strong><small>@ProjectBriefingDeckBlocks.Description(block.Type)</small></span>
+                                                            </label>
+                                                        }
                                                         @switch (block.Type)
                                                         {
                                                             case ProjectBriefingDeckBlockType.InstitutionalProfile:
@@ -553,11 +568,75 @@
                                                                 <label class="pbd-block__option" data-pbd-stage-table-option><input type="checkbox" name="IncludeStageDistributionTable" value="true" checked="@deck.StandardSlideOptions.IncludeStageDistributionTable" data-pbd-stage-table-toggle /> With a table</label>
                                                                 break;
                                                         }
+                                                        @if (optional)
+                                                        {
+                                                            <button type="button" class="pbd-block__remove" data-pbd-block-remove aria-label="Remove @name from the deck" title="Remove from the deck">
+                                                                <i class="bi bi-x-lg" aria-hidden="true"></i>
+                                                            </button>
+                                                        }
                                                     </li>
                                                 }
                                             </ul>
+                                            <p class="pbd-blocks__empty" data-pbd-block-zone-empty hidden="@(!zoneEmpty)">No slides here. Add one from the library.</p>
                                         </section>
                                     }
+                                    @{
+                                        var libraryGroups = new[]
+                                        {
+                                            (Label: "Overview and analytics · drawn from this deck's projects", Zone: ProjectBriefingDeckZone.Overview),
+                                            (Label: "Institution", Zone: ProjectBriefingDeckZone.Opening),
+                                            (Label: "Before closing", Zone: ProjectBriefingDeckZone.Closing)
+                                        };
+                                        var libraryBlocks = deck.Blocks.Where(block => ProjectBriefingDeckBlocks.IsOptional(block.Type)).ToArray();
+                                    }
+                                    @* Add block: the optional blocks not in the deck. Adding one puts it back in its group,
+                                       where it was last placed. *@
+                                    <div class="pbd-block-library" data-pbd-block-library-wrap>
+                                        <button type="button" class="btn btn-sm btn-outline-primary pbd-block-library__toggle" aria-expanded="false" aria-controls="pbd-block-library" data-pbd-block-library-toggle>
+                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add block
+                                        </button>
+                                        <div class="pbd-block-library__panel" id="pbd-block-library" data-pbd-block-library hidden>
+                                            @foreach (var libraryGroup in libraryGroups)
+                                            {
+                                                var groupBlocks = libraryBlocks.Where(block => ProjectBriefingDeckBlocks.ZoneOf(block.Type) == libraryGroup.Zone).ToArray();
+                                                if (groupBlocks.Length == 0)
+                                                {
+                                                    continue;
+                                                }
+
+                                                <section class="pbd-block-library__group" data-pbd-block-library-group>
+                                                    <h6>@libraryGroup.Label</h6>
+                                                    <div class="pbd-block-library__items">
+                                                        @foreach (var block in groupBlocks)
+                                                        {
+                                                            var libraryName = ProjectBriefingDeckBlocks.DisplayName(block.Type);
+                                                            @* An institution slide can be set up before it is added: the SDD profile, for
+                                                               one, cannot be added until its content passes the editor's checks. *@
+                                                            <div class="pbd-block-library__entry" data-pbd-block-library-entry="@block.Type" hidden="@block.Enabled">
+                                                                <button type="button" class="pbd-block-library__item" data-pbd-block-add="@block.Type">
+                                                                    <strong>@libraryName</strong>
+                                                                    <small>@ProjectBriefingDeckBlocks.Description(block.Type)</small>
+                                                                </button>
+                                                                @switch (block.Type)
+                                                                {
+                                                                    case ProjectBriefingDeckBlockType.InstitutionalProfile:
+                                                                        <button type="button" class="btn btn-sm btn-link" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false" aria-label="Edit @libraryName before adding it">Edit</button>
+                                                                        break;
+                                                                    case ProjectBriefingDeckBlockType.RoleAndCharter:
+                                                                        <button type="button" class="btn btn-sm btn-link" data-pbd-role-charter-open aria-controls="pbd-role-charter-drawer" aria-expanded="false" aria-label="Edit @libraryName before adding it">Edit</button>
+                                                                        break;
+                                                                    case ProjectBriefingDeckBlockType.FfcGlobalFootprint:
+                                                                        <button type="button" class="btn btn-sm btn-link" data-pbd-ffc-footprint-open aria-controls="pbd-ffc-footprint-drawer" aria-expanded="false" aria-label="Edit @libraryName before adding it">Edit</button>
+                                                                        break;
+                                                                }
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </section>
+                                            }
+                                            <p class="pbd-blocks__empty" data-pbd-block-library-empty hidden="@libraryBlocks.Any(block => !block.Enabled)">Every slide is already in the deck.</p>
+                                        </div>
+                                    </div>
                                     <p class="pbd-blocks__status" data-pbd-blocks-status aria-live="polite"></p>
                                 </div>
                                         </div>

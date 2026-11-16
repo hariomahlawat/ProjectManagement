@@ -1553,7 +1553,22 @@ if (root) {
       const on = Boolean(row.querySelector('[data-pbd-block-switch]')?.checked);
       row.classList.toggle('is-on', on);
       row.classList.toggle('is-off', !on);
+      // An optional block not in the deck waits in the Add block library.
+      if (row.dataset.optional === 'true') row.hidden = !on;
+      const entry = blockList?.querySelector(`[data-pbd-block-library-entry="${row.dataset.type}"]`);
+      if (entry instanceof HTMLElement) entry.hidden = on;
     });
+    blockList?.querySelectorAll('[data-pbd-block-zone]').forEach((zone) => {
+      const empty = zone.parentElement?.querySelector('[data-pbd-block-zone-empty]');
+      if (empty instanceof HTMLElement) empty.hidden = [...zone.querySelectorAll('[data-pbd-block]')].some((row) => !row.hidden);
+    });
+    blockList?.querySelectorAll('[data-pbd-block-library-group]').forEach((group) => {
+      group.hidden = [...group.querySelectorAll('[data-pbd-block-library-entry]')].every((item) => item.hidden);
+    });
+    const libraryEmpty = blockList?.querySelector('[data-pbd-block-library-empty]');
+    if (libraryEmpty instanceof HTMLElement) {
+      libraryEmpty.hidden = [...(blockList?.querySelectorAll('[data-pbd-block-library-entry]') || [])].some((item) => !item.hidden);
+    }
     syncStageSummaryOptions();
     syncTemplateSettings();
     // The mirror inputs are outside the settings form's data, so unsaved settings stay unsaved.
@@ -1619,11 +1634,50 @@ if (root) {
   if (blockList) {
     // While a save runs, a switch click is refused (the switch keeps its state) rather than queued.
     blockList.addEventListener('click', (event) => {
-      if (blocksBusy && event.target instanceof Element && event.target.closest('[data-pbd-block-switch], .pbd-block__switch')) {
+      if (blocksBusy && event.target instanceof Element
+        && event.target.closest('[data-pbd-block-switch], .pbd-block__switch, [data-pbd-block-remove], [data-pbd-block-add]')) {
         event.preventDefault();
+        event.stopPropagation();
         setState(blockStatus, 'Saving the last change… try again in a moment.', 'saving');
       }
     }, true);
+
+    // Remove and Add block: set the block's box and save the list as a switch does.
+    const libraryToggle = blockList.querySelector('[data-pbd-block-library-toggle]');
+    const library = blockList.querySelector('[data-pbd-block-library]');
+    const setLibraryOpen = (open) => {
+      if (library instanceof HTMLElement) library.hidden = !open;
+      libraryToggle?.setAttribute('aria-expanded', String(open));
+    };
+    libraryToggle?.addEventListener('click', () => setLibraryOpen(Boolean(library?.hidden)));
+    library?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      setLibraryOpen(false);
+      libraryToggle?.focus();
+    });
+    const setBlockIn = (row, on) => {
+      const input = row?.querySelector('[data-pbd-block-switch]');
+      if (!(input instanceof HTMLInputElement) || input.checked === on) return;
+      input.checked = on;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      mirrorBlocks();
+    };
+    blockList.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const remove = target?.closest('[data-pbd-block-remove]');
+      if (remove) {
+        setBlockIn(remove.closest('[data-pbd-block]'), false);
+        libraryToggle?.focus();
+        return;
+      }
+      const add = target?.closest('[data-pbd-block-add]');
+      if (add instanceof HTMLElement) {
+        const row = blockList.querySelector(`[data-pbd-block][data-type="${add.dataset.pbdBlockAdd}"]`);
+        setBlockIn(row, true);
+        setLibraryOpen(false);
+        row?.querySelector('[data-pbd-block-handle], [data-pbd-block-remove]')?.focus();
+      }
+    });
     // The list is drawn for the deck's layout; a layout change (Template) reloads to draw it again.
     document.addEventListener('pbd:settings-saved', (event) => {
       if (Array.isArray(event.detail?.changed) && event.detail.changed.includes('Layout')) window.location.reload();
@@ -1638,8 +1692,10 @@ if (root) {
 
     // Moving: drag a row by its grip within its group, or Alt+Up / Alt+Down on the grip.
     const moveRow = (row, direction) => {
-      const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
-      if (!sibling || sibling.dataset.movable !== 'true') return false;
+      const step = (element) => (direction < 0 ? element.previousElementSibling : element.nextElementSibling);
+      let sibling = step(row);
+      while (sibling instanceof HTMLElement && sibling.hidden) sibling = step(sibling);
+      if (!(sibling instanceof HTMLElement) || sibling.dataset.movable !== 'true') return false;
       if (direction < 0) sibling.before(row); else sibling.after(row);
       return true;
     };
@@ -1660,7 +1716,7 @@ if (root) {
         let before = null;
         blockSorters.push(new window.Sortable(list, {
           handle: '[data-pbd-block-handle]',
-          draggable: '[data-pbd-block][data-movable="true"]',
+          draggable: '[data-pbd-block][data-movable="true"]:not([hidden])',
           filter: '[data-movable="false"]',
           preventOnFilter: false,
           ghostClass: 'is-sorting',
