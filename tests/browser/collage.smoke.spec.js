@@ -3,7 +3,7 @@
 // Smoke test: the page loads without errors, a collage starts, a photo goes in, and Save makes a
 // picture. The fuller flows are in collage.flows.spec.js.
 
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./test');
 const { photoFile, openFresh } = require('./helpers');
 
 test('a collage starts, takes a photo and saves a PNG', async ({ page }) => {
