@@ -142,7 +142,12 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-tray.js` | Photos: choosing, dropping, pasting, reading in, the tray, From PRISM Photos |
 | `wwwroot/js/collage/collage-keys.js` | The keyboard and the mouse wheel |
 | `wwwroot/js/collage/collage-state.js` | The editor's values as the parts see them: `state` reads them and cannot set them (an assignment throws), each part is handed only the named changes it owns (the tray chooses a photo it placed with `choose(id)`; the page sets its own zoom and scale), and `parts` reaches the parts made later |
-| `wwwroot/js/collage/collage-app.js` | The editor itself: its values, selection and the toolbar, moving a photo in its frame, the change actions, and creating the parts above, each with the helpers it uses, `state` and its own named changes |
+| `wwwroot/js/collage/collage-messages.js` | The live line for screen readers, messages in the toast stack, and the busy line |
+| `wwwroot/js/collage/collage-start.js` | The start screen: blank pages, layouts and their small drawings |
+| `wwwroot/js/collage/collage-toolbar.js` | The selected item's toolbar (placed where it can be seen, clear of the item) and the angle shown while it turns |
+| `wwwroot/js/collage/collage-add-panels.js` | The Text, Stickers and Background panels, with their own buttons |
+| `wwwroot/js/collage/collage-actions.js` | The actions: toolbar and menu buttons, Undo and Redo, delete with its Undo offer, page size, and the clicks the panels do not answer |
+| `wwwroot/js/collage/collage-app.js` | The editor itself (about 750 lines): its values, selection, moving a photo in its frame, the change log, and creating the parts above, each with the helpers it uses, `state` and its own named changes |
 | `wwwroot/css/collage.css` | All styles, Bootstrap variables only (Light and Dark) |
 
 Photo handling keeps memory low: the editor draws a working copy at most 2000 px on its long side,

@@ -147,6 +147,10 @@
     }
 
     /** Buttons that choose one value of a photo's finish (frame, shape or look). */
+    // Whether this browser draws looks (canvas filters): asked once, not at every redraw.
+    let filtersWork = null;
+    const canFilter = () => (filtersWork ??= draw.canFilter(document.createElement('canvas').getContext('2d')));
+
     function choiceButtons(name, entries, current, disabled = () => false) {
       return entries.map(([value, label]) => `<button type="button" class="btn btn-sm ${value === current ? 'btn-primary' : 'btn-outline-secondary'}" data-finish="${name}" data-value="${value}" aria-pressed="${value === current}"${disabled(value) ? ' disabled' : ''}>${escapeHtml(label)}</button>`).join('');
     }
@@ -161,7 +165,7 @@
       const frame = item.frame || 'none';
       const square = shape === 'rect';
       const look = item.look || 'none';
-      const filterOk = draw.canFilter(document.createElement('canvas').getContext('2d'));
+      const filterOk = canFilter();
       const looks = Object.entries(core.LOOKS).map(([value, entry]) => `
             <button type="button" class="clg-look${value === look ? ' is-on' : ''}" data-finish="look" data-value="${value}" aria-pressed="${value === look}">
               <img src="${photo?.thumbnail || ''}" alt="" style="filter:${entry.filter || 'none'}"><span>${escapeHtml(entry.label)}</span>
