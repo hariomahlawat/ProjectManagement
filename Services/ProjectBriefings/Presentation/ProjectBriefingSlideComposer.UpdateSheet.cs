@@ -7,12 +7,12 @@ namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
 public sealed partial class ProjectBriefingSlideComposer
 {
-    private static List<SlidePlan> BuildProjectUpdateSheetPlans(ProjectBriefingPresentationData data)
+    // One formal sheet per project with slides of its own, with brief continuations.
+    private static void AddProjectUpdateSheetPlans(
+        List<SlidePlan> plans,
+        ProjectBriefingPresentationData data,
+        IReadOnlyList<ProjectBriefingPresentationProject> orderedProjects)
     {
-        var plans = new List<SlidePlan>();
-        AddIntroductoryPlans(plans, data);
-
-        var orderedProjects = OrderProjects(data.Projects);
         foreach (var project in orderedProjects.Where(project => !project.TableRowOnly))
         {
             var rows = ProjectBriefingUpdateSheetPlanner.ResolveRows(project, data.UpdateSheetOptions);
@@ -43,10 +43,6 @@ public sealed partial class ProjectBriefingSlideComposer
                     capturedProject.ProjectId));
             }
         }
-
-        AddTableRowOnlySlides(plans, data, orderedProjects);
-
-        return plans;
     }
 
     private static void RenderProjectUpdateSheet(

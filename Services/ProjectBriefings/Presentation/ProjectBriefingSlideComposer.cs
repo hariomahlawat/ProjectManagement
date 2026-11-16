@@ -149,13 +149,23 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         }
     }
 
+    // The deck's blocks, in order, each adding its slides; the closing slide always ends the deck.
+    // Without stored blocks the deck's settings give them (ProjectBriefingDeckBlocks.FromSettings),
+    // so every deck composes as it did before blocks existed.
     private static List<SlidePlan> BuildPlans(ProjectBriefingPresentationData data)
     {
-        var plans = data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-            ? BuildProjectUpdateSheetPlans(data)
-            : BuildStandardPlans(data);
-
-        AddConcludingPlans(plans, data);
+        var blocks = (data.Blocks ?? ProjectBriefingDeckBlocks.FromPresentation(data))
+            .Where(block => block.Enabled)
+            .ToArray();
+        var orderedProjects = OrderProjects(data.Projects);
+        // Projects shown as a table row only are listed in the status table; a deck without one
+        // lists them in a short table after the project slides.
+        var hasStatusTable = blocks.Any(block => block.Type == ProjectBriefingDeckBlockType.StatusTable);
+        var plans = new List<SlidePlan>();
+        foreach (var block in blocks)
+        {
+            AddBlockPlans(plans, block.Type, data, orderedProjects, hasStatusTable);
+        }
 
         // Every exported presentation ends with one deliberate ceremonial closing slide.
         plans.Add(new SlidePlan(
@@ -165,67 +175,95 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         return plans;
     }
 
-    private static void AddIntroductoryPlans(
-        ICollection<SlidePlan> plans,
-        ProjectBriefingPresentationData data)
+    private static void AddBlockPlans(
+        List<SlidePlan> plans,
+        ProjectBriefingDeckBlockType block,
+        ProjectBriefingPresentationData data,
+        IReadOnlyList<ProjectBriefingPresentationProject> orderedProjects,
+        bool hasStatusTable)
     {
-        ArgumentNullException.ThrowIfNull(plans);
-        ArgumentNullException.ThrowIfNull(data);
-
-        if (data.IncludeCoverSlide)
+        switch (block)
         {
-            plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data), ProjectBriefingSlideRole.Cover));
-        }
+            case ProjectBriefingDeckBlockType.Cover:
+                plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data), ProjectBriefingSlideRole.Cover));
+                break;
 
-        foreach (var slideType in data.AdditionalSlideOrder.Where(type =>
-                     ProjectBriefingAdditionalSlideCatalog.Get(type).Placement
-                     == ProjectBriefingAdditionalSlidePlacement.AfterCover))
-        {
-            switch (slideType)
+            case ProjectBriefingDeckBlockType.InstitutionalProfile when data.InstitutionalProfile is not null:
             {
-                case ProjectBriefingAdditionalSlideType.InstitutionalProfile
-                    when data.InstitutionalProfile is not null:
-                {
-                    var institutionalProfile = data.InstitutionalProfile;
-                    plans.Add(new SlidePlan(
-                        SlidePlanKind.InstitutionalProfile,
-                        canvas => RenderInstitutionalProfile(canvas, institutionalProfile),
-                        ProjectBriefingSlideRole.InstitutionalProfile));
-                    break;
-                }
-                case ProjectBriefingAdditionalSlideType.RoleAndCharter
-                    when data.RoleCharter is not null:
-                {
-                    var roleCharter = data.RoleCharter;
-                    foreach (var page in PaginateRoleCharter(roleCharter))
-                    {
-                        var capturedPage = page;
-                        plans.Add(new SlidePlan(
-                            SlidePlanKind.RoleCharter,
-                            canvas => RenderRoleCharter(canvas, roleCharter, capturedPage),
-                            ProjectBriefingSlideRole.RoleCharter));
-                    }
-                    break;
-                }
+                var institutionalProfile = data.InstitutionalProfile;
+                plans.Add(new SlidePlan(
+                    SlidePlanKind.InstitutionalProfile,
+                    canvas => RenderInstitutionalProfile(canvas, institutionalProfile),
+                    ProjectBriefingSlideRole.InstitutionalProfile));
+                break;
             }
-        }
 
-        if (data.IncludePortfolioSummarySlide)
-        {
-            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data), ProjectBriefingSlideRole.PortfolioSummary));
-        }
-    }
+            case ProjectBriefingDeckBlockType.RoleAndCharter when data.RoleCharter is not null:
+            {
+                var roleCharter = data.RoleCharter;
+                foreach (var page in PaginateRoleCharter(roleCharter))
+                {
+                    var capturedPage = page;
+                    plans.Add(new SlidePlan(
+                        SlidePlanKind.RoleCharter,
+                        canvas => RenderRoleCharter(canvas, roleCharter, capturedPage),
+                        ProjectBriefingSlideRole.RoleCharter));
+                }
+                break;
+            }
 
-    private static void AddConcludingPlans(
-        ICollection<SlidePlan> plans,
-        ProjectBriefingPresentationData data)
-    {
-        foreach (var slideType in data.AdditionalSlideOrder.Where(type =>
-                     ProjectBriefingAdditionalSlideCatalog.Get(type).Placement
-                     == ProjectBriefingAdditionalSlidePlacement.BeforeClosing))
-        {
-            if (slideType == ProjectBriefingAdditionalSlideType.FfcGlobalFootprint
-                && data.FfcGlobalFootprint is not null)
+            case ProjectBriefingDeckBlockType.PortfolioSummary:
+                plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data), ProjectBriefingSlideRole.PortfolioSummary));
+                break;
+
+            case ProjectBriefingDeckBlockType.StageSummary:
+                AddStageSummarySlides(plans, data);
+                break;
+
+            case ProjectBriefingDeckBlockType.ProjectCategorySummary
+                when ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(
+                    data.Summary.ProjectCategorySummary.Count(point => point.Count > 0)):
+                AddSummaryChartSlides(
+                    plans,
+                    data,
+                    "Project-category summary",
+                    data.Summary.ProjectCategorySummary,
+                    ThemeAccent.Secondary);
+                break;
+
+            case ProjectBriefingDeckBlockType.TechnicalCategorySummary
+                when ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(
+                    data.Summary.TechnicalCategorySummary.Count(point => point.Count > 0)):
+                AddSummaryChartSlides(
+                    plans,
+                    data,
+                    "Technical-category summary",
+                    data.Summary.TechnicalCategorySummary,
+                    ThemeAccent.Primary);
+                break;
+
+            case ProjectBriefingDeckBlockType.StatusTable:
+                AddExecutiveTableSlides(plans, data, orderedProjects);
+                break;
+
+            case ProjectBriefingDeckBlockType.ProjectSlides:
+                if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet)
+                {
+                    AddProjectUpdateSheetPlans(plans, data, orderedProjects);
+                }
+                else
+                {
+                    AddStandardProjectPlans(plans, data, orderedProjects);
+                }
+
+                if (!hasStatusTable)
+                {
+                    AddTableRowOnlySlides(plans, data, orderedProjects);
+                }
+
+                break;
+
+            case ProjectBriefingDeckBlockType.FfcGlobalFootprint when data.FfcGlobalFootprint is not null:
             {
                 var footprint = data.FfcGlobalFootprint;
                 plans.Add(new SlidePlan(
@@ -254,143 +292,100 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                             ProjectBriefingSlideRole.FfcCountryBreakdown));
                     }
                 }
+
+                break;
             }
         }
     }
 
-    private static List<SlidePlan> BuildStandardPlans(ProjectBriefingPresentationData data)
+    // Each project's own slides, in the deck's order: capability and/or brief slides with their
+    // continuations, in the key points layout when the deck shows key points.
+    private static void AddStandardProjectPlans(
+        List<SlidePlan> plans,
+        ProjectBriefingPresentationData data,
+        IReadOnlyList<ProjectBriefingPresentationProject> orderedProjects)
     {
-        var orderedProjects = OrderProjects(data.Projects);
-        var plans = new List<SlidePlan>();
-        AddIntroductoryPlans(plans, data);
+        var includeCapabilities = DrawsCapabilitySlides(data.NarrativeMode);
+        var includeProjectBrief = DrawsProjectBriefSlides(data.NarrativeMode);
+        // Decks that show key points draw both project slides in the key points layout.
+        var keyPointLayout = UsesKeyPointLayout(data);
 
-        if (data.IncludeStageSummary)
+        // A table row only project is listed in a table and gets no slides of its own.
+        foreach (var project in orderedProjects.Where(project => !project.TableRowOnly))
         {
-            AddStageSummarySlides(plans, data);
-        }
-
-        if (data.IncludeProjectCategorySummary
-            && ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(
-                data.Summary.ProjectCategorySummary.Count(point => point.Count > 0)))
-        {
-            AddSummaryChartSlides(
-                plans,
-                data,
-                "Project-category summary",
-                data.Summary.ProjectCategorySummary,
-                ThemeAccent.Secondary);
-        }
-
-        if (data.IncludeTechnicalCategorySummary
-            && ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(
-                data.Summary.TechnicalCategorySummary.Count(point => point.Count > 0)))
-        {
-            AddSummaryChartSlides(
-                plans,
-                data,
-                "Technical-category summary",
-                data.Summary.TechnicalCategorySummary,
-                ThemeAccent.Primary);
-        }
-
-        if (data.PresentationMode is ProjectBriefingPresentationMode.ExecutiveTable
-            or ProjectBriefingPresentationMode.Combined)
-        {
-            AddExecutiveTableSlides(plans, data, orderedProjects);
-        }
-
-        if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
-            or ProjectBriefingPresentationMode.Combined)
-        {
-            var includeCapabilities = DrawsCapabilitySlides(data.NarrativeMode);
-            var includeProjectBrief = DrawsProjectBriefSlides(data.NarrativeMode);
-            // Decks that show key points draw both project slides in the key points layout.
-            var keyPointLayout = UsesKeyPointLayout(data);
-
-            // A table row only project is listed in a table and gets no slides of its own.
-            foreach (var project in orderedProjects.Where(project => !project.TableRowOnly))
+            var capturedProject = project;
+            if (includeCapabilities)
             {
-                var capturedProject = project;
-                if (includeCapabilities)
-                {
-                    var capability = keyPointLayout
-                        ? PaginateKeyPointCapability(data, project)
-                        : ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
-                    var primaryPage = capability.Pages[0];
-                    plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                        {
-                            if (keyPointLayout)
-                            {
-                                RenderKeyPointCapabilitySlide(canvas, data, capturedProject, primaryPage);
-                            }
-                            else
-                            {
-                                RenderProjectDetail(canvas, data, capturedProject, primaryPage);
-                            }
-                        },
-                        ProjectBriefingSlideRole.ProjectCapability,
-                        capturedProject.ProjectId));
-
-                    var continuationPages = capability.Pages.Skip(1).ToArray();
-                    for (var index = 0; index < continuationPages.Length; index++)
+                var capability = keyPointLayout
+                    ? PaginateKeyPointCapability(data, project)
+                    : ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
+                var primaryPage = capability.Pages[0];
+                plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
                     {
-                        var capturedPage = continuationPages[index];
-                        var capturedIndex = index;
-                        plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                            RenderCapabilityContinuation(
-                                canvas,
-                                capturedProject,
-                                capturedPage,
-                                capturedIndex + 1,
-                                continuationPages.Length),
-                            ProjectBriefingSlideRole.ProjectCapabilityContinuation,
-                            capturedProject.ProjectId));
-                    }
+                        if (keyPointLayout)
+                        {
+                            RenderKeyPointCapabilitySlide(canvas, data, capturedProject, primaryPage);
+                        }
+                        else
+                        {
+                            RenderProjectDetail(canvas, data, capturedProject, primaryPage);
+                        }
+                    },
+                    ProjectBriefingSlideRole.ProjectCapability,
+                    capturedProject.ProjectId));
+
+                var continuationPages = capability.Pages.Skip(1).ToArray();
+                for (var index = 0; index < continuationPages.Length; index++)
+                {
+                    var capturedPage = continuationPages[index];
+                    var capturedIndex = index;
+                    plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
+                        RenderCapabilityContinuation(
+                            canvas,
+                            capturedProject,
+                            capturedPage,
+                            capturedIndex + 1,
+                            continuationPages.Length),
+                        ProjectBriefingSlideRole.ProjectCapabilityContinuation,
+                        capturedProject.ProjectId));
                 }
+            }
 
-                if (includeProjectBrief)
-                {
-                    var briefPages = PaginateProjectBrief(data, capturedProject);
-                    var firstBriefPage = briefPages[0];
-                    plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                        {
-                            if (keyPointLayout)
-                            {
-                                RenderKeyPointProjectBriefSlide(canvas, data, capturedProject, firstBriefPage);
-                            }
-                            else
-                            {
-                                RenderProjectBrief(canvas, data, capturedProject, firstBriefPage);
-                            }
-                        },
-                        ProjectBriefingSlideRole.ProjectBrief,
-                        capturedProject.ProjectId));
-
-                    var continuationBriefPages = briefPages.Skip(1).ToArray();
-                    for (var index = 0; index < continuationBriefPages.Length; index++)
+            if (includeProjectBrief)
+            {
+                var briefPages = PaginateProjectBrief(data, capturedProject);
+                var firstBriefPage = briefPages[0];
+                plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
                     {
-                        var capturedPage = continuationBriefPages[index];
-                        var capturedIndex = index;
-                        plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                            RenderProjectBriefContinuation(
-                                canvas,
-                                capturedProject,
-                                capturedPage,
-                                capturedIndex + 1,
-                                continuationBriefPages.Length),
-                            ProjectBriefingSlideRole.ProjectBriefContinuation,
-                            capturedProject.ProjectId));
-                    }
+                        if (keyPointLayout)
+                        {
+                            RenderKeyPointProjectBriefSlide(canvas, data, capturedProject, firstBriefPage);
+                        }
+                        else
+                        {
+                            RenderProjectBrief(canvas, data, capturedProject, firstBriefPage);
+                        }
+                    },
+                    ProjectBriefingSlideRole.ProjectBrief,
+                    capturedProject.ProjectId));
+
+                var continuationBriefPages = briefPages.Skip(1).ToArray();
+                for (var index = 0; index < continuationBriefPages.Length; index++)
+                {
+                    var capturedPage = continuationBriefPages[index];
+                    var capturedIndex = index;
+                    plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
+                        RenderProjectBriefContinuation(
+                            canvas,
+                            capturedProject,
+                            capturedPage,
+                            capturedIndex + 1,
+                            continuationBriefPages.Length),
+                        ProjectBriefingSlideRole.ProjectBriefContinuation,
+                        capturedProject.ProjectId));
                 }
             }
         }
-
-        if (data.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)
-        {
-            AddTableRowOnlySlides(plans, data, orderedProjects);
-        }
-
-        return plans;
     }
 
     private static IReadOnlyList<ProjectBriefingPresentationProject> OrderProjects(

@@ -1062,7 +1062,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("FfcBreakdownWidth = 3.30", composer, StringComparison.Ordinal);
         Assert.Contains("2100, height: 1065", dataService, StringComparison.Ordinal);
         Assert.Contains("countries — recommended", editor, StringComparison.Ordinal);
-        Assert.Contains("AddConcludingPlans", mainComposer, StringComparison.Ordinal);
+        Assert.Contains("case ProjectBriefingDeckBlockType.FfcGlobalFootprint", mainComposer, StringComparison.Ordinal);
         Assert.Contains("SlidePlanKind.FfcGlobalFootprint", mainComposer, StringComparison.Ordinal);
         Assert.Contains("confirmFfcDiscard", script, StringComparison.Ordinal);
         Assert.DoesNotContain("window.confirm", script, StringComparison.Ordinal);

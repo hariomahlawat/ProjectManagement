@@ -429,6 +429,10 @@ public sealed class ProjectBriefingPresentationData
         = ProjectBriefingFfcGlobalFootprintOptions.Default;
     public IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder { get; init; }
         = new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile };
+
+    // The deck's blocks in order (ProjectBriefingDeckBlocks). Null: the composer works them out
+    // from the settings above, as every deck composed before blocks were stored.
+    public IReadOnlyList<ProjectBriefingDeckBlock>? Blocks { get; init; }
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
         = ProjectBriefingBrandingScope.AllSlides;
     public bool IncludeCoverSlide { get; init; } = true;
