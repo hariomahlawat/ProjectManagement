@@ -292,6 +292,20 @@ test('briefing workflows use the reusable PRISM confirmation dialog instead of b
   assert.match(confirmSource, /focus: 'cancel'/);
 });
 
+test('small honest fixes (review 2 fixes, PR 6)', () => {
+  // Keyboard moves say where the slide went, or that it is already at the edge.
+  assert.match(source, /moved to position \$\{position\(\)\} in \$\{zoneName\}\./);
+  assert.match(source, /is already \$\{up \? 'first' : 'last'\} in \$\{zoneName\}\./);
+  // ?generate=1 needs the library's one-time marker in this tab.
+  assert.match(source, /sessionStorage\.getItem\(`prism\.briefingDecks\.generate\.\$\{deckId\}`\) === '1'/);
+  // Both the link flag and the marker; only a plain same-tab click leaves the marker.
+  assert.match(source, /if \(generateFlag && generateMarked\) \{/);
+  assert.match(fs.readFileSync(path.resolve(__dirname, '..', 'pages', 'project-briefing-library.js'), 'utf8'), /event\.button !== 0 \|\| event\.metaKey \|\| event\.ctrlKey/);
+  assert.match(fs.readFileSync(path.resolve(__dirname, '..', 'pages', 'project-briefing-library.js'), 'utf8'), /sessionStorage\.setItem\(`prism\.briefingDecks\.generate\./);
+  // A view-only deck whose data moved shows its change count, without a link.
+  assert.match(fs.readFileSync(path.resolve(__dirname, '..', '..', '..', 'Pages', 'Workspace', 'BriefingDecks', '_DeckLibrary.cshtml'), 'utf8'), /else if \(deck\.DataMovement\.HasMoved\)/);
+});
+
 test('a save keeps the row version it produced, not a re-read deck\'s (review 2 fixes, PR 3)', () => {
   assert.doesNotMatch(source, /updateRowVersion\([^)]*deck\?*\.rowVersion\)/);
   assert.match(source, /updateRowVersion\(replyPayload\?\.rowVersion\);/);
@@ -355,7 +369,7 @@ test('slides in this deck: one switchable, reorderable block list saved in place
   assert.match(source, /if \(blocksBusy\) return;/);
   assert.match(source, /sorter\.option\('disabled', busy\)/);
   assert.match(source, /finally \{\s*setBlocksBusy\(false\);/);
-  assert.match(source, /event\.key === 'ArrowUp' \? -1 : 1/);
+  assert.match(source, /const up = event\.key === 'ArrowUp';[\s\S]*?moveRow\(row, up \? -1 : 1\)/);
   assert.match(source, /slides: blocksOn\(\)\.join/);
 });
 
