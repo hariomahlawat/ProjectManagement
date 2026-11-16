@@ -54,7 +54,12 @@ public sealed class ProjectBriefingDeckPresetServiceTests
     {
         await using var db = CreateDb();
         var deck = await SeedAsync(db, configurationJson: null);
-        var invalid = ProjectBriefingInstitutionalProfileOptions.Default with { IncludeSlide = true };
+        // Partnerships ticked with no partner entries.
+        var invalid = ProjectBriefingInstitutionalProfileOptions.Default with
+        {
+            IncludeSlide = true,
+            Modules = ProjectBriefingInstitutionalProfileOptions.AllModules
+        };
         var command = RenameCommand(deck, "Same name", invalid);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>

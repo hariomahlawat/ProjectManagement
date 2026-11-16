@@ -6,7 +6,7 @@
     var institutionalProfile = deck.InstitutionalProfileOptions;
     var selectedInstitutionalModules = institutionalProfile.Modules.ToHashSet();
     var orderedInstitutionalModules = institutionalProfile.Modules
-        .Concat(ProjectBriefingInstitutionalProfileOptions.DefaultModules)
+        .Concat(ProjectBriefingInstitutionalProfileOptions.AllModules)
         .Distinct()
         .ToArray();
     var institutionalModuleOrder = string.Join(",", orderedInstitutionalModules);

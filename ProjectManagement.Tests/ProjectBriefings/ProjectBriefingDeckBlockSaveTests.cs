@@ -206,6 +206,25 @@ public sealed class ProjectBriefingDeckBlockSaveTests
         Assert.All(blocks.Skip(1).Take(2), block => Assert.False(block.Enabled));
     }
 
+    // Review fixes PR 2: the default profile has no module that needs typed-in content, so a new
+    // deck can add the SDD profile from Add block without opening its editor first.
+    [Fact]
+    public async Task ANewDeck_CanAddTheSddProfile()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db);
+
+        await Service(db).UpdateBlocksAsync(deck.Id, UserId, new[]
+        {
+            Block(ProjectBriefingDeckBlockType.InstitutionalProfile, true)
+        }, Version(deck));
+
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read((await db.Set<ProjectBriefingDeck>().SingleAsync()).SelectionRulesJson);
+        Assert.True(configuration.InstitutionalProfileOptions.IncludeSlide);
+        Assert.Contains(ProjectBriefingAdditionalSlideType.InstitutionalProfile, configuration.AdditionalSlideOrder);
+        Assert.DoesNotContain(ProjectBriefingInstitutionalProfileModule.Partnerships, configuration.InstitutionalProfileOptions.Modules);
+    }
+
     [Fact]
     public async Task AnUnknownOrRepeatedBlock_IsRefused()
     {

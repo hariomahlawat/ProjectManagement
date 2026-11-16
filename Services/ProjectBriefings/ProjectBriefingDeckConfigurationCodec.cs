@@ -126,7 +126,8 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
     public const string DefaultTrainingHighlight = "AR/VR";
     public const string DefaultFooterText = "GOC-in-C Unit Citations";
 
-    public static IReadOnlyList<ProjectBriefingInstitutionalProfileModule> DefaultModules { get; } =
+    // Every module the editor offers, in its usual order.
+    public static IReadOnlyList<ProjectBriefingInstitutionalProfileModule> AllModules { get; } =
         new[]
         {
             ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped,
@@ -135,6 +136,12 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
             ProjectBriefingInstitutionalProfileModule.IntellectualProperty,
             ProjectBriefingInstitutionalProfileModule.Partnerships
         };
+
+    // The modules a new deck's profile starts with. Partnerships is left out: it needs partner
+    // entries typed in, so with it the slide could not be added from the Deck tab until edited
+    // (briefing-deck-review-fixes.md, PR 2). It can be ticked in the editor.
+    public static IReadOnlyList<ProjectBriefingInstitutionalProfileModule> DefaultModules { get; } =
+        AllModules.Where(module => module != ProjectBriefingInstitutionalProfileModule.Partnerships).ToArray();
 
     public static IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> DefaultHistory { get; } =
         new[]
@@ -678,7 +685,8 @@ public static class ProjectBriefingDeckConfigurationCodec
             history,
             profile["modules"] is JsonArray moduleArray
                 ? ReadEnumArray<ProjectBriefingInstitutionalProfileModule>(moduleArray)
-                : ProjectBriefingInstitutionalProfileOptions.DefaultModules,
+                // A stored profile without a module list is read as builds before PR 2 read it.
+                : ProjectBriefingInstitutionalProfileOptions.AllModules,
             ReadEnum(profile["projectScope"], ProjectBriefingInstitutionalProjectScope.OriginalCompleted),
             ReadNullableInt(profile["maximumDetailRows"]) ?? 6,
             ReadText(profile["trainingHighlightTechnicalCategory"]),
