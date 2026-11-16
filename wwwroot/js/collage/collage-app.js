@@ -356,13 +356,13 @@
   // handles, zoom, Preview and the page's size on screen (collage-page.js).
   const {
     stage, backLayer, layer, pageRect, world, guides, nodes, transformer, setShift, layout, visibleSheetTop,
-    startPreview, stopPreview, setZoom, applyItem, measureText, textLayouts, layoutTextItem,
+    startPreview, stopPreview, setZoom, applyItem, measureText, textLayouts, layoutTextItem, fitText, textOffSize,
     fontsReady, stickerSource, stickerImage, lastStickerImage, clampedCrop, syncPage,
     attachTransformer, syncAll
   } = window.PrismCollagePage.createPage({
     state, parts: laterParts, change: changesFor('setShiftHeld', 'setTransforming', 'setScale', 'setPreviewing', 'setZoomLevel', 'choose'), root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag,
     emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select,
-    startAdjust, stopAdjust, startPan, commit, updateUndo
+    startAdjust, stopAdjust, startPan, commit, updateUndo, fontsArrived
   });
   // Drafts in the editor: the draft status, writing the draft, its small picture, and the drafts
   // on the start screen (open, delete, Undo) (collage-drafts-screen.js).
@@ -635,6 +635,8 @@
     const item = selectedItem();
     if (!item) return;
     change(item);
+    // Words take the size they need inside the change, so Undo and the draft keep it.
+    if (item.kind === 'text') fitText(item);
     if (record) commit();
     else {
       syncPage();
@@ -651,6 +653,20 @@
   function sayLocked() {
     announce('It is locked. Unlock it first.');
     window.PrismToast?.show({ tone: 'info', text: 'It is locked. Unlock it first (the lock on its toolbar or in Layers).' });
+  }
+
+  /**
+   * A font has arrived: words drawn with it may now take another size. Those that do are given it
+   * as one quiet change, so the draft keeps it and Undo has it (never unseen, never carried by the
+   * next unrelated change).
+   */
+  function fontsArrived() {
+    if (views.editor.hidden) return;
+    const offSize = collage.items.filter((item) => item.kind === 'text' && textOffSize(item));
+    if (!offSize.length) { syncPage(); return; }
+    offSize.forEach((item) => fitText(item));
+    syncPage();
+    recordQuietly();
   }
 
   /** A new item on the page (words, a sticker): selected, with its settings shown. */

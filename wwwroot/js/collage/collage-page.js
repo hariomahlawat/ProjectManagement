@@ -11,7 +11,7 @@
   'use strict';
 
   function createPage(deps) {
-    const { state, parts, change, root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag, emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select, startAdjust, stopAdjust, startPan, commit, updateUndo } = deps;
+    const { state, parts, change, root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag, emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select, startAdjust, stopAdjust, startPan, commit, updateUndo, fontsArrived } = deps;
     // ---------------------------------------------------------------------------
     // The page (Konva)
     // ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@
     }
 
     function applyItem(node, item) {
-      if (item.kind === 'text') layoutTextItem(item);
+      if (item.kind === 'text') measureTextItem(item);
       const height = core.itemHeight(item);
       node.setAttrs({
         x: item.x,
@@ -286,17 +286,34 @@
      * snapping and the handles fit the text. A font not loaded yet is asked for; the text is laid
      * out again once it arrives.
      */
-    function layoutTextItem(item) {
+    /**
+     * How a text item's words lie, measured with its fonts, for drawing. It never changes the
+     * model: the item's own size is set only inside a change (fitText). When a font arrives the
+     * editor is told (fontsArrived), so the sizes it changes are recorded like any other change.
+     */
+    function measureTextItem(item) {
       const font = core.fontOf(item, 40);
       if (document.fonts && !fontsAsked.has(font)) {
         fontsAsked.add(font);
-        document.fonts.load(font, item.text || 'Aअ').then(() => { syncPage(); }).catch(() => {});
+        document.fonts.load(font, item.text || 'Aअ').then(() => { textLayouts.clear(); fontsArrived(); }).catch(() => {});
       }
       const layout = core.layoutText(item, measureText);
-      item.width = layout.width;
-      item.aspect = layout.width / Math.max(1, layout.height);
       textLayouts.set(item.id, layout);
       return layout;
+    }
+
+    /** A text item given the size its words take: for a new item, or inside a change. */
+    function fitText(item) {
+      const layout = measureTextItem(item);
+      item.width = layout.width;
+      item.aspect = layout.width / Math.max(1, layout.height);
+      return layout;
+    }
+
+    /** True when a text item's size is not the size its words now take (a font arrived). */
+    function textOffSize(item) {
+      const layout = measureTextItem(item);
+      return Math.abs(item.width - layout.width) > 0.5 || Math.abs(item.width / item.aspect - layout.height) > 0.5;
     }
 
     /** Waits for every font the collage's text uses, so Save measures and draws the real fonts. */
@@ -384,7 +401,7 @@
     function drawTextNode(context, shape) {
       const item = itemById(shape.id());
       if (!item) return;
-      const layout = textLayouts.get(item.id) || layoutTextItem(item);
+      const layout = textLayouts.get(item.id) || measureTextItem(item);
       const pixelsPerUnit = state.scale * (layer.getCanvas().getPixelRatio?.() || 1);
       draw.drawText(context._context, item, layout, pixelsPerUnit);
     }
@@ -437,6 +454,7 @@
           target.angle = core.normaliseAngle(node.rotation());
           target.x = node.x();
           target.y = node.y();
+          fitText(target);
           commit();
           return;
         }
@@ -568,7 +586,7 @@
     }
 
 
-    return { stage, backLayer, layer, pageRect, world, guides, nodes, transformer, setShift, layout, visibleSheetTop, startPreview, stopPreview, setZoom, applyItem, measureText, textLayouts, layoutTextItem, fontsReady, stickerSource, stickerImage, lastStickerImage, clampedCrop, syncPage, attachTransformer, syncAll };
+    return { stage, backLayer, layer, pageRect, world, guides, nodes, transformer, setShift, layout, visibleSheetTop, startPreview, stopPreview, setZoom, applyItem, measureText, textLayouts, layoutTextItem: fitText, fitText, textOffSize, fontsReady, stickerSource, stickerImage, lastStickerImage, clampedCrop, syncPage, attachTransformer, syncAll };
   }
 
   return Object.freeze({ createPage });

@@ -114,7 +114,9 @@ its npm package by hand; the libman entry records the version.
   first: put them in the new layout too (they stay locked), or keep them where they are, and the
   layout leaves out the frames they cover more than half of (the question says how many). A kept item
   well off the page is moved just inside it. A stopped action on a locked item says so on the screen.
-- **Undo and Redo** for every change. Moving **Space between photos** puts every photo back in
+- **Undo and Redo** for every change. Words are measured for drawing without changing the collage; their size
+  changes only inside a change (typing, a setting, resizing), and a font that arrives later gives
+  them their size as one recorded change, kept in the draft. Moving **Space between photos** puts every photo back in
   the layout; when that undoes a photo moved by hand, a message says so, with Undo. One frame's
   own corners (its settings) stay its own: the layout's Rounded corners and the next layout are
   not changed by them, and a change of space keeps them.
