@@ -92,7 +92,8 @@ its npm package by hand; the libman entry records the version.
   blurred.
 - **Arrange**: snap guides to the page and other items, Line up on the page, a Layers list to
   select, hide or lock any item, bring forward and send backward, Duplicate, and Preview (the
-  page alone; Esc comes back).
+  page alone, exactly as Save makes it: empty frames are left out; Esc comes back). A white
+  frame put on a photo turns its shadow on, so it shows on a white page.
 - **Undo and Redo** for every change.
 - **Save as** PNG, JPEG (optionally under a size in KB) or PDF whose page is the paper's real
   size; at print quality (300 dpi) or for the screen (1920 px on the long side). Save reads each
@@ -188,7 +189,8 @@ into the empty frame closest to its shape; photos past a layout's frames wait in
 message, rather than sit loose on the grid. New words and stickers go where they cover nothing
 yet, and the item's toolbar moves below it when above would cover another item. Save asks what the picture is
 for: WhatsApp or email (JPG for the screen), printing (PDF at print quality), or a slide or a
-screen (PNG).
+screen (PNG). The purpose chosen is shown pressed and remembered in this browser; the first time
+it is WhatsApp or email.
 
 ### Phones and the Dark theme
 

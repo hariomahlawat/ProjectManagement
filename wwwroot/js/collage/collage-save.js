@@ -50,6 +50,50 @@
         : `The ${empty} empty frames are left out of the saved picture.`;
     }
 
+    // "What is it for?" chooses a type and quality that suit it; the user can still change them.
+    const SAVE_PURPOSES = Object.freeze({
+      share: { format: 'jpeg', quality: 'screen' },
+      print: { format: 'pdf', quality: 'print' },
+      slide: { format: 'png', quality: 'screen' }
+    });
+    // The last purpose is remembered in this browser; the first time, WhatsApp or email, the
+    // commonest job (a phone especially). Only a convenience: nothing breaks without storage.
+    const PURPOSE_KEY = 'prism-collage-save-purpose';
+    const rememberedPurpose = () => {
+      try {
+        const value = window.localStorage?.getItem(PURPOSE_KEY);
+        return SAVE_PURPOSES[value] ? value : 'share';
+      } catch {
+        return 'share';
+      }
+    };
+    const rememberPurpose = (value) => {
+      try { window.localStorage?.setItem(PURPOSE_KEY, value); } catch { /* not kept; fine */ }
+    };
+
+    /** Sets the type and quality for a purpose and shows that purpose as chosen. */
+    function choosePurpose(value) {
+      const choice = SAVE_PURPOSES[value];
+      if (!choice) return;
+      for (const [name, wanted] of Object.entries(choice)) {
+        const radio = saveDialog.querySelector(`input[name="${name}"][value="${wanted}"]`);
+        if (radio) radio.checked = true;
+      }
+      markPurpose();
+    }
+
+    /** Shows which purpose the chosen type and quality match, if any. */
+    function markPurpose() {
+      const format = chosen('format');
+      const quality = chosen('quality');
+      saveDialog.querySelectorAll('[data-save-purpose]').forEach((button) => {
+        const choice = SAVE_PURPOSES[button.dataset.savePurpose];
+        const on = Boolean(choice) && choice.format === format && choice.quality === quality;
+        button.setAttribute('aria-pressed', String(on));
+        button.classList.toggle('is-on', on);
+      });
+    }
+
     function openSave() {
       if (!hasContent()) {
         showAlert('Add a photo, some text or a sticker first; there is nothing to save yet.');
@@ -58,27 +102,19 @@
       flushNudge();
       stopAdjust();
       saveResult.hidden = true;
+      choosePurpose(rememberedPurpose());
       syncSaveDialog();
       saveDialog.showModal();
     }
 
-    saveDialog.addEventListener('change', syncSaveDialog);
+    saveDialog.addEventListener('change', () => { markPurpose(); syncSaveDialog(); });
 
-    // "What is it for?" chooses a type and quality that suit it; the user can still change them.
-    const SAVE_PURPOSES = Object.freeze({
-      share: { format: 'jpeg', quality: 'screen' },
-      print: { format: 'pdf', quality: 'print' },
-      slide: { format: 'png', quality: 'screen' }
-    });
     saveDialog.addEventListener('click', (event) => {
       const button = event.target.closest('[data-save-purpose]');
       const choice = button && SAVE_PURPOSES[button.dataset.savePurpose];
       if (!choice) return;
-      for (const [name, value] of Object.entries(choice)) {
-        const radio = saveDialog.querySelector(`input[name="${name}"][value="${value}"]`);
-        if (radio) radio.checked = true;
-      }
-      saveDialog.querySelectorAll('[data-save-purpose]').forEach((other) => other.setAttribute('aria-pressed', String(other === button)));
+      choosePurpose(button.dataset.savePurpose);
+      rememberPurpose(button.dataset.savePurpose);
       syncSaveDialog();
       announce(`${saveDialog.querySelector('input[name="format"]:checked')?.closest('label')?.querySelector('b')?.textContent || ''}, ${choice.quality === 'print' ? 'print quality' : 'for the screen'}.`);
     });
