@@ -193,13 +193,61 @@ public sealed class SearchGatewayTests
             new GlobalSearchHit("Projects", "Gunnery simulator", "for <mark>Drones</mark> crews", "/b", null, 1m, null, null),
             new GlobalSearchHit("Projects", "Drone simulator", null, "/c", null, 1m, null, null),
             new GlobalSearchHit("Projects", "Simulator", null, "/d", null, 1m, null, "Anti-drone cell"),
-            new GlobalSearchHit("Projects", "Simulator", null, "/e", null, 1m, null, "Androne cell")
+            new GlobalSearchHit("Projects", "Simulator", null, "/e", null, 1m, null, "Androne cell"),
+            new GlobalSearchHit("Projects", "Simulator", null, "/f", null, 1m, null, "Dronegun cell")
         };
 
-        var kept = SearchGateway.WithoutExcludedWords(hits, new[] { "drone" });
+        var kept = SearchGateway.WithoutExcludedWords(hits, new[] { "-drone" });
 
-        Assert.Equal(new[] { "/a", "/e" }, kept.Select(hit => hit.Url).ToArray());
+        Assert.Equal(new[] { "/a", "/e", "/f" }, kept.Select(hit => hit.Url).ToArray());
         Assert.Same(hits, SearchGateway.WithoutExcludedWords(hits, Array.Empty<string>()));
+    }
+
+    // Whole words with their usual endings, as typed: "-art" keeps artillery, "-T-90" drops
+    // a T-90 record (normalising it to "t 90" never matched).
+    [Fact]
+    public void LegacyExclusions_MatchWholeWordsAsTyped()
+    {
+        var hits = new[]
+        {
+            new GlobalSearchHit("Projects", "Artillery trainer", null, "/artillery", null, 1m, null, null),
+            new GlobalSearchHit("Projects", "Art of war seminar", null, "/art", null, 1m, null, null),
+            new GlobalSearchHit("Projects", "T-90 driving simulator", null, "/t90", null, 1m, null, null),
+            new GlobalSearchHit("Projects", "T-72 driving simulator", null, "/t72", null, 1m, null, null)
+        };
+
+        Assert.Equal(new[] { "/artillery", "/t90", "/t72" }, SearchGateway.WithoutExcludedWords(hits, new[] { "-art" }).Select(hit => hit.Url).ToArray());
+        Assert.Equal(new[] { "/artillery", "/art", "/t72" }, SearchGateway.WithoutExcludedWords(hits, new[] { "-T-90" }).Select(hit => hit.Url).ToArray());
+    }
+
+    // The basic engine names some sources differently; a V2 source filter is translated, and
+    // one it does not have (ARPP) is reported as not applied instead of emptying the list.
+    [Fact]
+    public void LegacySourceFilters_AreTranslated_OrReportedAsNotApplied()
+    {
+        var (applied, unapplied) = SearchGateway.TranslateSourcesForLegacy(new[] { "ToT", "visits", "ARPP", "TOT tracker" });
+        Assert.Equal(new[] { "TOT tracker", "Visits tracker" }, applied);
+        Assert.Equal(new[] { "ARPP" }, unapplied);
+
+        var (none, onlyArpp) = SearchGateway.TranslateSourcesForLegacy(new[] { "ARPP" });
+        Assert.Null(none);
+        Assert.Equal(new[] { "ARPP" }, onlyArpp);
+        Assert.Null(SearchGateway.TranslateSourcesForLegacy(null).Applied);
+    }
+
+    [Fact]
+    public async Task LegacyServing_WithAV2SourceName_StillFilters_AndAMissingSourceIsNotApplied()
+    {
+        var harness = new Harness(new SearchV2Options { ServeV2 = false, ShadowMode = false });
+        harness.Legacy.Hits = new[] { Hit("TOT tracker"), Hit("Projects") };
+
+        var tot = await harness.Gateway.SearchAsync(new SearchRequest("radar", Sources: new[] { "ToT" }), User(), CancellationToken.None);
+        Assert.Equal(new[] { "TOT tracker" }, tot.Results.Select(result => result.SourceModule).ToArray());
+        Assert.Empty(tot.UnappliedSources ?? Array.Empty<string>());
+
+        var arpp = await harness.Gateway.SearchAsync(new SearchRequest("radar", Sources: new[] { "ARPP" }), User(), CancellationToken.None);
+        Assert.Equal(2, arpp.Results.Count);
+        Assert.Equal(new[] { "ARPP" }, arpp.UnappliedSources);
     }
 
     [Theory]

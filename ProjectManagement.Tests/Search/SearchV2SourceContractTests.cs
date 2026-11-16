@@ -101,7 +101,7 @@ public sealed class SearchV2SourceContractTests
         var engine = ReadRepoFile("Services", "SearchV2", "Query", "SearchEngine.cs");
 
         Assert.Contains("v2Response = await RunV2SafelyAsync(request, user, normalized, cancellationToken);", gateway, StringComparison.Ordinal);
-        Assert.Contains("ApplyLegacyFilters(legacyResults, request.Categories, request.Sources)", gateway, StringComparison.Ordinal);
+        Assert.Contains("ApplyLegacyFilters(legacyResults, request.Categories, legacySources)", gateway, StringComparison.Ordinal);
         Assert.Contains("!ShouldServeV2(user)", gateway, StringComparison.Ordinal);
         Assert.Contains("request.ProjectIds", engine, StringComparison.Ordinal);
         Assert.Contains("request.Statuses", engine, StringComparison.Ordinal);

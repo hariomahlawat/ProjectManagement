@@ -23,6 +23,9 @@
     var hasAdvancedFilters = Model.HasAdvancedFilters();
     // The basic (Legacy) engine applies Source but none of these; name only the ones set.
     var unappliedFilterNames = new List<string>();
+    // A source the basic engine does not have (ARPP) is not applied there either.
+    var sourceUnapplied = search.UnappliedSources is { Count: > 0 };
+    if (sourceUnapplied) unappliedFilterNames.Add("source");
     if (selectedProjects.Count > 0) unappliedFilterNames.Add("project");
     if (selectedStatuses.Count > 0) unappliedFilterNames.Add("status");
     if (selectedFileTypes.Count > 0) unappliedFilterNames.Add("file type");
@@ -285,7 +288,7 @@ else
                         <span>The full search service is temporarily unavailable, so some records may be missing@(unappliedFilters.Length > 0 ? $" and your {unappliedFilters} {unappliedVerb} not applied" : string.Empty).</span>
                         @if (unappliedFilters.Length > 0)
                         {
-                            <a class="pm-gs-banner__action" href="@BuildUrl(Model.Q!, selectedCategory, preserveAdvanced: false)" data-search-remove-unapplied>Remove @(unappliedFilterNames.Count == 1 ? "this filter" : "these filters")</a>
+                            <a class="pm-gs-banner__action" href="@BuildUrl(Model.Q!, selectedCategory, preserveSources: !sourceUnapplied, preserveAdvanced: false)" data-search-remove-unapplied>Remove @(unappliedFilterNames.Count == 1 ? "this filter" : "these filters")</a>
                         }
                     </div>
                 </div>
@@ -298,7 +301,7 @@ else
                         <strong>Some filters were not applied.</strong>
                         <span>Your @unappliedFilters @unappliedVerb not applied in this search mode, so the results below are not filtered by @(unappliedFilterNames.Count == 1 ? "it" : "them").</span>
                         @* The filter panel is not shown in this mode, so this is the only way to clear them. *@
-                        <a class="pm-gs-banner__action" href="@BuildUrl(Model.Q!, selectedCategory, preserveAdvanced: false)" data-search-remove-unapplied>Remove @(unappliedFilterNames.Count == 1 ? "this filter" : "these filters")</a>
+                        <a class="pm-gs-banner__action" href="@BuildUrl(Model.Q!, selectedCategory, preserveSources: !sourceUnapplied, preserveAdvanced: false)" data-search-remove-unapplied>Remove @(unappliedFilterNames.Count == 1 ? "this filter" : "these filters")</a>
                     </div>
                 </div>
             }

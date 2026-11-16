@@ -65,16 +65,22 @@ public sealed class GlobalSearchService : IGlobalSearchService
         var reportsService = reportsScope.ServiceProvider.GetRequiredService<IGlobalProjectReportsSearchService>();
         var itProjectService = itProjectScope.ServiceProvider.GetRequiredService<IGlobalItProjectSearchService>();
 
+        // Sources that match the whole text with ILIKE (IPR, IT projects) do not understand
+        // "-word": they get the text without exclusions, or "cabling -fibre" finds nothing
+        // there. Full-text sources keep the typed text and leave excluded records out in the
+        // database. The gateway then checks every hit for excluded words.
+        var phraseQuery = new SearchV2.Query.SearchQueryNormalizer().Normalize(query).Searched;
+
         var tasks = new[]
         {
             SafeSearchAsync("Document Repository", () => docService.SearchAsync(query, 30, cancellationToken), cancellationToken),
             SafeSearchAsync("FFC", () => ffcService.SearchAsync(query, 20, cancellationToken), cancellationToken),
-            SafeSearchAsync("IPR", () => iprService.SearchAsync(query, 20, cancellationToken), cancellationToken),
+            SafeSearchAsync("IPR", () => iprService.SearchAsync(phraseQuery, 20, cancellationToken), cancellationToken),
             SafeSearchAsync("Activities", () => actService.SearchAsync(query, 20, cancellationToken), cancellationToken),
             SafeSearchAsync("Projects", () => projectService.SearchAsync(query, 20, cancellationToken), cancellationToken),
             SafeSearchAsync("Project documents", () => projectDocumentService.SearchAsync(query, 20, cancellationToken), cancellationToken),
             SafeSearchAsync("Project Office trackers", () => reportsService.SearchAsync(query, 20, cancellationToken), cancellationToken),
-            SafeSearchAsync("IT, MOLTI and SRE projects", () => itProjectService.SearchAsync(query, 20, cancellationToken), cancellationToken)
+            SafeSearchAsync("IT, MOLTI and SRE projects", () => itProjectService.SearchAsync(phraseQuery, 20, cancellationToken), cancellationToken)
         };
 
         var providerResults = await Task.WhenAll(tasks);

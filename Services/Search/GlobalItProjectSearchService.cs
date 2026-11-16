@@ -34,7 +34,8 @@ public sealed class GlobalItProjectSearchService : IGlobalItProjectSearchService
             return Array.Empty<GlobalSearchHit>();
         }
 
-        var pattern = SearchLikePattern.Contains(query.Trim());
+        var trimmed = query.Trim();
+        var pattern = SearchLikePattern.Contains(trimmed);
         var projects = await _dbContext.ItProjects
             .AsNoTracking()
             .Where(project => !project.IsDeleted &&
@@ -65,7 +66,7 @@ public sealed class GlobalItProjectSearchService : IGlobalItProjectSearchService
                 return new GlobalSearchHit(
                     Source: module.Name,
                     Title: project.Title,
-                    Snippet: string.IsNullOrWhiteSpace(project.Description) ? null : project.Description,
+                    Snippet: Excerpt(project.Description, trimmed),
                     Url: $"{module.RoutePrefix}/{project.Id}",
                     Date: new DateTimeOffset(DateTime.SpecifyKind(project.UpdatedAtUtc, DateTimeKind.Utc)),
                     Score: 0.6m,
@@ -73,5 +74,28 @@ public sealed class GlobalItProjectSearchService : IGlobalItProjectSearchService
                     Extra: $"{module.Singular} · {project.PppReferenceNumber} · FY {FinancialYearHelper.Format(project.FinancialYearStart)}");
             })
             .ToArray();
+    }
+
+    /// <summary>
+    /// About 240 characters of the description, starting a little before the match so a
+    /// three-line card shows it; the opening words when the match is elsewhere.
+    /// </summary>
+    internal static string? Excerpt(string? description, string query, int length = 240)
+    {
+        if (string.IsNullOrWhiteSpace(description)) return null;
+        var text = description.Trim();
+        if (text.Length <= length) return text;
+
+        var at = text.IndexOf(query, StringComparison.OrdinalIgnoreCase);
+        var start = at < 0 ? 0 : Math.Max(0, at - 60);
+        if (start > 0)
+        {
+            // Start on a word.
+            var space = text.IndexOf(' ', start);
+            start = space < 0 || space >= at ? start : space + 1;
+        }
+
+        var end = Math.Min(text.Length, start + length);
+        return (start > 0 ? "…" : string.Empty) + text[start..end].Trim() + (end < text.Length ? "…" : string.Empty);
     }
 }
