@@ -21,7 +21,7 @@
     'PrismCollageRender', 'PrismCollageLibraryDialog', 'PrismCollageSettings', 'PrismCollagePhotos',
     'PrismCollageSave', 'PrismCollagePage', 'PrismCollageDraftsScreen', 'PrismCollagePanels',
     'PrismCollageTray', 'PrismCollageKeys', 'PrismCollageState', 'PrismCollageAddPanels', 'PrismCollageActions', 'PrismCollageStart', 'PrismCollageToolbar',
-    'PrismCollageMessages', 'PDFLib', 'PrismPhotoTools'
+    'PrismCollageMessages', 'PrismCollageModel', 'PDFLib', 'PrismPhotoTools'
   ];
   const missing = parts.filter((name) => !window[name]);
   if (missing.length) {
@@ -69,7 +69,9 @@
   // State
   // ---------------------------------------------------------------------------
 
-  let collage = core.newCollage(core.DEFAULT_SIZE);
+  // The collage is frozen; it changes only through edit() (collage-model.js).
+  const frozen = (model) => window.PrismCollageModel.deepFreeze(model);
+  let collage = frozen(core.newCollage(core.DEFAULT_SIZE));
   // A two-finger zoom in progress: no item is dragged or panned meanwhile.
   let pinch = null;
   let selectedId = null;
@@ -164,7 +166,7 @@
     setPreviewing: (value) => { previewing = value; },
     setZoomLevel: (value) => { zoom = value; },
     setThumbnail: (value) => { thumbnail = value; },
-    setCollage: (model) => { collage = model; },
+    setCollage: (model) => { collage = frozen(model); },
     setPanel: (name) => { panel = name; },
     setPropsTab: (key) => { propsTab = key; },
     setTargetId: (id) => { targetId = id; },
@@ -259,9 +261,9 @@
     }
     if (request !== openRequest || views.start.hidden) return;
     resetEditor();
-    collage = core.newCollage(sizeKey);
+    collage = frozen(core.newCollage(sizeKey));
     if (layoutKey) {
-      collage = core.applyLayout(collage, layoutKey, core.LAYOUT_LIMITS.defaultGap, 0, [], newItemId).collage;
+      collage = frozen(core.applyLayout(collage, layoutKey, core.LAYOUT_LIMITS.defaultGap, 0, [], newItemId).collage);
     }
     changes.start(collage);
     // A new draft: it is first stored once it has a photo.
@@ -314,7 +316,7 @@
       if (!leave) return;
     }
     resetEditor();
-    collage = core.newCollage(core.DEFAULT_SIZE);
+    collage = frozen(core.newCollage(core.DEFAULT_SIZE));
     changes.start(collage);
     // The editor's messages and Undo offers do not follow the user to the start screen.
     clearEditorToasts();
@@ -362,7 +364,7 @@
   } = window.PrismCollagePage.createPage({
     state, parts: laterParts, change: changesFor('setShiftHeld', 'setTransforming', 'setScale', 'setPreviewing', 'setZoomLevel', 'choose'), root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag,
     emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select,
-    startAdjust, stopAdjust, startPan, commit, updateUndo, fontsArrived
+    startAdjust, stopAdjust, startPan, commit, updateUndo, fontsArrived, editItem
   });
   // Drafts in the editor: the draft status, writing the draft, its small picture, and the drafts
   // on the start screen (open, delete, Undo) (collage-drafts-screen.js).
@@ -417,8 +419,8 @@
       for (const node of nodes.values()) { node.stopDrag(); node.draggable(false); }
       // A move inside a frame begun by the first finger is put back and not kept.
       if (pan) {
-        const panned = itemById(pan.id);
-        if (panned) panned.crop = { ...pan.crop };
+        const started = pan;
+        editItem(started.id, (panned) => { panned.crop = { ...started.crop }; }, 'live');
         pan = null;
         syncPage();
       }
@@ -463,8 +465,7 @@
     selectedId = id;
     // Zoomed in a little to begin with, so there is something to move.
     if ((item.crop?.zoom || 1) < 1.2) {
-      item.crop = clampedCrop({ ...item, crop: { ...item.crop, zoom: 1.2 } });
-      recordQuietly();
+      editItem(id, (it) => { it.crop = clampedCrop({ ...it, crop: { ...it.crop, zoom: 1.2 } }); }, 'record');
     }
     adjustHint.hidden = false;
     syncPage();
@@ -506,8 +507,9 @@
     const dy = point.y - pan.start.y;
     const along = dx * Math.cos(rad) - dy * Math.sin(rad);
     const across = dx * Math.sin(rad) + dy * Math.cos(rad);
-    item.crop = core.panCrop(photo.aspect, { ...item, crop: pan.crop }, along, across);
-    applyItem(nodes.get(item.id), item);
+    // Shown as it moves; recorded once when it is let go (endPan).
+    editItem(item.id, (it) => { it.crop = core.panCrop(photo.aspect, { ...it, crop: pan.crop }, along, across); }, 'live');
+    applyItem(nodes.get(item.id), itemById(item.id));
     layer.batchDraw();
   });
 
@@ -598,7 +600,7 @@
   }
 
   function restore(next) {
-    collage = next;
+    collage = frozen(next);
     // Undo or Redo bringing back a removed photo puts it back in the tray.
     for (const id of core.photosInUse(collage)) {
       const photo = photos.get(id);
@@ -632,14 +634,16 @@
   ].join(', ');
 
   function changeSelected(change, record = true) {
+    if (!selectedItem()) return;
+    editItem(selectedId, (draft) => {
+      // Words are measured before the change too: a size kept from before their font arrived
+      // (Undo can bring one back) would put them in the wrong place when lined up on the page.
+      if (draft.kind === 'text') fitText(draft);
+      change(draft);
+      // Words take the size they need inside the change, so Undo and the draft keep it.
+      if (draft.kind === 'text') fitText(draft);
+    }, 'none');
     const item = selectedItem();
-    if (!item) return;
-    // Words are measured before the change too: a size kept from before their font arrived
-    // (Undo can bring one back) would put them in the wrong place when lined up on the page.
-    if (item.kind === 'text') fitText(item);
-    change(item);
-    // Words take the size they need inside the change, so Undo and the draft keep it.
-    if (item.kind === 'text') fitText(item);
     if (record) commit();
     else {
       syncPage();
@@ -667,14 +671,39 @@
     if (views.editor.hidden) return;
     const offSize = collage.items.filter((item) => item.kind === 'text' && textOffSize(item));
     if (!offSize.length) { syncPage(); return; }
-    offSize.forEach((item) => fitText(item));
-    syncPage();
-    recordQuietly();
+    const ids = new Set(offSize.map((item) => item.id));
+    edit((draft) => { draft.items.forEach((item) => { if (ids.has(item.id)) fitText(item); }); }, 'record');
+  }
+
+  const modelEditor = window.PrismCollageModel.createModelEditor({
+    getModel: () => collage,
+    setModel: (model) => { collage = model; },
+    keep: {
+      commit: () => commit(),
+      hold: () => { syncPage(); holdEdit(); },
+      record: () => { syncPage(); recordQuietly(); },
+      live: () => {}
+    }
+  });
+
+  /**
+   * The one way the collage changes (collage-model.js): change(draft) changes a copy, which then
+   * becomes the collage, frozen; how says how the change is kept: 'commit' (a finished change),
+   * 'hold' (still going on), 'record' (a quiet step), 'live' (shown while dragging; recorded when
+   * let go) or 'none' (the caller records it).
+   */
+  function edit(change, how) {
+    return modelEditor.edit(change, how);
+  }
+
+  /** edit() for one item, found by id in the copy. */
+  function editItem(id, change, how) {
+    return modelEditor.editItem(id, change, how);
   }
 
   /** A new item on the page (words, a sticker): selected, with its settings shown. */
   function placeNewItem(item) {
-    collage.items.push(item);
+    edit((draft) => { draft.items.push(item); }, 'none');
     selectedId = item.id;
     propsTab = 'settings';
     stopAdjust(false);
@@ -721,7 +750,7 @@
     const gap = collage.layout ? collage.layout.gap : core.LAYOUT_LIMITS.defaultGap;
     const radius = collage.layout ? collage.layout.radius : 0;
     const result = core.applyLayout(collage, key, gap, radius, sparePhotos(), newItemId, { locked: choice });
-    collage = result.collage;
+    collage = frozen(result.collage);
     selectedId = null;
     stopAdjust(false);
     commit();
@@ -733,9 +762,10 @@
   }
 
   // the Text, Stickers and Background panels (collage-add-panels.js).
-  const { renderTextPanel, forgetPhotoPreviews, renderBackgroundPanel, setBackground, loadUnitStickers, renderStickerPanel } = window.PrismCollageAddPanels.createAddPanels({ state, parts: laterParts, root, core, draw, stickers, library, $, views, photos, newItemId, pageHeight, keepingFocus, announce, backLayer, layoutTextItem, stickerSource, syncPage, commit, placeNewItem });
+  const { renderTextPanel, forgetPhotoPreviews, renderBackgroundPanel, setBackground, loadUnitStickers, renderStickerPanel } = window.PrismCollageAddPanels.createAddPanels({ state, parts: laterParts, root, core, draw, stickers, library, $, views, photos, newItemId, pageHeight, keepingFocus, announce, backLayer, layoutTextItem, stickerSource, syncPage, commit, placeNewItem, edit
+  });
   // the actions: buttons, menu items and keys that change the collage (collage-actions.js).
-  const { offerUndo, act } = window.PrismCollageActions.createActions({ state, parts: laterParts, root, core, $, views, fileInput, nameInput, sizeSelect, body, props, changes, photos, newItemId, itemById, selectedItem, isFrame, change: changesFor('setCollage', 'choose', 'toggleDraftsExpanded'), announce, clearAlert, startCollage, goHome, layer, layout, startPreview, stopPreview, setZoom, session, scheduleDraft, renderDrafts, undoDeleteDraft, openDraft, select, startAdjust, stopAdjust, refreshTitle, commit, updateUndo, restore, changeSelected, lockedNow, applyLayoutKey, sayLocked
+  const { offerUndo, act } = window.PrismCollageActions.createActions({ state, parts: laterParts, root, core, $, views, fileInput, nameInput, sizeSelect, body, props, changes, photos, newItemId, itemById, selectedItem, isFrame, change: changesFor('setCollage', 'choose', 'toggleDraftsExpanded'), announce, clearAlert, startCollage, goHome, layer, layout, startPreview, stopPreview, setZoom, session, scheduleDraft, renderDrafts, undoDeleteDraft, openDraft, select, startAdjust, stopAdjust, refreshTitle, commit, updateUndo, restore, changeSelected, lockedNow, applyLayoutKey, sayLocked, edit, editItem
   });
   // The panels: the left drawer (layouts and the rest) and the settings panel with its Settings
   // and Layers tabs (collage-panels.js).
@@ -745,7 +775,7 @@
     state, change: changesFor('setPanel', 'setPropsTab', 'setCollage'), $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos,
     selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select,
     zoomCrop, flushNudge, holdEdit, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected,
-    renderBackgroundPanel, offerUndo
+    renderBackgroundPanel, offerUndo, edit
   });
   // Photos: choosing, dropping and pasting them, reading them in, the tray, and From PRISM Photos
   // (collage-tray.js).
@@ -756,7 +786,7 @@
     state, change: changesFor('setTargetId', 'choose'), $, root, core, library, views, fileInput, stageBox, tray, photoCount, replaceBanner,
     changes, photos, nextId, newItemId, itemById, selectedItem, pageHeight, firstSlot,
     keepingFocus, announce, showAlert, busy, session, scheduleDraft, stage, world, layout, commit,
-    setPanel
+    setPanel, edit
   });
   // ---------------------------------------------------------------------------
   // Save as… (collage-save.js)
@@ -772,7 +802,7 @@
   window.PrismCollageKeys.createKeys({
     state, change: changesFor(), core, views, stageBox, props, photos, itemById, selectedItem, announce, setShift,
     stopPreview, setZoom, syncPage, select, stopAdjust, zoomCrop, holdEdit, changeSelected, act,
-    focusTextField, setTarget, sayLocked
+    focusTextField, setTarget, sayLocked, editItem
   });
   // ---------------------------------------------------------------------------
   // Start

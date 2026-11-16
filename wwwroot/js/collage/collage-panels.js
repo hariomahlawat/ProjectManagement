@@ -11,7 +11,7 @@
   'use strict';
 
   function createPanels(deps) {
-    const { state, change, $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos, selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select, zoomCrop, flushNudge, holdEdit, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected, renderBackgroundPanel, offerUndo } = deps;
+    const { state, change, $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos, selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select, zoomCrop, flushNudge, holdEdit, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected, renderBackgroundPanel, offerUndo, edit } = deps;
     // ---------------------------------------------------------------------------
     // Panels on the left
     // ---------------------------------------------------------------------------
@@ -99,8 +99,10 @@
         } else if (which === 'radius') {
           // Corners change only the corners: turned photos and their crops stay as they are.
           // A locked frame keeps its own corners.
-          state.collage.items.forEach((item) => { if (isFrame(item) && !item.locked) item.radius = value; });
-          if (state.collage.layout) state.collage.layout = { ...state.collage.layout, radius: value };
+          edit((draft) => {
+            draft.items.forEach((item) => { if (isFrame(item) && !item.locked) item.radius = value; });
+            if (draft.layout) draft.layout = { ...draft.layout, radius: value };
+          }, 'none');
         }
         syncPage();
         // Held like every other slider, so a draft written mid-drag (the page hidden) keeps it.

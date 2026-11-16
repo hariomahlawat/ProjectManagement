@@ -11,7 +11,7 @@
   'use strict';
 
   function createTray(deps) {
-    const { state, change, $, root, core, library, views, fileInput, stageBox, tray, photoCount, replaceBanner, changes, photos, nextId, newItemId, itemById, selectedItem, pageHeight, firstSlot, keepingFocus, announce, showAlert, busy, session, scheduleDraft, stage, world, layout, commit, setPanel } = deps;
+    const { state, change, $, root, core, library, views, fileInput, stageBox, tray, photoCount, replaceBanner, changes, photos, nextId, newItemId, itemById, selectedItem, pageHeight, firstSlot, keepingFocus, announce, showAlert, busy, session, scheduleDraft, stage, world, layout, commit, setPanel, edit } = deps;
     // ---------------------------------------------------------------------------
     // Photos: choose, drop, paste, and the tray
     // ---------------------------------------------------------------------------
@@ -50,26 +50,31 @@
       if (!frame && !at && state.collage.layout) return false;
       if (frame && frame.kind === 'slot') {
         const filled = core.fillSlot(frame, photo.id);
-        state.collage.items[state.collage.items.indexOf(frame)] = filled;
+        edit((draft) => { draft.items[draft.items.findIndex((i) => i.id === frame.id)] = filled; }, 'none');
         change.choose(filled.id);
         return true;
       }
       if (frame && frame.kind === 'photo') {
-        frame.photo = photo.id;
-        frame.crop = { ...core.FULL_CROP };
+        edit((draft) => {
+          const target = draft.items.find((i) => i.id === frame.id);
+          target.photo = photo.id;
+          target.crop = { ...core.FULL_CROP };
+        }, 'none');
         change.choose(frame.id);
         return true;
       }
-      // A photo placed freely means the page is no longer a strict grid, so changing the space
-      // would not silently take it off the page.
-      state.collage.layout = null;
       const count = state.collage.items.filter((i) => i.kind === 'photo').length;
       // Several photos on a page with no layout go into a neat grid, each fully in view.
       const place = (!at && core.gridPlace(state.collage.items, state.collage.size, photo.aspect, count + among))
         || core.placeNewPhoto(state.collage.size, photo.aspect, count);
       if (at) { place.x = at.x; place.y = at.y; }
       const item = core.photoItem(newItemId(), photo.id, photo.aspect, place);
-      state.collage.items.push(item);
+      edit((draft) => {
+        // A photo placed freely means the page is no longer a strict grid, so changing the space
+        // would not silently take it off the page.
+        draft.layout = null;
+        draft.items.push(item);
+      }, 'none');
       change.choose(item.id);
       return true;
     }

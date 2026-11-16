@@ -11,7 +11,7 @@
   'use strict';
 
   function createActions(deps) {
-    const { state, parts, root, core, $, views, fileInput, nameInput, sizeSelect, body, props, changes, photos, newItemId, itemById, selectedItem, isFrame, change, announce, clearAlert, startCollage, goHome, layer, layout, startPreview, stopPreview, setZoom, session, scheduleDraft, renderDrafts, undoDeleteDraft, openDraft, select, startAdjust, stopAdjust, refreshTitle, commit, updateUndo, restore, changeSelected, lockedNow, applyLayoutKey, sayLocked } = deps;
+    const { state, parts, root, core, $, views, fileInput, nameInput, sizeSelect, body, props, changes, photos, newItemId, itemById, selectedItem, isFrame, change, announce, clearAlert, startCollage, goHome, layer, layout, startPreview, stopPreview, setZoom, session, scheduleDraft, renderDrafts, undoDeleteDraft, openDraft, select, startAdjust, stopAdjust, refreshTitle, commit, updateUndo, restore, changeSelected, lockedNow, applyLayoutKey, sayLocked, edit, editItem } = deps;
     // The one Undo offered on the screen after a delete: good only while nothing else has changed.
     let undoOffer = null;
 
@@ -56,10 +56,12 @@
           if (item) {
             // A copy is one frame more than the layout has, so the page is no longer a strict
             // grid; otherwise the next change of space or page size would drop the copy.
-            state.collage.layout = null;
             const copy = { ...core.duplicateItem(item, newItemId()), crop: item.crop ? { ...item.crop } : undefined };
             if (!copy.crop) delete copy.crop;
-            state.collage.items.splice(state.collage.items.indexOf(item) + 1, 0, copy);
+            edit((draft) => {
+              draft.layout = null;
+              draft.items.splice(draft.items.findIndex((i) => i.id === item.id) + 1, 0, copy);
+            }, 'none');
             change.choose(copy.id);
             commit();
             announce('Duplicated.');
@@ -67,17 +69,18 @@
           break;
         case 'lock':
           if (item) {
-            item.locked = !item.locked;
-            if (item.locked) lockedNow(item);
+            const locked = !item.locked;
+            editItem(item.id, (it) => { it.locked = locked; }, 'none');
+            if (locked) lockedNow(item);
             commit();
-            announce(item.locked ? 'Locked.' : 'Unlocked.');
+            announce(locked ? 'Locked.' : 'Unlocked.');
           }
           break;
         case 'hide':
           if (item) {
-            item.hidden = !item.hidden;
-            commit();
-            announce(item.hidden ? 'Hidden. Show it again from Layers.' : 'Shown.');
+            const hidden = !item.hidden;
+            editItem(item.id, (it) => { it.hidden = hidden; }, 'commit');
+            announce(hidden ? 'Hidden. Show it again from Layers.' : 'Shown.');
           }
           break;
         case 'preview':
@@ -96,8 +99,11 @@
             // A photo in a layout leaves its frame empty, so the layout keeps its shape; anything
             // else (and an empty frame) goes.
             const leavesFrame = item.kind === 'photo' && Boolean(state.collage.layout);
-            if (leavesFrame) state.collage.items[state.collage.items.indexOf(item)] = core.emptyFrame(item);
-            else state.collage.items = state.collage.items.filter((i) => i !== item);
+            edit((draft) => {
+              const at = draft.items.findIndex((i) => i.id === item.id);
+              if (leavesFrame) draft.items[at] = core.emptyFrame(draft.items[at]);
+              else draft.items.splice(at, 1);
+            }, 'none');
             change.choose(leavesFrame ? item.id : null);
             stopAdjust(false);
             commit();
@@ -107,7 +113,7 @@
           }
           break;
         case 'forward': case 'backward': case 'front': case 'back':
-          if (item) { state.collage.items = core.reorder(state.collage.items, item.id, action); commit(); }
+          if (item) edit((draft) => { draft.items = core.reorder(draft.items, item.id, action); }, 'commit');
           break;
         case 'rotate-left':
         case 'rotate-right':
@@ -198,13 +204,18 @@
       const layerHide = event.target.closest('[data-layer-hide]');
       if (layerHide) {
         const target = itemById(layerHide.dataset.layerHide);
-        if (target) { target.hidden = !target.hidden; commit(); }
+        if (target) editItem(target.id, (it) => { it.hidden = !it.hidden; }, 'commit');
         return;
       }
       const layerLock = event.target.closest('[data-layer-lock]');
       if (layerLock) {
         const target = itemById(layerLock.dataset.layerLock);
-        if (target) { target.locked = !target.locked; if (target.locked) lockedNow(target); commit(); }
+        if (target) {
+          const locked = !target.locked;
+          editItem(target.id, (it) => { it.locked = locked; }, 'none');
+          if (locked) lockedNow(target);
+          commit();
+        }
         return;
       }
       const button = event.target.closest('[data-action]');
