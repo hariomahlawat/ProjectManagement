@@ -759,7 +759,8 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    `ComposeKeyPointsOnlySlides` is the internal test path; tests in
    `ProjectBriefingKeyPointsOnlySlideTests`). A 6.1 in 16:9 photograph sits on the left and the
    recorded points run down the right as cards, each under its catalog heading, at 13, 12 or
-   11 pt (the largest every point fits; five 130-character points stay at 12 pt). Stage and cost
+   11 pt (the largest every point fits, measured cautiously so PowerPoint's wrap cannot overflow
+   a card: five 130-character points are 12 pt, or 11 pt above a two-line status remark). Stage and cost
    use the key points layout's line under the title; the status remark, when shown, runs full
    width under both. Only recorded points show; with none, the column shows a "Key points not
    recorded" placeholder and nothing else. PR 5 still adds it to `BuildStandardPlans`, the
