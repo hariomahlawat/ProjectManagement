@@ -282,12 +282,19 @@
                     <h2 id="clgSaveTitle">Save the collage</h2>
                     <button type="button" class="btn-close" data-action="save-close" aria-label="Close"></button>
                 </div>
+                @* What it is for comes first, with what it makes; the type and quality it picks are
+                   under More options (docs/ux/collage-review-3-fixes.md, PR 6). *@
                 <div class="clg-purpose" role="group" aria-labelledby="clgPurposeLabel">
                     <span class="clg-purpose__label" id="clgPurposeLabel">What is it for?</span>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-save-purpose="share">WhatsApp or email</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-save-purpose="print">Printing</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-save-purpose="slide">A slide or a screen</button>
+                    <div class="clg-purpose__choices">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-save-purpose="share" aria-pressed="false"><i class="bi bi-check-lg" aria-hidden="true"></i> WhatsApp or email</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-save-purpose="print" aria-pressed="false"><i class="bi bi-check-lg" aria-hidden="true"></i> Printing</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-save-purpose="slide" aria-pressed="false"><i class="bi bi-check-lg" aria-hidden="true"></i> A slide or a screen</button>
+                    </div>
+                    <p class="clg-save-summary" data-save-summary></p>
                 </div>
+                <details class="clg-more" data-save-more>
+                <summary>More options <span class="clg-more__hint">type and quality</span></summary>
                 <fieldset class="clg-options">
                     <legend>Save as</legend>
                     <label class="clg-option"><input type="radio" name="format" value="png" checked>
@@ -315,6 +322,7 @@
                     <label class="clg-option"><input type="radio" name="quality" value="screen">
                         <span><b>Screen</b><small>1,920 pixels on the long side. Quicker to share.</small></span></label>
                 </fieldset>
+                </details>
                 <p class="clg-hint" data-save-empty hidden></p>
                 <p class="clg-save-result" data-save-result role="status" hidden></p>
                 <div class="clg-dialog__foot">

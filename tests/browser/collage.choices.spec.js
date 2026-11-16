@@ -97,7 +97,8 @@ test('Save starts on WhatsApp, shows the purpose chosen, and remembers it next t
   await page.getByRole('button', { name: 'Printing' }).click();
   await expect(page.getByRole('button', { name: 'Printing' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'WhatsApp or email' })).toHaveAttribute('aria-pressed', 'false');
-  // Changing the type by hand: no purpose matches it any more.
+  // Changing the type by hand (under More options): no purpose matches it any more.
+  await page.locator('[data-save-more] > summary').click();
   await page.locator('input[name="format"][value="png"]').check();
   await expect(page.locator('[data-save-purpose][aria-pressed="true"]')).toHaveCount(0);
   await page.locator('[data-action="save-close"]').first().click();
