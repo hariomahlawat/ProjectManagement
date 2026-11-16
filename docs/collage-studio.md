@@ -164,7 +164,7 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-toolbar.js` | The selected item's toolbar (placed where it can be seen, clear of the item) and the angle shown while it turns |
 | `wwwroot/js/collage/collage-add-panels.js` | The Text, Stickers and Background panels, with their own buttons |
 | `wwwroot/js/collage/collage-actions.js` | The actions: toolbar and menu buttons, Undo and Redo, delete with its Undo offer, page size, and the clicks the panels do not answer |
-| `wwwroot/js/collage/collage-app.js` | The editor itself (about 750 lines): its values, selection, moving a photo in its frame, the change log, and creating the parts above, each with the helpers it uses, `state` and its own named changes |
+| `wwwroot/js/collage/collage-app.js` | The editor itself: its values, selection, moving a photo in its frame, the change log, and creating the parts above. Each part is handed the libraries it uses, `state`, its own named changes and its helpers in a few groups (`ui`, `doc`, `history`, `messages`, `surface`, `selection`, `screens`), each read when used, so a part made before another can still reach it; no part is handed more than twelve names (a unit test checks) |
 | `wwwroot/css/collage.css` | All styles, Bootstrap variables only (Light and Dark) |
 
 Photo handling keeps memory low: the editor draws a working copy at most 2000 px on its long side,

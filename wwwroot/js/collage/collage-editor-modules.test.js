@@ -11,6 +11,28 @@ const stickers = require('./collage-stickers.js');
 const { createEditorState, createLaterParts } = require('./collage-state.js');
 const { createModelEditor } = require('./collage-model.js');
 
+// The parts are handed their helpers in groups, as collage-app.js hands them (PR 11).
+const GROUPS = {
+  ui: ['$', 'root', 'views', 'body', 'props', 'stageBox', 'stageHost', 'angleTag', 'layoutGrid', 'sizeSelect', 'nameInput', 'fileInput', 'tray', 'replaceBanner', 'emptyHint', 'zoomValue', 'toolbar', 'coarsePointer', 'FRAME_WIDTHS', 'LOCKED_CONTROLS', 'THUMBNAIL_EVERY_MS'],
+  doc: ['edit', 'editItem', 'itemById', 'selectedItem', 'isFrame', 'photos', 'newItemId', 'nextId', 'pageHeight', 'firstSlot', 'hasContent', 'collageTitle', 'photoCount'],
+  history: ['commit', 'holdEdit', 'flushNudge', 'changes', 'updateUndo', 'restore', 'scheduleDraft', 'session'],
+  messages: ['announce', 'showAlert', 'clearAlert', 'busy', 'sayLocked', 'offerUndo', 'askConfirm', 'keepingFocus'],
+  surface: ['stage', 'layer', 'backLayer', 'world', 'nodes', 'transformer', 'syncPage', 'syncAll', 'layout', 'setZoom', 'startPreview', 'stopPreview', 'clampedCrop', 'layoutTextItem', 'stickerSource', 'visibleSheetTop', 'setShift', 'fontsArrived'],
+  selection: ['select', 'startAdjust', 'stopAdjust', 'startPan', 'changeSelected', 'lockedNow', 'placeNewItem', 'zoomCrop', 'setTarget', 'focusTextField', 'act'],
+  screens: ['startCollage', 'goHome', 'openDraft', 'renderDrafts', 'undoDeleteDraft', 'resetEditor', 'showView', 'refreshTitle', 'applyLayoutKey', 'setPanel', 'renderBackgroundPanel']
+};
+const GROUP_OF = Object.fromEntries(Object.entries(GROUPS).flatMap(([group, names]) => names.map((name) => [name, group])));
+/** A flat set of stand-ins, grouped the way the app groups them. */
+function grouped(flat) {
+  const out = {};
+  for (const [name, value] of Object.entries(flat)) {
+    const group = GROUP_OF[name];
+    if (group) (out[group] ||= {})[name] = value;
+    else out[name] = value;
+  }
+  return out;
+}
+
 const GLOBALS = ['window', 'document', 'Event', 'KeyboardEvent', 'MouseEvent', 'MutationObserver', 'HTMLElement'];
 
 /** A page in jsdom whose window and document the parts use as globals until the test ends. */
@@ -122,7 +144,7 @@ function makeTray(t, initial = {}, extra = {}) {
   const photos = extra.photos || new Map();
   let ids = 0;
   const root = dom.$('#root');
-  const tray = require('./collage-tray.js').createTray({
+  const tray = require('./collage-tray.js').createTray(grouped({
     state: editor.state,
     edit: editor.edit,
     editItem: editor.editItem,
@@ -150,7 +172,7 @@ function makeTray(t, initial = {}, extra = {}) {
     stage: { setPointersPositions() {}, getPointerPosition: () => null, getIntersection: () => null },
     world: { getRelativePointerPosition: () => null },
     ...fns
-  });
+  }));
   return { ...dom, ...editor, tray, calls, photos, read };
 }
 
@@ -275,7 +297,7 @@ function makeKeys(t, initial = {}) {
     if (item) fn(item);
     assert.equal(record, false);
   };
-  require('./collage-keys.js').createKeys({
+  require('./collage-keys.js').createKeys(grouped({
     state: editor.state,
     edit: editor.edit,
     editItem: editor.editItem,
@@ -289,7 +311,7 @@ function makeKeys(t, initial = {}) {
     selectedItem: editor.selectedItem,
     changeSelected,
     ...fns
-  });
+  }));
   const press = (key, options = {}, target = dom.document.body) => {
     const event = new dom.window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...options });
     target.dispatchEvent(event);
@@ -383,7 +405,7 @@ function makePanels(t, initial = {}) {
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({ filter: 'none' });
   const editor = editorValues(initial);
   const { calls, fns } = recorder(['layout', 'syncPage', 'select', 'zoomCrop', 'flushNudge', 'commit', 'renderBackgroundPanel', 'offerUndo', 'changeSelected']);
-  const panels = require('./collage-panels.js').createPanels({
+  const panels = require('./collage-panels.js').createPanels(grouped({
     state: editor.state,
     edit: editor.edit,
     editItem: editor.editItem,
@@ -407,7 +429,7 @@ function makePanels(t, initial = {}) {
     FRAME_WIDTHS: [60, 1400],
     LOCKED_CONTROLS: '[data-prop="angle"], [data-prop="width"], [data-action="delete"], [data-prop="radius"]',
     ...fns
-  });
+  }));
   return { ...dom, ...editor, panels, calls };
 }
 
@@ -502,7 +524,7 @@ function makeDraftsScreen(t, session, initial = {}) {
   const photos = new Map();
   const readers = { readPhoto: async (entry, id) => ({ ...photoOf(id), name: entry.name }), missingPhoto: (entry) => ({ ...photoOf(entry.id), missing: true }) };
   let resets = 0;
-  const screen = require('./collage-drafts-screen.js').createDraftsScreen({
+  const screen = require('./collage-drafts-screen.js').createDraftsScreen(grouped({
     state: editor.state,
     parts: createLaterParts({
       keptPhotos: () => () => [...photos.values()],
@@ -525,7 +547,7 @@ function makeDraftsScreen(t, session, initial = {}) {
     resetEditor: () => { resets += 1; photos.clear(); },
     collageTitle: () => 'Collage',
     ...fns
-  });
+  }));
   return { ...dom, ...editor, screen, calls, photos, readers, resets: () => resets, sessionOptions: () => sessionOptions };
 }
 
@@ -664,7 +686,7 @@ function makeActions(t, initial = {}) {
   const names = ['announce', 'clearAlert', 'startCollage', 'goHome', 'layer', 'layout', 'startPreview', 'stopPreview', 'setZoom', 'scheduleDraft', 'renderDrafts', 'undoDeleteDraft', 'openDraft', 'select', 'startAdjust', 'stopAdjust', 'refreshTitle', 'commit', 'updateUndo', 'restore', 'lockedNow', 'applyLayoutKey', 'sayLocked'];
   const { calls, fns } = recorder(names);
   let ids = 0;
-  const actions = require('./collage-actions.js').createActions({
+  const actions = require('./collage-actions.js').createActions(grouped({
     state: editor.state,
     edit: editor.edit,
     editItem: editor.editItem,
@@ -688,7 +710,7 @@ function makeActions(t, initial = {}) {
     session: { remove() {}, keepAgain() {} },
     changeSelected: (fn) => { const item = editor.selectedItem(); if (item) { fn(item); fns.commit(); } },
     ...fns
-  });
+  }));
   return { ...dom, ...editor, actions, calls };
 }
 
@@ -847,7 +869,7 @@ function makeAddPanels(t, library) {
   const editor = editorValues();
   const { calls, fns } = recorder(['announce', 'syncPage', 'commit']);
   let ids = 0;
-  const panels = require('./collage-add-panels.js').createAddPanels({
+  const panels = require('./collage-add-panels.js').createAddPanels(grouped({
     state: editor.state,
     edit: editor.edit,
     editItem: editor.editItem,
@@ -868,7 +890,7 @@ function makeAddPanels(t, library) {
     stickerSource: () => 'data:image/png;base64,AA',
     placeNewItem: (item) => { editor.values.collage.items.push(item); editor.values.selectedId = item.id; },
     ...fns
-  });
+  }));
   return { ...dom, ...editor, panels, calls };
 }
 

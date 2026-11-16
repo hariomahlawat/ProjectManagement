@@ -1,7 +1,8 @@
 // PRISM Collage Studio — the Text, Stickers and Background panels
 // Moved out of the editor in docs/ux/collage-review-3-fixes.md, PR 11; collage-app.js creates it
-// once, handing over the helpers it uses, `state` (the editor's values, read only) and the parts
-// made later (collage-state.js).
+// once, handing over the libraries it uses, `state` (the editor's values, read only), its own named
+// changes, and its helpers in a few groups (ui, doc, history, messages, surface, selection,
+// screens), each read when used (collage-state.js; docs/ux/collage-review-4-fixes.md, PR 11).
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -11,7 +12,7 @@
   'use strict';
 
   function createAddPanels(deps) {
-    const { state, parts, root, core, draw, stickers, library, $, views, photos, newItemId, pageHeight, keepingFocus, announce, backLayer, layoutTextItem, stickerSource, syncPage, commit, placeNewItem, edit } = deps;
+    const { state, parts, core, draw, stickers, library, ui, doc, messages, surface, history, selection } = deps;
     /** Ready-made headings and the plain ways to start text, from the Text panel. */
     // What the four plain starts say on their buttons (the words they add are the placeholders).
     const TEXT_START_LABELS = Object.freeze({ heading: 'A heading', subheading: 'A subheading', line: 'A line of text', hindi: 'हिंदी में लिखें' });
@@ -37,7 +38,7 @@
 
     /** The Text panel: plain starts and ready-made headings, each shown in its own font. */
     function renderTextPanel() {
-      keepingFocus(() => renderTextPanelNow());
+      messages.keepingFocus(() => renderTextPanelNow());
     }
 
     function renderTextPanelNow() {
@@ -67,10 +68,10 @@
         }
         return el;
       };
-      const starts = root.querySelector('[data-text-starts]');
+      const starts = ui.root.querySelector('[data-text-starts]');
       starts.replaceChildren(...['heading', 'subheading', 'line', 'hindi'].map((key) => button(key, false)));
-      root.querySelector('[data-text-headings]').replaceChildren(...['farewell', 'birthday', 'thanks', 'congrats', 'picnic', 'wishes'].map((key) => button(key, true)));
-      root.querySelector('[data-text-headings-hi]').replaceChildren(...['hShubh', 'hVidai', 'hJanm', 'hSeva', 'hDiwali', 'hDhanya'].map((key) => button(key, true)));
+      ui.root.querySelector('[data-text-headings]').replaceChildren(...['farewell', 'birthday', 'thanks', 'congrats', 'picnic', 'wishes'].map((key) => button(key, true)));
+      ui.root.querySelector('[data-text-headings-hi]').replaceChildren(...['hShubh', 'hVidai', 'hJanm', 'hSeva', 'hDiwali', 'hDhanya'].map((key) => button(key, true)));
     }
 
     /** A small picture of a background, for its button in the panel. */
@@ -82,7 +83,7 @@
       context.scale(96 / 300, 68 / 212);
       let photo = null;
       if (background.type === 'photo') {
-        const source = photos.get(background.photo);
+        const source = doc.photos.get(background.photo);
         if (source) photo = { source: source.canvas, width: source.canvas.width, height: source.canvas.height };
       }
       draw.drawBackground(context, background, 300, 212, { photo, pixelsPerUnit: 96 / 300 });
@@ -106,7 +107,7 @@
     function backgroundTile(background, label) {
       const key = JSON.stringify(background);
       // A photo's preview is made again only if its working copy changed.
-      const source = background.type === 'photo' ? photos.get(background.photo)?.canvas : null;
+      const source = background.type === 'photo' ? doc.photos.get(background.photo)?.canvas : null;
       const cached = backgroundPreviews.get(key);
       if (!cached || cached.source !== source) backgroundPreviews.set(key, { url: backgroundPreview(background), source });
       const button = document.createElement('button');
@@ -127,7 +128,7 @@
 
     /** The Background panel: colours, gradients, patterns, textures and the page's photos. */
     function renderBackgroundPanel() {
-      keepingFocus(() => renderBackgroundPanelNow());
+      messages.keepingFocus(() => renderBackgroundPanelNow());
     }
 
     let backgroundPanelShown = '';
@@ -136,10 +137,10 @@
       const current = state.collage.background || { type: 'color', value: '#ffffff' };
       // Nothing it shows changed (the background and the page's photos): it is left as it is.
       const shownPhotos = [...new Set(state.collage.items.filter((item) => item.kind === 'photo').map((item) => item.photo))].slice(0, 9);
-      const shown = JSON.stringify([current, shownPhotos.map((id) => [id, photos.get(id)?.missing === true])]);
+      const shown = JSON.stringify([current, shownPhotos.map((id) => [id, doc.photos.get(id)?.missing === true])]);
       if (shown === backgroundPanelShown) return;
       backgroundPanelShown = shown;
-      const colours = root.querySelector('[data-bg-colours]');
+      const colours = ui.root.querySelector('[data-bg-colours]');
       colours.replaceChildren(...core.BACKGROUND_COLOURS.map((value) => {
         const button = document.createElement('button');
         button.type = 'button';
@@ -151,21 +152,21 @@
         button.setAttribute('aria-pressed', String(current.type === 'color' && current.value === value));
         return button;
       }));
-      const pick = root.querySelector('[data-bg-pick]');
+      const pick = ui.root.querySelector('[data-bg-pick]');
       pick.value = current.type === 'color' ? current.value : '#ffffff';
-      root.querySelector('[data-bg-gradients]').replaceChildren(...Object.entries(core.GRADIENTS).map(([key, entry]) => backgroundTile({ type: 'gradient', key }, entry.label)));
-      root.querySelector('[data-bg-patterns]').replaceChildren(...Object.entries(core.PATTERNS).map(([key, entry]) => backgroundTile({ type: 'pattern', key }, entry.label)));
-      root.querySelector('[data-bg-textures]').replaceChildren(...Object.entries(core.TEXTURES).map(([key, entry]) => backgroundTile({ type: 'texture', key }, entry.label)));
+      ui.root.querySelector('[data-bg-gradients]').replaceChildren(...Object.entries(core.GRADIENTS).map(([key, entry]) => backgroundTile({ type: 'gradient', key }, entry.label)));
+      ui.root.querySelector('[data-bg-patterns]').replaceChildren(...Object.entries(core.PATTERNS).map(([key, entry]) => backgroundTile({ type: 'pattern', key }, entry.label)));
+      ui.root.querySelector('[data-bg-textures]').replaceChildren(...Object.entries(core.TEXTURES).map(([key, entry]) => backgroundTile({ type: 'texture', key }, entry.label)));
       const onPage = [...new Set(state.collage.items.filter((item) => item.kind === 'photo').map((item) => item.photo))].slice(0, 9);
       // Each photo by its own name, so the user knows which one goes behind the page.
-      root.querySelector('[data-bg-photos]').replaceChildren(...onPage.map((id, n) => backgroundTile({ type: 'photo', photo: id }, `${photos.get(id)?.name || `Photo ${n + 1}`}, blurred`)));
-      root.querySelector('[data-bg-photos-none]').hidden = onPage.length > 0;
+      ui.root.querySelector('[data-bg-photos]').replaceChildren(...onPage.map((id, n) => backgroundTile({ type: 'photo', photo: id }, `${doc.photos.get(id)?.name || `Photo ${n + 1}`}, blurred`)));
+      ui.root.querySelector('[data-bg-photos-none]').hidden = onPage.length > 0;
     }
 
     function setBackground(background, record = true) {
-      edit((draft) => { draft.background = background; }, 'none');
-      if (record) commit();
-      else backLayer.batchDraw();
+      doc.edit((draft) => { draft.background = background; }, 'none');
+      if (record) history.commit();
+      else surface.backLayer.batchDraw();
       if (state.panel === 'background') renderBackgroundPanel();
     }
 
@@ -194,19 +195,19 @@
       }).finally(() => {
         renderStickerPanel();
         // A collage opened before the list arrived draws its crests at their listed address now.
-        if (!views.editor.hidden) syncPage();
+        if (!ui.views.editor.hidden) surface.syncPage();
       });
     }
 
     /** The Stickers panel: search, groups, and the stickers of the group or the search. */
     function renderStickerPanel() {
-      keepingFocus(() => renderStickerPanelNow());
+      messages.keepingFocus(() => renderStickerPanelNow());
     }
 
     function renderStickerPanelNow() {
-      const box = root.querySelector('[data-sticker-grid]');
-      const chips = root.querySelector('[data-sticker-groups]');
-      const query = root.querySelector('[data-sticker-search]').value.trim();
+      const box = ui.root.querySelector('[data-sticker-grid]');
+      const chips = ui.root.querySelector('[data-sticker-groups]');
+      const query = ui.root.querySelector('[data-sticker-search]').value.trim();
       const groups = stickers.groups();
       chips.replaceChildren(...groups.map((group) => {
         const chip = document.createElement('button');
@@ -230,7 +231,7 @@
         const img = document.createElement('img');
         img.alt = '';
         img.loading = 'lazy';
-        img.src = stickerSource({ sticker: item.id, colour: '' });
+        img.src = surface.stickerSource({ sticker: item.id, colour: '' });
         button.appendChild(img);
         // A crest or logo carries its name, since its picture alone may not say which unit it is.
         if (entry.kind === 'unit') {
@@ -242,7 +243,7 @@
         }
         return button;
       }));
-      const none = root.querySelector('[data-sticker-none]');
+      const none = ui.root.querySelector('[data-sticker-none]');
       none.hidden = list.length > 0;
       if (!list.length) {
         none.textContent = query ? STICKER_NONE.search
@@ -258,18 +259,18 @@
       // Where it covers nothing yet, so stickers added one after another do not hide each other.
       const spot = core.freeSpot(state.collage.items, state.collage.size, width / 2, width / entry.aspect / 2);
       const place = { x: spot.x, y: spot.y, width, aspect: entry.aspect };
-      const item = core.stickerItem(newItemId(), id, place, entry.kind === 'drawn' ? { colour: entry.colour } : {});
-      placeNewItem(item);
-      commit();
-      announce('Sticker added.');
+      const item = core.stickerItem(doc.newItemId(), id, place, entry.kind === 'drawn' ? { colour: entry.colour } : {});
+      selection.placeNewItem(item);
+      history.commit();
+      messages.announce('Sticker added.');
     }
 
     function addText(key) {
       const start = TEXT_STARTS[key];
       if (!start) return;
-      const item = core.textItem(newItemId(), start[0], { x: core.PAGE_WIDTH / 2, y: pageHeight() / 2 }, start[1]);
+      const item = core.textItem(doc.newItemId(), start[0], { x: core.PAGE_WIDTH / 2, y: doc.pageHeight() / 2 }, start[1]);
       // Measured first, then put where it covers nothing yet (not on top of the heading before it).
-      layoutTextItem(item);
+      surface.layoutTextItem(item);
       const place = () => {
         const spot = core.freeSpot(state.collage.items, state.collage.size, item.width / 2, core.itemHeight(item) / 2);
         item.x = spot.x;
@@ -280,23 +281,23 @@
       // the outline makes them a little larger, so they are measured and placed again.
       if (!item.outline && core.overPhoto(state.collage.items, item)) {
         item.outline = 3;
-        layoutTextItem(item);
+        surface.layoutTextItem(item);
         place();
       }
-      placeNewItem(item);
-      commit();
-      announce('Text added. Type the words in the Words box.');
+      selection.placeNewItem(item);
+      history.commit();
+      messages.announce('Text added. Type the words in the Words box.');
       // A touch screen shows the Words box without opening its keyboard over the page.
       const touch = window.matchMedia?.('(pointer: coarse)').matches === true;
       window.requestAnimationFrame(() => parts.focusTextField({ focus: !touch }));
     }
 
     // The Text, Stickers and Background panels answer their own buttons.
-    root.addEventListener('click', (event) => {
+    ui.root.addEventListener('click', (event) => {
       const backgroundChoice = event.target.closest('[data-background]');
       if (backgroundChoice) {
         setBackground(JSON.parse(backgroundChoice.dataset.background));
-        announce(`Background: ${backgroundChoice.getAttribute('aria-label')}. Ctrl+Z puts the last one back.`);
+        messages.announce(`Background: ${backgroundChoice.getAttribute('aria-label')}. Ctrl+Z puts the last one back.`);
         return;
       }
       const stickerButton = event.target.closest('[data-add-sticker]');
@@ -305,7 +306,7 @@
       if (groupChip) {
         stickerGroup = groupChip.dataset.stickerGroup;
         stickerGroupChosen = true;
-        root.querySelector('[data-sticker-search]').value = '';
+        ui.root.querySelector('[data-sticker-search]').value = '';
         renderStickerPanel();
         return;
       }

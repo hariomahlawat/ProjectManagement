@@ -45,3 +45,13 @@ test('no editor part writes the editor state itself, or reaches the old shared o
     assert.doesNotMatch(source, /(\+\+|--)\s*state\.\w|state\.\w+\s*(\+\+|--|[-+*/]?=(?!=))/, `collage-${name}.js writes state`);
   }
 });
+
+test('no editor part is handed more than a dozen names', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  for (const name of ['page', 'drafts-screen', 'panels', 'tray', 'keys', 'actions', 'add-panels', 'start', 'toolbar', 'messages']) {
+    const source = fs.readFileSync(path.join(__dirname, `collage-${name}.js`), 'utf8');
+    const handed = source.match(/const \{([^}]*)\} = deps;/)[1].split(',').map((n) => n.trim()).filter(Boolean);
+    assert.ok(handed.length <= 12, `collage-${name}.js is handed ${handed.length} names: ${handed.join(', ')}`);
+  }
+});

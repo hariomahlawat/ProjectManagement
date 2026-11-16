@@ -123,10 +123,7 @@
     }
 
     /** Starting a collage: room is made first, when needed, while the user is choosing. */
-    async function prepareNew() {
-      const room = await makeRoom();
-      return room;
-    }
+    const prepareNew = makeRoom;
 
     /** "Keep as a draft" on a collage that was not kept. */
     async function keepAgain() {
