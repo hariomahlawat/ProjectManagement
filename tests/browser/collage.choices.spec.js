@@ -82,3 +82,42 @@ test('any photo can have a caption, shown on a strip under it and kept in the dr
   await expect.poll(async () => (await newestDraft(page))?.model.items[0]?.caption).toBe('Annual day 2026');
   expect(errors).toEqual([]);
 });
+
+test('Save starts on WhatsApp, shows the purpose chosen, and remembers it next time', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.evaluate(() => { try { localStorage.removeItem('prism-collage-save-purpose'); } catch { /* none */ } });
+  await page.getByRole('button', { name: /^A4 landscape/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.getByRole('button', { name: 'WhatsApp or email' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('input[name="format"][value="jpeg"]')).toBeChecked();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await expect(page.getByRole('button', { name: 'Printing' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'WhatsApp or email' })).toHaveAttribute('aria-pressed', 'false');
+  // Changing the type by hand: no purpose matches it any more.
+  await page.locator('input[name="format"][value="png"]').check();
+  await expect(page.locator('[data-save-purpose][aria-pressed="true"]')).toHaveCount(0);
+  await page.locator('[data-action="save-close"]').first().click();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.getByRole('button', { name: 'Printing' })).toHaveAttribute('aria-pressed', 'true');
+  expect(errors).toEqual([]);
+});
+
+test('Preview leaves out the empty frames, as Save does; a white frame gets a shadow', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
+  await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'slot').length).toBe(2);
+  const visibleSlots = () => page.evaluate(() => window.Konva.stages[0].find('.item').filter((n) => n.getAttr('kind') === 'slot' && n.visible()).length);
+  expect(await visibleSlots()).toBe(2);
+  await page.getByRole('button', { name: /^Preview/ }).click();
+  expect(await visibleSlots()).toBe(0);
+  await page.keyboard.press('Escape');
+  expect(await visibleSlots()).toBe(2);
+
+  const photoRow = page.locator('[data-layer-select]').filter({ hasText: 'p0.jpg' });
+  await photoRow.click();
+  await page.locator('.clg-props [data-finish="frame"][data-value="border"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model.items.find((i) => i.kind === 'photo')).toMatchObject({ frame: 'border', shadow: true });
+  expect(errors).toEqual([]);
+});

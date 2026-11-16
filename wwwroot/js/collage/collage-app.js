@@ -649,6 +649,7 @@
     select(null);
     document.body.classList.add('clg-previewing');
     layer.listening(false);
+    syncPage();
     root.querySelector('[data-preview-exit]').hidden = false;
     root.querySelector('[data-preview-exit]').focus();
     window.requestAnimationFrame(layout);
@@ -660,6 +661,7 @@
     previewing = false;
     document.body.classList.remove('clg-previewing');
     layer.listening(true);
+    syncPage();
     root.querySelector('[data-preview-exit]').hidden = true;
     window.requestAnimationFrame(layout);
     window.setTimeout(layout, 50);
@@ -949,7 +951,8 @@
       }
       applyItem(node, item);
       node.draggable(adjustId !== item.id && !item.locked && !pinch);
-      node.visible(!item.hidden);
+      // Preview shows exactly what Save makes: empty frames are left out of both.
+      node.visible(!item.hidden && !(previewing && item.kind === 'slot'));
       seen.add(item.id);
     });
     collage.items.forEach((item) => nodes.get(item.id).moveToTop());
@@ -1992,6 +1995,9 @@
   /** Puts a frame on, takes it off or changes the shape, keeping the photo's own shape. */
   function setFinish(item, name, value) {
     const pictureAspect = core.innerAspect(item);
+    // A white frame put on a photo that had none gets a soft shadow, so it shows on a white page;
+    // the Shadow switch takes it off.
+    if (name === 'frame' && value !== 'none' && (item.frame || 'none') === 'none') item.shadow = true;
     item[name] = value;
     if (name === 'frame' && value !== 'none') item.shape = 'rect';
     if (name === 'frame' || name === 'shape') {

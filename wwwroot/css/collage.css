@@ -1590,6 +1590,14 @@
     margin: 0.2rem 0 0.4rem;
 }
 
+/* The purpose the chosen type and quality match. */
+.clg-purpose [data-save-purpose].is-on {
+    border-color: var(--clg-accent);
+    background: color-mix(in srgb, var(--clg-accent) 14%, transparent);
+    color: var(--bs-emphasis-color);
+    font-weight: 700;
+}
+
 .clg-purpose__label {
     margin-right: 0.2rem;
     color: var(--pdft-muted);
