@@ -1836,6 +1836,14 @@
     display: none;
 }
 
+/* The purposes not chosen are still choices: full-strength words and a visible edge, in Light and
+   Dark, so they do not look disabled (docs/ux/collage-review-4-fixes.md, PR 6). */
+.clg-purpose [data-save-purpose] {
+    --bs-btn-color: var(--bs-emphasis-color);
+    --bs-btn-border-color: var(--bs-border-color);
+    font-weight: 600;
+}
+
 /* The purpose the chosen type and quality match: a thick accent edge, a tint and a tick, so it
    reads as pressed in Light and Dark alike, and not by colour alone. */
 .clg-purpose [data-save-purpose][aria-pressed="true"] {
