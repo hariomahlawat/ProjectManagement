@@ -142,6 +142,10 @@ if (library) {
 document.addEventListener('click', (event) => {
   const link = event.target instanceof Element ? event.target.closest('a[href*="generate=1"]') : null;
   if (!link) return;
+  // Only a plain click that opens the deck in this tab: a link opened in another tab or window
+  // would leave the marker here, for a later plain Open to consume (Codex review on #3389).
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+      || (link.target && link.target !== '_self')) return;
   const match = /BriefingDecks\/(\d+)/.exec(link.getAttribute('href') || '');
   if (!match) return;
   try { window.sessionStorage.setItem(`prism.briefingDecks.generate.${match[1]}`, '1'); } catch { /* opens without generating */ }

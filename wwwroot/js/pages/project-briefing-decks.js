@@ -1328,18 +1328,20 @@ if (root) {
   // set the Gaps count (pbd:studio-ready), however the two modules load (Codex review on #2950);
   // the flag is dropped so a reload does not repeat it.
   const startUrl = new URL(window.location.href);
-  if (startUrl.searchParams.get('generate') === '1') {
+  const generateFlag = startUrl.searchParams.get('generate') === '1';
+  if (generateFlag) {
     startUrl.searchParams.delete('generate');
     window.history.replaceState(window.history.state, '', startUrl);
   }
-  // Only a Generate click in the library, in this tab, leaves the one-time marker; a pasted or
-  // bookmarked link with ?generate=1 opens the deck without recording a generation.
-  let generateRequested = false;
+  // Generate needs both the ?generate=1 link and the one-time marker a plain Generate click in the
+  // library leaves in this tab: a pasted link does not generate, and an ordinary Open never
+  // consumes an earlier request. Any marker is cleared on arrival either way.
+  let generateMarked = false;
   try {
-    generateRequested = window.sessionStorage.getItem(`prism.briefingDecks.generate.${deckId}`) === '1';
+    generateMarked = window.sessionStorage.getItem(`prism.briefingDecks.generate.${deckId}`) === '1';
     window.sessionStorage.removeItem(`prism.briefingDecks.generate.${deckId}`);
-  } catch { generateRequested = false; }
-  if (generateRequested) {
+  } catch { generateMarked = false; }
+  if (generateFlag && generateMarked) {
     const generateFromLibrary = () => {
       const form = root.querySelector('[data-pbd-generate-form]');
       const button = form?.querySelector('[data-pbd-generate]');
