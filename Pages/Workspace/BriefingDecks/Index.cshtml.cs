@@ -163,7 +163,7 @@ public sealed class IndexModel : PageModel
         }
         catch (DbUpdateException)
         {
-            ErrorMessage = "The deck could not be duplicated because the shared deck was updated. Reload and try again.";
+            ErrorMessage = "The deck could not be duplicated because of a database error. Reload and try again.";
             return RedirectToPage(new { deckId });
         }
     }
@@ -587,10 +587,7 @@ public sealed class IndexModel : PageModel
         var userId = RequireUserId();
         // The Studio's Add projects dialog posts in place and refreshes from the returned deck;
         // a plain form post keeps the redirect with a status message.
-        var isAjax = string.Equals(
-            Request.Headers["X-Requested-With"],
-            "XMLHttpRequest",
-            StringComparison.OrdinalIgnoreCase);
+        var isAjax = IsAjaxRequest();
         IActionResult Fail(string message, int statusCode = StatusCodes.Status400BadRequest)
         {
             if (isAjax)
@@ -611,6 +608,12 @@ public sealed class IndexModel : PageModel
         string? addedRowVersion = null;
         try
         {
+            // Only a deck this person may change runs the selection query (review 3 fixes, M4).
+            if (await _deckService.GetAccessAsync(input.DeckId, userId, cancellationToken) != ProjectBriefingDeckAccessLevel.Edit)
+            {
+                throw await UnavailableDeckAsync(input.DeckId, userId, cancellationToken);
+            }
+
             var selection = await _selectionService.ResolveAsync(
                 new ProjectBriefingSelectionRequest
                 {
@@ -1065,10 +1068,7 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostGenerateAsync(long deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
-        var isAjax = string.Equals(
-            Request.Headers["X-Requested-With"],
-            "XMLHttpRequest",
-            StringComparison.OrdinalIgnoreCase);
+        var isAjax = IsAjaxRequest();
 
         try
         {
