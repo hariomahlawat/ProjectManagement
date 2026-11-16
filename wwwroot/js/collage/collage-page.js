@@ -1,7 +1,8 @@
 // PRISM Collage Studio — the page: the Konva stage and layers, drawing each item (photos, frames, text, stickers), the handles, zoom, Preview and the page's size on screen
 // Moved out of the editor in docs/ux/collage-review-2-fixes.md, PR 13; collage-app.js creates it
-// once, handing over the helpers it uses, `state` (the editor's values, read only) and the named
-// changes this part may make (collage-state.js, docs/ux/collage-review-3-fixes.md, PR 10).
+// once, handing over the libraries it uses, `state` (the editor's values, read only), its own named
+// changes, and its helpers in a few groups (ui, doc, history, messages, surface, selection,
+// screens), each read when used (collage-state.js; docs/ux/collage-review-4-fixes.md, PR 11).
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -11,12 +12,12 @@
   'use strict';
 
   function createPage(deps) {
-    const { state, parts, change, root, core, Konva, draw, stickers, $, views, sizeSelect, stageBox, stageHost, angleTag, emptyHint, zoomValue, coarsePointer, photos, itemById, pageHeight, select, startAdjust, stopAdjust, startPan, commit, updateUndo, fontsArrived, editItem } = deps;
+    const { state, parts, change, core, Konva, draw, stickers, ui, doc, selection, history, surface } = deps;
     // ---------------------------------------------------------------------------
     // The page (Konva)
     // ---------------------------------------------------------------------------
 
-    const stage = new Konva.Stage({ container: stageHost, width: 10, height: 10 });
+    const stage = new Konva.Stage({ container: ui.stageHost, width: 10, height: 10 });
     // The page and its background are on a layer of their own, under the items, so a busy
     // texture is drawn again only when the background or the page changes.
     const backLayer = new Konva.Layer({ listening: false });
@@ -31,7 +32,7 @@
       x: 0, y: 0, width: core.PAGE_WIDTH, height: 10,
       sceneFunc: (context) => {
         const pixelsPerUnit = state.scale * (backLayer.getCanvas().getPixelRatio?.() || 1);
-        draw.drawBackground(context._context, state.collage.background, core.PAGE_WIDTH, pageHeight(), { photo: backgroundPhoto(), pixelsPerUnit });
+        draw.drawBackground(context._context, state.collage.background, core.PAGE_WIDTH, doc.pageHeight(), { photo: backgroundPhoto(), pixelsPerUnit });
       }
     });
     backWorld.add(pageRect, backgroundShape);
@@ -50,7 +51,7 @@
     /** The photo behind the page when the background is a blurred photo: its working copy. */
     function backgroundPhoto() {
       if (state.collage.background?.type !== 'photo') return null;
-      const photo = photos.get(state.collage.background.photo);
+      const photo = doc.photos.get(state.collage.background.photo);
       return photo ? { source: photo.canvas, width: photo.canvas.width, height: photo.canvas.height } : null;
     }
     const nodes = new Map();
@@ -71,11 +72,11 @@
       enabledAnchors: ALL_ANCHORS,
       rotationSnaps: NORMAL_SNAPS,
       rotationSnapTolerance: core.ANGLE_SNAP.within,
-      rotateAnchorOffset: coarsePointer ? 40 : 30,
-      anchorSize: coarsePointer ? 14 : 12,
-      anchorCornerRadius: coarsePointer ? 7 : 6,
+      rotateAnchorOffset: ui.coarsePointer ? 40 : 30,
+      anchorSize: ui.coarsePointer ? 14 : 12,
+      anchorCornerRadius: ui.coarsePointer ? 7 : 6,
       // On a touch screen a handle is drawn small but answers a finger across about 30 px.
-      anchorStyleFunc: (anchor) => { if (coarsePointer) anchor.hitStrokeWidth(16); },
+      anchorStyleFunc: (anchor) => { if (ui.coarsePointer) anchor.hitStrokeWidth(16); },
       anchorFill: '#ffffff',
       anchorStroke: accent(),
       borderStroke: accent(),
@@ -96,9 +97,9 @@
       listening: false,
       visible: false,
       sceneFunc: (context) => {
-        const item = state.adjustId && itemById(state.adjustId);
+        const item = state.adjustId && doc.itemById(state.adjustId);
         const node = item && nodes.get(item.id);
-        const photo = item && photos.get(item.photo);
+        const photo = item && doc.photos.get(item.photo);
         // A hidden photo shows only its outline, never this faint copy.
         if (!node || !photo || photo.missing || item.hidden || state.previewing) return;
         const inner = core.innerBox(item);
@@ -131,15 +132,15 @@
 
     /** The top of a sheet open over the page on a phone, in window pixels; null when none is. */
     function visibleSheetTop() {
-      if (!document.body.contains(stageBox) || !stageBox.closest('.is-sheet-open')) return null;
-      const sheet = [...root.querySelectorAll('.clg-drawer, .clg-props')].find((element) => getComputedStyle(element).position === 'fixed' && element.offsetHeight > 0);
+      if (!document.body.contains(ui.stageBox) || !ui.stageBox.closest('.is-sheet-open')) return null;
+      const sheet = [...ui.root.querySelectorAll('.clg-drawer, .clg-props')].find((element) => getComputedStyle(element).position === 'fixed' && element.offsetHeight > 0);
       return sheet ? sheet.getBoundingClientRect().top : null;
     }
 
     function layout() {
-      if (views.editor.hidden) return;
-      const height = pageHeight();
-      const narrow = stageBox.clientWidth < 520;
+      if (ui.views.editor.hidden) return;
+      const height = doc.pageHeight();
+      const narrow = ui.stageBox.clientWidth < 520;
       // A slim margin at the sides, so 100% fills most of the work surface on a laptop
       // (docs/ux/collage-review-3-fixes.md, PR 8); above and below it keeps room for the
       // rotation handle of an item at the page's edge.
@@ -147,13 +148,13 @@
       const padX = narrow ? 8 : 24;
       // On a phone an open sheet covers the lower part: the page fits in what is left above it,
       // measured from the sheet itself (it is often shorter than the most it may take).
-      const box = getComputedStyle(stageBox);
+      const box = getComputedStyle(ui.stageBox);
       const top = parseFloat(box.paddingTop) || 0;
       const sheetTop = visibleSheetTop();
       const usableHeight = sheetTop === null
-        ? stageBox.clientHeight - top - (parseFloat(box.paddingBottom) || 0)
-        : Math.max(120, sheetTop - stageBox.getBoundingClientRect().top - top);
-      const fit = Math.min((stageBox.clientWidth - 2 * padX) / core.PAGE_WIDTH, (usableHeight - 2 * pad) / height);
+        ? ui.stageBox.clientHeight - top - (parseFloat(box.paddingBottom) || 0)
+        : Math.max(120, sheetTop - ui.stageBox.getBoundingClientRect().top - top);
+      const fit = Math.min((ui.stageBox.clientWidth - 2 * padX) / core.PAGE_WIDTH, (usableHeight - 2 * pad) / height);
       change.setScale(Math.max(0.05, fit * state.zoom));
       const pageW = core.PAGE_WIDTH * state.scale;
       const pageH = height * state.scale;
@@ -165,7 +166,7 @@
       // round up to the next step: the work surface would scroll, its scrollbars take room, and the
       // page would be fitted again, over and over (the page shook).
       const grown = (need, view) => (need <= view + 1 ? view : Math.max(view, Math.ceil(need / step) * step));
-      const stageW = grown(pageW + 2 * padX, stageBox.clientWidth);
+      const stageW = grown(pageW + 2 * padX, ui.stageBox.clientWidth);
       const stageH = grown(pageH + 2 * pad, usableHeight);
       // Each layer stays under the browser's canvas limit at any zoom (core.canvasPixelRatio):
       // set before the stage grows, so a canvas too large is never made.
@@ -175,8 +176,8 @@
         if (Math.abs(canvas.getPixelRatio() - ratio) > 0.01) canvas.setPixelRatio(ratio);
       }
       stage.size({ width: stageW, height: stageH });
-      stageHost.style.width = `${stageW}px`;
-      stageHost.style.height = `${stageH}px`;
+      ui.stageHost.style.width = `${stageW}px`;
+      ui.stageHost.style.height = `${stageH}px`;
       world.position({ x: (stageW - pageW) / 2, y: (stageH - pageH) / 2 });
       world.scale({ x: state.scale, y: state.scale });
       pageRect.height(height);
@@ -185,7 +186,7 @@
       backWorld.scale(world.scale());
       backLayer.batchDraw();
       itemsGroup.clip({ x: 0, y: 0, width: core.PAGE_WIDTH, height });
-      zoomValue.textContent = `${Math.round(state.zoom * 100)}%`;
+      ui.zoomValue.textContent = `${Math.round(state.zoom * 100)}%`;
       layer.batchDraw();
       parts.placeToolbar();
     }
@@ -193,20 +194,20 @@
     const resized = new ResizeObserver(() => layout());
     // The work surface's own size, not its content box: scrollbars coming and going change the
     // content box, and fitting the page again on that is what made the page shake.
-    resized.observe(stageBox, { box: 'border-box' });
+    resized.observe(ui.stageBox, { box: 'border-box' });
     // On a phone a sheet over the page can grow or shrink (a tray filling up): the page follows.
-    root.querySelectorAll('.clg-drawer, .clg-props').forEach((sheet) => resized.observe(sheet));
+    ui.root.querySelectorAll('.clg-drawer, .clg-props').forEach((sheet) => resized.observe(sheet));
 
     /** Shows the page alone, without panels or handles; Esc or Exit preview comes back. */
     function startPreview() {
       change.setPreviewing(true);
-      stopAdjust(false);
-      select(null);
+      selection.stopAdjust(false);
+      selection.select(null);
       document.body.classList.add('clg-previewing');
       layer.listening(false);
       syncPage();
-      root.querySelector('[data-preview-exit]').hidden = false;
-      root.querySelector('[data-preview-exit]').focus();
+      ui.root.querySelector('[data-preview-exit]').hidden = false;
+      ui.root.querySelector('[data-preview-exit]').focus();
       window.requestAnimationFrame(layout);
       window.setTimeout(layout, 50);
     }
@@ -217,7 +218,7 @@
       document.body.classList.remove('clg-previewing');
       layer.listening(true);
       syncPage();
-      root.querySelector('[data-preview-exit]').hidden = true;
+      ui.root.querySelector('[data-preview-exit]').hidden = true;
       window.requestAnimationFrame(layout);
       window.setTimeout(layout, 50);
     }
@@ -267,8 +268,8 @@
      * the same drawing Save uses, so the saved picture is what the page shows.
      */
     function drawPhotoNode(context, shape) {
-      const item = itemById(shape.id());
-      const photo = item && photos.get(item.photo);
+      const item = doc.itemById(shape.id());
+      const photo = item && doc.photos.get(item.photo);
       if (!photo) return;
       const pixelsPerUnit = state.scale * (layer.getCanvas().getPixelRatio?.() || 1);
       draw.drawPhoto(context._context, item, photo.canvas, photo.canvas.width, photo.canvas.height, pixelsPerUnit);
@@ -298,7 +299,7 @@
       const font = core.fontOf(item, 40);
       if (document.fonts && !fontsAsked.has(font)) {
         fontsAsked.add(font);
-        document.fonts.load(font, item.text || 'Aअ').then(() => { textLayouts.clear(); fontsArrived(); }).catch(() => {});
+        document.fonts.load(font, item.text || 'Aअ').then(() => { textLayouts.clear(); surface.fontsArrived(); }).catch(() => {});
       }
       const layout = core.layoutText(item, measureText);
       textLayouts.set(item.id, layout);
@@ -331,12 +332,12 @@
     }
 
     // The caption font is fetched once; captions drawn before it arrived are drawn again.
-    if (document.fonts) document.fonts.load(`40px ${draw.CAPTION_FONT}`, 'Aअ').then(() => { if (!views.editor.hidden) syncPage(); }).catch(() => {});
+    if (document.fonts) document.fonts.load(`40px ${draw.CAPTION_FONT}`, 'Aअ').then(() => { if (!ui.views.editor.hidden) syncPage(); }).catch(() => {});
 
     // Sticker pictures: emoji drawings from PRISM's own files, drawn stickers from their SVG in
     // the chosen colour. Each is loaded once; a sticker drawn before its picture arrived is drawn
     // again when it does.
-    const stickerBase = root.dataset.stickerBase || '/img/collage/stickers/twemoji/';
+    const stickerBase = ui.root.dataset.stickerBase || '/img/collage/stickers/twemoji/';
     const stickerImages = new Map();
 
     function stickerSource(item) {
@@ -362,7 +363,7 @@
         const image = new Image();
         const made = { image, ready: false, failedAt: 0, done: null };
         made.done = new Promise((resolve) => {
-          image.onload = () => { made.ready = true; resolve(image); if (!views.editor.hidden) layer.batchDraw(); };
+          image.onload = () => { made.ready = true; resolve(image); if (!ui.views.editor.hidden) layer.batchDraw(); };
           image.onerror = () => { made.failedAt = Date.now(); resolve(null); };
         });
         image.src = src;
@@ -391,7 +392,7 @@
     }
 
     function drawStickerNode(context, shape) {
-      const item = itemById(shape.id());
+      const item = doc.itemById(shape.id());
       if (!item) return;
       const ready = stickerImage(item);
       if (ready) lastStickerImage.set(item.id, ready);
@@ -402,7 +403,7 @@
     }
 
     function drawTextNode(context, shape) {
-      const item = itemById(shape.id());
+      const item = doc.itemById(shape.id());
       if (!item) return;
       const layout = textLayouts.get(item.id) || measureTextItem(item);
       const pixelsPerUnit = state.scale * (layer.getCanvas().getPixelRatio?.() || 1);
@@ -424,21 +425,21 @@
       node.id(item.id);
       node.setAttr('kind', item.kind);
       node.on('pointerdown', (event) => {
-        if (state.adjustId === node.id()) { startPan(node, event); return; }
-        if (state.adjustId) stopAdjust();
-        select(node.id());
+        if (state.adjustId === node.id()) { selection.startPan(node, event); return; }
+        if (state.adjustId) selection.stopAdjust();
+        selection.select(node.id());
       });
       node.on('dblclick dbltap', () => {
-        const target = itemById(node.id());
-        if (target?.kind === 'photo') startAdjust(target.id);
+        const target = doc.itemById(node.id());
+        if (target?.kind === 'photo') selection.startAdjust(target.id);
         else if (target?.kind === 'slot') parts.chooseFor(target.id);
         else if (target?.kind === 'text') parts.focusTextField();
       });
-      node.on('dragstart', () => { select(node.id()); parts.hideToolbar(); });
+      node.on('dragstart', () => { selection.select(node.id()); parts.hideToolbar(); });
       node.on('dragmove', (event) => snapWhileMoving(node, event.evt));
       node.on('dragend', () => {
         guides.destroyChildren();
-        editItem(node.id(), (target) => {
+        doc.editItem(node.id(), (target) => {
           target.x = node.x();
           target.y = node.y();
         }, 'commit');
@@ -447,8 +448,8 @@
       node.on('transform', () => parts.showAngle(node));
       node.on('transformend', () => {
         change.setTransforming(false);
-        angleTag.hidden = true;
-        editItem(node.id(), (target) => {
+        ui.angleTag.hidden = true;
+        doc.editItem(node.id(), (target) => {
           if (target.kind === 'text') {
             const [low, high] = core.TEXT_LIMITS.size;
             target.size = Math.round(Math.min(high, Math.max(low, target.size * Math.abs(node.scaleX()))));
@@ -483,13 +484,13 @@
 
     /** The item's crop, kept inside its photo for the frame's current shape. */
     function clampedCrop(item) {
-      const photo = photos.get(item.photo);
+      const photo = doc.photos.get(item.photo);
       return photo ? core.clampCrop(photo.aspect, core.innerAspect(item), item.crop) : item.crop;
     }
 
     function snapWhileMoving(node, event) {
       guides.destroyChildren();
-      const item = itemById(node.id());
+      const item = doc.itemById(node.id());
       if (!item || event?.altKey) { layer.batchDraw(); return; }
       // Words snap by the size they are drawn at (measured), like the node itself; the model may
       // still hold a size from before their font arrived.
@@ -504,7 +505,7 @@
       const snapped = core.snapMove({ x: node.x(), y: node.y(), ...box }, state.collage.size, others, core.SNAP_PIXELS / state.scale);
       node.position({ x: snapped.x, y: snapped.y });
       for (const guide of snapped.guides) {
-        const points = guide.axis === 'x' ? [guide.at, -40, guide.at, pageHeight() + 40] : [-40, guide.at, core.PAGE_WIDTH + 40, guide.at];
+        const points = guide.axis === 'x' ? [guide.at, -40, guide.at, doc.pageHeight() + 40] : [-40, guide.at, core.PAGE_WIDTH + 40, guide.at];
         guides.add(new Konva.Line({ points, stroke: '#ff3d8b', strokeWidth: 1, strokeScaleEnabled: false, dash: [6, 4] }));
       }
       layer.batchDraw();
@@ -514,7 +515,7 @@
     function syncPage() {
       // Moving a photo inside its frame belongs to the selected photo only: whatever selected
       // another item (a click, a photo placed from Photos, a duplicate) ends it.
-      if (state.adjustId && state.adjustId !== state.selectedId) stopAdjust(false);
+      if (state.adjustId && state.adjustId !== state.selectedId) selection.stopAdjust(false);
       const seen = new Set();
       state.collage.items.forEach((item) => {
         let node = nodes.get(item.id);
@@ -559,10 +560,10 @@
         if (!seen.has(id)) { node.destroy(); nodes.delete(id); }
       }
       if (state.selectedId && !seen.has(state.selectedId)) change.choose(null);
-      if (state.adjustId && !seen.has(state.adjustId)) stopAdjust(false);
+      if (state.adjustId && !seen.has(state.adjustId)) selection.stopAdjust(false);
       if (state.targetId && !seen.has(state.targetId)) parts.setTarget(null);
       attachTransformer();
-      emptyHint.hidden = state.collage.items.length > 0;
+      ui.emptyHint.hidden = state.collage.items.length > 0;
       backLayer.batchDraw();
       layer.batchDraw();
       parts.placeToolbar();
@@ -570,26 +571,26 @@
 
     function attachTransformer() {
       // A hidden item keeps its settings and Layers row, but no handles on the page.
-      const node = state.selectedId && !itemById(state.selectedId)?.hidden && nodes.get(state.selectedId);
+      const node = state.selectedId && !doc.itemById(state.selectedId)?.hidden && nodes.get(state.selectedId);
       const adjusting = Boolean(state.adjustId && state.adjustId === state.selectedId);
       transformer.nodes(node ? [node] : []);
-      const isText = Boolean(node && ['text', 'sticker'].includes(itemById(state.selectedId)?.kind));
-      const locked = Boolean(node && itemById(state.selectedId)?.locked);
+      const isText = Boolean(node && ['text', 'sticker'].includes(doc.itemById(state.selectedId)?.kind));
+      const locked = Boolean(node && doc.itemById(state.selectedId)?.locked);
       transformer.enabledAnchors(adjusting || locked ? [] : isText ? CORNER_ANCHORS : ALL_ANCHORS);
       transformer.rotateEnabled(!adjusting && !locked);
       transformer.borderStroke(adjusting ? ADJUST_COLOUR : locked ? LOCKED_COLOUR : accent());
       transformer.borderDash(adjusting || locked ? [6, 4] : []);
-      ghost.visible(adjusting && !state.previewing && !itemById(state.selectedId)?.hidden);
+      ghost.visible(adjusting && !state.previewing && !doc.itemById(state.selectedId)?.hidden);
     }
 
     function syncAll() {
-      sizeSelect.value = state.collage.size;
+      ui.sizeSelect.value = state.collage.size;
       layout();
       syncPage();
       parts.renderTray();
       parts.renderLayoutPanel();
       parts.renderProps();
-      updateUndo();
+      history.updateUndo();
     }
 
 

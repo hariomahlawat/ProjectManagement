@@ -1,7 +1,8 @@
 // PRISM Collage Studio — the panels: the left drawer (layouts and the rest) and the settings panel with its Settings and Layers tabs
 // Moved out of the editor in docs/ux/collage-review-2-fixes.md, PR 13; collage-app.js creates it
-// once, handing over the helpers it uses, `state` (the editor's values, read only) and the named
-// changes this part may make (collage-state.js, docs/ux/collage-review-3-fixes.md, PR 10).
+// once, handing over the libraries it uses, `state` (the editor's values, read only), its own named
+// changes, and its helpers in a few groups (ui, doc, history, messages, surface, selection,
+// screens), each read when used (collage-state.js; docs/ux/collage-review-4-fixes.md, PR 11).
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -11,18 +12,18 @@
   'use strict';
 
   function createPanels(deps) {
-    const { state, change, $, root, core, draw, stickers, sizeSelect, body, layoutGrid, props, changes, photos, selectedItem, isFrame, keepingFocus, layout, stickerSource, clampedCrop, syncPage, select, zoomCrop, flushNudge, holdEdit, commit, FRAME_WIDTHS, LOCKED_CONTROLS, changeSelected, renderBackgroundPanel, offerUndo, edit } = deps;
+    const { state, change, core, draw, stickers, ui, history, doc, messages, surface, selection, screens } = deps;
     // ---------------------------------------------------------------------------
     // Panels on the left
     // ---------------------------------------------------------------------------
 
     const phoneScreen = window.matchMedia?.('(max-width: 820px)');
-    const layersButton = root.querySelector('[data-action="toggle-props"]');
+    const layersButton = ui.root.querySelector('[data-action="toggle-props"]');
     const onPhone = () => phoneScreen?.matches === true;
 
     /** On a phone, the settings sheet (for the selected item, or the page) open or closed. */
     function setPropsOpen(open, tab = null) {
-      body.classList.toggle('is-props-open', Boolean(open));
+      ui.body.classList.toggle('is-props-open', Boolean(open));
       if (tab) showPropsTab(tab, false);
       layersButton?.setAttribute('aria-pressed', String(Boolean(open) && state.propsTab === 'layers'));
       if (open && onPhone()) setPanel(null);
@@ -31,10 +32,10 @@
 
     /** Marks whether a sheet covers the lower half, so the page fits above it. */
     function syncSheets() {
-      const sheet = onPhone() && (body.classList.contains('is-props-open') || Boolean(state.panel));
-      body.classList.toggle('is-sheet-open', sheet);
-      window.requestAnimationFrame(layout);
-      window.setTimeout(layout, 60);
+      const sheet = onPhone() && (ui.body.classList.contains('is-props-open') || Boolean(state.panel));
+      ui.body.classList.toggle('is-sheet-open', sheet);
+      window.requestAnimationFrame(surface.layout);
+      window.setTimeout(surface.layout, 60);
     }
 
     phoneScreen?.addEventListener?.('change', syncSheets);
@@ -42,44 +43,44 @@
     function setPanel(name) {
       change.setPanel(name);
       if (name && onPhone()) {
-        body.classList.remove('is-props-open');
+        ui.body.classList.remove('is-props-open');
         layersButton?.setAttribute('aria-pressed', 'false');
       }
-      for (const button of root.querySelectorAll('[data-panel]')) {
+      for (const button of ui.root.querySelectorAll('[data-panel]')) {
         button.setAttribute('aria-pressed', String(button.dataset.panel === name));
       }
-      for (const section of root.querySelectorAll('[data-drawer-panel]')) {
+      for (const section of ui.root.querySelectorAll('[data-drawer-panel]')) {
         section.hidden = section.dataset.drawerPanel !== name;
       }
-      body.classList.toggle('is-drawer-closed', !name);
+      ui.body.classList.toggle('is-drawer-closed', !name);
       if (name === 'layouts') renderLayoutPanel();
-      if (name === 'background') renderBackgroundPanel();
+      if (name === 'background') screens.renderBackgroundPanel();
       syncSheets();
     }
 
-    for (const button of root.querySelectorAll('[data-panel]')) {
+    for (const button of ui.root.querySelectorAll('[data-panel]')) {
       button.addEventListener('click', () => setPanel(state.panel === button.dataset.panel ? null : button.dataset.panel));
     }
 
     function renderLayoutPanel() {
-      keepingFocus(() => renderLayoutPanelNow());
+      messages.keepingFocus(() => renderLayoutPanelNow());
     }
 
     function renderLayoutPanelNow() {
       const current = state.collage.layout;
-      for (const button of layoutGrid.querySelectorAll('[data-layout]')) {
+      for (const button of ui.layoutGrid.querySelectorAll('[data-layout]')) {
         button.setAttribute('aria-pressed', String(current?.key === button.dataset.layout));
       }
       const gap = current ? current.gap : core.LAYOUT_LIMITS.defaultGap;
-      const radius = current ? current.radius : (selectedItem()?.radius ?? 0);
-      const gapInput = $('[data-layout-input="gap"]');
-      const radiusInput = $('[data-layout-input="radius"]');
+      const radius = current ? current.radius : (doc.selectedItem()?.radius ?? 0);
+      const gapInput = ui.$('[data-layout-input="gap"]');
+      const radiusInput = ui.$('[data-layout-input="radius"]');
       gapInput.value = gap;
       gapInput.disabled = !current;
       radiusInput.value = radius;
-      $('[data-out="gap"]').textContent = current ? core.sliderText('gap', gap) : '—';
-      $('[data-out="radius"]').textContent = core.sliderText('radius', radius);
-      $('[data-layout-hint]').textContent = current
+      ui.$('[data-out="gap"]').textContent = current ? core.sliderText('gap', gap) : '—';
+      ui.$('[data-out="radius"]').textContent = core.sliderText('radius', radius);
+      ui.$('[data-layout-hint]').textContent = current
         ? 'Changing the space puts the photos back into the layout.'
         : 'Choose a layout to set the space between photos. Rounded corners apply to every photo.';
     }
@@ -87,11 +88,11 @@
     // Whether this move of the space slider has put hand-placed or tilted photos back in the layout.
     let spaceUndid = false;
 
-    for (const input of root.querySelectorAll('[data-layout-input]')) {
+    for (const input of ui.root.querySelectorAll('[data-layout-input]')) {
       input.addEventListener('input', () => {
         const value = Number(input.value);
         const which = input.dataset.layoutInput;
-        $(`[data-out="${which}"]`).textContent = core.sliderText(which, value);
+        ui.$(`[data-out="${which}"]`).textContent = core.sliderText(which, value);
         if (which === 'gap' && state.collage.layout) {
           if (core.offLayout(state.collage)) spaceUndid = true;
           // The space lays the page out again; that is what the hint under the sliders says.
@@ -99,18 +100,18 @@
         } else if (which === 'radius') {
           // Corners change only the corners: turned photos and their crops stay as they are.
           // A locked frame keeps its own corners.
-          edit((draft) => {
-            draft.items.forEach((item) => { if (isFrame(item) && !item.locked) item.radius = value; });
+          doc.edit((draft) => {
+            draft.items.forEach((item) => { if (doc.isFrame(item) && !item.locked) item.radius = value; });
             if (draft.layout) draft.layout = { ...draft.layout, radius: value };
           }, 'none');
         }
-        syncPage();
+        surface.syncPage();
         // Held like every other slider, so a draft written mid-drag (the page hidden) keeps it.
-        holdEdit();
+        history.holdEdit();
       });
       input.addEventListener('change', () => {
-        commit();
-        if (spaceUndid) offerUndo('The photos went back into the layout. Undo brings back where they were.');
+        history.commit();
+        if (spaceUndid) messages.offerUndo('The photos went back into the layout. Undo brings back where they were.');
         spaceUndid = false;
       });
     }
@@ -122,35 +123,35 @@
     const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     function renderProps() {
-      keepingFocus(() => renderPropsNow());
+      messages.keepingFocus(() => renderPropsNow());
     }
 
     function renderPropsNow() {
       if (state.propsTab === 'layers') {
-        props.innerHTML = layersSection();
+        ui.props.innerHTML = layersSection();
       } else {
         renderPropsBody();
-        if (selectedItem()?.locked) props.querySelectorAll(LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
+        if (doc.selectedItem()?.locked) ui.props.querySelectorAll(ui.LOCKED_CONTROLS).forEach((control) => { control.disabled = true; });
       }
       // What the tab shows is one tab panel, named by its tab, so a screen reader knows where it is.
       const panel = document.createElement('div');
       panel.id = 'clgPropsPanel';
       panel.setAttribute('role', 'tabpanel');
       panel.setAttribute('aria-labelledby', `clgTab-${state.propsTab}`);
-      panel.append(...props.childNodes);
-      props.append(panel);
+      panel.append(...ui.props.childNodes);
+      ui.props.append(panel);
       const tab = (key, label, extra = '') => `<button type="button" role="tab" class="clg-props-tab" id="clgTab-${key}" aria-controls="clgPropsPanel" data-props-tab="${key}" aria-selected="${state.propsTab === key}" tabindex="${state.propsTab === key ? 0 : -1}">${label}${extra}</button>`;
       const count = state.collage.items.length ? ` <span class="clg-props-tab__count">${state.collage.items.length}</span>` : '';
-      props.insertAdjacentHTML('afterbegin', `<button type="button" class="clg-sheet-close" data-action="close-props" aria-label="Close settings"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+      ui.props.insertAdjacentHTML('afterbegin', `<button type="button" class="clg-sheet-close" data-action="close-props" aria-label="Close settings"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         <div class="clg-props-tabs" role="tablist" aria-label="Settings or Layers">${tab('settings', 'Settings')}${tab('layers', 'Layers', count)}</div>`);
-      layersButton?.setAttribute('aria-pressed', String(body.classList.contains('is-props-open') && state.propsTab === 'layers'));
+      layersButton?.setAttribute('aria-pressed', String(ui.body.classList.contains('is-props-open') && state.propsTab === 'layers'));
     }
 
     function showPropsTab(key, focus = true) {
       if (key !== 'settings' && key !== 'layers') return;
       change.setPropsTab(key);
       renderPropsNow();
-      if (focus) props.querySelector(`[data-props-tab="${key}"]`)?.focus();
+      if (focus) ui.props.querySelector(`[data-props-tab="${key}"]`)?.focus();
     }
 
     // Groups used less often fold away; one left open stays open (in this browser).
@@ -164,7 +165,7 @@
       }
     })();
     // 'toggle' does not bubble, so it is heard on the way down.
-    props.addEventListener('toggle', (event) => {
+    ui.props.addEventListener('toggle', (event) => {
       const group = event.target.closest?.('[data-fold]');
       if (!group) return;
       if (group.open) openFolds.add(group.dataset.fold);
@@ -172,11 +173,11 @@
       try { window.localStorage?.setItem(FOLDS_KEY, JSON.stringify([...openFolds])); } catch { /* not kept; fine */ }
     }, true);
 
-    props.addEventListener('click', (event) => {
+    ui.props.addEventListener('click', (event) => {
       const tab = event.target.closest('[data-props-tab]');
       if (tab) showPropsTab(tab.dataset.propsTab);
     });
-    props.addEventListener('keydown', (event) => {
+    ui.props.addEventListener('keydown', (event) => {
       const tab = event.target.closest?.('[data-props-tab]');
       if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
@@ -186,9 +187,9 @@
     });
 
     function renderPropsBody() {
-      const item = selectedItem();
+      const item = doc.selectedItem();
       if (!item) {
-        props.innerHTML = `
+        ui.props.innerHTML = `
           <h2 class="clg-panel-title">Page</h2>
           <label class="clg-field"><span class="clg-field__label">Size</span>
             <select class="form-select form-select-sm" data-page-size>${Object.entries(core.SIZES)
@@ -213,13 +214,13 @@
         return;
       }
       if (item.kind === 'text') {
-        props.innerHTML = `<h2 class="clg-panel-title">Text</h2>${textSections(item)}${arrangeSections(item)}`;
+        ui.props.innerHTML = `<h2 class="clg-panel-title">Text</h2>${textSections(item)}${arrangeSections(item)}`;
         return;
       }
       if (item.kind === 'sticker') {
         const entry = stickers.find(item.sticker);
         const [low, high] = core.STICKER_LIMITS.width;
-        props.innerHTML = `
+        ui.props.innerHTML = `
           <h2 class="clg-panel-title">Sticker <small>${escapeHtml(entry?.label || entry?.emoji || '')}</small></h2>
           <div class="clg-section">
             <label class="clg-field"><span class="clg-field__label">Size<output data-out="width">${core.sliderText('width', item.width)}</output></span>
@@ -232,7 +233,7 @@
         return;
       }
       if (item.kind === 'slot') {
-        props.innerHTML = `
+        ui.props.innerHTML = `
           <h2 class="clg-panel-title">Empty frame</h2>
           <p class="clg-hint">A photo goes here. Choose one, drag one from Photos, or drop one from your computer onto this frame.</p>
           <div class="clg-stack">
@@ -242,10 +243,10 @@
           ${arrangeSections(item)}`;
         return;
       }
-      const photo = photos.get(item.photo);
+      const photo = doc.photos.get(item.photo);
       const adjusting = state.adjustId === item.id;
       const zoomValueNow = item.crop?.zoom || 1;
-      props.innerHTML = `
+      ui.props.innerHTML = `
         <h2 class="clg-panel-title">Photo <small title="${escapeHtml(photo?.name || '')}">${escapeHtml(photo?.name || '')}</small></h2>
         <div class="clg-section">
           <p class="clg-section__title">In its frame</p>
@@ -267,7 +268,7 @@
 
     // The settings panel's sections as HTML (collage-settings.js).
     const settingsHtml = window.PrismCollageSettings.createSettingsHtml({
-      core, draw, stickers, stickerSource, escapeHtml, photos, FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS,
+      core, draw, stickers, stickerSource: surface.stickerSource, escapeHtml, photos: doc.photos, FRAME_WIDTHS: ui.FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS,
       isOpen: (key) => openFolds.has(key)
     });
     const { arrangeSections, swatches, textSections, switchRow, finishSections } = settingsHtml;
@@ -279,7 +280,7 @@
      * would open its keyboard over the page at once).
      */
     function focusTextField({ focus = true } = {}) {
-      const field = props.querySelector('[data-text]');
+      const field = ui.props.querySelector('[data-text]');
       if (!field) return;
       // On a phone the Words field is in the settings sheet, which opens first.
       if (onPhone()) setPropsOpen(true);
@@ -288,28 +289,28 @@
       field.select();
     }
 
-    props.addEventListener('click', (event) => {
+    ui.props.addEventListener('click', (event) => {
       const set = event.target.closest('[data-text-set]');
       if (set) {
-        changeSelected((item) => { item[set.dataset.textSet] = set.dataset.value; });
+        selection.changeSelected((item) => { item[set.dataset.textSet] = set.dataset.value; });
         return;
       }
       const toggle = event.target.closest('[data-text-toggle]');
-      if (toggle) changeSelected((item) => { item[toggle.dataset.textToggle] = !item[toggle.dataset.textToggle]; });
+      if (toggle) selection.changeSelected((item) => { item[toggle.dataset.textToggle] = !item[toggle.dataset.textToggle]; });
     });
 
-    props.addEventListener('input', (event) => {
+    ui.props.addEventListener('input', (event) => {
       if (event.target.matches('[data-text]')) {
         const text = event.target.value.slice(0, core.TEXT_LIMITS.maxLength);
-        changeSelected((item) => { item.text = text; }, false);
+        selection.changeSelected((item) => { item.text = text; }, false);
       } else if (event.target.matches('[data-text-colour]')) {
         const value = event.target.value;
-        changeSelected((item) => { item[event.target.dataset.textColour] = value; }, false);
+        selection.changeSelected((item) => { item[event.target.dataset.textColour] = value; }, false);
       }
     });
 
-    props.addEventListener('change', (event) => {
-      if (event.target.matches('[data-text], [data-text-colour]')) flushNudge();
+    ui.props.addEventListener('change', (event) => {
+      if (event.target.matches('[data-text], [data-text-colour]')) history.flushNudge();
     });
 
     /** Puts a frame on, takes it off or changes the shape, keeping the photo's own shape. */
@@ -322,59 +323,59 @@
       if (name === 'frame' && value !== 'none') item.shape = 'rect';
       if (name === 'frame' || name === 'shape') {
         item.aspect = core.limitFrameAspect({ ...item, aspect: core.outerAspectFor(item, pictureAspect) });
-        item.crop = clampedCrop(item);
+        item.crop = surface.clampedCrop(item);
       }
     }
 
-    props.addEventListener('click', (event) => {
+    ui.props.addEventListener('click', (event) => {
       const choice = event.target.closest('[data-finish]');
       if (!choice || choice.disabled) return;
-      if (selectedItem()?.locked && choice.matches(LOCKED_CONTROLS)) return;
-      changeSelected((item) => setFinish(item, choice.dataset.finish, choice.dataset.value));
+      if (doc.selectedItem()?.locked && choice.matches(ui.LOCKED_CONTROLS)) return;
+      selection.changeSelected((item) => setFinish(item, choice.dataset.finish, choice.dataset.value));
     });
 
-    props.addEventListener('change', (event) => {
+    ui.props.addEventListener('change', (event) => {
       const toggle = event.target.closest('[data-toggle]');
-      if (toggle) changeSelected((item) => { item[toggle.dataset.toggle] = toggle.checked; });
+      if (toggle) selection.changeSelected((item) => { item[toggle.dataset.toggle] = toggle.checked; });
     });
 
-    props.addEventListener('input', (event) => {
+    ui.props.addEventListener('input', (event) => {
       if (event.target.matches('[data-caption]')) {
         const text = event.target.value.slice(0, core.CAPTION_MAX);
-        changeSelected((item) => { item.caption = text; }, false);
+        selection.changeSelected((item) => { item.caption = text; }, false);
         return;
       }
       const prop = event.target.dataset.prop;
       if (!prop) return;
-      if (selectedItem()?.locked && event.target.matches(LOCKED_CONTROLS)) return;
+      if (doc.selectedItem()?.locked && event.target.matches(ui.LOCKED_CONTROLS)) return;
       const value = Number(event.target.value);
-      changeSelected((item) => {
-        if (prop === 'zoom') zoomCrop(item, value);
+      selection.changeSelected((item) => {
+        if (prop === 'zoom') selection.zoomCrop(item, value);
         else if (prop === 'angle') item.angle = core.normaliseAngle(value);
         else item[prop] = value;
       }, false);
-      const out = props.querySelector(`[data-out="${prop}"]`);
+      const out = ui.props.querySelector(`[data-out="${prop}"]`);
       if (out) {
         out.textContent = core.sliderText(prop, value);
       }
     });
 
-    props.addEventListener('change', (event) => {
+    ui.props.addEventListener('change', (event) => {
       if (event.target.matches('[data-caption]')) {
-        flushNudge();
+        history.flushNudge();
         return;
       }
       if (event.target.dataset.prop) {
         // One frame's corners are its own: the layout's corners, and the next layout, stay as
         // they were. The change made while it moved is recorded even when it ends where it began.
-        changes.mark();
-        flushNudge();
+        history.changes.mark();
+        history.flushNudge();
         renderLayoutPanel();
         return;
       }
       if (event.target.matches('[data-page-size]')) {
-        sizeSelect.value = event.target.value;
-        sizeSelect.dispatchEvent(new Event('change'));
+        ui.sizeSelect.value = event.target.value;
+        ui.sizeSelect.dispatchEvent(new Event('change'));
       }
     });
 

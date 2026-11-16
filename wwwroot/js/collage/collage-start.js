@@ -1,7 +1,6 @@
 // PRISM Collage Studio — the start screen: blank pages, layouts and the drafts
 // Moved out of the editor in docs/ux/collage-review-3-fixes.md, PR 11; collage-app.js creates it
-// once, handing over the helpers it uses, `state` (the editor's values, read only) and the parts
-// made later (collage-state.js).
+// once, handing over the few elements and helpers it uses.
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -11,7 +10,7 @@
   'use strict';
 
   function createStart(deps) {
-    const { core, $, sizeSelect, layoutGrid, photos } = deps;
+    const { core, $, sizeSelect, layoutGrid } = deps;
     /** A small drawing of a layout's frames, for its button. */
     function layoutPicture(key) {
       const cells = core.LAYOUTS[key].cells
@@ -61,8 +60,6 @@
         sizeSelect.appendChild(option);
       }
     }
-
-    /** Resets the editor to an empty page; the caller fills it in. */
 
     return { renderStart };
   }
