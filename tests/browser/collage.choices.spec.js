@@ -169,3 +169,27 @@ test('arrow keys on the tabs do not move the selected item; choosing it on the p
   await expect(page.locator('.clg-props [data-props-tab="settings"]')).toHaveAttribute('aria-selected', 'true');
   expect(errors).toEqual([]);
 });
+
+test('rounded corners change the layout and one frame, and both are kept', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await photos(page, 3));
+  await expect.poll(async () => (await newestDraft(page))?.model.items.length).toBe(3);
+
+  // The layout's corners: every frame and the layout itself.
+  await page.locator('.clg-rail [data-panel="layouts"]').click();
+  await page.locator('[data-layout-input="radius"]').fill('20');
+  await expect.poll(async () => {
+    const model = (await newestDraft(page))?.model;
+    return [model?.layout?.radius, ...(model?.items.map((i) => i.radius) || [])];
+  }).toEqual([20, 20, 20, 20]);
+
+  // One frame's corners, from its settings.
+  await showLayers(page);
+  await page.locator('[data-layer-select]').first().click();
+  await showSettings(page);
+  await page.locator('.clg-props summary', { hasText: 'Corners and see-through' }).click();
+  await page.locator('.clg-props [data-prop="radius"]').fill('8');
+  await expect.poll(async () => (await newestDraft(page))?.model.layout?.radius).toBe(8);
+  expect(errors).toEqual([]);
+});

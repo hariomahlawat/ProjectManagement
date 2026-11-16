@@ -120,7 +120,14 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-settings.js` | The settings panel's sections as HTML (arranging, Layers, text, frames, shapes and looks), every value escaped |
 | `wwwroot/js/collage/collage-photos.js` | Reading photos at their working size, tray pictures, and grey stand-ins for draft photos that cannot be opened |
 | `wwwroot/js/collage/collage-save.js` | The Save as… dialog and making the PNG, JPG or PDF |
-| `wwwroot/js/collage/collage-app.js` | The editor: panels, Konva stage, toolbar, keys, drafts and Save |
+| `wwwroot/js/collage/collage-draft-session.js` | The draft being edited and the drafts on the start screen: when a draft is written, room for a new one, delete and Undo, purges, other tabs |
+| `wwwroot/js/collage/collage-changes.js` | The change log: the one way a change reaches Undo and the draft, and where a held edit ends |
+| `wwwroot/js/collage/collage-page.js` | The page: the Konva stage and layers, drawing each item, the handles, zoom and Preview |
+| `wwwroot/js/collage/collage-drafts-screen.js` | Drafts in the editor: the draft status, writing the draft and its small picture, the start screen's drafts |
+| `wwwroot/js/collage/collage-panels.js` | The left drawer and the settings panel with its Settings and Layers tabs |
+| `wwwroot/js/collage/collage-tray.js` | Photos: choosing, dropping, pasting, reading in, the tray, From PRISM Photos |
+| `wwwroot/js/collage/collage-keys.js` | The keyboard and the mouse wheel |
+| `wwwroot/js/collage/collage-app.js` | The editor itself (about 1,250 lines): its state, selection and the toolbar, moving a photo in its frame, the change actions, and creating the parts above. Each part is made once with the helpers it uses and `app`, the editor's view of its own state (read when used, never before it exists) |
 | `wwwroot/css/collage.css` | All styles, Bootstrap variables only (Light and Dark) |
 
 Photo handling keeps memory low: the editor draws a copy at most 2000 px on its long side, the
