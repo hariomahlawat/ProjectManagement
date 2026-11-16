@@ -359,8 +359,13 @@
   }
 
   /** The caption strip's height in page units (0 when there is none). */
+  /** The most of an item's height a caption strip takes, so the picture always keeps room. */
+  const CAPTION_STRIP_MAX_SHARE = 0.4;
+
   function captionStripHeight(item) {
-    return hasCaptionStrip(item) ? item.width * CAPTION_STRIP : 0;
+    if (!hasCaptionStrip(item)) return 0;
+    // A very wide or flattened photo keeps most of its height for the picture.
+    return Math.min(item.width * CAPTION_STRIP, (item.width / item.aspect) * CAPTION_STRIP_MAX_SHARE);
   }
 
   /**
@@ -414,7 +419,12 @@
     const frame = isFramed(item) ? FRAMES[item.frame] : FRAMES.none;
     const width = item.width;
     const innerWidth = width * (1 - 2 * frame.side);
-    const height = innerWidth / pictureAspect + width * (frame.top + frame.bottom);
+    const withoutStrip = innerWidth / pictureAspect + width * (frame.top + frame.bottom);
+    if (!hasCaptionStrip(item)) return width / withoutStrip;
+    // The inverse of captionStripHeight: the strip is its full height unless that is more than
+    // its share of the whole item, in which case it is that share.
+    const full = withoutStrip + width * CAPTION_STRIP;
+    const height = width * CAPTION_STRIP <= full * CAPTION_STRIP_MAX_SHARE ? full : withoutStrip / (1 - CAPTION_STRIP_MAX_SHARE);
     return width / height;
   }
 
