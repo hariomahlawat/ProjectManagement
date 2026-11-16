@@ -3,7 +3,7 @@
 // The polish pass (docs/ux/collage-review-2-fixes.md, PR 10): what the fresh review's first-time
 // user tripped over, each checked once.
 
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./test');
 const { openFresh, photoFile } = require('./helpers');
 
 test('stickers fit their panel, and stamps with words take two cells', async ({ page }) => {
