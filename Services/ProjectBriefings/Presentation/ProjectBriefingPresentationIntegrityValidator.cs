@@ -311,6 +311,20 @@ internal static class ProjectBriefingPresentationIntegrityValidator
                 $"slide {index + 1}",
                 issues);
 
+            // The category slides carry native charts: each chart and its embedded workbook.
+            foreach (var chartPart in slidePart.ChartParts)
+            {
+                AddSchemaErrors(
+                    validator.Validate(chartPart.ChartSpace),
+                    chartPart.Uri.ToString(),
+                    $"chart on slide {index + 1}",
+                    issues);
+                if (chartPart.EmbeddedPackagePart is null)
+                {
+                    issues.Add($"The chart {chartPart.Uri} on slide {index + 1} has no embedded workbook.");
+                }
+            }
+
             // Speaker notes are generated too: each notes page must reach the notes master.
             if (slidePart.NotesSlidePart is { } notesPart)
             {

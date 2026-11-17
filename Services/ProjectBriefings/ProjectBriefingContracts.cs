@@ -162,6 +162,9 @@ public sealed class ProjectBriefingProjectVm
     public string PresentStage { get; init; } = string.Empty;
     public int PresentStageOrder { get; init; } = ProjectBriefingStageOrder.Unknown;
     public string? ProjectCategory { get; init; }
+    // The top of the project's category tree ("CoE" for "CoE Mid Term"): the project-category
+    // distribution counts these (owner, 17 Nov 2026), as the stage-wise chart does.
+    public string? ParentProjectCategory { get; init; }
     public string? TechnicalCategory { get; init; }
     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();
     public ProjectBriefingCostValue IpaCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
@@ -498,6 +501,9 @@ public sealed class ProjectBriefingPresentationProject
     public string PresentStage { get; init; } = string.Empty;
     public int PresentStageOrder { get; init; }
     public string? ProjectCategory { get; init; }
+    // The top of the project's category tree ("CoE" for "CoE Mid Term"): the project-category
+    // distribution counts these (owner, 17 Nov 2026), as the stage-wise chart does.
+    public string? ParentProjectCategory { get; init; }
     public string? TechnicalCategory { get; init; }
     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();
     public ProjectBriefingCostValue IpaCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);

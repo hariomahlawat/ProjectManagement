@@ -1,0 +1,366 @@
+using System.Globalization;
+using ProjectManagement.Services.Analytics.Presentation;
+using ProjectManagement.Services.ProjectBriefings;
+
+namespace ProjectManagement.Services.ProjectBriefings.Presentation;
+
+// The category distributions as donut charts (owner, 17 Nov 2026; docs/ux/briefing-slides-review.md):
+// a native PowerPoint doughnut with the deck's project total in its centre and a legend of every
+// category with its count and share. With both distributions chosen they share one slide, side by
+// side; one alone takes the slide with a larger ring and its concentration note.
+public sealed partial class ProjectBriefingSlideComposer
+{
+    internal const string CombinedCategoryTitle = "Project and technical categories";
+
+    // A slice colour for each category, largest first; distinct hues that read on both themes.
+    // "Not categorised" is always the neutral grey, so it never looks like a real category.
+    private static readonly string[] CategoryPaletteLight =
+        { "0F766E", "2563EB", "D97706", "7C3AED", "DB2777", "16A34A", "EA580C", "0284C7", "65A30D" };
+    private static readonly string[] CategoryPaletteDark =
+        { "2DD4BF", "60A5FA", "FBBF24", "A78BFA", "F472B6", "4ADE80", "FB923C", "38BDF8", "A3E635" };
+
+    // A ring shows at most this many slices; beyond it the smallest are one "Other categories" slice.
+    internal const int MaximumCategorySlices = 9;
+
+    // UsesParentColours: the parent categories keep the stage-wise chart's colours (DCD blue, CoE
+    // green, Other R&D amber), so a category looks the same across the deck.
+    private sealed record CategoryPanel(string Heading, IReadOnlyList<ProjectBriefingSummaryPoint> Points, bool UsesParentColours = false);
+
+    private sealed record CategoryLegendRow(string Label, int Count, string Color, bool IsMuted);
+
+    private static void AddCategoryDonutSlide(
+        List<SlidePlan> plans,
+        ProjectBriefingPresentationData data,
+        string title,
+        IReadOnlyList<CategoryPanel> panels)
+        => plans.Add(new SlidePlan(
+            SlidePlanKind.Summary,
+            canvas => RenderCategoryDonutSlide(canvas, title, panels, data.Summary.ProjectCount),
+            ProjectBriefingSlideRole.CategorySummary));
+
+    private static void RenderCategoryDonutSlide(
+        SlideCanvas canvas,
+        string title,
+        IReadOnlyList<CategoryPanel> panels,
+        int totalProjects)
+    {
+        AddSlideTitle(canvas, title);
+        if (panels.Count == 0 || panels.All(panel => panel.Points.All(point => point.Count <= 0)))
+        {
+            AddEmptyMessage(canvas, "No category data is available for the selected projects.");
+            return;
+        }
+
+        const double top = 1.30;
+        const double bottom = 6.88;
+        const double left = .60;
+        const double right = 12.73;
+        if (panels.Count == 1)
+        {
+            RenderCategoryPanel(canvas, panels[0], totalProjects, left, top, right - left, bottom - top, wide: true);
+            return;
+        }
+
+        const double gap = .25;
+        var width = ((right - left) - gap) / 2d;
+        for (var index = 0; index < panels.Count; index++)
+        {
+            RenderCategoryPanel(canvas, panels[index], totalProjects, left + (index * (width + gap)), top, width, bottom - top, wide: false);
+        }
+    }
+
+    private static void RenderCategoryPanel(
+        SlideCanvas canvas,
+        CategoryPanel panel,
+        int totalProjects,
+        double x,
+        double y,
+        double width,
+        double height,
+        bool wide)
+    {
+        var theme = canvas.Theme;
+        var rows = CategoryLegendRows(panel.Points, theme.IsDark, panel.UsesParentColours);
+        var categoryCount = panel.Points.Count(point => point.Count > 0);
+        var total = rows.Sum(row => row.Count);
+
+        canvas.AddRoundedRect(x, y, width, height, theme.Surface, theme.Border, .06, $"{panel.Heading} panel");
+        canvas.AddText(x + .32, y + .22, width - .64, .34, panel.Heading.ToUpperInvariant(), wide ? 14 : 13, theme.NarrativeAccent, true, "l", "ctr", $"{panel.Heading} heading");
+        canvas.AddText(
+            x + .32,
+            y + .56,
+            width - .64,
+            .30,
+            $"{total.ToString(CultureInfo.InvariantCulture)} projects · {categoryCount.ToString(CultureInfo.InvariantCulture)} categories",
+            wide ? 13 : 12,
+            theme.TextSecondary,
+            false,
+            "l",
+            "ctr",
+            $"{panel.Heading} figures");
+
+        // The headline: the largest category and its share, in words.
+        var leader = rows.FirstOrDefault(row => !row.IsMuted);
+        if (leader is not null && total > 0)
+        {
+            var suffix = $" is the largest: {leader.Count.ToString(CultureInfo.InvariantCulture)} of {total.ToString(CultureInfo.InvariantCulture)} projects ({RoundedShare(leader.Count, total)})";
+            var headline = FitCategoryHeadline(leader.Label, suffix, width - .64, wide ? 18 : 15);
+            canvas.AddRichTextBox(
+                x + .32,
+                y + .92,
+                width - .64,
+                wide ? .46 : .40,
+                new[]
+                {
+                    new RichTextParagraph(new[]
+                    {
+                        new RichTextRun(headline.Label, headline.FontSize, leader.Color, Bold: true),
+                        new RichTextRun(suffix, headline.FontSize, theme.TextPrimary, Bold: true)
+                    })
+                },
+                $"{panel.Heading} headline",
+                verticalAnchor: "ctr",
+                allowAutoFit: true,
+                leftInset: 0,
+                rightInset: 0,
+                topInset: 0,
+                bottomInset: 0);
+        }
+
+        // The ring, with the total in its hole.
+        // As large as the panel allows below the headline (and above the closing note when wide).
+        var contentTop = 1.45;
+        var contentBottomReserve = wide ? .85 : .25;
+        var ringSize = Math.Min(wide ? 4.30 : 2.45, height - contentTop - contentBottomReserve - .10);
+        var ringX = x + (wide ? .55 : .28);
+        var ringY = y + contentTop + ((height - contentTop - contentBottomReserve - ringSize) / 2d);
+        canvas.AddDoughnutChart(
+            ringX,
+            ringY,
+            ringSize,
+            rows.Select(row => new ChartSlice(row.Label, row.Count, row.Color)).ToArray(),
+            "Projects",
+            theme.Surface,
+            $"{panel.Heading} chart");
+        var centreSize = wide ? 40 : 30;
+        canvas.AddText(ringX, ringY + (ringSize / 2d) - (wide ? .48 : .38), ringSize, wide ? .62 : .46, total.ToString(CultureInfo.InvariantCulture), centreSize, theme.TextPrimary, true, "ctr", "ctr", $"{panel.Heading} total");
+        canvas.AddText(ringX, ringY + (ringSize / 2d) + (wide ? .12 : .06), ringSize, .30, "PROJECTS", wide ? 12 : 10.5, theme.TextMuted, true, "ctr", "ctr", $"{panel.Heading} total label");
+
+        // The legend: every category with its count and share, largest first.
+        var legendX = ringX + ringSize + (wide ? .60 : .28);
+        var legendWidth = Math.Min(wide ? 5.60 : double.MaxValue, (x + width - .24) - legendX);
+        var nameSize = wide ? 16.0 : 12.0;
+        var countSize = wide ? 18.0 : 14.0;
+        var shareSize = wide ? 13.0 : 11.0;
+        var countWidth = wide ? .70 : .42;
+        var shareWidth = wide ? .80 : .54;
+        var nameWidth = legendWidth - .30 - countWidth - shareWidth;
+        var legendTop = y + contentTop;
+        var legendBottom = y + height - contentBottomReserve;
+        var legend = FitCategoryLegend(rows, nameWidth, nameSize, countSize, wide ? .16 : .12, legendBottom - legendTop);
+        // The figures shrink with the names, so a short name's row still holds its count.
+        var shrink = legend.FontSize / nameSize;
+        nameSize = legend.FontSize;
+        countSize *= shrink;
+        shareSize *= shrink;
+        var heights = legend.Heights;
+        var scale = Math.Min(1d, (legendBottom - legendTop) / Math.Max(.01, heights.Sum()));
+        var legendY = legendTop + Math.Max(0, ((legendBottom - legendTop) - heights.Sum()) / 2d);
+        for (var index = 0; index < rows.Count; index++)
+        {
+            var row = rows[index];
+            var rowHeight = heights[index] * scale;
+            canvas.AddRoundedRect(legendX, legendY + (rowHeight / 2d) - .09, .18, .18, row.Color, null, .25, $"{row.Label} key");
+            canvas.AddText(legendX + .30, legendY, nameWidth, rowHeight, legend.Names[index], nameSize, row.IsMuted ? theme.TextMuted : theme.TextPrimary, false, "l", "ctr", $"{row.Label} name");
+            canvas.AddText(legendX + .30 + nameWidth, legendY, countWidth, rowHeight, row.Count.ToString(CultureInfo.InvariantCulture), countSize, theme.TextPrimary, true, "r", "ctr", $"{row.Label} count");
+            canvas.AddText(legendX + .30 + nameWidth + countWidth, legendY, shareWidth, rowHeight, RoundedShare(row.Count, total), shareSize, theme.TextMuted, false, "r", "ctr", $"{row.Label} share");
+            if (index < rows.Count - 1)
+            {
+                canvas.AddLine(legendX, legendY + rowHeight, legendX + legendWidth, legendY + rowHeight, theme.Divider, .5);
+            }
+
+            legendY += rowHeight;
+        }
+
+        // One category alone on the slide also says how concentrated the deck is.
+        if (wide && rows.Count >= 2 && total > 0)
+        {
+            var leaders = rows.Where(row => !row.IsMuted).Take(2).ToArray();
+            if (leaders.Length == 2)
+            {
+                var share = leaders.Sum(row => row.Count);
+                var note = FitConcentrationNote(
+                    leaders[0].Label,
+                    leaders[1].Label,
+                    $" account for {share.ToString(CultureInfo.InvariantCulture)} of {total.ToString(CultureInfo.InvariantCulture)} projects ({RoundedShare(share, total)}).",
+                    width - 1.10);
+                canvas.AddText(
+                    x + .55,
+                    y + height - .72,
+                    width - 1.10,
+                    .42,
+                    note.Text,
+                    note.FontSize,
+                    theme.TextSecondary,
+                    false,
+                    "l",
+                    "ctr",
+                    $"{panel.Heading} concentration");
+            }
+        }
+    }
+
+    // The concentration note on one line (Codex review on #3408): the largest size down to 11 pt
+    // at which "A and B account for ..." fits; past that the two names are shortened alike, each
+    // cut after a whole word, so the figures always show.
+    private static (string Text, double FontSize) FitConcentrationNote(string first, string second, string suffix, double width)
+    {
+        const double minimum = 11.0;
+        var room = width - .20;
+        string Sentence(string a, string b) => $"{a} and {b}{suffix}";
+        for (var size = 14.0; size >= minimum; size -= .5)
+        {
+            if (AnalyticsSlideFrame.TextWidth(Sentence(first, second), size) * HeadlineWidthFactor <= room)
+            {
+                return (Sentence(first, second), size);
+            }
+        }
+
+        var perCharacter = AnalyticsSlideFrame.TextWidth("x", minimum) * HeadlineWidthFactor;
+        var each = Math.Max(8, (int)Math.Floor(((room / perCharacter) - suffix.Length - 5) / 2d));
+        return (Sentence(
+            ProjectBriefingTablePagination.FitToLines(first, each, 1),
+            ProjectBriefingTablePagination.FitToLines(second, each, 1)), minimum);
+    }
+
+    // The headline on one line (Codex review on #3408): the largest size down to 12 pt at which the
+    // whole sentence fits; past that the category's name is cut after a whole word, so the figures
+    // always show. Bold text here averages about .42 em a character (measured on slides exported
+    // through PowerPoint); measured at .44 em.
+    internal const double HeadlineWidthFactor = .44 / AnalyticsSlideFrame.CharacterWidthEm;
+
+    private static (string Label, double FontSize) FitCategoryHeadline(string label, string suffix, double width, double preferredFont)
+    {
+        const double minimum = 12.0;
+        var room = width - .04;
+        for (var size = preferredFont; size >= minimum; size -= .5)
+        {
+            if (AnalyticsSlideFrame.TextWidth(label + suffix, size) * HeadlineWidthFactor <= room)
+            {
+                return (label, size);
+            }
+        }
+
+        var perCharacter = AnalyticsSlideFrame.TextWidth("x", minimum) * HeadlineWidthFactor;
+        var characters = Math.Max(8, (int)Math.Floor((room / perCharacter) - suffix.Length));
+        return (ProjectBriefingTablePagination.FitToLines(label, characters, 1), minimum);
+    }
+
+    // The legend's names fitted to the room: the largest size (down to 9 pt) at which every name
+    // shows whole in up to three lines; at 9 pt a name longer than two lines is cut after a whole
+    // word. The count and share shrink in step with the names. Each row is as tall as its tallest
+    // column (the name's lines or the count), with the text box's insets, so nothing is clipped
+    // (Codex reviews on #3408).
+    private const double CategoryLegendMinimumFont = 9.0;
+
+    private sealed record CategoryLegendFit(IReadOnlyList<string> Names, double FontSize, IReadOnlyList<double> Heights);
+
+    private static CategoryLegendFit FitCategoryLegend(
+        IReadOnlyList<CategoryLegendRow> rows,
+        double nameWidth,
+        double preferredFont,
+        double preferredCountFont,
+        double rowPadding,
+        double available)
+    {
+        const double insets = .06; // the text box's top and bottom insets, with a little to spare
+        var textWidth = nameWidth - .12;
+        double[] Heights(IEnumerable<string> names, double size, double padding)
+        {
+            var countLine = (preferredCountFont * (size / preferredFont) * 1.22 / 72d) + insets;
+            return names
+                .Select(name => Math.Max(
+                    (AnalyticsSlideFrame.LineCount(name, textWidth, size) * size * 1.22 / 72d) + Math.Max(padding, insets),
+                    countLine))
+                .ToArray();
+        }
+
+        for (var size = preferredFont; size > CategoryLegendMinimumFont; size -= .5)
+        {
+            var names = rows.Select(row => row.Label).ToArray();
+            if (names.All(name => AnalyticsSlideFrame.LineCount(name, textWidth, size) <= 3))
+            {
+                var heights = Heights(names, size, rowPadding);
+                if (heights.Sum() <= available + .001)
+                {
+                    return new CategoryLegendFit(names, size, heights);
+                }
+            }
+        }
+
+        var charactersPerLine = Math.Max(8, (int)Math.Floor(textWidth * 72d / (CategoryLegendMinimumFont * AnalyticsSlideFrame.CharacterWidthEm)));
+        var shortened = rows
+            .Select(row => ProjectBriefingTablePagination.FitToLines(row.Label, charactersPerLine, 2))
+            .ToArray();
+        return new CategoryLegendFit(shortened, CategoryLegendMinimumFont, Heights(shortened, CategoryLegendMinimumFont, insets));
+    }
+
+    // Largest first (ties by name); past the ring's limit the smallest become "Other categories".
+    private static IReadOnlyList<CategoryLegendRow> CategoryLegendRows(IReadOnlyList<ProjectBriefingSummaryPoint> points, bool dark, bool parentColours = false)
+    {
+        var palette = dark ? CategoryPaletteDark : CategoryPaletteLight;
+        var grey = dark ? "6B7280" : "9AA3B2";
+        var ordered = points
+            .Where(point => point.Count > 0)
+            .OrderBy(point => IsUncategorisedCategory(point.Label) ? 1 : 0)
+            .ThenByDescending(point => point.Count)
+            .ThenBy(point => point.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var rows = new List<CategoryLegendRow>();
+        var named = ordered.Where(point => !IsUncategorisedCategory(point.Label)).ToList();
+        var uncategorised = ordered.Where(point => IsUncategorisedCategory(point.Label)).ToList();
+        var room = MaximumCategorySlices - (uncategorised.Count > 0 ? 1 : 0);
+        var shown = named.Count > room ? named.Take(room - 1).ToList() : named;
+        for (var index = 0; index < shown.Count; index++)
+        {
+            var color = parentColours && IsKnownParentCategory(shown[index].Label)
+                ? AnalyticsSlideFrame.CategoryColor(shown[index].Label, dark)
+                : palette[index % palette.Length];
+            rows.Add(new CategoryLegendRow(shown[index].Label, shown[index].Count, color, IsMuted: false));
+        }
+
+        if (shown.Count < named.Count)
+        {
+            var rest = named.Skip(shown.Count).ToList();
+            rows.Add(new CategoryLegendRow(
+                $"Other categories ({rest.Count.ToString(CultureInfo.InvariantCulture)})",
+                rest.Sum(point => point.Count),
+                dark ? "94A3B8" : "64748B",
+                IsMuted: true));
+        }
+
+        if (uncategorised.Count > 0)
+        {
+            rows.Add(new CategoryLegendRow("Not categorised", uncategorised.Sum(point => point.Count), grey, IsMuted: true));
+        }
+
+        return rows;
+    }
+
+    // The parent categories the stage-wise chart colours (AnalyticsSlideFrame.CategoryColor).
+    private static bool IsKnownParentCategory(string label)
+    {
+        var key = label.Trim().ToLowerInvariant();
+        return key.StartsWith("dcd", StringComparison.Ordinal)
+            || key.Contains("coe", StringComparison.Ordinal)
+            || key.Contains("centre of excellence", StringComparison.Ordinal)
+            || key.Contains("other", StringComparison.Ordinal)
+            || key.Contains("r&d", StringComparison.Ordinal);
+    }
+
+    private static string RoundedShare(int count, int total)
+        => total <= 0
+            ? "0%"
+            : Math.Round(count * 100d / total, MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture) + "%";
+}

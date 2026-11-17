@@ -115,11 +115,18 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    key points band, Key points only photo, Brief and Fact sheet panels.
    Part 1 built: on the project slides the key points band is 14 pt (labels 12.5 pt, was 11 and
    10), the stage and cost line 12.5 pt (was 10.5), and a brief takes the largest size up to 20 pt
-   that fits its panel (was 15 pt at most). Owner, 17 Nov: the two category distributions become
-   donut charts with their figures, side by side on one slide when both are chosen (with step 6).
+   that fits its panel (was 15 pt at most).
+   Category distributions built (owner, 17 Nov: "too simplistic ... no oomph"): each is a native
+   PowerPoint doughnut (embedded workbook, so Edit Data works) with the total in its hole, a
+   headline naming the largest category, and a legend of every category with count and share.
+   Both chosen share one slide, "Project and technical categories", side by side; one alone takes
+   the slide with a larger ring and its concentration note. Beyond nine slices the smallest are
+   one "Other categories" slice; "Not categorised" is always grey and last. The builder's preview
+   draws the rings as SVG. Owner, 17 Nov: the project-category ring counts parent categories only
+   (CoE Mid Term, CoE Short Term and CoE are one CoE), in the stage-wise chart's colours.
 5. **Editable structure**: slide master and layouts carry the furniture; title placeholders; real
    slide-number fields; real bullets.
-6. **Native charts** for the stage chart and the two category distributions.
+6. **Native charts** for the stage chart (the two category distributions are done, above).
 7. **Re-review**: export every design again and compare.
 
 Steps 1–3 change what a deck says least and help most; 5 and 6 are the largest.

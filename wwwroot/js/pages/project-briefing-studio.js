@@ -88,9 +88,10 @@ if (root) {
     UpdateSheetRowOrder: () => ['ProjectUpdateSheet'],
     HideEmptyUpdateSheetValues: () => ['ProjectUpdateSheet'],
     IncludeStageSummary: () => ['StageDistribution'],
-    // Both category charts share a role; their titles tell them apart.
-    IncludeProjectCategorySummary: () => [{ role: 'CategorySummary', title: /project-category/i }],
-    IncludeTechnicalCategorySummary: () => [{ role: 'CategorySummary', title: /technical-category/i }],
+    // Both category charts share a role; their titles tell them apart. With both chosen they
+    // share one slide, "Project and technical categories".
+    IncludeProjectCategorySummary: () => [{ role: 'CategorySummary', title: /project-category|project and technical/i }],
+    IncludeTechnicalCategorySummary: () => [{ role: 'CategorySummary', title: /technical-category|project and technical/i }],
     IncludeCoverSlide: () => ['Cover'],
     BrandingScope: () => ['Cover'],
     ClosingSlideType: () => ['Closing']

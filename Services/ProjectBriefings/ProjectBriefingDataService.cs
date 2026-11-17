@@ -392,6 +392,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 PresentStage = project.PresentStage,
                 PresentStageOrder = project.PresentStageOrder,
                 ProjectCategory = project.ProjectCategory,
+                ParentProjectCategory = project.ParentProjectCategory,
                 TechnicalCategory = project.TechnicalCategory,
                 CostRd = project.CostRd,
                 IpaCost = project.IpaCost,
@@ -808,6 +809,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ? await _updateSheetFactsResolver.ResolveAsync(projectIds, cancellationToken)
             : updateSheetFacts;
 
+        var parentCategories = await ResolveParentCategoriesAsync(projectIds, cancellationToken);
         var coverByProject = items.ToDictionary(item => item.ProjectId, ResolveCoverPhotoId);
         var photoReferences = coverByProject
             .Where(pair => pair.Value.HasValue)
@@ -852,6 +854,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     PresentStage = ResolveStageName(item),
                     PresentStageOrder = ProjectBriefingStageOrder.Resolve(item.LifecycleStatus, stageCode),
                     ProjectCategory = item.ProjectCategory,
+                    ParentProjectCategory = parentCategories.GetValueOrDefault(item.ProjectId),
                     TechnicalCategory = item.TechnicalCategory,
                     CostRd = resolvedCostRd,
                     IpaCost = ipaCost.GetValueOrDefault(item.ProjectId)
@@ -1035,7 +1038,36 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         => !string.IsNullOrWhiteSpace(value)
             && !string.Equals(value.Trim(), "Project brief not recorded.", StringComparison.OrdinalIgnoreCase);
 
-    private static ProjectBriefingPresentationSummary BuildPresentationSummary(
+    // A project's parent category for the distribution: its tree's top, else the category itself.
+    private static string ParentCategoryLabel(string? parent, string? category)
+        => !string.IsNullOrWhiteSpace(parent)
+            ? parent.Trim()
+            : string.IsNullOrWhiteSpace(category) ? "Not categorised" : category.Trim();
+
+    // The top of each project's category tree, by the same rule as the stage-wise chart.
+    private async Task<IReadOnlyDictionary<int, string>> ResolveParentCategoriesAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken)
+    {
+        var categoryIds = await _db.Projects
+            .AsNoTracking()
+            .Where(project => projectIds.Contains(project.Id))
+            .Select(project => new { project.Id, project.CategoryId })
+            .ToListAsync(cancellationToken);
+        var hierarchy = (await _db.ProjectCategories
+                .AsNoTracking()
+                .Select(category => new { category.Id, category.Name, category.ParentId })
+                .ToListAsync(cancellationToken))
+            .ToDictionary(
+                category => category.Id,
+                category => new ProjectCategoryHierarchyNode(category.Id, category.Name, category.ParentId));
+        return categoryIds
+            .Select(project => (project.Id, Root: ProjectCategoryHierarchyResolver.ResolveRoot(project.CategoryId, hierarchy)?.Name))
+            .Where(project => !string.IsNullOrWhiteSpace(project.Root))
+            .ToDictionary(project => project.Id, project => project.Root!.Trim());
+    }
+
+    internal static ProjectBriefingPresentationSummary BuildPresentationSummary(
         IReadOnlyList<ProjectBriefingPresentationProject> projects)
     {
         var stageSummary = ProjectBriefingStageOrder.BuildSummary(
@@ -1046,7 +1078,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 .Select(project => project.PresentStageOrder));
 
         var projectCategorySummary = projects
-            .GroupBy(project => string.IsNullOrWhiteSpace(project.ProjectCategory) ? "Not categorised" : project.ProjectCategory!)
+            .GroupBy(project => ParentCategoryLabel(project.ParentProjectCategory, project.ProjectCategory), StringComparer.OrdinalIgnoreCase)
             .Select(group => new ProjectBriefingSummaryPoint(group.Key, group.Count()))
             .OrderByDescending(point => point.Count)
             .ThenBy(point => point.Label)
@@ -1158,22 +1190,16 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         // this view model does not load. So 2 is an estimate; the built deck has the true count.
         var summarySlides = includeStageSummary ? 2 : 0;
         var projectCategoryCount = projects
-            .Select(project => project.ProjectCategory ?? "Not categorised")
+            .Select(project => ParentCategoryLabel(project.ParentProjectCategory, project.ProjectCategory))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
-        if (includeProjectCategorySummary)
-        {
-            summarySlides += ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(projectCategoryCount);
-        }
-
         var technicalCategoryCount = projects
             .Select(project => project.TechnicalCategory ?? "Not categorised")
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
-        if (includeTechnicalCategorySummary)
-        {
-            summarySlides += ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(technicalCategoryCount);
-        }
+        summarySlides += ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(
+            includeProjectCategorySummary && ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(projectCategoryCount),
+            includeTechnicalCategorySummary && ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(technicalCategoryCount));
 
         var executiveSlides = presentationMode is ProjectBriefingPresentationMode.ExecutiveTable
             or ProjectBriefingPresentationMode.Combined

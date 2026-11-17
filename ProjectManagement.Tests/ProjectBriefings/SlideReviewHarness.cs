@@ -96,6 +96,22 @@ public sealed class SlideReviewHarness
             var composition = composer.ComposeWithOutline(variant);
             await File.WriteAllBytesAsync(Path.Combine(output, $"{design}.pptx"), composition.Content);
         }
+
+        // The category slides alone in the light theme: each distribution on its own, then both.
+        var light = Clone(data);
+        Set(light, nameof(ProjectBriefingPresentationData.PresentationTheme), ProjectBriefingPresentationTheme.EditorialLight);
+        Set(light, nameof(ProjectBriefingPresentationData.Blocks), new[]
+        {
+            new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.ProjectCategorySummary, Enabled: true)
+        });
+        var single = composer.ComposeWithOutline(light).Content;
+        await File.WriteAllBytesAsync(Path.Combine(output, "CategoriesLightSingle.pptx"), single);
+        Set(light, nameof(ProjectBriefingPresentationData.Blocks), new[]
+        {
+            new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.TechnicalCategorySummary, Enabled: true),
+            new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.ProjectCategorySummary, Enabled: true)
+        });
+        await File.WriteAllBytesAsync(Path.Combine(output, "CategoriesLightBoth.pptx"), composer.ComposeWithOutline(light).Content);
     }
 
     private static ProjectBriefingPresentationData Clone(ProjectBriefingPresentationData data)

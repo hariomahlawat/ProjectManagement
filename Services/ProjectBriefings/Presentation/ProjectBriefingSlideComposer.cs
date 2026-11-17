@@ -168,8 +168,31 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         // lists them in a short table after the project slides.
         var hasStatusTable = blocks.Any(block => block.Type == ProjectBriefingDeckBlockType.StatusTable);
         var plans = new List<SlidePlan>();
+        // Both category distributions chosen: one slide, two donuts side by side, where the first
+        // of the two blocks sits.
+        var bothCategories = blocks.Any(block => block.Type == ProjectBriefingDeckBlockType.ProjectCategorySummary)
+            && blocks.Any(block => block.Type == ProjectBriefingDeckBlockType.TechnicalCategorySummary)
+            && RendersCategorySummary(data.Summary.ProjectCategorySummary)
+            && RendersCategorySummary(data.Summary.TechnicalCategorySummary);
+        var categoriesShown = false;
         foreach (var block in blocks)
         {
+            if (bothCategories && block.Type is ProjectBriefingDeckBlockType.ProjectCategorySummary
+                    or ProjectBriefingDeckBlockType.TechnicalCategorySummary)
+            {
+                if (!categoriesShown)
+                {
+                    AddCategoryDonutSlide(plans, data, CombinedCategoryTitle, new[]
+                    {
+                        new CategoryPanel("Project category", data.Summary.ProjectCategorySummary, UsesParentColours: true),
+                        new CategoryPanel("Technical category", data.Summary.TechnicalCategorySummary)
+                    });
+                    categoriesShown = true;
+                }
+
+                continue;
+            }
+
             AddBlockPlans(plans, block.Type, data, orderedProjects, hasStatusTable);
         }
 
@@ -224,25 +247,19 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 break;
 
             case ProjectBriefingDeckBlockType.ProjectCategorySummary
-                when ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(
-                    data.Summary.ProjectCategorySummary.Count(point => point.Count > 0)):
-                AddSummaryChartSlides(
-                    plans,
-                    data,
-                    "Project-category distribution",
-                    data.Summary.ProjectCategorySummary,
-                    ThemeAccent.Secondary);
+                when RendersCategorySummary(data.Summary.ProjectCategorySummary):
+                AddCategoryDonutSlide(plans, data, "Project-category distribution", new[]
+                {
+                    new CategoryPanel("Project category", data.Summary.ProjectCategorySummary, UsesParentColours: true)
+                });
                 break;
 
             case ProjectBriefingDeckBlockType.TechnicalCategorySummary
-                when ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(
-                    data.Summary.TechnicalCategorySummary.Count(point => point.Count > 0)):
-                AddSummaryChartSlides(
-                    plans,
-                    data,
-                    "Technical-category distribution",
-                    data.Summary.TechnicalCategorySummary,
-                    ThemeAccent.Primary);
+                when RendersCategorySummary(data.Summary.TechnicalCategorySummary):
+                AddCategoryDonutSlide(plans, data, "Technical-category distribution", new[]
+                {
+                    new CategoryPanel("Technical category", data.Summary.TechnicalCategorySummary)
+                });
                 break;
 
             case ProjectBriefingDeckBlockType.StatusTable:
@@ -559,36 +576,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             "l");
     }
 
-    private static void AddSummaryChartSlides(
-        List<SlidePlan> plans,
-        ProjectBriefingPresentationData data,
-        string title,
-        IReadOnlyList<ProjectBriefingSummaryPoint> points,
-        ThemeAccent accent)
-    {
-        var pages = ProjectBriefingSummaryPlanning.PaginateCategories(points);
-        var rankOffset = 0;
-        for (var pageIndex = 0; pageIndex < pages.Count; pageIndex++)
-        {
-            var capturedPage = pages[pageIndex];
-            var capturedPageIndex = pageIndex;
-            var capturedRankOffset = rankOffset;
-            plans.Add(new SlidePlan(
-                SlidePlanKind.Summary,
-                canvas => RenderAdaptiveCategorySummary(
-                    canvas,
-                    title,
-                    capturedPage,
-                    data.Summary.ProjectCount,
-                    points.Count(point => point.Count > 0),
-                    accent,
-                    capturedPageIndex + 1,
-                    pages.Count,
-                    capturedRankOffset),
-                ProjectBriefingSlideRole.CategorySummary));
-            rankOffset += capturedPage.Count;
-        }
-    }
+    private static bool RendersCategorySummary(IReadOnlyList<ProjectBriefingSummaryPoint> points)
+        => ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(points.Count(point => point.Count > 0));
 
     // Decks without a status table list their table row only projects in a short table of
     // their own, after the project slides, so those projects still appear in the PowerPoint.
@@ -2091,14 +2080,6 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             _ => false
         };
 
-    private static string ResolveAccent(ProjectBriefingThemeDefinition theme, ThemeAccent accent)
-        => accent switch
-        {
-            ThemeAccent.Secondary => theme.SecondaryAccent,
-            ThemeAccent.Positive => theme.Positive,
-            _ => theme.Accent
-        };
-
     private static SlideIdList EnsureSlideIdList(DocumentFormat.OpenXml.Presentation.Presentation presentation)
     {
         var existing = presentation.SlideIdList;
@@ -2170,13 +2151,6 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         // A generated deck must not retain custom-show references to template slides
         // that no longer exist. Stale references can make PowerPoint repair the file.
         presentationPart.Presentation.CustomShowList?.Remove();
-    }
-
-    private enum ThemeAccent
-    {
-        Primary,
-        Secondary,
-        Positive
     }
 
     private enum SlidePlanKind
@@ -2288,6 +2262,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         ProjectBriefingSlideRole Role,
         int? ProjectId = null,
         IReadOnlyList<int>? ListedProjectIds = null);
+
+    // One slice of a native doughnut chart: its name, figure and colour.
+    private sealed record ChartSlice(string Label, int Value, string Color);
 
     private sealed class SlideCanvas
     {
@@ -2775,6 +2752,100 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
   <p:nvGraphicFramePr><p:cNvPr id="{id}" name="{Escape(name)}"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>
   <p:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(widths.Sum())}" cy="{Emu(heights.Sum())}"/></p:xfrm>
   <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>{columnXml}</a:tblGrid>{rowXml}</a:tbl></a:graphicData></a:graphic>
+</p:graphicFrame>
+""");
+        }
+
+        // A native PowerPoint doughnut chart (docs/ux/briefing-slides-review.md, step 6): the figures
+        // travel in an embedded workbook, so "Edit Data" in PowerPoint opens them, and each slice
+        // keeps the colour the slide's legend shows. Labels are left off the ring; the legend
+        // beside it carries the names and figures in readable type.
+        public void AddDoughnutChart(
+            double x,
+            double y,
+            double size,
+            IReadOnlyList<ChartSlice> slices,
+            string seriesName,
+            string gapColor,
+            string name)
+        {
+            ArgumentNullException.ThrowIfNull(slices);
+            if (slices.Count == 0) return;
+            EnsureFrame(x, y, size, size, name);
+
+            var chartPart = _slidePart.AddNewPart<ChartPart>();
+            var workbookPart = chartPart.AddEmbeddedPackagePart(EmbeddedPackagePartType.Xlsx);
+            using (var workbook = new ClosedXML.Excel.XLWorkbook())
+            {
+                var sheet = workbook.AddWorksheet("Sheet1");
+                sheet.Cell(1, 1).Value = "Category";
+                sheet.Cell(1, 2).Value = seriesName;
+                for (var index = 0; index < slices.Count; index++)
+                {
+                    sheet.Cell(index + 2, 1).Value = slices[index].Label;
+                    sheet.Cell(index + 2, 2).Value = slices[index].Value;
+                }
+
+                sheet.Columns(1, 2).AdjustToContents();
+                using var workbookStream = new MemoryStream();
+                workbook.SaveAs(workbookStream);
+                workbookStream.Position = 0;
+                workbookPart.FeedData(workbookStream);
+            }
+
+            var last = slices.Count + 1;
+            var points = new StringBuilder();
+            var categories = new StringBuilder();
+            var values = new StringBuilder();
+            for (var index = 0; index < slices.Count; index++)
+            {
+                var slice = slices[index];
+                points.Append(CultureInfo.InvariantCulture, $"""<c:dPt><c:idx val="{index}"/><c:bubble3D val="0"/><c:spPr><a:solidFill><a:srgbClr val="{CleanColor(slice.Color)}"/></a:solidFill><a:ln w="28575"><a:solidFill><a:srgbClr val="{CleanColor(gapColor)}"/></a:solidFill></a:ln></c:spPr></c:dPt>""");
+                categories.Append(CultureInfo.InvariantCulture, $"""<c:pt idx="{index}"><c:v>{Escape(slice.Label)}</c:v></c:pt>""");
+                values.Append(CultureInfo.InvariantCulture, $"""<c:pt idx="{index}"><c:v>{slice.Value}</c:v></c:pt>""");
+            }
+
+            var chartXml = $"""
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:date1904 val="0"/><c:roundedCorners val="0"/>
+  <c:chart>
+    <c:autoTitleDeleted val="1"/>
+    <c:plotArea>
+      <c:layout><c:manualLayout><c:layoutTarget val="inner"/><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="0"/><c:y val="0"/><c:w val="1"/><c:h val="1"/></c:manualLayout></c:layout>
+      <c:doughnutChart>
+        <c:varyColors val="1"/>
+        <c:ser>
+          <c:idx val="0"/><c:order val="0"/>
+          <c:tx><c:strRef><c:f>Sheet1!$B$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>{Escape(seriesName)}</c:v></c:pt></c:strCache></c:strRef></c:tx>
+          {points}
+          <c:cat><c:strRef><c:f>Sheet1!$A$2:$A${last}</c:f><c:strCache><c:ptCount val="{slices.Count}"/>{categories}</c:strCache></c:strRef></c:cat>
+          <c:val><c:numRef><c:f>Sheet1!$B$2:$B${last}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="{slices.Count}"/>{values}</c:numCache></c:numRef></c:val>
+        </c:ser>
+        <c:dLbls><c:showLegendKey val="0"/><c:showVal val="0"/><c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/><c:showLeaderLines val="0"/></c:dLbls>
+        <c:firstSliceAng val="0"/>
+        <c:holeSize val="64"/>
+      </c:doughnutChart>
+      <c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>
+    </c:plotArea>
+    <c:plotVisOnly val="1"/>
+    <c:dispBlanksAs val="gap"/>
+  </c:chart>
+  <c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>
+  <c:externalData r:id="{chartPart.GetIdOfPart(workbookPart)}"><c:autoUpdate val="0"/></c:externalData>
+</c:chartSpace>
+""";
+            using (var chartStream = new MemoryStream(Encoding.UTF8.GetBytes(chartXml)))
+            {
+                chartPart.FeedData(chartStream);
+            }
+
+            var id = _nextShapeId++;
+            _elements.Add($"""
+<p:graphicFrame>
+  <p:nvGraphicFramePr><p:cNvPr id="{id}" name="{Escape(name)}" descr="{Escape(name)}"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>
+  <p:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(size)}" cy="{Emu(size)}"/></p:xfrm>
+  <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="{_slidePart.GetIdOfPart(chartPart)}"/></a:graphicData></a:graphic>
 </p:graphicFrame>
 """);
         }
