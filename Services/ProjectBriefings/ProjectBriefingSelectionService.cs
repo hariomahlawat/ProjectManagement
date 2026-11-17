@@ -22,6 +22,11 @@ public interface IProjectBriefingSelectionService
         int take = 25,
         CancellationToken cancellationToken = default);
 
+    // The projects matching the Add projects filter (docs/ux/briefing-add-projects.md), by name.
+    Task<IReadOnlyList<ProjectBriefingSearchResultVm>> FilterAsync(
+        ProjectBriefingProjectFilter filter,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<int>> ValidateProjectIdsAsync(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken = default);
@@ -90,6 +95,19 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             .CountAsync(project => _db.ProjectTechStatuses.Any(status =>
                 status.ProjectId == project.Id && status.AvailableForProliferation == true), cancellationToken);
 
+        var arppYears = (await ArppListingsAsync(Array.Empty<int>(), cancellationToken))
+            .GroupBy(listing => listing.FinancialYearStart)
+            .OrderByDescending(group => group.Key)
+            .Select(group => new ProjectBriefingArppYearOptionVm(
+                group.Key,
+                FinancialYearLabel(group.Key),
+                group.Select(listing => listing.ProjectId).Distinct().Count()))
+            .ToArray();
+        var completionFinancialYears = (await CompletionsAsync(cancellationToken))
+            .Select(completion => completion.FinancialYearStart)
+            .ToArray();
+        var thisFinancialYear = FinancialYearOf(DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime));
+
         return new ProjectBriefingSelectionOptionsVm
         {
             OngoingCount = lifecycleCounts.FirstOrDefault(row => row.Status == ProjectLifecycleStatus.Active)?.Count ?? 0,
@@ -98,10 +116,149 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             MinimumCompletionYear = completionYears.Count == 0 ? todayYear : completionYears.Min(),
             MaximumCompletionYear = completionYears.Count == 0 ? todayYear : completionYears.Max(),
             ProjectCategories = projectCategories,
-            TechnicalCategories = technicalCategories
+            TechnicalCategories = technicalCategories,
+            ArppYears = arppYears,
+            MinimumCompletionFinancialYear = completionFinancialYears.Length == 0 ? thisFinancialYear : completionFinancialYears.Min(),
+            MaximumCompletionFinancialYear = completionFinancialYears.Length == 0 ? thisFinancialYear : completionFinancialYears.Max()
         };
     }
 
+    public async Task<IReadOnlyList<ProjectBriefingSearchResultVm>> FilterAsync(
+        ProjectBriefingProjectFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        var query = EligibleProjects();
+
+        var text = filter.Query?.Trim();
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            query = WhereMatches(query, text);
+        }
+
+        var years = filter.ArppFinancialYears.Where(year => year > 0).Distinct().ToArray();
+        if (years.Length > 0)
+        {
+            var listed = (await ArppListingsAsync(years, cancellationToken))
+                .Select(listing => listing.ProjectId)
+                .Distinct()
+                .ToArray();
+            query = query.Where(project => listed.Contains(project.Id));
+        }
+
+        var projectCategories = filter.ProjectCategoryIds.Where(id => id > 0).Distinct().ToArray();
+        if (projectCategories.Length > 0)
+        {
+            var expanded = await ExpandCategoryIdsAsync(projectCategories, technical: false, cancellationToken);
+            query = query.Where(project => project.CategoryId.HasValue && expanded.Contains(project.CategoryId.Value));
+        }
+
+        var technicalCategories = filter.TechnicalCategoryIds.Where(id => id > 0).Distinct().ToArray();
+        if (technicalCategories.Length > 0)
+        {
+            var expanded = await ExpandCategoryIdsAsync(technicalCategories, technical: true, cancellationToken);
+            query = query.Where(project => project.TechnicalCategoryId.HasValue && expanded.Contains(project.TechnicalCategoryId.Value));
+        }
+
+        var statuses = filter.Statuses
+            .Where(status => status is ProjectLifecycleStatus.Active or ProjectLifecycleStatus.Completed)
+            .Distinct()
+            .ToArray();
+        if (statuses.Length > 0)
+        {
+            query = query.Where(project => statuses.Contains(project.LifecycleStatus));
+        }
+
+        if (filter.CompletedFromFinancialYear.HasValue || filter.CompletedToFinancialYear.HasValue)
+        {
+            var from = filter.CompletedFromFinancialYear ?? int.MinValue;
+            var to = filter.CompletedToFinancialYear ?? int.MaxValue;
+            if (from > to)
+            {
+                (from, to) = (to, from);
+            }
+
+            var completed = (await CompletionsAsync(cancellationToken))
+                .Where(completion => completion.FinancialYearStart >= from && completion.FinancialYearStart <= to)
+                .Select(completion => completion.ProjectId)
+                .ToArray();
+            query = query.Where(project => completed.Contains(project.Id));
+        }
+
+        if (filter.AvailableForProliferation)
+        {
+            query = query.Where(project => _db.ProjectTechStatuses.Any(status =>
+                status.ProjectId == project.Id && status.AvailableForProliferation == true));
+        }
+
+        // Every eligible project at most (a few hundred): the dialog lists them all.
+        return await BuildResultsAsync(query, take: 1000, cancellationToken);
+    }
+
+    // The projects each published ARPP of these financial years lists (all years when none are
+    // given): a project is listed in a year when it appears in any issue of that year (the main
+    // issue or an addendum) and its latest entry in that year is not Delisted.
+    private async Task<IReadOnlyList<ArppListing>> ArppListingsAsync(
+        IReadOnlyCollection<int> financialYears,
+        CancellationToken cancellationToken)
+    {
+        var entries = _db.ArppPublishedEntries.AsNoTracking().Where(entry => entry.ProjectId.HasValue);
+        if (financialYears.Count > 0)
+        {
+            entries = entries.Where(entry => financialYears.Contains(entry.PublishedIssue.FinancialYearStart));
+        }
+
+        var rows = await entries
+            .Select(entry => new
+            {
+                ProjectId = entry.ProjectId!.Value,
+                entry.Id,
+                entry.Category,
+                entry.PublishedIssue.FinancialYearStart,
+                entry.PublishedIssue.IssueDate,
+                entry.PublishedIssue.IssueSequence,
+                entry.PublishedIssue.ArppIssueId
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => (row.ProjectId, row.FinancialYearStart))
+            .Select(group => group
+                .OrderByDescending(row => row.IssueDate)
+                .ThenByDescending(row => row.IssueSequence)
+                .ThenByDescending(row => row.ArppIssueId)
+                .ThenByDescending(row => row.Id)
+                .First())
+            .Where(latest => latest.Category != Models.Arpp.ArppCategory.Delisted)
+            .Select(latest => new ArppListing(latest.ProjectId, latest.FinancialYearStart))
+            .ToArray();
+    }
+
+    // Each completed project's financial year of completion: from its completion date, else its
+    // recorded month and year; a year recorded without a month counts as the financial year that
+    // starts in it.
+    private async Task<IReadOnlyList<Completion>> CompletionsAsync(CancellationToken cancellationToken)
+    {
+        var rows = await EligibleProjects()
+            .Where(project => project.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            .Select(project => new { project.Id, project.CompletedOn, project.CompletedYear, project.CompletedMonth })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => row.CompletedOn.HasValue
+                ? new Completion(row.Id, FinancialYearOf(row.CompletedOn.Value))
+                : row.CompletedYear.HasValue
+                    ? new Completion(row.Id, row.CompletedMonth is >= 1 and <= 3 ? row.CompletedYear.Value - 1 : row.CompletedYear.Value)
+                    : null)
+            .Where(completion => completion is not null)
+            .Select(completion => completion!)
+            .ToArray();
+    }
+
+    // The financial year (April to March) a date falls in, by its starting year.
+    internal static int FinancialYearOf(DateOnly date) => date.Month >= 4 ? date.Year : date.Year - 1;
+
+    internal static string FinancialYearLabel(int startYear) => $"FY {startYear}-{(startYear + 1) % 100:00}";
     public async Task<ProjectBriefingSelectionResult> ResolveAsync(
         ProjectBriefingSelectionRequest request,
         CancellationToken cancellationToken = default)
@@ -230,16 +387,29 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
         }
 
         take = Math.Clamp(take, 1, 50);
-        var pattern = $"%{normalized}%";
-        var projectRows = await EligibleProjects()
-            .Where(project =>
-                EF.Functions.ILike(project.Name, pattern)
-                || (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern))
-                || (project.Category != null && EF.Functions.ILike(project.Category.Name, pattern))
-                || (project.TechnicalCategory != null && EF.Functions.ILike(project.TechnicalCategory.Name, pattern))
-                || (project.LeadPoUser != null
-                    && (EF.Functions.ILike(project.LeadPoUser.FullName, pattern)
-                        || EF.Functions.ILike(project.LeadPoUser.Rank, pattern))))
+        return await BuildResultsAsync(WhereMatches(EligibleProjects(), normalized), take, cancellationToken);
+    }
+
+    private static IQueryable<Project> WhereMatches(IQueryable<Project> query, string text)
+    {
+        var pattern = $"%{text}%";
+        return query.Where(project =>
+            EF.Functions.ILike(project.Name, pattern)
+            || (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern))
+            || (project.Category != null && EF.Functions.ILike(project.Category.Name, pattern))
+            || (project.TechnicalCategory != null && EF.Functions.ILike(project.TechnicalCategory.Name, pattern))
+            || (project.LeadPoUser != null
+                && (EF.Functions.ILike(project.LeadPoUser.FullName, pattern)
+                    || EF.Functions.ILike(project.LeadPoUser.Rank, pattern))));
+    }
+
+    // The result rows (stage, categories, officer) for the projects a query selects, by name.
+    private async Task<IReadOnlyList<ProjectBriefingSearchResultVm>> BuildResultsAsync(
+        IQueryable<Project> query,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var projectRows = await query
             .OrderBy(project => project.Name)
             .Take(take)
             .Select(project => new SearchProjectBaseRow(
@@ -432,6 +602,8 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
         => status == ProjectLifecycleStatus.Completed ? "Completed" : "Ongoing";
 
     private sealed record CategoryNode(int Id, int? ParentId);
+    private sealed record ArppListing(int ProjectId, int FinancialYearStart);
+    private sealed record Completion(int ProjectId, int FinancialYearStart);
     private sealed record CategoryOptionRow(int Id, string Name, int? ParentId);
 
     private sealed record SearchProjectBaseRow(

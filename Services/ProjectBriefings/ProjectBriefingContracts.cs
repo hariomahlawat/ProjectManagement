@@ -268,6 +268,44 @@ public sealed class ProjectBriefingSelectionOptionsVm
         = Array.Empty<ProjectBriefingLookupOptionVm>();
     public IReadOnlyList<ProjectBriefingLookupOptionVm> TechnicalCategories { get; init; }
         = Array.Empty<ProjectBriefingLookupOptionVm>();
+
+    // The financial years with a published ARPP, latest first, each with its listed projects
+    // (docs/ux/briefing-add-projects.md).
+    public IReadOnlyList<ProjectBriefingArppYearOptionVm> ArppYears { get; init; }
+        = Array.Empty<ProjectBriefingArppYearOptionVm>();
+
+    // The first and last financial years (their starting year) in which a project was completed.
+    public int MinimumCompletionFinancialYear { get; init; }
+    public int MaximumCompletionFinancialYear { get; init; }
+}
+
+public sealed record ProjectBriefingArppYearOptionVm(int FinancialYearStart, string Label, int ProjectCount);
+
+// The Add projects filter (docs/ux/briefing-add-projects.md): every chip is a condition the
+// projects must meet (all of them); the values inside a chip are alternatives (any of them).
+// An empty chip does not filter.
+public sealed class ProjectBriefingProjectFilter
+{
+    public string? Query { get; init; }
+    // Starting years of the financial years whose published ARPP lists the project.
+    public IReadOnlyList<int> ArppFinancialYears { get; init; } = Array.Empty<int>();
+    public IReadOnlyList<int> ProjectCategoryIds { get; init; } = Array.Empty<int>();
+    public IReadOnlyList<int> TechnicalCategoryIds { get; init; } = Array.Empty<int>();
+    public IReadOnlyList<ProjectLifecycleStatus> Statuses { get; init; } = Array.Empty<ProjectLifecycleStatus>();
+    // Completed within these financial years (starting years, inclusive); either end may be open.
+    public int? CompletedFromFinancialYear { get; init; }
+    public int? CompletedToFinancialYear { get; init; }
+    public bool AvailableForProliferation { get; init; }
+
+    public bool IsEmpty =>
+        string.IsNullOrWhiteSpace(Query)
+        && ArppFinancialYears.Count == 0
+        && ProjectCategoryIds.Count == 0
+        && TechnicalCategoryIds.Count == 0
+        && Statuses.Count == 0
+        && CompletedFromFinancialYear is null
+        && CompletedToFinancialYear is null
+        && !AvailableForProliferation;
 }
 
 public sealed class ProjectBriefingSelectionRequest

@@ -309,6 +309,9 @@ public sealed class ProjectBriefingDeckBlockSaveTests
         public Task<IReadOnlyList<ProjectBriefingSearchResultVm>> SearchAsync(string? query, int take = 25, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
+        public Task<IReadOnlyList<ProjectBriefingSearchResultVm>> FilterAsync(ProjectBriefingProjectFilter filter, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
         public Task<IReadOnlyList<int>> ValidateProjectIdsAsync(IReadOnlyCollection<int> projectIds, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<int>>(projectIds.ToArray());
     }
