@@ -180,6 +180,50 @@ public sealed class ProjectBriefingStageDistributionTests
     // END SECTION
 
     // SECTION: Slides
+    [Fact]
+    public void Compose_DrawsTheStageChartAsANativeChartWithItsFigures()
+    {
+        // docs/ux/briefing-slides-review.md, step 6: Edit Data in PowerPoint opens the figures.
+        var data = SampleData(ProjectBriefingPresentationTheme.GraphiteDark);
+        var composition = Composer().ComposeStageDistributionSlidesForTesting(data);
+
+        ProjectBriefingPresentationIntegrityValidator.Validate(composition.Content, composition.SlideCount);
+        using var stream = new MemoryStream(composition.Content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var presentation = document.PresentationPart!;
+        var first = (SlidePart)presentation.GetPartById(presentation.Presentation.SlideIdList!.Elements<DocumentFormat.OpenXml.Presentation.SlideId>().First().RelationshipId!.Value!);
+        var chart = Assert.Single(first.ChartParts);
+        Assert.NotNull(chart.EmbeddedPackagePart);
+        var bars = Assert.Single(chart.ChartSpace!.Descendants<DocumentFormat.OpenXml.Drawing.Charts.BarChart>());
+        var series = bars.Elements<DocumentFormat.OpenXml.Drawing.Charts.BarChartSeries>().ToArray();
+        Assert.NotEmpty(series);
+
+        // The totals above the columns add up the series, column by column.
+        double[] Values(DocumentFormat.OpenXml.OpenXmlElement owner, int count)
+        {
+            var values = new double[count];
+            foreach (var point in owner.Descendants<DocumentFormat.OpenXml.Drawing.Charts.Values>().Single().Descendants<DocumentFormat.OpenXml.Drawing.Charts.NumericPoint>())
+            {
+                values[(int)point.Index!.Value] = double.Parse(point.NumericValue!.Text, System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            return values;
+        }
+
+        var categories = series[0].Descendants<DocumentFormat.OpenXml.Drawing.Charts.StringPoint>().Count();
+        var line = Assert.Single(chart.ChartSpace!.Descendants<DocumentFormat.OpenXml.Drawing.Charts.LineChartSeries>());
+        var totals = Values(line, categories);
+        var sums = Enumerable.Range(0, categories).Select(index => series.Sum(entry => Values(entry, categories)[index])).ToArray();
+        Assert.Equal(sums, totals);
+        var shown = data.StageDistribution.Lines.Count(item => item.Bucket != ArppProgressBucket.Cancelled);
+        Assert.Equal(shown, totals.Sum());
+
+        // The builder's preview draws the columns.
+        var preview = ProjectBriefingSlidePreviewRenderer.Render(composition.Content, DateTimeOffset.UtcNow);
+        Assert.Contains("background:#", preview.Slides[0].Html, StringComparison.Ordinal);
+        Assert.Contains($">{totals.Max().ToString(System.Globalization.CultureInfo.InvariantCulture)}</p>", preview.Slides[0].Html, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(ProjectBriefingPresentationTheme.EditorialLight)]
     [InlineData(ProjectBriefingPresentationTheme.GraphiteDark)]

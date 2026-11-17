@@ -157,6 +157,11 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    template's generic 4:3 layouts are removed. Slides keep their own title, content, slide number,
    marking and data-as-on note. The builder's preview draws each slide's layout under it.
 6. **Native charts** for the stage chart (the two category distributions are done, above).
+   Built: the stage-wise chart is a native stacked column chart, a series per parent category in
+   the stage chart's colours, the counts inside, each stage's total above from a line series, and
+   the figures in an embedded workbook whose Total column sums each row (Edit Data moves a bar and
+   its total together). The bands stay shapes behind the chart, its inner plot set on their slots;
+   stages now take equal slots. The builder's preview draws stacked columns.
 7. **Re-review**: export every design again and compare.
 
 Steps 1–3 change what a deck says least and help most; 5 and 6 are the largest.
