@@ -228,10 +228,18 @@
     top:72px;
     z-index:36;
     width:100%;
+    /* As tall as the page beside it, up to the window: on a short page the rail and the content
+       end together instead of the rail stopping short of the content (or past it); on a long
+       page it stays in view and scrolls inside. */
+    align-self:stretch;
     max-height:calc(100vh - 72px - var(--cw-below));
     padding:10px 10px 12px;
     overflow-x:hidden;
     overflow-y:auto;
+    /* The bar shows only while the pointer is over the rail, so the menu is not a box with a
+       scrollbar in it. */
+    scrollbar-width:thin;
+    scrollbar-color:transparent transparent;
     isolation:isolate;
     background:linear-gradient(135deg, var(--cw-glass-gleam) 0%, transparent 46%), var(--cw-glass);
     border-radius:16px;
@@ -407,9 +415,12 @@
 .cw-workspace-lens a.is-active { color:var(--cw-ink); }
 .cw-workspace-lens i { font-size:.8125rem; }
 
-/* Groups: one hue each */
-.cw-local-rail nav { display:grid; gap:0; padding-top:2px; }
-.cw-local-rail__group { display:grid; gap:2px; padding:8px 0 6px; }
+.cw-local-rail:hover,
+.cw-local-rail:focus-within { scrollbar-color:color-mix(in srgb, var(--cw-muted) 55%, transparent) transparent; }
+
+/* Groups: one hue each. Rows are compact enough that all groups fit beside a 1080p window. */
+.cw-local-rail nav { display:grid; gap:0; padding-top:2px; align-content:start; }
+.cw-local-rail__group { display:grid; gap:1px; padding:6px 0 4px; }
 .cw-local-rail__group + .cw-local-rail__group { border-top:1px solid var(--cw-glass-rim); }
 .cw-local-rail__group--personal { --cw-hue:var(--cw-hue-blue); }
 .cw-local-rail__group--command { --cw-hue:var(--cw-hue-violet); }
@@ -441,8 +452,8 @@
     grid-template-columns:30px minmax(0,1fr) auto;
     align-items:center;
     gap:9px;
-    min-height:38px;
-    padding:4px 9px 4px 6px;
+    min-height:34px;
+    padding:2px 9px 2px 6px;
     border-radius:10px;
     color:var(--cw-ink);
     text-decoration:none;
