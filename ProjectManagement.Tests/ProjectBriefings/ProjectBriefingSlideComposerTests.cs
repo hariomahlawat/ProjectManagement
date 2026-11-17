@@ -1996,6 +1996,9 @@ public sealed class ProjectBriefingSlideComposerTests
         var preview = ProjectBriefingSlidePreviewRenderer.Render(content, DateTimeOffset.UtcNow);
         var html = preview.Slides.Single(slide => slide.Html.Contains("ATGM CREW PROCEDURAL TRAINER", StringComparison.Ordinal)).Html;
         Assert.Contains("•</span>", html, StringComparison.Ordinal);
+        // Codex review on #3412: the preview keeps the bullet's own colour.
+        var bulletColor = bullets[0].GetFirstChild<A.BulletColor>()!.GetFirstChild<A.RgbColorModelHex>()!.Val!.Value!;
+        Assert.Contains($"color:#{bulletColor};\">•</span>", html, StringComparison.Ordinal);
         var number = Array.IndexOf(slides, project) + 1;
         Assert.Contains($">{number}</span>", html, StringComparison.Ordinal);
     }

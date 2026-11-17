@@ -380,7 +380,8 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
             var bulletChar = (string?)properties?.Element(A + "buChar")?.Attribute("char");
             if (!string.IsNullOrEmpty(bulletChar))
             {
-                var bulletColor = SolidColor(properties?.Element(A + "buClr"));
+                // The bullet's colour sits directly under buClr (no solidFill), as the composer writes it.
+                var bulletColor = CleanColor(properties?.Element(A + "buClr")?.Element(A + "srgbClr")?.Attribute("val")?.Value);
                 var bulletStyle = new StringBuilder("display:inline-block;text-indent:0;");
                 if (indent < 0) bulletStyle.Append(CultureInfo.InvariantCulture, $"width:{N(-indent)}px;");
                 if (bulletColor is not null) bulletStyle.Append(CultureInfo.InvariantCulture, $"color:#{bulletColor};");
