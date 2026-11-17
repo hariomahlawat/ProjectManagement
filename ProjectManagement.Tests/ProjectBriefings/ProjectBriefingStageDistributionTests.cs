@@ -262,6 +262,27 @@ public sealed class ProjectBriefingStageDistributionTests
     }
 
     [Fact]
+    public void Compose_KeepsAFortyProjectListOnOneSlideInSideBySideParts()
+    {
+        // docs/ux/briefing-slides-review.md, PR 3: a long band takes two or more parts side by side
+        // rather than a second slide.
+        var lines = Enumerable.Range(1, 40)
+            .Select(id => Line(id, $"Pre-AoN project {id}", ArppProgressBucket.PreAon, StageCodes.FS))
+            .Concat(Enumerable.Range(41, 6).Select(id => Line(id, $"Completed project {id}", ArppProgressBucket.Completed, null, completed: "Jan 2026")))
+            .ToList();
+
+        var composition = Composer().ComposeStageDistributionSlidesForTesting(Data(ProjectBriefingPresentationTheme.EditorialLight, lines));
+
+        ProjectBriefingPresentationIntegrityValidator.Validate(composition.Content, composition.SlideCount);
+        Assert.Equal(2, composition.SlideCount); // the chart and one list slide
+        var slides = SlideTexts(composition.Content);
+        Assert.DoesNotContain("(cont.)", slides[1], StringComparison.Ordinal);
+        Assert.Equal(
+            lines.Select(line => line.ProjectId).OrderBy(id => id),
+            composition.Outline.Skip(1).SelectMany(item => item.ListedProjectIds).OrderBy(id => id));
+    }
+
+    [Fact]
     public void Compose_LeavesEmptyBandsOutOfTheChartAndSaysNoneInTheList()
     {
         var lines = new[]

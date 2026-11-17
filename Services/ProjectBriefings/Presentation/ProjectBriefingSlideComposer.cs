@@ -610,15 +610,17 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         IReadOnlyList<ProjectBriefingPresentationProject> projects,
         string title = "Project status summary")
     {
+        var layout = ProjectBriefingTablePagination.Layout(
+            data.CostMode,
+            data.Projects.Any(project => project.ProliferationCost.IsAvailable));
         var pages = ProjectBriefingTablePagination.Paginate(
             projects,
-            data.CostMode,
+            layout,
             project => ProjectBriefingTablePagination.Measure(
                 project.ProjectName,
                 project.PresentStage,
                 project.ExternalStatus,
-                project.CostRd.IsAvailable && !string.IsNullOrWhiteSpace(project.CostRd.BasisDisplay),
-                hasProliferationCostBasis: false));
+                project.CostRd));
 
         for (var index = 0; index < pages.Count; index++)
         {
@@ -627,6 +629,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderExecutiveTable(
                 canvas,
                 data,
+                layout,
                 captured.Items,
                 captured.RowHeights,
                 capturedIndex + 1,
@@ -640,6 +643,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private static void RenderExecutiveTable(
         SlideCanvas canvas,
         ProjectBriefingPresentationData data,
+        ProjectBriefingTableLayout layout,
         IReadOnlyList<ProjectBriefingPresentationProject> projects,
         IReadOnlyList<double> rowHeights,
         int page,
@@ -650,33 +654,17 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             canvas,
             title + (pages > 1 ? $" ({page}/{pages})" : string.Empty));
 
-        var headers = new List<string> { "PROJECT" };
-        var widths = new List<double>();
-        switch (data.CostMode)
-        {
-            case ProjectBriefingCostMode.Both:
-                headers.AddRange(new[] { "COST (R&D)", "PROLIFERATION COST", "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.50, 1.30, 1.40, 1.65, 5.30 });
-                break;
-            case ProjectBriefingCostMode.CostRdOnly:
-                headers.AddRange(new[] { "COST (R&D)", "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.80, 1.45, 1.95, 5.95 });
-                break;
-            case ProjectBriefingCostMode.ProliferationOnly:
-                headers.AddRange(new[] { "PROLIFERATION COST", "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.80, 1.60, 1.95, 5.80 });
-                break;
-            default:
-                headers.AddRange(new[] { "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.95, 2.00, 7.20 });
-                break;
-        }
-
+        const double size = ProjectBriefingTablePagination.FontSize;
         var rows = new List<IReadOnlyList<NativeTableCell>>
         {
-            headers.Select(value => Cell(value, 10.2, canvas.Theme.TextOnAccent, true, "l", canvas.Theme.TableHeader)).ToArray()
+            layout.Headers
+                .Select(value => Cell(value, ProjectBriefingTablePagination.HeaderFontSize, canvas.Theme.TextOnAccent, true, "l", canvas.Theme.TableHeader))
+                .ToArray()
         };
 
+        // Longer text than the row allows is shortened with an ellipsis; the full text is in PRISM.
+        var projectCharacters = ProjectBriefingTablePagination.ProjectCharactersPerLine(layout.ProjectWidth);
+        var statusCharacters = ProjectBriefingTablePagination.CharactersPerLine(layout.StatusWidth);
         for (var index = 0; index < projects.Count; index++)
         {
             var project = projects[index];
@@ -684,39 +672,39 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             var costFill = canvas.Theme.SurfaceMuted;
             var cells = new List<NativeTableCell>
             {
-                Cell(Truncate(project.ProjectName, 68), 10.7, canvas.Theme.TextPrimary, true, "l", rowFill)
+                Cell(ProjectBriefingTablePagination.FitToLines(project.ProjectName, projectCharacters, ProjectBriefingTablePagination.MaximumProjectLines), size, canvas.Theme.TextPrimary, true, "l", rowFill)
             };
 
-            if (data.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both)
+            if (layout.ShowsCostRd)
             {
                 cells.Add(Cell(
                     CostCell(project.CostRd, "Not recorded", includeBasis: true),
-                    10.0,
+                    size,
                     project.CostRd.IsAvailable ? canvas.Theme.TextPrimary : canvas.Theme.TextMuted,
                     project.CostRd.IsAvailable,
                     "l",
                     costFill));
             }
-            if (data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both)
+            if (layout.ShowsProliferation)
             {
-                // The column stays; an ongoing project with no proliferation cost shows a dash.
+                // The column shows when any project has one; an ongoing project without one shows a dash.
                 cells.Add(Cell(
                     CostCell(
                         project.ProliferationCost,
                         ProjectBriefingContentGaps.ExpectsProliferationCost(project.LifecycleStatus) ? "Not recorded" : "—",
                         includeBasis: false),
-                    10.0,
+                    size,
                     project.ProliferationCost.IsAvailable ? canvas.Theme.TextPrimary : canvas.Theme.TextMuted,
                     project.ProliferationCost.IsAvailable,
                     "l",
                     costFill));
             }
 
-            cells.Add(Cell(Truncate(project.PresentStage, 42), 10.2, canvas.Theme.TextPrimary, false, "l", rowFill));
+            cells.Add(Cell(ProjectBriefingTablePagination.FitToLines(project.PresentStage, ProjectBriefingTablePagination.CharactersPerLine(layout.StageWidth), 2), size, canvas.Theme.TextPrimary, false, "l", rowFill));
             var executiveStatus = ExecutiveStatus(project.ExternalStatus);
             cells.Add(Cell(
-                Truncate(executiveStatus, data.CostMode == ProjectBriefingCostMode.Both ? 225 : 265),
-                10.1,
+                ProjectBriefingTablePagination.FitToLines(executiveStatus, statusCharacters, ProjectBriefingTablePagination.MaximumStatusLines),
+                size,
                 string.Equals(executiveStatus, "Not recorded", StringComparison.Ordinal) ? canvas.Theme.TextMuted : canvas.Theme.TextPrimary,
                 false,
                 "l",
@@ -724,33 +712,17 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             rows.Add(cells);
         }
 
-        var minimumDisplayHeight = projects.Count == 0
-            ? .60
-            : Math.Min(.78, ProjectBriefingTablePagination.AvailableBodyHeight / projects.Count);
-        var displayRowHeights = rowHeights
-            .Select(height => Math.Max(height, minimumDisplayHeight))
-            .ToArray();
-        var totalDisplayHeight = displayRowHeights.Sum();
-        if (totalDisplayHeight > ProjectBriefingTablePagination.AvailableBodyHeight)
-        {
-            var scale = ProjectBriefingTablePagination.AvailableBodyHeight / totalDisplayHeight;
-            displayRowHeights = displayRowHeights.Select(height => height * scale).ToArray();
-        }
-
-        var heights = new List<double> { .43 };
-        heights.AddRange(displayRowHeights);
-        canvas.AddNativeTable(.58, 1.06, widths, heights, rows, "Project status summary table");
+        // Rows as tall as their text, never stretched to fill the slide.
+        var heights = new List<double> { ProjectBriefingTablePagination.HeaderHeight };
+        heights.AddRange(rowHeights);
+        canvas.AddNativeTable(.58, 1.06, layout.Widths, heights, rows, "Project status summary table");
     }
 
     private static string CostCell(
         ProjectBriefingCostValue value,
         string missing,
         bool includeBasis)
-        => value.IsAvailable
-            ? includeBasis && !string.IsNullOrWhiteSpace(value.BasisDisplay)
-                ? $"{value.DisplayValue}\n{value.BasisDisplay}"
-                : value.DisplayValue
-            : missing;
+        => ProjectBriefingTablePagination.CostText(value, missing, includeBasis);
 
     private static string ExecutiveStatus(string? value)
         => string.IsNullOrWhiteSpace(value)

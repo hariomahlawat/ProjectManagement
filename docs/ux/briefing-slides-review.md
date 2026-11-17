@@ -106,6 +106,11 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
 2. **Fit before split** (the paginator bug and the continuation rule). One fitting routine for
    text panels: shrink to the floor, split only beyond it, same header on a continuation.
 3. **Status table: 12 rows at 12pt** (and empty columns left out); stage-wise list on one slide.
+   Built: rows as tall as their text (cost and basis on one line, name up to two lines, status
+   up to three, cut after a whole word), up to 12 a slide, pages of even height. The demo deck's
+   49 projects take 5 slides of 9–11 rows. The stage-wise list gives an empty band a narrow column
+   and lets a long band take two or more columns side by side, so it stays on one slide; only a
+   list that cannot fit even then continues as before.
 4. **Type scale and space**: cover, Role & Charter, SDD profile, category distributions, FFC list,
    key points band, Key points only photo, Brief and Fact sheet panels.
 5. **Editable structure**: slide master and layouts carry the furniture; title placeholders; real
