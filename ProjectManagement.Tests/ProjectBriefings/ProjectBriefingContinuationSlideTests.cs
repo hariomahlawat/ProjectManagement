@@ -79,15 +79,27 @@ public sealed class ProjectBriefingContinuationSlideTests
     }
 
     [Fact]
-    public void ShortBrief_KeepsItsSingleSlideAndTypography()
+    public void ShortBrief_KeepsItsSingleSlideAtTheLargestSizeThatFits()
     {
         const string brief = "A concise brief that sits comfortably beside the project photograph.";
 
         var page = Assert.Single(ProjectBriefingSlideComposer.PaginateProjectBrief(brief, 8.25, 4.36));
 
+        // docs/ux/briefing-slides-review.md, PR 4: a short brief fills its panel at 20 pt.
         Assert.False(page.IsContinuation);
-        Assert.Equal(ProjectBriefingNarrativeTypography.ResolveProjectBrief(brief).BodyFontSize, page.Typography.BodyFontSize);
+        Assert.Equal(20.0, page.Typography.BodyFontSize);
         Assert.Equal(1, ProjectBriefingSlideComposer.EstimateProjectBriefSlideCount(brief));
+    }
+
+    [Fact]
+    public void MediumBrief_StepsDownOnlyAsFarAsItNeedsToFit()
+    {
+        var brief = LongBrief(paragraphs: 2, sentencesPerParagraph: 3);
+
+        var page = Assert.Single(ProjectBriefingSlideComposer.PaginateProjectBrief(brief, 8.25, 4.36));
+
+        Assert.InRange(page.Typography.BodyFontSize, 12.0, 19.9);
+        Assert.True(page.Typography.BodyFontSize >= ProjectBriefingNarrativeTypography.ResolveProjectBrief(brief).BodyFontSize);
     }
 
     [Fact]

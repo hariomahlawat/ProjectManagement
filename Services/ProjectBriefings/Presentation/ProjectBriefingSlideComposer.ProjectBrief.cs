@@ -61,6 +61,14 @@ public sealed partial class ProjectBriefingSlideComposer
     /// Pages for a brief whose first slide offers a panel of the given size. Public for the slide
     /// estimate, which knows the brief but not the photograph or cost cards.
     /// </summary>
+    // Larger than the brief's usual size, tried first, largest first (size, line spacing, space after).
+    private static readonly ProjectBriefingUpdateSheetBriefTypography[] LargeBriefTypographies =
+    {
+        new(20.0, 25.0, 12.0),
+        new(18.0, 22.5, 11.0),
+        new(16.5, 20.8, 10.5)
+    };
+
     public static IReadOnlyList<ProjectBriefingUpdateSheetBriefPage> PaginateProjectBrief(
         string normalizedBrief,
         double firstPanelWidth,
@@ -79,6 +87,19 @@ public sealed partial class ProjectBriefingSlideComposer
                     IsContinuation: false,
                     IsMissing: true)
             };
+        }
+
+        // The largest size that fills the panel (docs/ux/briefing-slides-review.md, PR 4): a short
+        // brief no longer sits at 15 pt above an empty half panel.
+        foreach (var large in LargeBriefTypographies)
+        {
+            if (ProjectBriefingUpdateSheetPlanner.Fits(normalizedBrief, firstWidth, firstHeight, large))
+            {
+                return new[]
+                {
+                    new ProjectBriefingUpdateSheetBriefPage(normalizedBrief, large, IsContinuation: false, IsMissing: false)
+                };
+            }
         }
 
         // Keep today's typography whenever it is readable and the brief fits beside the photo.

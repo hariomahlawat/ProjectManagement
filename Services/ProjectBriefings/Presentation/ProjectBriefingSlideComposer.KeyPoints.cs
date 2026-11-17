@@ -24,16 +24,21 @@ public sealed partial class ProjectBriefingSlideComposer
     private const double KeyPointBandPaddingTop = .12;
     private const double KeyPointBandPaddingBottom = .10;
     private const double KeyPointBandLabelX = .88;
-    private const double KeyPointBandLabelWidth = 1.95;
+    private const double KeyPointBandLabelWidth = 2.35;
     private const double KeyPointBandTextX = KeyPointBandLabelX + KeyPointBandLabelWidth + .15;
     private const double KeyPointBandTextWidth = KeyPointLayoutRight - .28 - KeyPointBandTextX;
-    private const double KeyPointBandHeadingHeight = .24;
-    private const double KeyPointBandTextFont = 11.0;
-    private const double KeyPointBandLabelFont = 10.0;
+    private const double KeyPointBandHeadingHeight = .28;
+    // Read from the back of the room (docs/ux/briefing-slides-review.md, PR 4): 14 pt points,
+    // 12.5 pt labels; the band was 11 and 10 pt with room to spare.
+    private const double KeyPointBandTextFont = 14.0;
+    private const double KeyPointBandLabelFont = 12.5;
     private const double KeyPointBandLineHeight = KeyPointBandTextFont * 1.2 / 72d;
     // 11 pt across the 9.47 in text column holds about 145 characters; 138 keeps a margin, so a
     // point at the 130-character limit stays on one line.
-    private const int KeyPointBandCharactersPerLine = 138;
+    // Characters a line in the text column at this size (average glyph about .40 em, measured on
+    // slides exported through PowerPoint).
+    private static readonly int KeyPointBandCharactersPerLine =
+        (int)Math.Floor(KeyPointBandTextWidth * 72d / (KeyPointBandTextFont * .43));
     private const int KeyPointStatusMaximumCharacters = 260;
     private const int KeyPointStatusMaximumLines = 3;
 
@@ -354,9 +359,9 @@ public sealed partial class ProjectBriefingSlideComposer
         AddSlideTitle(canvas, Truncate(project.ProjectName, 82));
         canvas.AddRichTextBox(
             canvas.ShowBranding ? 1.30 : .62,
-            .70,
+            .68,
             canvas.ShowBranding ? 10.73 : 11.40,
-            .26,
+            .30,
             new[]
             {
                 new RichTextParagraph(runs, Align: canvas.ShowBranding ? "ctr" : "l")
@@ -375,7 +380,7 @@ public sealed partial class ProjectBriefingSlideComposer
         ProjectBriefingPresentationData data,
         ProjectBriefingPresentationProject project)
     {
-        const double size = 10.5;
+        const double size = 12.5;
         var theme = canvas.Theme;
         var parts = new List<IReadOnlyList<RichTextRun>>(3);
 
@@ -463,7 +468,7 @@ public sealed partial class ProjectBriefingSlideComposer
             4.0,
             KeyPointBandHeadingHeight - .04,
             "KEY POINTS",
-            9.0,
+            11.0,
             theme.NarrativeAccent,
             true,
             "l",
@@ -510,7 +515,7 @@ public sealed partial class ProjectBriefingSlideComposer
         var y = bandY + KeyPointBandPaddingTop;
         foreach (var row in statusRows)
         {
-            AddKeyPointBandRow(canvas, row, y, theme.OperationalAccent, 9.0);
+            AddKeyPointBandRow(canvas, row, y, theme.OperationalAccent, KeyPointBandLabelFont);
             y += row.Height;
         }
 
