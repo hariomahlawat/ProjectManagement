@@ -26,16 +26,21 @@ last-updated deck, so nobody edits a deck they did not pick.
 - **New deck** asks for a name and a template (Portfolio or Fact Sheets), then opens the
   Studio on Add projects. A template only fills the new deck's starting settings; the Studio
   has no template picker and no "customised" state.
-- **Continue**: the deck the person last edited (else the latest), with Open in Studio and
-  Generate PowerPoint.
-- **All decks** table: deck and description, template (Portfolio or Fact Sheets, from the
-  deck's slide design),
-  projects, slides in the last generated PowerPoint (`LastGeneratedSlideCount`, recorded on each
-  generation; "—" until then), owner, last edited, last generated, and a ⋯ menu (Open, Generate,
-  Duplicate, Delete through the Studio confirmation dialog). **Mine** keeps decks the person owns
-  or last edited; search also matches the names of projects in a deck; sort by last edited, last
-  generated or name. Filtering runs in the page (`project-briefing-library.js`).
-- **Recently deleted** below the table. A deleted deck can be restored for
+- **Deck cards** (owner, 17 Nov 2026; replaced the Continue panel and the table). One card per
+  deck, three across on a wide screen, two on a tablet, one on a phone. Each card shows a drawing
+  of the deck's slide design (the Deck tab's design drawings, `_DesignMini`), the name and
+  description, the design, the project count, who edited it last and when, and one PowerPoint
+  status: when it was generated and how many slides, then "up to date", "N changes since" (a link
+  to the deck) or "changes not tracked yet"; "Not generated" or "No PowerPoint yet" before that.
+  The deck the person last edited carries a **Continue** tag (else "Recently edited" on the
+  latest); with the default sort it is the first card. Buttons: Open and Generate (Add projects
+  and Open for an empty deck), and a ⋯ menu with Download, Duplicate and Delete through the
+  Studio confirmation dialog. A Project Officer's deck that a command user can only view is
+  tagged "<name>'s deck · view only" and offers Download and Duplicate. **Mine** keeps decks the
+  person owns or last edited; search also matches the names of projects in a deck; sort by last
+  edited, last generated or name. Filtering runs in the page (`project-briefing-library.js`),
+  on the cards' `data-pbd-library-row` hooks.
+- **Recently deleted** below the cards. A deleted deck can be restored for
   `DeletedRetentionDays` (30). After that the next delete removes it for good, as its own step
   after that delete's save, in its own transaction with one required `ProjectBriefing.DeckPurged`
   audit entry per deck: if any entry cannot be written, nothing is removed. A purge that fails is

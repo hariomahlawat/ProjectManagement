@@ -252,10 +252,10 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 row.LastModifiedByDisplay,
                 Encode(row.RowVersion))
             {
-                Design = ProjectBriefingProjectSlideDesigns.DisplayName(ProjectBriefingProjectSlideDesigns.Of(
+                DesignKind = ProjectBriefingProjectSlideDesigns.Of(
                     row.Layout,
                     row.NarrativeMode,
-                    ProjectBriefingDeckConfigurationCodec.Read(row.SelectionRulesJson).StandardSlideOptions)),
+                    ProjectBriefingDeckConfigurationCodec.Read(row.SelectionRulesJson).StandardSlideOptions),
                 IsMine = row.OwnerUserId == userId || row.LastModifiedByUserId == userId,
                 LastEditedByMe = (row.LastModifiedByUserId ?? row.OwnerUserId) == userId,
                 LastGeneratedSlideCount = row.LastGeneratedSlideCount,

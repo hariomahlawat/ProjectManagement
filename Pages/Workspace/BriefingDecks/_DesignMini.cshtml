@@ -1,0 +1,26 @@
+@model ProjectManagement.Services.ProjectBriefings.ProjectBriefingProjectSlideDesign
+@using ProjectManagement.Services.ProjectBriefings
+@*
+    A small drawing of a project slide design: the Deck tab's design cards and the library's deck
+    cards draw the same picture (styles: .pbd-design__mini in project-briefing-decks.css).
+*@
+<span class="pbd-design__mini pbd-design__mini--@Model.ToString().ToLowerInvariant()" aria-hidden="true">
+    @switch (Model)
+    {
+        case ProjectBriefingProjectSlideDesign.KeyPoints:
+            <span class="pbd-design__row"><i class="is-photo"></i><i></i></span><i class="is-band"></i>
+            break;
+        case ProjectBriefingProjectSlideDesign.Brief:
+            <i></i><i class="is-photo"></i>
+            break;
+        case ProjectBriefingProjectSlideDesign.FactSheet:
+            <i class="is-table"></i><i class="is-photo"></i>
+            break;
+        case ProjectBriefingProjectSlideDesign.KeyPointsOnly:
+            <i class="is-photo"></i><span class="pbd-design__points"><i class="is-band"></i><i class="is-band"></i><i class="is-band"></i><i class="is-band"></i><i class="is-band"></i></span>
+            break;
+        default:
+            <i class="is-photo"></i><i></i>
+            break;
+    }
+</span>

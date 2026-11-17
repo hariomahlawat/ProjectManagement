@@ -5223,81 +5223,6 @@ span.pbd-additional-slide-row__handle {
     white-space: nowrap;
 }
 
-.pbd-continue {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem 1.25rem;
-    padding: 1.15rem 1.4rem;
-    border: 1px solid var(--pbd-border);
-    border-radius: .9rem;
-    background: var(--pbd-surface);
-}
-
-.pbd-continue__identity {
-    display: flex;
-    flex: 1 1 32rem;
-    gap: 1rem;
-    align-items: flex-start;
-    min-width: 0;
-}
-
-.pbd-continue__mark {
-    display: grid;
-    flex: 0 0 3rem;
-    width: 3rem;
-    height: 3rem;
-    place-items: center;
-    border-radius: .75rem;
-    background: var(--pbd-navy);
-    color: var(--pbd-surface);
-    font-size: 1.3rem;
-}
-
-.pbd-continue__body {
-    display: grid;
-    gap: .3rem;
-    min-width: 0;
-}
-
-.pbd-continue__title {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: .5rem .7rem;
-}
-
-.pbd-continue__title a {
-    color: var(--pbd-ink);
-    font-size: 1.25rem;
-    font-weight: 700;
-    text-decoration: none;
-}
-
-.pbd-continue__title a:hover,
-.pbd-continue__title a:focus-visible {
-    color: var(--pbd-blue);
-    text-decoration: underline;
-}
-
-.pbd-continue__description,
-.pbd-continue__meta {
-    margin: 0;
-    color: var(--pbd-muted);
-    font-size: .9rem;
-}
-
-.pbd-continue__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .6rem;
-}
-
-.pbd-continue__actions form {
-    margin: 0;
-}
-
 .pbd-library__toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -5349,80 +5274,6 @@ span.pbd-additional-slide-row__handle {
     min-height: 2.5rem;
 }
 
-.pbd-library__table-wrap {
-    overflow-x: auto;
-    border: 1px solid var(--pbd-border);
-    border-radius: .9rem;
-    background: var(--pbd-surface);
-}
-
-.pbd-library__table {
-    width: 100%;
-    min-width: 52rem;
-    border-collapse: collapse;
-    font-size: .9rem;
-}
-
-.pbd-library__table th {
-    padding: .75rem .8rem;
-    border-bottom: 1px solid var(--pbd-border);
-    color: var(--pbd-muted);
-    font-size: .74rem;
-    font-weight: 700;
-    letter-spacing: .06em;
-    text-align: left;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.pbd-library__table td {
-    padding: .8rem;
-    border-bottom: 1px solid var(--pbd-border);
-    color: var(--pbd-ink);
-    vertical-align: middle;
-}
-
-.pbd-library__table th:first-child,
-.pbd-library__table td:first-child {
-    padding-left: 1.1rem;
-}
-
-.pbd-library__table tbody tr:last-child td {
-    border-bottom: 0;
-}
-
-.pbd-library__table tbody tr:hover td {
-    background: var(--pbd-canvas);
-}
-
-.pbd-library__table .is-number {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-}
-
-/* Template, owner and dates keep to one line, so rows stay one line high at 1366 px with the
-   rail open (.is-date is the one-line cell). */
-.pbd-library__table .is-date {
-    white-space: nowrap;
-}
-
-.pbd-library__table .is-owner {
-    max-width: 9.5rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.pbd-library__table .is-actions {
-    width: 1%;
-    padding-right: 1.1rem;
-    text-align: right;
-}
-
-.pbd-library__table .is-actions form {
-    margin: 0;
-}
-
 .pbd-library__name {
     color: var(--pbd-ink);
     font-weight: 600;
@@ -5438,7 +5289,6 @@ span.pbd-additional-slide-row__handle {
 /* Deck links take the app's shared focus ring. */
 .pbd-library__name:focus-visible,
 .pbd-library__moved:focus-visible,
-.pbd-continue__title a:focus-visible,
 .pbd-attention__name:focus-visible,
 .pbd-attention__open:focus-visible {
     border-radius: .25rem;
@@ -5446,23 +5296,160 @@ span.pbd-additional-slide-row__handle {
     box-shadow: var(--pm-focus-ring);
 }
 
-/* A Project Officer's deck in a command user's list: whose it is, and that it is view only. */
-.pbd-library__owner {
-    display: flex;
-    gap: .3rem;
-    align-items: center;
-    color: var(--pbd-muted);
-    font-size: .78rem;
-}
-
 .pbd-library__description {
-    display: block;
-    max-width: 30rem;
+    display: -webkit-box;
+    margin: 0;
     overflow: hidden;
     color: var(--pbd-muted);
-    font-size: .8rem;
+    font-size: .85rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+/* Deck cards (owner, 17 Nov 2026): three across on a wide screen, two on a tablet, one on a
+   phone. The picture is the deck's slide design, drawn as on the Deck tab's design cards. */
+.pbd-library__cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+    gap: 1rem;
+}
+
+.pbd-deck-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--pbd-border);
+    border-radius: .9rem;
+    background: var(--pbd-surface);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--pbd-ink) 5%, transparent);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.pbd-deck-card[hidden] {
+    display: none;
+}
+
+.pbd-deck-card:hover,
+.pbd-deck-card:focus-within {
+    border-color: color-mix(in srgb, var(--pbd-blue) 45%, var(--pbd-border));
+    box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--pbd-ink) 35%, transparent);
+}
+
+.pbd-deck-card__art {
+    position: relative;
+    display: grid;
+    place-items: center;
+    padding: 1.25rem 1rem;
+    background: var(--pbd-blue-soft);
+}
+
+.pbd-deck-card__art .pbd-design__mini {
+    width: min(13rem, 80%);
+    padding: 6px;
+    gap: 4px;
+    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--pbd-ink) 25%, transparent);
+}
+
+.pbd-deck-card__tag {
+    position: absolute;
+    top: .65rem;
+    left: .65rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    max-width: calc(100% - 1.3rem);
+    padding: .15rem .65rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--pbd-blue);
+    color: var(--pbd-surface);
+    font-size: .75rem;
+    font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.pbd-deck-card__tag.is-officer {
+    border: 1px solid var(--pbd-border);
+    background: var(--pbd-surface);
+    color: var(--pbd-muted);
+    font-weight: 600;
+}
+
+.pbd-deck-card__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: .35rem;
+    min-width: 0;
+    padding: .9rem 1rem .75rem;
+}
+
+.pbd-deck-card__name {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.pbd-deck-card__facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin: .15rem 0 0;
+    color: var(--pbd-muted);
+    font-size: .85rem;
+}
+
+.pbd-deck-card__edited,
+.pbd-deck-card__status {
+    margin: 0;
+    color: var(--pbd-muted);
+    font-size: .82rem;
+}
+
+.pbd-deck-card__edited {
+    margin-top: .25rem;
+}
+
+.pbd-deck-card__status {
+    color: var(--pbd-ink);
+}
+
+.pbd-deck-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    padding: .75rem 1rem;
+    border-top: 1px solid var(--pbd-border);
+}
+
+.pbd-deck-card__actions form {
+    margin: 0;
+}
+
+.pbd-deck-card__more {
+    margin-left: auto;
+}
+
+/* Phones: full-width buttons with room for a thumb. */
+@media (max-width: 575.98px) {
+    .pbd-deck-card__actions > .btn,
+    .pbd-deck-card__actions > form {
+        flex: 1 1 0;
+    }
+
+    .pbd-deck-card__actions .btn {
+        width: 100%;
+        min-height: 2.75rem;
+    }
+
+    .pbd-deck-card__more .btn {
+        width: 2.75rem;
+    }
 }
 
 .pbd-library__empty {
@@ -5523,23 +5510,6 @@ span.pbd-additional-slide-row__handle {
 .pbd-library .pbd-segmented .pbd-segmented__option {
     flex: 0 0 auto;
     padding: .3rem .8rem;
-}
-
-/* Deck library: what moved since a deck was last generated. */
-.pbd-continue__moved {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .2rem .9rem;
-    margin: .15rem 0 0;
-    color: var(--pbd-amber);
-    font-size: .9rem;
-}
-
-.pbd-continue__moved-label {
-    display: inline-flex;
-    align-items: center;
-    gap: .35rem;
-    font-weight: 600;
 }
 
 .pbd-attention {
@@ -6033,87 +6003,6 @@ span.pbd-additional-slide-row__handle {
     .pbd-deck-header__actions .pbd-generate-action {
         flex: 1 1 100%;
     }
-
-    .pbd-library__table-wrap {
-        overflow: visible;
-        border: 0;
-        background: none;
-    }
-
-    .pbd-library__table {
-        display: block;
-        min-width: 0;
-    }
-
-    .pbd-library__table thead {
-        display: none;
-    }
-
-    /* Cards never wider than the phone: the column and the name cell may shrink, and a long
-       description wraps instead of pushing the card (and its menu) off-screen. */
-    .pbd-library__table tbody {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        gap: .6rem;
-    }
-
-    .pbd-library__table tr {
-        position: relative;
-        display: flex;
-        flex-wrap: wrap;
-        gap: .2rem .9rem;
-        padding: .75rem .85rem;
-        border: 1px solid var(--pbd-border);
-        border-radius: .75rem;
-        background: var(--pbd-surface);
-    }
-
-    .pbd-library__table tr[hidden] {
-        display: none;
-    }
-
-    .pbd-library__table td,
-    .pbd-library__table td:first-child {
-        display: block;
-        padding: 0;
-        border: 0;
-        font-size: .8rem;
-        text-align: left;
-    }
-
-    .pbd-library__table tbody tr:hover td {
-        background: none;
-    }
-
-    .pbd-library__table td:first-child {
-        flex: 1 1 100%;
-        min-width: 0;
-        padding-right: 2.6rem;
-        font-size: .9rem;
-    }
-
-    .pbd-library__table .pbd-library__description {
-        max-width: none;
-        white-space: normal;
-        overflow-wrap: anywhere;
-    }
-
-    .pbd-library__table td.is-actions {
-        position: absolute;
-        top: .6rem;
-        right: .6rem;
-        width: auto;
-        padding: 0;
-    }
-
-    .pbd-library__table td[data-label]::before {
-        content: attr(data-label) " ";
-        color: var(--pbd-muted);
-    }
-
-    .pbd-library__table .is-owner {
-        max-width: none;
-    }
 }
 
 /* Library table (library PR 2): the deck name gets the room, edits and the PowerPoint status are
@@ -6121,26 +6010,6 @@ span.pbd-additional-slide-row__handle {
 .pbd-library,
 .command-workspace--briefing-decks .pbd-page-header {
     max-width: 84rem;
-}
-
-.pbd-library__table .is-deck {
-    width: 34%;
-}
-
-.pbd-library__table .is-edited,
-.pbd-library__table .is-powerpoint {
-    white-space: nowrap;
-}
-
-.pbd-library__table .is-edited small,
-.pbd-library__table .is-powerpoint small,
-.pbd-library__table .is-powerpoint .pbd-library__moved {
-    display: block;
-    font-size: .78rem;
-}
-
-.pbd-library__table .is-edited small {
-    color: var(--pbd-muted);
 }
 
 .pbd-library__current {
@@ -6164,15 +6033,6 @@ span.pbd-additional-slide-row__handle {
     color: var(--pbd-muted);
 }
 
-@media (max-width: 575.98px) {
-    .pbd-library__table .is-edited small,
-    .pbd-library__table .is-powerpoint small,
-    .pbd-library__table .is-powerpoint .pbd-library__moved {
-        display: inline;
-        margin-left: .3rem;
-    }
-}
-
 /* Library polish (library PR 3). New deck says a too-short name under the field. Projects carry
    their unit on phone cards, which drop the editor's name and the value labels Template and
    Projects, so each card is three short lines; the Continue card loses its icon and puts its two
@@ -6184,51 +6044,8 @@ span.pbd-additional-slide-row__handle {
     font-weight: 600;
 }
 
-.pbd-form-error[hidden],
-.pbd-library__unit {
+.pbd-form-error[hidden] {
     display: none;
-}
-
-@media (max-width: 575.98px) {
-    .pbd-library__table td[data-label="Template"]::before,
-    .pbd-library__table td[data-label="Projects"]::before,
-    .pbd-library__table .is-edited small {
-        display: none;
-    }
-
-    .pbd-library__unit {
-        display: inline;
-    }
-
-    .pbd-continue {
-        gap: .75rem;
-        padding: .9rem 1rem;
-    }
-
-    .pbd-continue__mark {
-        display: none;
-    }
-
-    .pbd-continue__title a {
-        font-size: 1.05rem;
-    }
-
-    .pbd-continue__description,
-    .pbd-continue__meta {
-        font-size: .82rem;
-    }
-
-    .pbd-continue__actions {
-        flex: 1 1 100%;
-        flex-wrap: nowrap;
-    }
-
-    .pbd-continue__actions .btn {
-        flex: 1 1 0;
-        padding: .4rem .5rem;
-        font-size: .85rem;
-        white-space: nowrap;
-    }
 }
 
 /* SECTION: Focus view (PR 6 of the blocks plan)

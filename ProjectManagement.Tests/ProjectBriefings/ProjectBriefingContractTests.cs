@@ -151,7 +151,7 @@ public sealed class ProjectBriefingContractTests
 
         // The library explains the empty slide count.
         // The PowerPoint column says it in words instead of a dash with a tooltip (library PR 2).
-        Assert.Contains("\"No projects yet\" : \"Not generated\"", library, StringComparison.Ordinal);
+        Assert.Contains("\"No PowerPoint yet\" : \"Not generated\"", library, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -231,9 +231,8 @@ public sealed class ProjectBriefingContractTests
         // Library: dates without this year's year, owner truncated with the full name on hover,
         // and no "Not generated yet" repeated in Data since.
         Assert.Contains("return ist.Year == todayIst.Year ? ist.ToString(\"dd MMM\") : ist.ToString(\"dd MMM yy\");", library, StringComparison.Ordinal);
-        Assert.Contains("<td class=\"is-edited\" data-label=\"Edited\"", library, StringComparison.Ordinal);
+        Assert.Contains("<p class=\"pbd-deck-card__edited\" title=\"@WhenFull(deck.UpdatedAtUtc)", library, StringComparison.Ordinal);
         Assert.DoesNotContain("Not generated yet", library, StringComparison.Ordinal);
-        Assert.Contains(".pbd-library__table .is-date {\n    white-space: nowrap;", css, StringComparison.Ordinal);
 
         // The outline's "projects added" confirmation clears itself; errors stay.
         Assert.Contains("if (state === 'saved' && element.matches('[data-pbd-membership-status]'))", script, StringComparison.Ordinal);
@@ -348,7 +347,7 @@ public sealed class ProjectBriefingContractTests
         // Library: which project matched; a clear column name. New deck: the rule up front.
         Assert.Contains("data-pbd-library-match hidden", library, StringComparison.Ordinal);
         Assert.Contains("match.textContent = projects.length", libraryScript, StringComparison.Ordinal);
-        Assert.Contains("<th scope=\"col\">PowerPoint</th>", library, StringComparison.Ordinal);
+        Assert.Contains("<p class=\"pbd-deck-card__status\">", library, StringComparison.Ordinal);
         Assert.Contains("required, at least 3 characters", page, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"@UpdateSheetRowLabel(row)\"", page, StringComparison.Ordinal);
     }
@@ -364,15 +363,13 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains(".pbd-deck-header__actions .pbd-generate-action {\n        flex: 1 1 100%;", phone, StringComparison.Ordinal);
         Assert.Contains(".pbd-deck-header__meta,", phone, StringComparison.Ordinal);
 
-        // Library: cards with labelled values.
-        Assert.Contains(".pbd-library__table td[data-label]::before {", phone, StringComparison.Ordinal);
-        // Cards never wider than the phone (Codex, #2946): the column and name cell shrink, descriptions wrap.
-        Assert.Contains("grid-template-columns: minmax(0, 1fr);", phone, StringComparison.Ordinal);
-        Assert.Contains(".pbd-library__table .pbd-library__description {\n        max-width: none;\n        white-space: normal;", phone, StringComparison.Ordinal);
-        foreach (var label in new[] { "Design", "Projects", "Edited", "PowerPoint" })
-        {
-            Assert.Contains($"data-label=\"{label}\"", library, StringComparison.Ordinal);
-        }
+        // Library: deck cards, never wider than the phone (Codex, #2946): one column, names wrap,
+        // full-width buttons with room for a thumb (owner, 17 Nov 2026).
+        Assert.Contains("<article class=\"pbd-deck-card\"", library, StringComparison.Ordinal);
+        Assert.DoesNotContain("<table", library, StringComparison.Ordinal);
+        Assert.Contains("overflow-wrap: anywhere;", css, StringComparison.Ordinal);
+        Assert.Contains(".pbd-deck-card__actions .btn {\n        width: 100%;\n        min-height: 2.75rem;", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));", css, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -382,7 +379,7 @@ public sealed class ProjectBriefingContractTests
         var script = Read("project-briefing-decks.js");
 
         // "Continue" only for the person's own last deck.
-        Assert.Contains("@(continueDeck.LastEditedByMe ? \"Continue\" : \"Recently edited\")", library, StringComparison.Ordinal);
+        Assert.Contains("@(continueDeck!.LastEditedByMe ? \"Continue\" : \"Recently edited\")", library, StringComparison.Ordinal);
 
         // Generate from the library opens the deck and runs the Studio's Generate; no bare post.
         Assert.DoesNotContain("asp-page-handler=\"Generate\"", library, StringComparison.Ordinal);
@@ -437,14 +434,10 @@ public sealed class ProjectBriefingContractTests
         var library = Read("_DeckLibrary.cshtml");
         var script = Read("project-briefing-library.js");
 
-        // Five columns: Deck, Template, Projects, Edited, PowerPoint.
-        foreach (var gone in new[] { ">Slides</th>", ">Owner</th>", ">Last edited</th>", ">Last generated</th>", "Changed since</th>" })
-        {
-            Assert.DoesNotContain(gone, library, StringComparison.Ordinal);
-        }
-        Assert.Contains("<th scope=\"col\">Edited</th>", library, StringComparison.Ordinal);
+        // Each card: its design drawn, projects, edited, and one PowerPoint status.
+        Assert.Contains("<partial name=\"_DesignMini\" model=\"deck.DesignKind\" />", library, StringComparison.Ordinal);
         Assert.Contains("@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? \"change\" : \"changes\") since</a>", library, StringComparison.Ordinal);
-        Assert.Contains("<small class=\"pbd-library__current\">up to date</small>", library, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"pbd-library__current\"> · up to date</span>", library, StringComparison.Ordinal);
 
         // The heading follows Mine/All, an empty list says why and offers the way out, and the
         // view is kept for the tab.
