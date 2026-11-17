@@ -49,45 +49,11 @@
                     </label>
                 </div>
 
-                <fieldset class="pbd-choice-group pbd-ffc-layout-choice">
-                    <legend>Layout</legend>
-                    <div class="pbd-choice-cards pbd-choice-cards--two">
-                        <label class="pbd-choice-card">
-                            <input type="radio"
-                                   name="FfcGlobalFootprintLayout"
-                                   value="MapWithCountryBreakdown"
-                                   checked="@(options.Layout != ProjectBriefingFfcGlobalFootprintLayout.MapDominant)"
-                                   data-pbd-ffc-layout-option />
-                            <span>
-                                <strong>Map with country-wise breakdown</strong>
-                                <small>A large map with the country list beside it (recommended)</small>
-                            </span>
-                        </label>
-                        <label class="pbd-choice-card">
-                            <input type="radio"
-                                   name="FfcGlobalFootprintLayout"
-                                   value="MapDominant"
-                                   checked="@(options.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant)"
-                                   data-pbd-ffc-layout-option />
-                            <span>
-                                <strong>Map dominant</strong>
-                                <small>Full-width map with a compact top-country strip</small>
-                            </span>
-                        </label>
-                    </div>
-                </fieldset>
-
-                <div class="pbd-form-grid pbd-form-grid--institutional" data-pbd-ffc-country-control>
-                    <label class="form-label">
-                        <span>Countries shown in country-wise breakdown</span>
-                        <select class="form-select" name="MaximumCountryRows">
-                            @for (var rows = 6; rows <= 10; rows++)
-                            {
-                                <option value="@rows" selected="@(options.MaximumCountryRows == rows)">@(rows == 8 ? $"{rows} countries — recommended" : $"{rows} countries")</option>
-                            }
-                        </select>
-                    </label>
-                </div>
+                @* One design since 17 Nov 2026 (docs/ux/briefing-slides-review.md): the map across the
+                   slide and every country in a table below it. The older layout and row-count choices
+                   are kept as saved, so a deck's settings are unchanged if this is ever reverted. *@
+                <input type="hidden" name="FfcGlobalFootprintLayout" value="@options.Layout" />
+                <input type="hidden" name="MaximumCountryRows" value="@options.MaximumCountryRows" />
 
                 <div class="pbd-ffc-supporting-slide">
                     <label class="form-check">
@@ -122,7 +88,7 @@
                     </div>
                 </div>
 
-                <div class="pbd-ffc-footprint-layout-preview @(options.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant ? "is-map-dominant" : string.Empty)"
+                <div class="pbd-ffc-footprint-layout-preview"
                      data-pbd-ffc-layout-preview
                      aria-label="FFC footprint slide composition">
                     <div class="pbd-ffc-footprint-layout-preview__metrics" aria-label="Current FFC portfolio headline figures">
@@ -131,14 +97,13 @@
                         <span><strong>@summary.TotalUnits.ToString("N0")</strong><small>Total quantity</small></span>
                     </div>
                     <div class="pbd-ffc-footprint-layout-preview__body">
-                        <span><i class="bi bi-globe-asia-australia" aria-hidden="true"></i> Vector footprint map</span>
-                        <span data-pbd-ffc-preview-secondary><i class="bi bi-list-ol" aria-hidden="true"></i> Country-wise breakdown</span>
+                        <span><i class="bi bi-globe-asia-australia" aria-hidden="true"></i> Map across the slide</span>
+                        <span><i class="bi bi-table" aria-hidden="true"></i> Every country in a table below</span>
                     </div>
-                    <small data-pbd-ffc-preview-note>
-                        @(options.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant
-                            ? "Full-width map with a compact top-country strip."
-                            : "A large map with the top countries beside it.")
-                        Darker countries received more. The map is drawn inside PRISM; no online map is used.
+                    <small>
+                        One slide: each country named on the map with its quantity, and a column for each
+                        country (up to 16) with installed, delivered, planned and total. Darker countries
+                        received more. The map is drawn inside PRISM; no online map is used.
                     </small>
                 </div>
             </section>

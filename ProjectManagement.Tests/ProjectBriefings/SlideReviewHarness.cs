@@ -112,6 +112,38 @@ public sealed class SlideReviewHarness
             new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.ProjectCategorySummary, Enabled: true)
         });
         await File.WriteAllBytesAsync(Path.Combine(output, "CategoriesLightBoth.pptx"), composer.ComposeWithOutline(light).Content);
+
+        // The FFC slide in the light theme, its map drawn in light colours.
+        if (data.FfcGlobalFootprint is { } footprint)
+        {
+            var renderer = services.GetRequiredService<ProjectManagement.Services.Ffc.Presentation.IFfcPresentationMapRenderer>();
+            var mapCountries = footprint.Countries
+                .Select((country, index) => new ProjectManagement.Services.Ffc.Presentation.FfcPresentationCountry(
+                    index + 1, country.CountryName, country.IsoCode, 0, country.ProjectCount,
+                    country.InstalledUnits, country.DeliveredNotInstalledUnits, country.PlannedUnits,
+                    DateTimeOffset.UtcNow, Array.Empty<ProjectManagement.Services.Ffc.Presentation.FfcPresentationRecord>()))
+                .ToArray();
+            Set(light, nameof(ProjectBriefingPresentationData.FfcGlobalFootprint), new ProjectBriefingFfcGlobalFootprintData
+            {
+                Title = footprint.Title,
+                Layout = footprint.Layout,
+                IncludeCountryWiseBreakdown = false,
+                Summary = footprint.Summary,
+                Countries = footprint.Countries,
+                MaximumCountryRows = footprint.MaximumCountryRows,
+                MapImage = renderer.RenderBriefingBand(
+                    mapCountries,
+                    ProjectBriefingSlideComposer.FfcMapBandPixelWidth,
+                    ProjectBriefingSlideComposer.FfcMapBandPixelHeight,
+                    dark: false),
+                DataAsOnUtc = footprint.DataAsOnUtc
+            });
+            Set(light, nameof(ProjectBriefingPresentationData.Blocks), new[]
+            {
+                new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.FfcGlobalFootprint, Enabled: true)
+            });
+            await File.WriteAllBytesAsync(Path.Combine(output, "FfcLight.pptx"), composer.ComposeWithOutline(light).Content);
+        }
     }
 
     private static ProjectBriefingPresentationData Clone(ProjectBriefingPresentationData data)

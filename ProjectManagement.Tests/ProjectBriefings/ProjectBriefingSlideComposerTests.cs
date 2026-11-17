@@ -2486,7 +2486,7 @@ public sealed class ProjectBriefingSlideComposerTests
             Countries = new[]
             {
                 new ProjectBriefingFfcCountryData("Ethiopia", "ETH", 4, 0, 0, 7),
-                new ProjectBriefingFfcCountryData("Sri Lanka", "LKA", 1, 3, 2, 0)
+                new ProjectBriefingFfcCountryData("Tanzania, United Republic of", "TZA", 1, 3, 2, 0)
             },
             MaximumCountryRows = 8,
             MapImage = TinyPng(),
@@ -2506,25 +2506,31 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Equal(slides.Length - 2, footprintIndex);
         Assert.True(IsClosingSlide(slides[^1]));
         var footprintText = SlideText(slides[footprintIndex]);
-        Assert.Contains("DELIVERED, AWAITING INSTALLATION", footprintText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("COUNTRY-WISE BREAKDOWN", footprintText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("QTY", footprintText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Data as on 21 Jul 2026 · Source: PRISM ERP", footprintText, StringComparison.Ordinal);
         Assert.DoesNotContain("Data as on 19 Jul 2026", footprintText, StringComparison.Ordinal);
-        Assert.Contains("ETH", footprintText, StringComparison.Ordinal);
         Assert.NotEmpty(slides[footprintIndex].Slide.Descendants<P.Picture>());
         Assert.Equal("7A263A", ShapeFillColor(ShapeByName(slides[footprintIndex], "Slide top accent")));
 
-        var mapFrame = ShapeByName(slides[footprintIndex], "FFC footprint map frame");
-        var countryPanel = ShapeByName(slides[footprintIndex], "FFC country-wise breakdown panel");
-        var combinedWidth = ShapeWidth(mapFrame) + ShapeWidth(countryPanel);
-        var mapShare = ShapeWidth(mapFrame) / (double)combinedWidth;
-        Assert.InRange(mapShare, .71, .73);
-        Assert.InRange(ShapeWidth(countryPanel), 3.20 * 914400, 3.40 * 914400);
-        Assert.True(ShapeWidth(mapFrame) >= 8.30 * 914400, "The footprint map must remain the dominant visual.");
-        Assert.True(ShapeHeight(mapFrame) >= 4.25 * 914400, "Footprint body should use the available vertical space.");
-        Assert.Equal("AEB6C2", ShapeFillColor(ShapeByName(slides[footprintIndex], "Ethiopia planned quantity")));
-        Assert.Equal("E9ECEF", ShapeFillColor(ShapeByName(slides[footprintIndex], "Sri Lanka quantity bar background")));
+        // Owner, 17 Nov 2026: the map as a band across the slide, and below it a table with a column
+        // per country and rows for Installed, Delivered, Planned and Total; all on one slide.
+        var mapFrame = ShapeByName(slides[footprintIndex], "FFC map frame");
+        Assert.True(ShapeWidth(mapFrame) >= 12.0 * 914400, "The footprint map spans the slide.");
+        var table = Assert.Single(slides[footprintIndex].Slide.Descendants<A.Table>());
+        var rows = table.Elements<A.TableRow>().ToArray();
+        Assert.Equal(5, rows.Length);
+        Assert.Equal(4, rows[0].Elements<A.TableCell>().Count()); // labels, two countries, total
+        string Row(int index) => string.Join("|", rows[index].Elements<A.TableCell>().Select(cell => string.Concat(cell.Descendants<A.Text>().Select(text => text.Text))));
+        Assert.Equal("|Ethiopia|Tanzania|Total", Row(0));
+        Assert.Equal("Installed|–|3|3", Row(1));
+        Assert.Equal("Delivered|–|2|2", Row(2));
+        Assert.Equal("Planned|7|–|7", Row(3));
+        Assert.Equal("Total|7|5|12", Row(4));
+        Assert.Contains("12", footprintText, StringComparison.Ordinal);
+
+        // The table ends above the footer rule.
+        var frame = slides[footprintIndex].Slide.Descendants<P.GraphicFrame>().Single(item => item.Descendants<A.Table>().Any());
+        var bottom = (frame.Transform!.Offset!.Y!.Value + rows.Sum(row => row.Height!.Value)) / 914400d;
+        Assert.True(bottom <= 6.92, $"The country table ends at {bottom:0.00} in.");
     }
 
 
@@ -2545,6 +2551,38 @@ public sealed class ProjectBriefingSlideComposerTests
         var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
             .SlideParts.Select(SlideText));
         Assert.DoesNotContain("Technical-category distribution", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_FfcTableGathersCountriesBeyondSixteenIntoOthers()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var countries = Enumerable.Range(1, 19)
+            .Select(index => new ProjectBriefingFfcCountryData($"Country {index:00}", $"C{index:00}", 1, 30 - index, 0, 0))
+            .ToArray();
+        var footprint = new ProjectBriefingFfcGlobalFootprintData
+        {
+            Title = "FFC Global Footprint",
+            Summary = new FfcFootprintSummary(19, 19, 19, countries.Sum(country => country.InstalledUnits), 0, 0),
+            Countries = countries,
+            MapImage = TinyPng(),
+            DataAsOnUtc = new DateTimeOffset(2026, 7, 19, 0, 0, 0, TimeSpan.Zero)
+        };
+
+        var (content, _) = composer.Compose(BuildData(
+            additionalSlideOrder: new[] { ProjectBriefingAdditionalSlideType.FfcGlobalFootprint },
+            ffcGlobalFootprint: footprint));
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts
+            .Single(part => SlideText(part).Contains("FFC GLOBAL FOOTPRINT", StringComparison.OrdinalIgnoreCase));
+        var header = Assert.Single(slide.Slide.Descendants<A.Table>()).Elements<A.TableRow>().First()
+            .Elements<A.TableCell>().Select(cell => string.Concat(cell.Descendants<A.Text>().Select(text => text.Text))).ToArray();
+        Assert.Equal(ProjectBriefingSlideComposer.FfcTableMaximumColumns + 2, header.Length);
+        Assert.Equal("Others (4)", header[^2]);
+        Assert.Equal("Country 01", header[1]);
     }
 
     [Fact]
@@ -2585,7 +2623,7 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("FFC GLOBAL FOOTPRINT", SlideText(slides[^4]), StringComparison.OrdinalIgnoreCase);
         Assert.Contains("FFC – COUNTRY-WISE BREAKDOWN", SlideText(slides[^3]), StringComparison.OrdinalIgnoreCase);
         Assert.Contains("CONTINUED", SlideText(slides[^2]), StringComparison.OrdinalIgnoreCase);
-        Assert.NotNull(ShapeByName(slides[^4], "FFC map-dominant frame"));
+        Assert.NotNull(ShapeByName(slides[^4], "FFC map frame"));
         Assert.Single(slides[^3].Slide.Descendants<A.Table>());
         Assert.Single(slides[^2].Slide.Descendants<A.Table>());
         Assert.Contains("Country 13", SlideText(slides[^2]), StringComparison.Ordinal);
