@@ -381,6 +381,31 @@ public sealed class ProjectBriefingExecutiveSummaryTests
         }
     }
 
+    [Fact]
+    public void Compose_FitsTheConcentrationNoteWithLongCategoryNames()
+    {
+        // Codex review on #3408: one distribution alone, its two largest with very long names.
+        var points = Enumerable.Range(1, 4)
+            .Select(index => new ProjectBriefingSummaryPoint(
+                $"Category {index} with a very long descriptive name that runs on for many words across the slide and beyond",
+                10 - index))
+            .ToArray();
+        var data = BuildData(includeProjectCategorySummary: true, projectCategories: points);
+
+        var (content, _) = CreateComposer().Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.Where(part => part.ChartParts.Any()));
+        var note = Assert.Single(slide.Slide.Descendants<P.Shape>()
+            .Where(shape => shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value?.EndsWith(" concentration", StringComparison.Ordinal) == true));
+        var text = string.Concat(note.Descendants<A.Text>().Select(node => node.Text));
+        var size = note.Descendants<A.RunProperties>().First().FontSize!.Value / 100d;
+        var width = note.ShapeProperties!.Transform2D!.Extents!.Cx!.Value / 914400d;
+        Assert.EndsWith("account for 17 of 30 projects (57%).", text, StringComparison.Ordinal);
+        Assert.True(ProjectManagement.Services.Analytics.Presentation.AnalyticsSlideFrame.TextWidth(text, size) * ProjectBriefingSlideComposer.HeadlineWidthFactor <= width, $"Note too wide: {text} at {size} pt.");
+    }
+
     private static int CountOf(string text, string value)
     {
         var count = 0;

@@ -189,13 +189,18 @@ public sealed partial class ProjectBriefingSlideComposer
             if (leaders.Length == 2)
             {
                 var share = leaders.Sum(row => row.Count);
+                var note = FitConcentrationNote(
+                    leaders[0].Label,
+                    leaders[1].Label,
+                    $" account for {share.ToString(CultureInfo.InvariantCulture)} of {total.ToString(CultureInfo.InvariantCulture)} projects ({RoundedShare(share, total)}).",
+                    width - 1.10);
                 canvas.AddText(
                     x + .55,
                     y + height - .72,
                     width - 1.10,
                     .42,
-                    $"{leaders[0].Label} and {leaders[1].Label} account for {share.ToString(CultureInfo.InvariantCulture)} of {total.ToString(CultureInfo.InvariantCulture)} projects ({RoundedShare(share, total)}).",
-                    14,
+                    note.Text,
+                    note.FontSize,
                     theme.TextSecondary,
                     false,
                     "l",
@@ -203,6 +208,29 @@ public sealed partial class ProjectBriefingSlideComposer
                     $"{panel.Heading} concentration");
             }
         }
+    }
+
+    // The concentration note on one line (Codex review on #3408): the largest size down to 11 pt
+    // at which "A and B account for ..." fits; past that the two names are shortened alike, each
+    // cut after a whole word, so the figures always show.
+    private static (string Text, double FontSize) FitConcentrationNote(string first, string second, string suffix, double width)
+    {
+        const double minimum = 11.0;
+        var room = width - .20;
+        string Sentence(string a, string b) => $"{a} and {b}{suffix}";
+        for (var size = 14.0; size >= minimum; size -= .5)
+        {
+            if (AnalyticsSlideFrame.TextWidth(Sentence(first, second), size) * HeadlineWidthFactor <= room)
+            {
+                return (Sentence(first, second), size);
+            }
+        }
+
+        var perCharacter = AnalyticsSlideFrame.TextWidth("x", minimum) * HeadlineWidthFactor;
+        var each = Math.Max(8, (int)Math.Floor(((room / perCharacter) - suffix.Length - 5) / 2d));
+        return (Sentence(
+            ProjectBriefingTablePagination.FitToLines(first, each, 1),
+            ProjectBriefingTablePagination.FitToLines(second, each, 1)), minimum);
     }
 
     // The headline on one line (Codex review on #3408): the largest size down to 12 pt at which the
