@@ -237,6 +237,56 @@ public sealed class ProjectBriefingKeyPointsOnlySlideTests
         });
     }
 
+    // Photos are never cropped (owner, 17 Nov 2026): a portrait photo keeps its proportions, whole,
+    // inside its frame.
+    [Fact]
+    public void APortraitPhoto_IsPlacedWhole_NotCroppedOrStretched()
+    {
+        var project = Project();
+        project = WithPhoto(project, TestImageFactory.SolidJpeg(900, 1600, new SKColor(0x6B, 0x7F, 0x5A)));
+        var composition = Compose(Deck(project));
+
+        WithSlide(composition, slide =>
+        {
+            var picture = Assert.Single(slide.Slide.Descendants<P.Picture>().Where(item =>
+                item.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value?.EndsWith("cover photograph", StringComparison.Ordinal) == true));
+            var extents = picture.ShapeProperties!.Transform2D!.Extents!;
+            Assert.Equal(900d / 1600d, extents.Cx!.Value / (double)extents.Cy!.Value, 2);
+        });
+    }
+
+    [Fact]
+    public void OnAFactSheet_APortraitPhotoIsPlacedWhole_NotCroppedToTheFrame()
+    {
+        var project = WithPhoto(Project(), TestImageFactory.SolidJpeg(900, 1600, new SKColor(0x6B, 0x7F, 0x5A)));
+        var deck = Deck(project);
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = deck.DeckId,
+            DeckName = deck.DeckName,
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            PresentationMode = deck.PresentationMode,
+            PresentationTheme = deck.PresentationTheme,
+            CostMode = deck.CostMode,
+            StandardSlideOptions = deck.StandardSlideOptions,
+            GeneratedAtUtc = deck.GeneratedAtUtc,
+            Projects = deck.Projects,
+            Summary = deck.Summary
+        };
+        var composition = new ProjectBriefingSlideComposer(new TestEnvironment(
+                Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot")))
+            .ComposeWithOutline(data);
+
+        using var stream = new MemoryStream(composition.Content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var photos = document.PresentationPart!.SlideParts
+            .SelectMany(slide => slide.Slide.Descendants<P.Picture>())
+            .Where(item => item.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value == $"{project.ProjectName} photograph")
+            .ToList();
+        var extents = Assert.Single(photos).ShapeProperties!.Transform2D!.Extents!;
+        Assert.Equal(900d / 1600d, extents.Cx!.Value / (double)extents.Cy!.Value, 2);
+    }
+
     [Fact]
     public void NoPhoto_ShowsThePhotographPlaceholder()
     {
@@ -441,6 +491,14 @@ public sealed class ProjectBriefingKeyPointsOnlySlideTests
             KeyPoints = points,
             SortOrder = project.SortOrder
         };
+
+    private static ProjectBriefingPresentationProject WithPhoto(ProjectBriefingPresentationProject project, byte[] photo)
+    {
+        var copy = WithPoints(project, project.KeyPoints);
+        copy.CoverPhoto = photo;
+        copy.CoverPhotoContentType = "image/jpeg";
+        return copy;
+    }
 
     private static ProjectBriefingPresentationData Deck(
         ProjectBriefingPresentationProject project,

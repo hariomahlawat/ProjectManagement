@@ -7,6 +7,7 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Presentation;
 using Microsoft.AspNetCore.Hosting;
 using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Services.Imaging;
 using ProjectManagement.Services.ProjectBriefings;
 using ProjectManagement.Utilities;
 
@@ -1241,23 +1242,15 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 canvas.Theme.Border,
                 .08,
                 frameName);
-            var availableWidth = width - .20;
-            var availableHeight = height - .20;
-            var imageWidth = availableWidth;
-            var imageHeight = imageWidth * 9d / 16d;
-            if (imageHeight > availableHeight)
-            {
-                imageHeight = availableHeight;
-                imageWidth = imageHeight * 16d / 9d;
-            }
-            canvas.AddImage(
+            // The whole photo in its frame, never cropped (owner, 17 Nov 2026).
+            canvas.AddImageContained(
                 project.CoverPhoto,
-                project.CoverPhotoContentType,
-                x + .10 + ((availableWidth - imageWidth) / 2d),
-                y + .10 + ((availableHeight - imageHeight) / 2d),
-                imageWidth,
-                imageHeight,
-                $"{project.ProjectName} cover photograph");
+                x + .10,
+                y + .10,
+                width - .20,
+                height - .20,
+                $"{project.ProjectName} cover photograph",
+                project.CoverPhotoContentType);
             return;
         }
 
@@ -2814,13 +2807,16 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 """);
         }
 
+        // The whole picture, as large as fits in the box and centred in it; never cropped or
+        // stretched. Its size comes from the image itself (JPEG or PNG).
         public void AddImageContained(
             byte[]? content,
             double x,
             double y,
             double maximumWidth,
             double maximumHeight,
-            string name)
+            string name,
+            string? contentType = null)
         {
             if (content is null || content.Length == 0) return;
 
@@ -2838,7 +2834,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
             AddImage(
                 content,
-                "image/png",
+                contentType ?? "image/png",
                 x + ((maximumWidth - width) / 2d),
                 y + ((maximumHeight - height) / 2d),
                 width,
@@ -2848,6 +2844,11 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         private static (int Width, int Height) GetImageDimensions(byte[] content)
         {
+            if (PrismImageCodec.Identify(content) is { } info)
+            {
+                return (Math.Max(1, info.OrientedWidth), Math.Max(1, info.OrientedHeight));
+            }
+
             if (content.Length >= 24
                 && content[0] == 0x89
                 && content[1] == 0x50
