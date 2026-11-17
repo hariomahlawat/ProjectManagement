@@ -170,7 +170,7 @@ public sealed class ProjectBriefingKeyPointsOnlySlideTests
                 var charactersPerLine = (int)Math.Floor(textWidth * 72d / (textSize * ProjectBriefingSlideComposer.KeyPointsOnlyCharacterWidthEm));
                 var point = LongestPoints[Array.FindIndex(ProjectKeyPointCatalog.All.ToArray(), item => item.Heading == definition.Heading)];
                 var lines = (int)Math.Ceiling(point.Length / (double)charactersPerLine);
-                var needed = (textSize >= 14 ? .26 : .22) + (lines * textSize * 1.2 / 72d);
+                var needed = (textSize >= 17 ? .30 : textSize >= 15 ? .28 : textSize >= 14 ? .26 : .22) + (lines * textSize * 1.2 / 72d);
                 Assert.True(ShapeHeight(box) / Emu >= needed - .001, $"{definition.Heading} needs {needed:0.00} in.");
             }
         });

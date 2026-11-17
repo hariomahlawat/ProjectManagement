@@ -663,8 +663,6 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         };
 
         // Longer text than the row allows is shortened with an ellipsis; the full text is in PRISM.
-        var projectCharacters = ProjectBriefingTablePagination.ProjectCharactersPerLine(layout.ProjectWidth);
-        var statusCharacters = ProjectBriefingTablePagination.CharactersPerLine(layout.StatusWidth);
         for (var index = 0; index < projects.Count; index++)
         {
             var project = projects[index];
@@ -672,7 +670,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             var costFill = canvas.Theme.SurfaceMuted;
             var cells = new List<NativeTableCell>
             {
-                Cell(ProjectBriefingTablePagination.FitToLines(project.ProjectName, projectCharacters, ProjectBriefingTablePagination.MaximumProjectLines), size, canvas.Theme.TextPrimary, true, "l", rowFill)
+                Cell(ProjectBriefingTablePagination.FitToWidth(project.ProjectName, layout.ProjectWidth, bold: true, ProjectBriefingTablePagination.MaximumProjectLines), size, canvas.Theme.TextPrimary, true, "l", rowFill)
             };
 
             if (layout.ShowsCostRd)
@@ -700,10 +698,10 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     costFill));
             }
 
-            cells.Add(Cell(ProjectBriefingTablePagination.FitToLines(project.PresentStage, ProjectBriefingTablePagination.CharactersPerLine(layout.StageWidth), 2), size, canvas.Theme.TextPrimary, false, "l", rowFill));
+            cells.Add(Cell(ProjectBriefingTablePagination.FitToWidth(project.PresentStage, layout.StageWidth, bold: false, 2), size, canvas.Theme.TextPrimary, false, "l", rowFill));
             var executiveStatus = ExecutiveStatus(project.ExternalStatus);
             cells.Add(Cell(
-                ProjectBriefingTablePagination.FitToLines(executiveStatus, statusCharacters, ProjectBriefingTablePagination.MaximumStatusLines),
+                ProjectBriefingTablePagination.FitToWidth(executiveStatus, layout.StatusWidth, bold: false, ProjectBriefingTablePagination.MaximumStatusLines),
                 size,
                 string.Equals(executiveStatus, "Not recorded", StringComparison.Ordinal) ? canvas.Theme.TextMuted : canvas.Theme.TextPrimary,
                 false,
@@ -743,7 +741,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         ProjectBriefingPresentationProject project,
         ProjectBriefingCapabilityPage capabilityPage)
     {
-        AddSlideTitle(canvas, Truncate(project.ProjectName, 82), $"{project.LifecycleDisplay} · {CategoryLine(project)}");
+        AddSlideTitle(canvas, Truncate(project.ProjectName, SlideTitleMaximumLength), $"{project.LifecycleDisplay} · {CategoryLine(project)}");
 
         const double leftX = .60;
         const double leftWidth = 4.40;
@@ -829,7 +827,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     {
         AddSlideTitle(
             canvas,
-            Truncate(project.ProjectName, 82));
+            Truncate(project.ProjectName, SlideTitleMaximumLength));
 
         var layout = ResolveProjectBriefLayout(data, project);
         if (layout == ProjectBriefingProjectBriefLayout.PhotoEmphasis)
@@ -1370,7 +1368,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         }
         else
         {
-            AddSlideTitle(canvas, Truncate(project.ProjectName, 82), subtitle);
+            AddSlideTitle(canvas, Truncate(project.ProjectName, SlideTitleMaximumLength), subtitle);
         }
 
         var heading = continuationPages > 1
@@ -1871,7 +1869,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 },
                 style.TitleShapeName,
                 verticalAnchor: "ctr",
-                allowAutoFit: true,
+                // At its own size; PowerPoint shrinks it only if it does not fit (a preset 92-94%
+                // shrink showed every title smaller than set).
+                shrinkOnOverflow: true,
                 leftInset: .03,
                 rightInset: .03,
                 topInset: 0,
@@ -1926,7 +1926,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 TitleY: .15,
                 TitleWidth: canvas.ShowBranding ? 11.01 : 12.09,
                 TitleHeight: .64,
-                TitleFontSize: UpdateSheetTitleFontSize(title),
+                TitleFontSize: SlideTitleFontSize(title, canvas.ShowBranding ? 11.01 : 12.09),
                 TitleAlign: "ctr",
                 UseRichTextTitle: true,
                 SubtitleY: 0,
@@ -1955,9 +1955,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             TitleY: .27,
             TitleWidth: canvas.ShowBranding ? 10.73 : 11.40,
             TitleHeight: .44,
-            TitleFontSize: SlideTitleFontSize(title),
+            TitleFontSize: SlideTitleFontSize(title, canvas.ShowBranding ? 10.73 : 11.40),
             TitleAlign: titleAlign,
-            UseRichTextTitle: false,
+            UseRichTextTitle: true,
             SubtitleY: .72,
             SubtitleHeight: .22,
             SubtitleFontSize: 10.0,
@@ -2059,14 +2059,31 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             : normalized[..Math.Max(1, maximum - 1)].TrimEnd() + "…";
     }
 
-    private static double SlideTitleFontSize(string title)
-        => title.Length switch
+    // One title size on every slide (owner, 17 Nov 2026): 24 pt, the largest text on a slide but
+    // the cover's, on one line. Only a title too long for one line at 24 pt steps down, to the
+    // largest size at which it fits (95% of PRISM's project names fit at 24 pt).
+    internal const double SlideTitleSize = 24.0;
+    private static readonly double[] SlideTitleSizes = { SlideTitleSize, 22.0, 20.0, 18.0, 16.0 };
+
+    // A bold Aptos letter averages .45 em (.48 at most for a whole title); .50 errs towards smaller.
+    private const double SlideTitleCharacterWidthEm = .50;
+
+    internal static double SlideTitleFontSize(string title, double boxWidth)
+    {
+        var length = (title ?? string.Empty).Trim().Length;
+        foreach (var size in SlideTitleSizes)
         {
-            <= 48 => 22.5,
-            <= 66 => 20.0,
-            <= 82 => 17.5,
-            _ => 16.0
-        };
+            if (length * size * SlideTitleCharacterWidthEm / 72d <= boxWidth - .10)
+            {
+                return size;
+            }
+        }
+
+        return SlideTitleSizes[^1];
+    }
+
+    // Project names in titles are kept whole up to this length (the longest in PRISM is 86).
+    private const int SlideTitleMaximumLength = 110;
 
     private static double CoverTitleFontSize(string title)
         => title.Length switch

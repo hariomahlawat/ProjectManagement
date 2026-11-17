@@ -19,10 +19,23 @@ public sealed partial class ProjectBriefingSlideComposer
     private const double KeyPointsOnlyCardMaximumHeight = 1.30;
     private const double KeyPointsOnlyCardPaddingX = .22;
     private const double KeyPointsOnlyCardPaddingY = .08;
-    // The heading grows with the text (step 7), but keeps its old size when the text is small, so
-    // the longest points still fit at 11 pt.
-    private static double KeyPointsOnlyHeadingFont(double textSize) => textSize >= 14 ? 12.0 : 10.5;
-    private static double KeyPointsOnlyHeadingHeight(double textSize) => textSize >= 14 ? .26 : .22;
+    // The label is about 80% of the point's size (owner, 17 Nov 2026: slightly larger), and keeps
+    // 10.5 pt when the text is small, so the longest points still fit at 11 pt.
+    private static double KeyPointsOnlyHeadingFont(double textSize) => textSize switch
+    {
+        >= 17 => 14.0,
+        >= 15 => 13.0,
+        >= 14 => 12.0,
+        _ => 10.5
+    };
+
+    private static double KeyPointsOnlyHeadingHeight(double textSize) => textSize switch
+    {
+        >= 17 => .30,
+        >= 15 => .28,
+        >= 14 => .26,
+        _ => .22
+    };
     private const double KeyPointsOnlyAccentWidth = .06;
 
     // The largest size every point fits at; 11 pt is the floor the key point band already uses.

@@ -331,14 +331,5 @@ public sealed partial class ProjectBriefingSlideComposer
             _ => "Standard"
         };
 
-    private static double UpdateSheetTitleFontSize(string title)
-        => title.Length switch
-        {
-            <= 52 => 18.2,
-            <= 72 => 16.8,
-            <= 94 => 15.2,
-            <= 118 => 13.8,
-            _ => 12.6
-        };
 
 }

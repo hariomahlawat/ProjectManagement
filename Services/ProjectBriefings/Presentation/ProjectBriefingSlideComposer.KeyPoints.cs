@@ -352,11 +352,11 @@ public sealed partial class ProjectBriefingSlideComposer
         var runs = KeyPointMetaRuns(canvas, data, project);
         if (runs.Count == 0)
         {
-            AddSlideTitle(canvas, Truncate(project.ProjectName, 82), fallbackSubtitle);
+            AddSlideTitle(canvas, Truncate(project.ProjectName, SlideTitleMaximumLength), fallbackSubtitle);
             return;
         }
 
-        AddSlideTitle(canvas, Truncate(project.ProjectName, 82));
+        AddSlideTitle(canvas, Truncate(project.ProjectName, SlideTitleMaximumLength));
         canvas.AddRichTextBox(
             canvas.ShowBranding ? 1.30 : .62,
             .68,

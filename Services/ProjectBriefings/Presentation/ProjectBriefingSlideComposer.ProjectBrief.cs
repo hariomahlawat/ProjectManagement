@@ -157,7 +157,7 @@ public sealed partial class ProjectBriefingSlideComposer
     {
         AddSlideTitle(
             canvas,
-            Truncate(project.ProjectName, 82),
+            Truncate(project.ProjectName, SlideTitleMaximumLength),
             $"{project.LifecycleDisplay} · {CategoryLine(project)}");
 
         var heading = continuationPages > 1
