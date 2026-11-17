@@ -94,13 +94,14 @@
         </div>
     }
 
-    @* Folded, every item keeps its icon (distinct per destination, coloured by its group) and its
+    @* When the whole menu does not fit (a short window), the groups that do not hold this page
+       start folded to their headings (workspace-rail-groups.js); each heading opens its group. Folded, every item keeps its icon (distinct per destination, coloured by its group) and its
        name: the labels are hidden visually, not removed, so screen readers still announce them. *@
     <nav id="workspace-local-navigation">
         @if (Model.HasPersonalAccess)
         {
-            <div class="cw-local-rail__group cw-local-rail__group--personal">
-                <span class="cw-local-rail__group-label">My work</span>
+            <div class="cw-local-rail__group cw-local-rail__group--personal" data-rail-group="personal">
+                <button type="button" class="cw-local-rail__group-label" data-rail-group-toggle aria-expanded="true">My work</button>
                 @if (Model.HasProjectOfficerAccess)
                 {
                     <a asp-page="/Workspace/Index"
@@ -173,8 +174,8 @@
 
         @if (Model.HasCommandAccess)
         {
-            <div class="cw-local-rail__group cw-local-rail__group--command">
-                <span class="cw-local-rail__group-label">Command oversight</span>
+            <div class="cw-local-rail__group cw-local-rail__group--command" data-rail-group="command">
+                <button type="button" class="cw-local-rail__group-label" data-rail-group-toggle aria-expanded="true">Command oversight</button>
                 <a asp-page="/Workspace/CommandDesk"
                    class="@(Active("command-desk"))"
                    aria-current="@(Current("command-desk"))"
@@ -216,8 +217,8 @@
                 </a>
             </div>
 
-            <div class="cw-local-rail__group cw-local-rail__group--system">
-                <span class="cw-local-rail__group-label">System adoption</span>
+            <div class="cw-local-rail__group cw-local-rail__group--system" data-rail-group="system">
+                <button type="button" class="cw-local-rail__group-label" data-rail-group-toggle aria-expanded="true">System adoption</button>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="command"
                    asp-route-view="adoption"
@@ -237,8 +238,8 @@
             </div>
         }
 
-        <div class="cw-local-rail__group cw-local-rail__group--resources">
-            <span class="cw-local-rail__group-label">My resources</span>
+        <div class="cw-local-rail__group cw-local-rail__group--resources" data-rail-group="resources">
+            <button type="button" class="cw-local-rail__group-label" data-rail-group-toggle aria-expanded="true">My resources</button>
             @if (Model.HasProjectOfficerAccess && Model.CanViewDocuments)
             {
                 <a asp-page="/Workspace/Index"
@@ -279,3 +280,4 @@
         </div>
     </nav>
 </aside>
+<script type="module" src="~/js/pages/workspace-rail-groups.js" asp-append-version="true"></script>
