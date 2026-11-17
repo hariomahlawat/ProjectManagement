@@ -113,6 +113,10 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    list that cannot fit even then continues as before.
 4. **Type scale and space**: cover, Role & Charter, SDD profile, category distributions, FFC list,
    key points band, Key points only photo, Brief and Fact sheet panels.
+   Part 1 built: on the project slides the key points band is 14 pt (labels 12.5 pt, was 11 and
+   10), the stage and cost line 12.5 pt (was 10.5), and a brief takes the largest size up to 20 pt
+   that fits its panel (was 15 pt at most). Owner, 17 Nov: the two category distributions become
+   donut charts with their figures, side by side on one slide when both are chosen (with step 6).
 5. **Editable structure**: slide master and layouts carry the furniture; title placeholders; real
    slide-number fields; real bullets.
 6. **Native charts** for the stage chart and the two category distributions.
