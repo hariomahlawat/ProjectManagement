@@ -321,7 +321,7 @@ public static class ProjectBriefingUpdateSheetPlanner
         var heights = rows
             .Select(row => EstimateRowHeight(row, labelWidth, valueWidth))
             .ToArray();
-        return FitRowHeightsToMaximum(heights, maximumTotal: 4.84);
+        return FitRowHeightsToMaximum(heights, maximumTotal: MaximumFactsHeight);
     }
 
 
@@ -351,15 +351,20 @@ public static class ProjectBriefingUpdateSheetPlanner
         ProjectBriefingUpdateSheetPlanningRow row,
         double labelWidth,
         double valueWidth)
+        => Math.Clamp(RequiredRowHeight(row, labelWidth, valueWidth), MinimumRowHeight, MaximumRowHeight);
+
+    // The height a row's label and value need at their sizes, before the row cap.
+    private static double RequiredRowHeight(
+        ProjectBriefingUpdateSheetPlanningRow row,
+        double labelWidth,
+        double valueWidth)
     {
         var labelFontSize = row.LabelFontSize;
         var labelLines = EstimateLines(row.Label, labelWidth, labelFontSize);
         var valueLines = EstimateLines(row.Value, valueWidth, row.FontSize);
         var labelHeight = (labelLines * labelFontSize * 1.18d) / 72d;
         var valueHeight = (valueLines * row.FontSize * 1.18d) / 72d;
-        var required = Math.Max(labelHeight, valueHeight) + .065;
-
-        return Math.Clamp(required, .30, 1.30);
+        return Math.Max(labelHeight, valueHeight) + .065;
     }
 
     /// <summary>
@@ -712,18 +717,41 @@ public static class ProjectBriefingUpdateSheetPlanner
     }
 
     // A sheet with few rows sets them larger (docs/ux/briefing-slides-review.md, step 7): five rows
-    // at 10 pt left half the slide empty. Up to six rows take 30% more, up to nine 15% more.
+    // at 10 pt left half the slide empty. Up to six rows take 30% more, up to nine 15% more; a row
+    // is enlarged only when its text still fits the row cap in the narrowest facts column a layout
+    // can choose, and only when the enlarged table still fits the facts band's height.
     private static ProjectBriefingUpdateSheetPlanningRow[] ScaleRows(IReadOnlyList<ProjectBriefingUpdateSheetPlanningRow> rows)
     {
         var scale = rows.Count <= 6 ? 1.30 : rows.Count <= 9 ? 1.15 : 1.0;
-        return rows
-            .Select(row => row with
+        if (scale <= 1.0)
+        {
+            return rows.ToArray();
+        }
+
+        var scaled = rows
+            .Select(row =>
             {
-                FontSize = Math.Round(row.FontSize * scale, 1),
-                LabelFontSize = Math.Round(row.LabelFontSize * scale, 1)
+                var larger = row with
+                {
+                    FontSize = Math.Round(row.FontSize * scale, 1),
+                    LabelFontSize = Math.Round(row.LabelFontSize * scale, 1)
+                };
+                return RequiredRowHeight(larger, NarrowestLabelWidth, NarrowestValueWidth) <= MaximumRowHeight
+                    ? larger
+                    : row;
             })
             .ToArray();
+        var total = scaled.Sum(row => Math.Max(MinimumRowHeight, RequiredRowHeight(row, NarrowestLabelWidth, NarrowestValueWidth)));
+        return total <= MaximumFactsHeight ? scaled : rows.ToArray();
     }
+
+    // The narrowest label and value text widths of any layout (the Standard variant's columns, less
+    // the cells' insets), so a row checked here fits every layout.
+    private const double NarrowestLabelWidth = 1.88 - .12;
+    private const double NarrowestValueWidth = 4.05 - .12;
+    private const double MinimumRowHeight = .30;
+    private const double MaximumRowHeight = 1.30;
+    private const double MaximumFactsHeight = 4.84;
 
     private static UpdateSheetMilestone ResolveMilestone(UpdateSheetRowSource source)
         => ResolveMilestone(
