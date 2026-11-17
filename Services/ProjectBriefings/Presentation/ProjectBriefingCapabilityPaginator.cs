@@ -4,6 +4,13 @@ namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
 public static class ProjectBriefingCapabilityPaginator
 {
+    // The bullet's hanging indent, in characters at list size: the panel draws .36 in for the marker
+    // and .19 in per nesting level (RenderCapabilityPanel), about 4 and 2 characters at 14-18 pt.
+    // It was 7 and 4, which made the text look longer than it is and split slides that fit
+    // (docs/ux/briefing-slides-review.md, PR 2).
+    private const int BulletIndentCharacters = 4;
+    private const int NestedIndentCharacters = 2;
+
     private static readonly LayoutProfile PrimaryProfile = new(
         AvailableHeight: 4.38,
         CharactersPerLine: 72);
@@ -38,7 +45,33 @@ public static class ProjectBriefingCapabilityPaginator
             ? ProjectBriefingRichTextParser.Parse(null)
             : sourceBlocks;
 
-        var density = ProjectBriefingNarrativeTypography.ResolveCapabilityDensity(blocks);
+        // Fit before splitting (docs/ux/briefing-slides-review.md, PR 2): the size the text's
+        // length suggests, then each smaller size down to the floor (14 pt list text), on the first
+        // slide alone. A continuation slide is made only when the text does not fit even at the
+        // floor, and then the floor size is used throughout.
+        var preferred = ProjectBriefingNarrativeTypography.ResolveCapabilityDensity(blocks);
+        foreach (var density in new[]
+            {
+                ProjectBriefingNarrativeDensity.Sparse,
+                ProjectBriefingNarrativeDensity.Standard,
+                ProjectBriefingNarrativeDensity.Dense
+            }.Where(candidate => candidate >= preferred))
+        {
+            var attempt = PaginateAt(blocks, primaryProfile, density);
+            if (attempt.Pages.Count == 1)
+            {
+                return attempt;
+            }
+        }
+
+        return PaginateAt(blocks, primaryProfile, ProjectBriefingNarrativeDensity.Dense);
+    }
+
+    private static ProjectBriefingCapabilityPagination PaginateAt(
+        IReadOnlyList<ProjectBriefingCapabilityBlock> blocks,
+        LayoutProfile primaryProfile,
+        ProjectBriefingNarrativeDensity density)
+    {
         var pending = new LinkedList<ProjectBriefingCapabilityBlock>(blocks);
         var pages = new List<ProjectBriefingCapabilityPage>();
         var pageNumber = 1;
@@ -151,7 +184,7 @@ public static class ProjectBriefingCapabilityPaginator
             or ProjectBriefingCapabilityBlockType.NumberedItem
             or ProjectBriefingCapabilityBlockType.LetteredItem)
         {
-            characterBudget = Math.Max(20, characterBudget - 7 - (block.IndentLevel * 4));
+            characterBudget = Math.Max(20, characterBudget - BulletIndentCharacters - (block.IndentLevel * NestedIndentCharacters));
         }
 
         var lines = EstimateLines(block.Text, characterBudget);
@@ -246,7 +279,7 @@ public static class ProjectBriefingCapabilityPaginator
             or ProjectBriefingCapabilityBlockType.NumberedItem
             or ProjectBriefingCapabilityBlockType.LetteredItem)
         {
-            characterBudget = Math.Max(20, characterBudget - 7 - (block.IndentLevel * 4));
+            characterBudget = Math.Max(20, characterBudget - BulletIndentCharacters - (block.IndentLevel * NestedIndentCharacters));
         }
 
         if (EstimateLines(block.Text, characterBudget) <= maximumLines)

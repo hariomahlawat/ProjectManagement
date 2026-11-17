@@ -354,6 +354,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
                         RenderCapabilityContinuation(
                             canvas,
+                            data,
+                            keyPointLayout,
                             capturedProject,
                             capturedPage,
                             capturedIndex + 1,
@@ -1381,15 +1383,23 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
     private static void RenderCapabilityContinuation(
         SlideCanvas canvas,
+        ProjectBriefingPresentationData data,
+        bool keyPointLayout,
         ProjectBriefingPresentationProject project,
         ProjectBriefingCapabilityPage capabilityPage,
         int continuationPage,
         int continuationPages)
     {
-        AddSlideTitle(
-            canvas,
-            Truncate(project.ProjectName, 82),
-            $"{project.LifecycleDisplay} · {CategoryLine(project)}");
+        // The same header as the slide it continues (docs/ux/briefing-slides-review.md, PR 2).
+        var subtitle = $"{project.LifecycleDisplay} · {CategoryLine(project)}";
+        if (keyPointLayout)
+        {
+            AddKeyPointSlideHeader(canvas, data, project, subtitle);
+        }
+        else
+        {
+            AddSlideTitle(canvas, Truncate(project.ProjectName, 82), subtitle);
+        }
 
         var heading = continuationPages > 1
             ? $"CAPABILITY OVERVIEW — CONTINUED ({continuationPage}/{continuationPages})"
