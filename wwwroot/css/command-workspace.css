@@ -430,7 +430,14 @@
     display:flex;
     align-items:center;
     gap:7px;
+    width:100%;
+    margin:0;
     padding:2px 10px 6px;
+    border:0;
+    border-radius:8px;
+    background:none;
+    text-align:left;
+    cursor:pointer;
     color:var(--cw-muted);
     font-size:.6875rem;
     font-weight:900;
@@ -445,6 +452,29 @@
     border-radius:50%;
     background:var(--cw-hue);
     box-shadow:0 0 0 3px color-mix(in srgb, var(--cw-hue) 18%, transparent);
+}
+/* The heading folds its group: a chevron at the end, turned when folded. When the menu does not
+   fit, the groups without this page start folded (workspace-rail-groups.js); the icon-only rail
+   and the phone row always show every item. */
+.cw-local-rail__group-label::after {
+    content:"";
+    width:6px;
+    height:6px;
+    margin-left:auto;
+    border-right:1.5px solid currentColor;
+    border-bottom:1.5px solid currentColor;
+    opacity:.7;
+    transform:translateY(-2px) rotate(45deg);
+    transition:transform .15s ease;
+}
+.cw-local-rail__group.is-folded .cw-local-rail__group-label::after { transform:rotate(-45deg); }
+.cw-local-rail__group-label:hover,
+.cw-local-rail__group-label:focus-visible { color:var(--cw-ink); outline:none; }
+.cw-local-rail__group-label:focus-visible { box-shadow:0 0 0 2px color-mix(in srgb, var(--cw-hue) 45%, transparent) inset; }
+.cw-local-rail.is-expanded .cw-local-rail__group.is-folded { padding-bottom:0; }
+.cw-local-rail.is-expanded .cw-local-rail__group.is-folded > a { display:none; }
+@media (prefers-reduced-motion: reduce) {
+    .cw-local-rail__group-label::after { transition:none; }
 }
 .cw-local-rail nav a {
     position:relative;
