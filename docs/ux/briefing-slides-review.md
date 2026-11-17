@@ -175,5 +175,11 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    - Key points only: the cards take the largest text from 17 pt down to 11 pt that fits, with a
      12 pt heading from 14 pt text upwards.
    Not design faults: some demo key points are placeholder text, and some projects have no brief.
+   Follow-up (owner, 17 Nov: "especially key points only"): its cards still showed text smaller
+   than set. Every card carried a fixed 94% shrink, and the fit was measured at .50 em without word
+   breaks, so one long point set the whole slide at 13–15 pt with half of each card empty. Now the
+   cards are measured at .45 em (Aptos averages .42 em) wrapped at word breaks, carry no preset
+   shrink, and PowerPoint shrinks a card only if it overflows: 24 of the demo's 37 slides with key
+   points at 17 pt, none below 14 pt.
 
 Steps 1–3 change what a deck says least and help most; 5 and 6 are the largest.
