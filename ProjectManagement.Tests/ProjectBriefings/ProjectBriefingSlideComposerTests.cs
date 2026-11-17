@@ -1924,6 +1924,39 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
+    public void Compose_InstitutionalProfileWithOneMilestoneExports()
+    {
+        // Codex review on #3411: one milestone gave the timeline rail no width and stopped the export.
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 881,
+            DeckName = "One milestone",
+            IncludeCoverSlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+            Projects = Array.Empty<ProjectBriefingPresentationProject>(),
+            Summary = new ProjectBriefingPresentationSummary(),
+            Blocks = new[] { new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.InstitutionalProfile, Enabled: true) },
+            InstitutionalProfile = new ProjectBriefingInstitutionalProfileData
+            {
+                Title = "SDD – Growth over the years",
+                DataAsOnUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+                HistoryMilestones = new[] { new ProjectBriefingInstitutionalHistoryMilestone(1986, "Conceptualised at MCEME") }
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        ProjectBriefingPresentationIntegrityValidator.Validate(content, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var profile = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts
+            .Single(slide => SlideText(slide).Contains("Growth over the years", StringComparison.Ordinal));
+        Assert.Contains("1986", SlideText(profile), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Compose_PlacesModularInstitutionalProfileAfterCoverWithConfiguredAuthoritativeBreakdowns()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");

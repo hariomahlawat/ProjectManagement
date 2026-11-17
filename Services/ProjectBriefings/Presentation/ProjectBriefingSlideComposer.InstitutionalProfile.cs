@@ -78,7 +78,11 @@ public sealed partial class ProjectBriefingSlideComposer
             {
                 // The rail, and a faint lead-in and run-on beyond the first and last years.
                 canvas.AddRect(left - .55, railY - .02, .55, .04, theme.Divider, name: "SDD timeline lead-in");
-                canvas.AddRect(MarkerX(0), railY - .035, MarkerX(items.Length - 1) - MarkerX(0), .07, theme.HeaderAccent, name: "SDD timeline rail");
+                // One year alone has no span to draw (Codex review on #3411): only the faint rail.
+                if (items.Length > 1)
+                {
+                    canvas.AddRect(MarkerX(0), railY - .035, MarkerX(items.Length - 1) - MarkerX(0), .07, theme.HeaderAccent, name: "SDD timeline rail");
+                }
                 canvas.AddRect(right, railY - .02, .55, .04, theme.Divider, name: "SDD timeline run-on");
 
                 var cellWidth = Math.Min(compact ? 1.50 : 1.85, (span / Math.Max(1, items.Length - 1)) - .06);
