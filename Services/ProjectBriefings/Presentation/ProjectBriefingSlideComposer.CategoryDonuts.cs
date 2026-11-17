@@ -157,13 +157,11 @@ public sealed partial class ProjectBriefingSlideComposer
         var countWidth = wide ? .70 : .42;
         var shareWidth = wide ? .80 : .54;
         var nameWidth = legendWidth - .30 - countWidth - shareWidth;
-        var lineHeight = nameSize * 1.22 / 72d;
-        var rowPadding = wide ? .16 : .12;
-        var heights = rows
-            .Select(row => (Math.Min(3, AnalyticsSlideFrame.LineCount(row.Label, nameWidth - .12, nameSize)) * lineHeight) + rowPadding)
-            .ToArray();
         var legendTop = y + contentTop;
         var legendBottom = y + height - contentBottomReserve;
+        var legend = FitCategoryLegend(rows, nameWidth, nameSize, wide ? .16 : .12, legendBottom - legendTop);
+        nameSize = legend.FontSize;
+        var heights = legend.Heights;
         var scale = Math.Min(1d, (legendBottom - legendTop) / Math.Max(.01, heights.Sum()));
         var legendY = legendTop + Math.Max(0, ((legendBottom - legendTop) - heights.Sum()) / 2d);
         for (var index = 0; index < rows.Count; index++)
@@ -171,7 +169,7 @@ public sealed partial class ProjectBriefingSlideComposer
             var row = rows[index];
             var rowHeight = heights[index] * scale;
             canvas.AddRoundedRect(legendX, legendY + (rowHeight / 2d) - .09, .18, .18, row.Color, null, .25, $"{row.Label} key");
-            canvas.AddText(legendX + .30, legendY, nameWidth, rowHeight, Truncate(row.Label, 60), nameSize, row.IsMuted ? theme.TextMuted : theme.TextPrimary, false, "l", "ctr", $"{row.Label} name");
+            canvas.AddText(legendX + .30, legendY, nameWidth, rowHeight, legend.Names[index], nameSize, row.IsMuted ? theme.TextMuted : theme.TextPrimary, false, "l", "ctr", $"{row.Label} name");
             canvas.AddText(legendX + .30 + nameWidth, legendY, countWidth, rowHeight, row.Count.ToString(CultureInfo.InvariantCulture), countSize, theme.TextPrimary, true, "r", "ctr", $"{row.Label} count");
             canvas.AddText(legendX + .30 + nameWidth + countWidth, legendY, shareWidth, rowHeight, RoundedShare(row.Count, total), shareSize, theme.TextMuted, false, "r", "ctr", $"{row.Label} share");
             if (index < rows.Count - 1)
@@ -203,6 +201,44 @@ public sealed partial class ProjectBriefingSlideComposer
                     $"{panel.Heading} concentration");
             }
         }
+    }
+
+    // The legend's names fitted to the room: the largest size (down to 9 pt) at which every name
+    // shows whole in up to three lines; at 9 pt a name longer than two lines is cut after a whole
+    // word. Rows are as tall as their lines, so no name is clipped (Codex review on #3408).
+    private const double CategoryLegendMinimumFont = 9.0;
+
+    private sealed record CategoryLegendFit(IReadOnlyList<string> Names, double FontSize, IReadOnlyList<double> Heights);
+
+    private static CategoryLegendFit FitCategoryLegend(
+        IReadOnlyList<CategoryLegendRow> rows,
+        double nameWidth,
+        double preferredFont,
+        double rowPadding,
+        double available)
+    {
+        var textWidth = nameWidth - .12;
+        double[] Heights(IEnumerable<string> names, double size, double padding)
+            => names.Select(name => (AnalyticsSlideFrame.LineCount(name, textWidth, size) * size * 1.22 / 72d) + padding).ToArray();
+
+        for (var size = preferredFont; size > CategoryLegendMinimumFont; size -= .5)
+        {
+            var names = rows.Select(row => row.Label).ToArray();
+            if (names.All(name => AnalyticsSlideFrame.LineCount(name, textWidth, size) <= 3))
+            {
+                var heights = Heights(names, size, rowPadding);
+                if (heights.Sum() <= available + .001)
+                {
+                    return new CategoryLegendFit(names, size, heights);
+                }
+            }
+        }
+
+        var charactersPerLine = Math.Max(8, (int)Math.Floor(textWidth * 72d / (CategoryLegendMinimumFont * AnalyticsSlideFrame.CharacterWidthEm)));
+        var shortened = rows
+            .Select(row => ProjectBriefingTablePagination.FitToLines(row.Label, charactersPerLine, 2))
+            .ToArray();
+        return new CategoryLegendFit(shortened, CategoryLegendMinimumFont, Heights(shortened, CategoryLegendMinimumFont, .06));
     }
 
     // Largest first (ties by name); past the ring's limit the smallest become "Other categories".
