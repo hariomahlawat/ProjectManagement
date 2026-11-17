@@ -1959,6 +1959,48 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
+    public void Compose_WritesTitlePlaceholdersSlideNumberFieldsAndRealBullets()
+    {
+        // docs/ux/briefing-slides-review.md, step 5: easy to edit in PowerPoint.
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = KeyPointDeck(
+            ProjectBriefingNarrativeMode.CapabilityOverview,
+            ProjectBriefingKeyPointPlacement.None,
+            showStatus: true,
+            KeyPointProject(withKeyPoints: false));
+
+        var (content, slideCount) = composer.Compose(data);
+
+        ProjectBriefingPresentationIntegrityValidator.Validate(content, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var project = slides.Single(slide => SlideText(slide).Contains("ATGM CREW PROCEDURAL TRAINER", StringComparison.Ordinal));
+
+        // The title is PowerPoint's title placeholder, with its own text.
+        var title = Assert.Single(project.Slide.Descendants<P.Shape>().Where(shape =>
+            shape.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties?.PlaceholderShape?.Type?.Value == P.PlaceholderValues.Title));
+        Assert.Contains("ATGM CREW PROCEDURAL TRAINER", string.Concat(title.Descendants<A.Text>().Select(text => text.Text)), StringComparison.Ordinal);
+
+        // The slide number is a field PowerPoint keeps up to date.
+        var field = Assert.Single(project.Slide.Descendants<A.Field>());
+        Assert.Equal("slidenum", field.Type?.Value);
+
+        // Bullets are real bullets, not typed characters.
+        var bullets = project.Slide.Descendants<A.ParagraphProperties>().Where(properties => properties.GetFirstChild<A.CharacterBullet>() is not null).ToArray();
+        Assert.Equal(3, bullets.Length);
+        Assert.DoesNotContain(project.Slide.Descendants<A.Text>(), text => text.Text.StartsWith('•'));
+
+        // The builder's preview draws both.
+        var preview = ProjectBriefingSlidePreviewRenderer.Render(content, DateTimeOffset.UtcNow);
+        var html = preview.Slides.Single(slide => slide.Html.Contains("ATGM CREW PROCEDURAL TRAINER", StringComparison.Ordinal)).Html;
+        Assert.Contains("•</span>", html, StringComparison.Ordinal);
+        var number = Array.IndexOf(slides, project) + 1;
+        Assert.Contains($">{number}</span>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Compose_InstitutionalProfileWithOneMilestoneExports()
     {
         // Codex review on #3411: one milestone gave the timeline rail no width and stopped the export.

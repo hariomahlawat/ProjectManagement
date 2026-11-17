@@ -142,6 +142,12 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    rows), their titles white on the dark theme, and the cards running down to the footer.
 5. **Editable structure**: slide master and layouts carry the furniture; title placeholders; real
    slide-number fields; real bullets.
+   Part 1 built: each slide's title is PowerPoint's title placeholder (outline view, accessibility
+   checks and Reuse Slides see it); the slide number is PowerPoint's slide-number field (it follows
+   when slides are added or moved; the "/62" count is the deck's size when made); list bullets in
+   narrative text and the profile's partnerships are real bullets. Numbered and lettered items keep
+   typed markers, so a list continued on the next slide keeps its numbers. The builder's preview
+   draws fields and bullets. Part 2: the master and layouts carry the header and footer.
 6. **Native charts** for the stage chart (the two category distributions are done, above).
 7. **Re-review**: export every design again and compare.
 

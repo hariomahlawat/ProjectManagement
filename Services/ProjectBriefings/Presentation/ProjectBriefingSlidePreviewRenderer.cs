@@ -344,7 +344,8 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
         foreach (var paragraph in body.Elements(A + "p"))
         {
             var properties = paragraph.Element(A + "pPr");
-            var runs = paragraph.Elements().Where(element => element.Name == A + "r" || element.Name == A + "br").ToArray();
+            // Fields (the slide number) read as runs: their text is the value when the deck was made.
+            var runs = paragraph.Elements().Where(element => element.Name == A + "r" || element.Name == A + "fld" || element.Name == A + "br").ToArray();
             var firstSize = runs
                 .Select(run => ReadLong(run.Element(A + "rPr"), "sz"))
                 .FirstOrDefault(size => size.HasValue)
@@ -375,6 +376,17 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
             style.Append(CultureInfo.InvariantCulture, $"tab-size:{N(Math.Max(1, Px(tab ?? 914400) - marginLeft))}px;");
 
             html.Append($"<p style=\"{style}\">");
+            // A real bullet hangs in the first-line indent, as PowerPoint draws it.
+            var bulletChar = (string?)properties?.Element(A + "buChar")?.Attribute("char");
+            if (!string.IsNullOrEmpty(bulletChar))
+            {
+                var bulletColor = SolidColor(properties?.Element(A + "buClr"));
+                var bulletStyle = new StringBuilder("display:inline-block;text-indent:0;");
+                if (indent < 0) bulletStyle.Append(CultureInfo.InvariantCulture, $"width:{N(-indent)}px;");
+                if (bulletColor is not null) bulletStyle.Append(CultureInfo.InvariantCulture, $"color:#{bulletColor};");
+                html.Append($"<span style=\"{bulletStyle}\">{Encode(bulletChar)}</span>");
+            }
+
             var isFirstRun = true;
             foreach (var run in runs)
             {

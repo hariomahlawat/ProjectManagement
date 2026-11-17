@@ -246,10 +246,14 @@ public sealed partial class ProjectBriefingSlideComposer
                             new[]
                             {
                                 new RichTextRun(
-                                    $"• {Truncate(row.Label, compact ? 31 : 40)}",
+                                    Truncate(row.Label, compact ? 31 : 40),
                                     compact ? 11.5 : 12.5,
                                     canvas.Theme.TextSecondary)
                             },
+                            LeftMarginInches: .18,
+                            FirstLineIndentInches: -.18,
+                            Bullet: "•",
+                            BulletColor: accent,
                             SpaceAfterPoints: compact ? 12.0 : 14.0,
                             LineSpacingPoints: compact ? 13.0 : 14.5))
                         .ToArray();
