@@ -1122,13 +1122,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ? 0
             : ProjectBriefingTablePagination.Paginate(
                 tableProjects,
-                ProjectBriefingContentGaps.EffectiveTableCostMode(layout, costMode),
+                ProjectBriefingTablePagination.Layout(
+                    ProjectBriefingContentGaps.EffectiveTableCostMode(layout, costMode),
+                    projects.Any(project => project.ProliferationCost.IsAvailable)),
                 project => ProjectBriefingTablePagination.Measure(
                     project.ProjectName,
                     project.PresentStage,
                     project.ExternalStatus,
-                    project.CostRd.IsAvailable && !string.IsNullOrWhiteSpace(project.CostRd.BasisDisplay),
-                    hasProliferationCostBasis: false))
+                    project.CostRd))
                 .Count;
         var tableRowOnlyPages = CountTablePages(projects
             .Where(project => project.Presentation == ProjectBriefingItemPresentation.TableRowOnly)

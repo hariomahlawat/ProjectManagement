@@ -340,7 +340,7 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
-    public void Compose_PaginatesFortyNineShortRowsIntoNineBalancedProjectTables()
+    public void Compose_PaginatesFortyNineShortRowsIntoFiveEvenProjectTables()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
         var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
@@ -380,20 +380,28 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(11, slideCount); // cover + nine project-table slides + closing
+        // 12 pt rows as tall as their text, up to 12 a slide and
+        // spread evenly (docs/ux/briefing-slides-review.md, PR 3): cover + five tables + closing.
+        Assert.Equal(7, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
         var tables = slides.SelectMany(slide => slide.Slide.Descendants<A.Table>()).ToArray();
-        Assert.Equal(9, tables.Length);
+        Assert.Equal(5, tables.Length);
         var rowCounts = tables.Select(table => table.Elements<A.TableRow>().Count() - 1).ToArray();
         Assert.Equal(49, rowCounts.Sum());
-        Assert.All(rowCounts, count => Assert.InRange(count, 3, 6));
+        Assert.All(rowCounts, count => Assert.InRange(count, 9, 12));
+        Assert.True(rowCounts.Max() - rowCounts.Min() <= 1, "Pages are of even length.");
+        // Every cell at 12 pt (header 11 pt); no proliferation column when no project has one.
+        var sizes = tables.SelectMany(table => table.Descendants<A.RunProperties>())
+            .Select(run => run.FontSize?.Value ?? 0).Distinct().ToArray();
+        Assert.Equal(new[] { 1100, 1200 }, sizes.OrderBy(size => size).ToArray());
+        Assert.DoesNotContain("PROLIFERATION COST", string.Join(" ", tables.SelectMany(table => table.Descendants<A.Text>()).Select(node => node.Text)), StringComparison.Ordinal);
 
         var text = string.Join("\n", slides
             .SelectMany(slide => slide.Slide.Descendants<A.Text>())
             .Select(node => node.Text));
-        Assert.Contains("Project status summary (9/9)", text, StringComparison.Ordinal);
+        Assert.Contains("Project status summary (5/5)", text, StringComparison.Ordinal);
     }
 
     [Fact]

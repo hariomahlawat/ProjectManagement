@@ -56,7 +56,7 @@ public sealed partial class ProjectBriefingSlideComposer
                 SlidePlanKind.Summary,
                 canvas => RenderStageDistributionList(canvas, page, categories, isFirst, pageNumber, pageCount),
                 ProjectBriefingSlideRole.StageDistributionList,
-                ListedProjectIds: page.SelectMany(column => column.Lines).Select(line => line.ProjectId).ToArray()));
+                ListedProjectIds: page.SelectMany(column => column.Parts.SelectMany(part => part)).Select(line => line.ProjectId).ToArray()));
         }
     }
 
@@ -336,33 +336,104 @@ public sealed partial class ProjectBriefingSlideComposer
     private const double DistributionNameSize = 10;
     private const double DistributionTagSize = 9;
     private const double DistributionMeasureSize = 9.2;
-    private const double DistributionLineHeight = .165;
-    private const double DistributionRowGap = .06;
+    // Measured on the list exported through PowerPoint (the column box shrinks its text slightly):
+    // .196 in for a one-line project and .1375 in for each further line. Kept a little above that.
+    private const double DistributionLineHeight = .15;
+    private const double DistributionRowGap = .05;
     private const double DistributionBulletIndent = .18;
 
     private static double DistributionColumnWidth =>
         (12.10 - DistributionColumnGap * (StageDistributionBands.Length - 1)) / StageDistributionBands.Length;
 
-    private sealed record StageDistributionColumn(ArppProgressBucket Band, string Title, int Total, IReadOnlyList<ArppProjectLineVm> Lines);
+    // One slide (docs/ux/briefing-slides-review.md, PR 3): a band with no projects takes a narrow
+    // column, and the rest of the width is shared in parts, a long band taking two or more parts
+    // side by side, up to six across. Only a list that does not fit even then pages as before.
+    private const double DistributionTotalWidth = 12.10;
+    private const double DistributionEmptyWidth = 1.45;
+    private const double DistributionPartGap = .16;
+    private const int DistributionMaximumParts = 6;
+
+    // A band's projects in parts (side-by-side columns), and the band's width across all of them.
+    private sealed record StageDistributionColumn(
+        ArppProgressBucket Band,
+        string Title,
+        int Total,
+        IReadOnlyList<IReadOnlyList<ArppProjectLineVm>> Parts,
+        double Width,
+        double PartWidth);
 
     private static List<IReadOnlyList<StageDistributionColumn>> PaginateStageDistributionColumns(IReadOnlyList<ArppProjectLineVm> lines)
     {
         // Furthest along first (by stage, or the latest completion), then by name; as on the ARPP slides.
-        var queues = StageDistributionBands.Select(band =>
+        var bands = StageDistributionBands.Select(band =>
         {
             var inBand = lines.Where(line => line.Bucket == band.Band);
             inBand = band.Band == ArppProgressBucket.Completed
                 ? inBand.OrderByDescending(line => line.CompletedSort ?? DateOnly.MinValue).ThenBy(line => line.ProjectName, StringComparer.OrdinalIgnoreCase)
                 : inBand.OrderByDescending(line => line.StageRank).ThenBy(line => line.ProjectName, StringComparer.OrdinalIgnoreCase);
-            var queue = new Queue<ArppProjectLineVm>(inBand);
-            return (band.Band, band.Title, Total: queue.Count, Queue: queue);
+            return (band.Band, band.Title, Lines: inBand.ToList());
         }).ToList();
 
+        // Every way of giving each band with projects one to four parts, six parts at most across;
+        // of those that fit, the one with the widest parts (the largest text per line).
+        var counts = bands.Select(band => band.Lines.Count).ToArray();
+        StageDistributionColumn[]? best = null;
+        var bestWidth = 0d;
+        foreach (var parts in PartAllocations(counts))
+        {
+            var partWidth = StageDistributionPartWidth(counts, parts);
+            if (partWidth <= bestWidth)
+            {
+                continue;
+            }
+
+            var columns = new StageDistributionColumn[bands.Count];
+            var fits = true;
+            for (var index = 0; index < bands.Count && fits; index++)
+            {
+                var band = bands[index];
+                if (band.Lines.Count == 0)
+                {
+                    columns[index] = new StageDistributionColumn(band.Band, band.Title, 0, Array.Empty<IReadOnlyList<ArppProjectLineVm>>(), DistributionEmptyWidth, DistributionEmptyWidth);
+                    continue;
+                }
+
+                var split = SplitIntoParts(band.Lines, band.Band, parts[index], partWidth);
+                fits = split.Remainder == 0;
+                columns[index] = new StageDistributionColumn(
+                    band.Band,
+                    band.Title,
+                    band.Lines.Count,
+                    split.Parts,
+                    (parts[index] * partWidth) + ((parts[index] - 1) * DistributionPartGap),
+                    partWidth);
+            }
+
+            if (fits)
+            {
+                best = columns;
+                bestWidth = partWidth;
+            }
+        }
+
+        if (best is not null)
+        {
+            return new List<IReadOnlyList<StageDistributionColumn>> { best };
+        }
+
+        // A very long list: equal columns, continued on further slides.
+        var queues = bands.Select(band => (band.Band, band.Title, Total: band.Lines.Count, Queue: new Queue<ArppProjectLineVm>(band.Lines))).ToList();
         var pages = new List<IReadOnlyList<StageDistributionColumn>>();
         do
         {
             pages.Add(queues
-                .Select(column => new StageDistributionColumn(column.Band, column.Title, column.Total, TakeStageDistributionColumn(column.Queue, column.Band)))
+                .Select(column => new StageDistributionColumn(
+                    column.Band,
+                    column.Title,
+                    column.Total,
+                    new[] { (IReadOnlyList<ArppProjectLineVm>)TakeStageDistributionColumn(column.Queue, column.Band, DistributionColumnWidth) },
+                    DistributionColumnWidth,
+                    DistributionColumnWidth))
                 .ToList());
         }
         while (queues.Any(column => column.Queue.Count > 0));
@@ -370,13 +441,79 @@ public sealed partial class ProjectBriefingSlideComposer
         return pages;
     }
 
-    private static List<ArppProjectLineVm> TakeStageDistributionColumn(Queue<ArppProjectLineVm> lines, ArppProgressBucket band)
+    private static IEnumerable<int[]> PartAllocations(IReadOnlyList<int> counts)
+    {
+        var current = new int[counts.Count];
+        IEnumerable<int[]> Walk(int index, int used)
+        {
+            if (index == counts.Count)
+            {
+                if (used > 0 && used <= DistributionMaximumParts)
+                {
+                    yield return (int[])current.Clone();
+                }
+
+                yield break;
+            }
+
+            if (counts[index] == 0)
+            {
+                current[index] = 0;
+                foreach (var allocation in Walk(index + 1, used))
+                {
+                    yield return allocation;
+                }
+
+                yield break;
+            }
+
+            for (var parts = 1; parts <= 4 && used + parts <= DistributionMaximumParts; parts++)
+            {
+                current[index] = parts;
+                foreach (var allocation in Walk(index + 1, used + parts))
+                {
+                    yield return allocation;
+                }
+            }
+        }
+
+        return Walk(0, 0);
+    }
+
+    // The width of one part when the bands take these many parts (an empty band its narrow column).
+    private static double StageDistributionPartWidth(IReadOnlyList<int> counts, IReadOnlyList<int> parts)
+    {
+        var empty = counts.Count(count => count == 0);
+        var totalParts = Math.Max(1, parts.Sum());
+        var gaps = (DistributionColumnGap * (counts.Count - 1))
+            + parts.Where(count => count > 1).Sum(count => (count - 1) * DistributionPartGap);
+        return (DistributionTotalWidth - (empty * DistributionEmptyWidth) - gaps) / totalParts;
+    }
+
+    // Fills the parts top to bottom, in order; Remainder is how many projects did not fit.
+    private static (IReadOnlyList<IReadOnlyList<ArppProjectLineVm>> Parts, int Remainder) SplitIntoParts(
+        IReadOnlyList<ArppProjectLineVm> lines,
+        ArppProgressBucket band,
+        int partCount,
+        double partWidth)
+    {
+        var queue = new Queue<ArppProjectLineVm>(lines);
+        var parts = new List<IReadOnlyList<ArppProjectLineVm>>();
+        for (var part = 0; part < partCount && queue.Count > 0; part++)
+        {
+            parts.Add(TakeStageDistributionColumn(queue, band, partWidth));
+        }
+
+        return (parts, queue.Count);
+    }
+
+    private static List<ArppProjectLineVm> TakeStageDistributionColumn(Queue<ArppProjectLineVm> lines, ArppProgressBucket band, double width)
     {
         var taken = new List<ArppProjectLineVm>();
         var y = DistributionRowsTop;
         while (lines.Count > 0)
         {
-            var height = StageDistributionRowHeight(lines.Peek(), band);
+            var height = StageDistributionRowHeight(lines.Peek(), band, width);
             if (y + height > DistributionRowsBottom && taken.Count > 0)
             {
                 break;
@@ -390,11 +527,14 @@ public sealed partial class ProjectBriefingSlideComposer
     }
 
     internal static double StageDistributionRowHeight(ArppProjectLineVm line, ArppProgressBucket band)
+        => StageDistributionRowHeight(line, band, DistributionColumnWidth);
+
+    internal static double StageDistributionRowHeight(ArppProjectLineVm line, ArppProgressBucket band, double width)
     {
         // The tag never breaks inside itself, so it is measured as one word. The column's text box shrinks its
         // text to 94% (allowAutoFit) and the tag is a point smaller than the name, so the measure is at 9.2 pt.
-        var text = StageDistributionTag(line, band) is { } tag ? $"{line.ProjectName}  {tag.Text.Replace(' ', ' ')}" : line.ProjectName;
-        var lines = AnalyticsSlideFrame.LineCount(text, DistributionColumnWidth - DistributionBulletIndent - .06, DistributionMeasureSize);
+        var text = StageDistributionTag(line, band) is { } tag ? $"{line.ProjectName}  {tag.Text.Replace(' ', '\u00a0')}" : line.ProjectName;
+        var lines = AnalyticsSlideFrame.LineCount(text, width - DistributionBulletIndent - .06, DistributionMeasureSize);
         return lines * DistributionLineHeight + DistributionRowGap;
     }
 
@@ -426,11 +566,11 @@ public sealed partial class ProjectBriefingSlideComposer
             : "PDC for projects at Development, red when overdue; completion month for completed";
         AddSlideTitle(canvas, title, subtitle);
 
-        var width = DistributionColumnWidth;
+        var x = DistributionColumnLeft;
         for (var index = 0; index < columns.Count; index++)
         {
             var column = columns[index];
-            var x = DistributionColumnLeft + index * (width + DistributionColumnGap);
+            var width = column.Width;
             var heading = isFirst ? column.Title : $"{column.Title} (cont.)";
             canvas.AddRichTextBox(
                 x,
@@ -456,29 +596,34 @@ public sealed partial class ProjectBriefingSlideComposer
                 bottomInset: .04);
             canvas.AddRect(x, DistributionHeadingTop + DistributionHeadingHeight, width, .03, canvas.Theme.HeaderAccent, name: $"{column.Title} rule");
 
-            if (column.Lines.Count == 0)
+            if (column.Parts.Count == 0 || column.Parts.All(part => part.Count == 0))
             {
                 if (isFirst)
                 {
                     canvas.AddText(x, DistributionRowsTop, width, .3, "None", 10, canvas.Theme.TextMuted, false, "l", "t", $"{column.Title} none");
                 }
-
-                continue;
+            }
+            else
+            {
+                // One text box per part and one paragraph per project, so typing Enter in PowerPoint adds a project.
+                for (var part = 0; part < column.Parts.Count; part++)
+                {
+                    canvas.AddRichTextBox(
+                        x + (part * (column.PartWidth + DistributionPartGap)),
+                        DistributionRowsTop,
+                        column.PartWidth,
+                        DistributionRowsBottom - DistributionRowsTop,
+                        column.Parts[part].Select(line => StageDistributionParagraph(canvas, line, column.Band)).ToList(),
+                        column.Parts.Count == 1 ? $"{column.Title} projects" : $"{column.Title} projects {part + 1}",
+                        allowAutoFit: true,
+                        leftInset: .02,
+                        rightInset: .02,
+                        topInset: 0,
+                        bottomInset: 0);
+                }
             }
 
-            // One text box per column and one paragraph per project, so typing Enter in PowerPoint adds a project.
-            canvas.AddRichTextBox(
-                x,
-                DistributionRowsTop,
-                width,
-                DistributionRowsBottom - DistributionRowsTop,
-                column.Lines.Select(line => StageDistributionParagraph(canvas, line, column.Band)).ToList(),
-                $"{column.Title} projects",
-                allowAutoFit: true,
-                leftInset: .02,
-                rightInset: .02,
-                topInset: 0,
-                bottomInset: 0);
+            x += width + DistributionColumnGap;
         }
 
         AddStageDistributionLegend(canvas, categories, null, 6.68);
