@@ -90,6 +90,39 @@ export function initWorkspaceRailGroups(root = document, options = {}) {
     return { apply };
 }
 
+// How far down the rail reaches. It keeps clear of the footer (--cw-below) so a page whose content
+// fits the window does not scroll because of the rail; when the page beside it is taller than the
+// window, the page scrolls anyway, so the rail runs on to just above the window's bottom edge
+// instead of stopping a footer's height short of it (owner, 17 Nov 2026: "left menu bar is still
+// short"). Measured again when the content or the window changes size.
+export function initWorkspaceRailReach(root = document, options = {}) {
+    const rail = root.querySelector('[data-workspace-rail]');
+    const workspace = rail?.closest('.command-workspace');
+    const content = workspace?.querySelector('.cw-workspace-content');
+    if (!rail || !workspace || !content) return null;
+
+    const view = root.defaultView;
+    const contentHeight = options.contentHeight ?? (() => content.getBoundingClientRect().height);
+    const windowHeight = options.windowHeight ?? (() => view?.innerHeight ?? 0);
+    // The rail's sticky top (72px) and the room it keeps below itself on a long page (16px).
+    const railTop = 72;
+    const longPageGap = 16;
+
+    const apply = () => {
+        const long = contentHeight() > windowHeight() - railTop - longPageGap;
+        workspace.classList.toggle('cw-long-page', long);
+        return long;
+    };
+
+    apply();
+    if (view?.ResizeObserver) {
+        new view.ResizeObserver(() => apply()).observe(content);
+    }
+    view?.addEventListener?.('resize', apply);
+    return { apply };
+}
+
 if (typeof document !== 'undefined' && document.querySelector?.('[data-workspace-rail]')) {
+    initWorkspaceRailReach();
     initWorkspaceRailGroups();
 }
