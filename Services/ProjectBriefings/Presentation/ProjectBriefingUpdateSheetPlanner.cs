@@ -28,9 +28,15 @@ public static class ProjectBriefingUpdateSheetPlanner
     private static readonly ProjectBriefingUpdateSheetBriefTypography TightBriefTypography =
         new(12.0, 13.6, 2.0);
 
+    // Larger sizes first, so a short brief fills its panel rather than sitting at 14.5 pt above
+    // an empty half (step 7); each is taken only when the whole text fits.
     private static readonly IReadOnlyList<ProjectBriefingUpdateSheetBriefTypography> BriefTypographyProfiles =
         new[]
         {
+            new ProjectBriefingUpdateSheetBriefTypography(22.0, 27.5, 12.0),
+            new ProjectBriefingUpdateSheetBriefTypography(20.0, 25.0, 11.0),
+            new ProjectBriefingUpdateSheetBriefTypography(18.0, 22.5, 10.0),
+            new ProjectBriefingUpdateSheetBriefTypography(16.0, 20.0, 8.0),
             PreferredBriefTypography,
             StandardBriefTypography,
             CompactBriefTypography,
@@ -346,14 +352,14 @@ public static class ProjectBriefingUpdateSheetPlanner
         double labelWidth,
         double valueWidth)
     {
-        const double labelFontSize = 10.3;
+        var labelFontSize = row.LabelFontSize;
         var labelLines = EstimateLines(row.Label, labelWidth, labelFontSize);
         var valueLines = EstimateLines(row.Value, valueWidth, row.FontSize);
         var labelHeight = (labelLines * labelFontSize * 1.18d) / 72d;
         var valueHeight = (valueLines * row.FontSize * 1.18d) / 72d;
         var required = Math.Max(labelHeight, valueHeight) + .065;
 
-        return Math.Clamp(required, .30, 1.05);
+        return Math.Clamp(required, .30, 1.30);
     }
 
     /// <summary>
@@ -697,13 +703,26 @@ public static class ProjectBriefingUpdateSheetPlanner
             .Select(row => row!)
             .ToArray();
 
-        if (!options.HideEmptyValues)
-        {
-            return all;
-        }
+        var shown = !options.HideEmptyValues
+            ? all
+            : all.Where(row => row.HasRecordedValue || row.KeepWhenBlank).ToArray() is { Length: > 0 } filtered
+                ? filtered
+                : all.Take(1).ToArray();
+        return ScaleRows(shown);
+    }
 
-        var filtered = all.Where(row => row.HasRecordedValue || row.KeepWhenBlank).ToArray();
-        return filtered.Length > 0 ? filtered : all.Take(1).ToArray();
+    // A sheet with few rows sets them larger (docs/ux/briefing-slides-review.md, step 7): five rows
+    // at 10 pt left half the slide empty. Up to six rows take 30% more, up to nine 15% more.
+    private static ProjectBriefingUpdateSheetPlanningRow[] ScaleRows(IReadOnlyList<ProjectBriefingUpdateSheetPlanningRow> rows)
+    {
+        var scale = rows.Count <= 6 ? 1.30 : rows.Count <= 9 ? 1.15 : 1.0;
+        return rows
+            .Select(row => row with
+            {
+                FontSize = Math.Round(row.FontSize * scale, 1),
+                LabelFontSize = Math.Round(row.LabelFontSize * scale, 1)
+            })
+            .ToArray();
     }
 
     private static UpdateSheetMilestone ResolveMilestone(UpdateSheetRowSource source)
@@ -849,7 +868,8 @@ public sealed record ProjectBriefingUpdateSheetPlanningRow(
     string Value,
     bool HasRecordedValue,
     bool KeepWhenBlank,
-    double FontSize);
+    double FontSize,
+    double LabelFontSize = 10.3);
 
 public sealed record ProjectBriefingUpdateSheetBriefTypography(
     double BodyFontSize,

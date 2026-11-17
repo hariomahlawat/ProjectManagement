@@ -45,6 +45,11 @@ public sealed partial class ProjectBriefingSlideComposer
             page.IsContinuation);
     }
 
+    // The maroon of the lead phrases and headings: on the dark theme a lighter rose, as maroon on
+    // the dark panels was hard to read (docs/ux/briefing-slides-review.md, step 7).
+    private static string RoleCharterAccentText(ProjectBriefingThemeDefinition theme)
+        => theme.IsDark ? "E58A9E" : theme.HeaderAccent;
+
     private static string ResolveRolePanelFill(ProjectBriefingThemeDefinition theme)
     {
         ArgumentNullException.ThrowIfNull(theme);
@@ -80,7 +85,7 @@ public sealed partial class ProjectBriefingSlideComposer
                 .22,
                 "ROLE",
                 11.5,
-                canvas.Theme.HeaderAccent,
+                RoleCharterAccentText(canvas.Theme),
                 true,
                 "l",
                 name: "Role heading");
@@ -90,7 +95,7 @@ public sealed partial class ProjectBriefingSlideComposer
             var paragraphs = shown
                 .Select(statement => BuildRoleCharterParagraph(
                     statement,
-                    canvas.Theme.HeaderAccent,
+                    RoleCharterAccentText(canvas.Theme),
                     canvas.Theme.TextPrimary,
                     fontSize: fontSize,
                     bullet: null,
@@ -151,7 +156,7 @@ public sealed partial class ProjectBriefingSlideComposer
             .22,
             continuation ? "CHARTER — CONTINUED" : "CHARTER",
             11.5,
-            canvas.Theme.HeaderAccent,
+            RoleCharterAccentText(canvas.Theme),
             true,
             "l",
             name: "Charter heading");
@@ -204,7 +209,7 @@ public sealed partial class ProjectBriefingSlideComposer
             var paragraphs = items
                 .Select(item => BuildRoleCharterParagraph(
                     item,
-                    canvas.Theme.HeaderAccent,
+                    RoleCharterAccentText(canvas.Theme),
                     canvas.Theme.TextPrimary,
                     typography.FontSize,
                     bullet: "✓ ",

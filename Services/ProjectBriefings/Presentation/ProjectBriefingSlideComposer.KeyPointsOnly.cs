@@ -19,12 +19,15 @@ public sealed partial class ProjectBriefingSlideComposer
     private const double KeyPointsOnlyCardMaximumHeight = 1.30;
     private const double KeyPointsOnlyCardPaddingX = .22;
     private const double KeyPointsOnlyCardPaddingY = .08;
-    private const double KeyPointsOnlyHeadingFont = 10.5;
-    private const double KeyPointsOnlyHeadingHeight = .22;
+    // The heading grows with the text (step 7), but keeps its old size when the text is small, so
+    // the longest points still fit at 11 pt.
+    private static double KeyPointsOnlyHeadingFont(double textSize) => textSize >= 14 ? 12.0 : 10.5;
+    private static double KeyPointsOnlyHeadingHeight(double textSize) => textSize >= 14 ? .26 : .22;
     private const double KeyPointsOnlyAccentWidth = .06;
 
     // The largest size every point fits at; 11 pt is the floor the key point band already uses.
-    private static readonly double[] KeyPointsOnlyTextSizes = { 13.0, 12.0, 11.0 };
+    // The largest that fits every card (step 7: the cards had room for more than 13 pt).
+    private static readonly double[] KeyPointsOnlyTextSizes = { 17.0, 16.0, 15.0, 14.0, 13.0, 12.0, 11.0 };
 
     private sealed record KeyPointsOnlyLayout(
         double PhotoY,
@@ -171,7 +174,7 @@ public sealed partial class ProjectBriefingSlideComposer
     {
         var charactersPerLine = (int)Math.Floor(textWidth * 72d / (size * KeyPointsOnlyCharacterWidthEm));
         var lines = EstimateWrappedLines(text, charactersPerLine);
-        return (2 * KeyPointsOnlyCardPaddingY) + KeyPointsOnlyHeadingHeight + (lines * size * 1.2 / 72d);
+        return (2 * KeyPointsOnlyCardPaddingY) + KeyPointsOnlyHeadingHeight(size) + (lines * size * 1.2 / 72d);
     }
 
     private static void AddKeyPointsOnlyCards(SlideCanvas canvas, KeyPointsOnlyLayout layout)
@@ -204,7 +207,7 @@ public sealed partial class ProjectBriefingSlideComposer
                 new[]
                 {
                     new RichTextParagraph(
-                        new[] { new RichTextRun(point.Heading, KeyPointsOnlyHeadingFont, theme.NarrativeAccent, Bold: true) },
+                        new[] { new RichTextRun(point.Heading, KeyPointsOnlyHeadingFont(layout.TextSize), theme.NarrativeAccent, Bold: true) },
                         SpaceAfterPoints: 2),
                     new RichTextParagraph(
                         new[] { new RichTextRun(point.Text, layout.TextSize, theme.TextPrimary) })

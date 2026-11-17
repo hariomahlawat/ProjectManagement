@@ -161,16 +161,16 @@ public sealed class ProjectBriefingKeyPointsOnlySlideTests
                 if (!showStatus)
                 {
                     // With the whole column, the longest points stay at 12 pt.
-                    Assert.True(sizes.Max() >= 1200, $"{definition.Heading}: {sizes.Max() / 100d} pt");
+                    Assert.True(sizes.Last() >= 1200, $"{definition.Heading}: {sizes.Last() / 100d} pt");
                 }
 
                 // The card holds the heading and every line of text the size needs.
-                var textSize = sizes.Max() / 100d;
+                var textSize = sizes.Last() / 100d;
                 var textWidth = ShapeWidth(box) / Emu;
                 var charactersPerLine = (int)Math.Floor(textWidth * 72d / (textSize * ProjectBriefingSlideComposer.KeyPointsOnlyCharacterWidthEm));
                 var point = LongestPoints[Array.FindIndex(ProjectKeyPointCatalog.All.ToArray(), item => item.Heading == definition.Heading)];
                 var lines = (int)Math.Ceiling(point.Length / (double)charactersPerLine);
-                var needed = .22 + (lines * textSize * 1.2 / 72d);
+                var needed = (textSize >= 14 ? .26 : .22) + (lines * textSize * 1.2 / 72d);
                 Assert.True(ShapeHeight(box) / Emu >= needed - .001, $"{definition.Heading} needs {needed:0.00} in.");
             }
         });

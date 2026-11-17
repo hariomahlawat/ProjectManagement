@@ -260,7 +260,7 @@ public sealed partial class ProjectBriefingSlideComposer
                 BottomMargin: .015),
             new NativeTableCell(
                 row.Label,
-                10.1,
+                row.LabelFontSize,
                 theme.TextPrimary,
                 Bold: false,
                 Align: "l",
