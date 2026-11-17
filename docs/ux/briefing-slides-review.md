@@ -1,0 +1,116 @@
+# Briefing decks: slide review (17 Nov 2026)
+
+The owner asked for every generated slide to be reviewed for four things:
+
+1. Space used well, so text is larger and easy to read. Few slides; a slide split in two should be
+   very rare.
+2. Tables: use the space, larger text, 10–12 rows on one slide.
+3. A professional, polished look.
+4. Easy to edit in PowerPoint.
+
+And: **photos are never cropped by PRISM.**
+
+## How it was reviewed
+
+The demo deck (49 projects) was generated from the local throwaway copy of the dev database in
+every project-slide design, with every slide switched on, and each slide was exported through
+PowerPoint itself (1600×900):
+
+| Deck | Design | Slides |
+| --- | --- | --- |
+| As stored | Key points (no status table, no category slides) | 58 |
+| All slides on | Brief | 68 |
+| All slides on | Capability | 68 |
+| All slides on | Key points only | 68 |
+| All slides on | Fact sheet | 54 |
+
+The slide XML was inspected for how it edits in PowerPoint. Theme: Graphite Dark (Editorial Light
+uses the same layouts). Many demo projects have no photo and no capability text; findings below are
+about layout, not about that demo data.
+
+## Findings
+
+### Photos (owner rule: never crop)
+
+- **P1. Every project photo is cut to 16:9 from the centre** before it reaches a slide
+  (`ProjectBriefingPhotoLoader.cs:133`, `PrismImageCodec.ResizeToCover(image, 1600, 900)`). A
+  portrait or 4:3 photo loses its top and bottom, or its sides.
+- **P2. The fact sheet crops again** to its own frame (`ProjectBriefingSlideComposer.UpdateSheet.cs:148-179`),
+  so its photos come out as a wide strip.
+- The slides then draw the 16:9 picture stretched to its box (`AddImage`, `a:stretch`), which is
+  only safe because P1 already cut it to 16:9.
+
+**Fix:** load the whole photo (resized to fit, never cropped) and place it contained in its frame,
+centred, on the frame's own colour; the frame's shape follows the photo where the layout allows.
+The person can still crop in PowerPoint (Picture Format › Crop) if they want to.
+
+### Space and text size
+
+| Slide | What we see | Text now | Fix |
+| --- | --- | --- | --- |
+| Cover | Left half empty apart from the name; figures panel with large gaps. | name 28pt, rest 9–11pt | Larger deck name and subtitle, figures panel tighter, generated date readable. |
+| Role & Charter | Nearly half of each panel empty. | 11.5pt | Text grows to fill the panels (to about 16pt). |
+| SDD profile | Cards half empty, list text tiny; one header red on dark red, hard to read. | 9–10.8pt | Larger figures and lists; fix the header contrast. |
+| Stage-wise distribution (chart) | Good use of space. | axis 9–11pt | Larger axis and band labels. |
+| Stage-wise list | An empty "Completed" column takes a quarter of the width while "Under development" (21) spills onto a **second slide**. | 10–12pt | Columns sized by how many projects each band has; empty bands narrow; long bands flow into two sub-columns; one slide. |
+| Category distributions (2) | Thin bars and small labels; most of the slide empty. | 9–11pt | Thicker bars, larger labels, the note larger. |
+| Status table | **6 rows per slide**: 49 projects need **9 slides**. Rows twice the height their text needs; bottom quarter empty; Proliferation cost column all "—". | 10–10.7pt | **12 rows per slide at 12pt** (49 projects: 5 slides); status up to 3 lines; a column with no values is left out. |
+| Project · Capability | Photo and text side by side; capability text panel often half empty. | 16pt | Text sized to its panel. |
+| Project · Key points | Key points in a band at the foot in small text, while the panels above have room. | points 9–11pt | Points at 13–14pt; the band takes the height the panels do not use. |
+| Project · Key points only | Reads well; photo floats with empty bands above and below. | 11pt | Photo fills the column height; points a little larger. |
+| Project · Brief | Brief text panel half empty. | 15pt | Text sized to its panel. |
+| Project · Fact sheet | Facts table small; brief panel two-thirds empty; photo cropped to a strip (P2). | 12–14pt | Facts and brief larger; photo whole; panel heights follow content. |
+| Capability **continued** | Slide 40 shows two bullets with the panel mostly empty, then slide 41 carries four bullets alone on an otherwise empty slide. Its header differs from slide 40's. | 16pt | **Paginator bug**: fit all six on one slide (step text down to a floor first). |
+| FFC footprint | Good; country list small. | 9–10pt | Larger list text. |
+| Closing | Fine. | — | — |
+
+**Continuation slides today** (each creates a second slide for one item): capability, brief,
+fact-sheet brief, Role & Charter, FFC breakdown and the stage-wise list. The rule should be:
+**fit first** (use the free space, then step the text down to a readable floor: 14pt body, 12pt
+tables and lists), and **split only when it still does not fit**. When a split happens, the
+continuation carries the same header as the first slide.
+
+### Professional look
+
+- A consistent type scale: titles 24pt, body 14–18pt, tables 12–13pt, captions 10pt minimum (no
+  9pt text anywhere a reader must read).
+- Equal margins and gutters on every slide (today some panels sit at different insets).
+- Headers that read: the SDD profile's "Assistance to field formations" header (red on dark red)
+  fails contrast.
+- Placeholder messages ("Capability overview not recorded", "Photograph not available") are fine
+  as gaps, but should be quieter than real content, not the same size as a heading.
+
+### Easy to edit in PowerPoint
+
+- **E1. No placeholders.** Every slide uses the blank layout and its title is a plain text box, so
+  PowerPoint's outline view, navigation pane and screen readers see no slide titles.
+- **E2. The slide furniture is drawn on every slide** (background, accent bar, insignia plates and
+  images, rule lines, footer). Changing a logo or the footer means editing every slide, and the
+  pieces can be knocked out of place. They belong on the slide master and layouts.
+- **E3. Page numbers are typed** ("15/68"), not slide-number fields: they go wrong when a slide is
+  removed or moved.
+- **E4. Bullets are typed characters** ("•", "✓") at the start of the text, not paragraph bullets:
+  a new line gets no bullet or hanging indent.
+- **E5. Charts are drawn shapes** (the stage chart is 65 shapes, the SDD profile 50): nobody can
+  correct a number in PowerPoint. The stage chart and the two category distributions should be
+  native PowerPoint charts (their data editable in PowerPoint).
+- Good already: tables are native PowerPoint tables; shapes have meaningful names; text boxes
+  use shrink-on-overflow.
+
+## Plan
+
+Each step is one PR, checked by exporting the demo decks through PowerPoint as above.
+
+1. **Photos never cropped** (P1, P2). Fit, not cover; contained in the frame; tests that a
+   portrait photo keeps its full height.
+2. **Fit before split** (the paginator bug and the continuation rule). One fitting routine for
+   text panels: shrink to the floor, split only beyond it, same header on a continuation.
+3. **Status table: 12 rows at 12pt** (and empty columns left out); stage-wise list on one slide.
+4. **Type scale and space**: cover, Role & Charter, SDD profile, category distributions, FFC list,
+   key points band, Key points only photo, Brief and Fact sheet panels.
+5. **Editable structure**: slide master and layouts carry the furniture; title placeholders; real
+   slide-number fields; real bullets.
+6. **Native charts** for the stage chart and the two category distributions.
+7. **Re-review**: export every design again and compare.
+
+Steps 1–3 change what a deck says least and help most; 5 and 6 are the largest.
