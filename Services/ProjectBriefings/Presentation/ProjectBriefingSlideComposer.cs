@@ -521,11 +521,18 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         // lines), an accent rule, then the description.
         const double titleWidth = 7.60;
         const double titleBottom = 4.02;
+        // A long name steps down until it fits two lines (to 18 pt); one longer still keeps the
+        // lines it needs, so nothing is clipped (Codex review on #3411).
+        var titleText = data.DeckName.ToUpperInvariant();
+        int TitleLines(double size) => Math.Max(1,
+            ProjectManagement.Services.Analytics.Presentation.AnalyticsSlideFrame.LineCount(titleText, titleWidth - .20, size * 1.12));
         var titleSize = CoverTitleFontSize(data.DeckName);
-        var titleLines = Math.Clamp(
-            ProjectManagement.Services.Analytics.Presentation.AnalyticsSlideFrame.LineCount(data.DeckName.ToUpperInvariant(), titleWidth - .20, titleSize * 1.12),
-            1,
-            2);
+        while (titleSize > 18 && TitleLines(titleSize) > 2)
+        {
+            titleSize -= 1;
+        }
+
+        var titleLines = TitleLines(titleSize);
         var titleHeight = (titleLines * titleSize * 1.12 / 72d) + .14;
         var titleTop = titleBottom - titleHeight;
         canvas.AddText(.84, titleTop - .42, titleWidth, .30,
