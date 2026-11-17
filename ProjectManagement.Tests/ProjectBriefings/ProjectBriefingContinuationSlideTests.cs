@@ -28,6 +28,21 @@ public sealed class ProjectBriefingContinuationSlideTests
         Assert.Equal(1, ProjectBriefingRoleCharterPaginator.EstimateSlideCount(ProjectBriefingRoleCharterOptions.Default with { IncludeSlide = true }));
     }
 
+    [Fact]
+    public void ShortCharter_GrowsToFillItsPanels()
+    {
+        // docs/ux/briefing-slides-review.md, step 4: ten short items were set at 13.2 pt above an
+        // empty half panel; they now take the largest size that fits, up to 20 pt.
+        var items = Charter(itemCount: 10, textLength: 45).CharterItems;
+
+        var typography = ProjectBriefingRoleCharterPaginator.ResolveTypography(
+            items,
+            ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter,
+            ProjectBriefingRoleCharterPaginator.CharterHeightBelowRole);
+
+        Assert.InRange(typography.FontSize, 15.0, ProjectBriefingRoleCharterPaginator.MaximumFontSize);
+    }
+
     [Theory]
     [InlineData(ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter)]
     [InlineData(ProjectBriefingRoleCharterLayout.RoleAndSingleColumnCharter)]

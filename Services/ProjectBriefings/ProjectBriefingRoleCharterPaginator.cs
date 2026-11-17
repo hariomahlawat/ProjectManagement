@@ -14,6 +14,7 @@ public static class ProjectBriefingRoleCharterPaginator
 {
     /// <summary>Charter type is never shrunk below this to keep everything on one slide.</summary>
     public const double MinimumReadableFontSize = 10.0;
+    public const double MaximumFontSize = 20.0;
 
     // Slide geometry, shared with the composer (inches).
     public const double SingleColumnWidth = 11.90;
@@ -172,7 +173,7 @@ public static class ProjectBriefingRoleCharterPaginator
         double width,
         double fontSize)
     {
-        var charactersAtLargestSize = width >= 8d ? 116 : 54;
+        var charactersAtLargestSize = width >= 8d ? 124 : 58;
         var charactersPerLine = Math.Max(1, (int)Math.Floor(charactersAtLargestSize * 13.2d / Math.Max(1d, fontSize)));
         return items.Sum(item => EstimateLineCount(item, charactersPerLine));
     }
@@ -192,10 +193,14 @@ public static class ProjectBriefingRoleCharterPaginator
         // wrapping caused by user-authored text.
         var usableHeightPoints = Math.Max(72d, (availableHeightInches - .34d) * 72d);
 
-        for (var fontSize = 13.2d; fontSize >= 6.5d; fontSize -= .1d)
+        // Up to 20 pt (docs/ux/briefing-slides-review.md, step 4): a short charter fills its
+        // panels instead of sitting at 13.2 pt above an empty half; the items get more air as
+        // the type grows.
+        for (var fontSize = MaximumFontSize; fontSize >= 6.5d; fontSize -= .1d)
         {
             var density = fontSize switch
             {
+                >= 14.0d => new ProjectBriefingCharterTypography(fontSize, Math.Round(fontSize * .50d, 1), fontSize * 1.14d),
                 >= 12.4d => new ProjectBriefingCharterTypography(fontSize, 6.0d, fontSize * 1.14d),
                 >= 11.2d => new ProjectBriefingCharterTypography(fontSize, 4.0d, fontSize * 1.12d),
                 >= 10.0d => new ProjectBriefingCharterTypography(fontSize, 2.5d, fontSize * 1.10d),

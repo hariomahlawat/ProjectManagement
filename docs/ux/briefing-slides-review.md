@@ -124,6 +124,8 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    one "Other categories" slice; "Not categorised" is always grey and last. The builder's preview
    draws the rings as SVG. Owner, 17 Nov: the project-category ring counts parent categories only
    (CoE Mid Term, CoE Short Term and CoE are one CoE), in the stage-wise chart's colours.
+   Role and Charter: the charter takes the largest size that fits its panels, up to 20 pt (was
+   13.2 pt at most, leaving half of each panel empty); the CHARTER heading rule runs full width.
 5. **Editable structure**: slide master and layouts carry the furniture; title placeholders; real
    slide-number fields; real bullets.
 6. **Native charts** for the stage chart (the two category distributions are done, above).

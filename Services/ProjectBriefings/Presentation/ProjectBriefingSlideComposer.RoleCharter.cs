@@ -155,7 +155,7 @@ public sealed partial class ProjectBriefingSlideComposer
             true,
             "l",
             name: "Charter heading");
-        canvas.AddLine(2.38, top - .18, 4.05, top - .18, canvas.Theme.Divider, .55);
+        canvas.AddLine(continuation ? 3.30 : 1.80, top - .18, 12.62, top - .18, canvas.Theme.Divider, .55);
 
         if (items.Count == 0)
         {
