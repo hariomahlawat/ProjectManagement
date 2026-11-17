@@ -297,6 +297,34 @@ public sealed class ProjectBriefingExecutiveSummaryTests
         Assert.Equal("Not categorised", labels[^1]);
     }
 
+    [Fact]
+    public void Summary_CountsProjectCategoriesByTheirParent()
+    {
+        // Owner, 17 Nov 2026: the project-category distribution counts parent categories only.
+        ProjectBriefingPresentationProject Project(int id, string category, string? parent) => new()
+        {
+            ProjectId = id,
+            ProjectName = $"Project {id}",
+            ProjectCategory = category,
+            ParentProjectCategory = parent,
+            CostRd = ProjectBriefingCostValue.Missing(),
+            ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation)
+        };
+
+        var summary = ProjectBriefingDataService.BuildPresentationSummary(new[]
+        {
+            Project(1, "CoE Mid Term", "CoE"),
+            Project(2, "CoE Short Term", "CoE"),
+            Project(3, "CoE", "CoE"),
+            Project(4, "DCD Projects", "DCD Projects"),
+            Project(5, "Legacy", null)
+        });
+
+        Assert.Equal(
+            new[] { ("CoE", 3), ("DCD Projects", 1), ("Legacy", 1) },
+            summary.ProjectCategorySummary.Select(point => (point.Label, point.Count)).ToArray());
+    }
+
     private static int CountOf(string text, string value)
     {
         var count = 0;

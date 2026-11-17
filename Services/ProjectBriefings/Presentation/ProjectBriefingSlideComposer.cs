@@ -184,7 +184,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 {
                     AddCategoryDonutSlide(plans, data, CombinedCategoryTitle, new[]
                     {
-                        new CategoryPanel("Project category", data.Summary.ProjectCategorySummary),
+                        new CategoryPanel("Project category", data.Summary.ProjectCategorySummary, UsesParentColours: true),
                         new CategoryPanel("Technical category", data.Summary.TechnicalCategorySummary)
                     });
                     categoriesShown = true;
@@ -250,7 +250,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 when RendersCategorySummary(data.Summary.ProjectCategorySummary):
                 AddCategoryDonutSlide(plans, data, "Project-category distribution", new[]
                 {
-                    new CategoryPanel("Project category", data.Summary.ProjectCategorySummary)
+                    new CategoryPanel("Project category", data.Summary.ProjectCategorySummary, UsesParentColours: true)
                 });
                 break;
 

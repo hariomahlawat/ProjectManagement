@@ -22,7 +22,9 @@ public sealed partial class ProjectBriefingSlideComposer
     // A ring shows at most this many slices; beyond it the smallest are one "Other categories" slice.
     internal const int MaximumCategorySlices = 9;
 
-    private sealed record CategoryPanel(string Heading, IReadOnlyList<ProjectBriefingSummaryPoint> Points);
+    // UsesParentColours: the parent categories keep the stage-wise chart's colours (DCD blue, CoE
+    // green, Other R&D amber), so a category looks the same across the deck.
+    private sealed record CategoryPanel(string Heading, IReadOnlyList<ProjectBriefingSummaryPoint> Points, bool UsesParentColours = false);
 
     private sealed record CategoryLegendRow(string Label, int Count, string Color, bool IsMuted);
 
@@ -78,7 +80,7 @@ public sealed partial class ProjectBriefingSlideComposer
         bool wide)
     {
         var theme = canvas.Theme;
-        var rows = CategoryLegendRows(panel.Points, theme.IsDark);
+        var rows = CategoryLegendRows(panel.Points, theme.IsDark, panel.UsesParentColours);
         var categoryCount = panel.Points.Count(point => point.Count > 0);
         var total = rows.Sum(row => row.Count);
 
@@ -204,7 +206,7 @@ public sealed partial class ProjectBriefingSlideComposer
     }
 
     // Largest first (ties by name); past the ring's limit the smallest become "Other categories".
-    private static IReadOnlyList<CategoryLegendRow> CategoryLegendRows(IReadOnlyList<ProjectBriefingSummaryPoint> points, bool dark)
+    private static IReadOnlyList<CategoryLegendRow> CategoryLegendRows(IReadOnlyList<ProjectBriefingSummaryPoint> points, bool dark, bool parentColours = false)
     {
         var palette = dark ? CategoryPaletteDark : CategoryPaletteLight;
         var grey = dark ? "6B7280" : "9AA3B2";
@@ -222,7 +224,10 @@ public sealed partial class ProjectBriefingSlideComposer
         var shown = named.Count > room ? named.Take(room - 1).ToList() : named;
         for (var index = 0; index < shown.Count; index++)
         {
-            rows.Add(new CategoryLegendRow(shown[index].Label, shown[index].Count, palette[index % palette.Length], IsMuted: false));
+            var color = parentColours && IsKnownParentCategory(shown[index].Label)
+                ? AnalyticsSlideFrame.CategoryColor(shown[index].Label, dark)
+                : palette[index % palette.Length];
+            rows.Add(new CategoryLegendRow(shown[index].Label, shown[index].Count, color, IsMuted: false));
         }
 
         if (shown.Count < named.Count)
@@ -241,6 +246,17 @@ public sealed partial class ProjectBriefingSlideComposer
         }
 
         return rows;
+    }
+
+    // The parent categories the stage-wise chart colours (AnalyticsSlideFrame.CategoryColor).
+    private static bool IsKnownParentCategory(string label)
+    {
+        var key = label.Trim().ToLowerInvariant();
+        return key.StartsWith("dcd", StringComparison.Ordinal)
+            || key.Contains("coe", StringComparison.Ordinal)
+            || key.Contains("centre of excellence", StringComparison.Ordinal)
+            || key.Contains("other", StringComparison.Ordinal)
+            || key.Contains("r&d", StringComparison.Ordinal);
     }
 
     private static string RoundedShare(int count, int total)

@@ -122,7 +122,8 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    Both chosen share one slide, "Project and technical categories", side by side; one alone takes
    the slide with a larger ring and its concentration note. Beyond nine slices the smallest are
    one "Other categories" slice; "Not categorised" is always grey and last. The builder's preview
-   draws the rings as SVG.
+   draws the rings as SVG. Owner, 17 Nov: the project-category ring counts parent categories only
+   (CoE Mid Term, CoE Short Term and CoE are one CoE), in the stage-wise chart's colours.
 5. **Editable structure**: slide master and layouts carry the furniture; title placeholders; real
    slide-number fields; real bullets.
 6. **Native charts** for the stage chart (the two category distributions are done, above).
