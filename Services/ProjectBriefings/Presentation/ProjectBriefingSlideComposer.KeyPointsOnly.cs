@@ -164,17 +164,49 @@ public sealed partial class ProjectBriefingSlideComposer
             statusBandHeight);
     }
 
-    // The height a card needs for its heading and text at one size. A character is taken as half an
-    // em, wider than the key point band's measure (138 characters of 11 pt in 9.47 in, about .45 em):
-    // a point that only just wraps in the preview's Aptos must not gain a line in PowerPoint and
-    // overflow its card, so the estimate errs towards more lines.
-    internal const double KeyPointsOnlyCharacterWidthEm = .50;
+    // The height a card needs for its heading and text at one size, wrapped at word breaks. A
+    // character is taken as .45 em: Aptos averages .42 em over the demo deck's key points (.46 at
+    // most for one point), so the estimate errs towards more lines. It was .50 em counted without
+    // word breaks, which set a whole slide two or three points smaller than its cards had room for.
+    internal const double KeyPointsOnlyCharacterWidthEm = .45;
 
     private static double KeyPointsOnlyCardContentHeight(string text, double textWidth, double size)
     {
         var charactersPerLine = (int)Math.Floor(textWidth * 72d / (size * KeyPointsOnlyCharacterWidthEm));
-        var lines = EstimateWrappedLines(text, charactersPerLine);
+        var lines = KeyPointsOnlyWrappedLines(text, charactersPerLine);
         return (2 * KeyPointsOnlyCardPaddingY) + KeyPointsOnlyHeadingHeight(size) + (lines * size * 1.2 / 72d);
+    }
+
+    // Lines at word breaks, as PowerPoint wraps them: a word that does not fit starts the next line.
+    private static int KeyPointsOnlyWrappedLines(string text, int charactersPerLine)
+    {
+        var capacity = Math.Max(1, charactersPerLine);
+        var lines = 1;
+        var used = 0;
+        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (used == 0)
+            {
+                used = word.Length;
+            }
+            else if (used + 1 + word.Length <= capacity)
+            {
+                used += 1 + word.Length;
+            }
+            else
+            {
+                lines++;
+                used = word.Length;
+            }
+
+            while (used > capacity)
+            {
+                lines++;
+                used -= capacity;
+            }
+        }
+
+        return lines;
     }
 
     private static void AddKeyPointsOnlyCards(SlideCanvas canvas, KeyPointsOnlyLayout layout)
@@ -214,7 +246,9 @@ public sealed partial class ProjectBriefingSlideComposer
                 },
                 point.Heading,
                 verticalAnchor: "ctr",
-                allowAutoFit: true,
+                // Set at the size measured to fit, with no preset shrink (it showed every card's
+                // text 6% smaller than chosen); PowerPoint shrinks a card only if it overflows.
+                shrinkOnOverflow: true,
                 leftInset: 0,
                 rightInset: 0,
                 topInset: 0,

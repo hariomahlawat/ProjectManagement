@@ -2788,7 +2788,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             double leftInset = .05,
             double rightInset = .05,
             double topInset = .03,
-            double bottomInset = .03)
+            double bottomInset = .03,
+            bool shrinkOnOverflow = false)
             => AddRichTextShape(
                 x,
                 y,
@@ -2806,7 +2807,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 leftInset: leftInset,
                 rightInset: rightInset,
                 topInset: topInset,
-                bottomInset: bottomInset);
+                bottomInset: bottomInset,
+                shrinkOnOverflow: shrinkOnOverflow);
 
         public void AddTextShape(
             double x,
@@ -3336,7 +3338,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             double leftInset,
             double rightInset,
             double topInset,
-            double bottomInset)
+            double bottomInset,
+            bool shrinkOnOverflow = false)
         {
             ArgumentNullException.ThrowIfNull(paragraphs);
             var textXml = BuildRichTextBody(
@@ -3346,7 +3349,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 leftInset,
                 rightInset,
                 topInset,
-                bottomInset);
+                bottomInset,
+                shrinkOnOverflow);
             AddShapeXml(
                 x,
                 y,
@@ -3474,12 +3478,18 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             double leftInset,
             double rightInset,
             double topInset,
-            double bottomInset)
+            double bottomInset,
+            bool shrinkOnOverflow = false)
         {
             var anchor = VerticalAnchor(verticalAnchor);
-            var autoFit = allowAutoFit
-                ? "<a:normAutofit fontScale=\"94000\" lnSpcReduction=\"6000\"/>"
-                : "<a:noAutofit/>";
+            // shrinkOnOverflow: shown at its own size, and PowerPoint shrinks it only if the text
+            // turns out not to fit (or grows past the box when edited). allowAutoFit sets a fixed
+            // 94% shrink up front.
+            var autoFit = shrinkOnOverflow
+                ? "<a:normAutofit/>"
+                : allowAutoFit
+                    ? "<a:normAutofit fontScale=\"94000\" lnSpcReduction=\"6000\"/>"
+                    : "<a:noAutofit/>";
             var paragraphXml = new StringBuilder();
 
             foreach (var paragraph in paragraphs)

@@ -185,7 +185,25 @@ public sealed class ProjectBriefingKeyPointsOnlySlideTests
         {
             var size = ShapeByName(slide, "Ease of learning").Descendants<A.RunProperties>()
                 .Max(run => run.FontSize?.Value ?? 0);
-            Assert.Equal(1300, size);
+            // The sample's points take two lines at 15 pt in their cards (measured at .45 em,
+            // wrapped at word breaks); 13 pt before, at .50 em without word breaks.
+            Assert.Equal(1500, size);
+        });
+    }
+
+    [Fact]
+    public void Cards_ShowTheirChosenSize_ShrinkingOnlyOnOverflow()
+    {
+        var composition = Compose(Deck(Project()));
+
+        WithSlide(composition, slide =>
+        {
+            foreach (var definition in ProjectKeyPointCatalog.All)
+            {
+                var autoFit = ShapeByName(slide, definition.Heading).Descendants<A.NormalAutoFit>().Single();
+                Assert.Null(autoFit.FontScale);
+                Assert.Null(autoFit.LineSpaceReduction);
+            }
         });
     }
 
