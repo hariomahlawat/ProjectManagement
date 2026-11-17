@@ -368,7 +368,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("<article class=\"pbd-deck-card\"", library, StringComparison.Ordinal);
         Assert.DoesNotContain("<table", library, StringComparison.Ordinal);
         Assert.Contains("overflow-wrap: anywhere;", css, StringComparison.Ordinal);
-        Assert.Contains(".pbd-deck-card__actions .btn {\n        width: 100%;\n        min-height: 2.75rem;", css, StringComparison.Ordinal);
+        Assert.Contains(".pbd-deck-card__actions .btn {\n        display: inline-flex;\n        align-items: center;\n        justify-content: center;\n        width: 100%;\n        min-height: 2.75rem;", css, StringComparison.Ordinal);
         Assert.Contains("grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));", css, StringComparison.Ordinal);
     }
 
