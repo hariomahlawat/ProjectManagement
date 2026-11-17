@@ -181,5 +181,21 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    cards are measured at .45 em (Aptos averages .42 em) wrapped at word breaks, carry no preset
    shrink, and PowerPoint shrinks a card only if it overflows: 24 of the demo's 37 slides with key
    points at 17 pt, none below 14 pt.
+   Titles and the status table (owner, 17 Nov: "title size should be same across style", "slide
+   title should be the largest text on slide", "long project name should not be cut", "one or two
+   more project lines in the table"):
+   - One title size on every slide and design, 24 pt on one line (the Fact sheet's was 18.2 pt and
+     smaller than its brief). Only a title too long for one line steps down (22, 20, 18, 16 pt),
+     measured against its box; 204 of PRISM's 214 project names fit at 24 pt. Titles carry no preset
+     shrink (they had 92–94%, so "22.5 pt" showed as 20.7 pt) and names are no longer cut at 82
+     characters. The title is now the largest text on every slide except the cover (the division's
+     name, by the owner's choice) and two figure displays: the SDD profile's headline figures
+     (34 pt) and the totals in the category rings (30 and 40 pt).
+   - Key points only labels about 80% of the point's size: 14 pt over 17 pt text.
+   - Status table: names are never cut (up to four lines, a wider project column), cells are
+     measured with Aptos's own letter widths (AptosMetrics) rather than an average letter, which had
+     planned one-line rows at two lines, and up to 14 rows a slide, spread evenly. The demo deck's
+     49 projects take four slides of 11–14 rows instead of five of 9–11, the fullest ending at
+     6.93 in above the footer.
 
 Steps 1–3 change what a deck says least and help most; 5 and 6 are the largest.

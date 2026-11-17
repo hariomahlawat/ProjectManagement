@@ -5,7 +5,7 @@ using Xunit;
 
 namespace ProjectManagement.Tests.ProjectBriefings;
 
-// The status table (docs/ux/briefing-slides-review.md, PR 3): 12 pt rows, up to 12 a slide, and a
+// The status table (docs/ux/briefing-slides-review.md, PR 3): 12 pt rows, up to 14 a slide, and a
 // cell never shows more lines than its row was measured for.
 public sealed class ProjectBriefingTablePaginationTests
 {
@@ -43,10 +43,33 @@ public sealed class ProjectBriefingTablePaginationTests
             layout,
             item => ProjectBriefingTablePagination.Measure($"Project {item}", "Development", "Development in progress.", ProjectBriefingCostValue.Missing()));
 
-        Assert.Equal(5, pages.Count);
+        Assert.Equal(4, pages.Count);
         Assert.Equal(items, pages.SelectMany(page => page.Items));
-        Assert.All(pages, page => Assert.InRange(page.Items.Count, 9, ProjectBriefingTablePagination.MaximumRowsPerSlide));
+        Assert.All(pages, page => Assert.InRange(page.Items.Count, 12, ProjectBriefingTablePagination.MaximumRowsPerSlide));
         Assert.All(pages, page => Assert.True(page.RowHeights.Sum() <= ProjectBriefingTablePagination.AvailableBodyHeight + .0001));
+    }
+
+    [Theory]
+    // The longest name in PRISM (86 characters) and two-line ones stay whole in every layout.
+    [InlineData("Lt & Rt Hand Dvg A & B Veh Sml & Rt Hand Dvg B Veh Sml (Sri Lanka 2025) for FFC trials")]
+    [InlineData("VR based Physiological Response Evaluation System (Stress Detection Simulator)")]
+    public void FitToWidth_KeepsLongProjectNamesWhole(string name)
+    {
+        foreach (var mode in new[] { ProjectBriefingCostMode.Both, ProjectBriefingCostMode.CostRdOnly, ProjectBriefingCostMode.ProliferationOnly, ProjectBriefingCostMode.None })
+        {
+            var layout = ProjectBriefingTablePagination.Layout(mode, anyProliferationCost: true);
+            Assert.Equal(name, ProjectBriefingTablePagination.FitToWidth(name, layout.ProjectWidth, bold: true, ProjectBriefingTablePagination.MaximumProjectLines));
+        }
+    }
+
+    [Fact]
+    public void WrappedLines_MeasuresShortCellsByTheFontsWidths()
+    {
+        // "₹54.86 Lakh · L1" is one line in the cost column; the old average measure made it two.
+        var layout = ProjectBriefingTablePagination.Layout(ProjectBriefingCostMode.Both, anyProliferationCost: true);
+        Assert.Equal(1, ProjectBriefingTablePagination.WrappedLines("₹54.86 Lakh · L1", layout.Widths[1], bold: false, 2));
+        Assert.Equal(1, ProjectBriefingTablePagination.WrappedLines("Development", layout.StageWidth, bold: false, 2));
+        Assert.Equal(2, ProjectBriefingTablePagination.WrappedLines("Commercial Bid Opening", layout.StageWidth, bold: false, 2));
     }
 
     [Fact]

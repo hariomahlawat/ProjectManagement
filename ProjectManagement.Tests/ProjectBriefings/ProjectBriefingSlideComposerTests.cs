@@ -342,7 +342,7 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
-    public void Compose_PaginatesFortyNineShortRowsIntoFiveEvenProjectTables()
+    public void Compose_PaginatesFortyNineShortRowsIntoFourEvenProjectTables()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
         var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
@@ -382,17 +382,17 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        // 12 pt rows as tall as their text, up to 12 a slide and
-        // spread evenly (docs/ux/briefing-slides-review.md, PR 3): cover + five tables + closing.
-        Assert.Equal(7, slideCount);
+        // 12 pt rows as tall as their text, up to 14 a slide and
+        // spread evenly (docs/ux/briefing-slides-review.md, PR 3): cover + four tables + closing.
+        Assert.Equal(6, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
         var tables = slides.SelectMany(slide => slide.Slide.Descendants<A.Table>()).ToArray();
-        Assert.Equal(5, tables.Length);
+        Assert.Equal(4, tables.Length);
         var rowCounts = tables.Select(table => table.Elements<A.TableRow>().Count() - 1).ToArray();
         Assert.Equal(49, rowCounts.Sum());
-        Assert.All(rowCounts, count => Assert.InRange(count, 9, 12));
+        Assert.All(rowCounts, count => Assert.InRange(count, 12, 14));
         Assert.True(rowCounts.Max() - rowCounts.Min() <= 1, "Pages are of even length.");
         // Every cell at 12 pt (header 11 pt); no proliferation column when no project has one.
         var sizes = tables.SelectMany(table => table.Descendants<A.RunProperties>())
@@ -403,7 +403,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var text = string.Join("\n", slides
             .SelectMany(slide => slide.Slide.Descendants<A.Text>())
             .Select(node => node.Text));
-        Assert.Contains("Project status summary (5/5)", text, StringComparison.Ordinal);
+        Assert.Contains("Project status summary (4/4)", text, StringComparison.Ordinal);
     }
 
     [Fact]
