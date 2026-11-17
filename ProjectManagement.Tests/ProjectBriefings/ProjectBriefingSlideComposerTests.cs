@@ -331,13 +331,13 @@ public sealed class ProjectBriefingSlideComposerTests
         // The cover carries the division's own logo alone, large and centred (owner, 17 Nov 2026).
         Assert.Single(slides[0].ImageParts);
         Assert.All(slides.Skip(1), slide => Assert.True(
-            slide.ImageParts.Count() >= 2,
+            slide.ImageParts.Count() + (slide.SlideLayoutPart?.ImageParts.Count() ?? 0) >= 2,
             "All-slide branding must embed both header insignia on every slide after the cover."));
         Assert.All(slides
             .Where(slide => !IsClosingSlide(slide))
             .Skip(1), slide => Assert.Contains(
                 "15181E",
-                slide.Slide.OuterXml,
+                slide.SlideLayoutPart!.SlideLayout.OuterXml,
                 StringComparison.OrdinalIgnoreCase));
     }
 
@@ -707,19 +707,20 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("BRIEF OF THE PROJECT", text, StringComparison.Ordinal);
         Assert.Contains("without expenditure of operational ammunition", text, StringComparison.Ordinal);
         Assert.DoesNotContain("₹0.62 Cr", text, StringComparison.Ordinal);
-        Assert.Contains("15181E", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("15181E", slide.SlideLayoutPart!.SlideLayout.OuterXml, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("F3F4F6", ShapeTextColor(ShapeByName(slide, "Project sheet title")));
         Assert.Equal("5B7CFA", ShapeFillColor(ShapeByName(slide, "Project sheet top accent")));
         Assert.DoesNotContain("8F0D21", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Left formation insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
-        Assert.Contains("Right division insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
+        // The insignia are on the sheet's layout (step 5).
+        Assert.Contains("Left formation insignia", slide.SlideLayoutPart!.SlideLayout.OuterXml, StringComparison.Ordinal);
+        Assert.Contains("Right division insignia", slide.SlideLayoutPart!.SlideLayout.OuterXml, StringComparison.Ordinal);
 
-        var leftInsignia = slide.Slide.Descendants<P.Picture>()
+        var leftInsignia = slide.SlideLayoutPart!.SlideLayout.Descendants<P.Picture>()
             .Single(picture => string.Equals(
                 picture.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value,
                 "Left formation insignia",
                 StringComparison.Ordinal));
-        var rightInsignia = slide.Slide.Descendants<P.Picture>()
+        var rightInsignia = slide.SlideLayoutPart!.SlideLayout.Descendants<P.Picture>()
             .Single(picture => string.Equals(
                 picture.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value,
                 "Right division insignia",
@@ -731,7 +732,9 @@ public sealed class ProjectBriefingSlideComposerTests
             > (leftExtent.Cx?.Value ?? 0L) * (leftExtent.Cy?.Value ?? 0L));
 
         Assert.DoesNotContain("Compact footer insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
-        Assert.Equal(2, slide.ImageParts.Count());
+        // The two insignia are the sheet layout's pictures; the sheet itself carries none.
+        Assert.Equal(2, slide.SlideLayoutPart!.ImageParts.Count());
+        Assert.Empty(slide.ImageParts);
         Assert.Single(slide.Slide.Descendants<A.Table>());
     }
 
@@ -2000,6 +2003,55 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
+    public void Compose_PutsTheSharedHeaderAndFooterOnTheDecksOwnLayouts()
+    {
+        // docs/ux/briefing-slides-review.md, step 5 part 2: the furniture every content slide
+        // shares is on the deck's layouts, which are the only ones New Slide offers.
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = KeyPointDeck(
+            ProjectBriefingNarrativeMode.CapabilityOverview,
+            ProjectBriefingKeyPointPlacement.None,
+            showStatus: true,
+            KeyPointProject(withKeyPoints: false));
+
+        var (content, slideCount) = composer.Compose(data);
+
+        ProjectBriefingPresentationIntegrityValidator.Validate(content, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var presentation = Assert.IsType<PresentationPart>(document.PresentationPart);
+        var master = Assert.Single(presentation.SlideMasterParts);
+        var names = master.SlideLayoutParts.Select(layout => layout.SlideLayout.CommonSlideData!.Name!.Value!).OrderBy(name => name).ToArray();
+        Assert.All(names, name => Assert.StartsWith("PRISM · ", name, StringComparison.Ordinal));
+
+        var project = presentation.SlideParts.Single(slide => SlideText(slide).Contains("ATGM CREW PROCEDURAL TRAINER", StringComparison.Ordinal));
+        var layout = project.SlideLayoutPart!;
+        Assert.Equal("PRISM · Title and content", layout.SlideLayout.CommonSlideData!.Name!.Value);
+        string Names(DocumentFormat.OpenXml.OpenXmlCompositeElement root) => string.Join("|", root.Descendants<P.NonVisualDrawingProperties>().Select(item => item.Name?.Value));
+        var onLayout = Names(layout.SlideLayout);
+        var onSlide = Names(project.Slide);
+        foreach (var furniture in new[] { "Slide top accent", "Left formation insignia", "Right division insignia", "Footer division" })
+        {
+            Assert.Contains(furniture, onLayout, StringComparison.Ordinal);
+            Assert.DoesNotContain(furniture, onSlide, StringComparison.Ordinal);
+        }
+
+        // A slide added in PowerPoint gets a title and a content placeholder.
+        var placeholders = layout.SlideLayout.Descendants<P.PlaceholderShape>().ToArray();
+        Assert.Contains(placeholders, placeholder => placeholder.Type?.Value == P.PlaceholderValues.Title);
+        Assert.Contains(placeholders, placeholder => placeholder.Index?.Value == 1u);
+
+        // The builder's preview draws the layout's background and insignia under the slide.
+        var preview = ProjectBriefingSlidePreviewRenderer.Render(content, DateTimeOffset.UtcNow);
+        var html = preview.Slides.Single(slide => slide.Html.Contains("ATGM CREW PROCEDURAL TRAINER", StringComparison.Ordinal)).Html;
+        var canvasColour = ProjectBriefingThemeCatalog.Resolve(data.PresentationTheme).Canvas;
+        Assert.Contains($"background:#{canvasColour}", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("SIMULATOR DEVELOPMENT DIVISION", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Click to add", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Compose_WritesTitlePlaceholdersSlideNumberFieldsAndRealBullets()
     {
         // docs/ux/briefing-slides-review.md, step 5: easy to edit in PowerPoint.
@@ -2194,7 +2246,7 @@ public sealed class ProjectBriefingSlideComposerTests
             profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
             properties => string.Equals(properties.Name?.Value, "Slide title", StringComparison.Ordinal));
         Assert.Contains(
-            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
+            profileSlide.SlideLayoutPart!.SlideLayout.Descendants<P.NonVisualDrawingProperties>(),
             properties => string.Equals(properties.Name?.Value, "Slide top accent", StringComparison.Ordinal));
         Assert.DoesNotContain(
             profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
@@ -2527,11 +2579,19 @@ public sealed class ProjectBriefingSlideComposerTests
                 "Closing message",
                 StringComparison.Ordinal));
 
+    // A named shape on the slide, or on its layout, which carries the shared header and footer
+    // (docs/ux/briefing-slides-review.md, step 5).
     private static P.Shape ShapeByName(SlidePart slide, string name)
-        => Assert.Single(slide.Slide.Descendants<P.Shape>().Where(shape => string.Equals(
+    {
+        bool Named(P.Shape shape) => string.Equals(
             shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value,
             name,
-            StringComparison.Ordinal)));
+            StringComparison.Ordinal);
+        var onSlide = slide.Slide.Descendants<P.Shape>().Where(Named).ToArray();
+        return onSlide.Length > 0
+            ? Assert.Single(onSlide)
+            : Assert.Single(slide.SlideLayoutPart!.SlideLayout.Descendants<P.Shape>().Where(Named));
+    }
 
     private static string ShapeTextColor(P.Shape shape)
         => Assert.IsType<A.RgbColorModelHex>(shape

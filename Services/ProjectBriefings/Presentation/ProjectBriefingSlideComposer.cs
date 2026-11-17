@@ -71,8 +71,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         {
             var presentationPart = document.PresentationPart
                 ?? throw new InvalidOperationException("The PowerPoint template has no presentation part.");
-            var layoutPart = FindBlankLayout(presentationPart)
-                ?? throw new InvalidOperationException("The PowerPoint template has no slide layout.");
+            var master = presentationPart.SlideMasterParts.FirstOrDefault()
+                ?? throw new InvalidOperationException("The PowerPoint template has no slide master.");
+            var templateLayouts = master.SlideLayoutParts.ToList();
 
             RemoveTemplateSlides(presentationPart);
             var slideIdList = EnsureSlideIdList(presentationPart.Presentation);
@@ -83,17 +84,22 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 ReadAsset(_leftLogoPath),
                 ReadAsset(_rightLogoPath));
 
+            // The deck's layouts carry the furniture every content slide shares (background, top
+            // rule, insignia, header and footer rules, the division's name), so PowerPoint keeps it
+            // fixed while a slide is edited and gives it to a slide added with New Slide
+            // (docs/ux/briefing-slides-review.md, step 5).
+            var layouts = new DeckLayouts(master, theme, branding);
             var slideParts = new List<SlidePart>(plans.Count);
             for (var index = 0; index < plans.Count; index++)
             {
                 var slidePart = presentationPart.AddNewPart<SlidePart>();
                 slideParts.Add(slidePart);
-                slidePart.AddPart(layoutPart);
                 var showBranding = ShouldShowBranding(data.BrandingScope, plans[index].Kind);
                 var canvas = new SlideCanvas(slidePart, theme, branding, showBranding);
                 plans[index].Render(canvas);
                 AddFooter(canvas, data, index + 1, plans.Count, plans[index].Kind);
                 canvas.Commit();
+                slidePart.AddPart(layouts.For(canvas.Layout));
 
                 slideIdList.Append(new SlideId
                 {
@@ -102,6 +108,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 });
             }
 
+            RemoveTemplateLayouts(master, templateLayouts);
             AddSpeakerNotes(presentationPart, slideParts, plans, data);
             presentationPart.Presentation.Save();
             document.PackageProperties.Title = SanitizeOpenXmlText(data.DeckName);
@@ -1838,15 +1845,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     {
         var style = ResolveProjectSlideHeaderStyle(canvas, title, variant);
 
-        canvas.AddRect(0, 0, SlideWidth, SlideHeight, canvas.Theme.Canvas, name: style.CanvasShapeName);
-        canvas.AddRect(
-            0,
-            0,
-            SlideWidth,
-            style.TopRuleHeight,
-            style.TopRuleColor,
-            name: style.TopRuleShapeName);
-        canvas.AddBrandingImages(style.BrandingVariant);
+        // The background, top rule, insignia and header rule are on the slide's layout.
+        canvas.Layout = new SlideLayoutKey(style.BrandingVariant, canvas.ShowBranding);
 
         if (style.UseRichTextTitle)
         {
@@ -1907,13 +1907,6 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 name: style.SubtitleShapeName);
         }
 
-        canvas.AddLine(
-            style.DividerX1,
-            style.DividerY,
-            style.DividerX2,
-            style.DividerY,
-            canvas.Theme.Divider,
-            style.DividerWidth);
     }
 
     private static ProjectSlideHeaderStyle ResolveProjectSlideHeaderStyle(
@@ -1992,8 +1985,11 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             return;
         }
 
-        canvas.AddLine(.62, 7.05, 12.72, 7.05, canvas.Theme.Divider, .55);
-        canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", FooterFontSize, canvas.Theme.TextMuted, true, "l");
+        if (canvas.Layout is null)
+        {
+            AddFooterFurniture(canvas);
+        }
+
         DateTimeOffset? dataAsOnUtc = kind switch
         {
             SlidePlanKind.InstitutionalProfile when data.InstitutionalProfile is not null
@@ -2142,12 +2138,112 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         return builder.ToString();
     }
 
-    private static SlideLayoutPart? FindBlankLayout(PresentationPart presentationPart)
-        => presentationPart.SlideMasterParts
-               .SelectMany(master => master.SlideLayoutParts)
-               .FirstOrDefault(layout =>
-                   string.Equals(layout.SlideLayout?.CommonSlideData?.Name?.Value, "Blank", StringComparison.OrdinalIgnoreCase))
-           ?? presentationPart.SlideMasterParts.SelectMany(master => master.SlideLayoutParts).FirstOrDefault();
+    // The template's layouts are generic 4:3 ones; once the deck's own are in place they go, so
+    // New Slide in PowerPoint offers only the deck's.
+    private static void RemoveTemplateLayouts(SlideMasterPart master, IReadOnlyList<SlideLayoutPart> templateLayouts)
+    {
+        var list = master.SlideMaster.SlideLayoutIdList;
+        foreach (var layout in templateLayouts)
+        {
+            var relationshipId = master.GetIdOfPart(layout);
+            list?.Elements<SlideLayoutId>()
+                .Where(entry => entry.RelationshipId?.Value == relationshipId)
+                .ToList()
+                .ForEach(entry => entry.Remove());
+            master.DeletePart(layout);
+        }
+
+        master.SlideMaster.Save();
+    }
+
+    // Which layout a slide sits on: its header's kind and whether it shows the insignia. A slide
+    // without the standard header (cover, closing) sits on the plain layout.
+    private sealed record SlideLayoutKey(HeaderVariant Variant, bool Branding);
+
+    // The deck's layouts, each made the first time a slide asks for it.
+    private sealed class DeckLayouts
+    {
+        private readonly SlideMasterPart _master;
+        private readonly ProjectBriefingThemeDefinition _theme;
+        private readonly ProjectBriefingBrandingAssets _branding;
+        private readonly Dictionary<SlideLayoutKey, SlideLayoutPart> _made = new();
+        private SlideLayoutPart? _plain;
+        private uint _nextId;
+
+        public DeckLayouts(SlideMasterPart master, ProjectBriefingThemeDefinition theme, ProjectBriefingBrandingAssets branding)
+        {
+            _master = master;
+            _theme = theme;
+            _branding = branding;
+            var used = master.SlideMaster.SlideLayoutIdList?.Elements<SlideLayoutId>()
+                .Select(entry => entry.Id?.Value ?? 0u)
+                .DefaultIfEmpty(0u)
+                .Max() ?? 0u;
+            _nextId = Math.Max(2_147_483_660u, used + 1);
+        }
+
+        public SlideLayoutPart For(SlideLayoutKey? key)
+        {
+            if (key is null)
+            {
+                return _plain ??= Make("PRISM · Plain", showBranding: false, canvas => { });
+            }
+
+            if (_made.TryGetValue(key, out var made))
+            {
+                return made;
+            }
+
+            var name = key.Variant switch
+            {
+                HeaderVariant.ProjectUpdateSheet => "PRISM · Project update sheet",
+                HeaderVariant.FfcGlobalFootprint => "PRISM · FFC footprint",
+                _ => "PRISM · Title and content"
+            } + (key.Branding ? string.Empty : " (no insignia)");
+            made = Make(name, key.Branding, canvas => DrawLayoutFurniture(canvas, key.Variant));
+            _made[key] = made;
+            return made;
+        }
+
+        private SlideLayoutPart Make(string name, bool showBranding, Action<SlideCanvas> draw)
+        {
+            var part = _master.AddNewPart<SlideLayoutPart>();
+            part.AddPart(_master);
+            var canvas = new SlideCanvas(part, _theme, _branding, showBranding);
+            draw(canvas);
+            canvas.CommitLayout(name);
+            var list = _master.SlideMaster.SlideLayoutIdList ??= new SlideLayoutIdList();
+            list.Append(new SlideLayoutId { Id = _nextId++, RelationshipId = _master.GetIdOfPart(part) });
+            return part;
+        }
+    }
+
+    // The furniture a layout carries for content slides with this header: the top rule, the
+    // insignia, the header rule, the footer rule and the division's name; and title and content
+    // placeholders where a slide's title and body go, for a slide added in PowerPoint.
+    private static void DrawLayoutFurniture(SlideCanvas canvas, HeaderVariant variant)
+    {
+        var style = ResolveProjectSlideHeaderStyle(
+            canvas,
+            "Title",
+            variant switch
+            {
+                HeaderVariant.ProjectUpdateSheet => ProjectSlideHeaderVariant.ProjectUpdateSheet,
+                HeaderVariant.FfcGlobalFootprint => ProjectSlideHeaderVariant.FfcGlobalFootprint,
+                _ => ProjectSlideHeaderVariant.Standard
+            });
+        canvas.AddRect(0, 0, SlideWidth, style.TopRuleHeight, style.TopRuleColor, name: style.TopRuleShapeName);
+        canvas.AddBrandingImages(style.BrandingVariant);
+        canvas.AddLine(style.DividerX1, style.DividerY, style.DividerX2, style.DividerY, canvas.Theme.Divider, style.DividerWidth);
+        AddFooterFurniture(canvas);
+        canvas.AddLayoutPlaceholders(style);
+    }
+
+    private static void AddFooterFurniture(SlideCanvas canvas)
+    {
+        canvas.AddLine(.62, 7.05, 12.72, 7.05, canvas.Theme.Divider, .55);
+        canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", FooterFontSize, canvas.Theme.TextMuted, true, "l", name: "Footer division");
+    }
 
     private static void RemoveTemplateSlides(PresentationPart presentationPart)
     {
@@ -2289,18 +2385,19 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
     private sealed class SlideCanvas
     {
-        private readonly SlidePart _slidePart;
+        private readonly OpenXmlPart _part;
         private readonly ProjectBriefingBrandingAssets _branding;
         private readonly List<string> _elements = new();
         private int _nextShapeId = 2;
 
+        // Draws into a slide, or into one of the deck's layouts (step 5).
         public SlideCanvas(
-            SlidePart slidePart,
+            OpenXmlPart part,
             ProjectBriefingThemeDefinition theme,
             ProjectBriefingBrandingAssets branding,
             bool showBranding)
         {
-            _slidePart = slidePart;
+            _part = part;
             Theme = theme;
             _branding = branding;
             ShowBranding = showBranding;
@@ -2308,6 +2405,47 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         public ProjectBriefingThemeDefinition Theme { get; }
         public bool ShowBranding { get; }
+
+        // The layout the slide sits on, set by its header; none for the cover and closing.
+        public SlideLayoutKey? Layout { get; set; }
+
+        private SlidePart SlidePart => _part as SlidePart
+            ?? throw new InvalidOperationException("Charts are drawn on slides only.");
+
+        // The layout's title and content placeholders: where a slide added in PowerPoint puts its
+        // title and text, in the deck's type.
+        public void AddLayoutPlaceholders(ProjectSlideHeaderStyle style)
+        {
+            var titleId = _nextShapeId++;
+            var bodyId = _nextShapeId++;
+            var align = Alignment(style.TitleAlign);
+            _elements.Add($"""
+<p:sp>
+  <p:nvSpPr><p:cNvPr id="{titleId}" name="Title"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+  <p:spPr><a:xfrm><a:off x="{Emu(style.TitleX)}" y="{Emu(style.TitleY)}"/><a:ext cx="{Emu(style.TitleWidth)}" cy="{Emu(style.TitleHeight)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+  <p:txBody><a:bodyPr wrap="square" lIns="45720" rIns="45720" tIns="0" bIns="0" anchor="ctr"><a:normAutofit/></a:bodyPr><a:lstStyle><a:lvl1pPr algn="{align}"><a:defRPr sz="{FontSize(style.TitleFontSize)}" b="1"><a:solidFill><a:srgbClr val="{CleanColor(style.TitleColor)}"/></a:solidFill><a:latin typeface="Aptos"/></a:defRPr></a:lvl1pPr></a:lstStyle><a:p><a:r><a:rPr lang="en-IN"/><a:t>Click to add title</a:t></a:r></a:p></p:txBody>
+</p:sp>
+<p:sp>
+  <p:nvSpPr><p:cNvPr id="{bodyId}" name="Content"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph idx="1"/></p:nvPr></p:nvSpPr>
+  <p:spPr><a:xfrm><a:off x="{Emu(.62)}" y="{Emu(1.25)}"/><a:ext cx="{Emu(12.10)}" cy="{Emu(5.62)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+  <p:txBody><a:bodyPr wrap="square"><a:normAutofit/></a:bodyPr><a:lstStyle><a:lvl1pPr marL="285750" indent="-285750"><a:buFont typeface="Arial"/><a:buChar char="•"/><a:defRPr sz="2000"><a:solidFill><a:srgbClr val="{CleanColor(Theme.TextPrimary)}"/></a:solidFill><a:latin typeface="Aptos"/></a:defRPr></a:lvl1pPr><a:lvl2pPr marL="628650" indent="-228600"><a:buFont typeface="Arial"/><a:buChar char="–"/><a:defRPr sz="1800"><a:solidFill><a:srgbClr val="{CleanColor(Theme.TextSecondary)}"/></a:solidFill><a:latin typeface="Aptos"/></a:defRPr></a:lvl2pPr></a:lstStyle><a:p><a:pPr lvl="0"/><a:r><a:rPr lang="en-IN"/><a:t>Click to add text</a:t></a:r></a:p></p:txBody>
+</p:sp>
+""");
+        }
+
+        // A layout: the deck's background and the furniture drawn on this canvas.
+        public void CommitLayout(string name)
+        {
+            var xml = $"""
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" preserve="1" userDrawn="1">
+  <p:cSld name="{Escape(name)}"><p:bg><p:bgPr><a:solidFill><a:srgbClr val="{CleanColor(Theme.Canvas)}"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>{string.Join(Environment.NewLine, _elements)}</p:spTree></p:cSld>
+  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sldLayout>
+""";
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
+            _part.FeedData(stream);
+        }
 
         public void AddRect(
             double x,
@@ -2770,7 +2908,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             if (slices.Count == 0) return;
             EnsureFrame(x, y, size, size, name);
 
-            var chartPart = _slidePart.AddNewPart<ChartPart>();
+            var chartPart = SlidePart.AddNewPart<ChartPart>();
             var workbookPart = chartPart.AddEmbeddedPackagePart(EmbeddedPackagePartType.Xlsx);
             using (var workbook = new ClosedXML.Excel.XLWorkbook())
             {
@@ -2842,7 +2980,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 <p:graphicFrame>
   <p:nvGraphicFramePr><p:cNvPr id="{id}" name="{Escape(name)}" descr="{Escape(name)}"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>
   <p:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(size)}" cy="{Emu(size)}"/></p:xfrm>
-  <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="{_slidePart.GetIdOfPart(chartPart)}"/></a:graphicData></a:graphic>
+  <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="{SlidePart.GetIdOfPart(chartPart)}"/></a:graphicData></a:graphic>
 </p:graphicFrame>
 """);
         }
@@ -2915,12 +3053,17 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             EnsureFrame(x, y, width, height, name);
 
             var imageType = DetectImagePartType(content, contentType, name);
-            var imagePart = _slidePart.AddImagePart(imageType);
+            var imagePart = _part switch
+            {
+                SlidePart slide => slide.AddImagePart(imageType),
+                SlideLayoutPart layout => layout.AddImagePart(imageType),
+                _ => throw new InvalidOperationException("Pictures are drawn on slides and layouts only.")
+            };
             using (var imageStream = new MemoryStream(content, writable: false))
             {
                 imagePart.FeedData(imageStream);
             }
-            var relationshipId = _slidePart.GetIdOfPart(imagePart);
+            var relationshipId = _part.GetIdOfPart(imagePart);
             var id = _nextShapeId++;
             _elements.Add($"""
 <p:pic>
@@ -2941,7 +3084,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 </p:sld>
 """;
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
-            _slidePart.FeedData(stream);
+            _part.FeedData(stream);
         }
 
         private void AddShape(

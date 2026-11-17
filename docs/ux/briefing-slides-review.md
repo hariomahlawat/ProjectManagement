@@ -148,7 +148,14 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    when slides are added or moved; the "/62" count is the deck's size when made); list bullets in
    narrative text and the profile's partnerships are real bullets. Numbered and lettered items keep
    typed markers, so a list continued on the next slide keeps its numbers. The builder's preview
-   draws fields and bullets. Part 2: the master and layouts carry the header and footer.
+   draws fields and bullets.
+   Part 2 built: each deck gets its own layouts, made as its slides need them ("PRISM · Title and
+   content", "· FFC footprint", "· Project update sheet", each with or without insignia, and
+   "· Plain" for the cover and closing). A layout carries the background, top rule, insignia,
+   header rule, footer rule and the division's name, plus title and content placeholders, so the
+   furniture stays put while a slide is edited and a slide added with New Slide comes branded. The
+   template's generic 4:3 layouts are removed. Slides keep their own title, content, slide number,
+   marking and data-as-on note. The builder's preview draws each slide's layout under it.
 6. **Native charts** for the stage chart (the two category distributions are done, above).
 7. **Re-review**: export every design again and compare.
 
