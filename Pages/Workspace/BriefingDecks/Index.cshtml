@@ -631,26 +631,7 @@
                                                            data-without-key-points="@ProjectBriefingProjectSlideDesigns.WithKeyPoints(design, false)"
                                                            data-brief-layout="@(ProjectBriefingProjectSlideDesigns.UsesBriefLayout(design) ? "true" : "false")"
                                                            data-key-point-slide="@(ProjectBriefingProjectSlideDesigns.OffersKeyPointSlide(design) ? "true" : "false")" />
-                                                    <span class="pbd-design__mini pbd-design__mini--@design.ToString().ToLowerInvariant()" aria-hidden="true">
-                                                        @switch (design)
-                                                        {
-                                                            case ProjectBriefingProjectSlideDesign.KeyPoints:
-                                                                <span class="pbd-design__row"><i class="is-photo"></i><i></i></span><i class="is-band"></i>
-                                                                break;
-                                                            case ProjectBriefingProjectSlideDesign.Brief:
-                                                                <i></i><i class="is-photo"></i>
-                                                                break;
-                                                            case ProjectBriefingProjectSlideDesign.FactSheet:
-                                                                <i class="is-table"></i><i class="is-photo"></i>
-                                                                break;
-                                                            case ProjectBriefingProjectSlideDesign.KeyPointsOnly:
-                                                                <i class="is-photo"></i><span class="pbd-design__points"><i class="is-band"></i><i class="is-band"></i><i class="is-band"></i><i class="is-band"></i><i class="is-band"></i></span>
-                                                                break;
-                                                            default:
-                                                                <i class="is-photo"></i><i></i>
-                                                                break;
-                                                        }
-                                                    </span>
+                                                    <partial name="_DesignMini" model="design" />
                                                     <strong>@ProjectBriefingProjectSlideDesigns.DisplayName(design)</strong>
                                                     <small>@ProjectBriefingProjectSlideDesigns.Description(design)</small>
                                                 </label>

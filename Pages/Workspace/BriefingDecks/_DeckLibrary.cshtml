@@ -13,8 +13,6 @@
         var ist = IstClock.ToIst(value);
         return ist.Date == todayIst ? $"Today, {ist:HH:mm}" : ist.ToString("dd MMM yyyy");
     }
-    // Mid-sentence, "Today" reads as "today"; months keep their capital.
-    string WhenInline(DateTimeOffset value) => When(value).Replace("Today", "today");
     string Projects(int count) => $"{count} {(count == 1 ? "project" : "projects")}";
     string Day(DateTimeOffset value) => IstClock.ToIst(value).ToString("dd MMM");
     // Table dates stay on one line: the year only when it is not this year; the full date on hover.
@@ -33,62 +31,6 @@
         project.Cost ? "cost" : null,
         project.KeyPoints ? "key points" : null
     }.Where(part => part is not null));
-}
-
-@if (continueDeck is not null)
-{
-    <section class="pbd-library__section" aria-labelledby="pbd-continue-title">
-        @* "Continue" only for a deck this person last edited; otherwise the deck most recently edited
-           by anyone (decks are shared), named for what it is. *@
-        <h2 class="pbd-library__heading" id="pbd-continue-title">@(continueDeck.LastEditedByMe ? "Continue" : "Recently edited")</h2>
-        <div class="pbd-continue">
-            <div class="pbd-continue__identity">
-                <span class="pbd-continue__mark" aria-hidden="true"><i class="bi bi-easel2"></i></span>
-                <div class="pbd-continue__body">
-                    <div class="pbd-continue__title">
-                        <a asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@continueDeck.Id">@continueDeck.Name</a>
-                        <span class="pbd-library__purpose">@continueDeck.Design</span>
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(continueDeck.Description))
-                    {
-                        <p class="pbd-continue__description">@continueDeck.Description</p>
-                    }
-                    <p class="pbd-continue__meta">
-                        @Projects(continueDeck.ProjectCount)
-                        @if (continueDeck.LastGeneratedSlideCount is int slides)
-                        {
-                            <text> · @slides slides</text>
-                        }
-                        · edited @WhenInline(continueDeck.UpdatedAtUtc) by @continueDeck.LastModifiedByDisplay
-                        · @(continueDeck.LastGeneratedAtUtc is { } generated ? $"last generated {WhenInline(generated)}" : "not generated yet")
-                    </p>
-                    @if (continueDeck.DataMovement is { HasMoved: true } moved && continueDeck.LastGeneratedAtUtc is { } movedSince)
-                    {
-                        <p class="pbd-continue__moved">
-                            <span class="pbd-continue__moved-label"><i class="bi bi-arrow-up-circle" aria-hidden="true"></i> Moved since @Day(movedSince):</span>
-                            @foreach (var part in moved.Describe())
-                            {
-                                <span>@part</span>
-                            }
-                        </p>
-                    }
-                </div>
-            </div>
-            <div class="pbd-continue__actions">
-                <a class="btn btn-primary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@continueDeck.Id">Open in Studio</a>
-                @if (continueDeck.ProjectCount == 0)
-                {
-                    <a class="btn btn-outline-secondary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@continueDeck.Id" asp-route-start="projects">Add projects</a>
-                }
-                else
-                {
-                    @* Generate in the Studio, with its progress, saved-changes and gap checks. *@
-                    <a class="btn btn-outline-secondary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@continueDeck.Id" asp-route-generate="1"
-                       title="Opens the deck and generates the PowerPoint there, after its checks">Generate PowerPoint</a>
-                }
-            </div>
-        </div>
-    </section>
 }
 
 @if (Model.MovedDecks.Count > 0)
@@ -148,143 +90,150 @@
         </div>
     </div>
 
-    <div class="pbd-library__table-wrap">
-        <table class="pbd-library__table">
-            <thead>
-                <tr>
-                    <th scope="col" class="is-deck">Deck</th>
-                    <th scope="col">Design</th>
-                    <th scope="col" class="is-number">Projects</th>
-                    <th scope="col">Edited</th>
-                    <th scope="col">PowerPoint</th>
-                    <th scope="col"><span class="visually-hidden">Actions</span></th>
-                </tr>
-            </thead>
-            <tbody data-pbd-library-rows>
-                @foreach (var deck in Model.Decks)
-                {
-                    var searchText = string.Join(" ", new[] { deck.Name, deck.Description ?? string.Empty }.Concat(deck.ProjectNames)).ToLowerInvariant();
-                    <tr data-pbd-library-row
-                        data-search="@searchText"
-                        data-mine="@(deck.IsMine ? "true" : "false")"
-                        data-name="@deck.Name"
-                        data-edited="@deck.UpdatedAtUtc.ToUnixTimeSeconds()"
-                        data-generated="@(deck.LastGeneratedAtUtc?.ToUnixTimeSeconds() ?? 0)"
-                        data-projects="@(string.Join("\n", deck.ProjectNames))">
-                        <td>
-                            @if (deck.CanEdit)
+    @* One card per deck (owner, 17 Nov 2026: the table read as empty with few decks). The deck to
+       continue is the first card, tagged, instead of a separate panel. The cards keep the rows'
+       data-* hooks, so search, Mine/All and sort (project-briefing-library.js) work unchanged. *@
+    <div class="pbd-library__cards" data-pbd-library-rows>
+        @foreach (var deck in Model.Decks)
+        {
+            var searchText = string.Join(" ", new[] { deck.Name, deck.Description ?? string.Empty }.Concat(deck.ProjectNames)).ToLowerInvariant();
+            var isContinue = continueDeck is not null && continueDeck.Id == deck.Id && deck.CanEdit;
+            <article class="pbd-deck-card" aria-labelledby="pbd-deck-card-@deck.Id"
+                     data-pbd-library-row
+                     data-search="@searchText"
+                     data-mine="@(deck.IsMine ? "true" : "false")"
+                     data-name="@deck.Name"
+                     data-edited="@deck.UpdatedAtUtc.ToUnixTimeSeconds()"
+                     data-generated="@(deck.LastGeneratedAtUtc?.ToUnixTimeSeconds() ?? 0)"
+                     data-projects="@(string.Join("\n", deck.ProjectNames))">
+                <div class="pbd-deck-card__art">
+                    <partial name="_DesignMini" model="deck.DesignKind" />
+                    @if (isContinue)
+                    {
+                        @* "Continue" only for a deck this person last edited; otherwise the deck most
+                           recently edited by anyone (decks are shared). *@
+                        <span class="pbd-deck-card__tag">@(continueDeck!.LastEditedByMe ? "Continue" : "Recently edited")</span>
+                    }
+                    else if (!deck.CanEdit)
+                    {
+                        <span class="pbd-deck-card__tag is-officer"><i class="bi bi-person" aria-hidden="true"></i> @deck.CreatedByDisplay's deck · view only</span>
+                    }
+                </div>
+                <div class="pbd-deck-card__body">
+                    <h3 class="pbd-deck-card__name" id="pbd-deck-card-@deck.Id">
+                        @if (deck.CanEdit)
+                        {
+                            <a class="pbd-library__name" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">@deck.Name</a>
+                        }
+                        else
+                        {
+                            <span class="pbd-library__name">@deck.Name</span>
+                        }
+                    </h3>
+                    @if (!string.IsNullOrWhiteSpace(deck.Description))
+                    {
+                        <p class="pbd-library__description">@deck.Description</p>
+                    }
+                    <small class="pbd-library__match" data-pbd-library-match hidden></small>
+                    <p class="pbd-deck-card__facts">
+                        <span class="pbd-library__purpose">@deck.Design</span>
+                        <span>@(deck.ProjectCount == 0 ? "No projects yet" : Projects(deck.ProjectCount))</span>
+                    </p>
+                    <p class="pbd-deck-card__edited" title="@WhenFull(deck.UpdatedAtUtc) · created by @deck.CreatedByDisplay">Edited @WhenShort(deck.UpdatedAtUtc) · @deck.LastModifiedByDisplay</p>
+                    @* One status for the PowerPoint: whether there is one, how many slides, and whether
+                       the projects' data has moved since (the reason it may need generating again). *@
+                    <p class="pbd-deck-card__status">
+                        @if (deck.LastGeneratedAtUtc is not { } generatedOn)
+                        {
+                            <span class="pbd-library__quiet">@(deck.ProjectCount == 0 ? "No PowerPoint yet" : "Not generated")</span>
+                        }
+                        else
+                        {
+                            <span title="@WhenFull(generatedOn)">@WhenShort(generatedOn)@(deck.LastGeneratedSlideCount is int slides ? $" · {slides} slides" : string.Empty)</span>
+                            @if (deck.DataMovement is null)
                             {
-                                <a class="pbd-library__name" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">@deck.Name</a>
+                                <span class="pbd-library__quiet"> · changes not tracked yet</span>
+                            }
+                            else if (deck.DataMovement.HasMoved && deck.CanEdit)
+                            {
+                                <text> · </text><a class="pbd-library__moved" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id"
+                                   title="@string.Join(" · ", deck.DataMovement.Describe())">@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? "change" : "changes") since</a>
+                            }
+                            else if (deck.DataMovement.HasMoved)
+                            {
+                                @* A Project Officer's deck a command user can only view: the count, without a link. *@
+                                <text> · </text><span class="pbd-library__moved" title="@string.Join(" · ", deck.DataMovement.Describe())">@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? "change" : "changes") since</span>
                             }
                             else
                             {
-                                @* A Project Officer's own deck: a command user may download or duplicate it. *@
-                                <span class="pbd-library__name">@deck.Name</span>
-                                <small class="pbd-library__owner"><i class="bi bi-person" aria-hidden="true"></i> @deck.CreatedByDisplay's deck · view only</small>
+                                <span class="pbd-library__current"> · up to date</span>
                             }
-                            @if (!string.IsNullOrWhiteSpace(deck.Description))
-                            {
-                                <small class="pbd-library__description">@deck.Description</small>
-                            }
-                            <small class="pbd-library__match" data-pbd-library-match hidden></small>
-                        </td>
-                        @* data-label: on a phone the table becomes cards, and each value carries its label. *@
-                        <td class="is-date" data-label="Design">@deck.Design</td>
-                        <td class="is-number" data-label="Projects">@deck.ProjectCount<span class="pbd-library__unit"> @(deck.ProjectCount == 1 ? "project" : "projects")</span></td>
-                        <td class="is-edited" data-label="Edited" title="@WhenFull(deck.UpdatedAtUtc) · created by @deck.CreatedByDisplay">
-                            @WhenShort(deck.UpdatedAtUtc)<small>@deck.LastModifiedByDisplay</small>
-                        </td>
-                        @* One status for the PowerPoint: whether there is one, how many slides, and whether
-                           the projects' data has moved since (the reason it may need generating again). *@
-                        <td class="is-powerpoint" data-label="PowerPoint">
-                            @if (deck.LastGeneratedAtUtc is not { } generatedOn)
-                            {
-                                <span class="pbd-library__quiet">@(deck.ProjectCount == 0 ? "No projects yet" : "Not generated")</span>
-                            }
-                            else
-                            {
-                                <span title="@WhenFull(generatedOn)">@WhenShort(generatedOn)@(deck.LastGeneratedSlideCount is int slides ? $" · {slides} slides" : string.Empty)</span>
-                                @if (deck.DataMovement is null)
-                                {
-                                    <small class="pbd-library__quiet">changes not tracked yet</small>
-                                }
-                                else if (deck.DataMovement.HasMoved && deck.CanEdit)
-                                {
-                                    <a class="pbd-library__moved" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id"
-                                       title="@string.Join(" · ", deck.DataMovement.Describe())">@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? "change" : "changes") since</a>
-                                }
-                                else if (deck.DataMovement.HasMoved)
-                                {
-                                    @* A Project Officer's deck a command user can only view: the count, without a link. *@
-                                    <small class="pbd-library__moved" title="@string.Join(" · ", deck.DataMovement.Describe())">@deck.DataMovement.Total @(deck.DataMovement.Total == 1 ? "change" : "changes") since</small>
-                                }
-                                else
-                                {
-                                    <small class="pbd-library__current">up to date</small>
-                                }
-                            }
-                        </td>
-                        <td class="is-actions">
-                            <div class="dropdown">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="More actions for @deck.Name">
-                                    <i class="bi bi-three-dots" aria-hidden="true"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                @if (!deck.CanEdit)
-                                {
-                                    <li>
-                                        <form method="post" asp-page-handler="Download">
-                                            <input type="hidden" name="deckId" value="@deck.Id" />
-                                            <button type="submit" class="dropdown-item" disabled="@(deck.ProjectCount == 0)"><i class="bi bi-file-earmark-ppt" aria-hidden="true"></i> Download PowerPoint</button>
-                                        </form>
-                                    </li>
-                                    <li>
-                                        <form method="post" asp-page-handler="Duplicate">
-                                            <input type="hidden" name="deckId" value="@deck.Id" />
-                                            <button type="submit" class="dropdown-item"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate to change it</button>
-                                        </form>
-                                    </li>
-                                }
-                                else
-                                {
-                                    <li><a class="dropdown-item" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id"><i class="bi bi-easel2" aria-hidden="true"></i> Open in Studio</a></li>
-                                    <li>
-                                        @if (deck.ProjectCount == 0)
-                                        {
-                                            <a class="dropdown-item" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id" asp-route-start="projects"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add projects</a>
-                                        }
-                                        else
-                                        {
-                                            <a class="dropdown-item" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id" asp-route-generate="1"><i class="bi bi-file-earmark-ppt" aria-hidden="true"></i> Generate PowerPoint</a>
-                                        }
-                                    </li>
-                                    <li>
-                                        <form method="post" asp-page-handler="Duplicate">
-                                            <input type="hidden" name="deckId" value="@deck.Id" />
-                                            <button type="submit" class="dropdown-item"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate</button>
-                                        </form>
-                                    </li>
-                                    <li><hr class="dropdown-divider" /></li>
-                                    <li>
-                                        <form method="post" asp-page-handler="Delete" data-pbd-library-delete data-deck-name="@deck.Name" data-confirm-detail="It moves to Recently deleted and can be restored for @ProjectBriefingDeckService.DeletedRetentionDays days." data-page-handled data-confirm="Delete “@deck.Name”? It moves to Recently deleted and can be restored for @ProjectBriefingDeckService.DeletedRetentionDays days.">
-                                            <input type="hidden" name="deckId" value="@deck.Id" />
-                                            <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
-                                            <input type="hidden" name="from" value="library" />
-                                            <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Delete</button>
-                                        </form>
-                                    </li>
-                                }
-                                </ul>
-                            </div>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-        <div class="pbd-library__empty" data-pbd-library-empty hidden>
-            <p data-pbd-library-empty-text>No decks match.</p>
-            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-library-reset>Show all decks</button>
-        </div>
+                        }
+                    </p>
+                </div>
+                <div class="pbd-deck-card__actions">
+                    @if (!deck.CanEdit)
+                    {
+                        @* A Project Officer's own deck: a command user may download or duplicate it. *@
+                        <form method="post" asp-page-handler="Download">
+                            <input type="hidden" name="deckId" value="@deck.Id" />
+                            <button type="submit" class="btn btn-sm btn-primary" disabled="@(deck.ProjectCount == 0)">Download</button>
+                        </form>
+                        <form method="post" asp-page-handler="Duplicate">
+                            <input type="hidden" name="deckId" value="@deck.Id" />
+                            <button type="submit" class="btn btn-sm btn-outline-secondary" title="Makes your own copy, which you can change">Duplicate</button>
+                        </form>
+                    }
+                    else
+                    {
+                        @if (deck.ProjectCount == 0)
+                        {
+                            <a class="btn btn-sm btn-primary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id" asp-route-start="projects">Add projects</a>
+                            <a class="btn btn-sm btn-outline-secondary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">Open</a>
+                        }
+                        else
+                        {
+                            <a class="btn btn-sm btn-primary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">Open</a>
+                            @* Generate in the Studio, with its progress, saved-changes and gap checks. *@
+                            <a class="btn btn-sm btn-outline-secondary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id" asp-route-generate="1"
+                               title="Opens the deck and generates the PowerPoint there, after its checks">Generate</a>
+                        }
+                        <div class="dropdown pbd-deck-card__more">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="More actions for @deck.Name">
+                                <i class="bi bi-three-dots" aria-hidden="true"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <form method="post" asp-page-handler="Download">
+                                        <input type="hidden" name="deckId" value="@deck.Id" />
+                                        <button type="submit" class="dropdown-item" disabled="@(deck.ProjectCount == 0)"><i class="bi bi-download" aria-hidden="true"></i> Download PowerPoint</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-page-handler="Duplicate">
+                                        <input type="hidden" name="deckId" value="@deck.Id" />
+                                        <button type="submit" class="dropdown-item"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate</button>
+                                    </form>
+                                </li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <form method="post" asp-page-handler="Delete" data-pbd-library-delete data-deck-name="@deck.Name" data-confirm-detail="It moves to Recently deleted and can be restored for @ProjectBriefingDeckService.DeletedRetentionDays days." data-page-handled data-confirm="Delete “@deck.Name”? It moves to Recently deleted and can be restored for @ProjectBriefingDeckService.DeletedRetentionDays days.">
+                                        <input type="hidden" name="deckId" value="@deck.Id" />
+                                        <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                        <input type="hidden" name="from" value="library" />
+                                        <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Delete</button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
+                    }
+                </div>
+            </article>
+        }
+    </div>
+    <div class="pbd-library__empty" data-pbd-library-empty hidden>
+        <p data-pbd-library-empty-text>No decks match.</p>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-library-reset>Show all decks</button>
     </div>
 </section>
 

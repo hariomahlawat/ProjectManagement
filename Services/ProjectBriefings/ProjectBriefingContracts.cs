@@ -55,7 +55,9 @@ public sealed record ProjectBriefingDeckSummaryVm(
     string RowVersion)
 {
     // The deck's project slide design ("Capability", "Key points", ...), as the Studio shows it.
-    public string Design { get; init; } = "Capability";
+    public string Design => ProjectBriefingProjectSlideDesigns.DisplayName(DesignKind);
+    // The same design as a value, for the library card's drawing of it.
+    public ProjectBriefingProjectSlideDesign DesignKind { get; init; } = ProjectBriefingProjectSlideDesign.Capability;
     public bool IsMine { get; init; }
     public bool LastEditedByMe { get; init; }
     public int? LastGeneratedSlideCount { get; init; }
