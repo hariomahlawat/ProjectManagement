@@ -1530,8 +1530,21 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                         SpaceAfterPoints: spaceAfter,
                         LineSpacingPoints: lineSpacing));
                 }
+                else if (block.Type == ProjectBriefingCapabilityBlockType.Bullet)
+                {
+                    paragraphs.Add(new RichTextParagraph(
+                        new[] { new RichTextRun(block.Text, block.FontSize, textColor) },
+                        LeftMarginInches: bodyIndent,
+                        FirstLineIndentInches: -.22,
+                        SpaceAfterPoints: spaceAfter,
+                        LineSpacingPoints: lineSpacing,
+                        Bullet: "•",
+                        BulletColor: textColor));
+                }
                 else
                 {
+                    // Numbered and lettered items keep their typed markers, so a list continued on
+                    // the next slide carries on from its own number.
                     paragraphs.Add(new RichTextParagraph(
                         new[]
                         {
@@ -1539,7 +1552,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                                 block.Marker!,
                                 block.FontSize,
                                 textColor,
-                                Bold: block.Type != ProjectBriefingCapabilityBlockType.Bullet),
+                                Bold: true),
                             new RichTextRun(
                                 block.Text,
                                 block.FontSize,
@@ -2068,7 +2081,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 false,
                 "ctr");
         }
-        canvas.AddText(10.35, 7.12, 2.35, .18, $"{slideNumber}/{slideCount}", FooterFontSize, canvas.Theme.TextMuted, true, "r");
+        canvas.AddSlideNumber(10.35, 7.12, 2.35, .18, slideNumber, slideCount, FooterFontSize, canvas.Theme.TextMuted, true, "r");
     }
 
     private static void AddEmptyMessage(SlideCanvas canvas, string message)
@@ -2263,6 +2276,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         string Color,
         bool Bold = false,
         bool Italic = false);
+    // Bullet: a real PowerPoint bullet character (with BulletColor), hung at the first-line indent;
+    // PowerPoint keeps it when the text is edited or the list is extended (step 5).
     private sealed record RichTextParagraph(
         IReadOnlyList<RichTextRun> Runs,
         string Align = "l",
@@ -2271,7 +2286,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         double? TabStopInches = null,
         bool TabAfterFirstRun = false,
         double SpaceAfterPoints = 0,
-        double? LineSpacingPoints = null);
+        double? LineSpacingPoints = null,
+        string? Bullet = null,
+        string? BulletColor = null);
     private sealed record NativeTableBorders(
         string? LeftColor = null,
         double LeftWidth = .25,
@@ -3032,6 +3049,33 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 isTextBox);
         }
 
+        // The shapes that carry a slide's title (one a slide).
+        private static readonly HashSet<string> TitleShapeNames = new(StringComparer.Ordinal)
+        {
+            "Slide title",
+            "Project sheet title",
+            "Cover title"
+        };
+
+        // The slide number as PowerPoint's own field, so it stays right when slides are added,
+        // removed or reordered; "/62" after it is the count when the deck was made.
+        public void AddSlideNumber(double x, double y, double width, double height, int slideNumber, int slideCount, double fontSize, string color, bool bold, string align)
+        {
+            EnsureFrame(x, y, width, height, "Slide number");
+            var id = _nextShapeId++;
+            var runProperties = $"<a:rPr lang=\"en-IN\" sz=\"{FontSize(fontSize)}\" b=\"{(bold ? 1 : 0)}\"><a:solidFill><a:srgbClr val=\"{CleanColor(color)}\"/></a:solidFill><a:latin typeface=\"Aptos\"/></a:rPr>";
+            _elements.Add($"""
+<p:sp>
+  <p:nvSpPr><p:cNvPr id="{id}" name="Slide number"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+  <p:spPr><a:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(width)}" cy="{Emu(height)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr>
+  <p:txBody><a:bodyPr wrap="square" lIns="45720" rIns="45720" tIns="22860" bIns="22860" anchor="ctr"><a:noAutofit/></a:bodyPr><a:lstStyle/><a:p><a:pPr algn="{Alignment(align)}"/><a:fld id="{SlideNumberFieldId}" type="slidenum">{runProperties}<a:t>{slideNumber.ToString(CultureInfo.InvariantCulture)}</a:t></a:fld><a:r>{runProperties}<a:t>/{slideCount.ToString(CultureInfo.InvariantCulture)}</a:t></a:r><a:endParaRPr lang="en-IN" sz="{FontSize(fontSize)}"/></a:p></p:txBody>
+</p:sp>
+""");
+        }
+
+        // One fixed field id, so a deck's slides compose the same every time.
+        private const string SlideNumberFieldId = "{6B1E0F0A-5C8E-4D53-9C8B-2B7C3E4A9F10}";
+
         private void AddRichTextShape(
             double x,
             double y,
@@ -3096,9 +3140,16 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             var lineXml = string.IsNullOrWhiteSpace(line)
                 ? "<a:ln><a:noFill/></a:ln>"
                 : $"<a:ln w=\"{LineWidth(lineWidth)}\"><a:solidFill><a:srgbClr val=\"{CleanColor(line)}\"/></a:solidFill></a:ln>";
-            var nonVisualShapeProperties = isTextBox
-                ? "<p:cNvSpPr txBox=\"1\"/>"
-                : "<p:cNvSpPr/>";
+            // The slide's title is PowerPoint's title placeholder, so the outline, accessibility
+            // checks and "Reuse slides" see it (docs/ux/briefing-slides-review.md, step 5). Its own
+            // position and text formatting stay on the shape.
+            var isTitle = TitleShapeNames.Contains(name);
+            var nonVisualShapeProperties = isTitle
+                ? "<p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr>"
+                : isTextBox
+                    ? "<p:cNvSpPr txBox=\"1\"/>"
+                    : "<p:cNvSpPr/>";
+            var placeholderXml = isTitle ? "<p:nvPr><p:ph type=\"title\"/></p:nvPr>" : "<p:nvPr/>";
             if (string.IsNullOrWhiteSpace(geometryAdjustmentsXml) && geometry == "roundRect")
             {
                 geometryAdjustmentsXml = CornerRadiusAdjustment(width, height);
@@ -3110,7 +3161,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
             _elements.Add($"""
 <p:sp>
-  <p:nvSpPr><p:cNvPr id="{id}" name="{Escape(name)}"/>{nonVisualShapeProperties}<p:nvPr/></p:nvSpPr>
+  <p:nvSpPr><p:cNvPr id="{id}" name="{Escape(name)}"/>{nonVisualShapeProperties}{placeholderXml}</p:nvSpPr>
   <p:spPr><a:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(width)}" cy="{Emu(height)}"/></a:xfrm>{geometryXml}{fillXml}{lineXml}</p:spPr>
   {textXml}
 </p:sp>
@@ -3206,8 +3257,14 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     ? $"<a:tabLst><a:tab pos=\"{Emu(paragraph.TabStopInches.Value)}\"/></a:tabLst>"
                     : string.Empty;
                 var marginAttributes = $" marL=\"{Emu(paragraph.LeftMarginInches)}\" indent=\"{Emu(paragraph.FirstLineIndentInches)}\"";
+                var bulletXml = string.IsNullOrEmpty(paragraph.Bullet)
+                    ? string.Empty
+                    : (string.IsNullOrWhiteSpace(paragraph.BulletColor)
+                        ? string.Empty
+                        : $"<a:buClr><a:srgbClr val=\"{CleanColor(paragraph.BulletColor)}\"/></a:buClr>")
+                        + $"<a:buFont typeface=\"Arial\"/><a:buChar char=\"{Escape(paragraph.Bullet)}\"/>";
 
-                paragraphXml.Append($"<a:p><a:pPr algn=\"{alignment}\"{marginAttributes}>{lineSpacingXml}{spaceAfterXml}{tabXml}</a:pPr>");
+                paragraphXml.Append($"<a:p><a:pPr algn=\"{alignment}\"{marginAttributes}>{lineSpacingXml}{spaceAfterXml}{bulletXml}{tabXml}</a:pPr>");
                 for (var runIndex = 0; runIndex < paragraph.Runs.Count; runIndex++)
                 {
                     var run = paragraph.Runs[runIndex];
