@@ -329,9 +329,12 @@ public sealed class ProjectBriefingExecutiveSummaryTests
     public void Compose_FitsLongCategoryNamesInsideTheirLegendRows()
     {
         // Codex review on #3408: nine long names in a half-slide legend must not be clipped.
+        // Long names force the smallest size; short ones beside them must still hold their counts.
         ProjectBriefingSummaryPoint[] Long(string prefix) => Enumerable.Range(1, 9)
             .Select(index => new ProjectBriefingSummaryPoint(
-                $"{prefix} {index} with a very long descriptive category name that runs on for many words across the legend",
+                index % 3 == 0
+                    ? $"{prefix} {index}"
+                    : $"{prefix} {index} with a very long descriptive category name that runs on for many words across the legend",
                 20 - index))
             .ToArray();
         var data = BuildData(includeProjectCategorySummary: true, projectCategories: Long("Project"), technicalCategories: Long("Technical"));
@@ -355,6 +358,15 @@ public sealed class ProjectBriefingExecutiveSummaryTests
             var lines = ProjectManagement.Services.Analytics.Presentation.AnalyticsSlideFrame.LineCount(text, width - .12, size);
             Assert.True(lines * size * 1.22 / 72d <= height + .01, $"{text} ({lines} lines at {size} pt) needs more than {height:0.00} in.");
             Assert.True(size >= 9.0);
+        }
+
+        // Every count fits its row (the text box keeps .05 in of insets top and bottom).
+        foreach (var shape in slide.Slide.Descendants<P.Shape>()
+            .Where(shape => shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value?.EndsWith(" count", StringComparison.Ordinal) == true))
+        {
+            var size = shape.Descendants<A.RunProperties>().First().FontSize!.Value / 100d;
+            var height = shape.ShapeProperties!.Transform2D!.Extents!.Cy!.Value / 914400d;
+            Assert.True((size * 1.22 / 72d) + .05 <= height + .005, $"A {size} pt count does not fit a {height:0.00} in row.");
         }
     }
 

@@ -159,8 +159,12 @@ public sealed partial class ProjectBriefingSlideComposer
         var nameWidth = legendWidth - .30 - countWidth - shareWidth;
         var legendTop = y + contentTop;
         var legendBottom = y + height - contentBottomReserve;
-        var legend = FitCategoryLegend(rows, nameWidth, nameSize, wide ? .16 : .12, legendBottom - legendTop);
+        var legend = FitCategoryLegend(rows, nameWidth, nameSize, countSize, wide ? .16 : .12, legendBottom - legendTop);
+        // The figures shrink with the names, so a short name's row still holds its count.
+        var shrink = legend.FontSize / nameSize;
         nameSize = legend.FontSize;
+        countSize *= shrink;
+        shareSize *= shrink;
         var heights = legend.Heights;
         var scale = Math.Min(1d, (legendBottom - legendTop) / Math.Max(.01, heights.Sum()));
         var legendY = legendTop + Math.Max(0, ((legendBottom - legendTop) - heights.Sum()) / 2d);
@@ -205,7 +209,9 @@ public sealed partial class ProjectBriefingSlideComposer
 
     // The legend's names fitted to the room: the largest size (down to 9 pt) at which every name
     // shows whole in up to three lines; at 9 pt a name longer than two lines is cut after a whole
-    // word. Rows are as tall as their lines, so no name is clipped (Codex review on #3408).
+    // word. The count and share shrink in step with the names. Each row is as tall as its tallest
+    // column (the name's lines or the count), with the text box's insets, so nothing is clipped
+    // (Codex reviews on #3408).
     private const double CategoryLegendMinimumFont = 9.0;
 
     private sealed record CategoryLegendFit(IReadOnlyList<string> Names, double FontSize, IReadOnlyList<double> Heights);
@@ -214,12 +220,21 @@ public sealed partial class ProjectBriefingSlideComposer
         IReadOnlyList<CategoryLegendRow> rows,
         double nameWidth,
         double preferredFont,
+        double preferredCountFont,
         double rowPadding,
         double available)
     {
+        const double insets = .06; // the text box's top and bottom insets, with a little to spare
         var textWidth = nameWidth - .12;
         double[] Heights(IEnumerable<string> names, double size, double padding)
-            => names.Select(name => (AnalyticsSlideFrame.LineCount(name, textWidth, size) * size * 1.22 / 72d) + padding).ToArray();
+        {
+            var countLine = (preferredCountFont * (size / preferredFont) * 1.22 / 72d) + insets;
+            return names
+                .Select(name => Math.Max(
+                    (AnalyticsSlideFrame.LineCount(name, textWidth, size) * size * 1.22 / 72d) + Math.Max(padding, insets),
+                    countLine))
+                .ToArray();
+        }
 
         for (var size = preferredFont; size > CategoryLegendMinimumFont; size -= .5)
         {
@@ -238,7 +253,7 @@ public sealed partial class ProjectBriefingSlideComposer
         var shortened = rows
             .Select(row => ProjectBriefingTablePagination.FitToLines(row.Label, charactersPerLine, 2))
             .ToArray();
-        return new CategoryLegendFit(shortened, CategoryLegendMinimumFont, Heights(shortened, CategoryLegendMinimumFont, .06));
+        return new CategoryLegendFit(shortened, CategoryLegendMinimumFont, Heights(shortened, CategoryLegendMinimumFont, insets));
     }
 
     // Largest first (ties by name); past the ring's limit the smallest become "Other categories".
