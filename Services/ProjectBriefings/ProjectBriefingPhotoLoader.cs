@@ -130,9 +130,11 @@ public sealed class ProjectBriefingPhotoLoader : IProjectBriefingPhotoLoader
             try
             {
                 var source = await File.ReadAllBytesAsync(candidate.Path, cancellationToken);
-                // Centre-cropped to fill 16:9. JPEG encoding lays any transparency on white.
+                // The whole photo, never cropped (owner, 17 Nov 2026): resized to fit within
+                // 1600 x 1600 and placed whole in its slide frame. Whoever wants a crop makes it in
+                // PowerPoint. JPEG encoding lays any transparency on white.
                 using var image = PrismImageCodec.DecodeOriented(source);
-                using var slidePhoto = PrismImageCodec.ResizeToCover(image, 1600, 900);
+                using var slidePhoto = PrismImageCodec.ResizeToFit(image, 1600, 1600);
                 return new ProjectBriefingPhotoContent(
                     projectId,
                     photoId,

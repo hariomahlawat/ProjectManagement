@@ -2245,7 +2245,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
 
     [Fact]
-    public void Compose_ProjectUpdateSheet_LongBriefUsesReadableContinuationAndCropFilledPhoto()
+    public void Compose_ProjectUpdateSheet_LongBriefUsesReadableContinuationAndWholePhoto()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
         var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
@@ -2316,9 +2316,14 @@ public sealed class ProjectBriefingSlideComposerTests
                 "Readable Update Sheet photograph",
                 StringComparison.Ordinal));
         var photoExtent = Assert.IsType<A.Extents>(photo.ShapeProperties?.Transform2D?.Extents);
-        Assert.True(
-            (photoExtent.Cy?.Value ?? 0L) >= ShapeHeight(photoFrame) - (.20 * 914400),
-            "The project photograph should crop to fill the available panel instead of leaving large unused bands.");
+        // The whole photo, never cropped (owner, 17 Nov 2026): it keeps its own proportions and sits
+        // inside its frame.
+        var pixels = ProjectManagement.Services.Imaging.PrismImageCodec.Identify(project.CoverPhoto!)!;
+        Assert.Equal(
+            pixels.OrientedWidth / (double)pixels.OrientedHeight,
+            (photoExtent.Cx?.Value ?? 0L) / (double)(photoExtent.Cy?.Value ?? 1L),
+            2);
+        Assert.True((photoExtent.Cy?.Value ?? 0L) <= ShapeHeight(photoFrame));
     }
 
     private static byte[] TinyPng()
