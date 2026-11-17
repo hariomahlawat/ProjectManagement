@@ -311,6 +311,16 @@ internal static class ProjectBriefingPresentationIntegrityValidator
                 $"slide {index + 1}",
                 issues);
 
+            // The slide's layout carries shared furniture and pictures (step 5): it is checked too.
+            if (slidePart.SlideLayoutPart is { } layoutPart)
+            {
+                AddSchemaErrors(
+                    validator.Validate(layoutPart.SlideLayout),
+                    layoutPart.Uri.ToString(),
+                    $"layout of slide {index + 1}",
+                    issues);
+            }
+
             // The category slides carry native charts: each chart and its embedded workbook.
             foreach (var chartPart in slidePart.ChartParts)
             {

@@ -65,8 +65,37 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
 
             var tree = xml.Root?.Element(P + "cSld")?.Element(P + "spTree");
             var html = new StringBuilder();
+
+            // The slide's layout carries the deck's background and the furniture every content
+            // slide shares; it is drawn first, without its placeholders (step 5).
+            XElement? layoutTree = null;
+            string? background = null;
+            var layoutPart = slidePart.SlideLayoutPart;
+            if (layoutPart is not null)
+            {
+                XDocument layoutXml;
+                using (var layoutStream = layoutPart.GetStream(FileMode.Open, FileAccess.Read))
+                {
+                    layoutXml = XDocument.Load(layoutStream);
+                }
+
+                var layoutData = layoutXml.Root?.Element(P + "cSld");
+                background = SolidColor(layoutData?.Element(P + "bg")?.Element(P + "bgPr"));
+                layoutTree = layoutData?.Element(P + "spTree");
+                layoutTree?.Elements(P + "sp")
+                    .Where(shape => shape.Element(P + "nvSpPr")?.Element(P + "nvPr")?.Element(P + "ph") is not null)
+                    .ToList()
+                    .ForEach(shape => shape.Remove());
+            }
+
+            var backgroundStyle = background is null ? string.Empty : $"background:#{background};";
             html.Append(CultureInfo.InvariantCulture,
-                $"<div class=\"pbd-slide-stage\" style=\"width:{N(widthPx)}px;height:{N(heightPx)}px;font-family:{FontStack}\">");
+                $"<div class=\"pbd-slide-stage\" style=\"width:{N(widthPx)}px;height:{N(heightPx)}px;font-family:{FontStack};{backgroundStyle}\">");
+            if (layoutTree is not null && layoutPart is not null)
+            {
+                RenderChildren(layoutTree, Transform.Identity, new RenderContext(layoutPart, images, known, html));
+            }
+
             if (tree is not null)
             {
                 var context = new RenderContext(slidePart, images, known, html);
@@ -511,18 +540,19 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
 
     private sealed class RenderContext
     {
-        private readonly SlidePart _slidePart;
+        // The slide or layout whose shapes are drawn; pictures and charts are found through it.
+        private readonly OpenXmlPart _part;
         private readonly Dictionary<string, string> _images;
         private readonly IReadOnlySet<string> _knownImages;
         private readonly Dictionary<string, string?> _keysByRelationship = new(StringComparer.Ordinal);
 
         public RenderContext(
-            SlidePart slidePart,
+            OpenXmlPart part,
             Dictionary<string, string> images,
             IReadOnlySet<string> knownImages,
             StringBuilder html)
         {
-            _slidePart = slidePart;
+            _part = part;
             _images = images;
             _knownImages = knownImages;
             Html = html;
@@ -533,7 +563,7 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
         // The chart part a graphic frame points at, as XML (the composer's own doughnut charts).
         public XDocument? Chart(string relationshipId)
         {
-            if (!_slidePart.TryGetPartById(relationshipId, out var part) || part is not ChartPart chartPart) return null;
+            if (!_part.TryGetPartById(relationshipId, out var found) || found is not ChartPart chartPart) return null;
             using var stream = chartPart.GetStream(FileMode.Open, FileAccess.Read);
             return XDocument.Load(stream);
         }
@@ -545,7 +575,7 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
             if (_keysByRelationship.TryGetValue(relationshipId, out var cached)) return cached;
 
             string? key = null;
-            if (_slidePart.GetPartById(relationshipId) is ImagePart imagePart)
+            if (_part.TryGetPartById(relationshipId, out var picture) && picture is ImagePart imagePart)
             {
                 byte[] content;
                 using (var source = imagePart.GetStream(FileMode.Open, FileAccess.Read))

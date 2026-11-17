@@ -492,11 +492,19 @@ public sealed class ProjectBriefingExecutiveSummaryTests
     private static string SlideText(SlidePart slide)
         => string.Join(" ", slide.Slide.Descendants<A.Text>().Select(node => node.Text));
 
+    // A named shape on the slide, or on its layout, which carries the shared header and footer
+    // (docs/ux/briefing-slides-review.md, step 5).
     private static P.Shape ShapeByName(SlidePart slide, string name)
-        => Assert.Single(slide.Slide.Descendants<P.Shape>().Where(shape => string.Equals(
+    {
+        bool Named(P.Shape shape) => string.Equals(
             shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value,
             name,
-            StringComparison.Ordinal)));
+            StringComparison.Ordinal);
+        var onSlide = slide.Slide.Descendants<P.Shape>().Where(Named).ToArray();
+        return onSlide.Length > 0
+            ? Assert.Single(onSlide)
+            : Assert.Single(slide.SlideLayoutPart!.SlideLayout.Descendants<P.Shape>().Where(Named));
+    }
 
     private sealed class TestEnvironment : IWebHostEnvironment
     {

@@ -474,7 +474,8 @@ public sealed class ProjectBriefingStageDistributionTests
         var part = document.PresentationPart!;
         return part.Presentation.SlideIdList!.Elements<DocumentFormat.OpenXml.Presentation.SlideId>()
             .Select(slideId => (SlidePart)part.GetPartById(slideId.RelationshipId!.Value!))
-            .Select(slide => slide.Slide.OuterXml)
+            // The slide with its layout, which carries the background and the shared furniture.
+            .Select(slide => slide.Slide.OuterXml + (slide.SlideLayoutPart?.SlideLayout.OuterXml ?? string.Empty))
             .ToList();
     }
 
