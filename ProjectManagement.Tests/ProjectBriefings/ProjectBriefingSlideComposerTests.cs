@@ -37,7 +37,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var text = string.Join("\n", slides
             .SelectMany(slide => slide.Slide.Descendants<A.Text>())
             .Select(node => node.Text));
-        Assert.Contains("QUARTERLY COMMAND REVIEW", text, StringComparison.Ordinal);
+        Assert.Contains("Quarterly Command Review", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("COST (R&D)", text, StringComparison.Ordinal);
         Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
         Assert.Contains("Latest external status for AURA", text, StringComparison.Ordinal);
@@ -76,7 +76,7 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Equal(slideCount, preview.Slides.Count);
         Assert.Equal(Enumerable.Range(1, slideCount), preview.Slides.Select(slide => slide.Number));
         Assert.Equal("Cover", preview.Slides[0].Title);
-        Assert.Contains("QUARTERLY COMMAND REVIEW", preview.Slides[0].Html, StringComparison.Ordinal);
+        Assert.Contains("Quarterly Command Review", preview.Slides[0].Html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(preview.Slides, slide => slide.Title.StartsWith("Project status summary", StringComparison.Ordinal));
         Assert.Contains("<table class=\"pbd-slide-table\"", string.Concat(preview.Slides.Select(slide => slide.Html)), StringComparison.Ordinal);
         Assert.All(preview.Slides, slide => Assert.StartsWith("<div class=\"pbd-slide-stage\" style=\"width:1280px;height:720px;", slide.Html, StringComparison.Ordinal));
@@ -215,7 +215,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         Assert.DoesNotContain("<script", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<img src=x", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("&lt;SCRIPT&gt;", html, StringComparison.Ordinal);
+        Assert.Contains("&lt;script&gt;", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -328,9 +328,11 @@ public sealed class ProjectBriefingSlideComposerTests
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
 
         Assert.Equal(slideCount, slides.Length);
-        Assert.All(slides, slide => Assert.True(
+        // The cover carries the division's own logo alone, large and centred (owner, 17 Nov 2026).
+        Assert.Single(slides[0].ImageParts);
+        Assert.All(slides.Skip(1), slide => Assert.True(
             slide.ImageParts.Count() >= 2,
-            "All-slide branding must embed both header insignia on every slide."));
+            "All-slide branding must embed both header insignia on every slide after the cover."));
         Assert.All(slides
             .Where(slide => !IsClosingSlide(slide))
             .Skip(1), slide => Assert.Contains(
@@ -1231,7 +1233,7 @@ public sealed class ProjectBriefingSlideComposerTests
             .SlideParts
             .Select(SlideText)
             .ToArray();
-        Assert.Contains("PROJECT UPDATE REVIEW", slideTexts[0], StringComparison.Ordinal);
+        Assert.Contains("Project Update Review", slideTexts[0], StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(slideTexts, text => text.Contains("Portfolio at a glance", StringComparison.Ordinal));
         Assert.Contains("Update sheet project", slideTexts[1], StringComparison.Ordinal);
     }
@@ -1924,6 +1926,45 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("Presented to the Commandant, MCEME")]
+    public void Compose_CoverLeadsWithTheDivisionAndShowsNoFigures(string? description)
+    {
+        // Owner, 17 Nov 2026: the division's name as the largest text, its own logo large and
+        // centred, the presentation's name and the date; no summary figures.
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 883,
+            DeckName = "Quarterly command review",
+            DeckDescription = description,
+            IncludeCoverSlide = true,
+            GeneratedAtUtc = new DateTimeOffset(2026, 11, 17, 6, 0, 0, TimeSpan.Zero),
+            Projects = Array.Empty<ProjectBriefingPresentationProject>(),
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 49, OngoingCount = 49 },
+            Blocks = new[] { new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.Cover, Enabled: true) }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var cover = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.First();
+        var text = SlideText(cover);
+        Assert.Contains(ProjectBriefingSlideComposer.CoverOrganisationName, text, StringComparison.Ordinal);
+        Assert.Contains("Quarterly command review", text, StringComparison.Ordinal);
+        Assert.Contains("17 November 2026", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("49", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("ONGOING", text, StringComparison.Ordinal);
+        Assert.Equal(description is not null, text.Contains("Presented to the Commandant", StringComparison.Ordinal));
+
+        double SizeOf(string name) => ShapeByName(cover, name).Descendants<A.RunProperties>().First().FontSize!.Value / 100d;
+        Assert.True(SizeOf("Cover organisation") > SizeOf("Cover title"), "The division's name is the largest text.");
+        Assert.Single(cover.ImageParts);
+    }
+
+    [Theory]
     [InlineData(20)]
     [InlineData(90)]
     [InlineData(160)]
@@ -2571,7 +2612,7 @@ public sealed class ProjectBriefingSlideComposerTests
         }
 
         var allText = slides.Select(SlideText).ToArray();
-        var coverIndex = Array.FindIndex(allText, text => text.Contains("QUARTERLY COMMAND REVIEW", StringComparison.Ordinal));
+        var coverIndex = Array.FindIndex(allText, text => text.Contains("Quarterly Command Review", StringComparison.OrdinalIgnoreCase));
         var roleIndex = Array.FindIndex(allText, text => text.Contains("ROLE & CHARTER", StringComparison.OrdinalIgnoreCase));
         // Role & Charter follows the cover and comes before the overview (the stage-wise distribution).
         var overviewIndex = Array.FindIndex(allText, text => text.Contains("Where the projects stand", StringComparison.Ordinal));

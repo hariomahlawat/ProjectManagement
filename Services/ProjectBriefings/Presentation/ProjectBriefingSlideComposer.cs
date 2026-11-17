@@ -499,130 +499,85 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         }
     }
 
+    // The cover (owner, 17 Nov 2026): the division's own logo, large and centred; the division's
+    // name as the largest text; then the presentation's name, its description as an optional
+    // occasion or presenter line, and the date. No figures: the deck's slides carry them.
+    internal const string CoverOrganisationName = "SIMULATOR DEVELOPMENT DIVISION";
+
     private static void RenderCover(
         SlideCanvas canvas,
         ProjectBriefingPresentationData data)
     {
         var theme = canvas.Theme;
-        canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.CoverCanvas);
-        canvas.AddRect(0, 0, SlideWidth, .10, theme.HeaderAccent);
-        canvas.AddBrandingImages(HeaderVariant.Cover);
+        const double centreWidth = 11.80;
+        var left = (SlideWidth - centreWidth) / 2d;
+        canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.CoverCanvas, name: "Cover canvas");
+        canvas.AddRect(0, 0, SlideWidth, .10, theme.HeaderAccent, name: "Cover top accent");
 
-        canvas.AddText(.78, .48, 11.77, .34,
-            "SIMULATOR DEVELOPMENT DIVISION",
-            13.2,
-            theme.CoverMuted,
+        var hasMarking = !string.IsNullOrWhiteSpace(data.HandlingMarking);
+        if (hasMarking)
+        {
+            canvas.AddText(left, .18, centreWidth, .30, data.HandlingMarking!, 11, theme.Critical, true, "ctr", name: "Cover marking top");
+        }
+
+        // The SDD logo, large and centred.
+        const double logoSize = 1.85;
+        canvas.AddCoverLogo((SlideWidth - logoSize) / 2d, .97, logoSize, logoSize);
+
+        canvas.AddText(left, 3.05, centreWidth, .95,
+            CoverOrganisationName,
+            44,
+            theme.CoverText,
             true,
-            "ctr");
-        canvas.AddLine(.78, 1.02, 12.55, 1.02, theme.Divider, .7);
+            "ctr",
+            name: "Cover organisation");
+        canvas.AddRect((SlideWidth - 1.20) / 2d, 4.13, 1.20, .06, theme.HeaderAccent, name: "Cover rule");
 
-        // The title block sits about the middle of the slide (docs/ux/briefing-slides-review.md,
-        // step 4): a small label, the title as large as its length allows (up to 48 pt, at most two
-        // lines), an accent rule, then the description.
-        const double titleWidth = 7.60;
-        const double titleBottom = 4.02;
-        // A long name steps down until it fits two lines (to 18 pt); one longer still keeps the
-        // lines it needs, so nothing is clipped (Codex review on #3411).
-        var titleText = data.DeckName.ToUpperInvariant();
+        // The presentation's name: up to two lines, smaller for a longer name.
+        var titleText = data.DeckName.Trim();
         int TitleLines(double size) => Math.Max(1,
-            ProjectManagement.Services.Analytics.Presentation.AnalyticsSlideFrame.LineCount(titleText, titleWidth - .20, size * 1.12));
-        var titleSize = CoverTitleFontSize(data.DeckName);
+            ProjectManagement.Services.Analytics.Presentation.AnalyticsSlideFrame.LineCount(titleText, centreWidth - .40, size * 1.10));
+        var titleSize = CoverTitleFontSize(titleText);
         while (titleSize > 18 && TitleLines(titleSize) > 2)
         {
             titleSize -= 1;
         }
 
-        var titleLines = TitleLines(titleSize);
-        var titleHeight = (titleLines * titleSize * 1.12 / 72d) + .14;
-        var titleTop = titleBottom - titleHeight;
-        canvas.AddText(.84, titleTop - .42, titleWidth, .30,
-            "PROJECT BRIEFING",
-            12.5,
-            theme.Accent,
-            true,
-            "l",
-            name: "Cover label");
-        canvas.AddText(.78, titleTop, titleWidth, titleHeight,
-            data.DeckName.ToUpperInvariant(),
+        var titleHeight = (TitleLines(titleSize) * titleSize * 1.15 / 72d) + .14;
+        canvas.AddText(left, 4.37, centreWidth, titleHeight,
+            titleText,
             titleSize,
             theme.CoverText,
             true,
-            "l",
-            "b",
-            name: "Cover title");
-        canvas.AddRect(.86, titleBottom + .16, .90, .06, theme.Accent, name: "Cover rule");
-        canvas.AddText(.84, titleBottom + .40, titleWidth, .95,
-            string.IsNullOrWhiteSpace(data.DeckDescription)
-                ? "Selected projects · current project position"
-                : Truncate(data.DeckDescription, 145),
-            20,
-            theme.CoverMuted,
-            false,
-            "l",
+            "ctr",
             "t",
-            name: "Cover description");
+            name: "Cover title");
 
-        // The deck's figures, large, in a panel at the title's height.
-        const double panelX = 8.90;
-        const double panelY = 1.80;
-        const double panelWidth = 3.62;
-        const double panelHeight = 4.20;
-        canvas.AddRoundedRect(panelX, panelY, panelWidth, panelHeight, theme.CoverSurface, theme.Divider, .06);
-        canvas.AddRect(panelX, panelY, .07, panelHeight, theme.Accent);
-        var metrics = new[]
+        if (!string.IsNullOrWhiteSpace(data.DeckDescription))
         {
-            (data.Summary.ProjectCount, "PROJECTS IN THIS DECK"),
-            (data.Summary.OngoingCount, "ONGOING"),
-            (data.Summary.CompletedCount, "COMPLETED")
-        };
-        var step = panelHeight / metrics.Length;
-        for (var index = 0; index < metrics.Length; index++)
-        {
-            var y = panelY + (index * step);
-            AddCoverMetric(canvas, panelX + .42, y + ((step - 1.02) / 2d), metrics[index].Item1, metrics[index].Item2);
-            if (index > 0)
-            {
-                canvas.AddLine(panelX + .42, y, panelX + panelWidth - .36, y, theme.Divider, .6);
-            }
+            canvas.AddText(left, 4.45 + titleHeight, centreWidth, .80,
+                Truncate(data.DeckDescription, 160),
+                17,
+                theme.CoverMuted,
+                false,
+                "ctr",
+                "t",
+                name: "Cover occasion");
         }
 
         var generatedAtIst = TimeZoneInfo.ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst());
-        canvas.AddText(.84, 6.20, 7.4, .32,
-            $"As of {generatedAtIst:d MMM yyyy}",
-            13,
+        canvas.AddText(left, hasMarking ? 6.42 : 6.62, centreWidth, .36,
+            generatedAtIst.ToString("d MMMM yyyy", CultureInfo.InvariantCulture),
+            15,
             theme.CoverMuted,
             true,
-            "l",
+            "ctr",
             name: "Cover date");
-        canvas.AddText(.84, 6.54, 7.4, .26,
-            $"Generated {generatedAtIst:dd MMM yyyy, HH:mm} IST",
-            10.5,
-            theme.CoverMuted,
-            false,
-            "l",
-            name: "Cover generated");
 
-        if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
+        if (hasMarking)
         {
-            canvas.AddRoundedRect(9.10, 6.42, 3.20, .43, theme.SurfaceRaised, theme.Divider, .05);
-            canvas.AddText(9.23, 6.49, 2.94, .24, data.HandlingMarking!, 9.5, theme.CoverText, true, "ctr");
+            canvas.AddText(left, 6.96, centreWidth, .30, data.HandlingMarking!, 11, theme.Critical, true, "ctr", name: "Cover marking bottom");
         }
-    }
-
-    private static void AddCoverMetric(SlideCanvas canvas, double x, double y, int value, string label)
-    {
-        canvas.AddText(x, y, 2.95, .70,
-            value.ToString(CultureInfo.InvariantCulture),
-            40,
-            canvas.Theme.CoverText,
-            true,
-            "l");
-        canvas.AddText(x, y + .72, 2.95, .30,
-            label,
-            11.5,
-            canvas.Theme.CoverMuted,
-            true,
-            "l");
     }
 
     private static bool RendersCategorySummary(IReadOnlyList<ProjectBriefingSummaryPoint> points)
@@ -2120,11 +2075,10 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private static double CoverTitleFontSize(string title)
         => title.Length switch
         {
-            <= 24 => 48,
-            <= 40 => 42,
-            <= 60 => 36,
-            <= 90 => 30,
-            _ => 26
+            <= 40 => 28,
+            <= 70 => 26,
+            <= 100 => 24,
+            _ => 22
         };
 
     private static byte[]? ReadAsset(string? path)
@@ -2458,6 +2412,13 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 isTextBox: false,
                 geometryAdjustmentsXml: "<a:gd name=\"adj\" fmla=\"val 6000\"/>");
 
+        // The cover's one logo: the division's own (sdd.png), large and centred, when branding is on.
+        public void AddCoverLogo(double x, double y, double width, double height)
+        {
+            if (!ShowBranding || _branding.RightLogo is not { Length: > 0 } logo) return;
+            AddImageContained(logo, x, y, width, height, "Cover division logo");
+        }
+
         public void AddBrandingImages(HeaderVariant variant)
         {
             if (!ShowBranding) return;
@@ -2490,37 +2451,6 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     }
                 }
 
-                return;
-            }
-
-            if (variant == HeaderVariant.Cover)
-            {
-                if (_branding.LeftLogo is { Length: > 0 })
-                {
-                    if (Theme.IsDark)
-                    {
-                        AddRoundedRect(.28, .17, .68, .68, Theme.BrandingPlate, Theme.BrandingPlateBorder, .05, "Left branding plate");
-                        AddImageContained(_branding.LeftLogo, .36, .25, .52, .52, "Left formation insignia");
-                    }
-                    else
-                    {
-                        AddRoundedRect(.24, .13, .78, .78, Theme.BrandingPlate, Theme.BrandingPlateBorder, .06, "Left branding plate");
-                        AddImageContained(_branding.LeftLogo, .32, .20, .62, .62, "Left formation insignia");
-                    }
-                }
-                if (_branding.RightLogo is { Length: > 0 })
-                {
-                    if (Theme.IsDark)
-                    {
-                        AddRoundedRect(12.33, .16, .60, .70, Theme.BrandingPlate, Theme.BrandingPlateBorder, .05, "Right branding plate");
-                        AddImageContained(_branding.RightLogo, 12.40, .21, .46, .60, "Right division insignia");
-                    }
-                    else
-                    {
-                        AddRoundedRect(12.28, .12, .70, .78, Theme.BrandingPlate, Theme.BrandingPlateBorder, .06, "Right branding plate");
-                        AddImageContained(_branding.RightLogo, 12.35, .17, .56, .68, "Right division insignia");
-                    }
-                }
                 return;
             }
 
