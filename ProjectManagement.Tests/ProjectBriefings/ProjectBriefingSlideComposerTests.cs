@@ -1923,6 +1923,74 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("OFFICIAL", SlideText(slides[^1]), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(20)]
+    [InlineData(90)]
+    [InlineData(160)]
+    public void Compose_CoverTitleBoxHoldsTheTitleWhateverItsLength(int length)
+    {
+        // Codex review on #3411: a long name must shrink to fit, or keep the height it needs.
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var name = string.Join(" ", Enumerable.Repeat("Simulator", 40))[..length].Trim();
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 882,
+            DeckName = name,
+            IncludeCoverSlide = true,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+            Projects = Array.Empty<ProjectBriefingPresentationProject>(),
+            Summary = new ProjectBriefingPresentationSummary(),
+            Blocks = new[] { new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.Cover, Enabled: true) }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var cover = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.First();
+        var title = ShapeByName(cover, "Cover title");
+        var size = title.Descendants<A.RunProperties>().First().FontSize!.Value / 100d;
+        var width = ShapeWidth(title) / 914400d;
+        var height = ShapeHeight(title) / 914400d;
+        var lines = ProjectManagement.Services.Analytics.Presentation.AnalyticsSlideFrame.LineCount(name.ToUpperInvariant(), width - .20, size * 1.12);
+        Assert.True(lines * size * 1.12 / 72d <= height, $"{lines} lines at {size} pt need more than {height:0.00} in.");
+        Assert.True(ShapeTop(title) / 914400d >= 1.40, "The title stays below the cover's header.");
+    }
+
+    [Fact]
+    public void Compose_InstitutionalProfileWithOneMilestoneExports()
+    {
+        // Codex review on #3411: one milestone gave the timeline rail no width and stopped the export.
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 881,
+            DeckName = "One milestone",
+            IncludeCoverSlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+            Projects = Array.Empty<ProjectBriefingPresentationProject>(),
+            Summary = new ProjectBriefingPresentationSummary(),
+            Blocks = new[] { new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.InstitutionalProfile, Enabled: true) },
+            InstitutionalProfile = new ProjectBriefingInstitutionalProfileData
+            {
+                Title = "SDD – Growth over the years",
+                DataAsOnUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+                HistoryMilestones = new[] { new ProjectBriefingInstitutionalHistoryMilestone(1986, "Conceptualised at MCEME") }
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        ProjectBriefingPresentationIntegrityValidator.Validate(content, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var profile = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts
+            .Single(slide => SlideText(slide).Contains("Growth over the years", StringComparison.Ordinal));
+        Assert.Contains("1986", SlideText(profile), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Compose_PlacesModularInstitutionalProfileAfterCoverWithConfiguredAuthoritativeBreakdowns()
     {
@@ -2644,6 +2712,9 @@ public sealed class ProjectBriefingSlideComposerTests
 
     private static long ShapeWidth(P.Shape shape)
         => shape.ShapeProperties?.Transform2D?.Extents?.Cx?.Value ?? 0L;
+
+    private static long ShapeTop(P.Shape shape)
+        => shape.ShapeProperties?.Transform2D?.Offset?.Y?.Value ?? 0;
 
     private static long ShapeHeight(P.Shape shape)
         => shape.ShapeProperties?.Transform2D?.Extents?.Cy?.Value ?? 0L;

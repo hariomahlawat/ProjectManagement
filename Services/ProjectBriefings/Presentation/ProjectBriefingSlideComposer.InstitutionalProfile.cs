@@ -20,8 +20,10 @@ public sealed partial class ProjectBriefingSlideComposer
         var hasFooterStrip = profile.IncludeFooterStrip
             && (!string.IsNullOrWhiteSpace(profile.FooterStripText)
                 || !string.IsNullOrWhiteSpace(profile.FooterStripEmphasisValue));
-        var modulesTop = hasHistory ? 2.43 : 1.14;
-        var modulesHeight = hasFooterStrip ? 3.34 : 3.72;
+        // The cards run down to the footer (docs/ux/briefing-slides-review.md, step 4); they
+        // stopped about .7 in short of it.
+        var modulesTop = hasHistory ? 2.50 : 1.14;
+        var modulesHeight = (hasFooterStrip ? 6.30 : 6.82) - modulesTop;
 
         if (hasHistory)
         {
@@ -37,9 +39,10 @@ public sealed partial class ProjectBriefingSlideComposer
     }
 
     /// <summary>
-    /// Renders the authorised open alternating timeline as one top-level group.
-    /// Each milestone remains one editable year-and-description text object; no table
-    /// or visible grid is used.
+    /// The history as a journey rail (owner, 17 Nov 2026: "more better and wow"): a heavy rail
+    /// across the slide, each year a solid pill on it and its milestone beneath, all on one side;
+    /// the latest year in gold, where the division stands now. One top-level group; each year and
+    /// milestone stays its own editable text.
     /// </summary>
     private static void RenderInstitutionalHistory(
         SlideCanvas canvas,
@@ -52,88 +55,79 @@ public sealed partial class ProjectBriefingSlideComposer
             .ToArray();
         if (items.Length == 0) return;
 
-        const double left = .82;
-        const double right = 12.52;
-        const double groupTop = 1.08;
-        const double groupHeight = 1.30;
-        const double lineY = 1.68;
+        const double left = .95;
+        const double right = 12.38;
+        const double groupTop = 1.10;
+        const double groupHeight = 1.25;
+        const double railY = 1.40;
+        const double pillHeight = .40;
         var span = right - left;
         var compact = items.Length >= 7;
+        var theme = canvas.Theme;
+        double MarkerX(int index) => items.Length == 1
+            ? (left + right) / 2d
+            : left + ((span * index) / (items.Length - 1));
 
         canvas.AddGroup(
-            left,
+            left - .60,
             groupTop,
-            span,
+            span + 1.20,
             groupHeight,
             "SDD institutional history timeline",
             () =>
             {
-                canvas.AddLine(left, lineY, right, lineY, canvas.Theme.Divider, 1.65);
+                // The rail, and a faint lead-in and run-on beyond the first and last years.
+                canvas.AddRect(left - .55, railY - .02, .55, .04, theme.Divider, name: "SDD timeline lead-in");
+                // One year alone has no span to draw (Codex review on #3411): only the faint rail.
+                if (items.Length > 1)
+                {
+                    canvas.AddRect(MarkerX(0), railY - .035, MarkerX(items.Length - 1) - MarkerX(0), .07, theme.HeaderAccent, name: "SDD timeline rail");
+                }
+                canvas.AddRect(right, railY - .02, .55, .04, theme.Divider, name: "SDD timeline run-on");
 
+                var cellWidth = Math.Min(compact ? 1.50 : 1.85, (span / Math.Max(1, items.Length - 1)) - .06);
                 for (var index = 0; index < items.Length; index++)
                 {
                     var item = items[index];
-                    var above = index % 2 == 0;
-                    var markerX = items.Length == 1
-                        ? (left + right) / 2d
-                        : left + ((span * index) / (items.Length - 1));
-                    var cellWidth = Math.Min(
-                        compact ? 1.48 : 1.78,
-                        Math.Max(1.24, (span / items.Length) - .05));
-                    var textX = Math.Clamp(markerX - (cellWidth / 2d), left, right - cellWidth);
-                    var textY = above ? 1.00 : 1.78;
-                    var description = Truncate(item.Text, compact ? 36 : 50);
-
-                    canvas.AddRichTextBox(
-                        textX,
-                        textY,
-                        cellWidth,
-                        .57,
-                        new[]
-                        {
-                            new RichTextParagraph(
-                                new[]
-                                {
-                                    new RichTextRun(
-                                        item.Year.ToString(CultureInfo.InvariantCulture),
-                                        compact ? 11.2 : 12.8,
-                                        canvas.Theme.HeaderAccent,
-                                        Bold: true)
-                                },
-                                Align: "ctr",
-                                SpaceAfterPoints: 2.2,
-                                LineSpacingPoints: compact ? 11.8 : 13.2),
-                            new RichTextParagraph(
-                                new[]
-                                {
-                                    new RichTextRun(
-                                        description,
-                                        compact ? 9.2 : 10.4,
-                                        canvas.Theme.TextPrimary,
-                                        Bold: true)
-                                },
-                                Align: "ctr",
-                                LineSpacingPoints: compact ? 10.0 : 11.3)
-                        },
-                        $"SDD milestone {item.Year}",
-                        verticalAnchor: above ? "b" : "t",
-                        allowAutoFit: true,
-                        leftInset: .02,
-                        rightInset: .02,
-                        topInset: .01,
-                        bottomInset: .01);
-
+                    var latest = index == items.Length - 1;
+                    var markerX = MarkerX(index);
+                    var pillWidth = latest ? 1.00 : .88;
+                    var pillFill = latest ? theme.Warning : theme.HeaderAccent;
+                    var pillText = latest ? theme.Canvas : theme.TextOnAccent;
+                    canvas.AddRoundedRect(
+                        markerX - (pillWidth / 2d),
+                        railY - (pillHeight / 2d),
+                        pillWidth,
+                        pillHeight,
+                        pillFill,
+                        theme.Canvas,
+                        .5,
+                        $"SDD milestone pill {item.Year}");
                     canvas.AddText(
-                        markerX - .115,
-                        lineY - .135,
-                        .23,
-                        .27,
-                        "●",
-                        12.8,
-                        canvas.Theme.Warning,
+                        markerX - (pillWidth / 2d),
+                        railY - (pillHeight / 2d),
+                        pillWidth,
+                        pillHeight,
+                        item.Year.ToString(CultureInfo.InvariantCulture),
+                        latest ? 15 : 14,
+                        pillText,
                         true,
                         "ctr",
-                        name: $"SDD milestone marker {item.Year}");
+                        name: $"SDD milestone year {item.Year}");
+
+                    var textX = Math.Clamp(markerX - (cellWidth / 2d), left - .55, right + .55 - cellWidth);
+                    canvas.AddText(
+                        textX,
+                        railY + (pillHeight / 2d) + .06,
+                        cellWidth,
+                        .58,
+                        Truncate(item.Text, compact ? 40 : 54),
+                        compact ? 11 : 12.5,
+                        latest ? theme.Warning : theme.TextPrimary,
+                        true,
+                        "ctr",
+                        "t",
+                        name: $"SDD milestone {item.Year}");
                 }
             });
     }
@@ -189,11 +183,12 @@ public sealed partial class ProjectBriefingSlideComposer
         var hasHeadline = !string.IsNullOrWhiteSpace(module.Headline);
         var hasHighlight = !string.IsNullOrWhiteSpace(module.Highlight);
         var compact = width < 2.45;
-        var titleFont = compact ? 10.0 : 10.8;
-        var bodyFont = compact ? 9.6 : 10.2;
-        var valueFont = compact ? 9.9 : 10.5;
-        var headlineFont = compact ? 22.0 : 23.5;
-        const double headerHeight = .60;
+        // Larger throughout (step 4): the cards had a third of their height empty.
+        var titleFont = compact ? 11.0 : 12.0;
+        var bodyFont = compact ? 11.5 : 13.0;
+        var valueFont = compact ? 12.0 : 13.5;
+        var headlineFont = compact ? 28.0 : 34.0;
+        const double headerHeight = .62;
         var highlightHeight = hasHighlight ? .54 : 0d;
         var displayTitle = InstitutionalModuleDisplayTitle(module.Module, module.Title);
 
@@ -235,7 +230,7 @@ public sealed partial class ProjectBriefingSlideComposer
                     headerHeight - .05,
                     displayTitle,
                     titleFont,
-                    accent,
+                    canvas.Theme.IsDark ? canvas.Theme.TextPrimary : accent,
                     true,
                     "ctr",
                     name: $"{module.Title} module title");
@@ -252,11 +247,11 @@ public sealed partial class ProjectBriefingSlideComposer
                             {
                                 new RichTextRun(
                                     $"• {Truncate(row.Label, compact ? 31 : 40)}",
-                                    compact ? 10.0 : 10.7,
+                                    compact ? 11.5 : 12.5,
                                     canvas.Theme.TextSecondary)
                             },
                             SpaceAfterPoints: compact ? 12.0 : 14.0,
-                            LineSpacingPoints: compact ? 11.0 : 11.8))
+                            LineSpacingPoints: compact ? 13.0 : 14.5))
                         .ToArray();
 
                     if (partnershipParagraphs.Length > 0)
@@ -285,20 +280,20 @@ public sealed partial class ProjectBriefingSlideComposer
                         x + .12,
                         contentTop,
                         width - .24,
-                        .50,
+                        .62,
                         module.Headline!,
                         headlineFont,
                         canvas.Theme.TextPrimary,
                         true,
                         "ctr",
                         name: $"{module.Title} module headline");
-                    contentTop += .54;
+                    contentTop += .70;
                 }
 
                 var availableBodyHeight = Math.Max(.42, contentBottom - contentTop);
                 var rowPitch = hasHighlight
-                    ? compact ? .265 : .29
-                    : compact ? .31 : .35;
+                    ? compact ? .31 : .36
+                    : compact ? .34 : .40;
                 var maximumRows = Math.Max(1, (int)Math.Floor(availableBodyHeight / rowPitch));
                 var visibleRows = rows.Take(maximumRows).ToArray();
                 var isSparse = visibleRows.Length <= 3;
@@ -315,8 +310,8 @@ public sealed partial class ProjectBriefingSlideComposer
                                 canvas.Theme.TextSecondary)
                         },
                         Align: "l",
-                        SpaceAfterPoints: isSparse ? 16.0 : compact ? 6.0 : 7.0,
-                        LineSpacingPoints: compact ? 10.6 : 11.2));
+                        SpaceAfterPoints: isSparse ? 18.0 : compact ? 7.0 : 9.0,
+                        LineSpacingPoints: compact ? 13.0 : 15.0));
                     values.Add(new RichTextParagraph(
                         new[]
                         {
@@ -327,8 +322,8 @@ public sealed partial class ProjectBriefingSlideComposer
                                 Bold: true)
                         },
                         Align: "r",
-                        SpaceAfterPoints: isSparse ? 16.0 : compact ? 6.0 : 7.0,
-                        LineSpacingPoints: compact ? 10.6 : 11.2));
+                        SpaceAfterPoints: isSparse ? 18.0 : compact ? 7.0 : 9.0,
+                        LineSpacingPoints: compact ? 13.0 : 15.0));
                 }
 
                 if (labels.Count > 0)
@@ -382,7 +377,7 @@ public sealed partial class ProjectBriefingSlideComposer
                         width - .30,
                         .43,
                         FormatInstitutionalHighlight(module.Highlight, compact ? 76 : 92),
-                        compact ? 8.6 : 9.2,
+                        compact ? 10.0 : 11.0,
                         highlightText,
                         true,
                         "l",
@@ -422,7 +417,7 @@ public sealed partial class ProjectBriefingSlideComposer
         SlideCanvas canvas,
         ProjectBriefingInstitutionalProfileData profile)
     {
-        const double y = 6.14;
+        const double y = 6.45;
         const double height = .35;
         var theme = canvas.Theme;
 
