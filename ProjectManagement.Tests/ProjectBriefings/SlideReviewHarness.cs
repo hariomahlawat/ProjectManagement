@@ -140,6 +140,7 @@ public sealed class SlideReviewHarness
             });
             Set(light, nameof(ProjectBriefingPresentationData.Blocks), new[]
             {
+                new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.Cover, Enabled: true),
                 new ProjectBriefingDeckBlock(ProjectBriefingDeckBlockType.FfcGlobalFootprint, Enabled: true)
             });
             await File.WriteAllBytesAsync(Path.Combine(output, "FfcLight.pptx"), composer.ComposeWithOutline(light).Content);

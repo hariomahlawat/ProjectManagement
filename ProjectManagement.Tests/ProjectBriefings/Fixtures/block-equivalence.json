@@ -23,7 +23,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/CapabilityOverview/order1/v1/c1p1s0t1pc1tc0r0/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||A6F6D28A82B1F5CB",
     "RoleCharter|||E2D0C96A603F8A8F",
     "CategorySummary|||6FDB0E7269A55863",
@@ -33,7 +33,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/CapabilityOverview/order1/v2/c1p0s0t1pc0tc0r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||E6AB4362425DA1FD",
     "RoleCharter|||C5EF21121184FBF7",
     "StatusTable||3,2,1,4|D95B6062F81FD548",
@@ -42,7 +42,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/CapabilityOverview/order2/v0/c1p1s0t0pc0tc0r0/ProjectBriefSlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||6196176B068C1A71",
     "InstitutionalProfile|||849A5650035FC0C6",
     "StatusTable||3,2,1,4|D95B6062F81FD548",
@@ -78,7 +78,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/ProjectBrief/order0/v2/c1p0s0t1pc0tc0r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "StatusTable||3,2,1,4|9F7F3F4F7C7E96C4",
     "Closing|||D9E1BB7222C5872E"
   ],
@@ -110,7 +110,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/ProjectBrief/order2/v0/c1p0s1t0pc1tc1r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||8FEA27D082840B29",
     "InstitutionalProfile|||5DBA04C227F39E0B",
     "StageDistribution|||B803D9F97AD021CF",
@@ -122,7 +122,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/ProjectBrief/order2/v1/c1p0s0t1pc0tc1r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||3B024690D7802DB8",
     "InstitutionalProfile|||08416D90C29AF0EA",
     "CategorySummary|||F494D37637A2C5DF",
@@ -132,7 +132,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/ProjectBrief/order2/v2/c1p1s1t1pc1tc1r1/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||8FEA27D082840B29",
     "InstitutionalProfile|||5DBA04C227F39E0B",
     "StageDistribution|||B803D9F97AD021CF",
@@ -144,12 +144,12 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/Both/order0/v0/c1p1s0t1pc0tc0r0/ProjectBriefSlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "StatusTable||3,2,1,4|9F7F3F4F7C7E96C4",
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/Both/order0/v1/c1p0s0t1pc1tc1r1/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "CategorySummary|||EBB60F98AD0ED083",
     "StatusTable||3,2,1,4|6235963F05E63498",
     "Closing|||D9E1BB7222C5872E"
@@ -173,7 +173,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/Both/order1/v1/c1p1s1t1pc1tc1r1/ProjectBriefSlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||0FD769B59B552878",
     "RoleCharter|||169089A19967AF7A",
     "StageDistribution|||B803D9F97AD021CF",
@@ -195,7 +195,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/Both/order2/v0/c1p0s1t0pc0tc0r0/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||21CBEF5877E35F48",
     "InstitutionalProfile|||F952EE27A5A6AB6E",
     "StageDistribution|||C4422026AFFCE2C0",
@@ -206,7 +206,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/ExecutiveTable/Both/order2/v1/c1p0s0t1pc0tc0r0/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||6196176B068C1A71",
     "InstitutionalProfile|||849A5650035FC0C6",
     "StatusTable||3,2,1,4|D95B6062F81FD548",
@@ -224,7 +224,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/CapabilityOverview/order0/v0/c1p0s0t1pc1tc1r0/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "CategorySummary|||80BAB060F5685D3D",
     "ProjectCapability|3||A1C9AC48A98FA561",
     "ProjectCapability|2||F1E550CBC6D5097D",
@@ -245,7 +245,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/CapabilityOverview/order0/v2/c1p1s0t0pc1tc1r0/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "CategorySummary|||80BAB060F5685D3D",
     "ProjectCapability|3||A1C9AC48A98FA561",
     "ProjectCapability|2||F1E550CBC6D5097D",
@@ -255,7 +255,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/CapabilityOverview/order1/v0/c1p1s1t0pc0tc0r1/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||C73C8C70D6FCF5EC",
     "RoleCharter|||66F52572D349F55B",
     "StageDistribution|||6AB944DDF9AE45DC",
@@ -270,7 +270,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/CapabilityOverview/order1/v1/c1p1s1t1pc0tc0r0/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||C73C8C70D6FCF5EC",
     "RoleCharter|||66F52572D349F55B",
     "StageDistribution|||6AB944DDF9AE45DC",
@@ -299,7 +299,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/CapabilityOverview/order2/v0/c1p1s0t1pc1tc0r0/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||B676E4D93512B88B",
     "InstitutionalProfile|||F262571B2FB4393A",
     "CategorySummary|||0E196A4FC6828ACB",
@@ -419,7 +419,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/ProjectBrief/order2/v1/c1p0s0t1pc0tc0r0/ProjectBriefSlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||A1A1E8992B70A893",
     "InstitutionalProfile|||BB8310717554A22B",
     "ProjectBrief|3||8DCAE8979B7DF609",
@@ -457,7 +457,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/Both/order0/v1/c1p0s0t1pc1tc0r0/ProjectBriefSlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "CategorySummary|||E4B9FE331853CC84",
     "ProjectCapability|3||B6CBB4BE300D210C",
     "ProjectBrief|3||7A56B6FE3743563C",
@@ -472,7 +472,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/Both/order0/v2/c1p1s1t0pc0tc1r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "StageDistribution|||E7B3D59BC9E1E3B6",
     "StageDistributionList|||D58E4161875AF256",
     "CategorySummary|||3F64BE148A882435",
@@ -505,7 +505,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/Both/order1/v1/c1p1s0t1pc0tc0r0/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||2498639C13373348",
     "RoleCharter|||063DBEE8FFE5A97F",
     "ProjectCapability|3||319AF8E089719387",
@@ -522,7 +522,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/Both/order1/v2/c1p1s0t0pc1tc0r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||2498639C13373348",
     "RoleCharter|||063DBEE8FFE5A97F",
     "CategorySummary|||94CA70DB11AD9F79",
@@ -556,7 +556,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/DetailedProjects/Both/order2/v1/c1p0s0t0pc0tc0r0/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||B297F9F4185FD716",
     "InstitutionalProfile|||85B2B08313DE7650",
     "ProjectCapability|3||319AF8E089719387",
@@ -689,7 +689,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/CapabilityOverview/order2/v2/c1p1s1t0pc1tc0r0/ProjectBriefSlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||B297F9F4185FD716",
     "InstitutionalProfile|||85B2B08313DE7650",
     "StageDistribution|||AD3D8C75C38918D5",
@@ -706,7 +706,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/ProjectBrief/order0/v0/c1p1s1t1pc0tc0r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "StageDistribution|||54B1E67FA5FA6D67",
     "StageDistributionList|||A4217BD67839E1CF",
     "StatusTable||3,2,1,4|012885FB289AC1CA",
@@ -726,7 +726,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/ProjectBrief/order0/v2/c1p0s1t1pc1tc1r1/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "StageDistribution|||54E29616E87BFB92",
     "StageDistributionList|||AFF7BADE91567947",
     "CategorySummary|||8866768C34F4E939",
@@ -738,7 +738,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/ProjectBrief/order1/v0/c1p0s1t1pc0tc1r1/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||4B7BAD1F55CAEB33",
     "RoleCharter|||C82042CF711C3D7F",
     "StageDistribution|||C93918D1CD669B8D",
@@ -837,7 +837,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/Both/order0/v1/c1p0s1t0pc0tc0r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "StageDistribution|||15F78470EF0EF988",
     "StageDistributionList|||F04367DB476EE5F4",
     "StatusTable||3,2,1,4|6490F3C187A08991",
@@ -865,7 +865,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/Both/order1/v0/c1p0s1t1pc1tc1r1/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||8D308289EC6F0741",
     "RoleCharter|||13560F7CFC821036",
     "StageDistribution|||6DE3AA118C0D8F22",
@@ -884,7 +884,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/Both/order1/v1/c1p0s0t1pc1tc0r1/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||2498639C13373348",
     "RoleCharter|||063DBEE8FFE5A97F",
     "CategorySummary|||94CA70DB11AD9F79",
@@ -901,7 +901,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/Both/order1/v2/c1p1s0t1pc0tc0r1/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||4B7BAD1F55CAEB33",
     "RoleCharter|||C82042CF711C3D7F",
     "StatusTable||3,2,1,4|FF89A94ABEE9F2AF",
@@ -917,7 +917,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/Both/order2/v0/c1p0s1t1pc0tc0r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||E226AF53C10B10E3",
     "InstitutionalProfile|||C0B85F8DE4AFD1C9",
     "StageDistribution|||0D2D7DBE90EE7FC9",
@@ -935,7 +935,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/Both/order2/v1/c1p1s1t0pc1tc0r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||1F83AF3792AB7177",
     "InstitutionalProfile|||93E0BA280250519F",
     "StageDistribution|||6DE3AA118C0D8F22",
@@ -954,7 +954,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "StandardBriefing/Combined/Both/order2/v2/c1p0s1t1pc0tc0r0/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||2D178FF71FB8CDD1",
     "InstitutionalProfile|||5B2049826116C58E",
     "StageDistribution|||7E77558C3AE1328C",
@@ -974,7 +974,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "ProjectUpdateSheet/Combined/ProjectBrief/order0/v0/c1p1s1t0pc0tc1r0/CapabilitySlide": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "ProjectUpdateSheet|3||7B3C4E297A0BFBBF",
     "ProjectUpdateSheet|2||1DC1064E467073F9",
     "ProjectUpdateSheet|1||140F78215D8EBE38",
@@ -982,7 +982,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "ProjectUpdateSheet/Combined/ProjectBrief/order0/v1/c1p1s1t0pc0tc0r0/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "ProjectUpdateSheet|3||7B3C4E297A0BFBBF",
     "ProjectUpdateSheet|2||1DC1064E467073F9",
     "ProjectUpdateSheet|1||140F78215D8EBE38",
@@ -1019,7 +1019,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "ProjectUpdateSheet/Combined/ProjectBrief/order1/v2/c1p1s0t0pc0tc0r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "InstitutionalProfile|||0FD769B59B552878",
     "RoleCharter|||169089A19967AF7A",
     "ProjectUpdateSheet|2||923F9421AF4284CF",
@@ -1053,7 +1053,7 @@
     "Closing|||D9E1BB7222C5872E"
   ],
   "ProjectUpdateSheet/Combined/ProjectBrief/order2/v2/c1p1s0t0pc0tc1r1/None": [
-    "Cover|||A37E9DF71DB4809F",
+    "Cover|||2BCC527BF28CAB67",
     "RoleCharter|||8FEA27D082840B29",
     "InstitutionalProfile|||5DBA04C227F39E0B",
     "ProjectUpdateSheet|2||923F9421AF4284CF",

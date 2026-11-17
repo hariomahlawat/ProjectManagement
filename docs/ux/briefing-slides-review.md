@@ -134,9 +134,10 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    Installed, Delivered, Planned and Total. Official names show their short form ("Tanzania").
    The editor's layout and row-count choices are retired (kept as saved, hidden); the separate
    country-wise breakdown slide still works for decks that use it.
-   Cover: a small label, the title up to 48 pt (two lines at most) around the middle of the
-   slide, an accent rule and the description at 20 pt; the figures at 40 pt in a panel with
-   dividers; "As of" the date at the foot. SDD profile (owner, 17 Nov: the timeline "more better
+   Cover (owner, 17 Nov, second pass): no figures. The division's own logo (sdd.png) large and
+   centred, "SIMULATOR DEVELOPMENT DIVISION" as the largest text (44 pt), an accent rule, the
+   deck's name as typed (28 pt down to 18 pt, two lines), the deck's description as an optional
+   occasion or presenter line, and the date written in full; a handling marking at top and foot. SDD profile (owner, 17 Nov: the timeline "more better
    and wow"): the history as a journey rail, each year a solid pill on a heavy rail with its
    milestone beneath, the latest year in gold; the cards' text larger (34 pt headlines, 13 pt
    rows), their titles white on the dark theme, and the cards running down to the footer.
