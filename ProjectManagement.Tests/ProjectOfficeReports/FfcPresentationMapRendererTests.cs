@@ -97,8 +97,28 @@ public sealed class FfcPresentationMapRendererTests
     [InlineData("Tanzania, United Republic of", "Tanzania")]
     [InlineData("  Iran, Islamic Republic of ", "Iran")]
     [InlineData("Sri Lanka", "Sri Lanka")]
-    public void ShortCountryName_ShowsThePartBeforeTheComma(string name, string expected)
+    [InlineData("Korea, Republic of", "South Korea")]
+    [InlineData("Korea, Democratic People's Republic of", "North Korea")]
+    [InlineData("Congo, Democratic Republic of the", "DR Congo")]
+    [InlineData("Congo", "Congo")]
+    public void ShortCountryName_ShowsTheEverydayName(string name, string expected)
         => Assert.Equal(expected, FfcPresentationMapRenderer.ShortCountryName(name));
+
+    [Fact]
+    public void ShortCountryNames_NeverGivesTwoCountriesOneName()
+    {
+        // Codex review on #3410: the Congos and the Koreas stay apart; any other clash keeps the
+        // full names.
+        Assert.Equal(
+            new[] { "Congo", "DR Congo", "South Korea", "North Korea" },
+            FfcPresentationMapRenderer.ShortCountryNames(new[]
+            {
+                "Congo", "Congo, Democratic Republic of the", "Korea, Republic of", "Korea, Democratic People's Republic of"
+            }));
+        Assert.Equal(
+            new[] { "Ruritania, Kingdom of", "Ruritania, Republic of", "Ethiopia" },
+            FfcPresentationMapRenderer.ShortCountryNames(new[] { "Ruritania, Kingdom of", "Ruritania, Republic of", "Ethiopia" }));
+    }
 
     [Fact]
     public void BuildLegendRanges_CreatesFourBalancedBandsForCurrentPortfolioMaximum()

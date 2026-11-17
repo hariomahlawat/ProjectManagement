@@ -202,15 +202,63 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         return encoded.ToArray();
     }
 
+    // Everyday names for the official forms in the country list (Data/Seed/iso3166.json), chosen
+    // so that no two countries share one: the Koreas and the Congos keep what tells them apart
+    // (Codex review on #3410).
+    private static readonly IReadOnlyDictionary<string, string> EverydayCountryNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Bolivia, Plurinational State of"] = "Bolivia",
+            ["Bonaire, Sint Eustatius and Saba"] = "Bonaire",
+            ["Congo, Democratic Republic of the"] = "DR Congo",
+            ["Iran, Islamic Republic of"] = "Iran",
+            ["Korea, Democratic People's Republic of"] = "North Korea",
+            ["Korea, Republic of"] = "South Korea",
+            ["Micronesia, Federated States of"] = "Micronesia",
+            ["Moldova, Republic of"] = "Moldova",
+            ["Netherlands, Kingdom of the"] = "Netherlands",
+            ["Palestine, State of"] = "Palestine",
+            ["Saint Helena, Ascension and Tristan da Cunha"] = "Saint Helena",
+            ["Taiwan, Province of China"] = "Taiwan",
+            ["Tanzania, United Republic of"] = "Tanzania",
+            ["Venezuela, Bolivarian Republic of"] = "Venezuela"
+        };
+
     /// <summary>
-    /// A country's everyday name for a slide: an official form such as "Tanzania, United Republic
-    /// of" or "Iran, Islamic Republic of" is shown as the part before the comma.
+    /// A country's everyday name for a slide: "Tanzania" for "Tanzania, United Republic of",
+    /// "South Korea" for "Korea, Republic of". Another official form shows the part before its
+    /// comma.
     /// </summary>
     public static string ShortCountryName(string name)
     {
         var trimmed = (name ?? string.Empty).Trim();
+        if (EverydayCountryNames.TryGetValue(trimmed, out var everyday))
+        {
+            return everyday;
+        }
+
         var comma = trimmed.IndexOf(',', StringComparison.Ordinal);
         return comma > 0 ? trimmed[..comma].Trim() : trimmed;
+    }
+
+    /// <summary>
+    /// Everyday names for countries shown together; any two that would still read the same keep
+    /// their full names, so every column and label names one country.
+    /// </summary>
+    public static IReadOnlyList<string> ShortCountryNames(IReadOnlyList<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        var full = names.Select(name => (name ?? string.Empty).Trim()).ToArray();
+        var shortNames = full.Select(ShortCountryName).ToArray();
+        var clashing = shortNames
+            .Select((value, index) => (Short: value, Full: full[index]))
+            .GroupBy(entry => entry.Short, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Select(entry => entry.Full).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return shortNames
+            .Select((value, index) => clashing.Contains(value) ? full[index] : value)
+            .ToArray();
     }
 
     // Four steps of the accent by quantity, as the standard map's legend bands.
@@ -254,6 +302,14 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         using var leader = new SKPaint { Color = palette.Leader, Style = SKPaintStyle.Stroke, StrokeWidth = 1.6f, IsAntialias = true };
         var labelFrame = new SKRect(frame.Left + 8, frame.Top + 8, frame.Right - 8, frame.Bottom - 8);
 
+        var isoCodes = activeByIso.Keys.ToArray();
+        var shortNames = ShortCountryNames(isoCodes
+            .Select(iso => string.IsNullOrWhiteSpace(activeByIso[iso].CountryName) ? iso : activeByIso[iso].CountryName)
+            .ToArray());
+        var labelNames = isoCodes
+            .Select((iso, index) => (Iso: iso, Name: shortNames[index]))
+            .ToDictionary(entry => entry.Iso, entry => entry.Name, StringComparer.OrdinalIgnoreCase);
+
         var occupied = new List<SKRect>();
         foreach (var feature in activeFeatures
                      .OrderByDescending(feature => activeByIso[feature.Iso3].TotalUnits)
@@ -261,7 +317,7 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
                      .Take(24))
         {
             var country = activeByIso[feature.Iso3];
-            var name = string.IsNullOrWhiteSpace(country.CountryName) ? feature.Iso3 : ShortCountryName(country.CountryName);
+            var name = labelNames[feature.Iso3];
             var quantity = country.TotalUnits.ToString(CultureInfo.InvariantCulture);
             var nameWidth = namePaint.MeasureText(name);
             var gap = textSize * .38f;

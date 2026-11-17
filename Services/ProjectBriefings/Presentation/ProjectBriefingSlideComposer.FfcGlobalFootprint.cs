@@ -196,10 +196,13 @@ public sealed partial class ProjectBriefingSlideComposer
             .OrderByDescending(country => country.TotalUnits)
             .ThenBy(country => country.CountryName, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var names = ProjectManagement.Services.Ffc.Presentation.FfcPresentationMapRenderer.ShortCountryNames(
+            ordered.Select(country => string.IsNullOrWhiteSpace(country.CountryName) ? country.IsoCode : country.CountryName).ToArray());
+        var nameOf = ordered
+            .Select((country, index) => (Country: country, Name: names[index]))
+            .ToDictionary(entry => entry.Country, entry => entry.Name);
         FfcTableColumn Column(ProjectBriefingFfcCountryData country) => new(
-            string.IsNullOrWhiteSpace(country.CountryName)
-                ? country.IsoCode
-                : ProjectManagement.Services.Ffc.Presentation.FfcPresentationMapRenderer.ShortCountryName(country.CountryName),
+            nameOf[country],
             country.InstalledUnits,
             country.DeliveredNotInstalledUnits,
             country.PlannedUnits);
