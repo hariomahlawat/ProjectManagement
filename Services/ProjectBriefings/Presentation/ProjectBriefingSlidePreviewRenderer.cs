@@ -24,6 +24,7 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
     private static readonly XNamespace A = "http://schemas.openxmlformats.org/drawingml/2006/main";
     private static readonly XNamespace P = "http://schemas.openxmlformats.org/presentationml/2006/main";
     private static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    private static readonly XNamespace C = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 
     /// <param name="knownImageKeys">
     /// Image keys the browser already holds from an earlier build. Keys are hashes of the image
@@ -87,6 +88,7 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
             if (element.Name == P + "sp") RenderShape(element, transform, context);
             else if (element.Name == P + "cxnSp") RenderLine(element, transform, context);
             else if (element.Name == P + "pic") RenderPicture(element, transform, context);
+            else if (element.Name == P + "graphicFrame" && element.Descendants(C + "chart").Any()) RenderChart(element, transform, context);
             else if (element.Name == P + "graphicFrame") RenderTable(element, transform, context);
             else if (element.Name == P + "grpSp") RenderGroup(element, transform, context);
         }
@@ -176,6 +178,73 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
         var description = (string?)picture.Element(P + "nvPicPr")?.Element(P + "cNvPr")?.Attribute("descr") ?? string.Empty;
         context.Html.Append(
             $"<img class=\"pbd-slide-picture\" style=\"{FrameStyle(frame.Value)}\" alt=\"{Encode(description)}\" data-pbd-preview-image=\"{key}\" />");
+    }
+
+    // A doughnut chart (the category slides) as an SVG ring: its slices from the chart's cached
+    // values and colours, starting at the top and running clockwise, as PowerPoint draws it. Other
+    // chart kinds are skipped.
+    private static void RenderChart(XElement graphicFrame, Transform transform, RenderContext context)
+    {
+        var frame = ReadFrame(graphicFrame.Element(P + "xfrm"), transform);
+        var relationshipId = (string?)graphicFrame.Descendants(C + "chart").First().Attribute(R + "id");
+        if (frame is null || relationshipId is null) return;
+        var doughnut = context.Chart(relationshipId)?.Descendants(C + "doughnutChart").FirstOrDefault();
+        var series = doughnut?.Element(C + "ser");
+        if (doughnut is null || series is null) return;
+
+        var values = series.Element(C + "val")?.Descendants(C + "pt")
+            .Select(point => ((int?)point.Attribute("idx") ?? -1, double.TryParse((string?)point.Element(C + "v"), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? Math.Max(0, value) : 0))
+            .Where(point => point.Item1 >= 0)
+            .OrderBy(point => point.Item1)
+            .ToArray() ?? Array.Empty<(int, double)>();
+        var total = values.Sum(point => point.Item2);
+        if (total <= 0) return;
+
+        var colors = series.Elements(C + "dPt").ToDictionary(
+            point => (int?)point.Element(C + "idx")?.Attribute("val") ?? -1,
+            point => SolidColor(point.Element(C + "spPr")) ?? "9AA3B2");
+        var gap = series.Elements(C + "dPt").Select(point => SolidColor(point.Element(C + "spPr")?.Element(A + "ln"))).FirstOrDefault(color => color is not null) ?? "FFFFFF";
+        var hole = Math.Clamp((int?)doughnut.Element(C + "holeSize")?.Attribute("val") ?? 50, 10, 90) / 100d;
+
+        var size = Math.Min(frame.Value.Width, frame.Value.Height);
+        var centre = size / 2d;
+        var outer = centre - 1;
+        var inner = outer * hole;
+        var html = context.Html;
+        html.Append(CultureInfo.InvariantCulture,
+            $"<svg class=\"pbd-slide-chart\" style=\"position:absolute;left:{N(frame.Value.X)}px;top:{N(frame.Value.Y)}px\" width=\"{N(size)}\" height=\"{N(size)}\" aria-hidden=\"true\">");
+        var start = 0d;
+        foreach (var (index, value) in values)
+        {
+            var sweep = value / total;
+            if (sweep <= 0) continue;
+            var color = colors.TryGetValue(index, out var found) ? found : "9AA3B2";
+            if (sweep >= .9999)
+            {
+                html.Append(CultureInfo.InvariantCulture,
+                    $"<circle cx=\"{N(centre)}\" cy=\"{N(centre)}\" r=\"{N((outer + inner) / 2d)}\" fill=\"none\" stroke=\"#{color}\" stroke-width=\"{N(outer - inner)}\"/>");
+                break;
+            }
+
+            var end = start + sweep;
+            var large = sweep > .5 ? 1 : 0;
+            var (x0, y0) = Polar(centre, outer, start);
+            var (x1, y1) = Polar(centre, outer, end);
+            var (x2, y2) = Polar(centre, inner, end);
+            var (x3, y3) = Polar(centre, inner, start);
+            html.Append(CultureInfo.InvariantCulture,
+                $"<path d=\"M{N(x0)} {N(y0)}A{N(outer)} {N(outer)} 0 {large} 1 {N(x1)} {N(y1)}L{N(x2)} {N(y2)}A{N(inner)} {N(inner)} 0 {large} 0 {N(x3)} {N(y3)}Z\" fill=\"#{color}\" stroke=\"#{gap}\" stroke-width=\"2\"/>");
+            start = end;
+        }
+
+        html.Append("</svg>");
+    }
+
+    // A point on a circle a share of the way round, clockwise from the top.
+    private static (double X, double Y) Polar(double centre, double radius, double share)
+    {
+        var angle = (share * 2 * Math.PI) - (Math.PI / 2);
+        return (centre + (radius * Math.Cos(angle)), centre + (radius * Math.Sin(angle)));
     }
 
     private static void RenderTable(XElement graphicFrame, Transform transform, RenderContext context)
@@ -447,6 +516,14 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
         }
 
         public StringBuilder Html { get; }
+
+        // The chart part a graphic frame points at, as XML (the composer's own doughnut charts).
+        public XDocument? Chart(string relationshipId)
+        {
+            if (!_slidePart.TryGetPartById(relationshipId, out var part) || part is not ChartPart chartPart) return null;
+            using var stream = chartPart.GetStream(FileMode.Open, FileAccess.Read);
+            return XDocument.Load(stream);
+        }
 
         // Pictures repeat across slides (insignia on every header), so each distinct picture is
         // shrunk once and shipped once, keyed by a hash of its original bytes.

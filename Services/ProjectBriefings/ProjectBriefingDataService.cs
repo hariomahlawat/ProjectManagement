@@ -1161,19 +1161,13 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             .Select(project => project.ProjectCategory ?? "Not categorised")
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
-        if (includeProjectCategorySummary)
-        {
-            summarySlides += ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(projectCategoryCount);
-        }
-
         var technicalCategoryCount = projects
             .Select(project => project.TechnicalCategory ?? "Not categorised")
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
-        if (includeTechnicalCategorySummary)
-        {
-            summarySlides += ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(technicalCategoryCount);
-        }
+        summarySlides += ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(
+            includeProjectCategorySummary && ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(projectCategoryCount),
+            includeTechnicalCategorySummary && ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(technicalCategoryCount));
 
         var executiveSlides = presentationMode is ProjectBriefingPresentationMode.ExecutiveTable
             or ProjectBriefingPresentationMode.Combined

@@ -7,6 +7,7 @@ using ProjectManagement.Services.ProjectBriefings;
 using ProjectManagement.Services.ProjectBriefings.Presentation;
 using Xunit;
 using A = DocumentFormat.OpenXml.Drawing;
+using C = DocumentFormat.OpenXml.Drawing.Charts;
 using P = DocumentFormat.OpenXml.Presentation;
 
 namespace ProjectManagement.Tests.ProjectBriefings;
@@ -14,28 +15,12 @@ namespace ProjectManagement.Tests.ProjectBriefings;
 public sealed class ProjectBriefingExecutiveSummaryTests
 {
     [Theory]
-    [InlineData(0, 0)]
-    [InlineData(1, 0)]
-    [InlineData(2, 1)]
-    [InlineData(12, 1)]
-    [InlineData(13, 2)]
-    [InlineData(25, 3)]
-    public void EstimateCategorySlideCount_UsesSharedRules(int categories, int expected)
-        => Assert.Equal(expected, ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(categories));
-
-    [Fact]
-    public void PaginateCategories_BalancesThirteenAsSevenAndSix()
-    {
-        var points = Enumerable.Range(1, 13)
-            .Select(index => new ProjectBriefingSummaryPoint($"Category {index:00}", 14 - index))
-            .ToArray();
-
-        var pages = ProjectBriefingSummaryPlanning.PaginateCategories(points);
-
-        Assert.Equal(2, pages.Count);
-        Assert.Equal(7, pages[0].Count);
-        Assert.Equal(6, pages[1].Count);
-    }
+    [InlineData(false, false, 0)]
+    [InlineData(true, false, 1)]
+    [InlineData(false, true, 1)]
+    [InlineData(true, true, 1)]
+    public void EstimateCategorySlideCount_IsOneDonutSlideForEitherOrBoth(bool project, bool technical, int expected)
+        => Assert.Equal(expected, ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(project, technical));
 
     [Fact]
     public void Compose_LeavesProliferationOffAnOngoingProjectWithNone()
@@ -229,9 +214,8 @@ public sealed class ProjectBriefingExecutiveSummaryTests
     }
 
     [Fact]
-    public void Compose_RendersFourCategoryRankedDistribution()
+    public void Compose_DrawsACategoryDistributionAsANativeDoughnutWithItsFigures()
     {
-        var composer = CreateComposer();
         var points = new[]
         {
             new ProjectBriefingSummaryPoint("Other R&D Projects", 8),
@@ -241,17 +225,87 @@ public sealed class ProjectBriefingExecutiveSummaryTests
         };
         var data = BuildData(includeProjectCategorySummary: true, projectCategories: points);
 
-        var (content, _) = composer.Compose(data);
+        var (content, slideCount) = CreateComposer().Compose(data);
 
+        ProjectBriefingPresentationIntegrityValidator.Validate(content, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart)
             .SlideParts.Where(part => SlideText(part).Contains("Project-category distribution", StringComparison.Ordinal)));
-        Assert.Contains("2 SELECTED PROJECTS · 4 CATEGORIES", SlideText(slide), StringComparison.Ordinal);
-        Assert.Equal(4, slide.Slide.Descendants<P.Shape>().Count(shape =>
-            shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value?.EndsWith(
-                "category bar",
-                StringComparison.Ordinal) == true));
+        var text = SlideText(slide);
+        Assert.Contains("21 projects · 4 categories", text, StringComparison.Ordinal);
+        Assert.Contains("is the largest: 8 of 21 projects (38%)", text, StringComparison.Ordinal);
+        Assert.Contains("CoE Short Term", text, StringComparison.Ordinal);
+
+        // A real chart: PowerPoint's Edit Data opens its embedded workbook.
+        var chart = Assert.Single(slide.ChartParts);
+        Assert.NotNull(chart.EmbeddedPackagePart);
+        var doughnut = Assert.Single(chart.ChartSpace!.Descendants<C.DoughnutChart>());
+        var values = doughnut.Descendants<C.NumericPoint>().Select(point => point.NumericValue!.Text).ToArray();
+        Assert.Equal(new[] { "8", "6", "5", "2" }, values);
+        Assert.Equal(4, doughnut.Descendants<C.DataPoint>().Count());
+    }
+
+    [Fact]
+    public void Compose_PutsBothCategoryDistributionsOnOneSlide()
+    {
+        var data = BuildData(
+            includeProjectCategorySummary: true,
+            projectCategories: new[] { new ProjectBriefingSummaryPoint("DCD Projects", 1), new ProjectBriefingSummaryPoint("CoE", 1) },
+            technicalCategories: new[] { new ProjectBriefingSummaryPoint("AR/ VR", 1), new ProjectBriefingSummaryPoint("Drone", 1) });
+
+        var (content, slideCount) = CreateComposer().Compose(data);
+
+        ProjectBriefingPresentationIntegrityValidator.Validate(content, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var slide = Assert.Single(slides.Where(part => part.ChartParts.Any()));
+        Assert.Equal(2, slide.ChartParts.Count());
+        Assert.Contains(ProjectBriefingSlideComposer.CombinedCategoryTitle, SlideText(slide), StringComparison.Ordinal);
+        Assert.DoesNotContain(slides, part => SlideText(part).Contains("Technical-category distribution", StringComparison.Ordinal));
+
+        // The builder's preview draws the rings too.
+        var preview = ProjectBriefingSlidePreviewRenderer.Render(content, DateTimeOffset.UtcNow);
+        var html = Assert.Single(preview.Slides.Where(item => item.Html.Contains("pbd-slide-chart", StringComparison.Ordinal))).Html;
+        Assert.Equal(2, CountOf(html, "class=\"pbd-slide-chart\""));
+        Assert.Equal(4, CountOf(html, "<path "));
+    }
+
+    [Fact]
+    public void Compose_GathersTheSmallestCategoriesBeyondNineSlices()
+    {
+        var points = Enumerable.Range(1, 12)
+            .Select(index => new ProjectBriefingSummaryPoint($"Category {index:00}", 20 - index))
+            .Append(new ProjectBriefingSummaryPoint("Not categorised", 4))
+            .ToArray();
+        var data = BuildData(includeProjectCategorySummary: true, projectCategories: points);
+
+        var (content, _) = CreateComposer().Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.Where(part => part.ChartParts.Any()));
+        var labels = Assert.Single(slide.ChartParts).ChartSpace!
+            .Descendants<C.CategoryAxisData>()
+            .SelectMany(category => category.Descendants<C.StringPoint>())
+            .Select(point => point.NumericValue!.Text)
+            .ToArray();
+        // Seven named categories, the other five together, then the uncategorised last.
+        Assert.Equal(ProjectBriefingSlideComposer.MaximumCategorySlices, labels.Length);
+        Assert.Equal("Other categories (5)", labels[^2]);
+        Assert.Equal("Not categorised", labels[^1]);
+    }
+
+    private static int CountOf(string text, string value)
+    {
+        var count = 0;
+        for (var index = text.IndexOf(value, StringComparison.Ordinal); index >= 0; index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
     }
 
     private static ProjectBriefingSlideComposer CreateComposer()
@@ -262,7 +316,8 @@ public sealed class ProjectBriefingExecutiveSummaryTests
 
     private static ProjectBriefingPresentationData BuildData(
         bool includeProjectCategorySummary = false,
-        IReadOnlyList<ProjectBriefingSummaryPoint>? projectCategories = null)
+        IReadOnlyList<ProjectBriefingSummaryPoint>? projectCategories = null,
+        IReadOnlyList<ProjectBriefingSummaryPoint>? technicalCategories = null)
     {
         var projects = new[]
         {
@@ -304,6 +359,7 @@ public sealed class ProjectBriefingExecutiveSummaryTests
             IncludePortfolioSummarySlide = true,
             IncludeStageSummary = false,
             IncludeProjectCategorySummary = includeProjectCategorySummary,
+            IncludeTechnicalCategorySummary = technicalCategories is not null,
             PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
             NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
             CostMode = ProjectBriefingCostMode.Both,
@@ -318,7 +374,8 @@ public sealed class ProjectBriefingExecutiveSummaryTests
                 CostRdRecordedCount = 2,
                 TotalProliferationCostInRupees = 1_850_000m,
                 ProliferationCostRecordedCount = 1,
-                ProjectCategorySummary = projectCategories ?? Array.Empty<ProjectBriefingSummaryPoint>()
+                ProjectCategorySummary = projectCategories ?? Array.Empty<ProjectBriefingSummaryPoint>(),
+                TechnicalCategorySummary = technicalCategories ?? Array.Empty<ProjectBriefingSummaryPoint>()
             }
         };
     }
