@@ -95,6 +95,18 @@ public sealed class SlideReviewHarness
             Set(variant, nameof(ProjectBriefingPresentationData.Blocks), allBlocks);
             var composition = composer.ComposeWithOutline(variant);
             await File.WriteAllBytesAsync(Path.Combine(output, $"{design}.pptx"), composition.Content);
+            if (design == ProjectBriefingProjectSlideDesign.Brief)
+            {
+                // The builder's preview of the chart slides, to compare with the PowerPoint export.
+                var preview = ProjectBriefingSlidePreviewRenderer.Render(composition.Content, DateTimeOffset.UtcNow);
+                var css = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "wwwroot", "css", "pages", "project-briefing-decks.css"));
+                var charts = preview.Slides.Where(slide => slide.Number is 4 or 60);
+                await File.WriteAllTextAsync(
+                    Path.Combine(output, "BriefPreview.html"),
+                    $"<!doctype html><html><head><meta charset=\"utf-8\"><link rel=\"stylesheet\" href=\"file:///{css.Replace('\\', '/')}\"></head><body style=\"background:#888\">"
+                    + string.Join("<hr>", charts.Select(slide => $"<div class=\"pbd-preview-slide\" style=\"position:relative\">{slide.Html}</div>"))
+                    + "</body></html>");
+            }
         }
 
         // The category slides alone in the light theme: each distribution on its own, then both.

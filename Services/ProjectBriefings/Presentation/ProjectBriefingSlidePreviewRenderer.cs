@@ -217,7 +217,14 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
         var frame = ReadFrame(graphicFrame.Element(P + "xfrm"), transform);
         var relationshipId = (string?)graphicFrame.Descendants(C + "chart").First().Attribute(R + "id");
         if (frame is null || relationshipId is null) return;
-        var doughnut = context.Chart(relationshipId)?.Descendants(C + "doughnutChart").FirstOrDefault();
+        var chart = context.Chart(relationshipId);
+        if (chart?.Descendants(C + "barChart").FirstOrDefault() is { } bars)
+        {
+            RenderStackedColumns(chart, bars, frame.Value, context);
+            return;
+        }
+
+        var doughnut = chart?.Descendants(C + "doughnutChart").FirstOrDefault();
         var series = doughnut?.Element(C + "ser");
         if (doughnut is null || series is null) return;
 
@@ -267,6 +274,98 @@ internal static partial class ProjectBriefingSlidePreviewRenderer
         }
 
         html.Append("</svg>");
+    }
+
+    // A stacked column chart (the stage-wise distribution) as positioned HTML: the grid and its
+    // values, a column per category stacked by series with counts inside, each total above (from
+    // the chart's line series) and the category names below, all within the chart's inner plot.
+    private static void RenderStackedColumns(XDocument chart, XElement bars, Frame frame, RenderContext context)
+    {
+        double Number(XElement? element, string attribute, double fallback)
+            => double.TryParse((string?)element?.Attribute(attribute), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
+        Dictionary<int, double> Points(XElement? series) => series?.Element(C + "val")?.Descendants(C + "pt")
+            .Where(point => (int?)point.Attribute("idx") is >= 0)
+            .ToDictionary(
+                point => (int)point.Attribute("idx")!,
+                point => double.TryParse((string?)point.Element(C + "v"), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : 0)
+            ?? new Dictionary<int, double>();
+        (double Size, string Color, bool Bold) Text(XElement? owner, double size, string color)
+        {
+            var run = owner?.Element(C + "txPr")?.Descendants(A + "defRPr").FirstOrDefault();
+            return (
+                Number(run, "sz", size * 100) / 100d,
+                CleanColor(run?.Descendants(A + "srgbClr").FirstOrDefault()?.Attribute("val")?.Value) ?? color,
+                (string?)run?.Attribute("b") == "1");
+        }
+
+        var layout = chart.Descendants(C + "plotArea").FirstOrDefault()?.Element(C + "layout")?.Element(C + "manualLayout");
+        var plotX = frame.X + (frame.Width * Number(layout?.Element(C + "x"), "val", .08));
+        var plotY = frame.Y + (frame.Height * Number(layout?.Element(C + "y"), "val", .08));
+        var plotWidth = frame.Width * Number(layout?.Element(C + "w"), "val", .88);
+        var plotHeight = frame.Height * Number(layout?.Element(C + "h"), "val", .80);
+        var valueAxis = chart.Descendants(C + "valAx").FirstOrDefault();
+        var categoryAxis = chart.Descendants(C + "catAx").FirstOrDefault();
+        var series = bars.Elements(C + "ser").ToArray();
+        var categories = series.FirstOrDefault()?.Element(C + "cat")?.Descendants(C + "pt")
+            .OrderBy(point => (int?)point.Attribute("idx") ?? 0)
+            .Select(point => (string?)point.Element(C + "v") ?? string.Empty)
+            .ToArray() ?? Array.Empty<string>();
+        if (categories.Length == 0 || series.Length == 0) return;
+
+        var values = series.Select(Points).ToArray();
+        var totals = Points(chart.Descendants(C + "lineChart").FirstOrDefault()?.Element(C + "ser"));
+        var maximum = Number(valueAxis?.Element(C + "scaling")?.Element(C + "max"), "val",
+            Enumerable.Range(0, categories.Length).Max(index => values.Sum(entry => entry.GetValueOrDefault(index))));
+        if (maximum <= 0) return;
+        var step = Number(valueAxis?.Element(C + "majorUnit"), "val", Math.Max(1, Math.Ceiling(maximum / 4)));
+        var gap = Number(bars.Element(C + "gapWidth"), "val", 150) / 100d;
+        var slot = plotWidth / categories.Length;
+        var barWidth = slot / (1 + gap);
+        var html = context.Html;
+        string Label(double left, double top, double width, double height, string text, (double Size, string Color, bool Bold) style, string align = "center")
+            => string.Create(CultureInfo.InvariantCulture,
+                $"<div class=\"pbd-slide-text\" style=\"left:{N(left)}px;top:{N(top)}px;width:{N(width)}px;height:{N(height)}px;justify-content:center;\"><p style=\"text-align:{align};font-size:{N(style.Size * PointToPixel)}px;line-height:{N(height)}px;color:#{style.Color};{(style.Bold ? "font-weight:700;" : string.Empty)}\">{Encode(text)}</p></div>");
+
+        // Grid and values.
+        var gridColor = SolidColor(valueAxis?.Element(C + "majorGridlines")?.Element(C + "spPr")?.Element(A + "ln")) ?? "D7DADE";
+        var valueStyle = Text(valueAxis, 9, "667085");
+        for (var tick = 0d; tick <= maximum + .001; tick += step)
+        {
+            var y = plotY + plotHeight - (plotHeight * tick / maximum);
+            html.Append(CultureInfo.InvariantCulture,
+                $"<div style=\"position:absolute;left:{N(plotX)}px;top:{N(y)}px;width:{N(plotWidth)}px;height:0;border-top:1px solid #{gridColor}\"></div>");
+            html.Append(Label(plotX - 40, y - 9, 34, 18, tick.ToString("0", CultureInfo.InvariantCulture), valueStyle, "right"));
+        }
+
+        // Columns.
+        var categoryStyle = Text(categoryAxis, 10, "4F5661");
+        for (var index = 0; index < categories.Length; index++)
+        {
+            var x = plotX + (index * slot) + ((slot - barWidth) / 2);
+            var stacked = 0d;
+            for (var item = 0; item < series.Length; item++)
+            {
+                var value = values[item].GetValueOrDefault(index);
+                if (value <= 0) continue;
+                var height = plotHeight * value / maximum;
+                var top = plotY + plotHeight - (plotHeight * (stacked + value) / maximum);
+                var color = SolidColor(series[item].Element(C + "spPr")) ?? "9AA3B2";
+                html.Append(CultureInfo.InvariantCulture,
+                    $"<div style=\"position:absolute;left:{N(x)}px;top:{N(top)}px;width:{N(barWidth)}px;height:{N(height)}px;background:#{color}\"></div>");
+                if (height >= 14)
+                {
+                    html.Append(Label(x, top, barWidth, height, value.ToString("0", CultureInfo.InvariantCulture), Text(series[item].Element(C + "dLbls"), 10, "FFFFFF")));
+                }
+
+                stacked += value;
+            }
+
+            var total = totals.TryGetValue(index, out var listed) ? listed : stacked;
+            var totalStyle = Text(chart.Descendants(C + "lineChart").FirstOrDefault()?.Element(C + "ser")?.Element(C + "dLbls"), 11, "191B20");
+            var totalTop = plotY + plotHeight - (plotHeight * total / maximum);
+            html.Append(Label(x - 12, totalTop - 22, barWidth + 24, 20, total.ToString("0", CultureInfo.InvariantCulture), totalStyle));
+            html.Append(Label(plotX + (index * slot), plotY + plotHeight + 4, slot, 20, categories[index], categoryStyle));
+        }
     }
 
     // A point on a circle a share of the way round, clockwise from the top.

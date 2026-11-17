@@ -157,16 +157,11 @@ public sealed partial class ProjectBriefingSlideComposer
         }
 
         var top = AnalyticsSlideFrame.NiceAxisTop(slots.Max(slot => slot.Lines.Count));
-        const double plotHeight = DistributionPlotBottom - DistributionPlotTop;
-        var slotWidths = StageDistributionSlotWidths(slots.Select(slot => slot.Band).ToList());
-        var slotLefts = new double[slots.Count];
-        for (var index = 1; index < slots.Count; index++)
-        {
-            slotLefts[index] = slotLefts[index - 1] + slotWidths[index - 1];
-        }
-        var barWidth = Math.Min(.62, slotWidths.Min() * .58);
+        const double plotWidth = DistributionPlotRight - DistributionPlotLeft;
+        var slotWidth = plotWidth / slots.Count;
 
-        // Bands first, behind the grid and bars: one shape each, its title and count at the foot.
+        // Bands first, behind the chart: one shape each across its stages, its title and count at
+        // the foot. The chart's categories are equal in width, so a band spans its stages' slots.
         foreach (var (band, title) in StageDistributionBands)
         {
             var first = slots.FindIndex(item => item.Band == band);
@@ -177,12 +172,11 @@ public sealed partial class ProjectBriefingSlideComposer
 
             var last = slots.FindLastIndex(item => item.Band == band);
             var count = slots.Where(item => item.Band == band).Sum(item => item.Lines.Count);
-            var width = slotLefts[last] + slotWidths[last] - slotLefts[first] - .06;
             canvas.AddTextShape(
-                DistributionPlotLeft + slotLefts[first] + .03,
-                DistributionPlotTop - .12,
-                width,
-                DistributionPlotBottom - DistributionPlotTop + .78,
+                DistributionPlotLeft + (first * slotWidth) + .03,
+                DistributionPlotTop - .40,
+                ((last - first + 1) * slotWidth) - .06,
+                DistributionPlotBottom - DistributionPlotTop + 1.20,
                 StageDistributionBandFill(canvas, band),
                 null,
                 0,
@@ -205,94 +199,55 @@ public sealed partial class ProjectBriefingSlideComposer
                 bottomInset: .08);
         }
 
-        var step = AnalyticsSlideFrame.AxisStep(top);
-        for (var tick = 0; tick <= top; tick += step)
-        {
-            var y = DistributionPlotBottom - plotHeight * tick / top;
-            canvas.AddLine(DistributionPlotLeft, y, DistributionPlotRight, y, tick == 0 ? canvas.Theme.Divider : canvas.Theme.Border, tick == 0 ? 1 : .5);
-            canvas.AddText(DistributionPlotLeft - .5, y - .12, .42, .24, tick.ToString(CultureInfo.InvariantCulture), 9, canvas.Theme.TextMuted, false, "r", name: "Axis value");
-        }
+        // The chart itself, native (docs/ux/briefing-slides-review.md, step 6): a stacked column
+        // per stage, a series per parent category, the counts inside, the totals above, and the
+        // figures in its workbook. Its inner plot sits exactly on the bands' slots.
+        const double frameLeft = DistributionPlotLeft - .50;
+        const double frameTop = DistributionPlotTop - .38;
+        const double frameRight = DistributionPlotRight + .02;
+        const double frameBottom = DistributionPlotBottom + .36;
+        const double frameWidth = frameRight - frameLeft;
+        const double frameHeight = frameBottom - frameTop;
+        var series = categories
+            .Select(category => new ChartSeries(
+                category,
+                StageDistributionCategoryColor(canvas, category),
+                slots.Select(slot => slot.Lines.Count(line => string.Equals(line.Category, category, StringComparison.OrdinalIgnoreCase))).ToArray()))
+            .Where(entry => entry.Values.Any(value => value > 0))
+            .ToArray();
+        canvas.AddStackedColumnChart(
+            frameLeft,
+            frameTop,
+            frameWidth,
+            frameHeight,
+            ((DistributionPlotLeft - frameLeft) / frameWidth,
+                (DistributionPlotTop - frameTop) / frameHeight,
+                plotWidth / frameWidth,
+                (DistributionPlotBottom - DistributionPlotTop) / frameHeight),
+            slots.Select(slot => slot.Label).ToArray(),
+            series,
+            top,
+            AnalyticsSlideFrame.AxisStep(top),
+            new ChartTextStyle(
+                SegmentSize: 10,
+                // Counts read on the category colour: white on the light theme's strong colours,
+                // the canvas ink on the dark theme's lighter ones.
+                SegmentColor: canvas.Theme.IsDark ? canvas.Theme.Canvas : canvas.Theme.TextOnAccent,
+                TotalSize: 11,
+                TotalColor: canvas.Theme.TextPrimary,
+                CategorySize: slotWidth < .75 ? 8.5 : 10,
+                CategoryColor: canvas.Theme.TextSecondary,
+                ValueSize: 9,
+                ValueColor: canvas.Theme.TextMuted,
+                GridColor: canvas.Theme.Border,
+                AxisColor: canvas.Theme.Divider,
+                GapWidth: (int)Math.Round(Math.Clamp((1 - (Math.Min(.62, slotWidth * .58) / slotWidth)) / (Math.Min(.62, slotWidth * .58) / slotWidth) * 100, 30, 300))),
+            "Stage-wise distribution chart");
 
-        // Counts inside the segments read on the category colour: white on the light theme's strong colours,
-        // the canvas ink on the dark theme's lighter ones.
-        var segmentText = canvas.Theme.IsDark ? canvas.Theme.Canvas : canvas.Theme.TextOnAccent;
-        for (var index = 0; index < slots.Count; index++)
-        {
-            var (_, label, stageLines) = slots[index];
-            var slot = slotWidths[index];
-            var slotLeft = DistributionPlotLeft + slotLefts[index];
-            var x = slotLeft + (slot - barWidth) / 2;
-            var y = DistributionPlotBottom;
-            foreach (var category in categories)
-            {
-                var count = stageLines.Count(line => string.Equals(line.Category, category, StringComparison.OrdinalIgnoreCase));
-                if (count == 0)
-                {
-                    continue;
-                }
-
-                var height = plotHeight * count / top;
-                y -= height;
-                canvas.AddRect(x, y, barWidth, height, StageDistributionCategoryColor(canvas, category), name: $"{label} {category}");
-                if (height >= .24)
-                {
-                    canvas.AddText(x, y, barWidth, height, count.ToString(CultureInfo.InvariantCulture), 10, segmentText, true, "ctr", name: $"{label} {category} count");
-                }
-            }
-
-            canvas.AddText(x - .2, y - .28, barWidth + .4, .26, stageLines.Count.ToString(CultureInfo.InvariantCulture), 11, canvas.Theme.TextPrimary, true, "ctr", name: $"{label} total");
-            canvas.AddText(slotLeft, DistributionPlotBottom + .05, slot, .26, label, slot < .75 ? 8.5 : 10, canvas.Theme.TextSecondary, false, "ctr", name: $"{label} stage");
-        }
-
-        AddStageDistributionLegend(canvas, categories, lines, 6.55);
+        AddStageDistributionLegend(canvas, categories, lines, 6.62);
     }
 
     private const double BandTitleSize = 11;
-
-    /// <summary>
-    /// Each stage gets an equal slot, except that a band too narrow for its title and count on one line (a
-    /// one-stage Completed or Under development band) is widened to fit, and the other slots share the rest.
-    /// </summary>
-    private static double[] StageDistributionSlotWidths(IReadOnlyList<ArppProgressBucket> slotBands)
-    {
-        const double plotWidth = DistributionPlotRight - DistributionPlotLeft;
-        var bands = slotBands.Distinct().ToList();
-        var minimum = bands.ToDictionary(
-            band => band,
-            band => AnalyticsSlideFrame.TextWidth($"{StageDistributionBands.First(item => item.Band == band).Title} · 000", BandTitleSize) + .2);
-        var fixedWidth = new Dictionary<ArppProgressBucket, double>();
-        for (var pass = 0; pass < bands.Count; pass++)
-        {
-            var freeSlots = slotBands.Count(band => !fixedWidth.ContainsKey(band));
-            if (freeSlots == 0)
-            {
-                break;
-            }
-
-            var unit = (plotWidth - fixedWidth.Values.Sum()) / freeSlots;
-            var widened = bands
-                .Where(band => !fixedWidth.ContainsKey(band) && slotBands.Count(item => item == band) * unit < minimum[band])
-                .ToList();
-            if (widened.Count == 0)
-            {
-                break;
-            }
-
-            foreach (var band in widened)
-            {
-                fixedWidth[band] = minimum[band];
-            }
-        }
-
-        var free = slotBands.Count(band => !fixedWidth.ContainsKey(band));
-        var shared = free == 0 ? 0 : (plotWidth - fixedWidth.Values.Sum()) / free;
-        var widths = slotBands
-            .Select(band => fixedWidth.TryGetValue(band, out var width) ? width / slotBands.Count(item => item == band) : shared)
-            .ToArray();
-        // Never wider than the plot: when the widened bands alone overfill it, scale every slot back to fit.
-        var total = widths.Sum();
-        return total > plotWidth ? widths.Select(width => width * plotWidth / total).ToArray() : widths;
-    }
 
     private static string StageDistributionStageLabel(string code) =>
         string.IsNullOrWhiteSpace(code) ? "Stage not set" : StageCodes.ShortLabelOf(code);

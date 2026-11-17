@@ -2383,6 +2383,23 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     // One slice of a native doughnut chart: its name, figure and colour.
     private sealed record ChartSlice(string Label, int Value, string Color);
 
+    // One series of a native column chart: its name, colour and a value per category.
+    private sealed record ChartSeries(string Name, string Color, IReadOnlyList<int> Values);
+
+    // A native column chart's type: segment counts, totals, axis labels, grid and gaps.
+    private sealed record ChartTextStyle(
+        double SegmentSize,
+        string SegmentColor,
+        double TotalSize,
+        string TotalColor,
+        double CategorySize,
+        string CategoryColor,
+        double ValueSize,
+        string ValueColor,
+        string GridColor,
+        string AxisColor,
+        int GapWidth);
+
     private sealed class SlideCanvas
     {
         private readonly OpenXmlPart _part;
@@ -2889,6 +2906,159 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
   <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>{columnXml}</a:tblGrid>{rowXml}</a:tbl></a:graphicData></a:graphic>
 </p:graphicFrame>
 """);
+        }
+
+        // A native stacked column chart (docs/ux/briefing-slides-review.md, step 6): one series per
+        // group, stacked per category, counts inside the segments, and each column's total above it
+        // from an invisible line series. The figures travel in an embedded workbook whose Total
+        // column sums the row, so a figure changed with Edit Data moves both its bar and its total.
+        // plot is the inner plot area as fractions of the frame, so shapes drawn behind it (bands)
+        // line up with the categories.
+        public void AddStackedColumnChart(
+            double x,
+            double y,
+            double width,
+            double height,
+            (double X, double Y, double Width, double Height) plot,
+            IReadOnlyList<string> categories,
+            IReadOnlyList<ChartSeries> series,
+            int axisMaximum,
+            int axisStep,
+            ChartTextStyle style,
+            string name)
+        {
+            ArgumentNullException.ThrowIfNull(categories);
+            ArgumentNullException.ThrowIfNull(series);
+            if (categories.Count == 0 || series.Count == 0) return;
+            EnsureFrame(x, y, width, height, name);
+
+            var chartPart = SlidePart.AddNewPart<ChartPart>();
+            var workbookPart = chartPart.AddEmbeddedPackagePart(EmbeddedPackagePartType.Xlsx);
+            var totalColumn = series.Count + 2;
+            string Column(int index) => ColumnLetter(index);
+            using (var workbook = new ClosedXML.Excel.XLWorkbook())
+            {
+                var sheet = workbook.AddWorksheet("Sheet1");
+                sheet.Cell(1, 1).Value = "Stage";
+                for (var item = 0; item < series.Count; item++)
+                {
+                    sheet.Cell(1, item + 2).Value = series[item].Name;
+                }
+
+                sheet.Cell(1, totalColumn).Value = "Total";
+                for (var row = 0; row < categories.Count; row++)
+                {
+                    sheet.Cell(row + 2, 1).Value = categories[row];
+                    for (var item = 0; item < series.Count; item++)
+                    {
+                        var value = series[item].Values[row];
+                        if (value > 0) sheet.Cell(row + 2, item + 2).Value = value;
+                    }
+
+                    sheet.Cell(row + 2, totalColumn).FormulaA1 = $"SUM(B{row + 2}:{Column(totalColumn - 1)}{row + 2})";
+                }
+
+                sheet.Columns(1, totalColumn).AdjustToContents();
+                using var workbookStream = new MemoryStream();
+                workbook.SaveAs(workbookStream);
+                workbookStream.Position = 0;
+                workbookPart.FeedData(workbookStream);
+            }
+
+            var last = categories.Count + 1;
+            var categoryCache = new StringBuilder();
+            for (var index = 0; index < categories.Count; index++)
+            {
+                categoryCache.Append(CultureInfo.InvariantCulture, $"""<c:pt idx="{index}"><c:v>{Escape(categories[index])}</c:v></c:pt>""");
+            }
+
+            var categoryXml = $"""<c:cat><c:strRef><c:f>Sheet1!$A$2:$A${last}</c:f><c:strCache><c:ptCount val="{categories.Count}"/>{categoryCache}</c:strCache></c:strRef></c:cat>""";
+            string RunProperties(double size, string color, bool bold)
+                => $"""<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{FontSize(size)}" b="{(bold ? 1 : 0)}"><a:solidFill><a:srgbClr val="{CleanColor(color)}"/></a:solidFill><a:latin typeface="Aptos"/></a:defRPr></a:pPr><a:endParaRPr lang="en-IN"/></a:p></c:txPr>""";
+            string Values(IReadOnlyList<int> values, int column, bool keepZero)
+            {
+                var points = new StringBuilder();
+                for (var index = 0; index < values.Count; index++)
+                {
+                    if (values[index] > 0 || keepZero)
+                    {
+                        points.Append(CultureInfo.InvariantCulture, $"""<c:pt idx="{index}"><c:v>{values[index]}</c:v></c:pt>""");
+                    }
+                }
+
+                var letter = Column(column);
+                return $"""<c:val><c:numRef><c:f>Sheet1!${letter}$2:${letter}${last}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="{values.Count}"/>{points}</c:numCache></c:numRef></c:val>""";
+            }
+
+            var barSeries = new StringBuilder();
+            for (var item = 0; item < series.Count; item++)
+            {
+                var entry = series[item];
+                var letter = Column(item + 2);
+                barSeries.Append(CultureInfo.InvariantCulture, $"""
+<c:ser><c:idx val="{item}"/><c:order val="{item}"/><c:tx><c:strRef><c:f>Sheet1!${letter}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>{Escape(entry.Name)}</c:v></c:pt></c:strCache></c:strRef></c:tx><c:spPr><a:solidFill><a:srgbClr val="{CleanColor(entry.Color)}"/></a:solidFill><a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val="0"/><c:dLbls><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>{RunProperties(style.SegmentSize, style.SegmentColor, true)}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>{categoryXml}{Values(entry.Values, item + 2, keepZero: false)}</c:ser>
+""");
+            }
+
+            var totals = Enumerable.Range(0, categories.Count).Select(index => series.Sum(entry => entry.Values[index])).ToArray();
+            var chartXml = $"""
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:date1904 val="0"/><c:roundedCorners val="0"/>
+  <c:chart>
+    <c:autoTitleDeleted val="1"/>
+    <c:plotArea>
+      <c:layout><c:manualLayout><c:layoutTarget val="inner"/><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="{Fraction(plot.X)}"/><c:y val="{Fraction(plot.Y)}"/><c:w val="{Fraction(plot.Width)}"/><c:h val="{Fraction(plot.Height)}"/></c:manualLayout></c:layout>
+      <c:barChart>
+        <c:barDir val="col"/><c:grouping val="stacked"/><c:varyColors val="0"/>
+        {barSeries}
+        <c:gapWidth val="{style.GapWidth}"/><c:overlap val="100"/>
+        <c:axId val="500100"/><c:axId val="500200"/>
+      </c:barChart>
+      <c:lineChart>
+        <c:grouping val="standard"/><c:varyColors val="0"/>
+        <c:ser><c:idx val="{series.Count}"/><c:order val="{series.Count}"/><c:tx><c:strRef><c:f>Sheet1!${Column(totalColumn)}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>Total</c:v></c:pt></c:strCache></c:strRef></c:tx><c:spPr><a:ln><a:noFill/></a:ln></c:spPr><c:marker><c:symbol val="none"/></c:marker><c:dLbls><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>{RunProperties(style.TotalSize, style.TotalColor, true)}<c:dLblPos val="t"/><c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>{categoryXml}{Values(totals, totalColumn, keepZero: true)}<c:smooth val="0"/></c:ser>
+        <c:marker val="1"/>
+        <c:axId val="500100"/><c:axId val="500200"/>
+      </c:lineChart>
+      <c:catAx><c:axId val="500100"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/><c:numFmt formatCode="General" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:spPr><a:ln w="12700"><a:solidFill><a:srgbClr val="{CleanColor(style.AxisColor)}"/></a:solidFill></a:ln></c:spPr>{RunProperties(style.CategorySize, style.CategoryColor, false)}<c:crossAx val="500200"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>
+      <c:valAx><c:axId val="500200"/><c:scaling><c:orientation val="minMax"/><c:max val="{axisMaximum}"/><c:min val="0"/></c:scaling><c:delete val="0"/><c:axPos val="l"/><c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:srgbClr val="{CleanColor(style.GridColor)}"/></a:solidFill></a:ln></c:spPr></c:majorGridlines><c:numFmt formatCode="General" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:spPr><a:ln><a:noFill/></a:ln></c:spPr>{RunProperties(style.ValueSize, style.ValueColor, false)}<c:crossAx val="500100"/><c:crosses val="autoZero"/><c:crossBetween val="between"/><c:majorUnit val="{axisStep}"/></c:valAx>
+      <c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>
+    </c:plotArea>
+    <c:plotVisOnly val="1"/>
+    <c:dispBlanksAs val="gap"/>
+  </c:chart>
+  <c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>
+  <c:externalData r:id="{chartPart.GetIdOfPart(workbookPart)}"><c:autoUpdate val="0"/></c:externalData>
+</c:chartSpace>
+""";
+            using (var chartStream = new MemoryStream(Encoding.UTF8.GetBytes(chartXml)))
+            {
+                chartPart.FeedData(chartStream);
+            }
+
+            var id = _nextShapeId++;
+            _elements.Add($"""
+<p:graphicFrame>
+  <p:nvGraphicFramePr><p:cNvPr id="{id}" name="{Escape(name)}" descr="{Escape(name)}"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>
+  <p:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(width)}" cy="{Emu(height)}"/></p:xfrm>
+  <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="{SlidePart.GetIdOfPart(chartPart)}"/></a:graphicData></a:graphic>
+</p:graphicFrame>
+""");
+        }
+
+        private static string Fraction(double value) => Math.Clamp(value, 0, 1).ToString("0.####", CultureInfo.InvariantCulture);
+
+        // Column letters for the chart's workbook (A, B, ... Z, AA, ...).
+        private static string ColumnLetter(int column)
+        {
+            var letters = string.Empty;
+            for (var value = column; value > 0; value = (value - 1) / 26)
+            {
+                letters = (char)('A' + ((value - 1) % 26)) + letters;
+            }
+
+            return letters;
         }
 
         // A native PowerPoint doughnut chart (docs/ux/briefing-slides-review.md, step 6): the figures
