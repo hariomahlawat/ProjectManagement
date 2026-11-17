@@ -216,6 +216,13 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
     // Four steps of the accent by quantity, as the standard map's legend bands.
     private static SKColor BandShade(BandPalette palette, int value, int maximum)
     {
+        // A country on record with no units yet takes the lightest shade (Codex review on #3410),
+        // not the strongest one it would fall through to.
+        if (value <= 0)
+        {
+            return palette.Ramp[0];
+        }
+
         var ranges = BuildLegendRanges(maximum);
         for (var index = 0; index < ranges.Count; index++)
         {

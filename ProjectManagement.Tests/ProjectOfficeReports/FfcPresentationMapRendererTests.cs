@@ -56,6 +56,50 @@ public sealed class FfcPresentationMapRendererTests
         Assert.Equal(1020, bitmap.Height);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RenderBriefingBand_CreatesTheSlideBandInEitherTheme(bool dark)
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "Ffc", "PresentationRoot");
+        IFfcPresentationMapRenderer renderer = new FfcPresentationMapRenderer(new TestEnvironment(root));
+        var countries = new[]
+        {
+            Country(1, "Ethiopia", "ETH", 13),
+            Country(2, "Tanzania, United Republic of", "TZA", 1),
+            Country(3, "Myanmar", "MMR", 0)
+        };
+
+        var content = renderer.RenderBriefingBand(countries, width: 2426, height: 640, dark);
+
+        using var bitmap = SKBitmap.Decode(content);
+        Assert.NotNull(bitmap);
+        Assert.Equal(2426, bitmap!.Width);
+        Assert.Equal(640, bitmap.Height);
+    }
+
+    [Fact]
+    public void BandShade_GivesACountryWithNoUnitsTheLightestShade()
+    {
+        // Codex review on #3410: zero fell through every band to the strongest shade.
+        var shade = typeof(FfcPresentationMapRenderer).GetMethod("BandShade", BindingFlags.NonPublic | BindingFlags.Static)!;
+        foreach (var name in new[] { "DarkBand", "LightBand" })
+        {
+            var palette = typeof(FfcPresentationMapRenderer).GetField(name, BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+            var ramp = (SKColor[])palette.GetType().GetProperty("Ramp")!.GetValue(palette)!;
+            Assert.Equal(ramp[0], (SKColor)shade.Invoke(null, new[] { palette, 0, 13 })!);
+            Assert.Equal(ramp[0], (SKColor)shade.Invoke(null, new[] { palette, 1, 13 })!);
+            Assert.Equal(ramp[^1], (SKColor)shade.Invoke(null, new[] { palette, 13, 13 })!);
+        }
+    }
+
+    [Theory]
+    [InlineData("Tanzania, United Republic of", "Tanzania")]
+    [InlineData("  Iran, Islamic Republic of ", "Iran")]
+    [InlineData("Sri Lanka", "Sri Lanka")]
+    public void ShortCountryName_ShowsThePartBeforeTheComma(string name, string expected)
+        => Assert.Equal(expected, FfcPresentationMapRenderer.ShortCountryName(name));
+
     [Fact]
     public void BuildLegendRanges_CreatesFourBalancedBandsForCurrentPortfolioMaximum()
     {
