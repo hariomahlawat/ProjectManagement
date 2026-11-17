@@ -204,6 +204,9 @@
     transition:grid-template-columns .18s ease;
 }
 .command-workspace:not(.is-nav-expanded) { --cw-nav-width:64px; }
+/* A page taller than the window scrolls anyway: the rail reaches to just above the window's
+   bottom edge instead of keeping a footer's height clear (workspace-rail-groups.js). */
+.command-workspace.cw-long-page { --cw-below:16px; }
 .cw-workspace-content { min-width:0; }
 .cw-workspace-content > :first-child { margin-top:0; }
 /* SECTION: Workspace rail

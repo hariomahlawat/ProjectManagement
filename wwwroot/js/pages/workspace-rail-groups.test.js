@@ -61,6 +61,34 @@ async function setUp({ short = true, storage = memoryStorage(), markup = rail, o
 const folded = (group) => group.classList.contains('is-folded');
 const expanded = (group) => group.querySelector('[data-rail-group-toggle]').getAttribute('aria-expanded');
 
+async function setUpReach({ content, window }) {
+  const { initWorkspaceRailReach } = await loadModule();
+  const { document } = new JSDOM(`<!doctype html><html><body><div class="command-workspace">${rail}<main class="cw-workspace-content"></main></div></body></html>`).window;
+  const sizes = { content, window };
+  const controller = initWorkspaceRailReach(document, { contentHeight: () => sizes.content, windowHeight: () => sizes.window });
+  const workspace = document.querySelector('.command-workspace');
+  return { workspace, sizes, controller };
+}
+
+test('beside a page taller than the window, the rail reaches to the bottom of the window', async () => {
+  const { workspace } = await setUpReach({ content: 1800, window: 900 });
+  assert.ok(workspace.classList.contains('cw-long-page'));
+});
+
+test('beside a page that fits the window, the rail keeps clear of the footer', async () => {
+  const { workspace, sizes, controller } = await setUpReach({ content: 500, window: 900 });
+  assert.equal(workspace.classList.contains('cw-long-page'), false);
+  sizes.content = 1400;
+  controller.apply();
+  assert.ok(workspace.classList.contains('cw-long-page'), 'measured again when the content grows');
+});
+
+test('the long-page reach is a CSS variable the rail already uses', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', '..', 'css', 'command-workspace.css'), 'utf8');
+  assert.match(css, /\.command-workspace\.cw-long-page \{ --cw-below:16px; \}/);
+  assert.match(css, /max-height:calc\(100vh - 72px - var\(--cw-below\)\);/);
+});
+
 test('when the menu does not fit, only the group holding the page stays open', async () => {
   const { group } = await setUp();
   assert.equal(folded(group('command')), false);
