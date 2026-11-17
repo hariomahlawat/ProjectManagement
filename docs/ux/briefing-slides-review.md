@@ -126,6 +126,14 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    (CoE Mid Term, CoE Short Term and CoE are one CoE), in the stage-wise chart's colours.
    Role and Charter: the charter takes the largest size that fits its panels, up to 20 pt (was
    13.2 pt at most, leaving half of each panel empty); the CHARTER heading rule runs full width.
+   FFC Global Footprint (owner, 17 Nov: "the map needs to be the main thing", every country on
+   one slide, countries across the top and installed, delivered, planned and total down the side):
+   one design. The figures in a line under the title with the status bar; the map as a band across
+   the full width, drawn in the deck's theme with each country named and its quantity; below it a
+   native table with a column per country (largest first, up to 16, then "Others (n)") and rows
+   Installed, Delivered, Planned and Total. Official names show their short form ("Tanzania").
+   The editor's layout and row-count choices are retired (kept as saved, hidden); the separate
+   country-wise breakdown slide still works for decks that use it.
 5. **Editable structure**: slide master and layouts carry the furniture; title placeholders; real
    slide-number fields; real bullets.
 6. **Native charts** for the stage chart (the two category distributions are done, above).

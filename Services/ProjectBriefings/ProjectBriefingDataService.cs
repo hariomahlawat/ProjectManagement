@@ -437,7 +437,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ? BuildRoleCharterData(snapshot.RoleCharterOptions)
             : null;
         var ffcGlobalFootprint = snapshot.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
-            ? await BuildFfcGlobalFootprintDataAsync(snapshot.FfcGlobalFootprintOptions, cancellationToken)
+            ? await BuildFfcGlobalFootprintDataAsync(snapshot.FfcGlobalFootprintOptions, snapshot.PresentationTheme, cancellationToken)
             : null;
         return new ProjectBriefingPresentationData
         {
@@ -1282,6 +1282,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
     private async Task<ProjectBriefingFfcGlobalFootprintData?> BuildFfcGlobalFootprintDataAsync(
         ProjectBriefingFfcGlobalFootprintOptions options,
+        ProjectBriefingPresentationTheme theme,
         CancellationToken cancellationToken)
     {
         var normalized = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
@@ -1327,9 +1328,12 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             .ToArray();
         var mapImage = mapCountries.Length == 0
             ? Array.Empty<byte>()
-            : normalized.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant
-                ? _ffcMapRenderer.RenderFocused(mapCountries, width: 2400, height: 725)
-                : _ffcMapRenderer.RenderFocused(mapCountries, width: 2100, height: 1065);
+            // The slide's map band (12.13 x 3.25 in) at 200 pixels an inch, in the deck's theme.
+            : _ffcMapRenderer.RenderBriefingBand(
+                mapCountries,
+                ProjectBriefingSlideComposer.FfcMapBandPixelWidth,
+                ProjectBriefingSlideComposer.FfcMapBandPixelHeight,
+                ProjectBriefingThemeCatalog.Resolve(theme).IsDark);
         var dataAsOn = footprint.Countries.Count == 0
             ? _clock.UtcNow.ToUniversalTime()
             : footprint.Countries.Max(country => country.LastUpdated).ToUniversalTime();

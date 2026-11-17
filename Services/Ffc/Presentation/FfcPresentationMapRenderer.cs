@@ -98,6 +98,251 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
             labelTextSize: 25,
             legendProfile: MapLegendProfile.Briefing);
 
+    // The briefing deck's colours: the band sits on the slide, so its sea is the slide's panel
+    // colour and the active countries step up in the deck's accent (docs/ux/briefing-slides-review.md).
+    private sealed record BandPalette(
+        SKColor Ocean,
+        SKColor Land,
+        SKColor LandLine,
+        SKColor ActiveLine,
+        SKColor[] Ramp,
+        SKColor LabelFill,
+        SKColor LabelBorder,
+        SKColor LabelText,
+        SKColor LabelQuantity,
+        SKColor Leader);
+
+    private static readonly BandPalette DarkBand = new(
+        SKColor.Parse("#1D222B"),
+        SKColor.Parse("#2A313C"),
+        SKColor.Parse("#3B4350"),
+        SKColor.Parse("#C7D2FE"),
+        new[] { SKColor.Parse("#33457E"), SKColor.Parse("#4058B3"), SKColor.Parse("#5B7CFA"), SKColor.Parse("#93A8FF") },
+        new SKColor(21, 24, 30, 236),
+        SKColor.Parse("#4A5260"),
+        SKColor.Parse("#F3F4F6"),
+        SKColor.Parse("#93A8FF"),
+        SKColor.Parse("#7C8696"));
+
+    private static readonly BandPalette LightBand = new(
+        SKColor.Parse("#EEF2F7"),
+        SKColor.Parse("#FFFFFF"),
+        SKColor.Parse("#C3CAD4"),
+        SKColor.Parse("#1F3A6E"),
+        new[] { SKColor.Parse("#C9D6F7"), SKColor.Parse("#9CB2F0"), SKColor.Parse("#6683E3"), SKColor.Parse("#315FA8") },
+        new SKColor(255, 255, 255, 240),
+        SKColor.Parse("#C3CAD4"),
+        SKColor.Parse("#191B20"),
+        SKColor.Parse("#315FA8"),
+        SKColor.Parse("#7A8494"));
+
+    public byte[] RenderBriefingBand(
+        IReadOnlyList<FfcPresentationCountry> countries,
+        int width,
+        int height,
+        bool dark)
+    {
+        ArgumentNullException.ThrowIfNull(countries);
+        width = Math.Clamp(width, 1000, 3200);
+        height = Math.Clamp(height, 400, 1800);
+        var palette = dark ? DarkBand : LightBand;
+
+        var activeByIso = countries
+            .Where(country => !string.IsNullOrWhiteSpace(country.IsoCode))
+            .GroupBy(country => country.IsoCode.Trim().ToUpperInvariant(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        var features = _features.Value;
+        var activeFeatures = features.Where(feature => activeByIso.ContainsKey(feature.Iso3)).ToArray();
+
+        var frame = new SKRect(0, 0, width, height);
+        var bounds = (activeFeatures.Length == 0
+                ? new GeoBounds(-25, -60, 120, 60)
+                : GeoBounds.From(activeFeatures.SelectMany(feature => feature.AllPoints)))
+            .Expand(0.07, 5, 5)
+            .FitAspectRatio(frame.Width / frame.Height);
+
+        using var bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(palette.Ocean);
+
+        using var landFill = new SKPaint { Color = palette.Land, Style = SKPaintStyle.Fill, IsAntialias = true };
+        using var landLine = new SKPaint { Color = palette.LandLine, Style = SKPaintStyle.Stroke, StrokeWidth = 1.2f, IsAntialias = true };
+        using var activeLine = new SKPaint { Color = palette.ActiveLine, Style = SKPaintStyle.Stroke, StrokeWidth = 1.8f, IsAntialias = true };
+        var maximumUnits = Math.Max(1, countries.Count == 0 ? 1 : countries.Max(country => country.TotalUnits));
+
+        foreach (var feature in features)
+        {
+            if (!feature.Bounds.Intersects(bounds))
+            {
+                continue;
+            }
+
+            var active = activeByIso.TryGetValue(feature.Iso3, out var country);
+            using var activeFill = active
+                ? new SKPaint { Color = BandShade(palette, country!.TotalUnits, maximumUnits), Style = SKPaintStyle.Fill, IsAntialias = true }
+                : null;
+            foreach (var polygon in feature.Polygons)
+            {
+                using var path = BuildPath(polygon, bounds, frame);
+                if (path.IsEmpty)
+                {
+                    continue;
+                }
+
+                canvas.DrawPath(path, activeFill ?? landFill);
+                canvas.DrawPath(path, active ? activeLine : landLine);
+            }
+        }
+
+        DrawBandLabels(canvas, activeFeatures, activeByIso, bounds, frame, palette, height);
+
+        using var image = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, 96)
+            ?? throw new InvalidOperationException("The FFC map image could not be encoded.");
+        return encoded.ToArray();
+    }
+
+    // Everyday names for the official forms in the country list (Data/Seed/iso3166.json), chosen
+    // so that no two countries share one: the Koreas and the Congos keep what tells them apart
+    // (Codex review on #3410).
+    private static readonly IReadOnlyDictionary<string, string> EverydayCountryNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Bolivia, Plurinational State of"] = "Bolivia",
+            ["Bonaire, Sint Eustatius and Saba"] = "Bonaire",
+            ["Congo, Democratic Republic of the"] = "DR Congo",
+            ["Iran, Islamic Republic of"] = "Iran",
+            ["Korea, Democratic People's Republic of"] = "North Korea",
+            ["Korea, Republic of"] = "South Korea",
+            ["Micronesia, Federated States of"] = "Micronesia",
+            ["Moldova, Republic of"] = "Moldova",
+            ["Netherlands, Kingdom of the"] = "Netherlands",
+            ["Palestine, State of"] = "Palestine",
+            ["Saint Helena, Ascension and Tristan da Cunha"] = "Saint Helena",
+            ["Taiwan, Province of China"] = "Taiwan",
+            ["Tanzania, United Republic of"] = "Tanzania",
+            ["Venezuela, Bolivarian Republic of"] = "Venezuela"
+        };
+
+    /// <summary>
+    /// A country's everyday name for a slide: "Tanzania" for "Tanzania, United Republic of",
+    /// "South Korea" for "Korea, Republic of". Another official form shows the part before its
+    /// comma.
+    /// </summary>
+    public static string ShortCountryName(string name)
+    {
+        var trimmed = (name ?? string.Empty).Trim();
+        if (EverydayCountryNames.TryGetValue(trimmed, out var everyday))
+        {
+            return everyday;
+        }
+
+        var comma = trimmed.IndexOf(',', StringComparison.Ordinal);
+        return comma > 0 ? trimmed[..comma].Trim() : trimmed;
+    }
+
+    /// <summary>
+    /// Everyday names for countries shown together; any two that would still read the same keep
+    /// their full names, so every column and label names one country.
+    /// </summary>
+    public static IReadOnlyList<string> ShortCountryNames(IReadOnlyList<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        var full = names.Select(name => (name ?? string.Empty).Trim()).ToArray();
+        var shortNames = full.Select(ShortCountryName).ToArray();
+        var clashing = shortNames
+            .Select((value, index) => (Short: value, Full: full[index]))
+            .GroupBy(entry => entry.Short, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Select(entry => entry.Full).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return shortNames
+            .Select((value, index) => clashing.Contains(value) ? full[index] : value)
+            .ToArray();
+    }
+
+    // Four steps of the accent by quantity, as the standard map's legend bands.
+    private static SKColor BandShade(BandPalette palette, int value, int maximum)
+    {
+        // A country on record with no units yet takes the lightest shade (Codex review on #3410),
+        // not the strongest one it would fall through to.
+        if (value <= 0)
+        {
+            return palette.Ramp[0];
+        }
+
+        var ranges = BuildLegendRanges(maximum);
+        for (var index = 0; index < ranges.Count; index++)
+        {
+            if (value >= ranges[index].Start && value <= ranges[index].End)
+            {
+                return palette.Ramp[Math.Min(index, palette.Ramp.Length - 1)];
+            }
+        }
+
+        return palette.Ramp[^1];
+    }
+
+    // "Ethiopia 13": the name, then the quantity in the accent; placed as the standard map places
+    // its codes, avoiding one another, with a leader line when moved off the country.
+    private static void DrawBandLabels(
+        SKCanvas canvas,
+        IReadOnlyList<MapFeature> activeFeatures,
+        IReadOnlyDictionary<string, FfcPresentationCountry> activeByIso,
+        GeoBounds bounds,
+        SKRect frame,
+        BandPalette palette,
+        int height)
+    {
+        var textSize = Math.Clamp(height / 22f, 22f, 34f);
+        using var namePaint = new SKPaint { Color = palette.LabelText, TextSize = textSize, Typeface = SKTypeface.Default, IsAntialias = true, FakeBoldText = true };
+        using var quantityPaint = new SKPaint { Color = palette.LabelQuantity, TextSize = textSize, Typeface = SKTypeface.Default, IsAntialias = true, FakeBoldText = true };
+        using var fill = new SKPaint { Color = palette.LabelFill, Style = SKPaintStyle.Fill, IsAntialias = true };
+        using var border = new SKPaint { Color = palette.LabelBorder, Style = SKPaintStyle.Stroke, StrokeWidth = 1.2f, IsAntialias = true };
+        using var leader = new SKPaint { Color = palette.Leader, Style = SKPaintStyle.Stroke, StrokeWidth = 1.6f, IsAntialias = true };
+        var labelFrame = new SKRect(frame.Left + 8, frame.Top + 8, frame.Right - 8, frame.Bottom - 8);
+
+        var isoCodes = activeByIso.Keys.ToArray();
+        var shortNames = ShortCountryNames(isoCodes
+            .Select(iso => string.IsNullOrWhiteSpace(activeByIso[iso].CountryName) ? iso : activeByIso[iso].CountryName)
+            .ToArray());
+        var labelNames = isoCodes
+            .Select((iso, index) => (Iso: iso, Name: shortNames[index]))
+            .ToDictionary(entry => entry.Iso, entry => entry.Name, StringComparer.OrdinalIgnoreCase);
+
+        var occupied = new List<SKRect>();
+        foreach (var feature in activeFeatures
+                     .OrderByDescending(feature => activeByIso[feature.Iso3].TotalUnits)
+                     .ThenBy(feature => feature.Bounds.LongitudeSpan * feature.Bounds.LatitudeSpan)
+                     .Take(24))
+        {
+            var country = activeByIso[feature.Iso3];
+            var name = labelNames[feature.Iso3];
+            var quantity = country.TotalUnits.ToString(CultureInfo.InvariantCulture);
+            var nameWidth = namePaint.MeasureText(name);
+            var gap = textSize * .38f;
+            var labelWidth = nameWidth + gap + quantityPaint.MeasureText(quantity) + (textSize * 1.1f);
+            var labelHeight = textSize * 1.55f;
+            var anchor = Project(feature.LabelPoint, bounds, frame);
+            var placement = FindBestLabelPlacement(feature.Iso3, anchor, labelWidth, labelHeight, labelFrame, occupied);
+
+            if (Math.Abs(placement.Center.X - anchor.X) > 8 || Math.Abs(placement.Center.Y - anchor.Y) > 8)
+            {
+                var lineEnd = NearestPointOnRect(placement.Rect, anchor);
+                canvas.DrawLine(anchor.X, anchor.Y, lineEnd.X, lineEnd.Y, leader);
+                canvas.DrawCircle(anchor.X, anchor.Y, 3.5f, leader);
+            }
+
+            canvas.DrawRoundRect(placement.Rect, labelHeight / 2, labelHeight / 2, fill);
+            canvas.DrawRoundRect(placement.Rect, labelHeight / 2, labelHeight / 2, border);
+            var baseline = placement.Center.Y + (textSize * .36f);
+            var left = placement.Rect.Left + (textSize * .55f);
+            canvas.DrawText(name, left, baseline, namePaint);
+            canvas.DrawText(quantity, left + nameWidth + gap, baseline, quantityPaint);
+            occupied.Add(placement.Rect);
+        }
+    }
+
     private byte[] RenderCore(
         IReadOnlyList<FfcPresentationCountry> countries,
         int width,

@@ -1049,19 +1049,19 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("OnPostSaveFfcGlobalFootprintAsync", pageModel, StringComparison.Ordinal);
         Assert.Contains("IFfcFootprintService", dataService, StringComparison.Ordinal);
         Assert.Contains("IFfcPresentationMapRenderer", dataService, StringComparison.Ordinal);
-        Assert.Contains("RenderFocused", dataService, StringComparison.Ordinal);
+        Assert.Contains("RenderBriefingBand", dataService, StringComparison.Ordinal);
         Assert.Contains("RenderFfcGlobalFootprint", composer, StringComparison.Ordinal);
-        Assert.Contains("RenderFfcMapDominant", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderFfcCountryTable", composer, StringComparison.Ordinal);
         Assert.Contains("RenderFfcCountryWiseBreakdownSlide", composer, StringComparison.Ordinal);
         Assert.Contains("IncludeCountryWiseBreakdown", editor, StringComparison.Ordinal);
         Assert.Contains("FfcGlobalFootprintLayout", editor, StringComparison.Ordinal);
         Assert.Contains("CountriesPerBreakdownSlide", mainComposer, StringComparison.Ordinal);
         Assert.Contains("Delivered, awaiting installation", composer, StringComparison.Ordinal);
-        Assert.Contains("COUNTRY-WISE BREAKDOWN", composer, StringComparison.Ordinal);
-        Assert.Contains("FfcMapWidth = 8.36", composer, StringComparison.Ordinal);
-        Assert.Contains("FfcBreakdownWidth = 3.30", composer, StringComparison.Ordinal);
-        Assert.Contains("2100, height: 1065", dataService, StringComparison.Ordinal);
-        Assert.Contains("countries — recommended", editor, StringComparison.Ordinal);
+        // Owner, 17 Nov 2026: the map across the slide, a country-per-column table below it.
+        Assert.Contains("FfcWidth = 12.13", composer, StringComparison.Ordinal);
+        Assert.Contains("FfcTableMaximumColumns = 16", composer, StringComparison.Ordinal);
+        Assert.Contains("FfcMapBandPixelWidth", dataService, StringComparison.Ordinal);
+        Assert.Contains("Every country in a table below", editor, StringComparison.Ordinal);
         Assert.Contains("case ProjectBriefingDeckBlockType.FfcGlobalFootprint", mainComposer, StringComparison.Ordinal);
         Assert.Contains("SlidePlanKind.FfcGlobalFootprint", mainComposer, StringComparison.Ordinal);
         Assert.Contains("confirmFfcDiscard", script, StringComparison.Ordinal);
