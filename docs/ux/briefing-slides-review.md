@@ -134,6 +134,12 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    Installed, Delivered, Planned and Total. Official names show their short form ("Tanzania").
    The editor's layout and row-count choices are retired (kept as saved, hidden); the separate
    country-wise breakdown slide still works for decks that use it.
+   Cover: a small label, the title up to 48 pt (two lines at most) around the middle of the
+   slide, an accent rule and the description at 20 pt; the figures at 40 pt in a panel with
+   dividers; "As of" the date at the foot. SDD profile (owner, 17 Nov: the timeline "more better
+   and wow"): the history as a journey rail, each year a solid pill on a heavy rail with its
+   milestone beneath, the latest year in gold; the cards' text larger (34 pt headlines, 13 pt
+   rows), their titles white on the dark theme, and the cards running down to the footer.
 5. **Editable structure**: slide master and layouts carry the furniture; title placeholders; real
    slide-number fields; real bullets.
 6. **Native charts** for the stage chart (the two category distributions are done, above).

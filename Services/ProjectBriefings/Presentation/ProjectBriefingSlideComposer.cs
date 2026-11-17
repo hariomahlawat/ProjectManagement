@@ -516,42 +516,84 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             "ctr");
         canvas.AddLine(.78, 1.02, 12.55, 1.02, theme.Divider, .7);
 
-        canvas.AddText(.82, 1.68, 7.55, 1.42,
+        // The title block sits about the middle of the slide (docs/ux/briefing-slides-review.md,
+        // step 4): a small label, the title as large as its length allows (up to 48 pt, at most two
+        // lines), an accent rule, then the description.
+        const double titleWidth = 7.60;
+        const double titleBottom = 4.02;
+        var titleSize = CoverTitleFontSize(data.DeckName);
+        var titleLines = Math.Clamp(
+            ProjectManagement.Services.Analytics.Presentation.AnalyticsSlideFrame.LineCount(data.DeckName.ToUpperInvariant(), titleWidth - .20, titleSize * 1.12),
+            1,
+            2);
+        var titleHeight = (titleLines * titleSize * 1.12 / 72d) + .14;
+        var titleTop = titleBottom - titleHeight;
+        canvas.AddText(.84, titleTop - .42, titleWidth, .30,
+            "PROJECT BRIEFING",
+            12.5,
+            theme.Accent,
+            true,
+            "l",
+            name: "Cover label");
+        canvas.AddText(.78, titleTop, titleWidth, titleHeight,
             data.DeckName.ToUpperInvariant(),
-            CoverTitleFontSize(data.DeckName),
+            titleSize,
             theme.CoverText,
             true,
             "l",
-            "t");
-        canvas.AddText(.84, 3.27, 7.30, .82,
+            "b",
+            name: "Cover title");
+        canvas.AddRect(.86, titleBottom + .16, .90, .06, theme.Accent, name: "Cover rule");
+        canvas.AddText(.84, titleBottom + .40, titleWidth, .95,
             string.IsNullOrWhiteSpace(data.DeckDescription)
-                ? "PROJECT BRIEFING DECK"
+                ? "Selected projects · current project position"
                 : Truncate(data.DeckDescription, 145),
-            17.5,
+            20,
             theme.CoverMuted,
             false,
             "l",
-            "t");
+            "t",
+            name: "Cover description");
 
-        canvas.AddRoundedRect(8.82, 1.55, 3.72, 4.58, theme.CoverSurface, theme.Divider, .08);
-        canvas.AddRect(8.82, 1.55, .07, 4.58, theme.Accent);
-        AddCoverMetric(canvas, 9.20, 2.02, data.Summary.ProjectCount, "SELECTED PROJECTS");
-        AddCoverMetric(canvas, 9.20, 3.35, data.Summary.OngoingCount, "ONGOING");
-        AddCoverMetric(canvas, 9.20, 4.68, data.Summary.CompletedCount, "COMPLETED");
+        // The deck's figures, large, in a panel at the title's height.
+        const double panelX = 8.90;
+        const double panelY = 1.80;
+        const double panelWidth = 3.62;
+        const double panelHeight = 4.20;
+        canvas.AddRoundedRect(panelX, panelY, panelWidth, panelHeight, theme.CoverSurface, theme.Divider, .06);
+        canvas.AddRect(panelX, panelY, .07, panelHeight, theme.Accent);
+        var metrics = new[]
+        {
+            (data.Summary.ProjectCount, "PROJECTS IN THIS DECK"),
+            (data.Summary.OngoingCount, "ONGOING"),
+            (data.Summary.CompletedCount, "COMPLETED")
+        };
+        var step = panelHeight / metrics.Length;
+        for (var index = 0; index < metrics.Length; index++)
+        {
+            var y = panelY + (index * step);
+            AddCoverMetric(canvas, panelX + .42, y + ((step - 1.02) / 2d), metrics[index].Item1, metrics[index].Item2);
+            if (index > 0)
+            {
+                canvas.AddLine(panelX + .42, y, panelX + panelWidth - .36, y, theme.Divider, .6);
+            }
+        }
 
         var generatedAtIst = TimeZoneInfo.ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst());
-        canvas.AddText(.84, 5.68, 7.4, .27,
-            "SELECTED PROJECTS · CURRENT PROJECT POSITION",
-            10.5,
+        canvas.AddText(.84, 6.20, 7.4, .32,
+            $"As of {generatedAtIst:d MMM yyyy}",
+            13,
             theme.CoverMuted,
             true,
-            "l");
-        canvas.AddText(.84, 6.10, 7.4, .27,
+            "l",
+            name: "Cover date");
+        canvas.AddText(.84, 6.54, 7.4, .26,
             $"Generated {generatedAtIst:dd MMM yyyy, HH:mm} IST",
-            9.8,
+            10.5,
             theme.CoverMuted,
             false,
-            "l");
+            "l",
+            name: "Cover generated");
 
         if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
         {
@@ -562,15 +604,15 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
     private static void AddCoverMetric(SlideCanvas canvas, double x, double y, int value, string label)
     {
-        canvas.AddText(x, y, 2.95, .47,
+        canvas.AddText(x, y, 2.95, .70,
             value.ToString(CultureInfo.InvariantCulture),
-            27,
+            40,
             canvas.Theme.CoverText,
             true,
             "l");
-        canvas.AddText(x, y + .51, 2.95, .25,
+        canvas.AddText(x, y + .72, 2.95, .30,
             label,
-            9.8,
+            11.5,
             canvas.Theme.CoverMuted,
             true,
             "l");
@@ -2058,10 +2100,11 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private static double CoverTitleFontSize(string title)
         => title.Length switch
         {
-            <= 34 => 34,
-            <= 52 => 30,
-            <= 75 => 26,
-            _ => 22
+            <= 24 => 48,
+            <= 40 => 42,
+            <= 60 => 36,
+            <= 90 => 30,
+            _ => 26
         };
 
     private static byte[]? ReadAsset(string? path)
