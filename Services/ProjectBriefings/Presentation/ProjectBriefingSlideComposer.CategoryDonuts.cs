@@ -103,6 +103,8 @@ public sealed partial class ProjectBriefingSlideComposer
         var leader = rows.FirstOrDefault(row => !row.IsMuted);
         if (leader is not null && total > 0)
         {
+            var suffix = $" is the largest: {leader.Count.ToString(CultureInfo.InvariantCulture)} of {total.ToString(CultureInfo.InvariantCulture)} projects ({RoundedShare(leader.Count, total)})";
+            var headline = FitCategoryHeadline(leader.Label, suffix, width - .64, wide ? 18 : 15);
             canvas.AddRichTextBox(
                 x + .32,
                 y + .92,
@@ -112,12 +114,8 @@ public sealed partial class ProjectBriefingSlideComposer
                 {
                     new RichTextParagraph(new[]
                     {
-                        new RichTextRun(leader.Label, wide ? 18 : 15, leader.Color, Bold: true),
-                        new RichTextRun(
-                            $" is the largest: {leader.Count.ToString(CultureInfo.InvariantCulture)} of {total.ToString(CultureInfo.InvariantCulture)} projects ({RoundedShare(leader.Count, total)})",
-                            wide ? 18 : 15,
-                            theme.TextPrimary,
-                            Bold: true)
+                        new RichTextRun(headline.Label, headline.FontSize, leader.Color, Bold: true),
+                        new RichTextRun(suffix, headline.FontSize, theme.TextPrimary, Bold: true)
                     })
                 },
                 $"{panel.Heading} headline",
@@ -205,6 +203,29 @@ public sealed partial class ProjectBriefingSlideComposer
                     $"{panel.Heading} concentration");
             }
         }
+    }
+
+    // The headline on one line (Codex review on #3408): the largest size down to 12 pt at which the
+    // whole sentence fits; past that the category's name is cut after a whole word, so the figures
+    // always show. Bold text here averages about .42 em a character (measured on slides exported
+    // through PowerPoint); measured at .44 em.
+    internal const double HeadlineWidthFactor = .44 / AnalyticsSlideFrame.CharacterWidthEm;
+
+    private static (string Label, double FontSize) FitCategoryHeadline(string label, string suffix, double width, double preferredFont)
+    {
+        const double minimum = 12.0;
+        var room = width - .04;
+        for (var size = preferredFont; size >= minimum; size -= .5)
+        {
+            if (AnalyticsSlideFrame.TextWidth(label + suffix, size) * HeadlineWidthFactor <= room)
+            {
+                return (label, size);
+            }
+        }
+
+        var perCharacter = AnalyticsSlideFrame.TextWidth("x", minimum) * HeadlineWidthFactor;
+        var characters = Math.Max(8, (int)Math.Floor((room / perCharacter) - suffix.Length));
+        return (ProjectBriefingTablePagination.FitToLines(label, characters, 1), minimum);
     }
 
     // The legend's names fitted to the room: the largest size (down to 9 pt) at which every name

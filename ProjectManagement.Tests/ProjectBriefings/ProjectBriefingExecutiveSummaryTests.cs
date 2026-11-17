@@ -360,6 +360,17 @@ public sealed class ProjectBriefingExecutiveSummaryTests
             Assert.True(size >= 9.0);
         }
 
+        // The headlines keep their figures on one line, however long the largest category's name.
+        foreach (var shape in slide.Slide.Descendants<P.Shape>()
+            .Where(shape => shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value?.EndsWith(" headline", StringComparison.Ordinal) == true))
+        {
+            var text = string.Concat(shape.Descendants<A.Text>().Select(node => node.Text));
+            var size = shape.Descendants<A.RunProperties>().First().FontSize!.Value / 100d;
+            var width = shape.ShapeProperties!.Transform2D!.Extents!.Cx!.Value / 914400d;
+            Assert.Contains("is the largest: 19 of", text, StringComparison.Ordinal);
+            Assert.True(ProjectManagement.Services.Analytics.Presentation.AnalyticsSlideFrame.TextWidth(text, size) * ProjectBriefingSlideComposer.HeadlineWidthFactor <= width, $"Headline too wide: {text} at {size} pt.");
+        }
+
         // Every count fits its row (the text box keeps .05 in of insets top and bottom).
         foreach (var shape in slide.Slide.Descendants<P.Shape>()
             .Where(shape => shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value?.EndsWith(" count", StringComparison.Ordinal) == true))
