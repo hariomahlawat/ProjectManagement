@@ -117,73 +117,15 @@ public sealed partial class ProjectBriefingSlideComposer
         var imageY = plan.PhotoY + inset;
         var imageWidth = plan.PhotoWidth - (inset * 2);
         var imageHeight = plan.PhotoHeight - (inset * 2);
-        var prepared = PrepareUpdateSheetPhoto(
+        // The whole photo in its frame, never cropped (owner, 17 Nov 2026).
+        canvas.AddImageContained(
             project.CoverPhoto,
-            project.CoverPhotoContentType,
-            imageWidth,
-            imageHeight);
-
-        canvas.AddImage(
-            prepared.Content,
-            prepared.ContentType,
             imageX,
             imageY,
             imageWidth,
             imageHeight,
-            $"{project.ProjectName} photograph");
-    }
-
-    private static UpdateSheetPreparedPhoto PrepareUpdateSheetPhoto(
-        byte[] content,
-        string? contentType,
-        double targetWidth,
-        double targetHeight)
-    {
-        try
-        {
-            using var image = PrismImageCodec.DecodeOriented(content);
-            var targetAspect = Math.Max(.1d, targetWidth / Math.Max(.1d, targetHeight));
-            var sourceAspect = image.Width / (double)Math.Max(1, image.Height);
-
-            PrismImageRect crop;
-            if (sourceAspect > targetAspect)
-            {
-                var cropWidth = Math.Max(1, (int)Math.Round(image.Height * targetAspect));
-                crop = new PrismImageRect(
-                    Math.Max(0, (image.Width - cropWidth) / 2),
-                    0,
-                    Math.Min(cropWidth, image.Width),
-                    image.Height);
-            }
-            else
-            {
-                var cropHeight = Math.Max(1, (int)Math.Round(image.Width / targetAspect));
-                crop = new PrismImageRect(
-                    0,
-                    Math.Max(0, (image.Height - cropHeight) / 2),
-                    image.Width,
-                    Math.Min(cropHeight, image.Height));
-            }
-
-            const int maximumPixelWidth = 1_600;
-            const int maximumPixelHeight = 1_100;
-            var outputWidth = maximumPixelWidth;
-            var outputHeight = Math.Max(1, (int)Math.Round(outputWidth / targetAspect));
-            if (outputHeight > maximumPixelHeight)
-            {
-                outputHeight = maximumPixelHeight;
-                outputWidth = Math.Max(1, (int)Math.Round(outputHeight * targetAspect));
-            }
-
-            using var cropped = PrismImageCodec.Crop(image, crop);
-            using var resized = PrismImageCodec.ResizeExact(cropped, outputWidth, outputHeight);
-            return new UpdateSheetPreparedPhoto(PrismImageCodec.EncodePng(resized), "image/png");
-        }
-        catch
-        {
-            // Preserve generation if an unexpected decoder issue occurs.
-            return new UpdateSheetPreparedPhoto(content, contentType);
-        }
+            $"{project.ProjectName} photograph",
+            project.CoverPhotoContentType);
     }
 
     private static void RenderProjectUpdateSheetBrief(
@@ -399,5 +341,4 @@ public sealed partial class ProjectBriefingSlideComposer
             _ => 12.6
         };
 
-    private sealed record UpdateSheetPreparedPhoto(byte[] Content, string? ContentType);
 }

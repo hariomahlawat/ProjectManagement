@@ -923,7 +923,9 @@ public sealed class ProjectBriefingContractTests
         var source = Read("ProjectBriefingPhotoLoader.cs");
 
         Assert.Contains("PrismImageCodec.Identify", source, StringComparison.Ordinal);
-        Assert.Contains("PrismImageCodec.ResizeToCover", source, StringComparison.Ordinal);
+        // The whole photo, never cropped (owner, 17 Nov 2026).
+        Assert.Contains("PrismImageCodec.ResizeToFit", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResizeToCover", source, StringComparison.Ordinal);
         Assert.Contains("PrismImageCodec.EncodeJpeg", source, StringComparison.Ordinal);
         Assert.Contains("master/", source, StringComparison.Ordinal);
         Assert.Contains("No PowerPoint-ready photograph was found", source, StringComparison.Ordinal);

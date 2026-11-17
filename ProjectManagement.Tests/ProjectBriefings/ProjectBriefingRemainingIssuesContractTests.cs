@@ -17,8 +17,9 @@ public sealed class ProjectBriefingRemainingIssuesContractTests
         Assert.Contains("allowAutoFit: false", composer, StringComparison.Ordinal);
         Assert.Contains("new(12.0, 14.4, 4.0)", planner, StringComparison.Ordinal);
         Assert.Contains("BriefPages", composer, StringComparison.Ordinal);
-        Assert.Contains("PrepareUpdateSheetPhoto", composer, StringComparison.Ordinal);
-        Assert.Contains("PrismImageCodec.Crop(image, crop)", composer, StringComparison.Ordinal);
+        // The fact sheet places the whole photo; it no longer crops it (owner, 17 Nov 2026).
+        Assert.DoesNotContain("PrismImageCodec.Crop", composer, StringComparison.Ordinal);
+        Assert.Contains("canvas.AddImageContained(", composer, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingUpdateSheetPlanner.EstimateSlideCount", dataService, StringComparison.Ordinal);
     }
 
