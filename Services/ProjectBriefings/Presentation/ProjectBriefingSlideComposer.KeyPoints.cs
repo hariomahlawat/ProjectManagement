@@ -265,9 +265,12 @@ public sealed partial class ProjectBriefingSlideComposer
     {
         // The established panel (7.48 in wide, 5.42 in tall) holds 72 characters a line in 4.38 in.
         var charactersPerLine = (int)Math.Floor((layout.TextWidth - .60) * 72d / 6.88d);
+        // The panel's heading and padding take about .70 in (measured on the slide exported through
+        // PowerPoint); 1.04 in left a third of the panel empty and sent text that fitted onto a
+        // continuation slide (docs/ux/briefing-slides-review.md, PR 2).
         return ProjectBriefingCapabilityPaginator.Paginate(
             project.BriefDescription,
-            layout.TextHeight - 1.04,
+            layout.TextHeight - .80,
             charactersPerLine);
     }
 

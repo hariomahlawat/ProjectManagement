@@ -6,6 +6,51 @@ namespace ProjectManagement.Tests.ProjectBriefings;
 
 public sealed class ProjectBriefingCapabilityPaginationTests
 {
+    // Fit before splitting (docs/ux/briefing-slides-review.md, PR 2). The counter-UAS project on
+    // the review deck: six bullets on a key points slide went two on the slide and four alone on a
+    // continuation slide, although all six fit at the 14 pt floor.
+    private const string SixBullets = """
+        • Detects Group 1 and Group 2 UAVs at up to 3 km by passive RF and at up to 2.5 km by radar
+        • Tracks up to 8 targets at once and fuses RF, radar and EO/IR tracks into one picture
+        • Defeats drones by directional jamming of the 433 MHz, 915 MHz, 2.4 GHz and 5.8 GHz control links and of GNSS
+        • Classifies drone type from its RF signature and shows the likely pilot direction
+        • A crew of two sets it up in under 2 minutes; it carries as two loads of under 13 kg each
+        • Runs for 6 hours on hot-swappable batteries, or indefinitely from a vehicle supply
+        """;
+
+    [Fact]
+    public void TextThatFitsAtASmallerSize_StaysOnOneSlide()
+    {
+        // A panel where the six bullets do not fit at their own size (16 pt) but do at the floor.
+        var atOwnSize = ProjectBriefingNarrativeTypography.ResolveCapabilityDensity(ProjectBriefingRichTextParser.Parse(SixBullets));
+        Assert.Equal(ProjectBriefingNarrativeDensity.Standard, atOwnSize);
+        var pagination = ProjectBriefingCapabilityPaginator.Paginate(SixBullets, 3.5, 90);
+
+        var page = Assert.Single(pagination.Pages);
+        Assert.Equal(6, page.Blocks.Count(block => block.Type == ProjectBriefingCapabilityBlockType.Bullet));
+        Assert.All(page.Blocks, block => Assert.True(block.FontSize >= 14.0, "Never below the 14 pt floor."));
+    }
+
+    [Fact]
+    public void TextThatFitsAtItsOwnSize_KeepsThatSize()
+    {
+        var pagination = ProjectBriefingCapabilityPaginator.Paginate("• Instructor station\n• Trainee station", 3.3, 72);
+
+        var page = Assert.Single(pagination.Pages);
+        Assert.All(page.Blocks, block => Assert.Equal(18.0, block.FontSize));
+    }
+
+    [Fact]
+    public void TextTooLongForOneSlide_ContinuesAtTheFloorSize()
+    {
+        var long_ = string.Join("\n", Enumerable.Repeat(SixBullets.Trim(), 4));
+
+        var pagination = ProjectBriefingCapabilityPaginator.Paginate(long_, 3.3, 72);
+
+        Assert.True(pagination.Pages.Count > 1);
+        Assert.All(pagination.Pages.SelectMany(item => item.Blocks), block => Assert.Equal(14.0, block.FontSize));
+    }
+
     [Fact]
     public void Parser_PreservesHeadingsParagraphsAndListStructure()
     {

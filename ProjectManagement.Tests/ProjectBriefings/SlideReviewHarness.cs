@@ -1,0 +1,108 @@
+using System.Reflection;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using ProjectManagement.Data;
+using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Services.ProjectBriefings;
+using ProjectManagement.Services.ProjectBriefings.Presentation;
+using Xunit;
+
+namespace ProjectManagement.Tests.ProjectBriefings;
+
+// A developer tool, not a test (docs/ux/briefing-slides-review.md): writes one deck per project
+// slide design, every slide switched on, from a real local database, so the slides can be exported
+// through PowerPoint and reviewed. It does nothing unless PRISM_SLIDE_REVIEW_CONNECTION is set, so
+// CI never runs it. Never point it at a production database.
+//
+//   PRISM_SLIDE_REVIEW_CONNECTION  connection string of a local (throwaway) database
+//   PRISM_SLIDE_REVIEW_OUT         folder for the .pptx files
+//   PRISM_SLIDE_REVIEW_DECK        deck id (default 1)
+//   PRISM_SLIDE_REVIEW_USER        user name allowed to open the deck (default: the deck's owner)
+public sealed class SlideReviewHarness
+{
+    [Fact]
+    public async Task WriteReviewDecks()
+    {
+        var connection = Environment.GetEnvironmentVariable("PRISM_SLIDE_REVIEW_CONNECTION");
+        var output = Environment.GetEnvironmentVariable("PRISM_SLIDE_REVIEW_OUT");
+        if (string.IsNullOrWhiteSpace(connection) || string.IsNullOrWhiteSpace(output))
+        {
+            return;
+        }
+
+        var deckId = long.TryParse(Environment.GetEnvironmentVariable("PRISM_SLIDE_REVIEW_DECK"), out var parsed) ? parsed : 1;
+        var userName = Environment.GetEnvironmentVariable("PRISM_SLIDE_REVIEW_USER") ?? string.Empty;
+        Directory.CreateDirectory(output);
+
+        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Development");
+            builder.UseSetting("ConnectionStrings:DefaultConnection", connection);
+        });
+        using var scope = factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ApplicationDbContext>();
+        // The named user, else the deck's owner.
+        var userId = string.IsNullOrWhiteSpace(userName)
+            ? await db.Set<ProjectBriefingDeck>().IgnoreQueryFilters().Where(deck => deck.Id == deckId).Select(deck => deck.OwnerUserId).SingleAsync()
+            : await db.Users.Where(user => user.UserName == userName).Select(user => user.Id).SingleAsync();
+        var data = await services.GetRequiredService<IProjectBriefingDataService>()
+            .BuildPresentationDataAsync(deckId, userId, CancellationToken.None);
+
+        // Photos as the export attaches them.
+        var photos = services.GetRequiredService<IProjectBriefingPhotoLoader>();
+        foreach (var project in data.Projects.Where(item => item.CoverPhotoId.HasValue))
+        {
+            var loaded = await photos.LoadAsync(project.ProjectId, project.CoverPhotoId!.Value, CancellationToken.None);
+            if (loaded is not null)
+            {
+                project.CoverPhoto = loaded.Content;
+                project.CoverPhotoContentType = loaded.ContentType;
+            }
+        }
+
+        var composer = services.GetRequiredService<IProjectBriefingSlideComposer>();
+        var allBlocks = Enum.GetValues<ProjectBriefingDeckBlockType>()
+            .Where(type => (data.Blocks ?? Array.Empty<ProjectBriefingDeckBlock>()).Any(block => block.Type == type))
+            .Select(type => new ProjectBriefingDeckBlock(type, Enabled: true))
+            .ToArray();
+        foreach (var design in new[]
+        {
+            ProjectBriefingProjectSlideDesign.Capability,
+            ProjectBriefingProjectSlideDesign.KeyPoints,
+            ProjectBriefingProjectSlideDesign.Brief,
+            ProjectBriefingProjectSlideDesign.KeyPointsOnly,
+            ProjectBriefingProjectSlideDesign.FactSheet
+        })
+        {
+            var settings = ProjectBriefingProjectSlideDesigns.Settings(
+                design,
+                data.NarrativeMode,
+                data.StandardSlideOptions.KeyPoints,
+                showKeyPoints: true,
+                ProjectBriefingKeyPointPlacement.ProjectBriefSlide);
+            var variant = Clone(data);
+            Set(variant, nameof(ProjectBriefingPresentationData.Layout), settings.Layout);
+            Set(variant, nameof(ProjectBriefingPresentationData.NarrativeMode), settings.NarrativeMode);
+            Set(variant, nameof(ProjectBriefingPresentationData.PresentationMode), ProjectBriefingPresentationMode.Combined);
+            Set(variant, nameof(ProjectBriefingPresentationData.StandardSlideOptions), data.StandardSlideOptions with
+            {
+                KeyPoints = settings.KeyPoints,
+                KeyPointsOnly = settings.KeyPointsOnly
+            });
+            Set(variant, nameof(ProjectBriefingPresentationData.Blocks), allBlocks);
+            var composition = composer.ComposeWithOutline(variant);
+            await File.WriteAllBytesAsync(Path.Combine(output, $"{design}.pptx"), composition.Content);
+        }
+    }
+
+    private static ProjectBriefingPresentationData Clone(ProjectBriefingPresentationData data)
+        => (ProjectBriefingPresentationData)typeof(object)
+            .GetMethod("MemberwiseClone", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(data, null)!;
+
+    private static void Set(ProjectBriefingPresentationData data, string property, object? value)
+        => typeof(ProjectBriefingPresentationData).GetProperty(property)!.SetValue(data, value);
+}
