@@ -163,5 +163,17 @@ Each step is one PR, checked by exporting the demo decks through PowerPoint as a
    its total together). The bands stay shapes behind the chart, its inner plot set on their slots;
    stages now take equal slots. The builder's preview draws stacked columns.
 7. **Re-review**: export every design again and compare.
+   Done 17 Nov: all five project designs (Capability, Key points, Brief, Key points only, Fact
+   sheet) and every deck slide exported in both themes from the demo deck. No overflow, no cropped
+   photo, no split that fitting could avoid. Four fixes:
+   - Role and Charter on the dark theme: the lead phrases were in the header's maroon, hard to
+     read on dark; they now use a lighter rose there (the light theme is unchanged).
+   - Stage-wise list: the text was about 10 pt with the lower third of the slide empty; it now
+     takes the largest size up to 1.5 times that at which it still fits on one slide.
+   - Fact sheet: a sheet of five or six rows sets them 30% larger (up to nine rows, 15%), and the
+     brief tries 22, 20, 18 and 16 pt before its usual size, so a short brief fills its panel.
+   - Key points only: the cards take the largest text from 17 pt down to 11 pt that fits, with a
+     12 pt heading from 14 pt text upwards.
+   Not design faults: some demo key points are placeholder text, and some projects have no brief.
 
 Steps 1–3 change what a deck says least and help most; 5 and 6 are the largest.

@@ -20,6 +20,7 @@ namespace ProjectManagement.Tests.ProjectBriefings;
 //   PRISM_SLIDE_REVIEW_OUT         folder for the .pptx files
 //   PRISM_SLIDE_REVIEW_DECK        deck id (default 1)
 //   PRISM_SLIDE_REVIEW_USER        user name allowed to open the deck (default: the deck's owner)
+//   PRISM_SLIDE_REVIEW_THEME       "light" for every design in the light theme (default: the deck's)
 public sealed class SlideReviewHarness
 {
     [Fact]
@@ -64,6 +65,36 @@ public sealed class SlideReviewHarness
         }
 
         var composer = services.GetRequiredService<IProjectBriefingSlideComposer>();
+        // PRISM_SLIDE_REVIEW_THEME=light composes every design in the light theme, its FFC map
+        // redrawn in light colours.
+        if (string.Equals(Environment.GetEnvironmentVariable("PRISM_SLIDE_REVIEW_THEME"), "light", StringComparison.OrdinalIgnoreCase))
+        {
+            data = Clone(data);
+            Set(data, nameof(ProjectBriefingPresentationData.PresentationTheme), ProjectBriefingPresentationTheme.EditorialLight);
+            if (data.FfcGlobalFootprint is { } lightFootprint)
+            {
+                var mapRenderer = services.GetRequiredService<ProjectManagement.Services.Ffc.Presentation.IFfcPresentationMapRenderer>();
+                Set(data, nameof(ProjectBriefingPresentationData.FfcGlobalFootprint), new ProjectBriefingFfcGlobalFootprintData
+                {
+                    Title = lightFootprint.Title,
+                    Layout = lightFootprint.Layout,
+                    IncludeCountryWiseBreakdown = lightFootprint.IncludeCountryWiseBreakdown,
+                    Summary = lightFootprint.Summary,
+                    Countries = lightFootprint.Countries,
+                    MaximumCountryRows = lightFootprint.MaximumCountryRows,
+                    MapImage = mapRenderer.RenderBriefingBand(
+                        lightFootprint.Countries.Select((country, index) => new ProjectManagement.Services.Ffc.Presentation.FfcPresentationCountry(
+                            index + 1, country.CountryName, country.IsoCode, 0, country.ProjectCount,
+                            country.InstalledUnits, country.DeliveredNotInstalledUnits, country.PlannedUnits,
+                            DateTimeOffset.UtcNow, Array.Empty<ProjectManagement.Services.Ffc.Presentation.FfcPresentationRecord>())).ToArray(),
+                        ProjectBriefingSlideComposer.FfcMapBandPixelWidth,
+                        ProjectBriefingSlideComposer.FfcMapBandPixelHeight,
+                        dark: false),
+                    DataAsOnUtc = lightFootprint.DataAsOnUtc
+                });
+            }
+        }
+
         var allBlocks = Enum.GetValues<ProjectBriefingDeckBlockType>()
             .Where(type => (data.Blocks ?? Array.Empty<ProjectBriefingDeckBlock>()).Any(block => block.Type == type))
             .Select(type => new ProjectBriefingDeckBlock(type, Enabled: true))
