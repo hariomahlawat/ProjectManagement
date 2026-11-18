@@ -44,10 +44,11 @@ Owner choices (the recommendations, accepted with "Yes, build it"):
    "in deck". Tests for each filter and their combination.
 2. **The dialog.** Chips, search, the tick list, Tick all, Remove, Add with Undo; the five tabs and
    "My projects" removed. Built: ticks are kept when the filters change, so sets mix; Add posts
-   the ticked projects through AddSelection (Undo as before); Remove on an "In deck" row has its
-   own Undo; Escape closes an open filter and returns to its chip; "Clear filters" resets all.
+   the ticked projects through AddSelection (Undo as before); Remove on an "In deck" row asks
+   first, as the project's notes, photo choice and place in the deck go with it (no Undo: adding
+   it back starts afresh); Escape closes an open filter and returns to its chip; "Clear filters" resets all.
    Checked in the browser on a copy of the dev data (ARPP FY 2026-27 37, with Driving Smls 6;
-   Tick all, Add, Undo; ticks kept when a filter is cleared; Remove and Undo; completed FY
+   Tick all, Add, Undo; ticks kept when a filter is cleared; Remove; completed FY
    2023-24 to 2025-26 16).
 3. **Phones, Dark, keyboard, guide.** Chips wrap, the list full width on phones; keyboard order and
    labels; the Studio guide and this document updated.

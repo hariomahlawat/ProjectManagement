@@ -1871,11 +1871,13 @@ if (root) {
     // Taken when this save starts in the queue, after any earlier save's reply is applied, so a
     // second add made before the first finished undoes only its own projects.
     let membersBefore = new Set();
+    // The form's fields as they are now: a second Add made before this one runs must not change
+    // what this one sends (Codex review: the Add projects form is reused for each Add).
+    const body = new FormData(form);
     setState(addProjectsStatus, 'Adding projects…', 'saving');
     try {
       const payload = await runDeckMutation(async () => {
         membersBefore = new Set(latestProjects.map((project) => Number(project.projectId)));
-        const body = new FormData(form);
         body.set('RowVersion', currentRowVersion());
         const response = await fetch(form.action, {
           method: 'POST',
@@ -2421,23 +2423,22 @@ if (root) {
     if (!button) return;
     const projectId = Number(button.dataset.pbdFilterRemove);
     const name = filterRows.find((row) => row.projectId === projectId)?.projectName || 'The project';
+    // Removing deletes the project's place in this deck with its notes, photo choice and position,
+    // and adding it back starts afresh (Codex review): so it asks, rather than offering an Undo
+    // that could not bring those back.
+    const confirmed = await prismConfirm({
+      title: `Remove ${name}?`,
+      message: 'It leaves this deck with its speaker notes, chosen photo and place in the order. Adding it again starts it afresh; the project itself is not changed.',
+      confirmText: 'Remove project',
+      cancelText: 'Keep',
+      tone: 'danger',
+      returnFocus: button
+    });
+    if (!confirmed) return;
     button.disabled = true;
     try {
       await updateMembership([], [projectId], addProjectsStatus);
       setState(addProjectsStatus, `Removed ${name}.`, 'saved');
-      const undo = document.createElement('button');
-      undo.type = 'button';
-      undo.className = 'btn btn-link btn-sm pbd-add-projects__undo';
-      undo.textContent = 'Undo';
-      undo.setAttribute('aria-label', `Undo: put ${name} back in the deck`);
-      undo.addEventListener('click', async () => {
-        undo.disabled = true;
-        try {
-          await updateMembership([projectId], [], addProjectsStatus);
-          setState(addProjectsStatus, `Put ${name} back.`, 'saved');
-        } catch { undo.disabled = false; }
-      });
-      addProjectsStatus?.append(' ', undo);
       // The row is rebuilt as "not in the deck"; keep the keyboard on it.
       filterResults.querySelector(`[data-pbd-filter-tick="${projectId}"]`)?.focus();
     } catch {
