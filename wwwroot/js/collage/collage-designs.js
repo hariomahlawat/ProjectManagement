@@ -898,16 +898,16 @@
     const showingBack = collage.side === 'back' && collage.back;
     const card = showingBack ? core.flipSide(collage) : collage;
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
-    // A poster has one arrangement, used for either shape.
-    // A folded card has its own outside and inside (PR 9c); a poster one arrangement for any shape.
+    // A folded card has its own outside and inside (PR 9c); any other the design's arrangement for
+    // the page's shape (a poster has only one, used for either).
     const parts = isFolded(card.size) ? foldedParts(designKey, 'outside') : isPortrait(card.size) ? design.portrait : (design.landscape || design.portrait);
     const applied = {
       ...card,
       background: { ...design.background },
       layout: null,
       items: makePage(card.items, parts, pageContext(card, wording, opts, { isCard: Boolean(card.card), frameRole: 'photo', lockedElsewhere: new Set((card.back?.items || []).filter((item) => item.role && item.locked).map((item) => item.role)) })),
-      // The guest list stays with the card through a design change (PR 10).
-      card: { ...(card.card?.guests ? { guests: card.card.guests } : {}), design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
+      // The guest list, and fields a newer PRISM keeps on the card, stay through a design change.
+      card: { ...(card.card || {}), design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
     };
     // A folded card always has both sides.
     if (card.back || isFolded(card.size)) {

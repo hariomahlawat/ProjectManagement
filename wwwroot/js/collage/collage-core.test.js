@@ -1406,9 +1406,14 @@ test('guest names come one a line from pasted text, or the first column of a CSV
   assert.deepEqual(collage.readGuests(many).over, 400 - collage.GUEST_LIMITS.names);
   assert.equal(collage.readGuests('Maj A').over, 0);
   // A CSV whose first row heads a Name column takes that column, not the rank before it.
-  assert.deepEqual(collage.guestNames('Rank,Name,Unit\nBrig,"P. Singh, SM",5 Sikh\nCol,D. Nair,', { csv: true }), ['P. Singh, SM', 'D. Nair']);
-  assert.deepEqual(collage.guestNames('Rank;Guest name' + String.fromCharCode(10) + 'Brig;P. Singh, SM', { csv: true }), ['P. Singh, SM']);
+  assert.deepEqual(collage.guestNames('Rank,Name,Unit\nBrig,"P. Singh, SM",5 Sikh\nCol,D. Nair,', { csv: true }), ['Brig P. Singh, SM', 'Col D. Nair']);
+  assert.deepEqual(collage.guestNames('Rank;Guest name' + String.fromCharCode(10) + 'Brig;P. Singh, SM', { csv: true }), ['Brig P. Singh, SM']);
   assert.deepEqual(collage.guestNames('Guests' + String.fromCharCode(10) + 'Maj A' + String.fromCharCode(10) + 'Capt B'), ['Maj A', 'Capt B']);
+  // First name and surname are joined; a quoted address with a line break stays in its cell.
+  assert.deepEqual(collage.guestNames('First name,Surname,Address'+String.fromCharCode(10)+'Ravi,Kumar,"12 Mall Road'+String.fromCharCode(10)+'Delhi"'+String.fromCharCode(10)+'Asha,Rao,x', { csv: true }), ['Ravi Kumar', 'Asha Rao']);
+  // A draft keeps a guest called anything, even "Name".
+  const kept = collage.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, guests: ['Name', 'Guests', 'Maj B'] } }, []);
+  assert.deepEqual(kept.card.guests, ['Name', 'Guests', 'Maj B']);
   assert.deepEqual(collage.guestNames('Full name\nMaj A', { csv: true }), ['Maj A']);
   // A draft keeps the list, cleaned the same way.
   const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, guests: ['Col D. Nair', '', 7, 'Maj B'] } }, []);
@@ -1461,4 +1466,50 @@ test('a programme of 600 letters is kept whole in a draft', () => {
   const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [{ id: 'p', kind: 'text', text: programme, x: 500, y: 500, width: 600, aspect: 1, size: 40, angle: 0, field: 'programme' }], card: { design: 'classic', details: { programme } } }, []);
   assert.equal(read.items[0].text, programme);
   assert.equal(read.card.details.programme, programme);
+});
+
+// Backs on print sheets (cold review 2): on a turned sheet each back is turned 180°, so a card
+// turned over like a book page reads upright; on an upright sheet nothing is turned.
+test('sheet placements turn the backs on a turned sheet, and each card still fills its slot', () => {
+  const pt = collage.PT_PER_MM;
+  const turned = collage.sheetLayout('a6p', 'a4', { back: true });
+  assert.equal(turned.upright, false, 'A6 portrait goes two to a turned A4');
+  const backs = collage.sheetPlacements(turned, true);
+  const [, sh] = turned.sheet;
+  backs.forEach((place, i) => {
+    const slot = turned.cards[i];
+    assert.equal(place.rotate, 180);
+    // Turned about (x, y), the card covers x - width … x and y - height … y.
+    assert.ok(Math.abs(place.x - place.width - slot.x * pt) < 0.01);
+    assert.ok(Math.abs(place.y - place.height - (sh - slot.y - slot.h) * pt) < 0.01);
+  });
+  assert.ok(collage.sheetPlacements(collage.sheetLayout('a6p', 'a4'), false).every((place) => place.rotate === 0), 'fronts are never turned');
+  const upright = collage.sheetLayout('a7p', 'a4', { back: true });
+  assert.equal(upright.upright, true);
+  assert.ok(collage.sheetPlacements(upright, true).every((place) => place.rotate === 0), 'an upright sheet keeps its backs upright');
+});
+
+// A newer PRISM's parts of a card (cold review 2): the back's own fields, a back this PRISM cannot
+// read, and the card's own fields are kept and written back as they were.
+test('a draft keeps a newer PRISM\'s back fields, an unreadable back and unknown card fields', () => {
+  const raw = {
+    version: 1, size: 'a5p', items: [], background: { type: 'color', value: '#ffffff' },
+    card: { design: 'classic', details: {}, placed: [], ribbon: { colour: 'gold' } },
+    back: { background: { type: 'color', value: '#ffffff' }, items: [], foil: { on: true } }
+  };
+  const read = collage.readDraftModel(JSON.parse(JSON.stringify(raw)), []);
+  assert.deepEqual(read.card.ribbon, { colour: 'gold' });
+  // A change of design keeps them too.
+  const designs = require('./collage-designs.js');
+  const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) * 0.56;
+  let n = 0;
+  const redesigned = designs.applyDesign(read, 'navy', designs.detailsOf(read), { measure, newId: () => `r${++n}` });
+  assert.deepEqual(redesigned.card.ribbon, { colour: 'gold' });
+  const written = collage.draftModel(read);
+  assert.deepEqual(written.back.foil, { on: true });
+  assert.deepEqual(written.card.ribbon, { colour: 'gold' });
+  // A back of a shape this PRISM does not know is kept whole.
+  const odd = collage.readDraftModel({ ...raw, back: { pages: [1, 2] } }, []);
+  assert.equal(odd.back, undefined);
+  assert.deepEqual(collage.draftModel(odd).back, { pages: [1, 2] });
 });

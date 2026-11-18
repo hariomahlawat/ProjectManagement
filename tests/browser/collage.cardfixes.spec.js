@@ -206,3 +206,49 @@ test('a poster with No logo saves with nothing left out', async ({ page }) => {
   expect(result).not.toMatch(/empty frame|left out|could not/);
   expect(errors).toEqual([]);
 });
+
+test('a colour set by hand stays when a unit colour changes', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="regimental"]').click();
+  await touch(page);
+  const host = (await newestDraft(page)).model.items.find((item) => item.field === 'host');
+  expect(host.tint?.color).toBeTruthy();
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator(`[data-layer-select="${host.id}"]`).click();
+  await page.locator('.clg-props [data-props-tab="settings"]').click();
+  await page.locator('[data-text-set="color"][data-value="#000000"]').click();
+  await expect.poll(async () => (await newestDraft(page)).model.items.find((item) => item.id === host.id)?.color).toBe('#000000');
+  await page.locator('[data-card-colour="1"]').evaluate((input) => {
+    input.value = '#1f5b3a';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect.poll(async () => (await newestDraft(page)).model.items.find((item) => item.role === 'band1')?.fill).toBe('#1f5b3a');
+  expect((await newestDraft(page)).model.items.find((item) => item.id === host.id).color).toBe('#000000');
+  expect(errors).toEqual([]);
+});
+
+test('guests with only the side without names saved: one copy, and the result says why', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('fold6');
+  await page.locator('[data-start-design="classic"]').click();
+  const list = page.locator('[data-card-guests]');
+  await list.fill('Maj A\nCapt B\nLt C');
+  await list.blur();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('[data-save-sides] input[value="front"]').check();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const file = await download;
+  await expect(page.locator('[data-save-result]')).toContainText('without names');
+  const pages = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    return (await window.PDFLib.PDFDocument.load(bytes)).getPageCount();
+  }, (await bytesOf(file)).toString('base64'));
+  expect(pages).toBe(1);
+  expect(errors).toEqual([]);
+});

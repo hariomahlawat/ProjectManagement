@@ -328,6 +328,13 @@
       isOpen: (key) => openFolds.has(key)
     });
     const { arrangeSections, swatches, textSections, switchRow, finishSections } = settingsHtml;
+    /** A colour the user picks by hand stays: the part no longer follows a unit colour for it. */
+    function untint(item, prop) {
+      if (!item.tint || !(prop in item.tint)) return;
+      const { [prop]: dropped, ...rest } = item.tint;
+      if (Object.keys(rest).length) item.tint = rest;
+      else delete item.tint;
+    }
     const layersSection = () => settingsHtml.layersSection(state.collage, state.selectedId);
 
     /** Puts the cursor in the selected text's words, opening its settings. */
@@ -348,7 +355,7 @@
     ui.props.addEventListener('click', (event) => {
       const set = event.target.closest('[data-text-set]');
       if (set) {
-        selection.changeSelected((item) => { item[set.dataset.textSet] = set.dataset.value; });
+        selection.changeSelected((item) => { item[set.dataset.textSet] = set.dataset.value; untint(item, set.dataset.textSet); });
         return;
       }
       const toggle = event.target.closest('[data-text-toggle]');
@@ -361,7 +368,7 @@
         selection.changeSelected((item) => { item.text = text; }, false);
       } else if (event.target.matches('[data-text-colour]')) {
         const value = event.target.value;
-        selection.changeSelected((item) => { item[event.target.dataset.textColour] = value; }, false);
+        selection.changeSelected((item) => { item[event.target.dataset.textColour] = value; untint(item, event.target.dataset.textColour); }, false);
       }
     });
 

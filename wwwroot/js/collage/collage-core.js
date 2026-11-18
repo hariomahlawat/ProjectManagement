@@ -1610,6 +1610,25 @@
     return { sheet: [best.sw, best.sh], upright: isUpright, cols: best.cols, rows: best.rows, count: best.count, cards };
   }
 
+  /** PDF points in a mm. */
+  const PT_PER_MM = 72 / 25.4;
+
+  /**
+   * Where each card of a sheet layout goes on a PDF page, in points from the bottom left, and
+   * whether it is turned. A sheet's back lines up with its front when the printer flips on the
+   * long edge. On a turned (landscape) sheet that flip turns the page over its top edge, so each
+   * back is drawn turned 180°: then a cut card turned over like a book page reads upright, as on
+   * an upright sheet. `rotate` is pdf-lib's: about (x, y), so a turned card's (x, y) is the
+   * slot's top right corner.
+   */
+  function sheetPlacements(layout, back = false) {
+    const [, sh] = layout.sheet;
+    const turn = back && !layout.upright;
+    return layout.cards.map((slot) => (turn
+      ? { x: (slot.x + slot.w) * PT_PER_MM, y: (sh - slot.y) * PT_PER_MM, width: slot.w * PT_PER_MM, height: slot.h * PT_PER_MM, rotate: 180 }
+      : { x: slot.x * PT_PER_MM, y: (sh - slot.y - slot.h) * PT_PER_MM, width: slot.w * PT_PER_MM, height: slot.h * PT_PER_MM, rotate: 0 }));
+  }
+
   /** Cut marks round each card of a sheet: short lines in the gaps at each corner, in mm. */
   function cutMarks(layout) {
     const { mark } = SHEET_SPACE;
@@ -1704,6 +1723,18 @@
     }
   }
 
+  /**
+   * A part's tint, checked: which unit colour (1 to 3) its fill, stroke or colour follows (PR 6).
+   * Anything else in it is dropped, and an empty tint is removed.
+   */
+  function setTint(clean, raw) {
+    const tint = raw && typeof raw === 'object'
+      ? Object.fromEntries(Object.entries(raw).filter(([prop, which]) => ['fill', 'stroke', 'color'].includes(prop) && [1, 2, 3].includes(which)))
+      : {};
+    if (Object.keys(tint).length) clean.tint = tint;
+    else delete clean.tint;
+  }
+
   function readDraftModel(raw, photoIds) {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.items)) return null;
     const version = isNumber(raw.version) ? raw.version : 1;
@@ -1767,11 +1798,7 @@
         clean.stroke = HEX_COLOUR.test(item.stroke) ? item.stroke : '';
         const [low, high] = SHAPE_LIMITS.strokeWidth;
         clean.strokeWidth = Math.min(high, Math.max(low, isNumber(item.strokeWidth) ? item.strokeWidth : 4));
-        if (item.tint && typeof item.tint === 'object') {
-          const tint = Object.fromEntries(Object.entries(item.tint).filter(([prop, which]) => ['fill', 'stroke', 'color'].includes(prop) && [1, 2, 3].includes(which)));
-          if (Object.keys(tint).length) clean.tint = tint;
-          else delete clean.tint;
-        } else delete clean.tint;
+        setTint(clean, item.tint);
         delete clean.crop;
       }
       if (item.kind === 'text') {
@@ -1788,13 +1815,8 @@
         clean.label = HEX_COLOUR.test(item.label) ? item.label : '';
         clean.align = ['left', 'center', 'right'].includes(item.align) ? item.align : 'center';
         for (const flag of ['bold', 'italic', 'shadow', 'glow']) clean[flag] = item[flag] === true;
+        setTint(clean, item.tint);
         // Fitting to a width (PR 4 of docs/ux/invitations-posters.md): a usable width, or none.
-        // A part's tint names which unit colour (1 to 3) a colour follows; nothing else is kept.
-        if (item.tint && typeof item.tint === 'object') {
-          const tint = Object.fromEntries(Object.entries(item.tint).filter(([prop, which]) => ['fill', 'stroke', 'color'].includes(prop) && [1, 2, 3].includes(which)));
-          if (Object.keys(tint).length) clean.tint = tint;
-          else delete clean.tint;
-        } else delete clean.tint;
         if (isNumber(item.maxWidth) && item.maxWidth >= ITEM_LIMITS.minWidth) clean.maxWidth = Math.min(ITEM_LIMITS.maxWidth, item.maxWidth);
         else delete clean.maxWidth;
         if (Number.isInteger(item.maxLines)) clean.maxLines = Math.min(TEXT_FIT.maxLines[1], Math.max(TEXT_FIT.maxLines[0], item.maxLines));
@@ -1846,10 +1868,12 @@
         if (raw.side === 'back') model.side = 'back';
       }
     }
-    // Fields of the collage this PRISM does not use (a newer PRISM's back page, for example).
+    // Fields of the collage this PRISM does not use, and a back it cannot read (a newer PRISM's),
+    // kept as they were so a newer PRISM gets them back.
     const fields = {};
     for (const [key, value] of Object.entries(raw)) {
-      if (MODEL_FIELDS.includes(key) || !PART_NAME.test(key)) continue;
+      const unreadBack = key === 'back' && !model.back && value !== undefined && value !== null;
+      if ((MODEL_FIELDS.includes(key) && !unreadBack) || !PART_NAME.test(key)) continue;
       const copy = plainCopy(value);
       if (!copy || keptChars + copy.json.length > KEPT_LIMITS.chars) continue;
       keptChars += copy.json.length;
@@ -1870,69 +1894,104 @@
     const design = typeof raw.design === 'string' && PART_NAME.test(raw.design) ? raw.design : '';
     const details = {};
     for (const [field, value] of Object.entries(raw.details && typeof raw.details === 'object' ? raw.details : {})) {
-      if (CARD_FIELD.test(field) && typeof value === 'string' && Object.keys(details).length < 40) details[field] = value.slice(0, TEXT_LIMITS.maxLength);
+      if (CARD_FIELD.test(field) && typeof value === 'string' && Object.keys(details).length < CARD_FIELD_LIMIT) details[field] = value.slice(0, TEXT_LIMITS.maxLength);
     }
     // The fields the design placed (PR 5): names only, as the designs name them.
-    const placed = Array.isArray(raw.placed) ? [...new Set(raw.placed.filter((field) => typeof field === 'string' && CARD_FIELD.test(field)))].slice(0, 40) : [];
+    const placed = Array.isArray(raw.placed) ? [...new Set(raw.placed.filter((field) => typeof field === 'string' && CARD_FIELD.test(field)))].slice(0, CARD_FIELD_LIMIT) : [];
     // The guest list (PR 10): plain names, at most GUEST_LIMITS of them.
-    const guests = guestNames(Array.isArray(raw.guests) ? raw.guests.filter((name) => typeof name === 'string').join(String.fromCharCode(10)) : '');
-    return design ? { design, details, placed, ...(guests.length ? { guests } : {}) } : null;
+    const guests = guestNames(Array.isArray(raw.guests) ? raw.guests.filter((name) => typeof name === 'string').map((name) => name.replace(/[\r\n]+/g, ' ')).join(String.fromCharCode(10)) : '', { heading: false });
+    if (!design) return null;
+    // A newer PRISM's card fields are kept as plain copies, within KEPT_LIMITS, and go back as
+    // they were when the card is saved (every change to the card keeps the rest of it).
+    const newer = {};
+    let chars = 0;
+    for (const [key, value] of Object.entries(raw)) {
+      if (['design', 'details', 'placed', 'guests'].includes(key) || !PART_NAME.test(key)) continue;
+      const copy = plainCopy(value);
+      if (!copy || chars + copy.json.length > KEPT_LIMITS.chars) continue;
+      chars += copy.json.length;
+      newer[key] = copy.value;
+    }
+    return { ...newer, design, details, placed, ...(guests.length ? { guests } : {}) };
   }
 
   /** A guest list's limits (docs/ux/invitations-posters.md, PR 10). */
   const GUEST_LIMITS = Object.freeze({ names: 300, length: 120 });
+  // At most this many card fields kept from a draft: the designs use about 31, so newer designs have room.
+  const CARD_FIELD_LIMIT = 64;
 
   /**
    * Guest names from pasted text or a .txt file (one a whole line, commas and all), or a .csv file
-   * (`csv`: its first column, quotes allowed); blanks and a first line "Name" left out, each
-   * trimmed to GUEST_LIMITS.length, at most GUEST_LIMITS.names.
+   * (`csv`: the rank and name columns when the first row heads them, else the first column);
+   * blanks and a heading line left out, each trimmed to GUEST_LIMITS.length, at most
+   * GUEST_LIMITS.names. See readGuests.
    */
   function guestNames(text, opts) {
     return readGuests(text, opts).names;
   }
 
-  /** The cells of one CSV row: quoted cells may hold commas, and a doubled quote is a quote. */
-  function csvCells(line, separator = ',') {
-    const cells = [];
+  /**
+   * The rows of a CSV, each a list of cells: a quoted cell may hold the separator, a line break
+   * (an address) or a doubled quote for a quote.
+   */
+  function csvRows(text, separator = ',') {
+    const rows = [];
+    let row = [];
     let cell = '';
     let quoted = false;
-    for (let i = 0; i < line.length; i += 1) {
-      const ch = line[i];
+    const source = String(text || '');
+    for (let i = 0; i < source.length; i += 1) {
+      const ch = source[i];
       if (quoted) {
-        if (ch === '"' && line[i + 1] === '"') { cell += '"'; i += 1; }
+        if (ch === '"' && source[i + 1] === '"') { cell += '"'; i += 1; }
         else if (ch === '"') quoted = false;
         else cell += ch;
       } else if (ch === '"' && !cell.trim()) { cell = ''; quoted = true; }
-      else if (ch === separator) { cells.push(cell); cell = ''; }
-      else cell += ch;
+      else if (ch === separator) { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && source[i + 1] === '\n') i += 1;
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = '';
+      } else cell += ch;
     }
-    cells.push(cell);
-    return cells;
+    row.push(cell);
+    rows.push(row);
+    return rows;
   }
+
+  // Headings in a guest list's first row: the columns that make up a guest's name, in order.
+  const RANK_HEADING = /^\s*(rank|title|appointment)\s*$/i;
+  const NAME_HEADING = /^\s*((full|guest|guest's|guest’s)\s+)?names?\s*$|^\s*guests?\s*$|^\s*(first|given|last|family|sur)\s*names?\s*$|^\s*surname\s*$|^\s*initials?\s*$/i;
 
   /**
    * The guest list read from text, one name a line, with how many names did not fit (past
-   * GUEST_LIMITS.names). A CSV takes the column headed "Name" when its first row names one
-   * (a list of Rank, Name, Unit), otherwise its first column; a first line "Name" is a heading.
+   * GUEST_LIMITS.names). In a CSV whose first row has headings, a guest's name is made from the
+   * rank and name columns in their order ("Rank, Name, Unit" gives "Brig P. Singh, SM"; "First
+   * name, Surname" gives both); with no headings, it is the first column. A first line that is a
+   * heading ("Name", "Guests") is left out. `heading: false` reads every line as a name (a list
+   * kept in a draft, where a guest may be called anything).
    */
-  function readGuests(text, { csv = false } = {}) {
-    const lines = String(text || '').split(/\r?\n/);
-    const names = [];
-    let column = 0;
-    let first = true;
+  function readGuests(text, { csv = false, heading = true } = {}) {
+    const source = String(text || '');
+    const head = source.split(/\r?\n/).find((line) => line.trim()) || '';
     // A CSV saved with semicolons (as some spreadsheets do) when its first row has no comma.
-    const head = lines.find((line) => line.trim()) || '';
     const separator = csv && head.includes(';') && !head.includes(',') ? ';' : ',';
-    let over = 0;
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const cells = csv ? csvCells(line, separator) : [line];
-      if (first) {
-        first = false;
-        const heading = cells.findIndex((cell) => /^\s*((full|guest|guest's|guest’s)\s+)?names?\s*$|^\s*guests?\s*$/i.test(cell));
-        if (heading >= 0) { column = heading; continue; }
+    const rows = (csv ? csvRows(source, separator) : source.split(/\r?\n/).map((line) => [line]))
+      .filter((cells) => cells.some((cell) => cell.trim()));
+    let columns = [0];
+    if (heading && rows.length) {
+      const named = rows[0].map((cell, i) => (NAME_HEADING.test(cell) || RANK_HEADING.test(cell) ? i : -1)).filter((i) => i >= 0);
+      if (named.some((i) => NAME_HEADING.test(rows[0][i]))) {
+        columns = named;
+        rows.shift();
       }
-      const name = String(cells[column] ?? '').replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);
+    }
+    const names = [];
+    let over = 0;
+    for (const cells of rows) {
+      const name = columns.map((i) => cells[i] ?? '').join(' ').replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);
       if (!name) continue;
       if (names.length >= GUEST_LIMITS.names) { over += 1; continue; }
       names.push(name);
@@ -2211,6 +2270,8 @@
     SHEETS,
     SHEET_SPACE,
     sheetLayout,
+    sheetPlacements,
+    PT_PER_MM,
     GUEST_LIMITS,
     guestNames,
     readGuests,

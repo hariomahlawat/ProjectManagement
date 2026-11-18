@@ -290,9 +290,17 @@
       return made ? { ...page, items: [...page.items, made] } : page;
     }
 
-    /** Cut marks for a sheet layout onto a PDF page `sh` mm tall. */
-    function drawCutMarks(sheet, layout, sh) {
-      const pt = 72 / 25.4;
+    /**
+     * One sheet page of cards with cut marks (PR 9): `images[i]` goes in slot i (none leaves the
+     * slot empty); a back sheet's cards are placed and turned to line up with the fronts.
+     */
+    function addSheet(pdf, layout, images, back) {
+      const pt = core.PT_PER_MM;
+      const [sw, sh] = layout.sheet;
+      const sheet = pdf.addPage([sw * pt, sh * pt]);
+      core.sheetPlacements(layout, back).forEach((place, i) => {
+        if (images[i]) sheet.drawImage(images[i], { ...place, rotate: window.PDFLib.degrees(place.rotate) });
+      });
       const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
       for (const [x1, y1, x2, y2] of core.cutMarks(layout)) {
         sheet.drawLine({ start: { x: x1 * pt, y: (sh - y1) * pt }, end: { x: x2 * pt, y: (sh - y2) * pt }, thickness: 0.4, color: grey });
@@ -306,7 +314,6 @@
      * one at a time, each let go before the next.
      */
     async function guestPdf(pdf, cards, fits, sheetKey) {
-      const pt = 72 / 25.4;
       const shared = new Map();
       const imageOf = async (page) => {
         if (shared.has(page)) return shared.get(page);
@@ -333,18 +340,13 @@
         return;
       }
       const backLayout = core.sheetLayout(getCollage().size, sheetKey, { back: true });
-      const [sw, sh] = layout.sheet;
       for (let start = 0; start < cards.length; start += layout.count) {
         const batch = cards.slice(start, start + layout.count);
         for (const [which, slots] of [['front', layout], ['back', backLayout]]) {
           if (!batch.some((card) => card[which])) continue;
-          const sheet = pdf.addPage([sw * pt, sh * pt]);
-          for (const [i, card] of batch.entries()) {
-            if (!card[which]) continue;
-            const slot = slots.cards[i];
-            sheet.drawImage(await imageOf(card[which]), { x: slot.x * pt, y: (sh - slot.y - slot.h) * pt, width: slot.w * pt, height: slot.h * pt });
-          }
-          drawCutMarks(sheet, layout, sh);
+          const images = [];
+          for (const card of batch) images.push(card[which] ? await imageOf(card[which]) : null);
+          addSheet(pdf, slots, images, which === 'back');
         }
       }
     }
@@ -395,7 +397,9 @@
         const holdsGuest = (page) => Boolean(page?.items.some((item) => item.field === 'guest'));
         const guestSide = holdsGuest(all[0]) ? 0 : holdsGuest(all[1]) ? 1 : designs?.sideOf(getCollage(), 'guest') === 'back' ? 1 : 0;
         const chosenPage = (page) => pages.includes(page);
-        const cards = guests.length ? guests.map((name) => {
+        // The side that holds the names not being saved: one copy, as it is, and a word why.
+        const namesLeftOut = guests.length > 0 && !chosenPage(all[guestSide]);
+        const cards = guests.length && !namesLeftOut ? guests.map((name) => {
           const named = namedPage(all[guestSide], name);
           const front = guestSide === 0 ? named : all[0];
           const back = guestSide === 1 ? named : (all[1] || null);
@@ -452,14 +456,8 @@
             const sheetKey = sheetBoxChoice();
             const layout = sheetKey ? core.sheetLayout(getCollage().size, sheetKey, { back: names[index] === 'back' }) : null;
             if (layout?.count) {
-              // As many as fit, with cut marks in the gaps; mm to PDF points, from the bottom.
-              const pt = 72 / 25.4;
-              const [sw, sh] = layout.sheet;
-              const sheet = pdf.addPage([sw * pt, sh * pt]);
-              for (const slot of layout.cards) {
-                sheet.drawImage(image, { x: slot.x * pt, y: (sh - slot.y - slot.h) * pt, width: slot.w * pt, height: slot.h * pt });
-              }
-              drawCutMarks(sheet, layout, sh);
+              // As many as fit, with cut marks in the gaps.
+              addSheet(pdf, layout, layout.cards.map(() => image), names[index] === 'back');
             } else {
               const page = core.pdfPage(getCollage().size);
               pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
@@ -475,7 +473,8 @@
         const sizeText = photoTools ? photoTools.formatBytes(total) : `${Math.ceil(total / 1000)} KB`;
         const saved = files.length === 1 ? `Saved “${files[0].name}”` : `Saved ${files.map((file) => `“${file.name}”`).join(' and ')}`;
         const pageNote = cards && cards.length ? `${cards.length} guest cards on ${pageCount} page${pageCount === 1 ? '' : 's'}` : pdf && pages.length > 1 ? `${pages.length} pages` : null;
-        const parts = [saved, pageNote, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText].filter(Boolean);
+        const namesNote = namesLeftOut ? `The guests' names go on the ${designs.isFolded(getCollage().size) ? 'inside' : guestSide ? 'back' : 'front'}, which was not saved, so one copy was saved without names` : null;
+        const parts = [saved, pageNote, namesNote, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText].filter(Boolean);
         let line = `${parts.join(' · ')}.`;
         if (fits.scaled) {
           const dpi = core.paperDpi(getCollage().size, fits.width);

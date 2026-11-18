@@ -338,10 +338,6 @@
       renderStrip();
     }
 
-    /**
-     * The design buttons, made once and then only marked: a held edit written when a button is
-     * pressed redraws the panel, and a button replaced under the pointer would lose its click.
-     */
     // -------------------------------------------------------------------------
     // The logo (PR 7): PRISM's SDD logo, a crest an administrator uploaded, or the user's own
     // picture, kept in this browser like a photo. Changing the design keeps it.
@@ -764,8 +760,11 @@
       guestFile.value = '';
       if (!file) return;
       if (file.size > 1000000) { messages.showAlert('That file is too large for a guest list. Use a .csv or .txt file of at most 1 MB.'); return; }
+      // A card left (or another opened) while the file is read gets nothing from it.
+      const forCollage = state.collageSession;
       let text = '';
-      try { text = await file.text(); } catch { messages.showAlert('That file could not be read.'); return; }
+      try { text = await file.text(); } catch { if (forCollage === state.collageSession) messages.showAlert('That file could not be read.'); return; }
+      if (forCollage !== state.collageSession) return;
       const guests = setGuests(text, { csv: /\.csv$/i.test(file.name) || file.type === 'text/csv' });
       renderPanel();
       messages.announce(guests.length ? `${guests.length} names read from ${file.name}.` : `No names were found in ${file.name}.`);
@@ -798,6 +797,10 @@
       history.holdEdit();
     }
 
+    /**
+     * The design buttons, made once and then only marked: a held edit written when a button is
+     * pressed redraws the panel, and a button replaced under the pointer would lose its click.
+     */
     function renderStrip() {
       if (!strip) return;
       const current = state.collage?.card?.design;

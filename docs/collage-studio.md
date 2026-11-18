@@ -128,15 +128,21 @@ its npm package by hand; the libman entry records the version.
     - Thin cut marks sit in the gaps at each card's corners.
     - With a back, the back sheet follows the front sheet, mirrored so each back lands behind
       its front when the printer flips on the long edge: across an upright sheet, top to bottom
-      on a turned one.
+      on a turned one. On a turned sheet each back is also drawn turned 180°, so a cut card
+      turned over like a book page reads upright, as it does from an upright sheet.
 
-    `core.sheetLayout` and `core.cutMarks` work in mm.
+    `core.sheetLayout` and `core.cutMarks` work in mm; `core.sheetPlacements` gives each card's
+    place on the PDF page in points, turned or not, for both Save paths.
 
     **Guest list** (PR 10): Card details has a **Guest list**. Names can be pasted or typed one
-    a line, or read from a .txt file (whole lines) or a .csv file (the column headed "Name" or
-    "Full name" when the first row has one, such as Rank, Name, Unit; otherwise the first column;
-    quotes allowed). A first line "Name" is left out; there are at most 300 names of 120
-    characters each, and names past 300 are counted and the user is told how many were left out. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
+    a line, or read from a .txt file (whole lines) or a .csv file. In a CSV whose first row has
+    headings, a guest's name is made from the rank and name columns in their order (Rank, Name,
+    Unit gives "Brig P. Singh, SM"; First name, Surname gives both); with no headings, it is the
+    first column. Quoted cells may hold commas and line breaks; a CSV saved with semicolons is
+    read too. A heading line ("Name", "Guests") is left out; there are at most 300 names of 120
+    characters each, and names past 300 are counted and the user is told how many were left out.
+    If the side that holds the names is not saved (a folded card's outside only), one copy is
+    saved and the result says why. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
     this browser only, and stay through design changes.
 
     Saved as a PDF, **One card for each guest** puts each guest's name in the guest field (or in

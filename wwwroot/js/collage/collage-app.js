@@ -844,9 +844,9 @@
     stopAdjust(false);
   }
 
-  /** Photos in the tray that are not on the page, in the order they were added. */
+  /** Photos in the tray on neither side of the card, in the order they were added. */
   const sparePhotos = () => {
-    const used = new Set(collage.items.filter((item) => item.kind === 'photo').map((item) => item.photo));
+    const used = new Set([...collage.items, ...(collage.back?.items || [])].filter((item) => item.kind === 'photo').map((item) => item.photo));
     return [...photos.keys()].filter((id) => !used.has(id) && !photos.get(id).removed);
   };
 
