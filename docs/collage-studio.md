@@ -99,9 +99,18 @@ its npm package by hand; the libman entry records the version.
   Birthday, Thank you!, Congratulations and others), curved text, outline, shadow and a label
   behind the words. Hindi is typed with the Windows Hindi keyboard or pasted.
 - **Stickers**: first the **Crests and logos** an administrator uploaded (shown first when there
-  are any; a retired one still draws in drafts that use it), then twelve drawn shapes and stamps
-  that take any colour, and emoji drawings in eight
-  groups with a search box.
+  are any; a retired one still draws in drafts that use it), then **Lines and borders**, then
+  twelve drawn shapes and stamps that take any colour, and emoji drawings in eight groups with a
+  search box.
+- **Lines and borders** ([ux/invitations-posters.md](ux/invitations-posters.md), PR 3): a line,
+  a thin gold rule, a page border, a double border (two borders in one step), a band, a
+  rectangle, an oval and a circle. Each is a `shape` item: unlike a sticker it **stretches
+  freely** from every handle, corners included. Its settings choose Rectangle, Oval or Line, the
+  line colour and thickness (0 to 40), and a fill (rectangles and ovals; "None" for an outline).
+  A rectangle takes rounded corners. The stroke is drawn inside the item's box, so the handles
+  and the saved picture agree. A border or band takes no room when a new item looks for free
+  space, so words and stickers still land in the middle of the page. A line's box is 36 page
+  units tall, so it's easy to grab, with the line drawn across its middle.
 - **Background**: colours, gradients, patterns and textures, or one of the photos softly
   blurred.
 - **Arrange**: snap guides to the page and other items, Line up on the page, a **Layers** tab
@@ -140,7 +149,7 @@ its npm package by hand; the libman entry records the version.
 | File | What it holds |
 | --- | --- |
 | `wwwroot/js/collage/collage-core.js` (`window.PrismCollage`) | The collage as plain JSON and every pure rule: sizes, layouts, crop and pan, frames, shapes, looks, text layout, snapping, lining up, Save sizes, reading a draft back safely, undo history |
-| `wwwroot/js/collage/collage-draw.js` (`window.PrismCollageDraw`) | Drawing a photo, text, sticker and background on a 2D canvas. The editor uses it inside Konva shapes and Save uses it on its own canvas, so **the saved picture always matches the screen** |
+| `wwwroot/js/collage/collage-draw.js` (`window.PrismCollageDraw`) | Drawing a photo, text, sticker, shape (line, rectangle, oval) and background on a 2D canvas. The editor uses it inside Konva shapes and Save uses it on its own canvas, so **the saved picture always matches the screen** |
 | `wwwroot/js/collage/collage-stickers.js` | The sticker catalogue, the drawn stickers as SVG and the search |
 | `wwwroot/js/collage/collage-drafts.js` | The IndexedDB store; every call fails softly, and the editor still works when the browser refuses storage |
 | `wwwroot/js/collage/collage-render.js` | Save's drawing from the original photos (same drawing as the page), the largest canvas a browser can draw, and what was left out |

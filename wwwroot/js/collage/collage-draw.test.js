@@ -174,3 +174,53 @@ test('a polaroid keeps its handwritten caption and has no strip', () => {
   assert.ok(ctx.calls.some((c) => c[0] === 'font' && c[1].includes(draw.CAPTION_FONT)));
   assert.ok(!ctx.calls.some((c) => c[0] === 'font' && /Mulish/.test(c[1])));
 });
+
+// Lines and borders (docs/ux/invitations-posters.md, PR 3).
+function shapeRecorder() {
+  const ctx = recorder();
+  Object.defineProperty(ctx, 'strokeStyle', { set(v) { ctx.calls.push(['strokeStyle', v]); } });
+  Object.defineProperty(ctx, 'lineWidth', { set(v) { ctx.calls.push(['lineWidth', v]); } });
+  for (const name of ['stroke', 'arcTo']) ctx[name] = (...args) => ctx.calls.push([name, ...args]);
+  return ctx;
+}
+
+test('a rectangle is stroked inside its box, filled when asked, with rounded corners', () => {
+  const ctx = shapeRecorder();
+  const item = collage.shapeItem('r', 'rect', { x: 0, y: 0, width: 200, aspect: 2 }, { fill: '#fbf7ee', stroke: '#a8842f', strokeWidth: 10, radius: 20 });
+  draw.drawShape(ctx, item);
+  // The stroke's outer edge is the box's edge: the path starts half a stroke in.
+  assert.deepEqual(ctx.calls.find((c) => c[0] === 'moveTo'), ['moveTo', 25, 5]);
+  assert.equal(ctx.calls.filter((c) => c[0] === 'arcTo').length, 4);
+  assert.ok(ctx.calls.some((c) => c[0] === 'fillStyle' && c[1] === '#fbf7ee'));
+  assert.ok(ctx.calls.some((c) => c[0] === 'strokeStyle' && c[1] === '#a8842f'));
+  assert.ok(ctx.calls.some((c) => c[0] === 'lineWidth' && c[1] === 10));
+  assert.deepEqual(names(ctx).filter((n) => n === 'fill' || n === 'stroke'), ['fill', 'stroke']);
+});
+
+test('an oval fills its box; a line runs across the middle; nothing is drawn without colour', () => {
+  const oval = shapeRecorder();
+  draw.drawShape(oval, collage.shapeItem('o', 'ellipse', { x: 0, y: 0, width: 300, aspect: 1.5 }, { stroke: '', fill: '#a8842f' }));
+  assert.deepEqual(oval.calls.find((c) => c[0] === 'ellipse').slice(1, 5), [150, 100, 150, 100]);
+  assert.ok(!names(oval).includes('stroke'));
+
+  const line = shapeRecorder();
+  draw.drawShape(line, collage.shapeItem('l', 'line', { x: 0, y: 0, width: 240 }, { stroke: '#172033', strokeWidth: 6 }));
+  const middle = collage.SHAPE_LIMITS.lineBox / 2;
+  assert.deepEqual(line.calls.filter((c) => c[0] === 'moveTo' || c[0] === 'lineTo'), [['moveTo', 0, middle], ['lineTo', 240, middle]]);
+  assert.ok(line.calls.some((c) => c[0] === 'lineWidth' && c[1] === 6));
+
+  const blank = shapeRecorder();
+  draw.drawShape(blank, collage.shapeItem('b', 'rect', { x: 0, y: 0, width: 100 }, { stroke: '', fill: '' }));
+  assert.ok(!names(blank).includes('fill') && !names(blank).includes('stroke'));
+});
+
+test('a line thicker than a small shape stays inside its box: the inset is half the line drawn', () => {
+  const ctx = shapeRecorder();
+  // 100 × 24 with a 40-unit line: the line drawn is 12 (half the short side), inset 6.
+  draw.drawShape(ctx, collage.shapeItem('r', 'rect', { x: 0, y: 0, width: 100, aspect: 100 / 24 }, { stroke: '#a8842f', strokeWidth: 40 }));
+  const width = ctx.calls.find((c) => c[0] === 'lineWidth')[1];
+  const [, x, y] = ctx.calls.find((c) => c[0] === 'moveTo');
+  assert.equal(width, 12);
+  assert.equal(y, width / 2, 'the outer edge of the line is the top of the box');
+  assert.equal(x, width / 2);
+});

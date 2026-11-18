@@ -909,6 +909,36 @@ test('add panels: the Text panel offers its starts, and a heading added does not
   assert.deepEqual(env.calls.announce.at(-1), ['Text added. Type the words in the Words box.']);
 });
 
+// Lines and borders (docs/ux/invitations-posters.md, PR 3).
+test('add panels: Lines and borders comes after the crests, adds shapes, and a double border is one step', async (t) => {
+  const env = makeAddPanels(t, null);
+  env.panels.renderStickerPanel();
+  const chips = [...env.document.querySelectorAll('[data-sticker-group]')].map((chip) => chip.dataset.stickerGroup);
+  assert.deepEqual(chips.slice(0, 3), ['crests', 'lines', 'shapes']);
+  env.$('[data-sticker-group="lines"]').click();
+  assert.deepEqual([...env.document.querySelectorAll('[data-add-shape]')].map((b) => b.dataset.addShape), ['line', 'rule', 'border', 'double', 'band', 'rect', 'oval', 'circle']);
+  assert.equal(env.$('[data-add-sticker]'), null);
+  assert.equal(env.$('[data-sticker-none]').hidden, true);
+
+  env.$('[data-add-shape="double"]').click();
+  const [outer, inner] = env.values.collage.items;
+  assert.deepEqual([outer.kind, outer.form, inner.kind], ['shape', 'rect', 'shape']);
+  // Both round the page, the second further in; one Undo step for both.
+  assert.equal(outer.x, core.PAGE_WIDTH / 2);
+  assert.ok(inner.width < outer.width);
+  assert.equal(env.calls.commit.length, 1);
+  assert.match(env.calls.announce.at(-1)[0], /^Double border added/);
+
+  env.$('[data-add-shape="line"]').click();
+  const line = env.values.collage.items.at(-1);
+  assert.deepEqual([line.form, line.strokeWidth, line.aspect], ['line', 6, 600 / core.SHAPE_LIMITS.lineBox]);
+
+  // A search finds shapes by their words, beside any stickers it finds.
+  env.$('[data-sticker-search]').value = 'border';
+  env.panels.renderStickerPanel();
+  assert.deepEqual([...env.document.querySelectorAll('[data-add-shape]')].map((b) => b.dataset.addShape), ['border', 'double']);
+});
+
 test('add panels: without PRISM\'s crests the other stickers still work, and the crests say why', async (t) => {
   const env = makeAddPanels(t, { loadStickers: async () => { throw new Error('offline'); } });
   env.panels.loadUnitStickers();
@@ -916,7 +946,8 @@ test('add panels: without PRISM\'s crests the other stickers still work, and the
   env.$('[data-sticker-group="crests"]').click();
   assert.equal(env.$('[data-sticker-none]').hidden, false);
   assert.match(env.$('[data-sticker-none]').textContent, /could not be read from PRISM/);
-  const other = [...env.document.querySelectorAll('[data-sticker-group]')].find((chip) => chip.dataset.stickerGroup !== 'crests');
+  // Any sticker group other than the crests (Lines and borders holds shapes, not stickers).
+  const other = [...env.document.querySelectorAll('[data-sticker-group]')].find((chip) => !['crests', 'lines'].includes(chip.dataset.stickerGroup));
   other.click();
   const sticker = env.$('[data-add-sticker]');
   assert.ok(sticker, 'the group shows its stickers');

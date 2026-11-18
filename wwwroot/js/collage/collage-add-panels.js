@@ -199,6 +199,74 @@
       });
     }
 
+    // Lines and borders (docs/ux/invitations-posters.md, PR 3): ready-made shapes, each a
+    // normal item that stretches freely afterwards. A page border is placed round the page; the
+    // others go where they cover nothing. Previews are drawn from these constants only.
+    const SHAPE_GROUP = Object.freeze({ key: 'lines', label: 'Lines and borders' });
+    const GOLD = '#a8842f';
+    const SHAPE_STARTS = Object.freeze([
+      { key: 'line', label: 'Line', words: 'line rule divider', form: 'line', width: 600, look: { stroke: '#172033', strokeWidth: 6 } },
+      { key: 'rule', label: 'Thin gold rule', words: 'thin gold rule line divider', form: 'line', width: 360, look: { stroke: GOLD, strokeWidth: 2 } },
+      { key: 'border', label: 'Page border', words: 'border frame page edge', form: 'rect', border: [30], look: { stroke: GOLD, strokeWidth: 4 } },
+      { key: 'double', label: 'Double border', words: 'double border frame page edge formal', form: 'rect', border: [24, 36], look: { stroke: GOLD, strokeWidth: 3 } },
+      { key: 'band', label: 'Band', words: 'band strip bar colour banner', form: 'rect', width: 1000, aspect: 1000 / 120, look: { fill: '#1d2c55', stroke: '', strokeWidth: 0 } },
+      { key: 'rect', label: 'Rectangle', words: 'rectangle box square outline', form: 'rect', width: 320, aspect: 1.5, look: { stroke: '#172033', strokeWidth: 4 } },
+      { key: 'oval', label: 'Oval', words: 'oval ellipse ring outline', form: 'ellipse', width: 320, aspect: 1.5, look: { stroke: '#172033', strokeWidth: 4 } },
+      { key: 'circle', label: 'Circle', words: 'circle dot round filled', form: 'ellipse', width: 200, aspect: 1, look: { fill: GOLD, stroke: '', strokeWidth: 0 } }
+    ]);
+
+    /** A small picture of a ready-made shape, from the constants above. */
+    function shapePreview(start) {
+      const stroke = start.look.stroke || 'none';
+      const fill = start.look.fill || 'none';
+      const line = (x1, y1, x2, y2, w) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}"/>`;
+      const rect = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+      const body = start.key === 'line' ? line(6, 20, 54, 20, 3)
+        : start.key === 'rule' ? line(12, 20, 48, 20, 1.5)
+          : start.key === 'border' ? rect(12, 4, 36, 32)
+            : start.key === 'double' ? rect(10, 3, 40, 34) + rect(14, 7, 32, 26)
+              : start.key === 'band' ? rect(4, 15, 52, 10)
+                : start.key === 'rect' ? rect(14, 10, 32, 20)
+                  : start.key === 'oval' ? `<ellipse cx="30" cy="20" rx="17" ry="11" fill="none" stroke="${stroke}" stroke-width="2"/>`
+                    : `<circle cx="30" cy="20" r="11" fill="${fill}"/>`;
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40">${body}</svg>`)}`;
+    }
+
+    function shapeButton(start) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'clg-sticker clg-sticker--wide';
+      button.dataset.addShape = start.key;
+      button.title = start.label;
+      button.setAttribute('aria-label', `Add ${start.label}`);
+      const img = document.createElement('img');
+      img.alt = '';
+      img.src = shapePreview(start);
+      button.appendChild(img);
+      return button;
+    }
+
+    function addShape(key) {
+      const start = SHAPE_STARTS.find((each) => each.key === key);
+      if (!start) return;
+      const height = doc.pageHeight();
+      const made = [];
+      if (start.border) {
+        // Round the page, as far in as each inset says.
+        for (const inset of start.border) {
+          const width = core.PAGE_WIDTH - inset * 2;
+          made.push(core.shapeItem(doc.newItemId(), start.form, { x: core.PAGE_WIDTH / 2, y: height / 2, width, aspect: width / (height - inset * 2) }, start.look));
+        }
+      } else {
+        const aspect = start.aspect || (start.form === 'line' ? start.width / core.SHAPE_LIMITS.lineBox : 1);
+        const spot = core.freeSpot(state.collage.items, state.collage.size, start.width / 2, start.width / aspect / 2);
+        made.push(core.shapeItem(doc.newItemId(), start.form, { x: spot.x, y: spot.y, width: start.width, aspect }, start.look));
+      }
+      for (const item of made) selection.placeNewItem(item);
+      history.commit();
+      messages.announce(`${start.label} added. Drag its handles to stretch it.`);
+    }
+
     /** The Stickers panel: search, groups, and the stickers of the group or the search. */
     function renderStickerPanel() {
       messages.keepingFocus(() => renderStickerPanelNow());
@@ -208,8 +276,10 @@
       const box = ui.root.querySelector('[data-sticker-grid]');
       const chips = ui.root.querySelector('[data-sticker-groups]');
       const query = ui.root.querySelector('[data-sticker-search]').value.trim();
+      // Lines and borders come straight after Crests and logos.
       const groups = stickers.groups();
-      chips.replaceChildren(...groups.map((group) => {
+      const chipGroups = [groups[0], SHAPE_GROUP, ...groups.slice(1)];
+      chips.replaceChildren(...chipGroups.map((group) => {
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'clg-chip';
@@ -218,8 +288,12 @@
         chip.setAttribute('aria-pressed', String(!query && group.key === stickerGroup));
         return chip;
       }));
-      const list = query ? stickers.search(query) : (groups.find((group) => group.key === stickerGroup) || groups[0]).items;
-      box.replaceChildren(...list.map((item) => {
+      const words = query.toLowerCase();
+      const shapes = query
+        ? SHAPE_STARTS.filter((start) => `${start.label} ${start.words}`.toLowerCase().includes(words))
+        : stickerGroup === SHAPE_GROUP.key ? SHAPE_STARTS : [];
+      const list = query ? stickers.search(query) : stickerGroup === SHAPE_GROUP.key ? [] : (groups.find((group) => group.key === stickerGroup) || groups[0]).items;
+      box.replaceChildren(...shapes.map(shapeButton), ...list.map((item) => {
         const entry = stickers.find(item.id);
         const button = document.createElement('button');
         button.type = 'button';
@@ -244,8 +318,8 @@
         return button;
       }));
       const none = ui.root.querySelector('[data-sticker-none]');
-      none.hidden = list.length > 0;
-      if (!list.length) {
+      none.hidden = list.length + shapes.length > 0;
+      if (!list.length && !shapes.length) {
         none.textContent = query ? STICKER_NONE.search
           : stickerGroup !== 'crests' ? STICKER_NONE.search
             : unitState === 'ready' ? STICKER_NONE.empty : STICKER_NONE[unitState];
@@ -302,6 +376,8 @@
       }
       const stickerButton = event.target.closest('[data-add-sticker]');
       if (stickerButton) { addSticker(stickerButton.dataset.addSticker); return; }
+      const shapeChoice = event.target.closest('[data-add-shape]');
+      if (shapeChoice) { addShape(shapeChoice.dataset.addShape); return; }
       const groupChip = event.target.closest('[data-sticker-group]');
       if (groupChip) {
         stickerGroup = groupChip.dataset.stickerGroup;

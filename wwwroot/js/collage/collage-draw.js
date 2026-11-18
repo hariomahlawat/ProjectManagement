@@ -229,6 +229,69 @@
     ctx.restore();
   }
 
+  /** The outline of a rectangle (rounded by `radius`) or oval, `inset` in from the item's box. */
+  function traceShape(ctx, item, inset = 0) {
+    const width = item.width;
+    const height = width / item.aspect;
+    const w = Math.max(0, width - inset * 2);
+    const h = Math.max(0, height - inset * 2);
+    ctx.beginPath();
+    if (item.form === 'ellipse') {
+      ctx.ellipse(width / 2, height / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+      return;
+    }
+    const r = Math.max(0, Math.min(item.radius || 0, w / 2, h / 2));
+    ctx.moveTo(inset + r, inset);
+    ctx.lineTo(inset + w - r, inset);
+    ctx.arcTo(inset + w, inset, inset + w, inset + r, r);
+    ctx.lineTo(inset + w, inset + h - r);
+    ctx.arcTo(inset + w, inset + h, inset + w - r, inset + h, r);
+    ctx.lineTo(inset + r, inset + h);
+    ctx.arcTo(inset, inset + h, inset, inset + h - r, r);
+    ctx.lineTo(inset, inset + r);
+    ctx.arcTo(inset, inset, inset + r, inset, r);
+    ctx.closePath();
+  }
+
+  /**
+   * Draws a line, rectangle or oval filling the item's box (docs/ux/invitations-posters.md,
+   * PR 3). The stroke is drawn inside the box, so the saved picture and the handles agree; a
+   * rectangle's corners are rounded by `radius`; a line runs across the middle of the box.
+   */
+  function drawShape(ctx, item) {
+    const width = item.width;
+    const height = width / item.aspect;
+    const strokeWidth = Math.max(0, item.strokeWidth || 0);
+    const stroked = Boolean(item.stroke) && strokeWidth > 0;
+    ctx.save();
+    if (item.form === 'line') {
+      if (stroked) {
+        ctx.strokeStyle = item.stroke;
+        ctx.lineWidth = Math.min(strokeWidth, height);
+        ctx.beginPath();
+        ctx.moveTo(0, height / 2);
+        ctx.lineTo(width, height / 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+      return;
+    }
+    // The line actually drawn: never thicker than half the box's shorter side, so it stays inside
+    // the box, and the inset is half of that same width.
+    const lineWidth = stroked ? Math.min(strokeWidth, width / 2, height / 2) : 0;
+    traceShape(ctx, item, lineWidth / 2);
+    if (item.fill) {
+      ctx.fillStyle = item.fill;
+      ctx.fill();
+    }
+    if (stroked) {
+      ctx.strokeStyle = item.stroke;
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // ---------------------------------------------------------------------------
   // Backgrounds: every one is drawn in page units, so it looks the same on the page and in the
   // saved picture at any size. Speckles and grain come from core.steadyRandom, never Math.random.
@@ -378,5 +441,5 @@
     ctx.restore();
   }
 
-  return Object.freeze({ drawPhoto, drawText, drawSticker, drawBackground, tracePath, canFilter, CAPTION_FONT, STRIP_FONT });
+  return Object.freeze({ drawPhoto, drawText, drawSticker, drawShape, traceShape, drawBackground, tracePath, canFilter, CAPTION_FONT, STRIP_FONT });
 });

@@ -402,6 +402,11 @@
       draw.drawSticker(context._context, item, image, pixelsPerUnit);
     }
 
+    function drawShapeNode(context, shape) {
+      const item = doc.itemById(shape.id());
+      if (item) draw.drawShape(context._context, item);
+    }
+
     function drawTextNode(context, shape) {
       const item = doc.itemById(shape.id());
       if (!item) return;
@@ -418,10 +423,31 @@
       context.fillStrokeShape(shape);
     }
 
+    /**
+     * The area of a shape that takes clicks (docs/ux/invitations-posters.md, PR 3): a line or a
+     * filled shape takes its whole box; an outline (a page border) only its line, widened to
+     * about 14 screen pixels, so photos and words inside a border can still be clicked.
+     */
+    const SHAPE_GRAB_PIXELS = 14;
+    function hitShapeNode(context, shape) {
+      const item = doc.itemById(shape.id());
+      if (!item) return;
+      if (item.form === 'line' || item.fill) { hitPhotoNode(context, shape); return; }
+      const native = context._context;
+      const drawn = Math.min(item.strokeWidth || 0, item.width / 2, item.width / item.aspect / 2);
+      const band = Math.max(drawn, SHAPE_GRAB_PIXELS / Math.max(state.scale, 0.01));
+      native.save();
+      draw.traceShape(native, item, drawn / 2);
+      native.strokeStyle = shape.colorKey;
+      native.lineWidth = band;
+      native.stroke();
+      native.restore();
+    }
+
     function makeNode(item) {
       const node = item.kind === 'slot'
         ? makeSlotNode()
-        : new Konva.Shape({ name: 'item', draggable: true, sceneFunc: item.kind === 'text' ? drawTextNode : item.kind === 'sticker' ? drawStickerNode : drawPhotoNode, hitFunc: hitPhotoNode });
+        : new Konva.Shape({ name: 'item', draggable: true, sceneFunc: item.kind === 'text' ? drawTextNode : item.kind === 'sticker' ? drawStickerNode : item.kind === 'shape' ? drawShapeNode : drawPhotoNode, hitFunc: item.kind === 'shape' ? hitShapeNode : hitPhotoNode });
       node.id(item.id);
       node.setAttr('kind', item.kind);
       node.on('pointerdown', (event) => {
@@ -577,6 +603,8 @@
       const isText = Boolean(node && ['text', 'sticker'].includes(doc.itemById(state.selectedId)?.kind));
       const locked = Boolean(node && doc.itemById(state.selectedId)?.locked);
       transformer.enabledAnchors(adjusting || locked ? [] : isText ? CORNER_ANCHORS : ALL_ANCHORS);
+      // A line or border stretches freely from its corners too (docs/ux/invitations-posters.md, PR 3).
+      transformer.keepRatio(!(node && doc.itemById(state.selectedId)?.kind === 'shape'));
       transformer.rotateEnabled(!adjusting && !locked);
       transformer.borderStroke(adjusting ? ADJUST_COLOUR : locked ? LOCKED_COLOUR : accent());
       transformer.borderDash(adjusting || locked ? [6, 4] : []);
