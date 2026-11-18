@@ -109,3 +109,18 @@ test('a design pressed straight after typing in Card details still changes the d
   expect(model.items.find((item) => item.field === 'occasion').text).toBe('Barakhana');
   expect(errors).toEqual([]);
 });
+
+test('a quick pick pressed straight after typing words in Settings still fills its field', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  // Select the venue through Layers and type in its Words box, then at once press a quick pick.
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]').filter({ hasText: "Officers' Mess" }).click();
+  await page.locator('.clg-props [data-props-tab="settings"]').click();
+  await page.locator('[data-text]').fill('Sudarshan Hall');
+  await page.locator('[data-card-pick="occasion"][data-value="Barakhana"]').click();
+  await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Barakhana');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasion')?.text).toBe('Barakhana');
+  expect((await newestDraft(page)).model.items.find((item) => item.field === 'venue').text).toBe('Sudarshan Hall');
+  expect(errors).toEqual([]);
+});

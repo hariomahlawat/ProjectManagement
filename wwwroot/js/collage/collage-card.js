@@ -100,6 +100,29 @@
     // The Card details panel
     // -------------------------------------------------------------------------
 
+    // A press in the Card panel can write a held edit first (the editor writes edits on any
+    // pointerdown), which draws the panel again; a control replaced under the pointer would lose
+    // its click. So while a press is under way in the panel, drawing it waits until the press is
+    // done. Listened for on the window, so it is seen before the editor's own listener.
+    const panelBox = ui.$('[data-drawer-panel="card"]');
+    let pressing = false;
+    let waiting = false;
+    window.addEventListener('pointerdown', (event) => {
+      if (panelBox?.contains(event.target)) pressing = true;
+    }, true);
+    const pressDone = () => {
+      if (!pressing) return;
+      pressing = false;
+      // After the click has been answered.
+      window.setTimeout(() => {
+        if (!waiting) return;
+        waiting = false;
+        refresh();
+      }, 0);
+    };
+    window.addEventListener('pointerup', pressDone, true);
+    window.addEventListener('pointercancel', pressDone, true);
+
     /** Shows the Card button only for a card; draws the panel again unless the user is typing in it. */
     function refresh() {
       const card = state.collage?.card;
@@ -108,6 +131,7 @@
         if (state.panel === 'card') screens.setPanel('photos');
         return;
       }
+      if (pressing) { waiting = true; return; }
       if (state.panel === 'card' && !form.contains(document.activeElement)) renderPanel();
       else renderStrip();
     }
