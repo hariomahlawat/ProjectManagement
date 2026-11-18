@@ -4594,3 +4594,27 @@ test('an edit missed offline and brought in by the refresh is not reverted by a 
     window.close();
   }
 });
+
+test('a pushed edit changes the text only: a reaction pushed just before it stays', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Meeting at 1500')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me'] }] });
+    // The edit was saved, and its reactions read, before that reaction.
+    app.onEdited(directMessage(1, 'peer', 'Meeting at 1600', { editedUtc: new Date().toISOString(), reactions: [] }));
+    const item = win.log.querySelector('[data-message-id="1"]');
+    assert.match(item.querySelector('.pm-chat__bubble').textContent, /Meeting at 1600/);
+    assert.ok(item.querySelector('.pm-chat__edited'));
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '✓ Noted1');
+    assert.equal(app.messageEventAt.get(1).reactions.list.length, 1, 'the stale list is not remembered');
+  } finally {
+    window.close();
+  }
+});

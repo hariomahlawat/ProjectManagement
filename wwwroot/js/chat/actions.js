@@ -398,29 +398,36 @@
 
   /** MessageEdited / GroupMessageEdited, or the answer to this page's own edit. */
   /**
-   * A pushed edit (MessageEdited) is live: both its text and its reactions are the newest.
+   * A pushed edit (MessageEdited, GroupMessageEdited) is live for its text only: the reaction
+   * list it carries was read when the edit was saved, and a reaction saved meanwhile may already
+   * have been pushed (ReactionsChanged is the only source of live reactions). So a pushed edit
+   * changes the text, edit time and mentions of the copies on screen and leaves their reactions.
    * `answeredSince` is set for the answer to this page's own edit, asked for when the live
-   * numbering stood there: a part that changed live since keeps its live content, and only the
-   * parts taken from the answer are recorded.
+   * numbering stood there: it is settled per part like any other answer (settleFetched), and
+   * only the parts taken from it are recorded.
    */
   ChatApp.prototype.onEdited = function (incoming, answeredSince) {
     if (!incoming || !incoming.id || this.unsentIds.has(incoming.id)) return;
+    const id = incoming.id;
     const isAnswer = typeof answeredSince === 'number';
     const message = isAnswer ? this.settleFetched([incoming], answeredSince)[0] : incoming;
+    const text = { body: message.body, editedUtc: message.editedUtc, mentionedUserIds: message.mentionedUserIds };
     const change = {};
-    if (!isAnswer || !this.changedSince(message.id, 'text', answeredSince)) {
-      change.text = { body: message.body, editedUtc: message.editedUtc, mentionedUserIds: message.mentionedUserIds };
-    }
-    if (!isAnswer || !this.changedSince(message.id, 'reactions', answeredSince)) {
-      change.reactions = message.reactions || [];
-    }
-    if (change.text || change.reactions) this.noteMessageEvent(message.id, change);
+    if (!isAnswer || !this.changedSince(id, 'text', answeredSince)) change.text = text;
+    if (isAnswer && !this.changedSince(id, 'reactions', answeredSince)) change.reactions = message.reactions || [];
+    if (change.text || change.reactions) this.noteMessageEvent(id, change);
+    // An answer replaces the copy (settled above); a push changes only the text of it.
+    const update = (m) => (isAnswer ? message : { ...m, ...text });
     this.windows.forEach((win) => {
-      const held = win.messages.some((m) => m.id === message.id);
-      const heldLive = (win.heldLive || []).some((m) => m.id === message.id);
+      const held = win.messages.some((m) => m.id === id);
+      const heldLive = (win.heldLive || []).some((m) => m.id === id);
       if (!held && !heldLive) return; // not loaded here: the next load brings the new text
-      if (held) win.messages = mergeMessages(win.messages, [message]);
-      if (heldLive) win.heldLive = win.heldLive.map((m) => (m.id === message.id ? message : m));
+      if (held) {
+        win.messages = isAnswer
+          ? mergeMessages(win.messages, [message])
+          : win.messages.map((m) => (m.id === id ? update(m) : m));
+      }
+      if (heldLive) win.heldLive = win.heldLive.map((m) => (m.id === id ? update(m) : m));
       this.renderMessages(win, { stickToBottom: false });
     });
   };
