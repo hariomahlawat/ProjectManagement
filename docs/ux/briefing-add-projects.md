@@ -69,7 +69,7 @@ UX 7, code 7.5. Fixed in two PRs.
 - Row text is larger.
 - An open chip is shaded.
 - Option counts are labelled as totals.
-- One Add is limited to 1,000 projects.
+- One Add is limited by the deck: a deck holds at most 120 projects (second cold review).
 
 **PR B, the server:**
 - Categories in tree order.
@@ -113,3 +113,34 @@ UX 7, code 7.5, on new findings. Fixed in one PR.
 
 **Not changed**
 - The list reads ARPP entries only when the ARPP filter is set, and the choices once per opening; at about 200 projects that is cheap.
+
+## Third cold review (18 Nov 2026)
+
+UX 7.5, code 8; no High. Fixed in one PR.
+
+**When projects cannot be added**
+- If none of the ticked projects can be added (all archived, deleted or cancelled since the list was shown), the refusal names them. The dialog unticks them and stops offering them, so Add does not fail the same way again.
+- The wording is about ticked projects, not the old "selected criteria".
+- An Add that gets no answer within a minute stops, says so, and enables Add again.
+
+**A full deck**
+- When the ticks fill the room left, projects not ticked cannot be ticked; ticked ones can still be unticked.
+- A full deck says so ("This deck is full") and offers no Tick all.
+- Tick all ticks only as many as fit ("Tick the first N that fit").
+
+**Loading**
+- A list that fails to load offers Try again.
+- The list loads each time the dialog opens, so new, archived or re-categorised projects show as they are now. Ticks stay.
+- "Finding projects…" shows only when an answer takes longer than 0.4 s, so screen readers do not read it on every keystroke.
+- A failed load of the choices shows the sign-in or access message when there is one.
+
+**Accuracy**
+- Category counts take in inactive sub-categories, as the filter does. Inactive categories are still not offered.
+- "%" and "_" in the search match themselves.
+- "Ongoing" with "Completed between" explains why nothing matches.
+
+**Screen readers and phones**
+- The room line is read out only when the ticks go over the room or come back within it.
+- The "n ticked" button no longer has a pressed state on top of its changing label.
+- On a phone the search and chips stay in view: the chips scroll sideways, and an open filter scrolls within 38% of the screen.
+- Remove's question always names the project.

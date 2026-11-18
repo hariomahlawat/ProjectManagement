@@ -636,11 +636,13 @@ public sealed class IndexModel : PageModel
         // The Studio's Add projects dialog posts in place and refreshes from the returned deck;
         // a plain form post keeps the redirect with a status message.
         var isAjax = IsAjaxRequest();
-        IActionResult Fail(string message, int statusCode = StatusCodes.Status400BadRequest)
+        IActionResult Fail(string message, int statusCode = StatusCodes.Status400BadRequest, int[]? skippedProjectIds = null)
         {
             if (isAjax)
             {
-                return new JsonResult(new { message }) { StatusCode = statusCode };
+                return skippedProjectIds is { Length: > 0 }
+                    ? new JsonResult(new { message, skippedProjectIds }) { StatusCode = statusCode }
+                    : new JsonResult(new { message }) { StatusCode = statusCode };
             }
 
             ErrorMessage = message;
@@ -679,7 +681,14 @@ public sealed class IndexModel : PageModel
             addedProjectIds = selection.ProjectIds;
             if (selection.ProjectIds.Count == 0)
             {
-                return Fail("No projects match the selected criteria.");
+                // Every ticked project was archived, deleted or cancelled since the list was shown:
+                // name them so the dialog unticks them, rather than failing the same way on each
+                // try (cold review 3, M1).
+                return input.Kind == ProjectBriefingSelectionKind.IndividualProjects
+                    ? Fail(
+                        "None of the ticked projects can be added: they have been archived, deleted or cancelled.",
+                        skippedProjectIds: input.ProjectIds.Where(id => id > 0).Distinct().ToArray())
+                    : Fail("No projects match the selected criteria.");
             }
 
             var added = await _deckService.AddProjectsAsync(
@@ -691,7 +700,7 @@ public sealed class IndexModel : PageModel
                 cancellationToken);
             addedRowVersion = added.RowVersion;
             message = added.Added == 0
-                ? "All matching projects are already in this deck."
+                ? "The ticked projects are already in this deck."
                 // Ticked projects need no description of how they were chosen.
                 : input.Kind == ProjectBriefingSelectionKind.IndividualProjects
                     ? $"{added.Added} project{(added.Added == 1 ? string.Empty : "s")} added."

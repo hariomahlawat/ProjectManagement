@@ -324,7 +324,7 @@ test('a save keeps the row version it produced, not a re-read deck\'s (review 2 
   assert.match(source, /updateRowVersion\(replyPayload\?\.rowVersion\);/);
   // A conflict while adding projects shows the conflict banner like every other save.
   assert.match(source, /throw new RequestError\(reply\?\.message \|\| `Projects could not be added/);
-  assert.match(source, /if \(error instanceof RequestError && error\.status === 409\) showConflict\(error\.message\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*else if \(error instanceof RequestError && error\.status === 400 && !savesRunning\) showSaveState\('saved'\);\s*setState\(addProjectsStatus/);
+  assert.match(source, /if \(error instanceof RequestError && error\.status === 409\) showConflict\(error\.message\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*else if \(error instanceof RequestError && error\.status === 400 && !savesRunning\) showSaveState\('saved'\);[\s\S]{0,500}setState\(addProjectsStatus/);
 });
 
 test('one word for the pieces of a deck: slide (review fixes PR 5)', () => {

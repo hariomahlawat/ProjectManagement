@@ -223,6 +223,31 @@ public sealed class ProjectBriefingProjectFilterTests
         Assert.All(categories.ProjectCategories, category => Assert.Equal(0, category.MatchCount));
     }
 
+    // An inactive sub-category is not offered, but its projects count towards its parent, as the
+    // parent's filter returns them (cold review 3, M5).
+    [Fact]
+    public async Task Options_AParentCountsTheProjectsOfItsInactiveSubCategories()
+    {
+        await using var db = await SeedAsync();
+        db.TechnicalCategories.Single(category => category.Id == VrMedical).IsActive = false;
+        await db.SaveChangesAsync();
+
+        var options = await Service(db).GetOptionsAsync();
+        var rows = await Service(db).FilterAsync(new ProjectBriefingProjectFilter { TechnicalCategoryIds = new[] { Vr } });
+
+        Assert.DoesNotContain(options.TechnicalCategories, category => category.Name == "VR medical");
+        Assert.Equal(rows.Count, options.TechnicalCategories.Single(category => category.Name == "VR").MatchCount);
+    }
+
+    // "%" and "_" typed in the search box are matched as themselves (cold review 3).
+    [Theory]
+    [InlineData("50%", @"%50\%%")]
+    [InlineData("a_b", @"%a\_b%")]
+    [InlineData(@"c:\x", @"%c:\\x%")]
+    [InlineData("plain", "%plain%")]
+    public void Search_EscapesTheLikeWildcards(string typed, string expected)
+        => Assert.Equal(expected, ProjectBriefingSelectionService.ContainsPattern(typed));
+
     [Theory]
     [InlineData(ProjectBriefingSelectionKind.Ongoing)]
     [InlineData(ProjectBriefingSelectionKind.RecentlyCompleted)]

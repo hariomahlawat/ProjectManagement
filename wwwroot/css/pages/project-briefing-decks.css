@@ -3889,10 +3889,37 @@ html.pm-no-has.pm-has-pbd-viewer-open {
     }
 }
 
-/* On a phone the lead keeps its first sentence. */
+/* On a phone the head stays in view too, kept short (cold review 3): the chips scroll sideways
+   and an open filter's choices scroll inside it, so the list keeps most of the screen. */
 @media (max-width: 575.98px) {
     .pbd-add-projects__lead-more {
         display: none;
+    }
+
+    .pbd-filter__head {
+        position: sticky;
+        top: calc(-1 * var(--bs-modal-padding, 1rem));
+        z-index: 2;
+        gap: .45rem;
+        margin: calc(-1 * var(--bs-modal-padding, 1rem)) calc(-1 * var(--bs-modal-padding, 1rem)) 0;
+        padding: var(--bs-modal-padding, 1rem) var(--bs-modal-padding, 1rem) .45rem;
+        border-bottom: 1px solid var(--pbd-border);
+        background: var(--bs-modal-bg, var(--pbd-surface));
+    }
+
+    .pbd-filter__head .pbd-filter__chips {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: thin;
+    }
+
+    .pbd-filter__head .pbd-filter-chip {
+        flex: 0 0 auto;
+    }
+
+    .pbd-filter__head .pbd-filter__panel {
+        max-height: 38vh;
+        overflow-y: auto;
     }
 }
 

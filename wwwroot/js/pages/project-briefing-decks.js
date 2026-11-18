@@ -1864,6 +1864,7 @@ if (root) {
   });
 
   // Quick selections and category selections: posted in place, the deck refreshed from the reply.
+  const addTimeoutMs = 60000;
   root.addEventListener('submit', async (event) => {
     const form = event.target.closest('[data-pbd-add-selection-form]');
     if (!form) return;
@@ -1886,7 +1887,9 @@ if (root) {
           method: 'POST',
           credentials: 'same-origin',
           body,
-          headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+          headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' },
+          // A hung request must not leave Add disabled until a reload (cold review 3).
+          signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(addTimeoutMs) : undefined
         });
         checkReply(response);
         const reply = await response.json().catch(() => null);
@@ -1911,7 +1914,12 @@ if (root) {
       // A refused add (too many projects, nothing eligible) changed nothing: the deck is as it was
       // saved, not "Not saved" (cold review 2).
       else if (error instanceof RequestError && error.status === 400 && !savesRunning) showSaveState('saved');
-      setState(addProjectsStatus, error.message || 'Projects could not be added.', 'error');
+      // The refusal's reply goes to the dialog: it names the ticked projects that can no longer be
+      // added (cold review 3, M1).
+      if (error instanceof RequestError) settled = { ok: false, payload: error.payload };
+      setState(addProjectsStatus, error?.name === 'TimeoutError'
+        ? 'The server did not answer. Reload the page to see whether the projects were added.'
+        : error.message || 'Projects could not be added.', 'error');
     } finally {
       button?.removeAttribute('disabled');
       // Disabling the button dropped focus to the page; put it back so the keyboard carries on.

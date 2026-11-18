@@ -916,6 +916,7 @@
                                         <div class="pbd-filter__summary">
                                             <span data-pbd-filter-count aria-live="polite">Loading projects…</span>
                                             <button type="button" class="btn btn-link btn-sm" data-pbd-filter-tick-all hidden></button>
+                                            <button type="button" class="btn btn-link btn-sm" data-pbd-filter-list-retry hidden>Try again</button>
                                         </div>
                                         </div>
                                         <div class="pbd-filter__results" data-pbd-filter-results></div>
@@ -931,8 +932,8 @@
                                            (cold review, M1); "n ticked" opens the ticked projects, including any the filters hide (M2). *@
                                         <div class="pbd-filter__footer-info">
                                             <p class="pbd-add-projects__status" data-pbd-add-projects-status aria-live="polite"></p>
-                                            <button type="button" class="btn btn-link btn-sm pbd-filter__ticked" data-pbd-filter-ticked aria-pressed="false" disabled>Nothing ticked</button>
-                                            <span class="pbd-filter__room" data-pbd-filter-room aria-live="polite"></span>
+                                            <button type="button" class="btn btn-link btn-sm pbd-filter__ticked" data-pbd-filter-ticked disabled>Nothing ticked</button>
+                                            <span class="pbd-filter__room" data-pbd-filter-room aria-live="off"></span>
                                         </div>
                                         <button type="button" class="btn btn-link btn-sm" data-pbd-filter-clear hidden>Clear ticks</button>
                                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-pbd-add-projects-done>Done</button>
