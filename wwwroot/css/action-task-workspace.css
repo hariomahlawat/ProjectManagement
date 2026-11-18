@@ -389,3 +389,27 @@
 :where([data-bs-theme="dark"]) .at-task-history-change p {
     color: #b4b9bf;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-action-task-workspace-1: #30435f;
+        --cm-action-task-workspace-2: #35325d;
+    }
+
+    :where([data-bs-theme="dark"]) .at-v2-remark-composer {
+        border: 1px solid var(--cm-action-task-workspace-1);
+    }
+
+    :where([data-bs-theme="dark"]) .at-v2-remark-composer.is-conference {
+        border-color: var(--cm-action-task-workspace-2);
+    }
+
+    :where([data-bs-theme="dark"]) .at-v2-update-card.is-conference {
+        border-color: var(--cm-action-task-workspace-2);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

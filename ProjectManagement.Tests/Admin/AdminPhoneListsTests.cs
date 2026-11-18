@@ -26,7 +26,8 @@ public sealed class AdminPhoneListsTests
     [Fact]
     public void PhoneCards_PinTheActionsInView_AndUseOnlyTokens()
     {
-        var css = Read("wwwroot/css/admin.css");
+        // Up to the generated color-mix() fallbacks for older browsers (tools/color-mix-fallbacks.js).
+        var css = Read("wwwroot/css/admin.css").Split("/* BEGIN GENERATED: color-mix()")[0];
         var start = css.IndexOf("/* Phones (docs/ux/admin-review-3-fixes.md, PR 8). */", StringComparison.Ordinal);
         Assert.True(start >= 0, "The PR 8 phone block is missing from admin.css.");
         var block = css[start..];

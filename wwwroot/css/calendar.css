@@ -2290,3 +2290,82 @@
 :where([data-bs-theme="dark"]) .calendar-all-day-switch .form-check-input:checked + .form-check-label {
     color: #6ea8fe !important;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-calendar-1: #2f2224;
+        --cm-calendar-2: #3d341d;
+        --cm-calendar-3: #553647;
+        --cm-calendar-4: #1f1f2d;
+        --cm-calendar-5: #272028;
+        --cm-calendar-6: #1f2b2b;
+        --cm-calendar-7: #30435f;
+        --cm-calendar-8: #1d242d;
+        --cm-calendar-9: #304d5d;
+        --cm-calendar-10: #1d252d;
+        --cm-calendar-11: #5b4a1e;
+        --cm-calendar-12: #2b271c;
+        --cm-calendar-13: #38325d;
+        --cm-calendar-14: #1e252f;
+    }
+
+    :where([data-bs-theme="dark"]) .calendar-holiday-guide__mark--gazetted {
+        background: var(--cm-calendar-1);
+    }
+
+    :where([data-bs-theme="dark"]) .calendar-holiday-guide__mark--observed {
+        background: var(--cm-calendar-2);
+    }
+
+    :where([data-bs-theme="dark"]) .fc .fc-event.pm-cat-birthday,
+    :where([data-bs-theme="dark"]) .fc .fc-event.pm-cat-celebration {
+        border-color: var(--cm-calendar-3) !important;
+    }
+
+    :where([data-bs-theme="dark"]) .legend-dot.pm-holiday--rh-info {
+        background: var(--cm-calendar-4);
+    }
+
+    :where([data-bs-theme="dark"]) .calendar-details-icon.is-birthday {
+        border-color: var(--cm-calendar-3);
+        background: var(--cm-calendar-5);
+    }
+
+    :where([data-bs-theme="dark"]) .calendar-details-icon.is-anniversary {
+        background: var(--cm-calendar-6);
+    }
+
+    :where([data-bs-theme="dark"]) .calendar-details-icon.is-event {
+        border-color: var(--cm-calendar-7);
+        background: var(--cm-calendar-8);
+    }
+
+    :where([data-bs-theme="dark"]) .calendar-details-category.is-visit {
+        border-color: var(--cm-calendar-9);
+        background: var(--cm-calendar-10);
+    }
+
+    :where([data-bs-theme="dark"]) .calendar-details-category.is-insp {
+        border-color: var(--cm-calendar-11);
+        background: var(--cm-calendar-12);
+    }
+
+    :where([data-bs-theme="dark"]) .calendar-details-category.is-conference {
+        border-color: var(--cm-calendar-13);
+        background: var(--cm-calendar-4);
+    }
+
+    :where([data-bs-theme="dark"]) .calendar-editor-icon {
+        border: 1px solid var(--cm-calendar-7);
+        background: var(--cm-calendar-8);
+    }
+
+    :where([data-bs-theme="dark"]) .calendar-weekday-picker input:checked + span {
+        background: var(--cm-calendar-14);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

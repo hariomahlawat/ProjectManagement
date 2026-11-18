@@ -148,3 +148,38 @@
     --arpp-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.23);
     --arpp-focus-ring: 0 0 0 .2rem rgba(110, 168, 254, 0.18);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-project-office-reports-arpp-tokens-1: rgba(102, 112, 133, 0.82);
+        --cm-project-office-reports-arpp-tokens-2: #1d242d;
+        --cm-project-office-reports-arpp-tokens-3: #30435f;
+        --cm-project-office-reports-arpp-tokens-4: #312c1c;
+        --cm-project-office-reports-arpp-tokens-5: #281f22;
+        --cm-project-office-reports-arpp-tokens-6: #5a3335;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-project-office-reports-arpp-tokens-1: rgba(180, 185, 191, 0.82);
+    }
+
+    .arpp-page .form-control::placeholder,
+    .arpp-record-v2 .form-control::placeholder,
+    .arpp-workspace-v2 .form-control::placeholder {
+        color: var(--cm-project-office-reports-arpp-tokens-1);
+    }
+
+    :root[data-bs-theme="dark"],
+    :where([data-bs-theme="dark"]) [data-bs-theme="light"] {
+        --arpp-primary-soft: var(--cm-project-office-reports-arpp-tokens-2);
+        --arpp-primary-border: var(--cm-project-office-reports-arpp-tokens-3);
+        --arpp-warning-soft: var(--cm-project-office-reports-arpp-tokens-4);
+        --arpp-danger-soft: var(--cm-project-office-reports-arpp-tokens-5);
+        --arpp-danger-border: var(--cm-project-office-reports-arpp-tokens-6);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

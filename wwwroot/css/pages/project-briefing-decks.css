@@ -6111,3 +6111,165 @@ html[data-pbd-focus] .pbd-focus-toggle {
         display: none !important;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-project-briefing-decks-1: #1d242d;
+        --cm-pages-project-briefing-decks-2: #30435f;
+        --cm-pages-project-briefing-decks-3: #281f22;
+        --cm-pages-project-briefing-decks-4: #1e252f;
+    }
+
+    :where([data-bs-theme="dark"]) .command-workspace--briefing-decks {
+        --pbd-blue-soft: var(--cm-pages-project-briefing-decks-1);
+    }
+
+    :where([data-bs-theme="dark"]) .pbd-update-row-option.is-selected {
+        border-color: var(--cm-pages-project-briefing-decks-2);
+        background: var(--cm-pages-project-briefing-decks-1);
+    }
+
+    :where([data-bs-theme="dark"]) .pbd-institutional-module-option.is-selected {
+        border-color: var(--cm-pages-project-briefing-decks-2);
+        background: var(--cm-pages-project-briefing-decks-1);
+    }
+
+    :where([data-bs-theme="dark"]) .pbd-institutional-profile-validation[data-pbd-role-charter-validation] {
+        background: var(--cm-pages-project-briefing-decks-3);
+    }
+
+    :where([data-bs-theme="dark"]) .pbd-confirm-dialog__icon {
+        background: var(--cm-pages-project-briefing-decks-3);
+    }
+
+    :where([data-bs-theme="dark"]) .pbd-confirm-dialog[data-tone="primary"] .pbd-confirm-dialog__icon {
+        background: var(--cm-pages-project-briefing-decks-1);
+    }
+
+    :where([data-bs-theme="dark"]) .pbd-ffc-supporting-slide__estimate {
+        background: var(--cm-pages-project-briefing-decks-4);
+    }
+
+    .pbd-outline__gaps {
+        background: transparent;
+    }
+
+    .pbd-segmented button.is-active {
+        box-shadow: 0 1px 2px transparent;
+    }
+
+    .pbd-stage__slide .pbd-slide-frame {
+        box-shadow: 0 1px 2px transparent, 0 .6rem 1.6rem transparent;
+    }
+
+    .pbd-stage__check {
+        border: 1px solid var(--pbd-border);
+        background: var(--pm-card, var(--pbd-surface));
+    }
+
+    .pbd-stage__check.is-ready {
+        border-color: var(--pbd-border);
+        background: var(--pm-card, var(--pbd-surface));
+    }
+
+    .pbd-inspector__badge {
+        background: transparent;
+    }
+
+    .pbd-viewer::backdrop {
+        background: var(--pbd-navy);
+    }
+
+    .pbd-viewer__stage .pbd-slide-frame {
+        box-shadow: 0 .6rem 2rem transparent;
+    }
+
+    .pbd-membership-badge.is-pending-remove {
+        background: transparent;
+    }
+
+    .pbd-design__mini i {
+        background: var(--pbd-surface);
+    }
+
+    .pbd-design__mini i.is-photo {
+        background: repeating-linear-gradient( 135deg, var(--pbd-surface) 0 4px, var(--pbd-surface) 4px 8px);
+    }
+
+    .pbd-design__mini i.is-band {
+        background: var(--pbd-surface);
+    }
+
+    .pbd-design__mini i.is-table {
+        background: repeating-linear-gradient( 180deg, var(--pbd-surface) 0 3px, var(--pbd-surface) 3px 7px);
+    }
+
+    .pbd-segmented .pbd-segmented__option[aria-pressed="true"] {
+        box-shadow: 0 1px 2px transparent;
+    }
+
+    .pbd-photo-picker__tag {
+        background: var(--pbd-ink);
+    }
+
+    .pbd-deck-card {
+        box-shadow: 0 1px 2px transparent;
+    }
+
+    .pbd-deck-card:hover,
+    .pbd-deck-card:focus-within {
+        border-color: var(--pbd-border);
+        box-shadow: 0 6px 18px -10px transparent;
+    }
+
+    .pbd-deck-card__art .pbd-design__mini {
+        box-shadow: 0 2px 8px -2px transparent;
+    }
+
+    .pbd-attention__card {
+        border: 1px solid var(--pbd-border);
+    }
+
+    .pbd-library__moved {
+        background: var(--pm-card, var(--pbd-surface));
+    }
+
+    .pbd-saved-chip.is-error {
+        border-color: var(--pbd-border);
+    }
+
+    .pbd-progress .is-done button::before {
+        background: transparent;
+    }
+
+    .pbd-progress .is-next button,
+    .pbd-progress .is-ready button {
+        border-color: var(--pbd-border);
+    }
+
+    .pbd-progress .is-open button::before {
+        background: transparent;
+    }
+
+    .pbd-model-note {
+        border: 1px solid var(--pbd-border);
+    }
+
+    .pbd-inspector__gaps {
+        border: 1px solid var(--pbd-border);
+        background: var(--pm-card, var(--pbd-surface));
+    }
+
+    .pbd-quick-card .btn.is-added,
+    .pbd-quick-card .btn.is-added:hover,
+    .pbd-quick-card .btn.is-added:focus,
+    .pbd-quick-card .btn.is-added:focus-visible,
+    .pbd-quick-card .btn.is-added:active {
+        background: var(--pbd-surface);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

@@ -531,3 +531,32 @@
 :where([data-bs-theme="dark"]) .ffc-country-chip {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-widgets-ffc-simulator-map-1: #1d242d;
+        --cm-widgets-ffc-simulator-map-2: #2b271c;
+        --cm-widgets-ffc-simulator-map-3: #362f1c;
+    }
+
+    :where([data-bs-theme="dark"]) .ffc-simulator-map__pin--completed {
+        --pin-fill: var(--cm-widgets-ffc-simulator-map-1);
+    }
+
+    :where([data-bs-theme="dark"]) .ffc-simulator-map__pin--planned {
+        --pin-fill: var(--cm-widgets-ffc-simulator-map-2);
+    }
+
+    :where([data-bs-theme="dark"]) .ffc-simulator-map__pin--mixed {
+        --pin-fill: var(--cm-widgets-ffc-simulator-map-1);
+    }
+
+    :where([data-bs-theme="dark"]) .ffc-simulator-map__pin-planned {
+        background: var(--cm-widgets-ffc-simulator-map-3);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

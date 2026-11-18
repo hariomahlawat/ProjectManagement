@@ -1249,3 +1249,40 @@ body.arpp-workspace-active {
         box-shadow: 1rem 0 2.4rem rgba(0, 0, 0, 0.55);
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-project-office-reports-arpp-workspace-1: rgba(33, 37, 41, 0.338);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-project-office-reports-arpp-workspace-1: rgba(230, 232, 235, 0.306);
+    }
+
+    .arpp-workspace-v2__issues {
+        border: 1px solid var(--arpp-workspace-border);
+    }
+
+    .arpp-workspace-v2__top-scrollbar {
+        scrollbar-color: var(--cm-project-office-reports-arpp-workspace-1) transparent;
+    }
+
+    .arpp-workspace-v2__table .form-control.is-invalid,
+    .arpp-workspace-v2__table .form-select.is-invalid,
+    .arpp-workspace-v2__table .input-validation-error {
+        box-shadow: 0 0 0 .12rem transparent;
+    }
+
+    .arpp-workspace-v2__navigator-toggle.is-active {
+        border-color: var(--arpp-border);
+    }
+
+    .arpp-workspace-v2__table tr.has-validation-issue td:nth-child(2) {
+        box-shadow: inset .18rem 0 0 var(--arpp-danger);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

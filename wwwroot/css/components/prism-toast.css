@@ -257,3 +257,55 @@
         -webkit-backdrop-filter: none;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --pt-gleam: rgba(255, 255, 255, 0.18);
+        --pt-rim-hi: rgba(255, 255, 255, 0.85);
+        --pt-rim: rgba(15, 23, 42, 0.1);
+        --pt-shadow: rgba(15, 23, 42, 0.3);
+        --cm-components-prism-toast-1: rgba(255, 255, 255, 0.8);
+        --cm-components-prism-toast-2: rgba(15, 23, 42, 0.08);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --pt-gleam: rgba(240, 242, 244, 0.06);
+        --pt-rim-hi: rgba(240, 242, 244, 0.2);
+        --pt-rim: rgba(240, 242, 244, 0.12);
+        --pt-shadow: rgba(14, 15, 17, 0.85);
+        --cm-components-prism-toast-1: rgba(22, 24, 27, 0.78);
+        --cm-components-prism-toast-2: rgba(240, 242, 244, 0.08);
+    }
+
+    .prism-toast {
+        background: linear-gradient(140deg, var(--pt-gleam) 0%, transparent 45%), var(--cm-components-prism-toast-1);
+        box-shadow: inset 0 1px 0 var(--pt-rim-hi), 0 24px 50px -24px var(--pt-shadow), 0 16px 30px -24px var(--tone);
+    }
+
+    .prism-toast__icon {
+        background: transparent;
+    }
+
+    .prism-toast__action {
+        background: transparent;
+    }
+
+    .prism-toast__action:hover,
+    .prism-toast__action:focus-visible {
+        background: transparent;
+    }
+
+    .prism-toast__close:hover,
+    .prism-toast__close:focus-visible {
+        background: var(--cm-components-prism-toast-2);
+    }
+
+    .prism-toast__timer {
+        background: var(--tone);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

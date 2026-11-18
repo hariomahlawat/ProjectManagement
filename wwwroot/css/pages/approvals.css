@@ -951,3 +951,121 @@
         color: #9aa0a6;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-approvals-1: #281f22;
+        --cm-pages-approvals-2: #5a3335;
+        --cm-pages-approvals-3: #1d242d;
+        --cm-pages-approvals-4: #30435f;
+        --cm-pages-approvals-5: #2b271c;
+        --cm-pages-approvals-6: #5b4a1e;
+        --cm-pages-approvals-7: #1e252f;
+        --cm-pages-approvals-8: #342e1c;
+        --cm-pages-approvals-9: #2a2023;
+        --cm-pages-approvals-10: #2d291c;
+        --cm-pages-approvals-11: #1f1f2d;
+        --cm-pages-approvals-12: #28251c;
+        --cm-pages-approvals-13: #1c2e26;
+    }
+
+    :where([data-bs-theme="dark"]) .decision-feedback--error {
+        background: var(--cm-pages-approvals-1);
+        border-color: var(--cm-pages-approvals-2);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-feedback--info {
+        background: var(--cm-pages-approvals-3);
+        border-color: var(--cm-pages-approvals-4);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-stat.is-active {
+        background: var(--cm-pages-approvals-3);
+        border-color: var(--cm-pages-approvals-4);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-stat--waiting.is-active {
+        background: var(--cm-pages-approvals-5);
+        border-color: var(--cm-pages-approvals-6);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-stat--blocked.is-active,
+    :where([data-bs-theme="dark"]) .decision-stat--attention.is-active {
+        background: var(--cm-pages-approvals-1);
+        border-color: var(--cm-pages-approvals-2);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-project-icon {
+        background: var(--cm-pages-approvals-7);
+    }
+
+    :where([data-bs-theme="dark"]) .count-waiting {
+        background: var(--cm-pages-approvals-8);
+    }
+
+    :where([data-bs-theme="dark"]) .count-blocked {
+        background: var(--cm-pages-approvals-9);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-request--waiting .decision-request__sequence {
+        background: var(--cm-pages-approvals-10);
+        border-color: var(--cm-pages-approvals-6);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-request--blocked .decision-request__sequence,
+    :where([data-bs-theme="dark"]) .decision-request--stale .decision-request__sequence {
+        background: var(--cm-pages-approvals-1);
+        border-color: var(--cm-pages-approvals-2);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-revision {
+        background: var(--cm-pages-approvals-11);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-readiness--waiting {
+        background: var(--cm-pages-approvals-8);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-readiness--blocked,
+    :where([data-bs-theme="dark"]) .decision-readiness--stale {
+        background: var(--cm-pages-approvals-9);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-readiness-card--waiting {
+        background: var(--cm-pages-approvals-10);
+        border-color: var(--cm-pages-approvals-6);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-readiness-card--blocked,
+    :where([data-bs-theme="dark"]) .decision-readiness-card--stale {
+        background: var(--cm-pages-approvals-1);
+        border-color: var(--cm-pages-approvals-2);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-panel--destructive {
+        border-color: var(--cm-pages-approvals-2);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-comparison-grid > div.is-proposed {
+        background: var(--cm-pages-approvals-3);
+        border-color: var(--cm-pages-approvals-4);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-note {
+        background: var(--cm-pages-approvals-12);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-blocked-note {
+        background: var(--cm-pages-approvals-1);
+        border: 1px solid var(--cm-pages-approvals-2);
+    }
+
+    :where([data-bs-theme="dark"]) .decision-confirm-icon {
+        background: var(--cm-pages-approvals-13);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

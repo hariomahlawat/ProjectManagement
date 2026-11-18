@@ -331,3 +331,92 @@
 :where([data-bs-theme="dark"]) .lifecycle-action-switch__item.is-active {
     box-shadow: 0 3px 9px rgba(0, 0, 0, 0.28);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-project-lifecycle-actions-1: rgba(229, 231, 235, 0.92);
+        --cm-pages-project-lifecycle-actions-2: #fcfdfe;
+        --cm-pages-project-lifecycle-actions-3: rgba(229, 231, 235, 0.9);
+        --cm-pages-project-lifecycle-actions-4: rgba(255, 255, 255, 0.75);
+        --cm-pages-project-lifecycle-actions-5: #b2c9ee;
+        --cm-pages-project-lifecycle-actions-6: #e2a9b1;
+        --cm-pages-project-lifecycle-actions-7: rgba(59, 130, 246, 0.25);
+        --cm-pages-project-lifecycle-actions-8: #b2cfc5;
+        --cm-pages-project-lifecycle-actions-9: #eff7f3;
+        --cm-pages-project-lifecycle-actions-10: #88aff1;
+        --cm-pages-project-lifecycle-actions-11: #eff5fe;
+        --cm-pages-project-lifecycle-actions-12: rgba(59, 130, 246, 0.12);
+        --cm-pages-project-lifecycle-actions-13: #f1d684;
+        --cm-pages-project-lifecycle-actions-14: #fff9e6;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-pages-project-lifecycle-actions-1: rgba(44, 48, 53, 0.92);
+        --cm-pages-project-lifecycle-actions-2: #1a1c20;
+        --cm-pages-project-lifecycle-actions-3: rgba(44, 48, 53, 0.9);
+        --cm-pages-project-lifecycle-actions-4: rgba(22, 24, 27, 0.75);
+        --cm-pages-project-lifecycle-actions-5: #405471;
+        --cm-pages-project-lifecycle-actions-6: #73474a;
+        --cm-pages-project-lifecycle-actions-7: rgba(110, 168, 254, 0.25);
+        --cm-pages-project-lifecycle-actions-8: #345c48;
+        --cm-pages-project-lifecycle-actions-9: #1a2622;
+        --cm-pages-project-lifecycle-actions-10: #5072a4;
+        --cm-pages-project-lifecycle-actions-11: #1d242d;
+        --cm-pages-project-lifecycle-actions-12: rgba(110, 168, 254, 0.12);
+        --cm-pages-project-lifecycle-actions-13: #89702d;
+        --cm-pages-project-lifecycle-actions-14: #2d291c;
+    }
+
+    .lifecycle-actions-modal .modal-content {
+        border: 1px solid var(--cm-pages-project-lifecycle-actions-1);
+    }
+
+    .lifecycle-actions-modal .modal-body {
+        background: var(--cm-pages-project-lifecycle-actions-2);
+    }
+
+    .lifecycle-actions-modal__footer {
+        border-top-color: var(--cm-pages-project-lifecycle-actions-3);
+    }
+
+    .lifecycle-action-switch__item:hover {
+        background: var(--cm-pages-project-lifecycle-actions-4);
+    }
+
+    .lifecycle-action-switch__item.is-active {
+        border-color: var(--cm-pages-project-lifecycle-actions-5);
+    }
+
+    .lifecycle-action-switch__item--danger.is-active {
+        border-color: var(--cm-pages-project-lifecycle-actions-6);
+    }
+
+    .lifecycle-action-switch__item:focus-visible {
+        outline: 3px solid var(--cm-pages-project-lifecycle-actions-7);
+    }
+
+    .lifecycle-current-value {
+        border: 1px solid var(--cm-pages-project-lifecycle-actions-8);
+        background: var(--cm-pages-project-lifecycle-actions-9);
+    }
+
+    .lifecycle-precision-option input:checked + label {
+        border-color: var(--cm-pages-project-lifecycle-actions-10);
+        background: var(--cm-pages-project-lifecycle-actions-11);
+        box-shadow: 0 0 0 2px var(--cm-pages-project-lifecycle-actions-12);
+    }
+
+    .lifecycle-precision-option input:focus-visible + label {
+        outline: 3px solid var(--cm-pages-project-lifecycle-actions-7);
+    }
+
+    .lifecycle-reactivation-warning {
+        border-color: var(--cm-pages-project-lifecycle-actions-13);
+        background: var(--cm-pages-project-lifecycle-actions-14);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

@@ -9563,3 +9563,314 @@ body.compendium-structure-editor-mode {
         border-top: 1px solid #2c3035;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-projects-publications-1: #2b271c;
+        --cm-pages-projects-publications-2: #342e1c;
+        --cm-pages-projects-publications-3: #497b71;
+        --cm-pages-projects-publications-4: #5a3335;
+        --cm-pages-projects-publications-5: #281f22;
+        --cm-pages-projects-publications-6: #5b4a1e;
+        --cm-pages-projects-publications-7: #2d291c;
+        --cm-pages-projects-publications-8: #28251c;
+        --cm-pages-projects-publications-9: #312c1c;
+        --cm-pages-projects-publications-10: #312325;
+        --cm-pages-projects-publications-11: #3f361d;
+        --cm-pages-projects-publications-12: #1d242d;
+        --cm-pages-projects-publications-13: #3d341d;
+        --cm-pages-projects-publications-14: #30435f;
+        --cm-pages-projects-publications-15: #2b2d25;
+        --cm-pages-projects-publications-16: #2f2a1c;
+        --cm-pages-projects-publications-17: #463b1d;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --pub-blue-soft: #1d242d;
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-workspace-status.is-warning {
+        background: var(--cm-pages-projects-publications-1);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-warning-panel > header > span {
+        background: var(--cm-pages-projects-publications-2);
+    }
+
+    :where([data-bs-theme="dark"]) .publication-step {
+        background: var(--cm-pages-projects-publications-3);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-preflight-message.is-blocked {
+        border-color: var(--cm-pages-projects-publications-4);
+        background: var(--cm-pages-projects-publications-5);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-preflight-message.is-warning {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-1);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-preflight-issue.is-blocker {
+        background: var(--cm-pages-projects-publications-5);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-preflight-issue.is-warning {
+        background: var(--cm-pages-projects-publications-7);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-font-panel--warning {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-8);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-cover-review-state {
+        border: 1px solid var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-1);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-cover-quality-state.is-low {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-9);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-review-state {
+        border: 1px solid var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-1);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-review-narrative.is-missing {
+        border-color: var(--cm-pages-projects-publications-4);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-print-sheet-chip.is-low {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-8);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-output-readiness.is-blocked {
+        border-color: var(--cm-pages-projects-publications-4);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-output-readiness.is-blocked .brochure-output-readiness__icon {
+        background: var(--cm-pages-projects-publications-10);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-output-readiness.is-warning {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-8);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-output-readiness.is-warning .brochure-output-readiness__icon {
+        background: var(--cm-pages-projects-publications-11);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-review-notice.is-warning {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-1);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-preset-dirty {
+        background: var(--cm-pages-projects-publications-2);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-preset-dirty.is-local {
+        background: var(--cm-pages-projects-publications-12);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-preset-control__status.is-error {
+        background: var(--cm-pages-projects-publications-5);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-preset-diagnostics {
+        border: 1px solid var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-1);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-preset-diagnostics > i {
+        background: var(--cm-pages-projects-publications-13);
+    }
+
+    :where([data-bs-theme="dark"]) .brochure-preset-modal__message {
+        background: var(--cm-pages-projects-publications-5);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-preset-heading > span {
+        background: var(--cm-pages-projects-publications-13);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-project-table tbody tr.is-selected {
+        background: var(--cm-pages-projects-publications-12);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-data-badges .is-missing {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-1);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-finding.is-warning {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-1);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-finding.is-blocker {
+        border-color: var(--cm-pages-projects-publications-4);
+        background: var(--cm-pages-projects-publications-5);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-review-state.is-warning,
+    :where([data-bs-theme="dark"]) .compendium-review-state.is-required {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-7);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-review-state.is-blocker {
+        border-color: var(--cm-pages-projects-publications-4);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-image-badge.is-explicit {
+        border-color: var(--cm-pages-projects-publications-14);
+        background: var(--cm-pages-projects-publications-12);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-image-badge.is-acceptable {
+        background: var(--cm-pages-projects-publications-15);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-image-badge.is-low {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-9);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-review-load-error {
+        border: 1px solid var(--cm-pages-projects-publications-4);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-output-status.is-warning {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-1);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-output-status.is-blocked {
+        border-color: var(--cm-pages-projects-publications-4);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-photo-choice.is-selected {
+        background: var(--cm-pages-projects-publications-12);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-builder-page .compendium-output-status.is-review {
+        background: var(--cm-pages-projects-publications-8);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-order-group.is-unassigned > header {
+        background: var(--cm-pages-projects-publications-1);
+        border-color: var(--cm-pages-projects-publications-6);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-builder-page .compendium-order-group__custom [data-section-delete]:hover:not(:disabled) {
+        background: var(--cm-pages-projects-publications-5);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-finding-group.is-warning {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-8);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-finding-group.is-blocker {
+        border-color: var(--cm-pages-projects-publications-4);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-narrative-readiness > span.is-missing {
+        border-color: var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-8);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-narrative-readiness > span.is-source-active.is-missing {
+        background: var(--cm-pages-projects-publications-9);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-live-page__masthead > b {
+        border: 1px solid var(--cm-pages-projects-publications-14);
+        background: var(--cm-pages-projects-publications-12);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-live-page__narrative > header i {
+        background: var(--cm-pages-projects-publications-6);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-output-dock.is-blocked .compendium-output-dock__status > i {
+        background: var(--cm-pages-projects-publications-5);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-output-dock.is-warning,
+    :where([data-bs-theme="dark"]) .compendium-output-dock.is-review {
+        border-color: var(--cm-pages-projects-publications-6);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-output-dock.is-warning .compendium-output-dock__status > i,
+    :where([data-bs-theme="dark"]) .compendium-output-dock.is-review .compendium-output-dock__status > i {
+        background: var(--cm-pages-projects-publications-7);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-structure-editor-dirty,
+    :where([data-bs-theme="dark"]) .compendium-structure-editor-readonly {
+        border: 1px solid var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-9);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-structure-editor-section.is-unassigned {
+        border-color: var(--cm-pages-projects-publications-6);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-structure-editor-section.is-unassigned > header {
+        background: var(--cm-pages-projects-publications-16);
+        border-color: var(--cm-pages-projects-publications-6);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-structure-editor-unassigned-callout {
+        border: 1px solid var(--cm-pages-projects-publications-6);
+        background: var(--cm-pages-projects-publications-1);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-structure-editor-save-state.is-dirty {
+        background: var(--cm-pages-projects-publications-9);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-cover-field-state.is-override {
+        background: var(--cm-pages-projects-publications-12);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-live-page__specifications>header::after {
+        background: var(--cm-pages-projects-publications-6);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-live-page__additional-note>header::after {
+        background: var(--cm-pages-projects-publications-6);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-dossier-fit-insight > span.is-continuation {
+        background: var(--cm-pages-projects-publications-9);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-dossier-fit-insight.is-warning {
+        background: var(--cm-pages-projects-publications-8);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-dossier-fit-insight.is-warning > span {
+        background: var(--cm-pages-projects-publications-17);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-live-page__programme.is-minimal .compendium-live-page__programme-heading::after {
+        background: var(--cm-pages-projects-publications-6);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-cover-layout-advisory {
+        border: 1px solid var(--cm-pages-projects-publications-6);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

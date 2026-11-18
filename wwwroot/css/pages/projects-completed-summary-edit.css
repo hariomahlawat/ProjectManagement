@@ -671,3 +671,63 @@
     color: #fff;
     background: color-mix(in srgb, var(--cpe-blue-dark) 55%, #000);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-projects-completed-summary-edit-1: #30435f;
+        --cm-pages-projects-completed-summary-edit-2: #5a3335;
+        --cm-pages-projects-completed-summary-edit-3: #281f22;
+        --cm-pages-projects-completed-summary-edit-4: #1d242d;
+        --cm-pages-projects-completed-summary-edit-5: #5b4a1e;
+        --cm-pages-projects-completed-summary-edit-6: #28251c;
+        --cm-pages-projects-completed-summary-edit-7: #3d5c8c;
+    }
+
+    :where([data-bs-theme="dark"]) .cpe-open-project:hover {
+        border-color: var(--cm-pages-projects-completed-summary-edit-1);
+    }
+
+    :where([data-bs-theme="dark"]) .cpe-validation-summary {
+        border: 1px solid var(--cm-pages-projects-completed-summary-edit-2);
+        background: var(--cm-pages-projects-completed-summary-edit-3);
+    }
+
+    :where([data-bs-theme="dark"]) .cpe-field input:focus,
+    :where([data-bs-theme="dark"]) .cpe-field select:focus,
+    :where([data-bs-theme="dark"]) .cpe-field textarea:focus,
+    :where([data-bs-theme="dark"]) .cpe-lpp-table input:focus,
+    :where([data-bs-theme="dark"]) .cpe-lpp-table select:focus {
+        border-color: var(--cm-pages-projects-completed-summary-edit-1);
+    }
+
+    :where([data-bs-theme="dark"]) .cpe-choice-grid input:checked + span {
+        background: var(--cm-pages-projects-completed-summary-edit-4);
+    }
+
+    :where([data-bs-theme="dark"]) .cpe-reason-field {
+        border: 1px solid var(--cm-pages-projects-completed-summary-edit-5);
+        background: var(--cm-pages-projects-completed-summary-edit-6);
+    }
+
+    :where([data-bs-theme="dark"]) .cpe-cleared-value-note {
+        border: 1px solid var(--cm-pages-projects-completed-summary-edit-1);
+    }
+
+    :where([data-bs-theme="dark"]) .cpe-button-primary {
+        border-color: var(--cm-pages-projects-completed-summary-edit-7);
+        background: var(--cm-pages-projects-completed-summary-edit-7);
+    }
+
+    :where([data-bs-theme="dark"]) .cpe-button-secondary:hover {
+        border-color: var(--cm-pages-projects-completed-summary-edit-1);
+    }
+
+    :where([data-bs-theme="dark"]) .cpe-button-primary:hover {
+        background: var(--cm-pages-projects-completed-summary-edit-7);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

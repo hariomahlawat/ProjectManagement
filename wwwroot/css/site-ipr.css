@@ -703,3 +703,109 @@ a.ipr-bars__item:focus-visible { background: var(--ipr-subtle); color: inherit; 
 .ipr-insights-table tbody tr:last-child th,
 .ipr-insights-table tbody tr:last-child td { border-bottom: 0; }
 .ipr-insights-table a { color: var(--ipr-blue-dark); font-weight: 800; }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-site-ipr-1: #1d242d;
+        --cm-site-ipr-2: #281f22;
+        --cm-site-ipr-3: #1f1f2d;
+        --cm-site-ipr-4: #1f2632;
+        --cm-site-ipr-5: #30435f;
+        --cm-site-ipr-6: #1e252f;
+        --cm-site-ipr-7: #5b4a1e;
+        --cm-site-ipr-8: #2d291c;
+        --cm-site-ipr-9: rgba(63, 110, 232, 0.35);
+        --cm-site-ipr-10: #c3954d;
+        --cm-site-ipr-11: rgba(63, 110, 232, 0.25);
+        --cm-site-ipr-12: rgba(16, 33, 63, 0.14);
+        --cm-site-ipr-13: #f7f9fe;
+        --cm-site-ipr-14: rgba(16, 33, 63, 0.22);
+        --cm-site-ipr-15: #d0ab73;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-site-ipr-9: rgba(110, 168, 254, 0.35);
+        --cm-site-ipr-10: #b68d21;
+        --cm-site-ipr-11: rgba(110, 168, 254, 0.25);
+        --cm-site-ipr-12: rgba(230, 232, 235, 0.14);
+        --cm-site-ipr-13: #1a1e24;
+        --cm-site-ipr-14: rgba(230, 232, 235, 0.22);
+        --cm-site-ipr-15: #947420;
+    }
+
+    :where([data-bs-theme="dark"]) .ipr-register-page {
+        --ipr-blue-soft: var(--cm-site-ipr-1);
+        --ipr-red-soft: var(--cm-site-ipr-2);
+        --ipr-violet-soft: var(--cm-site-ipr-3);
+    }
+
+    :where([data-bs-theme="dark"]) .ipr-active-filter-bar__label strong {
+        background: var(--cm-site-ipr-4);
+    }
+
+    :where([data-bs-theme="dark"]) .ipr-filter-chip:hover,
+    :where([data-bs-theme="dark"]) .ipr-filter-chip:focus-visible {
+        border-color: var(--cm-site-ipr-5);
+        background: var(--cm-site-ipr-1);
+    }
+
+    :where([data-bs-theme="dark"]) .ipr-project-picker__clear:hover,
+    :where([data-bs-theme="dark"]) .ipr-project-picker__clear:focus-visible {
+        background: var(--cm-site-ipr-6);
+    }
+
+    :where([data-bs-theme="dark"]) .ipr-status-badge--filed {
+        border-color: var(--cm-site-ipr-7);
+        background: var(--cm-site-ipr-8);
+    }
+
+    :where([data-bs-theme="dark"]) .ipr-attachment-row__icon {
+        background: var(--cm-site-ipr-1);
+    }
+
+    .ipr-summary-card:focus-visible {
+        outline: 3px solid var(--cm-site-ipr-9);
+    }
+
+    .ipr-summary-card__bar .is-pending {
+        background: var(--cm-site-ipr-10);
+    }
+
+    .ipr-filterbar__search input:focus {
+        outline: 3px solid var(--cm-site-ipr-11);
+    }
+
+    .ipr-seg__item.is-on {
+        box-shadow: 0 1px 2px var(--cm-site-ipr-12);
+    }
+
+    .ipr-table tbody tr[data-ipr-row]:hover {
+        background: var(--cm-site-ipr-13);
+    }
+
+    .ipr-record-scrim {
+        background: var(--cm-site-ipr-14);
+    }
+
+    .ipr-record-panel {
+        box-shadow: -18px 0 40px var(--cm-site-ipr-12);
+    }
+
+    .ipr-bars .is-pending,
+    .ipr-insights-legend .is-pending {
+        background: var(--cm-site-ipr-10);
+    }
+
+    .ipr-hbars__fill--fresh {
+        background: var(--cm-site-ipr-15);
+    }
+
+    .ipr-hbars__fill--late {
+        background: var(--ipr-red);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

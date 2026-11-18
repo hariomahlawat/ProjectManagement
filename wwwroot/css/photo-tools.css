@@ -1689,3 +1689,64 @@
 .phot-remove-credit {
     font-size: 0.8rem;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-photo-tools-1: rgba(0, 0, 0, 0.35);
+        --cm-photo-tools-2: rgba(0, 0, 0, 0.78);
+        --cm-photo-tools-3: rgba(0, 0, 0, 0.18);
+        --cm-photo-tools-4: rgba(0, 0, 0, 0.62);
+        --cm-photo-tools-5: rgba(0, 0, 0, 0.75);
+        --cm-photo-tools-6: rgba(244, 246, 251, 0.55);
+        --cm-photo-tools-7: rgba(244, 246, 251, 0.85);
+        --cm-photo-tools-8: rgba(33, 37, 41, 0.62);
+        --cm-photo-tools-9: rgba(248, 249, 250, 0.45);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-photo-tools-3: rgba(240, 242, 244, 0.18);
+        --cm-photo-tools-6: rgba(22, 24, 27, 0.55);
+        --cm-photo-tools-7: rgba(22, 24, 27, 0.85);
+    }
+
+    .phot-compare__line {
+        box-shadow: 0 0 0 1px var(--cm-photo-tools-1);
+    }
+
+    .phot-compare__tag {
+        background: var(--cm-photo-tools-2);
+    }
+
+    .phot-segment button[aria-pressed="true"] {
+        box-shadow: 0 1px 3px var(--cm-photo-tools-3);
+    }
+
+    .phot-crop__frame {
+        box-shadow: 0 0 0 9999px var(--cm-photo-tools-4);
+    }
+
+    .phot-crop__label {
+        background: var(--cm-photo-tools-5);
+    }
+
+    .phot-busy {
+        background: var(--cm-photo-tools-6);
+    }
+
+    .phot-busy--retry {
+        background: var(--cm-photo-tools-7);
+    }
+
+    .phot-cropbox {
+        box-shadow: 0 0 0 9999px var(--cm-photo-tools-8);
+    }
+
+    .phot-cropbox__grid {
+        background-image: linear-gradient(to right, transparent calc(33.33% - 0.5px), var(--cm-photo-tools-9) calc(33.33% - 0.5px), var(--cm-photo-tools-9) calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), var(--cm-photo-tools-9) calc(66.66% - 0.5px), var(--cm-photo-tools-9) calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px)), linear-gradient(to bottom, transparent calc(33.33% - 0.5px), var(--cm-photo-tools-9) calc(33.33% - 0.5px), var(--cm-photo-tools-9) calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), var(--cm-photo-tools-9) calc(66.66% - 0.5px), var(--cm-photo-tools-9) calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px));
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

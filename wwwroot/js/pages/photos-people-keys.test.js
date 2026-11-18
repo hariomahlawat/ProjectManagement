@@ -103,7 +103,8 @@ test('both pages load the script, and the phone rules use theme tokens and 44px 
     ['name="Source"', 'name="Year"', 'name="MatchStatus"', 'data-auto-navigate'].forEach(control => assert.ok(more.includes(control), control));
     assert.match(person, /<span data-selection-summary>0 ticked<\/span>/);
 
-    const css = read('wwwroot/css/pages/photos-people.css');
+    // The generated color-mix() fallbacks at the end (tools/color-mix-fallbacks.js) are not this section.
+    const css = read('wwwroot/css/pages/photos-people.css').split('/* BEGIN GENERATED: color-mix()')[0];
     const rules = css.slice(css.indexOf('/* Sort and filter for the faces'));
     assert.doesNotMatch(rules, /#[0-9a-f]{3,8}\b|rgba?\(/i, 'theme tokens only');
     assert.match(rules, /@media \(max-width: 575\.98px\)/);
@@ -112,7 +113,8 @@ test('both pages load the script, and the phone rules use theme tokens and 44px 
 });
 
 test('the review cards on a phone: Yes and No side by side, readable labels, a visible keyboard focus', () => {
-    const css = read('wwwroot/css/pages/photos-people.css');
+    // The generated color-mix() fallbacks at the end (tools/color-mix-fallbacks.js) are not this section.
+    const css = read('wwwroot/css/pages/photos-people.css').split('/* BEGIN GENERATED: color-mix()')[0];
     const rules = css.slice(css.indexOf('/* Sort and filter for the faces'));
     assert.doesNotMatch(rules, /#[0-9a-f]{3,8}\b|rgba?\(/i, 'theme tokens only');
     // "Is this …?": the two answers share a row and fill it; the quieter choices wrap.

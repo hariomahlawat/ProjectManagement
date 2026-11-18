@@ -4656,3 +4656,162 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
     .admin-sticker-list__item { grid-template-columns: auto minmax(0, 1fr); }
     .admin-sticker-list__actions { grid-column: 1 / -1; justify-content: flex-start; }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-admin-1: #30435f;
+        --cm-admin-2: #3d5c8c;
+        --cm-admin-3: #5a3335;
+        --cm-admin-4: #2b271c;
+        --cm-admin-5: #1d242d;
+        --cm-admin-6: #1f2632;
+        --cm-admin-7: #28251c;
+        --cm-admin-8: #281f22;
+        --cm-admin-9: #38325d;
+        --cm-admin-10: #1f1f2d;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --admin-primary-soft: #1d242d;
+        --admin-success-soft: #1b2a24;
+        --admin-warning-soft: #2b271c;
+        --admin-danger-soft: #281f22;
+        --admin-info-soft: #1d242d;
+    }
+
+    :where([data-bs-theme="dark"]) .admin-sidebar__item.is-active {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .pm-admin-main .form-control:focus,
+    :where([data-bs-theme="dark"]) .pm-admin-main .form-select:focus {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-page-header__icon {
+        border: 1px solid var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-user-status-card.is-active {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-filter-chip:hover {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-table-action:hover {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-pagination a:hover {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-pagination .is-current span {
+        border-color: var(--cm-admin-2);
+        background: var(--cm-admin-2);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-validation-summary {
+        border: 1px solid var(--cm-admin-3);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-role-option.is-selected {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-role-option.is-privileged.is-selected {
+        background: var(--cm-admin-4);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-role-option.is-selected .admin-role-option__check {
+        border-color: var(--cm-admin-2);
+        background: var(--cm-admin-2);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-role-access-reference__roles span {
+        border: 1px solid var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-inline-notice--danger {
+        border-color: var(--cm-admin-3);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-row-action:hover {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-pagination .page-item.active .page-link {
+        border-color: var(--cm-admin-2);
+        background: var(--cm-admin-2);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-monitoring-metric.is-active {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-section-nav a:hover {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-filter-chip {
+        border: 1px solid var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-destructive-warning {
+        border: 1px solid var(--cm-admin-3);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-definition-banner {
+        border: 1px solid var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-guidance-strip {
+        border: 1px solid var(--cm-admin-1);
+        background: var(--cm-admin-5);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-guidance-strip > span {
+        background: var(--cm-admin-6);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-sidebar__search input:focus {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-order-control .btn-icon:hover:not(:disabled) {
+        border-color: var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-integrity-repair {
+        background: var(--cm-admin-7);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-inline-note {
+        border: 1px solid var(--cm-admin-1);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-holiday-pill--gazetted {
+        border: 1px solid var(--cm-admin-3);
+        background: var(--cm-admin-8);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-holiday-pill--restricted {
+        border: 1px solid var(--cm-admin-9);
+        background: var(--cm-admin-10);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-holiday-behaviour {
+        border: 1px solid var(--cm-admin-3);
+    }
+
+    :where([data-bs-theme="dark"]) .admin-holiday-behaviour--restricted {
+        border-color: var(--cm-admin-9);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

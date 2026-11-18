@@ -420,3 +420,27 @@
 :where([data-bs-theme="dark"]) .prism-user-link-confirm__check {
     border: 1px solid #2c3035;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-photos-reference-readiness-1: #1e252f;
+        --cm-pages-photos-reference-readiness-2: #2f2a1c;
+    }
+
+    :where([data-bs-theme="dark"]) .person-account-link__avatar {
+        background: var(--cm-pages-photos-reference-readiness-1);
+    }
+
+    :where([data-bs-theme="dark"]) .person-account-user__avatar {
+        background: var(--cm-pages-photos-reference-readiness-1);
+    }
+
+    :where([data-bs-theme="dark"]) .person-account-link__concern {
+        background: var(--cm-pages-photos-reference-readiness-2);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

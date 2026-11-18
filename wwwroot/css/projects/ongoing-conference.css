@@ -1229,3 +1229,64 @@ table.ongoing-table td.col-remarks .pm-remark-text {
     margin-top: .25rem;
     white-space: nowrap;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-projects-ongoing-conference-1: #2a2023;
+        --cm-projects-ongoing-conference-2: #5a3335;
+        --cm-projects-ongoing-conference-3: #312c1c;
+        --cm-projects-ongoing-conference-4: #297a46;
+        --cm-projects-ongoing-conference-5: #3d5c8c;
+        --cm-projects-ongoing-conference-6: #342e1c;
+        --cm-projects-ongoing-conference-7: #5b4a1e;
+        --cm-projects-ongoing-conference-8: #2d2124;
+        --cm-projects-ongoing-conference-9: #3b331c;
+        --cm-projects-ongoing-conference-10: #2f2224;
+    }
+
+    :where([data-bs-theme="dark"]) .oc-pill--danger {
+        background: var(--cm-projects-ongoing-conference-1);
+        border: 1px solid var(--cm-projects-ongoing-conference-2);
+    }
+
+    :where([data-bs-theme="dark"]) .briefing-current-alert {
+        background: var(--cm-projects-ongoing-conference-3);
+    }
+
+    :where([data-bs-theme="dark"]) .briefing-stage.is-complete .briefing-stage__node {
+        border-color: var(--cm-projects-ongoing-conference-4);
+        background: var(--cm-projects-ongoing-conference-4);
+    }
+
+    :where([data-bs-theme="dark"]) .briefing-stage.is-current .briefing-stage__node {
+        border-color: var(--cm-projects-ongoing-conference-5);
+        background: var(--cm-projects-ongoing-conference-5);
+    }
+
+    :where([data-bs-theme="dark"]) .briefing-duration--warning {
+        background: var(--cm-projects-ongoing-conference-6);
+        border: 1px solid var(--cm-projects-ongoing-conference-7);
+    }
+
+    :where([data-bs-theme="dark"]) .briefing-duration--danger {
+        background: var(--cm-projects-ongoing-conference-8);
+        border: 1px solid var(--cm-projects-ongoing-conference-2);
+    }
+
+    :where([data-bs-theme="dark"]) .stage-age.is-warning {
+        background: var(--cm-projects-ongoing-conference-9);
+    }
+
+    :where([data-bs-theme="dark"]) .stage-age.is-danger {
+        background: var(--cm-projects-ongoing-conference-10);
+    }
+
+    :where([data-bs-theme="dark"]) .briefing-timeline__alert--warning {
+        background: var(--cm-projects-ongoing-conference-3);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

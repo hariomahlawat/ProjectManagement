@@ -2257,3 +2257,105 @@ body.cpw-drawer-open { overflow: hidden; }
         border-bottom: 1px solid #2c3035;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-projects-completed-summary-1: #1b2c25;
+        --cm-pages-projects-completed-summary-2: #1e252f;
+        --cm-pages-projects-completed-summary-3: #3d5c8c;
+        --cm-pages-projects-completed-summary-4: #30435f;
+        --cm-pages-projects-completed-summary-5: #20292f;
+        --cm-pages-projects-completed-summary-6: #342e1c;
+        --cm-pages-projects-completed-summary-7: #312c1c;
+        --cm-pages-projects-completed-summary-8: #2a2023;
+        --cm-pages-projects-completed-summary-9: #281f22;
+        --cm-pages-projects-completed-summary-10: #38311c;
+        --cm-pages-projects-completed-summary-11: #1c2e26;
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-success-banner {
+        background: var(--cm-pages-projects-completed-summary-1);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-count {
+        background: var(--cm-pages-projects-completed-summary-2);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-btn-primary {
+        border-color: var(--cm-pages-projects-completed-summary-3);
+        background: var(--cm-pages-projects-completed-summary-3);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-btn-primary:hover {
+        background: var(--cm-pages-projects-completed-summary-3);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-filter-count {
+        background: var(--cm-pages-projects-completed-summary-2);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-active-scope {
+        border: 1px solid var(--cm-pages-projects-completed-summary-4);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-summary-card.info .cpw-summary-icon {
+        background: var(--cm-pages-projects-completed-summary-5);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-summary-card.warning .cpw-summary-icon {
+        background: var(--cm-pages-projects-completed-summary-6);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-summary-card.danger .cpw-summary-icon {
+        background: var(--cm-pages-projects-completed-summary-7);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-summary-card.critical .cpw-summary-icon {
+        background: var(--cm-pages-projects-completed-summary-8);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-quality-score.critical {
+        background: var(--cm-pages-projects-completed-summary-9);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-quality-score.supplementary {
+        background: var(--cm-pages-projects-completed-summary-10);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-quality-score.complete {
+        background: var(--cm-pages-projects-completed-summary-11);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-row-open:hover {
+        border-color: var(--cm-pages-projects-completed-summary-4);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-quality-rank.critical {
+        background: var(--cm-pages-projects-completed-summary-9);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-quality-rank.supplementary {
+        background: var(--cm-pages-projects-completed-summary-7);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-filter-chip {
+        border: 1px solid var(--cm-pages-projects-completed-summary-4);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-filter-chip:hover {
+        border-color: var(--cm-pages-projects-completed-summary-4);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-summary-card:hover {
+        border-color: var(--cm-pages-projects-completed-summary-4);
+    }
+
+    :where([data-bs-theme="dark"]) .cpw-summary-card.tot .cpw-summary-icon {
+        background: var(--cm-pages-projects-completed-summary-5);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

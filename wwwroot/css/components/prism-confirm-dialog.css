@@ -718,3 +718,115 @@ body:has(.modal.prism-confirm-modal.show) .modal-backdrop.show {
         -webkit-backdrop-filter: none;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --pcd-gleam: rgba(255, 255, 255, 0.22);
+        --pcd-rim-hi: rgba(255, 255, 255, 0.85);
+        --pcd-rim: rgba(15, 23, 42, 0.1);
+        --pcd-scrim: rgba(15, 23, 42, 0.26);
+        --pcd-shadow: rgba(15, 23, 42, 0.34);
+        --pcd-field: rgba(255, 255, 255, 0.7);
+        --cm-components-prism-confirm-dialog-1: #a7650d;
+        --cm-components-prism-confirm-dialog-2: rgba(255, 255, 255, 0.76);
+        --cm-components-prism-confirm-dialog-3: rgba(15, 23, 42, 0.06);
+        --cm-components-prism-confirm-dialog-4: rgba(22, 163, 74, 0.7);
+        --cm-components-prism-confirm-dialog-5: rgba(255, 255, 255, 0.25);
+        --cm-components-prism-confirm-dialog-6: rgba(95, 102, 115, 0.4);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --pcd-gleam: rgba(240, 242, 244, 0.07);
+        --pcd-rim-hi: rgba(240, 242, 244, 0.2);
+        --pcd-rim: rgba(240, 242, 244, 0.12);
+        --pcd-scrim: rgba(14, 15, 17, 0.58);
+        --pcd-shadow: rgba(14, 15, 17, 0.85);
+        --pcd-field: rgba(14, 15, 17, 0.45);
+        --cm-components-prism-confirm-dialog-1: #fccd41;
+        --cm-components-prism-confirm-dialog-2: rgba(22, 24, 27, 0.74);
+        --cm-components-prism-confirm-dialog-3: rgba(240, 242, 244, 0.06);
+        --cm-components-prism-confirm-dialog-4: rgba(74, 222, 128, 0.7);
+        --cm-components-prism-confirm-dialog-6: rgba(154, 160, 166, 0.4);
+    }
+
+    .prism-confirm-dialog[data-tone="warning"] {
+        --pcd-go: var(--cm-components-prism-confirm-dialog-1);
+    }
+
+    .prism-confirm-dialog__surface {
+        background: linear-gradient(140deg, var(--pcd-gleam) 0%, transparent 42%), var(--cm-components-prism-confirm-dialog-2);
+        box-shadow: inset 0 1px 0 var(--pcd-rim-hi), 0 1px 2px var(--cm-components-prism-confirm-dialog-3), 0 40px 90px -30px var(--pcd-shadow), 0 30px 60px -40px var(--pcd-tone);
+    }
+
+    .prism-confirm-dialog__surface::before {
+        box-shadow: 0 0 16px 1px var(--pcd-tone);
+    }
+
+    .prism-confirm-dialog__icon {
+        background: radial-gradient(circle at 50% 0%, transparent, transparent 75%), transparent;
+        box-shadow: inset 0 0 0 1px transparent, 0 10px 22px -12px var(--pcd-tone);
+    }
+
+    .prism-confirm-dialog__field code {
+        background: transparent;
+    }
+
+    .prism-confirm-dialog__input:focus {
+        border-color: var(--pcd-tone);
+        box-shadow: 0 0 0 4px transparent;
+    }
+
+    .prism-confirm-dialog__input.is-match {
+        border-color: var(--cm-components-prism-confirm-dialog-4);
+    }
+
+    .prism-confirm-dialog__btn--go {
+        box-shadow: inset 0 1px 0 var(--cm-components-prism-confirm-dialog-5), 0 10px 22px -10px var(--pcd-go);
+    }
+
+    .prism-confirm-dialog__btn--go:hover {
+        box-shadow: inset 0 1px 0 var(--cm-components-prism-confirm-dialog-5), 0 14px 26px -10px var(--pcd-go);
+    }
+
+    .modal.prism-confirm-modal[data-tone="warning"] {
+        --pcd-go: var(--cm-components-prism-confirm-dialog-1);
+    }
+
+    .modal.prism-confirm-modal .modal-content {
+        background: linear-gradient(140deg, var(--pcd-gleam) 0%, transparent 42%), var(--cm-components-prism-confirm-dialog-2);
+        box-shadow: inset 0 1px 0 var(--pcd-rim-hi), 0 40px 90px -30px var(--pcd-shadow), 0 30px 60px -40px var(--pcd-tone);
+    }
+
+    .modal.prism-confirm-modal .modal-content::before {
+        box-shadow: 0 0 16px 1px var(--pcd-tone);
+    }
+
+    .modal.prism-confirm-modal .modal-title::before {
+        box-shadow: 0 0 0 4px transparent;
+    }
+
+    .modal.prism-confirm-modal .form-control:focus,
+    .modal.prism-confirm-modal .form-select:focus {
+        border-color: var(--pcd-tone);
+        box-shadow: 0 0 0 4px transparent;
+    }
+
+    .modal.prism-confirm-modal .modal-footer .btn-danger,
+    .modal.prism-confirm-modal .modal-footer .btn-outline-danger,
+    .modal.prism-confirm-modal .modal-footer .btn-warning,
+    .modal.prism-confirm-modal .modal-footer .btn-primary,
+    .modal.prism-confirm-modal .modal-footer .btn-success {
+        box-shadow: inset 0 1px 0 var(--cm-components-prism-confirm-dialog-5), 0 10px 22px -10px var(--pcd-go);
+    }
+
+    @media (max-width: 575.98px) {
+        .prism-confirm-dialog__grabber {
+            background: var(--cm-components-prism-confirm-dialog-6);
+        }
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

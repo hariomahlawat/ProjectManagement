@@ -742,3 +742,23 @@
 :where([data-bs-theme="dark"]) .training-chart-card {
     box-shadow: 0 18px 30px -24px rgba(0, 0, 0, 0.6);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --training-primary-veil: rgba(37, 99, 214, 0.03);
+        --training-primary-wash-soft: rgba(37, 99, 214, 0.07);
+        --training-primary-wash-strong: rgba(37, 99, 214, 0.12);
+        --training-primary-ribbon: rgba(37, 99, 214, 0.45);
+        --training-primary-outline: rgba(37, 99, 214, 0.22);
+        --training-shadow-strong: rgba(15, 23, 42, 0.12);
+        --training-control-hover: rgba(95, 102, 115, 0.18);
+        --training-rank-o: #2c3344;
+        --training-rank-j: #7b7f8a;
+        --training-rank-r: #bcbec3;
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

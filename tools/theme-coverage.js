@@ -7,7 +7,8 @@
 // repaints it, so this is the work list for making every page coherent in both themes.
 //
 // Not counted: declarations inside [data-bs-theme="dark"] rules or @media print, var()
-// fallbacks (var(--pm-card, #fff)), and the token definitions in site.css :root blocks.
+// fallbacks (var(--pm-card, #fff)), the token definitions in site.css :root blocks, and the
+// generated :root tokens of the color-mix() fallback blocks (tools/color-mix-fallbacks.js).
 //
 // Usage:
 //   node tools/theme-coverage.js            check against the baseline (exit 1 on growth)
@@ -98,6 +99,9 @@ function analyseCss(source, file) {
     const parts = splitSelector(rule.selector);
     for (const d of rule.declarations) {
       if (isSite && d.property.startsWith('--') && parts.some((part) => /^:root\b/.test(part))) continue;
+      // Generated color-mix() fallbacks (tools/color-mix-fallbacks.js): :root tokens computed for
+      // Light and Dark, read only by browsers without color-mix(); never a light island in Dark.
+      if (d.property.startsWith('--') && parts.every((part) => /^:root\b/.test(part)) && rule.atRules.some((at) => at.startsWith('@supports not (color: color-mix('))) continue;
       const n = countLiterals(d.value);
       if (!n) continue;
       literals += n;

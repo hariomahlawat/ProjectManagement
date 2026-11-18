@@ -2077,3 +2077,62 @@ body.clg-dialog-open .prism-toasts {
 body.clg-dialog-open .prism-toasts .prism-toast {
     pointer-events: none;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-collage-1: rgba(0, 0, 0, 0.14);
+        --cm-collage-2: rgba(33, 37, 41, 0.72);
+        --cm-collage-3: rgba(33, 37, 41, 0.18);
+        --cm-collage-4: rgba(13, 110, 253, 0.16);
+        --cm-collage-5: rgba(0, 0, 0, 0.18);
+        --cm-collage-6: rgba(33, 37, 41, 0.45);
+        --cm-collage-7: rgba(13, 110, 253, 0.22);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-collage-1: rgba(240, 242, 244, 0.14);
+        --cm-collage-4: rgba(110, 168, 254, 0.16);
+        --cm-collage-5: rgba(240, 242, 244, 0.18);
+        --cm-collage-7: rgba(110, 168, 254, 0.22);
+    }
+
+    .clg {
+        --clg-soft-shadow: 0 10px 30px var(--cm-collage-1);
+    }
+
+    .clg-tray__remove {
+        background: var(--cm-collage-2);
+    }
+
+    .clg-tray__used {
+        background: var(--cm-collage-2);
+    }
+
+    .clg-props-tab[aria-selected="true"] {
+        box-shadow: 0 1px 2px var(--cm-collage-3);
+    }
+
+    .clg-props-tab__count {
+        background: var(--cm-collage-4);
+    }
+
+    .clg-dialog::backdrop {
+        background: var(--cm-collage-6);
+    }
+
+    .clg-purpose [data-save-purpose][aria-pressed="true"] {
+        background: var(--cm-collage-7);
+    }
+
+    @media (max-width: 820px) {
+        .clg-drawer,
+        .clg-props {
+            box-shadow: 0 -10px 30px var(--cm-collage-5);
+        }
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

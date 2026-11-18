@@ -291,3 +291,15 @@
 :where([data-bs-theme="dark"]) .photos-viewer__info p {
     color: #c4cbd5;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+
+    .photos-viewer__thumb {
+        background: transparent;
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

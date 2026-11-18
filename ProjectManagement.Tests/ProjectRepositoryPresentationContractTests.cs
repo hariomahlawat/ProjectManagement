@@ -65,7 +65,8 @@ public sealed class ProjectRepositoryPresentationContractTests
     [Fact]
     public void Repository_UsesFixedResponsiveTracksAndDoesNotStretchSingleResult()
     {
-        var css = ReadRepoFile("wwwroot", "css", "projects", "index.css");
+        // Up to the generated color-mix() fallbacks for older browsers (tools/color-mix-fallbacks.js).
+        var css = ReadRepoFile("wwwroot", "css", "projects", "index.css").Split("/* BEGIN GENERATED: color-mix()")[0];
 
         Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
         Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr));", css, StringComparison.Ordinal);
@@ -79,7 +80,8 @@ public sealed class ProjectRepositoryPresentationContractTests
         var header = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryHeaderSummary.cshtml");
         var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
         var model = ReadRepoFile("Pages", "Projects", "Index.cshtml.cs");
-        var css = ReadRepoFile("wwwroot", "css", "projects", "index.css");
+        // Up to the generated color-mix() fallbacks for older browsers (tools/color-mix-fallbacks.js).
+        var css = ReadRepoFile("wwwroot", "css", "projects", "index.css").Split("/* BEGIN GENERATED: color-mix()")[0];
 
         Assert.Contains("public string ProjectCountLabel => FilteredTotal == 1 ? \"project\" : \"projects\";", model, StringComparison.Ordinal);
         Assert.Contains("@Model.ProjectCountLabel", header, StringComparison.Ordinal);
@@ -191,7 +193,8 @@ public sealed class ProjectRepositoryPresentationContractTests
     {
         var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
         var table = ReadRepoFile("Pages", "Projects", "_ProjectRegisterActiveTable.cshtml");
-        var css = ReadRepoFile("wwwroot", "css", "projects", "index.css");
+        // Up to the generated color-mix() fallbacks for older browsers (tools/color-mix-fallbacks.js).
+        var css = ReadRepoFile("wwwroot", "css", "projects", "index.css").Split("/* BEGIN GENERATED: color-mix()")[0];
 
         Assert.Contains("@if (Model.IsActiveRegister)", results, StringComparison.Ordinal);
         Assert.Contains("<partial name=\"_ProjectRegisterActiveTable\" model=\"Model\" />", results, StringComparison.Ordinal);

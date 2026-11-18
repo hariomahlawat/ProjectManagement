@@ -541,3 +541,40 @@
 :where([data-bs-theme="dark"]) .compendium-review-card__footer {
     background: #16181b;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-projects-compendium-1: #2b271c;
+        --cm-pages-projects-compendium-2: #1d242d;
+        --cm-pages-projects-compendium-3: #1e252f;
+        --cm-pages-projects-compendium-4: #30435f;
+        --cm-pages-projects-compendium-5: #5b4a1e;
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-status--warning {
+        background: var(--cm-pages-projects-compendium-1);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-export-card__icon {
+        background: var(--cm-pages-projects-compendium-2);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-review-count {
+        background: var(--cm-pages-projects-compendium-3);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-issue--photo {
+        border-color: var(--cm-pages-projects-compendium-4);
+        background: var(--cm-pages-projects-compendium-2);
+    }
+
+    :where([data-bs-theme="dark"]) .compendium-issue--cost {
+        border-color: var(--cm-pages-projects-compendium-5);
+        background: var(--cm-pages-projects-compendium-1);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

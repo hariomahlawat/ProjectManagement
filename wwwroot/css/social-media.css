@@ -894,3 +894,41 @@
 :where([data-bs-theme="dark"]) .social-existing-gallery {
     border-top: 1px solid #2c3035;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-social-media-1: #1d242d;
+        --cm-social-media-2: #1e252f;
+        --cm-social-media-3: #281f22;
+    }
+
+    :where([data-bs-theme="dark"]) .social-summary-card__icon {
+        background: var(--cm-social-media-1);
+    }
+
+    :where([data-bs-theme="dark"]) .social-empty-state__icon {
+        background: var(--cm-social-media-1);
+    }
+
+    :where([data-bs-theme="dark"]) .social-export-option > i {
+        background: var(--cm-social-media-1);
+    }
+
+    :where([data-bs-theme="dark"]) .social-dropzone:hover,
+    :where([data-bs-theme="dark"]) .social-dropzone.is-dragover {
+        background: var(--cm-social-media-1);
+    }
+
+    :where([data-bs-theme="dark"]) .social-dropzone__icon {
+        background: var(--cm-social-media-2);
+    }
+
+    :where([data-bs-theme="dark"]) .social-delete-card__icon {
+        background: var(--cm-social-media-3);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

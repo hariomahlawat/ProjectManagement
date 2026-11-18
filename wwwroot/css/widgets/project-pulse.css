@@ -872,3 +872,273 @@
 :where([data-bs-theme="dark"]) .ppulse__card--completed .ppulse__foot {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-widgets-project-pulse-1: #e4edfc;
+        --cm-widgets-project-pulse-2: #e8f0fd;
+        --cm-widgets-project-pulse-3: #c7d9f8;
+        --cm-widgets-project-pulse-4: #91b3ef;
+        --cm-widgets-project-pulse-5: #96b5e9;
+        --cm-widgets-project-pulse-6: #9cbbf1;
+        --cm-widgets-project-pulse-7: #b4c9ed;
+        --cm-widgets-project-pulse-8: #fdfefe;
+        --cm-widgets-project-pulse-9: #f2f5f8;
+        --cm-widgets-project-pulse-10: #eff2f7;
+        --cm-widgets-project-pulse-11: #ffffff;
+        --cm-widgets-project-pulse-12: #f0f3f8;
+        --cm-widgets-project-pulse-13: #ffffff;
+        --cm-widgets-project-pulse-14: #b1caf5;
+        --cm-widgets-project-pulse-15: #86abed;
+        --cm-widgets-project-pulse-16: #ffffff;
+        --cm-widgets-project-pulse-17: #e2ebfd;
+        --cm-widgets-project-pulse-18: #f1e9ff;
+        --cm-widgets-project-pulse-19: #e4eeed;
+        --cm-widgets-project-pulse-20: #e7f4e9;
+        --cm-widgets-project-pulse-21: #ffffff;
+        --cm-widgets-project-pulse-22: #ffffff;
+        --cm-widgets-project-pulse-23: rgba(229, 231, 235, 0.35);
+        --cm-widgets-project-pulse-24: rgba(37, 99, 214, 0.18);
+        --cm-widgets-project-pulse-25: #202732;
+        --cm-widgets-project-pulse-26: #1e242e;
+        --cm-widgets-project-pulse-27: #3c4c63;
+        --cm-widgets-project-pulse-28: #4d6993;
+        --cm-widgets-project-pulse-29: #496389;
+        --cm-widgets-project-pulse-30: #17191c;
+        --cm-widgets-project-pulse-31: #2c3035;
+        --cm-widgets-project-pulse-32: #16181b;
+        --cm-widgets-project-pulse-33: #435876;
+        --cm-widgets-project-pulse-34: #506f9e;
+        --cm-widgets-project-pulse-35: #18202f;
+        --cm-widgets-project-pulse-36: #231e31;
+        --cm-widgets-project-pulse-37: #192224;
+        --cm-widgets-project-pulse-38: #1b2721;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-widgets-project-pulse-1: #edf5ff;
+        --cm-widgets-project-pulse-2: #f0f7ff;
+        --cm-widgets-project-pulse-3: #dbeaff;
+        --cm-widgets-project-pulse-4: #b6d4ff;
+        --cm-widgets-project-pulse-5: #465e80;
+        --cm-widgets-project-pulse-6: #bed9ff;
+        --cm-widgets-project-pulse-7: #3c4b61;
+        --cm-widgets-project-pulse-8: #f1f1f2;
+        --cm-widgets-project-pulse-9: #999b9e;
+        --cm-widgets-project-pulse-10: #838689;
+        --cm-widgets-project-pulse-11: #393b3e;
+        --cm-widgets-project-pulse-12: #8e9093;
+        --cm-widgets-project-pulse-13: #333538;
+        --cm-widgets-project-pulse-14: #cce1ff;
+        --cm-widgets-project-pulse-15: #afd0ff;
+        --cm-widgets-project-pulse-16: #2d2f32;
+        --cm-widgets-project-pulse-21: #35373a;
+        --cm-widgets-project-pulse-22: #313336;
+        --cm-widgets-project-pulse-23: rgba(44, 48, 53, 0.35);
+        --cm-widgets-project-pulse-24: rgba(110, 168, 254, 0.18);
+    }
+
+    .ppulse__pulse {
+        background: var(--cm-widgets-project-pulse-1);
+    }
+
+    .ppulse__pill {
+        background: var(--cm-widgets-project-pulse-2);
+        border: 1px solid var(--cm-widgets-project-pulse-3);
+    }
+
+    .ppulse__pill:focus-visible {
+        outline: 2px solid var(--cm-widgets-project-pulse-4);
+    }
+
+    .ppulse__pill--link:hover {
+        border-color: var(--cm-widgets-project-pulse-5);
+    }
+
+    .ppulse__link:focus-visible {
+        outline: 2px solid var(--cm-widgets-project-pulse-6);
+    }
+
+    .ppulse__link:hover {
+        border-color: var(--cm-widgets-project-pulse-7);
+        background: var(--cm-widgets-project-pulse-8);
+    }
+
+    .ppulse__chart {
+        border: 1px solid var(--cm-widgets-project-pulse-9);
+    }
+
+    .ppulse__stage-pill {
+        border: 1px solid var(--cm-widgets-project-pulse-10);
+        background: var(--cm-widgets-project-pulse-11);
+    }
+
+    .ppulse__bucket-filter {
+        border: 1px solid var(--cm-widgets-project-pulse-12);
+        background: var(--cm-widgets-project-pulse-13);
+    }
+
+    .ppulse__bucket-filter.is-active {
+        background: var(--cm-widgets-project-pulse-1);
+        border-color: var(--cm-widgets-project-pulse-14);
+    }
+
+    .ppulse__bucket-filter:focus-visible {
+        outline: 2px solid var(--cm-widgets-project-pulse-15);
+    }
+
+    .ppulse__bucket-bar {
+        border: 1px solid var(--cm-widgets-project-pulse-9);
+        background: var(--cm-widgets-project-pulse-16);
+    }
+
+    .ppulse__bucket-seg--apvl {
+        background: var(--cm-widgets-project-pulse-17);
+    }
+
+    .ppulse__bucket-seg--aon {
+        background: var(--cm-widgets-project-pulse-18);
+    }
+
+    .ppulse__bucket-seg--tender {
+        background: var(--cm-widgets-project-pulse-19);
+    }
+
+    .ppulse__bucket-seg--devp {
+        background: var(--cm-widgets-project-pulse-20);
+    }
+
+    .ppulse__kpi {
+        border: 1px solid var(--cm-widgets-project-pulse-10);
+        background: var(--cm-widgets-project-pulse-11);
+    }
+
+    .ppulse__tablist {
+        background: var(--cm-widgets-project-pulse-21);
+    }
+
+    .ppulse__tab:focus-visible {
+        outline: 2px solid var(--cm-widgets-project-pulse-4);
+    }
+
+    .ppulse__empty {
+        border: 1px dashed var(--cm-widgets-project-pulse-10);
+        background: var(--cm-widgets-project-pulse-22);
+    }
+
+    .ppulse__bartrack {
+        background: var(--cm-widgets-project-pulse-23);
+    }
+
+    .ppulse__barfill {
+        background: var(--cm-widgets-project-pulse-24);
+    }
+
+    .ppulse__info {
+        border: 1px solid var(--cm-widgets-project-pulse-10);
+        background: var(--cm-widgets-project-pulse-22);
+    }
+
+    .ppulse__kpi-row {
+        border: 1px solid var(--cm-widgets-project-pulse-10);
+        background: var(--cm-widgets-project-pulse-11);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__pulse {
+        background: var(--cm-widgets-project-pulse-25);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__pill {
+        background: var(--cm-widgets-project-pulse-26);
+        border: 1px solid var(--cm-widgets-project-pulse-27);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__pill:focus-visible {
+        outline: 2px solid var(--cm-widgets-project-pulse-28);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__link:focus-visible {
+        outline: 2px solid var(--cm-widgets-project-pulse-29);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__link:hover {
+        background: var(--cm-widgets-project-pulse-30);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__chart {
+        border: 1px solid var(--cm-widgets-project-pulse-31);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__stage-pill {
+        border: 1px solid var(--cm-widgets-project-pulse-31);
+        background: var(--cm-widgets-project-pulse-32);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__bucket-filter {
+        border: 1px solid var(--cm-widgets-project-pulse-31);
+        background: var(--cm-widgets-project-pulse-32);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__bucket-filter.is-active {
+        background: var(--cm-widgets-project-pulse-25);
+        border-color: var(--cm-widgets-project-pulse-33);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__bucket-filter:focus-visible {
+        outline: 2px solid var(--cm-widgets-project-pulse-34);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__bucket-bar {
+        border: 1px solid var(--cm-widgets-project-pulse-31);
+        background: var(--cm-widgets-project-pulse-32);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__bucket-seg--apvl {
+        background: var(--cm-widgets-project-pulse-35);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__bucket-seg--aon {
+        background: var(--cm-widgets-project-pulse-36);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__bucket-seg--tender {
+        background: var(--cm-widgets-project-pulse-37);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__bucket-seg--devp {
+        background: var(--cm-widgets-project-pulse-38);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__kpi {
+        border: 1px solid var(--cm-widgets-project-pulse-31);
+        background: var(--cm-widgets-project-pulse-32);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__tablist {
+        background: var(--cm-widgets-project-pulse-32);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__tab:focus-visible {
+        outline: 2px solid var(--cm-widgets-project-pulse-28);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__empty {
+        border: 1px dashed var(--cm-widgets-project-pulse-31);
+        background: var(--cm-widgets-project-pulse-32);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__info {
+        border: 1px solid var(--cm-widgets-project-pulse-31);
+        background: var(--cm-widgets-project-pulse-32);
+    }
+
+    :where([data-bs-theme="dark"]) .ppulse__kpi-row {
+        border: 1px solid var(--cm-widgets-project-pulse-31);
+        background: var(--cm-widgets-project-pulse-32);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

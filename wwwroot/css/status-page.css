@@ -273,3 +273,29 @@ body.pm-scene-status-in-app main {
         display: none;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+
+    .lp-aurora--status {
+        background: radial-gradient(24% 32% at 30% 38%, var(--lp-hue, var(--lp-spec-6)), transparent 70%), radial-gradient(24% 30% at 72% 30%, var(--lp-spec-4), transparent 70%), radial-gradient(28% 34% at 66% 78%, transparent, transparent 70%), radial-gradient(20% 26% at 36% 76%, transparent, transparent 70%);
+    }
+
+    .status__beam {
+        box-shadow: 0 0 18px 2px var(--lp-aura);
+    }
+
+    .status__card {
+        box-shadow: var(--lp-glass-shadow), 0 40px 90px -50px var(--lp-hue, var(--lp-spec-6));
+    }
+
+    .status__glyph {
+        border: 1px solid var(--lp-glass-rim);
+        background: radial-gradient(circle at 50% 0%, transparent, transparent 70%), var(--lp-glass);
+        box-shadow: var(--lp-glass-shadow), 0 14px 34px -16px var(--lp-hue);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

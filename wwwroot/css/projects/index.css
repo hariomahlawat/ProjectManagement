@@ -1847,3 +1847,62 @@ a.projects-pipeline__stage:focus-visible {
     border-color: var(--pm-primary);
     color: var(--pm-primary);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-projects-index-1: rgba(37, 99, 214, 0.42);
+        --cm-projects-index-2: #1d242d;
+        --cm-projects-index-3: #5a3335;
+        --cm-projects-index-4: #281f22;
+        --cm-projects-index-5: #3d5c8c;
+        --cm-projects-index-6: rgba(95, 102, 115, 0.28);
+        --cm-projects-index-7: rgba(37, 99, 214, 0.55);
+        --cm-projects-index-8: rgba(95, 102, 115, 0.18);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-projects-index-1: rgba(110, 168, 254, 0.42);
+        --cm-projects-index-6: rgba(154, 160, 166, 0.28);
+        --cm-projects-index-7: rgba(110, 168, 254, 0.55);
+        --cm-projects-index-8: rgba(154, 160, 166, 0.18);
+    }
+
+    .projects-sort:focus-visible {
+        outline: 2px solid var(--cm-projects-index-1);
+    }
+
+    :where([data-bs-theme="dark"]) .projects-filter-chip {
+        background: var(--cm-projects-index-2);
+    }
+
+    :where([data-bs-theme="dark"]) .project-card__visual {
+        background: var(--cm-projects-index-2);
+    }
+
+    :where([data-bs-theme="dark"]) .project-lifecycle-badge--cancelled {
+        border-color: var(--cm-projects-index-3);
+        background: var(--cm-projects-index-4);
+    }
+
+    :where([data-bs-theme="dark"]) .projects-pagination .page-item.active .page-link {
+        border-color: var(--cm-projects-index-5);
+        background: var(--cm-projects-index-5);
+    }
+
+    .projects-register__mark {
+        background: var(--cm-projects-index-6);
+    }
+
+    .projects-register__mark--skipped {
+        box-shadow: inset 0 0 0 1.5px var(--cm-projects-index-7);
+    }
+
+    .projects-register__bar {
+        background: var(--cm-projects-index-8);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

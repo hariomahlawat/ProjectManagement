@@ -636,3 +636,50 @@
 :where([data-bs-theme="dark"]) .leaflet-tooltip.ffc-footprint-tooltip {
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-project-office-reports-ffc-footprint-1: #eff1f3;
+        --cm-project-office-reports-ffc-footprint-2: rgba(244, 246, 251, 0.92);
+        --cm-project-office-reports-ffc-footprint-3: rgba(244, 246, 251, 0.94);
+        --cm-project-office-reports-ffc-footprint-4: rgba(13, 110, 253, 0.36);
+        --cm-project-office-reports-ffc-footprint-5: #212428;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-project-office-reports-ffc-footprint-1: #626468;
+        --cm-project-office-reports-ffc-footprint-2: rgba(22, 24, 27, 0.92);
+        --cm-project-office-reports-ffc-footprint-3: rgba(22, 24, 27, 0.94);
+        --cm-project-office-reports-ffc-footprint-4: rgba(110, 168, 254, 0.36);
+    }
+
+    .ffc-footprint {
+        --ffc-muted-surface: var(--cm-project-office-reports-ffc-footprint-1);
+    }
+
+    .ffc-footprint-map__loading,
+    .ffc-footprint-map__error {
+        background: var(--cm-project-office-reports-ffc-footprint-2);
+    }
+
+    .ffc-footprint-legend {
+        background: var(--cm-project-office-reports-ffc-footprint-3);
+    }
+
+    .ffc-country-card:hover {
+        border-color: var(--ffc-border);
+    }
+
+    .ffc-country-card:focus-visible {
+        outline: 3px solid var(--cm-project-office-reports-ffc-footprint-4);
+    }
+
+    :where([data-bs-theme="dark"]) .ffc-footprint {
+        --ffc-muted-surface: var(--cm-project-office-reports-ffc-footprint-5);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

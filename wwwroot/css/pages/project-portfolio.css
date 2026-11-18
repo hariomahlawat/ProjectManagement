@@ -4548,3 +4548,507 @@ a.project-intelligence-card:focus-visible {
         overflow-wrap: anywhere;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-project-portfolio-1: #d6dbe2;
+        --cm-pages-project-portfolio-2: #f5f9ff;
+        --cm-pages-project-portfolio-3: #edf4fe;
+        --cm-pages-project-portfolio-4: #85b2f9;
+        --cm-pages-project-portfolio-5: rgba(59, 130, 246, 0.08);
+        --cm-pages-project-portfolio-6: #4ca17a;
+        --cm-pages-project-portfolio-7: rgba(25, 135, 84, 0.08);
+        --cm-pages-project-portfolio-8: #e66e79;
+        --cm-pages-project-portfolio-9: rgba(220, 53, 69, 0.07);
+        --cm-pages-project-portfolio-10: rgba(95, 102, 115, 0.28);
+        --cm-pages-project-portfolio-11: #176b4a;
+        --cm-pages-project-portfolio-12: #e0efe8;
+        --cm-pages-project-portfolio-13: #9a2b3c;
+        --cm-pages-project-portfolio-14: #fbe8ea;
+        --cm-pages-project-portfolio-15: #cb313e;
+        --cm-pages-project-portfolio-16: #fdfeff;
+        --cm-pages-project-portfolio-17: #ebf3fe;
+        --cm-pages-project-portfolio-18: rgba(229, 231, 235, 0.75);
+        --cm-pages-project-portfolio-19: rgba(13, 110, 253, 0.14);
+        --cm-pages-project-portfolio-20: rgba(13, 110, 253, 0.1);
+        --cm-pages-project-portfolio-21: #e6f2ec;
+        --cm-pages-project-portfolio-22: rgba(220, 53, 69, 0.25);
+        --cm-pages-project-portfolio-23: #a32d3d;
+        --cm-pages-project-portfolio-24: #fbe6e8;
+        --cm-pages-project-portfolio-25: #fdf3f4;
+        --cm-pages-project-portfolio-26: rgba(220, 53, 69, 0.24);
+        --cm-pages-project-portfolio-27: #a6394a;
+        --cm-pages-project-portfolio-28: #fbe9eb;
+        --cm-pages-project-portfolio-29: #aa4f62;
+        --cm-pages-project-portfolio-30: rgba(220, 53, 69, 0.18);
+        --cm-pages-project-portfolio-31: #9a586c;
+        --cm-pages-project-portfolio-32: #fef8f8;
+        --cm-pages-project-portfolio-33: #9c3a4b;
+        --cm-pages-project-portfolio-34: #fff8e4;
+        --cm-pages-project-portfolio-35: #fceced;
+        --cm-pages-project-portfolio-36: #1a212f;
+        --cm-pages-project-portfolio-37: #fafcfd;
+        --cm-pages-project-portfolio-38: #fff8e2;
+        --cm-pages-project-portfolio-39: #edf4ff;
+        --cm-pages-project-portfolio-40: #fff9e7;
+        --cm-pages-project-portfolio-41: #f1f8f5;
+        --cm-pages-project-portfolio-42: #f0fbfe;
+        --cm-pages-project-portfolio-43: #fffbee;
+        --cm-pages-project-portfolio-44: #e7f0fe;
+        --cm-pages-project-portfolio-45: rgba(59, 130, 246, 0.28);
+        --cm-pages-project-portfolio-46: #f1f6fe;
+        --cm-pages-project-portfolio-47: rgba(59, 130, 246, 0.2);
+        --cm-pages-project-portfolio-48: #eff7f3;
+        --cm-pages-project-portfolio-49: #fdf3f4;
+        --cm-pages-project-portfolio-50: rgba(255, 255, 255, 0.94);
+        --cm-pages-project-portfolio-51: #e9f1fe;
+        --cm-pages-project-portfolio-52: #d8e6fd;
+        --cm-pages-project-portfolio-53: #3472d7;
+        --cm-pages-project-portfolio-54: rgba(59, 130, 246, 0.18);
+        --cm-pages-project-portfolio-55: #4878c8;
+        --cm-pages-project-portfolio-56: rgba(95, 102, 115, 0.16);
+        --cm-pages-project-portfolio-57: rgba(95, 102, 115, 0.22);
+        --cm-pages-project-portfolio-58: rgba(22, 163, 74, 0.55);
+        --cm-pages-project-portfolio-59: rgba(22, 163, 74, 0.2);
+        --cm-pages-project-portfolio-60: #21283a;
+        --cm-pages-project-portfolio-61: #158744;
+        --cm-pages-project-portfolio-62: #242f3f;
+        --cm-pages-project-portfolio-63: #1d242d;
+        --cm-pages-project-portfolio-64: #222c3b;
+        --cm-pages-project-portfolio-65: #2f3338;
+        --cm-pages-project-portfolio-66: #e26262;
+        --cm-pages-project-portfolio-67: #f29798;
+        --cm-pages-project-portfolio-68: #a85c5f;
+        --cm-pages-project-portfolio-69: #985e62;
+        --cm-pages-project-portfolio-70: #f19e9f;
+        --cm-pages-project-portfolio-71: #4d71a8;
+        --cm-pages-project-portfolio-72: #303439;
+        --cm-pages-project-portfolio-73: #3fb26a;
+        --cm-pages-project-portfolio-74: #b95859;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-pages-project-portfolio-1: #3f454d;
+        --cm-pages-project-portfolio-2: #1a1f26;
+        --cm-pages-project-portfolio-3: #1e252f;
+        --cm-pages-project-portfolio-4: #a5c9fe;
+        --cm-pages-project-portfolio-5: rgba(110, 168, 254, 0.08);
+        --cm-pages-project-portfolio-6: #72e59c;
+        --cm-pages-project-portfolio-7: rgba(74, 222, 128, 0.08);
+        --cm-pages-project-portfolio-8: #fa9999;
+        --cm-pages-project-portfolio-9: rgba(248, 113, 113, 0.07);
+        --cm-pages-project-portfolio-10: rgba(154, 160, 166, 0.28);
+        --cm-pages-project-portfolio-11: #74e39d;
+        --cm-pages-project-portfolio-12: #1a2823;
+        --cm-pages-project-portfolio-13: #f59a9b;
+        --cm-pages-project-portfolio-14: #261e21;
+        --cm-pages-project-portfolio-15: #e26262;
+        --cm-pages-project-portfolio-16: #171a1e;
+        --cm-pages-project-portfolio-17: #1f2632;
+        --cm-pages-project-portfolio-18: rgba(44, 48, 53, 0.75);
+        --cm-pages-project-portfolio-19: rgba(110, 168, 254, 0.14);
+        --cm-pages-project-portfolio-20: rgba(110, 168, 254, 0.1);
+        --cm-pages-project-portfolio-21: #192522;
+        --cm-pages-project-portfolio-22: rgba(248, 113, 113, 0.25);
+        --cm-pages-project-portfolio-23: #f69596;
+        --cm-pages-project-portfolio-24: #271f21;
+        --cm-pages-project-portfolio-25: #1e1b1e;
+        --cm-pages-project-portfolio-26: rgba(248, 113, 113, 0.24);
+        --cm-pages-project-portfolio-27: #b96268;
+        --cm-pages-project-portfolio-28: #251e21;
+        --cm-pages-project-portfolio-29: #ba727c;
+        --cm-pages-project-portfolio-30: rgba(248, 113, 113, 0.18);
+        --cm-pages-project-portfolio-31: #a7737f;
+        --cm-pages-project-portfolio-32: #1b1a1d;
+        --cm-pages-project-portfolio-33: #ad5f66;
+        --cm-pages-project-portfolio-34: #25231c;
+        --cm-pages-project-portfolio-35: #231d20;
+        --cm-pages-project-portfolio-36: #d8dbdf;
+        --cm-pages-project-portfolio-37: #1c1e22;
+        --cm-pages-project-portfolio-38: #26241c;
+        --cm-pages-project-portfolio-39: #1b2027;
+        --cm-pages-project-portfolio-40: #23221c;
+        --cm-pages-project-portfolio-41: #181f1f;
+        --cm-pages-project-portfolio-42: #171e23;
+        --cm-pages-project-portfolio-43: #1f1f1b;
+        --cm-pages-project-portfolio-44: #212936;
+        --cm-pages-project-portfolio-45: rgba(110, 168, 254, 0.28);
+        --cm-pages-project-portfolio-46: #1c222b;
+        --cm-pages-project-portfolio-47: rgba(110, 168, 254, 0.2);
+        --cm-pages-project-portfolio-48: #1a2622;
+        --cm-pages-project-portfolio-49: #241d20;
+        --cm-pages-project-portfolio-50: rgba(22, 24, 27, 0.94);
+        --cm-pages-project-portfolio-51: #202834;
+        --cm-pages-project-portfolio-52: #283548;
+        --cm-pages-project-portfolio-53: #80b2fb;
+        --cm-pages-project-portfolio-54: rgba(110, 168, 254, 0.18);
+        --cm-pages-project-portfolio-55: #7da5df;
+        --cm-pages-project-portfolio-56: rgba(154, 160, 166, 0.16);
+        --cm-pages-project-portfolio-57: rgba(154, 160, 166, 0.22);
+        --cm-pages-project-portfolio-58: rgba(74, 222, 128, 0.55);
+        --cm-pages-project-portfolio-59: rgba(74, 222, 128, 0.2);
+        --cm-pages-project-portfolio-60: #d5d8dc;
+        --cm-pages-project-portfolio-61: #69e095;
+    }
+
+    .project-portfolio {
+        --portfolio-border: var(--cm-pages-project-portfolio-1);
+        --portfolio-soft: var(--cm-pages-project-portfolio-2);
+        --portfolio-soft-strong: var(--cm-pages-project-portfolio-3);
+    }
+
+    .project-command-header__meta .project-command-header__legacy {
+        border: 1px solid var(--cm-pages-project-portfolio-10);
+    }
+
+    .project-lifecycle-lockup--completed {
+        border-color: var(--portfolio-border);
+        color: var(--cm-pages-project-portfolio-11);
+        background: var(--cm-pages-project-portfolio-12);
+    }
+
+    .project-lifecycle-lockup--cancelled {
+        border-color: var(--portfolio-border);
+        color: var(--cm-pages-project-portfolio-13);
+        background: var(--cm-pages-project-portfolio-14);
+    }
+
+    .project-lifecycle-lockup--cancelled .project-lifecycle-lockup__icon {
+        background: var(--cm-pages-project-portfolio-15);
+    }
+
+    .project-intelligence-card {
+        background: var(--cm-pages-project-portfolio-16);
+    }
+
+    button.project-intelligence-card:hover {
+        border-color: var(--portfolio-border);
+    }
+
+    .project-profile-card .project-photo-cover-empty__icon {
+        background: var(--cm-pages-project-portfolio-17);
+    }
+
+    .project-lifecycle-summary__progress {
+        background: var(--cm-pages-project-portfolio-18);
+    }
+
+    .project-lifecycle-panel .pm-item.is-active .pm-item-card {
+        border-color: var(--pm-accent-blue, #3f6ff0);
+    }
+
+    .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded):hover .pm-item-card {
+        border-color: var(--portfolio-border);
+    }
+
+    .historical-stage-editor__row.is-targeted,
+    .actuals-editor__stage.is-targeted {
+        box-shadow: 0 0 0 .2rem var(--cm-pages-project-portfolio-19);
+    }
+
+    .historical-stage-editor__sequence {
+        background: var(--cm-pages-project-portfolio-20);
+    }
+
+    .pm-stage-outcome__primary {
+        background: var(--cm-pages-project-portfolio-21) !important;
+        border-color: var(--portfolio-border) !important;
+    }
+
+    .pm-current-stage-dates__item.is-attention {
+        border-color: var(--bs-warning, #ffc107);
+    }
+
+    .project-terminal-badge--cancelled {
+        border-color: var(--cm-pages-project-portfolio-22);
+        color: var(--cm-pages-project-portfolio-23);
+        background: var(--cm-pages-project-portfolio-24);
+    }
+
+    .project-timeline-terminal-note--cancelled {
+        border-color: var(--portfolio-border);
+        background: var(--cm-pages-project-portfolio-25);
+    }
+
+    .project-timeline-empty-history__icon {
+        background: var(--cm-pages-project-portfolio-17);
+    }
+
+    .pm-pill-cancelled {
+        border: 1px solid var(--cm-pages-project-portfolio-26);
+        color: var(--cm-pages-project-portfolio-27);
+        background: var(--cm-pages-project-portfolio-28);
+    }
+
+    .project-lifecycle-panel .pm-item.is-terminal-unresolved::before {
+        background: var(--cm-pages-project-portfolio-29);
+        box-shadow: 0 0 0 2px var(--cm-pages-project-portfolio-30);
+    }
+
+    .project-lifecycle-panel .pm-item.is-terminal-unresolved .pm-item-card {
+        border-left-color: var(--cm-pages-project-portfolio-31);
+        background: var(--cm-pages-project-portfolio-32);
+    }
+
+    .pm-stage-terminal-context strong {
+        color: var(--cm-pages-project-portfolio-33);
+    }
+
+    .project-profile-missing {
+        border: 1px dashed var(--portfolio-border);
+        background: var(--cm-pages-project-portfolio-34);
+    }
+
+    .procurement-empty-state__icon,
+    .project-files-empty__icon {
+        background: var(--cm-pages-project-portfolio-17);
+    }
+
+    .project-lifecycle-summary__grid > .is-attention {
+        border: 1px solid var(--portfolio-border);
+        background: var(--cm-pages-project-portfolio-35);
+    }
+
+    .project-lifecycle-panel .pm-item-compact-meta {
+        color: var(--cm-pages-project-portfolio-36);
+    }
+
+    .pm-completed-group__summary:hover {
+        border-color: var(--portfolio-border);
+    }
+
+    .project-exploitation-card .pm-right-summary-card__footer {
+        background: var(--cm-pages-project-portfolio-37);
+    }
+
+    .pm-stage-pending-update {
+        border: 1px solid var(--portfolio-border);
+        background: var(--cm-pages-project-portfolio-38);
+    }
+
+    .stage-update-approval-note {
+        border: 1px solid var(--portfolio-border);
+        background: var(--cm-pages-project-portfolio-39);
+    }
+
+    .stage-update-summary__kind.is-new {
+        border-color: var(--portfolio-border);
+    }
+
+    .stage-update-summary__kind.is-revision {
+        border-color: var(--portfolio-border);
+        background: var(--cm-pages-project-portfolio-40);
+    }
+
+    .project-lifecycle-panel .pm-item:has(.pm-stage-pending-update) .pm-item-card {
+        border-color: var(--portfolio-border);
+    }
+
+    .project-intelligence-card--tone-positive {
+        border-color: var(--portfolio-border);
+        background: var(--cm-pages-project-portfolio-41);
+    }
+
+    .project-intelligence-card--tone-info {
+        border-color: var(--portfolio-border);
+        background: var(--cm-pages-project-portfolio-42);
+    }
+
+    .project-intelligence-card--tone-warning {
+        border-color: var(--portfolio-border);
+        background: var(--cm-pages-project-portfolio-43);
+    }
+
+    .proliferation-editor__icon {
+        background: var(--cm-pages-project-portfolio-44);
+    }
+
+    .proliferation-choice > input:focus-visible + .proliferation-choice__body {
+        outline: 3px solid var(--cm-pages-project-portfolio-45);
+    }
+
+    .proliferation-choice > input:checked + .proliferation-choice__body {
+        border-color: var(--pm-accent-blue, #3f6ff0);
+        background: var(--cm-pages-project-portfolio-46);
+        box-shadow: 0 0 0 1px var(--cm-pages-project-portfolio-47);
+    }
+
+    .proliferation-choice--positive > input:checked + .proliferation-choice__body {
+        border-color: var(--bs-success, #198754);
+        background: var(--cm-pages-project-portfolio-48);
+    }
+
+    .proliferation-choice--negative > input:checked + .proliferation-choice__body {
+        border-color: var(--bs-danger, #dc3545);
+        background: var(--cm-pages-project-portfolio-49);
+    }
+
+    .offcanvas-form-actions {
+        background: var(--cm-pages-project-portfolio-50);
+    }
+
+    .project-jdp-editor__icon,
+    .project-jdp-editor__empty-icon {
+        background: var(--cm-pages-project-portfolio-44);
+    }
+
+    .project-jdp-editor__project:hover {
+        border-color: var(--portfolio-border);
+    }
+
+    .project-jdp-picker__selection {
+        background: var(--cm-pages-project-portfolio-48);
+    }
+
+    #recordCompletenessModal,
+    #discardDraftModal {
+        --portfolio-border: var(--cm-pages-project-portfolio-1);
+    }
+
+    .project-portfolio,
+    #recordCompletenessModal,
+    #discardDraftModal {
+        --v6-tile: var(--cm-pages-project-portfolio-37);
+        --v6-accent-soft: var(--cm-pages-project-portfolio-51);
+    }
+
+    .project-portfolio .pm-card-icon {
+        background: linear-gradient(145deg, var(--v6-accent-soft), var(--cm-pages-project-portfolio-52));
+        color: var(--cm-pages-project-portfolio-53);
+        box-shadow: inset 0 0 0 1px var(--cm-pages-project-portfolio-54);
+    }
+
+    .project-command-header__meta .bi {
+        color: var(--cm-pages-project-portfolio-55);
+    }
+
+    .project-health-meter {
+        background: var(--cm-pages-project-portfolio-56);
+    }
+
+    .project-facts__item {
+        border: 1px solid var(--portfolio-border);
+    }
+
+    .procurement-ladder {
+        --ladder-line: var(--cm-pages-project-portfolio-57);
+    }
+
+    .procurement-step.is-recorded::before {
+        background: var(--cm-pages-project-portfolio-58);
+    }
+
+    .procurement-step.is-latest::before {
+        background: linear-gradient(90deg, var(--cm-pages-project-portfolio-58), var(--ladder-line));
+    }
+
+    .procurement-step.is-latest .procurement-step__marker {
+        box-shadow: 0 0 0 4px var(--cm-pages-project-portfolio-59);
+    }
+
+    .project-portfolio .project-lifecycle-panel .pm-item.is-future .pm-item-card {
+        border: 1px dashed var(--portfolio-border);
+    }
+
+    .project-lifecycle-panel .pm-item.is-future .pm-item-title {
+        color: var(--cm-pages-project-portfolio-60);
+    }
+
+    :is(.project-portfolio .offcanvas, .project-portfolio .modal) :is(.form-control, .form-select, .input-group-text) {
+        border-color: var(--portfolio-border);
+    }
+
+    :is(.project-portfolio .offcanvas, .project-portfolio .modal) :is(.form-control, .form-select):focus {
+        box-shadow: 0 0 0 .2rem var(--cm-pages-project-portfolio-54);
+    }
+
+    .procurement-inr-preview--live {
+        color: var(--cm-pages-project-portfolio-61);
+    }
+
+    .pm-overlay-actions {
+        background: var(--cm-pages-project-portfolio-50);
+    }
+
+    .project-portfolio .remarks-item {
+        border-color: var(--portfolio-border);
+    }
+
+    [data-bs-theme="dark"] :is(.project-portfolio, #recordCompletenessModal, #discardDraftModal) {
+        --v6-accent-soft: var(--cm-pages-project-portfolio-62);
+        --portfolio-soft: var(--cm-pages-project-portfolio-63);
+        --portfolio-soft-strong: var(--cm-pages-project-portfolio-64);
+    }
+
+    :where([data-bs-theme="dark"]) .project-portfolio {
+        --portfolio-border: var(--cm-pages-project-portfolio-65);
+    }
+
+    :where([data-bs-theme="dark"]) .project-lifecycle-lockup--cancelled .project-lifecycle-lockup__icon {
+        background: var(--cm-pages-project-portfolio-66);
+    }
+
+    :where([data-bs-theme="dark"]) .pm-pill-cancelled {
+        color: var(--cm-pages-project-portfolio-67);
+    }
+
+    :where([data-bs-theme="dark"]) .project-lifecycle-panel .pm-item.is-terminal-unresolved::before {
+        background: var(--cm-pages-project-portfolio-68);
+    }
+
+    :where([data-bs-theme="dark"]) .project-lifecycle-panel .pm-item.is-terminal-unresolved .pm-item-card {
+        border-left-color: var(--cm-pages-project-portfolio-69);
+    }
+
+    :where([data-bs-theme="dark"]) .pm-stage-terminal-context strong {
+        color: var(--cm-pages-project-portfolio-70);
+    }
+
+    :where([data-bs-theme="dark"]) .project-lifecycle-panel .pm-item:has(.pm-stage-pending-update) .pm-item-card {
+        border-color: var(--portfolio-border);
+    }
+
+    :where([data-bs-theme="dark"]) #recordCompletenessModal,
+    :where([data-bs-theme="dark"]) #discardDraftModal {
+        --portfolio-border: var(--cm-pages-project-portfolio-65);
+    }
+
+    .project-profile-flow .project-facts__item {
+        border-bottom: 1px solid var(--portfolio-border);
+    }
+
+    @supports (color: color-mix(in srgb, #000 50%, #fff)) {
+        .project-portfolio .project-command-header {
+            --project-command-accent: var(--cm-pages-project-portfolio-4);
+            --project-command-glow: var(--cm-pages-project-portfolio-5);
+        }
+
+        .project-portfolio .project-command-header--completed {
+            --project-command-accent: var(--cm-pages-project-portfolio-6);
+            --project-command-glow: var(--cm-pages-project-portfolio-7);
+        }
+
+        .project-portfolio .project-command-header--cancelled {
+            --project-command-accent: var(--cm-pages-project-portfolio-8);
+            --project-command-glow: var(--cm-pages-project-portfolio-9);
+        }
+
+        :where([data-bs-theme="dark"]) .project-portfolio .project-command-header {
+            --project-command-accent: var(--cm-pages-project-portfolio-71);
+            border-color: var(--cm-pages-project-portfolio-72);
+        }
+
+        :where([data-bs-theme="dark"]) .project-portfolio .project-command-header--completed {
+            --project-command-accent: var(--cm-pages-project-portfolio-73);
+        }
+
+        :where([data-bs-theme="dark"]) .project-portfolio .project-command-header--cancelled {
+            --project-command-accent: var(--cm-pages-project-portfolio-74);
+        }
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

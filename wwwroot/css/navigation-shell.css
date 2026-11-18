@@ -1585,3 +1585,97 @@ body.pm-drawer-open {
     box-shadow: none;
 }
 
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-navigation-shell-1: rgba(255, 255, 255, 0.94);
+        --cm-navigation-shell-2: rgba(37, 99, 214, 0.45);
+        --cm-navigation-shell-3: rgba(229, 231, 235, 0.55);
+        --cm-navigation-shell-4: rgba(37, 99, 214, 0.16);
+        --cm-navigation-shell-5: #a2b9e4;
+        --cm-navigation-shell-6: rgba(15, 23, 42, 0.22);
+        --cm-navigation-shell-7: rgba(37, 99, 214, 0.2);
+        --cm-navigation-shell-8: rgba(37, 99, 214, 0.28);
+        --cm-navigation-shell-9: rgba(245, 158, 11, 0.3);
+        --cm-navigation-shell-10: #263244;
+        --cm-navigation-shell-11: #222c3b;
+        --cm-navigation-shell-12: #30435f;
+        --cm-navigation-shell-13: #312325;
+        --cm-navigation-shell-14: #5a3335;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-navigation-shell-1: rgba(22, 24, 27, 0.94);
+        --cm-navigation-shell-2: rgba(110, 168, 254, 0.45);
+        --cm-navigation-shell-3: rgba(44, 48, 53, 0.55);
+        --cm-navigation-shell-4: rgba(110, 168, 254, 0.16);
+        --cm-navigation-shell-5: #435a7b;
+        --cm-navigation-shell-6: rgba(240, 242, 244, 0.22);
+        --cm-navigation-shell-7: rgba(110, 168, 254, 0.2);
+        --cm-navigation-shell-8: rgba(110, 168, 254, 0.28);
+        --cm-navigation-shell-9: rgba(251, 191, 36, 0.3);
+    }
+
+    .pm-topbar,
+    .pm-module-subnav-wrap {
+        --pm-shell-bg: var(--cm-navigation-shell-1);
+        --pm-shell-focus: var(--cm-navigation-shell-2);
+    }
+
+    .pm-topbar {
+        border-bottom: 1px solid var(--cm-navigation-shell-3);
+    }
+
+    .pm-top-search:focus-within {
+        box-shadow: 0 0 0 3px var(--cm-navigation-shell-4);
+    }
+
+    .pm-top-search:focus-within .pm-top-search__shortcut {
+        border-color: var(--cm-navigation-shell-5);
+    }
+
+    .pm-module-subnav-wrap {
+        box-shadow: 0 6px 14px -10px var(--cm-navigation-shell-6);
+    }
+
+    .pm-module-subnav__action {
+        box-shadow: 0 3px 9px var(--cm-navigation-shell-7);
+    }
+
+    .pm-module-subnav__action:hover,
+    .pm-module-subnav__action:focus-visible {
+        box-shadow: 0 5px 13px var(--cm-navigation-shell-8);
+    }
+
+    .pm-module-subnav__action.is-active {
+        box-shadow: 0 0 0 3px var(--cm-navigation-shell-4);
+    }
+
+    .pm-search-popup .pm-search-option__title mark {
+        background: var(--cm-navigation-shell-9);
+    }
+
+    .pm-theme-choice__option:focus-visible {
+        outline: 2px solid var(--cm-navigation-shell-2);
+    }
+
+    [data-bs-theme="dark"] .pm-drawer__brand-mark {
+        background: var(--cm-navigation-shell-10);
+    }
+
+    [data-bs-theme="dark"] .pm-drawer__entry.is-active {
+        background: var(--cm-navigation-shell-11);
+        border-color: var(--cm-navigation-shell-12);
+    }
+
+    [data-bs-theme="dark"] .pm-drawer__accent--danger:hover,
+    [data-bs-theme="dark"] .pm-drawer__accent--danger:focus,
+    [data-bs-theme="dark"] .pm-drawer__accent--danger.is-active {
+        background: var(--cm-navigation-shell-13);
+        border-color: var(--cm-navigation-shell-14);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

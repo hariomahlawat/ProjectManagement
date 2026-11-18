@@ -887,3 +887,72 @@
 @media (max-width: 767.98px) {
     .photos-bar { backdrop-filter:none; -webkit-backdrop-filter:none; background:var(--bs-body-bg); }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-photos-library-1: rgba(255, 255, 255, 0.92);
+        --cm-pages-photos-library-2: #30435f;
+        --cm-pages-photos-library-3: #212936;
+        --cm-pages-photos-library-4: #3d5c8c;
+        --cm-pages-photos-library-5: #1d242d;
+        --cm-pages-photos-library-6: #1f2632;
+        --cm-pages-photos-library-7: #1e252f;
+        --cm-pages-photos-library-8: #312c1c;
+        --cm-pages-photos-library-9: rgba(244, 246, 251, 0.88);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-pages-photos-library-1: rgba(22, 24, 27, 0.92);
+        --cm-pages-photos-library-9: rgba(22, 24, 27, 0.88);
+    }
+
+    .photos-tile__select {
+        background: var(--cm-pages-photos-library-1);
+    }
+
+    :where([data-bs-theme="dark"]) .photos-filter-chip {
+        border: 1px solid var(--cm-pages-photos-library-2);
+    }
+
+    :where([data-bs-theme="dark"]) .photos-filter-chip:hover {
+        background: var(--cm-pages-photos-library-3);
+    }
+
+    :where([data-bs-theme="dark"]) .photos-control b {
+        background: var(--cm-pages-photos-library-4);
+    }
+
+    :where([data-bs-theme="dark"]) .photos-filter-chip {
+        background: var(--cm-pages-photos-library-5);
+    }
+
+    :where([data-bs-theme="dark"]) .photos-person-chip:hover {
+        background: var(--cm-pages-photos-library-6);
+    }
+
+    :where([data-bs-theme="dark"]) .photos-filter-people-summary span {
+        background: var(--cm-pages-photos-library-7);
+    }
+
+    :where([data-bs-theme="dark"]) .photos-library-warning {
+        background: var(--cm-pages-photos-library-8);
+    }
+
+    :where([data-bs-theme="dark"]) .photos-sort .dropdown-item.active {
+        background: var(--cm-pages-photos-library-5);
+    }
+
+    :where([data-bs-theme="dark"]) .photos-update-banner {
+        background: var(--cm-pages-photos-library-5);
+        border: 1px solid var(--cm-pages-photos-library-2);
+    }
+
+    .photos-bar {
+        background: var(--cm-pages-photos-library-9);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

@@ -234,3 +234,27 @@
     border-color: rgba(110, 168, 254, 0.31) !important;
     background: rgba(110, 168, 254, 0.06) !important;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-project-remarks-1: #1d242d;
+        --cm-pages-project-remarks-2: #30435f;
+    }
+
+    :where([data-bs-theme="dark"]) .project-remarks-hero__icon {
+        background: var(--cm-pages-project-remarks-1);
+    }
+
+    :where([data-bs-theme="dark"]) .project-remarks-composer__privacy {
+        background: var(--cm-pages-project-remarks-1);
+    }
+
+    :where([data-bs-theme="dark"]) .project-remarks-readonly {
+        border: 1px solid var(--cm-pages-project-remarks-2);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */
