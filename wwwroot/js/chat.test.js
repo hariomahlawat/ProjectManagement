@@ -4269,3 +4269,29 @@ test('an older server without the state check is fine: the reconnect catch-up st
     window.close();
   }
 });
+
+test('do not disturb that ended while PRISM was closed clears its status on the next visit', async () => {
+  for (const [serverStatus, expectCleared] of [['Do not disturb until 17:00', true], ['Back at 18:00', false]]) {
+    const posted = [];
+    const window = bootApp(async (url, init) => {
+      if (url.endsWith('/status') && init.method === 'POST') {
+        posted.push(JSON.parse(init.body).message);
+        return { userId: 'me', message: null };
+      }
+      if (url.endsWith('/status')) return { userId: 'me', message: serverStatus };
+      if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+      return { status: 204, body: null };
+    });
+    // Set on an earlier visit, ended an hour ago.
+    window.localStorage.setItem('prism.chat.dnd.me', JSON.stringify({ until: Date.now() - 3600000, status: 'Do not disturb until 17:00' }));
+    try {
+      await tick(); await tick(); await tick();
+      const app = window.PMChat;
+      assert.equal(app.isQuiet(), false);
+      assert.deepEqual(posted, expectCleared ? [''] : [], expectCleared ? 'its own status is cleared' : 'a status changed since is kept');
+      assert.equal(window.localStorage.getItem('prism.chat.dnd.me'), null);
+    } finally {
+      window.close();
+    }
+  }
+});

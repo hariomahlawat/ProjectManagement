@@ -251,6 +251,27 @@
     return null;
   };
 
+  /**
+   * Do not disturb that ended while no PRISM tab was open: nothing was there to clear the
+   * status message it set. Once the person's status has loaded, that status goes if it is
+   * still the one do not disturb set (one they changed meanwhile stays), and the record goes.
+   */
+  ChatApp.prototype.clearExpiredDndStatus = function () {
+    let stored = null;
+    try {
+      stored = JSON.parse(global.localStorage.getItem(this.dndKey) || 'null');
+    } catch (_) {
+      return;
+    }
+    if (!stored || !Number.isFinite(stored.until) || stored.until > Date.now()) return;
+    try {
+      global.localStorage.removeItem(this.dndKey);
+    } catch (_) { /* nothing more to do */ }
+    if (typeof stored.status === 'string' && stored.status && this.myStatus === stored.status) {
+      this.setStatusText('');
+    }
+  };
+
   ChatApp.prototype.isQuiet = function () {
     return !!this.dnd && this.dnd.until > Date.now();
   };

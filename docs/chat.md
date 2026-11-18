@@ -135,7 +135,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   this browser for this user (`localStorage` key `prism.chat.dnd.{userId}`, like sound and
   mute) and followed by its other tabs; it ends by itself. If you have no status message of
   your own, it sets "Do not disturb until 17:00" as your status so others know, and clears it
-  when it ends; a status you set yourself is left alone.
+  when it ends (also when it ended while no PRISM tab was open: the next visit clears it); a status you set yourself, or changed since, is left alone.
 - **@mentions** (groups): typing `@` in a group's message box lists its members (never
   yourself); ↑ ↓ choose, Enter or Tab inserts "@Name", Esc closes the list. The message stores
   who was mentioned (members only; others are dropped on the server). Mentions are marked in the

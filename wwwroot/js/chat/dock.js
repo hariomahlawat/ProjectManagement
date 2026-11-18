@@ -253,7 +253,10 @@
       const status = await this.request('GET', '/status');
       this.myStatus = (status && status.message) || null;
       this.renderMyStatus();
-    } catch (_) { /* the box just stays empty */ }
+    } catch (_) {
+      return; // the box just stays empty
+    }
+    this.clearExpiredDndStatus();
   };
 
   ChatApp.prototype.renderMyStatus = function () {
