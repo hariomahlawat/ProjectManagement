@@ -330,7 +330,6 @@ function generate(source, options = {}) {
   const rootDark = [];
   const mixTokens = new Map(); // theme§color-mix text -> { name, light, dark }
   const names = new Map(); // light§dark -> name, so equal colours share a token
-  const contexts = new Map(); // at-rule prelude list -> [{ selector, lines }]
   const approximated = [];
   let exact = 0;
 
@@ -363,14 +362,26 @@ function generate(source, options = {}) {
     return approximateMix(text, tokensForApprox);
   };
 
+  const skipped = (rule) => rule.atRules.some((at) => /^@(keyframes|-webkit-keyframes|font-face|page)\b|^@media\s+print\b/.test(at));
+  // What the block writes, in source order: { ruleIndex, atRules, selector, lines }.
+  const emits = [];
+  // selector§property -> the first rule index whose colour mix the block replaces.
+  const replacedAt = new Map();
+  const emittedDeclarations = new Set();
+
   rules.forEach((rule, ruleIndex) => {
-    if (rule.atRules.some((at) => /^@(keyframes|-webkit-keyframes|font-face|page)\b|^@media\s+print\b/.test(at))) return;
+    if (skipped(rule)) return;
     const isLightRoot = rule.atRules.length === 0 && LIGHT_ROOTS.has(rule.selector);
     const isDarkRoot = rule.atRules.length === 0 && DARK_ROOTS.has(rule.selector);
     const lines = [];
     rule.declarations.forEach((d, i) => {
       if (!/color-mix\(/i.test(d.value)) return;
       if (last.get(`${rule.atRules.join('|')}§${rule.selector}§${d.property}`) !== `${ruleIndex}:${i}`) return;
+      emittedDeclarations.add(`${ruleIndex}:${i}`);
+      for (const part of splitTopLevel(rule.selector)) {
+        const key = `${part}§${d.property}`;
+        if (!replacedAt.has(key)) replacedAt.set(key, ruleIndex);
+      }
       const important = d.important ? ' !important' : '';
       const where = `${rule.selector} { ${d.property} }`;
       if ((isLightRoot || isDarkRoot) && d.property.startsWith('--')) {
@@ -383,21 +394,40 @@ function generate(source, options = {}) {
       const value = substituteMixes(d.value, (text) => replaceMix(text, (t) => tokenFor(t, only), only === 'dark' ? dark : light, where));
       lines.push(`${d.property}: ${value.replace(/\s+/g, ' ')}${important};`);
     });
-    if (!lines.length) return;
-    const key = rule.atRules.join('\n');
-    if (!contexts.has(key)) contexts.set(key, []);
-    const list = contexts.get(key);
-    const previous = list[list.length - 1];
-    // Consecutive declarations of one rule stay together; a repeated selector gets its own rule.
-    if (previous && previous.selector === rule.selector && previous.ruleIndex === ruleIndex) previous.lines.push(...lines);
-    else list.push({ selector: rule.selector, ruleIndex, lines });
+    if (lines.length) emits.push({ ruleIndex, atRules: rule.atRules, selector: rule.selector, lines });
   });
 
+  // A later rule that sets the same property on the same selector (often in a condition such as
+  // @supports not (backdrop-filter) or @media (prefers-reduced-transparency)) won over the colour
+  // mix in the original order. The block comes after it, so it repeats that rule, for the
+  // matching selectors only, after the replacement.
+  rules.forEach((rule, ruleIndex) => {
+    if (skipped(rule)) return;
+    const byParts = new Map(); // selector part list -> lines
+    rule.declarations.forEach((d, i) => {
+      if (emittedDeclarations.has(`${ruleIndex}:${i}`)) return;
+      const parts = splitTopLevel(rule.selector).filter((part) => {
+        const at = replacedAt.get(`${part}§${d.property}`);
+        return at !== undefined && at < ruleIndex;
+      });
+      if (!parts.length) return;
+      const only = themeOf(rule.selector);
+      const value = /color-mix\(/i.test(d.value)
+        ? substituteMixes(d.value, (text) => replaceMix(text, (t) => tokenFor(t, only), only === 'dark' ? dark : light, `${rule.selector} { ${d.property} }`))
+        : d.value;
+      const key = parts.join(', ');
+      if (!byParts.has(key)) byParts.set(key, []);
+      byParts.get(key).push(`${d.property}: ${value.replace(/\s+/g, ' ')}${d.important ? ' !important' : ''};`);
+    });
+    for (const [selector, lines] of byParts) emits.push({ ruleIndex, atRules: rule.atRules, selector, lines, repeated: true });
+  });
+  emits.sort((a, b) => a.ruleIndex - b.ruleIndex || (a.repeated ? 1 : 0) - (b.repeated ? 1 : 0));
+
   const uniqueTokens = [...new Map([...mixTokens.values()].map((t) => [t.name, t])).values()];
-  if (!rootLight.length && !rootDark.length && !contexts.size) {
+  if (!rootLight.length && !rootDark.length && !emits.length) {
     return { css: base, approximated, exact, tokens: 0, mixes: [], rootLight, rootDark };
   }
-  const out = [BEGIN, '/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.', '   Each value here is what the color-mix() in the rule above it produces, worked out for Light', '   and Dark; browsers with color-mix() skip this block. */', `${SUPPORTS} {`];
+  const out = [BEGIN, '/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.', '   Each value here is what the color-mix() in the rule above it produces, worked out for Light', '   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a', '   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated', '   after it, so it still wins. */', `${SUPPORTS} {`];
   if (rootLight.length || uniqueTokens.length) {
     out.push('    :root {');
     out.push(...rootLight);
@@ -411,18 +441,24 @@ function generate(source, options = {}) {
     for (const t of darkTokens) out.push(`        ${t.name}: ${t.dark};`);
     out.push('    }');
   }
-  for (const [key, list] of contexts) {
+  // Consecutive rules in the same at-rules share one wrapper.
+  let i = 0;
+  while (i < emits.length) {
+    const key = emits[i].atRules.join('\n');
+    let j = i;
+    while (j < emits.length && emits[j].atRules.join('\n') === key) j++;
     const ats = key ? key.split('\n') : [];
     const indent = '    '.repeat(1 + ats.length);
     out.push('');
     ats.forEach((at, depth) => out.push(`${'    '.repeat(1 + depth)}${at} {`));
-    list.forEach((rule, i) => {
-      if (i) out.push('');
+    emits.slice(i, j).forEach((rule, n) => {
+      if (n) out.push('');
       out.push(`${indent}${splitTopLevel(rule.selector).join(`,\n${indent}`)} {`);
       for (const line of rule.lines) out.push(`${indent}    ${line}`);
       out.push(`${indent}}`);
     });
     for (let depth = ats.length - 1; depth >= 0; depth--) out.push(`${'    '.repeat(1 + depth)}}`);
+    i = j;
   }
   out.push('}', END);
   const css = `${base.replace(/\s*$/, '')}\n\n${out.join('\n')}\n`;

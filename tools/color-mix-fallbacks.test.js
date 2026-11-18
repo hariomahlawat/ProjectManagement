@@ -82,6 +82,28 @@ test('the generated block applies only without color-mix() and sits after the ru
   assert.equal(generate(css, { rootSources: [readRules(bootstrap)] }).css, css);
 });
 
+test('a later conditional override of a mixed colour still wins after the generated block', () => {
+  // Codex review on #3421: prism-confirm-dialog.css sets a solid surface in
+  // @supports not (backdrop-filter) after the translucent mix. A browser missing both features
+  // must keep the solid surface, so the block repeats that rule after the replacement.
+  const source = [
+    '.surface { background: color-mix(in srgb, #ffffff 70%, transparent); }',
+    '.other, .surface { color: red; }',
+    '@supports not (backdrop-filter: blur(1px)) { .surface, .unrelated { background: var(--card); } }',
+    '.unrelated { background: blue; }',
+  ].join('\n');
+  const { css } = generate(source, { rootSources: [] });
+  const block = css.slice(css.indexOf(BEGIN));
+  const replaced = block.indexOf('.surface {\n        background: var(--pm-cm-1);');
+  const repeated = block.indexOf('@supports not (backdrop-filter: blur(1px)) {\n        .surface {\n            background: var(--card);');
+  assert.ok(replaced > 0, 'the mix is replaced');
+  assert.ok(repeated > replaced, 'the conditional override is repeated after the replacement');
+  // Only the matching selector is repeated, so a later plain rule for .unrelated is not undone,
+  // and properties the block did not replace are left alone.
+  assert.doesNotMatch(block, /\.unrelated/);
+  assert.doesNotMatch(block, /color: red/);
+});
+
 test('every stylesheet has an up-to-date color-mix() fallback block', () => {
   const results = generateAll();
   assert.ok(results.size > 1, 'expected the stylesheets to be found');

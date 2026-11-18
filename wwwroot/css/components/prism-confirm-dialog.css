@@ -722,7 +722,9 @@ body:has(.modal.prism-confirm-modal.show) .modal-backdrop.show {
 /* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
 /* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
    Each value here is what the color-mix() in the rule above it produces, worked out for Light
-   and Dark; browsers with color-mix() skip this block. */
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
 @supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
     :root {
         --pcd-gleam: rgba(255, 255, 255, 0.22);
@@ -792,6 +794,24 @@ body:has(.modal.prism-confirm-modal.show) .modal-backdrop.show {
         box-shadow: inset 0 1px 0 var(--cm-components-prism-confirm-dialog-5), 0 14px 26px -10px var(--pcd-go);
     }
 
+    @media (max-width: 575.98px) {
+        .prism-confirm-dialog__grabber {
+            background: var(--cm-components-prism-confirm-dialog-6);
+        }
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+        .prism-confirm-dialog__surface {
+            background: var(--pm-card);
+        }
+    }
+
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+        .prism-confirm-dialog__surface {
+            background: var(--pm-card);
+        }
+    }
+
     .modal.prism-confirm-modal[data-tone="warning"] {
         --pcd-go: var(--cm-components-prism-confirm-dialog-1);
     }
@@ -823,9 +843,9 @@ body:has(.modal.prism-confirm-modal.show) .modal-backdrop.show {
         box-shadow: inset 0 1px 0 var(--cm-components-prism-confirm-dialog-5), 0 10px 22px -10px var(--pcd-go);
     }
 
-    @media (max-width: 575.98px) {
-        .prism-confirm-dialog__grabber {
-            background: var(--cm-components-prism-confirm-dialog-6);
+    @media (prefers-reduced-transparency: reduce) {
+        .modal.prism-confirm-modal .modal-content {
+            background: var(--pm-card);
         }
     }
 }
