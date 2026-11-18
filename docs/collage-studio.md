@@ -97,6 +97,14 @@ its npm package by hand; the libman entry records the version.
     - then the logo, the back of the card, the unit colours and the guest list. A poster's panel
       (**Poster details**) has no back or guest list, and its Save dialog says **Save the
       poster** (a card's says **Save the card**).
+  - **Posters** ask **Which logo goes on this poster?** at the top of Poster details until it is
+    answered: Your own logo…, No logo or Decide later (or a crest under Logo). Poster details
+    list the words in the order the poster reads, ending with the contact line.
+  - **Bilingual:** an occasion quick pick fills in the Hindi occasion too; the other Hindi fields
+    say they are not translated for the user.
+  - **Drafts:** a card or poster opened from a design is kept as a draft from its first change,
+    so looking through the designs keeps none. Tab after typing in Card details goes to the next
+    field: the panel is drawn again only once focus has landed.
   - **Phones:** the start screen shows cards and posters first, as on a wide screen, each in one
     row that scrolls sideways. The custom card size box closes with **Cancel** or Escape.
   - **Typing:** typing in a field changes the words on the card at once. They're kept in the
@@ -127,7 +135,10 @@ its npm package by hand; the libman entry records the version.
     landscape card on its own pages.
 
     **Print sheets** (PR 9): a card, pocket card or custom size saved as a PDF can go **on A4
-    sheets** or **on A3 sheets**, or each card on its own page. The note says how many fit.
+    sheets** or **on A3 sheets**, or each card on its own page. The note says how many fit, and
+    the summary line says how many cards go to each sheet. Where it fits more, **A4 sheets, edge
+    to edge** packs the cards touching, with no margin, gaps or cut marks (4 A6, 2 A5 or 8 A7 on
+    A4): it needs a printer that prints to the paper's edge, and the note says so.
     - There are 8 mm margins and 4 mm gaps. On A4 that's 2 A6, 4 A7 or 10 visiting-card passes;
       A5 is exactly half of A4, so one A5 goes on an A4 sheet.
     - The sheet is turned whichever way holds more.

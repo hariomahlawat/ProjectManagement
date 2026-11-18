@@ -4,6 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const save = require('./collage-save.js');
 
+test('a PDF of cards on print sheets is summed up in print words', () => {
+  assert.equal(save.saveSummary({ format: 'pdf', quality: 'print', pixels: { width: 1240, height: 1748 }, paper: 'A6 card', sheet: { count: 2, label: 'A4' } }),
+    'A PDF at print quality: 2 A6 cards to each A4 sheet, at their true size.');
+});
+
 test('each purpose sets a type and quality, and a hand-made choice matches no purpose', () => {
   assert.equal(save.purposeFor('jpeg', 'screen'), 'share');
   assert.equal(save.purposeFor('pdf', 'print'), 'print');
@@ -97,4 +102,9 @@ test('a guest\'s name keeps its field\'s edge: left, right or the middle', () =>
   assert.equal(save.nameInField(field, 'Maj A', layout).text, 'Maj A');
   assert.equal(save.nameInField(field, 'Maj A', layout).width, 200);
   assert.equal(save.nameInField({ ...field, hidden: true }, 'Maj A', layout).hidden, undefined, 'a hidden line still shows the name');
+  // A name on two lines keeps its bottom where the field's was.
+  const one = { ...field, y: 1000, aspect: 8 }; // 400 wide, 50 tall: from 975 to 1025
+  const two = save.nameInField(one, 'A long name', { width: 380, height: 100 });
+  assert.equal(two.y + 100 / 2, 1025, 'the bottom stays on the line');
+  assert.equal(save.nameInField(one, 'Maj A', { width: 200, height: 50 }).y, 1000, 'one line stays put');
 });

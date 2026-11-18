@@ -12,7 +12,7 @@
   'use strict';
 
   function createDraftsScreen(deps) {
-    const { state, parts, change, core, messages, ui, history, doc, screens, surface } = deps;
+    const { state, parts, change, core, messages, ui, history, doc, screens, surface, untouched = () => false } = deps;
     // ---------------------------------------------------------------------------
     // Drafts (kept in this browser)
     // ---------------------------------------------------------------------------
@@ -34,7 +34,8 @@
         size: state.collage.size,
         photos: parts.keptPhotos(),
         thumbnail: ui.views.editor.hidden ? '' : draftThumbnail(),
-        hasContent: doc.hasContent()
+        // A design opened and not changed yet is not worth a draft (it starts at the first change).
+        hasContent: doc.hasContent() && !untouched()
       }),
       onStatus: (text, warning) => setDraftStatus(text, warning),
       onUndo: (deleted) => showDraftUndo(deleted),

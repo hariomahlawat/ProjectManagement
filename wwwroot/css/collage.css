@@ -193,6 +193,11 @@
     margin-bottom: 0.8rem;
 }
 
+/* The Card details intro keeps its distance from the designs under it. */
+[data-card-hint] {
+    margin-bottom: 0.7rem;
+}
+
 .clg-card-form .clg-field {
     margin-bottom: 0.55rem;
 }

@@ -757,6 +757,8 @@
         const layout = core.layoutText(item, measure);
         item.width = layout.width;
         item.aspect = layout.width / layout.height;
+        // A guest's name on two lines grows upwards, off the line drawn under it.
+        if (part.field === 'guest' && layout.lines > 1) item.y -= (layout.height - core.layoutText({ ...item, text: 'X' }, measure).height) / 2;
         if (part.anchor === 'left') item.x = part.x * width + layout.width / 2;
         if (part.anchor === 'right') item.x = part.x * width - layout.width / 2;
         made.push(item);
@@ -769,9 +771,6 @@
         if (part.radius && (item.kind === 'slot' || item.kind === 'photo')) item.radius = Math.min(part.radius, core.LAYOUT_LIMITS.radiusMax);
       }
     }
-    // The roundel behind the logo follows it: hidden with none, wide enough for a wide logo or two.
-    const roundel = made.find((item) => item.role === 'roundel');
-    if (roundel) fitRoundel([...made, ...(items || []).filter((item) => item.role === 'logo2')], { width: roundel.width, aspect: roundel.aspect });
     // A logo in a white box (Ceremonial) fits inside it with a margin, whatever its shape.
     const box = made.find((item) => item.role === 'logobox');
     const boxed = made.find((item) => item.role === 'logo');
@@ -790,10 +789,33 @@
       const half = core.itemHeight(framedLogo) / 2;
       if (framedLogo.y - half < top && framedLogo.y > top) framedLogo.width *= (framedLogo.y - top) / half;
     }
+    // A second logo the user added goes beside the design's logo, as tall as it: the two share
+    // the middle where the design centres its logo, or face each other across the card.
+    const designLogo = made.find((item) => item.role === 'logo');
+    const seconds = (items || []).filter((item) => item.role === 'logo2').map((item) => {
+      if (!designLogo || item.locked) return item;
+      const height = core.itemHeight(designLogo);
+      const w2 = height * (item.width / core.itemHeight(item));
+      const placed = { ...item, width: w2, y: designLogo.y, angle: 0 };
+      if (Math.abs(designLogo.x - width / 2) < width * 0.05 && !designLogo.locked) {
+        const gap = designLogo.width * 0.35;
+        const left = width / 2 - (designLogo.width + gap + w2) / 2;
+        designLogo.x = left + designLogo.width / 2;
+        placed.x = left + designLogo.width + gap + w2 / 2;
+      } else {
+        placed.x = width - designLogo.x;
+      }
+      return placed;
+    });
+    // The roundel behind the logo follows it: hidden with none, wide enough for a wide logo or two.
+    const roundel = made.find((item) => item.role === 'roundel');
+    if (roundel) fitRoundel([...made, ...seconds], { width: roundel.width, aspect: roundel.aspect });
     // Photos from the last design's frame with no frame here become the user's own.
     const leftOver = framed.map(({ role, ...item }) => item);
     // The user's own items, and a second logo they added, stay where they are.
-    const own = (items || []).filter((item) => !item.role || item.role === 'logo2' || (item.locked && !placedLocked.has(item.id)));
+    const own = (items || []).filter((item) => !item.role || (item.locked && !placedLocked.has(item.id))).map((item) => seconds.find((second) => second.id === item.id) || item);
+    // The second logo, placed beside the design's logo, with the user's own items.
+    for (const second of seconds) if (!own.some((item) => item.id === second.id)) own.push(second);
     return [...made, ...own, ...leftOver];
   }
 

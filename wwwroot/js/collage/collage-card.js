@@ -47,9 +47,26 @@
     ['lines', 'Details, one line each', true],
     ['contact', 'Contact line at the bottom']
   ]);
+  // A poster's fields in the order it reads: the heading first, the contact line last.
+  const POSTER_ORDER = Object.freeze(['kicker', 'title', 'subtitle', 'when', 'venue', 'lines', 'contact']);
+  const POSTER_FORM = Object.freeze([
+    ...POSTER_ORDER.map((field) => FORM.find(([key]) => key === field)).filter(Boolean),
+    ...FORM.filter(([key]) => !POSTER_ORDER.includes(key))
+  ]);
   const COLOUR_NAMES = Object.freeze(['Top', 'Middle', 'Bottom']);
   const OCCASIONS = Object.freeze(['Raising Day Dinner', 'Regimental Dinner', 'Change of Command', 'Farewell', 'Barakhana', 'At Home', 'Ladies’ Night', 'Passing Out Parade']);
   const DRESSES = Object.freeze(['Dress: Lounge Suit', 'Dress: Mess Dress', 'Dress: Smart Casuals', 'Dress: Ceremonial']);
+  // Each quick pick's occasion in Hindi, for the Bilingual design's Hindi column.
+  const OCCASIONS_HI = Object.freeze({
+    'Raising Day Dinner': 'स्थापना दिवस रात्रिभोज',
+    'Regimental Dinner': 'रेजिमेंटल रात्रिभोज',
+    'Change of Command': 'कमान परिवर्तन समारोह',
+    Farewell: 'विदाई समारोह',
+    Barakhana: 'बड़ा खाना',
+    'At Home': 'एट होम',
+    'Ladies’ Night': 'लेडीज़ नाइट',
+    'Passing Out Parade': 'पासिंग आउट परेड'
+  });
   const DEFAULT_CARD_SIZE = 'a5p';
 
   function createCard(deps) {
@@ -285,6 +302,11 @@
     window.addEventListener('pointercancel', pressDone, true);
 
     /** Shows the Card button only for a card; draws the panel again unless the user is typing in it. */
+    // The control in the panel that last had focus, and whether a redraw waits for focus to land.
+    let lastFocused = null;
+    let landing = false;
+    let landed = false;
+
     function refresh() {
       const card = state.collage?.card;
       if (railButton) railButton.hidden = !card;
@@ -293,6 +315,16 @@
         return;
       }
       if (pressing) { waiting = true; return; }
+      // Focus passing from one field to the next (Tab after typing) is on the page for a moment:
+      // drawn now, the panel would replace the field Tab is going to. Drawn once it has landed.
+      if (state.panel === 'card' && !landed && document.activeElement === document.body && form.contains(lastFocused)) {
+        if (!landing) {
+          landing = true;
+          // Once, after focus has had its turn: still on the page (a click away), it is drawn then.
+          setTimeout(() => { landing = false; landed = true; refresh(); landed = false; }, 0);
+        }
+        return;
+      }
       const word = isPoster() ? 'Poster' : 'Card';
       const title = ui.$('#clgCardTitle');
       if (title) title.textContent = `${word} details`;
@@ -311,7 +343,7 @@
 
     // The field typed in since it was focused: its words are the user's, never put back.
     let typedIn = null;
-    form?.addEventListener('focusin', (event) => { if (event.target.dataset.cardField) typedIn = null; });
+    form?.addEventListener('focusin', (event) => { lastFocused = event.target; if (event.target.dataset.cardField) typedIn = null; });
     // While a field is typed in, a phone's sheet is shorter, so the card above stays readable.
     form?.addEventListener('focusin', (event) => {
       if (event.target.matches('input:not([type="color"]), textarea')) ui.root.classList.add('is-card-typing');
@@ -339,7 +371,7 @@
       // The logo is the front's: changed with the front showing.
       const logo = state.collage.side === 'back' ? '<p class="clg-hint">Turn to the front to change the logo.</p>' : logoSection();
       const poster = isPoster();
-      const fields = FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
+      const fields = (poster ? POSTER_FORM : FORM).filter(([field]) => shown.has(field)).map(([field, label, long]) => {
         const id = `clgCard-${field}`;
         const value = escapeHtml(details[field] || '');
         const input = long
@@ -347,7 +379,9 @@
           : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off">`;
         const picks = field === 'occasion' ? OCCASIONS : field === 'dress' ? DRESSES : null;
         const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}" aria-pressed="${(details[field] || '') === pick}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
-        return `<label class="clg-field" for="${id}"><span class="clg-field__label">${escapeHtml(label)}</span>${input}</label>${chips}`;
+        const note = field === 'occasionHi' ? '<p class="clg-hint clg-card-hindi-note">An occasion quick pick fills this in too; words you type in English are not translated.</p>'
+          : /Hi$/.test(field) ? '<p class="clg-hint clg-card-hindi-note">Not translated for you: change it to match the English.</p>' : '';
+        return `<label class="clg-field" for="${id}"><span class="clg-field__label">${escapeHtml(label)}</span>${input}</label>${chips}${note}`;
       }).join('');
       // A poster asks which logo first, above everything, until it is answered (PR 11).
       form.innerHTML = posterQuestion() + `<div class="clg-section clg-card-words"><p class="clg-section__title">Words</p>${fields}</div>`
@@ -380,8 +414,9 @@
       const first = logoOf(state.collage)?.kind === 'slot' ? null : logoOf(state.collage);
       if (!isPoster() || first || designs.detailsOf(state.collage).logoMode) return '';
       return `<div class="clg-section clg-card-question" role="group" aria-labelledby="clgPosterAsk"><p class="clg-section__title" id="clgPosterAsk">Which logo goes on this poster?</p>
-          <p class="clg-hint">Pick one under Logo below, use your own, or choose:</p>
-          <div class="clg-stack"><button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="none">No logo</button>
+          <p class="clg-hint">Use your own, pick a crest under Logo below, or choose:</p>
+          <div class="clg-stack"><button type="button" class="btn btn-outline-primary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="none">No logo</button>
           <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="later">Decide later</button></div></div>`;
     }
 
@@ -954,6 +989,13 @@
       const input = form.querySelector(`[data-card-field="${pick.dataset.cardPick}"]`);
       if (input) input.value = pick.dataset.value;
       setField(pick.dataset.cardPick, pick.dataset.value);
+      // On a Bilingual card the Hindi occasion follows the quick pick, so both columns agree.
+      const hindi = pick.dataset.cardPick === 'occasion' ? OCCASIONS_HI[pick.dataset.value] : null;
+      if (hindi && designs.fieldsOnCard(state.collage).includes('occasionHi')) {
+        const hindiInput = form.querySelector('[data-card-field="occasionHi"]');
+        if (hindiInput) hindiInput.value = hindi;
+        setField('occasionHi', hindi);
+      }
       for (const chip of form.querySelectorAll(`[data-card-pick="${pick.dataset.cardPick}"]`)) chip.setAttribute('aria-pressed', String(chip === pick));
       history.flushNudge();
       messages.announce(`${pick.dataset.cardPick === 'occasion' ? 'Occasion' : 'Dress'}: ${pick.dataset.value.replace(/^Dress: /, '')}.`);

@@ -31,9 +31,11 @@
    * More options closed. pixels is { width, height }; paper is the page size's label when it is a
    * paper size (A4, A3), else null; target is a typed "keep it under" size such as "500 KB".
    */
-  function saveSummary({ format, quality, pixels, paper = null, target = null }) {
+  function saveSummary({ format, quality, pixels, paper = null, target = null, sheet = null }) {
     const size = `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels`;
     const how = quality === 'print' ? 'print quality' : 'screen size';
+    // Cards on a print sheet: how many to which sheet, in print words.
+    if (format === 'pdf' && sheet) return `A PDF at ${how}: ${sheet.count} ${paper || 'card'}${sheet.count === 1 ? '' : 's'} to each ${sheet.label} sheet, at their true size.`;
     if (format === 'pdf') return `A PDF at ${how}: ${paper ? `${paper} at its true size, ` : ''}${size}.`;
     const kind = format === 'jpeg' ? 'JPG' : 'PNG';
     return `A ${kind} picture at ${how}: ${size}${format === 'jpeg' && target ? `, kept under ${target}` : ''}.`;
@@ -106,6 +108,10 @@
     const named = { ...field, text: name, width: layout.width, aspect: layout.width / layout.height };
     // A guest's card shows the name, even where the empty line was hidden.
     delete named.hidden;
+    // A name on two lines grows upwards: its last line stays where the field's was, on the line
+    // drawn to write on, never across it.
+    const fieldHeight = field.width / field.aspect;
+    if (layout.height > fieldHeight) named.y = field.y + fieldHeight / 2 - layout.height / 2;
     if (field.align === 'left') named.x = field.x - field.width / 2 + layout.width / 2;
     if (field.align === 'right') named.x = field.x + field.width / 2 - layout.width / 2;
     return named;
@@ -195,7 +201,7 @@
           if (option) option.hidden = !offered;
           if (note) {
             note.textContent = !fits ? 'The card is too large for this sheet.'
-              : layout.edge ? `${fits} cards touching, no cut marks: cut on the card edges${flip}. Most printers leave a thin white line at the paper's edge.`
+              : layout.edge ? `${fits} cards touching, no cut marks: cut on the card edges${flip}. It needs a printer that prints to the paper's edge; most office printers leave a margin or shrink the page, so print one sheet to check.`
               : `${fits} card${fits === 1 ? '' : 's'} to a sheet, with cut marks${flip}.`;
           }
           if (input) {
@@ -233,7 +239,8 @@
         quality: chosen('quality'),
         pixels: core.savePixels(getCollage().size, chosen('quality')),
         paper: size.mm ? size.label : null,
-        target: targetOn.checked && typed ? `${typed} ${targetUnit.value}` : null
+        target: targetOn.checked && typed ? `${typed} ${targetUnit.value}` : null,
+        sheet: sheetSummary()
       });
     }
 
@@ -416,6 +423,13 @@
         for (const page of sheet.pages) images.push(page ? await imageOf(page) : null);
         addSheet(pdf, sheet.back ? backLayout : layout, images, sheet.back);
       }
+    }
+
+    /** The print sheet chosen and how many cards fit on it, for the summary; null for none. */
+    function sheetSummary() {
+      const key = sheetBoxChoice();
+      const layout = key ? core.sheetLayout(getCollage().size, key) : null;
+      return layout?.count ? { count: layout.count, label: core.SHEETS[key].label.replace(', edge to edge', ' (edge to edge)') } : null;
     }
 
     /** The sheet chosen for a card's PDF (PR 9), or null for each card on its own page. */

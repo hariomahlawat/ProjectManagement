@@ -440,3 +440,53 @@ test('a logo still being read when the card is turned over stays in the tray, no
   expect(draft.back.items.some((item) => item.role === 'logo')).toBe(false);
   expect(errors).toEqual([]);
 });
+
+test('Tab straight after typing in Card details goes to the next field, not to the top of the page', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const active = () => page.evaluate(() => document.activeElement?.dataset?.cardField || document.activeElement?.tagName);
+  for (const [field, next] of [['host', 'invite'], ['invite', 'guest'], ['when', 'venue']]) {
+    await page.locator(`[data-card-field="${field}"]`).click();
+    await page.keyboard.press('End');
+    await page.keyboard.type('!');
+    await page.keyboard.press('Tab');
+    expect(await active()).toBe(next);
+    await page.waitForTimeout(300);
+    expect(await active(), `still on ${next} after the panel is drawn`).toBe(next);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('on a Bilingual card an occasion quick pick sets the Hindi occasion too', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="bilingual"]').click();
+  await page.locator('[data-card-pick="occasion"][data-value="Farewell"]').click();
+  await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Farewell');
+  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('विदाई समारोह');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasionHi')?.text).toBe('विदाई समारोह');
+  expect(errors).toEqual([]);
+});
+
+test('looking through designs keeps no drafts; the first change keeps one', async ({ page }) => {
+  const errors = await openFresh(page);
+  const draftCount = () => page.evaluate(() => new Promise((resolve) => {
+    const open = indexedDB.open('prism-collage-studio');
+    open.onsuccess = () => {
+      const all = open.result.transaction('drafts').objectStore('drafts').getAll();
+      all.onsuccess = () => resolve(all.result.filter((d) => !d.deletedAt).length);
+    };
+    open.onerror = () => resolve(0);
+  }));
+  for (const key of ['classic', 'navy', 'regimental']) {
+    await page.locator(`[data-start-design="${key}"]`).click();
+    await page.locator('[data-view="editor"]').waitFor();
+    await page.waitForTimeout(800);
+    await page.locator('.clg-editor [data-action="home"], [data-view="editor"] [data-action="home"]').first().click();
+    await page.locator('[data-view="start"]').waitFor();
+  }
+  expect(await draftCount()).toBe(0);
+  await page.locator('[data-start-design="classic"]').click();
+  await touch(page);
+  expect(await draftCount()).toBe(1);
+  expect(errors).toEqual([]);
+});

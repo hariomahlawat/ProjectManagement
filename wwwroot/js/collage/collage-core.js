@@ -1579,7 +1579,8 @@
 
   // Sheets for printing several cards. "Edge to edge" packs cards touching, with no margin, gaps
   // or cut marks: more to a sheet (4 A6 or 2 A5 on A4), cut on the card edges, where a printer
-  // that cannot print to the paper's edge leaves a thin white line.
+  // that cannot print to the paper's edge leaves a margin or shrinks the page, so it is for
+  // printers that print to the edge.
   const SHEETS = lookupTable({
     a4: Object.freeze({ label: 'A4', mm: [210, 297] }),
     a3: Object.freeze({ label: 'A3', mm: [297, 420] }),

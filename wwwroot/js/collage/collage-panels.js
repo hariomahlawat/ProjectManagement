@@ -236,6 +236,7 @@
           ${customSizeFields()}
           <div class="clg-section">
             <p class="clg-section__title">How to</p>
+            ${state.collage.card ? '<p class="clg-hint">On a card or poster, type the words in Card details; click any words or the logo on the page to move, resize or restyle them.</p>' : ''}
             <ul class="clg-tips clg-for-mouse">
               <li>Click a photo to change it; drag it to move it.</li>
               <li>Drag a corner to resize, or the middle of a side to change the frame's shape. Drag the round handle above it to turn it; it clicks to straight and 45°, and Shift gives 15° steps.</li>

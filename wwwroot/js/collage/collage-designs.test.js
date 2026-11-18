@@ -208,7 +208,7 @@ test('the Regimental band takes the unit\'s colours, and the parts that follow t
   assert.ok(!designs.fieldsOf('classic').includes('occasionHi'));
 });
 
-test('a card keeps its logo when the design changes; a removed logo stays removed; a second logo stays put', () => {
+test('a card keeps its logo when the design changes; a removed logo stays removed; a second logo goes beside it', () => {
   const card = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
   // The user's own logo in place of the SDD one, and a second logo beside it.
   const own = card.items.map((item) => (item.role === 'logo' ? { ...core.photoItem(item.id, 'p9', 1.2, item), role: 'logo' } : item));
@@ -218,7 +218,9 @@ test('a card keeps its logo when the design changes; a removed logo stays remove
   const logo = navy.items.find((item) => item.role === 'logo');
   assert.deepEqual([logo.kind, logo.photo, logo.aspect], ['photo', 'p9', 1.2]);
   const logo2 = navy.items.find((item) => item.role === 'logo2');
-  assert.deepEqual([logo2.sticker, logo2.x], ['unit:5', 800], 'the second logo stays where the user put it');
+  const navyLogo = navy.items.find((item) => item.role === 'logo');
+  assert.equal(logo2.sticker, 'unit:5', 'the second logo is kept');
+  assert.ok(Math.abs(logo2.y - navyLogo.y) < 0.5, 'and placed beside the logo of the design');
   // Removed: no logo comes back with the next design.
   const without = { ...card, items: card.items.filter((item) => item.role !== 'logo') };
   const regimental = designs.applyDesign(without, 'regimental', designs.detailsOf(without), { measure, newId });
@@ -669,6 +671,9 @@ test('a long guest name keeps a readable size and takes a second line', () => {
   assert.ok(pt >= 5.99, `prints at ${pt.toFixed(1)} pt`);
   assert.ok(layout.size >= guest.size * 0.6 - 0.01);
   assert.ok(layout.lines >= 2, 'on two lines');
+  // It grows upwards, so its last line is not cut by the line drawn to write on.
+  const line = card.items.find((item) => item.role === 'guestline');
+  assert.ok(guest.y + core.itemHeight(guest) / 2 <= line.y + core.itemHeight(line) / 2 + 2, 'the name stays on its line');
   assert.ok(layout.width <= guest.maxWidth + 0.5);
   // It is kept by a draft.
   const read = core.readDraftModel(JSON.parse(JSON.stringify(card)), []);
@@ -710,4 +715,22 @@ test('a programme card with a back has its programme once; newer parts and detai
   assert.equal(core.keptCount(changed), 1);
   const resized = designs.applyDesign(core.changeSize(kept, 'a7l'), 'programmecard', designs.detailsOf(kept), { measure, newId });
   assert.equal(core.keptCount(resized), 1);
+});
+
+// Two logos through a design change (cold review 3): the second goes beside the design's logo,
+// as tall as it, the pair centred where the design centres its logo.
+test('a second logo is placed beside the design\'s logo, as tall, through a design change', () => {
+  for (const key of ['classic', 'navy', 'regimental', 'modern', 'bilingual', 'ceremonial']) {
+    const card = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+    const logo = card.items.find((item) => item.role === 'logo');
+    const withTwo = { ...card, items: [...card.items, { ...logo, id: 'second', role: 'logo2', kind: 'photo', photo: 'p', sticker: undefined, width: logo.width * 3, aspect: 2, x: 900, y: 1300 }] };
+    const changed = designs.applyDesign(withTwo, key, designs.detailsOf(withTwo), { measure, newId });
+    const first = changed.items.find((item) => item.role === 'logo');
+    const second = changed.items.find((item) => item.role === 'logo2');
+    assert.ok(second, key);
+    assert.ok(Math.abs(core.itemHeight(second) - core.itemHeight(first)) < 0.5, `${key}: as tall as the logo`);
+    assert.ok(Math.abs(second.y - first.y) < 0.5, `${key}: in line with it`);
+    const apart = Math.abs(second.x - first.x) - (first.width + second.width) / 2;
+    assert.ok(apart > 0, `${key}: side by side, not overlapping`);
+  }
 });

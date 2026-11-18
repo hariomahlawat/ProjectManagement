@@ -396,6 +396,7 @@
     }
     changes.start(collage);
     // A new draft: it is first stored once it has a photo.
+    openedUntouched = Boolean(designKey);
     session.begin({ id: nextId('d'), off: !room });
     if (!room) setDraftStatus('Not kept as a draft', true);
     nameInput.value = '';
@@ -503,7 +504,8 @@
     drafts, session, setDraftStatus, scheduleDraft, freshThumbnail, renderDrafts, undoDeleteDraft,
     openDraft
   } = window.PrismCollageDraftsScreen.createDraftsScreen({
-    state, parts: laterParts, change: changesFor('setThumbnail', 'setCollage', 'nextOpenRequest'), core, messages, ui, history, doc, screens, surface
+    state, parts: laterParts, change: changesFor('setThumbnail', 'setCollage', 'nextOpenRequest'), core, messages, ui, history, doc, screens, surface,
+    untouched: () => openedUntouched
   });
   // ---------------------------------------------------------------------------
   // Selection, toolbar and the angle while turning
@@ -710,8 +712,14 @@
     changes.commit();
   }
 
+  // A card or poster just opened from a design and not changed yet: no draft is kept for it, so
+  // looking through the designs does not fill the drafts. The first change keeps it.
+  let openedUntouched = false;
+
   /** After an Undo step is recorded: everything for a commit, the title and buttons otherwise. */
   function afterRecorded(kind) {
+    // Any recorded change (typed words included) means the card is worth a draft now.
+    openedUntouched = false;
     // An unnamed collage's title follows its first words, typed or not.
     refreshTitle();
     updateUndo();
