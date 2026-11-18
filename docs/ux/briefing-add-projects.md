@@ -55,3 +55,26 @@ Owner choices (the recommendations, accepted with "Yes, build it"):
    (no sideways scroll, chips wrap, one column, Add at the foot); the search's placeholder is
    short enough for a phone ("Search name, officer or file no."); the empty Studio's prompt names
    the new filters; the old tabs' styles (48 selectors) and the quick-add "Added" code are gone.
+
+## Cold review (18 Nov 2026)
+
+UX 7, code 7.5. Fixed in two PRs.
+
+**PR A, the dialog:**
+- Add waits for its save, so a double click no longer re-adds the same projects and reports that nothing was added (High).
+- The status and Undo moved to the footer, and the search, filters and count stay in view while the list scrolls (M1).
+- "n ticked · Review" lists every ticked project, including those the filters hide (M2).
+- Escape on a chip closes its filter, not the dialog.
+- A failed load clears the list.
+- Row text is larger.
+- An open chip is shaded.
+- Option counts are labelled as totals.
+- One Add is limited to 1,000 projects.
+
+**PR B, the server:**
+- Categories in tree order.
+- The dialog's counts load when it opens.
+- The old search handler and selection kinds removed.
+- Comments corrected.
+- Handler and edge-case tests added.
+

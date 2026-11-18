@@ -898,12 +898,13 @@
                                         <div>
                                             <span class="pbd-eyebrow">Projects in this deck</span>
                                             <h2 class="modal-title" id="pbd-add-projects-title">Add projects</h2>
-                                            <p class="pbd-add-projects__lead">Narrow the list with the filters, tick projects and add them. Ticks stay when you change the filters, so you can mix sets. Adding saves at once, with Undo.</p>
+                                            <p class="pbd-add-projects__lead">Narrow the list with the filters, tick projects and add them.<span class="pbd-add-projects__lead-more"> Ticks stay when you change the filters, so you can mix sets. Adding saves at once, with Undo.</span></p>
                                         </div>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                     </div>
                                     <div class="modal-body pbd-filter" data-pbd-filter>
-                                        <p class="pbd-add-projects__status" data-pbd-add-projects-status aria-live="polite"></p>
+                                        @* The search, filters and count stay in view while the list scrolls (cold review, M1). *@
+                                        <div class="pbd-filter__head">
                                         <label class="pbd-project-search">
                                             <span class="visually-hidden">Search projects</span>
                                             <i class="bi bi-search" aria-hidden="true"></i>
@@ -915,6 +916,7 @@
                                             <span data-pbd-filter-count aria-live="polite">Loading projects…</span>
                                             <button type="button" class="btn btn-link btn-sm" data-pbd-filter-tick-all hidden></button>
                                         </div>
+                                        </div>
                                         <div class="pbd-filter__results" data-pbd-filter-results></div>
                                         <script type="application/json" data-pbd-filter-options>@Html.Raw(Model.AddProjectsFilterOptionsJson)</script>
                                         <form method="post" asp-page-handler="AddSelection" data-pbd-add-selection-form data-pbd-filter-add-form hidden>
@@ -925,7 +927,12 @@
                                     </div>
                                     @* Adding saves at once; Done only closes the dialog, so finishing never depends on finding the ×. *@
                                     <div class="modal-footer pbd-filter__footer">
-                                        <span class="pbd-filter__ticked" data-pbd-filter-ticked aria-live="polite">Nothing ticked</span>
+                                        @* What an Add did (and its Undo) shows here, beside the button, wherever the list is scrolled
+                                           (cold review, M1); "n ticked" opens the ticked projects, including any the filters hide (M2). *@
+                                        <div class="pbd-filter__footer-info">
+                                            <p class="pbd-add-projects__status" data-pbd-add-projects-status aria-live="polite"></p>
+                                            <button type="button" class="btn btn-link btn-sm pbd-filter__ticked" data-pbd-filter-ticked aria-pressed="false" disabled>Nothing ticked</button>
+                                        </div>
                                         <button type="button" class="btn btn-link btn-sm" data-pbd-filter-clear hidden>Clear ticks</button>
                                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-pbd-add-projects-done>Done</button>
                                         <button type="button" class="btn btn-primary" data-pbd-filter-add>Add projects</button>
