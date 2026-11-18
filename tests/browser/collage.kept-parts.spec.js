@@ -47,7 +47,7 @@ test('a draft keeps the parts a newer PRISM made when it is edited and saved her
   // does not know, and a back page that shows the same photo.
   const newer = {
     shape: { id: 'zshape', kind: 'seal', seal: 'rect', x: 10, y: 10, width: 980, aspect: 1.4, stroke: '#a8842f' },
-    logo: { id: 'zlogo', kind: 'sticker', sticker: 'logo:sdd', x: 440, y: 30, width: 120, aspect: 0.59 }
+    logo: { id: 'zlogo', kind: 'sticker', sticker: 'seal:navy', x: 440, y: 30, width: 120, aspect: 0.59 }
   };
   await withDraft(page, (record, parts) => {
     const photo = record.model.items.find((i) => i.kind === 'photo').photo;

@@ -160,7 +160,9 @@
    * line (or, on a curve, each letter cluster) with its outline, shadow or glow. Straight lines
    * are drawn whole, so letters that join (Hindi) keep their shapes.
    */
-  function drawText(ctx, item, layout, pixelsPerUnit = 1) {
+  function drawText(ctx, given, layout, pixelsPerUnit = 1) {
+    // Words fitted to a width are drawn at the size the layout chose for them.
+    const item = layout.size && layout.size !== given.size ? { ...given, size: layout.size } : given;
     ctx.save();
     if (layout.label && item.label) {
       tracePath(ctx, core.shapePath('rect', layout.label.x, layout.label.y, layout.label.width, layout.label.height, item.size * 0.28));

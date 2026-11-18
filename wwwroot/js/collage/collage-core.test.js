@@ -8,8 +8,8 @@ test('every page is 1,000 units wide and keeps its size shape', () => {
   assert.equal(collage.pageHeight('story'), 1000 * 3840 / 2160);
   // An unknown size falls back to A4 landscape instead of breaking the page.
   assert.equal(collage.pageHeight('nope'), collage.pageHeight('a4l'));
-  // Paper sizes print at 300 dots per inch.
-  for (const key of ['a4l', 'a4p', 'a3p']) {
+  // Paper sizes, cards and pocket cards included, print at 300 dots per inch.
+  for (const key of Object.keys(collage.SIZES).filter((k) => collage.SIZES[k].mm)) {
     const size = collage.SIZES[key];
     assert.ok(Math.abs(size.width - size.mm[0] / 25.4 * 300) < 1, key);
     assert.ok(Math.abs(size.height - size.mm[1] / 25.4 * 300) < 1, key);
@@ -1079,7 +1079,7 @@ test('words over a photo are told apart from words on the empty page', () => {
 test('a draft keeps the parts a newer PRISM made, and writes them back in their places', () => {
   const photo = collage.photoItem('a', 'p1', 1.5, { x: 100, y: 100, width: 200 });
   const shape = { id: 'b', kind: 'seal', seal: 'rect', x: 10, y: 10, width: 980, aspect: 0.7, stroke: '#a8842f', points: [[0, 0], [1, 1]] };
-  const logo = { id: 'c', kind: 'sticker', sticker: 'logo:sdd', x: 400, y: 40, width: 120, aspect: 0.59 };
+  const logo = { id: 'c', kind: 'sticker', sticker: 'seal:navy', x: 400, y: 40, width: 120, aspect: 0.59 };
   const words = { ...collage.textItem('d', 'Raising Day Dinner', { x: 500, y: 300 }), font: 'cinzel', field: 'occasion', maxWidth: 800 };
   const back = { background: { type: 'color', value: '#fbf7ee' }, items: [{ id: 'e', kind: 'photo', photo: 'p2', x: 0, y: 0, width: 1000, aspect: 1.4 }] };
   const raw = { version: 1, size: 'a4p', background: { type: 'color', value: '#ffffff' }, layout: null, items: [photo, shape, logo, words], back, design: 'classic' };
@@ -1209,4 +1209,62 @@ test('a page border takes no room when a new item looks for a free spot; other s
   const band = collage.shapeItem('b', 'rect', spot && { x: 500, y: spot.y, width: 1000, aspect: 1000 / 120 }, { fill: '#1d2c55' });
   const next = collage.freeSpot([border, band], 'a4p', 160, 50);
   assert.ok(Math.abs(next.y - band.y) >= 60 + 50, `${next.y} is clear of the band at ${band.y}`);
+});
+
+// Card sizes (docs/ux/invitations-posters.md, PR 4): every size in common use, both ways round.
+test('every card and pocket card size is a true paper size, both ways round, in its menu group', () => {
+  const mm = (key) => collage.SIZES[key].mm;
+  assert.deepEqual(mm('a5p'), [148, 210]);
+  assert.deepEqual(mm('a5l'), [210, 148]);
+  assert.deepEqual(mm('a6p'), [105, 148]);
+  assert.deepEqual(mm('in57p'), [127, 177.8]);
+  assert.deepEqual(mm('in46p'), [101.6, 152.4]);
+  assert.deepEqual(mm('dlp'), [99, 210]);
+  assert.deepEqual(mm('in45p'), [101.6, 127]);
+  assert.deepEqual(mm('sq5'), [127, 127]);
+  assert.deepEqual(mm('a7p'), [74, 105]);
+  assert.deepEqual(mm('in355p'), [88.9, 127]);
+  assert.deepEqual(mm('passl'), [88.9, 50.8]);
+  assert.deepEqual(mm('passp'), [50.8, 88.9]);
+  // A landscape size is its portrait one turned: the PDF page and the picture both swap.
+  assert.deepEqual([collage.SIZES.a5l.width, collage.SIZES.a5l.height], [collage.SIZES.a5p.height, collage.SIZES.a5p.width]);
+  const a5 = collage.pdfPage('a5p');
+  assert.ok(Math.abs(a5.width - 148 / 25.4 * 72) < 0.01 && Math.abs(a5.height - 210 / 25.4 * 72) < 0.01);
+  // Every size is in exactly one group of the menu.
+  const groups = collage.sizesByGroup();
+  assert.deepEqual(groups.map((g) => g.key), ['page', 'card', 'pocket']);
+  assert.deepEqual(groups.flatMap((g) => g.keys).sort(), Object.keys(collage.SIZES).sort());
+  // A draft keeps a card size; an unknown one falls back.
+  assert.equal(collage.readDraftModel({ version: 1, size: 'passl', items: [] }, []).size, 'passl');
+  assert.equal(collage.readDraftModel({ version: 1, size: 'a9', items: [] }, []).size, 'a4l');
+});
+
+// Fitting words to a width (docs/ux/invitations-posters.md, PR 4).
+test('words with a width wrap onto new lines, then get smaller, and never change', () => {
+  const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) / 2;
+  const base = collage.textItem('t', 'Change of Command Parade and Reception', { x: 500, y: 300 }, { size: 40, maxWidth: 420 });
+  // Natural: one line, far wider than 420.
+  assert.ok(collage.layoutText({ ...base, maxWidth: undefined }, measure).width > 420);
+  const fitted = collage.layoutText(base, measure);
+  assert.ok(fitted.width <= 420.5, `${fitted.width}`);
+  assert.ok(fitted.lines >= 2 && fitted.lines <= 3);
+  assert.equal(fitted.size, 40, 'wrapping was enough, the letters keep their size');
+  assert.equal(fitted.glyphs.map((g) => g.ch).join(' '), base.text, 'the words are all there, in order');
+
+  // One line only: the letters get smaller instead.
+  const oneLine = collage.layoutText({ ...base, maxLines: 1 }, measure);
+  assert.equal(oneLine.lines, 1);
+  assert.ok(oneLine.size < 40 && oneLine.width <= 420.5);
+  // Never below the smallest share of the size, even if it then runs wider.
+  const tiny = collage.layoutText({ ...base, maxWidth: 30, maxLines: 1 }, measure);
+  assert.equal(tiny.size, Math.max(collage.TEXT_LIMITS.size[0], 40 * collage.TEXT_FIT.smallest));
+  // Lines the user broke stay broken; curved words are not fitted.
+  assert.equal(collage.layoutText({ ...base, text: 'Raising Day\nDinner', maxWidth: 2000 }, measure).lines, 2);
+  assert.equal(collage.layoutText({ ...base, curve: 40 }, measure).size, 40);
+
+  // A draft keeps a usable width and line count, and drops a bad one.
+  const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [{ ...base, maxLines: 9 }, { ...base, id: 'u', maxWidth: 3, maxLines: 'x' }] }, []);
+  assert.deepEqual([read.items[0].maxWidth, read.items[0].maxLines], [420, 6]);
+  assert.equal('maxWidth' in read.items[1], false);
+  assert.equal('maxLines' in read.items[1], false);
 });

@@ -81,6 +81,20 @@ its npm package by hand; the libman entry records the version.
   one of seven sizes: A4 landscape or portrait, A3 poster, Slide 16:9, Square, Phone status 9:16
   and Banner 3:1. Drafts are listed below, newest first, with Delete (shown on hover or focus, always on
   touch screens) and a 10-second Undo in PRISM's glass toast.
+- **Card sizes** ([ux/invitations-posters.md](ux/invitations-posters.md), PR 4). The page size
+  menu (top bar and Page settings) groups every size: **Pages and screens** (the seven above),
+  **Cards** and **Pocket cards**. Every card size is a true paper size, both ways round:
+  - cards: A5, A6, 5 × 7 in, 4 × 6 in, DL, the 4 × 5 in service correspondence card, and 5 in
+    and 6 in squares;
+  - pocket cards: A7, the 3.5 × 5 in RSVP card, and the visiting-card entry card or car pass.
+
+  Each saves at 300 dpi, and its PDF page is the paper size. The start screen's blank pages are
+  still the seven pages and screens.
+- **Words that fit a width** (PR 4): a text item may carry a `maxWidth`. Its words then wrap onto
+  new lines within it, up to `maxLines` (3 unless set), and if they still don't fit, the letters
+  get smaller, down to 40% of the size. The words typed never change, only how they're laid out.
+  Curved words aren't fitted. Dragging a corner of fitted words makes the width grow with them.
+  The card designs (PR 4b) set this, so a long occasion never runs off a card.
 - **Photos**: add up to 60 photos (JPEG, PNG, WEBP, GIF or BMP, at most 50 MB each) by the
   button, by dropping them, by pasting, or with **From PRISM Photos** (search by words, project
   and year, tick the photos, Add). Empty frames fill first. A photo the page does not show can be
@@ -98,8 +112,10 @@ its npm package by hand; the libman entry records the version.
 - **Text** in English and Hindi with bundled fonts: ready-made headings (Farewell, Happy
   Birthday, Thank you!, Congratulations and others), curved text, outline, shadow and a label
   behind the words. Hindi is typed with the Windows Hindi keyboard or pasted.
-- **Stickers**: first the **Crests and logos** an administrator uploaded (shown first when there
-  are any; a retired one still draws in drafts that use it), then **Lines and borders**, then
+- **Stickers**: first **Crests and logos**. It starts with PRISM's own **SDD logo** (`logo:sdd`,
+  drawn from `wwwroot/img/logos/sdd-hd.webp`, shipped with PRISM, PR 4), then the crests an
+  administrator uploaded (a retired one still draws in drafts that use it); a line under them says
+  when there are none, or why they could not be read. Then **Lines and borders**, then
   twelve drawn shapes and stamps that take any colour, and emoji drawings in eight groups with a
   search box.
 - **Lines and borders** ([ux/invitations-posters.md](ux/invitations-posters.md), PR 3): a line,

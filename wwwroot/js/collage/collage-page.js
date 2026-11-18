@@ -344,7 +344,7 @@
       const entry = stickers.find(item.sticker);
       if (!entry) return null;
       if (entry.kind === 'emoji') return `${stickerBase}${entry.code}.svg`;
-      if (entry.kind === 'unit') return entry.url;
+      if (entry.kind === 'unit' || entry.kind === 'logo') return entry.url;
       return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(stickers.drawnSvg(entry.key, item.colour || entry.colour))}`;
     }
 
@@ -478,7 +478,10 @@
         doc.editItem(node.id(), (target) => {
           if (target.kind === 'text') {
             const [low, high] = core.TEXT_LIMITS.size;
-            target.size = Math.round(Math.min(high, Math.max(low, target.size * Math.abs(node.scaleX()))));
+            const grown = Math.round(Math.min(high, Math.max(low, target.size * Math.abs(node.scaleX()))));
+            // Words fitted to a width grow with it, so a corner drag makes them bigger.
+            if (target.maxWidth) target.maxWidth = Math.min(core.ITEM_LIMITS.maxWidth, target.maxWidth * grown / target.size);
+            target.size = grown;
             target.angle = core.normaliseAngle(node.rotation());
             target.x = node.x();
             target.y = node.y();

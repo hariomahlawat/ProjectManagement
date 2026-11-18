@@ -34,7 +34,9 @@
     function renderStart() {
       const sizes = $('[data-sizes]');
       sizes.textContent = '';
-      for (const [key, size] of Object.entries(core.SIZES)) {
+      // Blank pages here are the pages and screens; cards and pocket cards are in the size menu
+      // (and get their own row with the card designs, docs/ux/invitations-posters.md).
+      for (const [key, size] of Object.entries(core.SIZES).filter(([, each]) => each.group === 'page')) {
         const ratio = size.width / size.height;
         const w = ratio >= 1 ? 34 : 34 * ratio;
         const h = ratio >= 1 ? 34 / ratio : 34;
@@ -53,11 +55,16 @@
       layoutGrid.textContent = '';
       for (const key of Object.keys(core.LAYOUTS)) layoutGrid.appendChild(layoutButton(key, 'layout'));
       sizeSelect.innerHTML = '';
-      for (const [key, size] of Object.entries(core.SIZES)) {
-        const option = document.createElement('option');
-        option.value = key;
-        option.textContent = size.label;
-        sizeSelect.appendChild(option);
+      for (const group of core.sizesByGroup()) {
+        const list = document.createElement('optgroup');
+        list.label = group.label;
+        for (const key of group.keys) {
+          const option = document.createElement('option');
+          option.value = key;
+          option.textContent = core.SIZES[key].label;
+          list.appendChild(option);
+        }
+        sizeSelect.appendChild(list);
       }
     }
 

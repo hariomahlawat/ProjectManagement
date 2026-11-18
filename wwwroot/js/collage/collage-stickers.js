@@ -103,6 +103,15 @@
   }
 
   const UNIT_PICTURE = /^\/api\/collage\/stickers\/[1-9][0-9]{0,8}\/image\?v=[1-9][0-9]{0,8}$/;
+
+  // PRISM's own logos, shipped with PRISM and always offered first in Crests and logos
+  // (docs/ux/invitations-posters.md, PR 4). The SDD logo is the 4× picture added in #3428.
+  const LOGOS = Object.freeze({
+    sdd: Object.freeze({ label: 'SDD', file: '/img/logos/sdd-hd.webp', aspect: 1732 / 2940, words: 'sdd simulator development division archer' })
+  });
+  const logoItems = () => Object.freeze(Object.entries(LOGOS).map(([key, entry]) => Object.freeze({
+    id: `logo:${key}`, label: entry.label, words: `${entry.label.toLowerCase()} ${entry.words} crest logo badge`
+  })));
   let unit = Object.freeze([]);
   /**
    * The app's path base ("" at the site root, "/prism" under a sub-path), from the page's
@@ -149,7 +158,7 @@
 
   /** Every sticker the panel offers: crests and logos, drawn ones, then the emoji groups. */
   function groups() {
-    const crests = Object.freeze({ key: 'crests', label: 'Crests and logos', items: unit });
+    const crests = Object.freeze({ key: 'crests', label: 'Crests and logos', items: Object.freeze([...logoItems(), ...unit]) });
     const drawn = Object.freeze({
       key: 'shapes',
       label: 'Shapes',
@@ -165,7 +174,7 @@
     return groups().flatMap((group) => group.items).filter((item) => words.every((word) => item.words.includes(word)));
   }
 
-  /** A sticker's entry: { kind: 'unit' | 'drawn' | 'emoji', ... }, or null when PRISM does not ship it. */
+  /** A sticker's entry: { kind: 'logo' | 'unit' | 'drawn' | 'emoji', ... }, or null when PRISM does not ship it. */
   function find(id) {
     if (typeof id !== 'string') return null;
     if (/^unit:[1-9][0-9]{0,8}$/.test(id)) {
@@ -173,6 +182,10 @@
       if (listed) return { kind: 'unit', ...listed };
       // Retired, or the list has not arrived: PRISM still serves the picture by its address.
       return { kind: 'unit', id, label: 'Crest or logo', url: `${base}/api/collage/stickers/${id.slice(5)}/image`, aspect: 1, words: '' };
+    }
+    if (id.startsWith('logo:')) {
+      const entry = LOGOS[id.slice(5)];
+      return entry ? { kind: 'logo', id, key: id.slice(5), label: entry.label, url: `${base}${entry.file}`, aspect: entry.aspect, words: entry.words } : null;
     }
     if (id.startsWith('draw:')) {
       const entry = DRAWN[id.slice(5)];
@@ -192,5 +205,5 @@
     return entry.svg.replace(/COLOUR/g, safe);
   }
 
-  return Object.freeze({ DRAWN, EMOJI_GROUPS, groups, search, find, drawnSvg, codeOf, setUnit, setBasePath });
+  return Object.freeze({ DRAWN, EMOJI_GROUPS, LOGOS, groups, search, find, drawnSvg, codeOf, setUnit, setBasePath });
 });

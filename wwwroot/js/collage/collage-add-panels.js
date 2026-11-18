@@ -308,7 +308,7 @@
         img.src = surface.stickerSource({ sticker: item.id, colour: '' });
         button.appendChild(img);
         // A crest or logo carries its name, since its picture alone may not say which unit it is.
-        if (entry.kind === 'unit') {
+        if (entry.kind === 'unit' || entry.kind === 'logo') {
           button.classList.add('clg-sticker--named');
           const label = document.createElement('span');
           label.className = 'clg-sticker__name';
@@ -318,8 +318,11 @@
         return button;
       }));
       const none = ui.root.querySelector('[data-sticker-none]');
-      none.hidden = list.length + shapes.length > 0;
-      if (!list.length && !shapes.length) {
+      // Crests and logos always has PRISM's own logos; whether PRISM's uploaded crests came, or
+      // why not, is still said under them.
+      const crestsWithout = !query && stickerGroup === 'crests' && !list.some((item) => item.id.startsWith('unit:'));
+      none.hidden = list.length + shapes.length > 0 && !crestsWithout;
+      if (!list.length && !shapes.length || crestsWithout) {
         none.textContent = query ? STICKER_NONE.search
           : stickerGroup !== 'crests' ? STICKER_NONE.search
             : unitState === 'ready' ? STICKER_NONE.empty : STICKER_NONE[unitState];
@@ -329,7 +332,7 @@
     function addSticker(id) {
       const entry = stickers.find(id);
       if (!entry) return;
-      const width = entry.kind === 'drawn' ? 180 : entry.kind === 'unit' ? 160 : 110;
+      const width = entry.kind === 'drawn' ? 180 : entry.kind === 'unit' || entry.kind === 'logo' ? 160 : 110;
       // Where it covers nothing yet, so stickers added one after another do not hide each other.
       const spot = core.freeSpot(state.collage.items, state.collage.size, width / 2, width / entry.aspect / 2);
       const place = { x: spot.x, y: spot.y, width, aspect: entry.aspect };
