@@ -213,3 +213,14 @@ test('an oval fills its box; a line runs across the middle; nothing is drawn wit
   draw.drawShape(blank, collage.shapeItem('b', 'rect', { x: 0, y: 0, width: 100 }, { stroke: '', fill: '' }));
   assert.ok(!names(blank).includes('fill') && !names(blank).includes('stroke'));
 });
+
+test('a line thicker than a small shape stays inside its box: the inset is half the line drawn', () => {
+  const ctx = shapeRecorder();
+  // 100 × 24 with a 40-unit line: the line drawn is 12 (half the short side), inset 6.
+  draw.drawShape(ctx, collage.shapeItem('r', 'rect', { x: 0, y: 0, width: 100, aspect: 100 / 24 }, { stroke: '#a8842f', strokeWidth: 40 }));
+  const width = ctx.calls.find((c) => c[0] === 'lineWidth')[1];
+  const [, x, y] = ctx.calls.find((c) => c[0] === 'moveTo');
+  assert.equal(width, 12);
+  assert.equal(y, width / 2, 'the outer edge of the line is the top of the box');
+  assert.equal(x, width / 2);
+});

@@ -252,7 +252,10 @@
       ctx.restore();
       return;
     }
-    const inset = stroked ? Math.min(strokeWidth, width / 2, height / 2) / 2 : 0;
+    // The line actually drawn: never thicker than half the box's shorter side, so it stays inside
+    // the box, and the inset is half of that same width.
+    const lineWidth = stroked ? Math.min(strokeWidth, width / 2, height / 2) : 0;
+    const inset = lineWidth / 2;
     const w = Math.max(0, width - inset * 2);
     const h = Math.max(0, height - inset * 2);
     ctx.beginPath();
@@ -277,7 +280,7 @@
     }
     if (stroked) {
       ctx.strokeStyle = item.stroke;
-      ctx.lineWidth = Math.min(strokeWidth, width, height);
+      ctx.lineWidth = lineWidth;
       ctx.stroke();
     }
     ctx.restore();
