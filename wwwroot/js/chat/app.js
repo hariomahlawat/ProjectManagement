@@ -49,6 +49,12 @@
     this.muteKey = `prism.chat.muted.${this.me}`;
     this.contacts = new Map();
     this.groups = new Map(); // groupId -> { id, title, managerUserId, memberCount, unreadCount, lastMessageUtc }
+    // Live unread changes (a message pushed, a conversation read) by conversation key, numbered.
+    // A contacts or groups list requested before such a change answers with an older count, so
+    // the refresh keeps this tab's count for that conversation instead (touchUnread).
+    this.unreadSeq = 0;
+    this.unsending = new Set(); // message ids with an unsend request in flight
+    this.unreadTouched = new Map();
     this.windows = new Map(); // conversation key -> window state (docked, or embedded in the Messages page)
     this.order = []; // docked peer ids, most recently opened first
     // Drafts and failed messages of closed windows, until the conversation is opened again. In
@@ -209,12 +215,18 @@
       if (token) headers['X-CSRF-TOKEN'] = token;
     }
 
-    const response = await fetch(this.api + path, {
-      method,
-      headers,
-      credentials: 'same-origin',
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    let response;
+    try {
+      response = await fetch(this.api + path, {
+        method,
+        headers,
+        credentials: 'same-origin',
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch (_) {
+      // The browser's own text ("Failed to fetch") means nothing to people.
+      throw new Error('PRISM could not be reached. Check the connection and try again.');
+    }
 
     if (response.status === 401 || (response.status === 404 && response.headers && response.headers.get('X-Chat-Disabled'))) {
       // Signed out, or chat switched off on the server: stand down quietly. Any other 404 (a
@@ -226,7 +238,7 @@
     if (!response.ok) {
       let detail = response.status === 429
         ? 'You are sending messages too quickly. Wait a moment and retry.'
-        : 'The message could not be sent.';
+        : (method === 'GET' ? 'This could not be loaded. Try again.' : 'The message could not be sent.');
       try {
         const problem = await response.json();
         if (problem && problem.detail) detail = problem.detail;
@@ -246,6 +258,7 @@
     if (this.unsentRetry) global.clearTimeout(this.unsentRetry);
     if (this.connection) this.connection.stop().catch(() => {});
     this.title.stop();
+    if (this.closeViewer) this.closeViewer();
     document.querySelectorAll('.pm-chat-person').forEach((button) => button.remove());
     this.root.hidden = true;
     this.launchers.forEach((b) => { b.hidden = true; });

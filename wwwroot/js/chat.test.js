@@ -2423,7 +2423,7 @@ function fakeUploads(window) {
   FakeXhr.prototype.setRequestHeader = function (name, value) { this.headers[name] = value; };
   FakeXhr.prototype.getResponseHeader = function () { return null; };
   FakeXhr.prototype.send = function (data) { this.data = data; };
-  FakeXhr.prototype.abort = function () { this.aborted = true; };
+  FakeXhr.prototype.abort = function () { this.aborted = true; if (this.onabort) this.onabort(); };
   FakeXhr.prototype.progress = function (loaded, total) { this.upload.onprogress({ lengthComputable: true, loaded, total }); };
   FakeXhr.prototype.answer = function (status, body) {
     this.status = status;
@@ -3027,6 +3027,377 @@ test('tips leave out unsend and files when those are switched off', async () => 
     assert.doesNotMatch(text, /unsend/i);
     assert.doesNotMatch(text, /paperclip/);
     assert.equal(window.PMChat.tips.querySelector('a'), null, 'no guide link without a guide URL');
+  } finally {
+    window.close();
+  }
+});
+
+// ----- Unread counts, closed windows and catch-up (review fixes) -------------------------------
+
+test('a contacts refresh that answers with an older unread count keeps the live one', async () => {
+  const held = [];
+  let calls = 0;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      calls += 1;
+      if (calls === 1) return [{ ...contact, unreadCount: 0 }];
+      await new Promise((resolve) => { held.push(resolve); });
+      return [{ ...contact, unreadCount: 0 }]; // counted before the message below arrived
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const refresh = app.refreshContacts();
+    await tick();
+    app.onMessage(directMessage(9, 'peer', 'are you there?'));
+    assert.equal(app.contacts.get('peer').unreadCount, 1);
+    held.splice(0).forEach((resolve) => resolve());
+    await refresh;
+    assert.equal(app.contacts.get('peer').unreadCount, 1, 'the stale list does not clear the badge');
+  } finally {
+    window.close();
+  }
+});
+
+test('a message still sending when its window closes comes back failed, with Retry, on reopening', async () => {
+  let answer;
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      await new Promise((resolve) => { answer = resolve; });
+      return { status: 500, body: { detail: 'The server is restarting.' } };
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    let win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.input.value = 'Minutes attached';
+    app.send(win);
+    await tick();
+    app.closeWindow('peer');
+    answer();
+    await tick(); await tick(); await tick();
+
+    win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    assert.match(win.log.textContent, /Minutes attached/);
+    assert.match(win.log.textContent, /The server is restarting\./);
+    assert.ok(win.log.querySelector('.pm-chat__retry'), 'the text is not lost: it can be sent again');
+  } finally {
+    window.close();
+  }
+});
+
+test('catch-up after a drop fetches the gap even when a newer message was pushed meanwhile', async () => {
+  let loaded = false;
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/with/peer/messages')) {
+      asked.push(url);
+      if (!loaded) {
+        loaded = true;
+        return pageOf([1, 2, 3], false);
+      }
+      if (url.includes('before=11')) return pageOf([3, 4, 5, 6, 7, 8, 9, 10], true);
+      return pageOf(Array.from({ length: 40 }, (_, i) => i + 11), true); // 11..50
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    // Messages 4..49 were missed while the connection was down; 50 arrives live as it returns.
+    app.onMessage(directMessage(50, 'peer', 'back online'));
+    await app.loadLatest(win);
+    const ids = win.messages.map((m) => m.id);
+    for (let id = 1; id <= 50; id += 1) assert.ok(ids.includes(id), `message ${id} is shown`);
+    assert.ok(asked.some((url) => url.includes('before=11')), 'it paged back past the pushed message');
+  } finally {
+    window.close();
+  }
+});
+
+test('Unsend sends one request however often it is clicked', async () => {
+  let unsends = 0;
+  let answer;
+  const now = Date.now();
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsend') && init.method === 'POST') {
+      unsends += 1;
+      await new Promise((resolve) => { answer = resolve; });
+      return { status: 200, body: { id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: '', sentUtc: new Date(now).toISOString(), isUnsent: true } };
+    }
+    if (url.includes('/messages')) {
+      return { messages: [{ id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: 'oops', sentUtc: new Date(now).toISOString() }], hasMore: false };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    app.unsendMs = 5 * 60000;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const message = win.messages.find((m) => m.id === 2);
+    const first = app.unsend(win, message);
+    app.unsend(win, message);
+    await tick();
+    assert.equal(unsends, 1);
+    answer();
+    await first;
+    assert.equal(win.log.querySelector('.is-unsent .pm-chat__bubble').textContent, 'You unsent a message');
+  } finally {
+    window.close();
+  }
+});
+
+test('Enter in the status box saves once, not again when the box loses focus', async () => {
+  const posted = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.endsWith('/status') && init.method === 'POST') {
+      posted.push(JSON.parse(init.body).message);
+      await tick();
+      return { userId: 'me', message: JSON.parse(init.body).message };
+    }
+    if (url.endsWith('/status')) return { userId: 'me', message: null };
+    return pageOf([], false);
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.statusInput.focus();
+    app.statusInput.value = 'In conference till 1600';
+    app.statusInput.form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+    await tick(); await tick(); await tick();
+    assert.deepEqual(posted, ['In conference till 1600']);
+  } finally {
+    window.close();
+  }
+});
+
+test('an upload that stops making progress offers Retry instead of hanging', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  const runTimers = manualTimers(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    pick(window, win, [new window.File(['%PDF-'], 'plan.pdf', { type: 'application/pdf' })]);
+    uploads[0].progress(10, 100);
+    runTimers(); // a minute with no progress
+    assert.equal(uploads[0].aborted, true);
+    assert.match(win.pendingList.textContent, /The upload stopped/);
+    assert.ok(Array.from(win.pendingList.querySelectorAll('button')).some((b) => b.textContent === 'Retry'));
+    assert.equal(app.readyFiles(win).busy, false, 'a stalled upload no longer holds up sending');
+  } finally {
+    window.close();
+  }
+});
+
+// ----- Drag and drop, paste, early checks and the image viewer ---------------------------------
+
+function fileDrag(window, type, files, extra) {
+  const event = new window.Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'dataTransfer', {
+    value: { types: ['Files'], files, dropEffect: 'none', ...extra },
+  });
+  return event;
+}
+
+test('files dropped on a chat window are attached; the overlay shows while dragging', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    const overlay = win.node.querySelector('.pm-chat__drop');
+    assert.equal(overlay.hidden, true);
+
+    const enter = fileDrag(window, 'dragenter', []);
+    win.log.dispatchEvent(enter);
+    assert.equal(enter.defaultPrevented, true);
+    assert.equal(overlay.hidden, false);
+    const over = fileDrag(window, 'dragover', []);
+    win.log.dispatchEvent(over);
+    assert.equal(over.defaultPrevented, true, 'or the browser would open the file instead');
+
+    const drop = fileDrag(window, 'drop', [new window.File(['%PDF-'], 'brief.pdf', { type: 'application/pdf' })]);
+    win.log.dispatchEvent(drop);
+    assert.equal(drop.defaultPrevented, true);
+    assert.equal(overlay.hidden, true);
+    assert.equal(uploads.length, 1);
+    assert.equal(uploads[0].data.get('file').name, 'brief.pdf');
+    assert.match(win.pendingList.textContent, /brief\.pdf/);
+
+    // Dragging text around the page is not a file drop.
+    const text = new window.Event('dragenter', { bubbles: true, cancelable: true });
+    Object.defineProperty(text, 'dataTransfer', { value: { types: ['text/plain'] } });
+    win.log.dispatchEvent(text);
+    assert.equal(text.defaultPrevented, false);
+    assert.equal(overlay.hidden, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('a dropped folder is refused with a note; its files are not guessed at', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    const file = new window.File(['a'], 'a.txt', { type: 'text/plain' });
+    const items = [
+      { kind: 'file', webkitGetAsEntry: () => ({ isDirectory: true }), getAsFile: () => new window.File([''], 'Reports') },
+      { kind: 'file', webkitGetAsEntry: () => ({ isDirectory: false }), getAsFile: () => file },
+    ];
+    win.log.dispatchEvent(fileDrag(window, 'drop', [], { items }));
+    assert.equal(uploads.length, 1, 'only the file');
+    assert.match(win.pendingNote.textContent, /Folders cannot be sent/);
+  } finally {
+    window.close();
+  }
+});
+
+test('files of a type chat does not take are refused before uploading, without Retry', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    pick(window, win, [new window.File(['MZ'], 'setup.exe'), new window.File([], 'blank.txt')]);
+    assert.equal(uploads.length, 0);
+    assert.match(win.pendingList.textContent, /Only PDF, Word, Excel, PowerPoint, images/);
+    assert.match(win.pendingList.textContent, /The file is empty\./);
+    assert.equal(Array.from(win.pendingList.querySelectorAll('button')).some((b) => b.textContent === 'Retry'), false);
+  } finally {
+    window.close();
+  }
+});
+
+test('a pasted screenshot is attached with a name that says when it was taken; pasted text stays text', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+
+    const paste = (files, text) => {
+      const event = new window.Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'clipboardData', { value: { files, getData: () => text || '' } });
+      win.input.dispatchEvent(event);
+      return event;
+    };
+
+    const shot = paste([new window.File(['png'], 'image.png', { type: 'image/png' })]);
+    assert.equal(shot.defaultPrevented, true);
+    assert.equal(uploads.length, 1);
+    assert.match(uploads[0].data.get('file').name, /^Screenshot \d{1,2} \w{3} \d{4} \d{2}\.\d{2}\.png$/);
+
+    const fromWord = paste([new window.File(['png'], 'image.png', { type: 'image/png' })], 'Para 4 of the minutes');
+    assert.equal(fromWord.defaultPrevented, false, 'the text is pasted, not a picture of it');
+    assert.equal(uploads.length, 1);
+
+    const named = paste([new window.File(['%PDF-'], 'Agenda.pdf', { type: 'application/pdf' })]);
+    assert.equal(named.defaultPrevented, true);
+    assert.equal(uploads[1].data.get('file').name, 'Agenda.pdf');
+  } finally {
+    window.close();
+  }
+});
+
+test('files dropped on a person in the contact list open their chat with the files attached', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const button = app.list.querySelector('[data-focus-key="contact:peer"]');
+    const over = fileDrag(window, 'dragover', []);
+    button.dispatchEvent(over);
+    assert.equal(over.defaultPrevented, true);
+    assert.ok(button.classList.contains('is-drop-target'));
+
+    button.dispatchEvent(fileDrag(window, 'drop', [new window.File(['a'], 'notes.txt', { type: 'text/plain' })]));
+    assert.equal(button.classList.contains('is-drop-target'), false);
+    const win = app.windows.get('peer');
+    assert.ok(win, 'the conversation opened');
+    assert.equal(uploads.length, 1);
+    assert.match(win.pendingList.textContent, /notes\.txt/);
+  } finally {
+    window.close();
+  }
+});
+
+test('an image opens in the viewer, which steps through the conversation and gives focus back', async () => {
+  const image = (id, name) => ({ id, fileName: name, contentType: 'image/png', sizeBytes: 10, isImage: true, width: 100, height: 80 });
+  const window = fileApp(async (url) => {
+    if (url.includes('/with/peer/messages')) {
+      return {
+        messages: [
+          directMessage(1, 'peer', '', { attachments: [image(11, 'site.png')] }),
+          directMessage(2, 'me', 'and the plan', { attachments: [image(12, 'plan.png'), { id: 13, fileName: 'a.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }] }),
+        ],
+        hasMore: false,
+      };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    const thumb = win.log.querySelector('[data-focus-key="thumb:11"]');
+    const click = new window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    thumb.dispatchEvent(click);
+    assert.equal(click.defaultPrevented, true);
+
+    const dialog = window.document.querySelector('.pm-chat-viewer');
+    assert.ok(dialog);
+    assert.equal(dialog.getAttribute('aria-modal'), 'true');
+    const img = dialog.querySelector('.pm-chat-viewer__image');
+    assert.equal(img.getAttribute('src'), '/api/chat/attachments/11');
+    assert.match(dialog.textContent, /site\.png · Peer Person · 1 of 2/);
+    assert.equal(dialog.querySelector('.is-previous').hidden, true);
+
+    dialog.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    assert.equal(img.getAttribute('src'), '/api/chat/attachments/12');
+    assert.match(dialog.textContent, /plan\.png · .* · 2 of 2/);
+    assert.equal(dialog.querySelector('.is-next').hidden, true);
+    assert.equal(dialog.querySelector('a[download]').getAttribute('download'), 'plan.png');
+
+    dialog.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(window.document.querySelector('.pm-chat-viewer'), null);
+    assert.equal(window.document.activeElement.dataset.focusKey, 'thumb:12', 'back on the image last shown');
+
+    // Ctrl+click keeps the browser's own behaviour (a new tab).
+    const ctrl = new window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ctrlKey: true });
+    win.log.querySelector('[data-focus-key="thumb:11"]').dispatchEvent(ctrl);
+    assert.equal(ctrl.defaultPrevented, false);
+    assert.equal(window.document.querySelector('.pm-chat-viewer'), null);
   } finally {
     window.close();
   }

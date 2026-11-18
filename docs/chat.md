@@ -37,8 +37,9 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   message text). As many windows open as fit beside the buddy list; on a phone, one window
   fills the width. When a new window needs room, the oldest window the person is not busy in
   closes first (busy = something typed, a message still sending or failed, or keyboard focus).
-  A closed window's draft and failed messages come back when the conversation is reopened in
-  the same page (kept in memory only, never in browser storage).
+  A closed window's draft, failed messages and messages still sending come back when the
+  conversation is reopened in the same page (kept in memory only, never in browser storage): a
+  send that fails after its window closed shows there with Retry, so its text is not lost.
 - A message to someone with no open window **pops that window open**, with a "New message"
   highlight, unless every window on screen is busy: then it waits in the unread count, with
   the chime and title flash, instead of pushing a window aside. A conversation counts as read
@@ -137,8 +138,25 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   `.xlsx`, `.pptx`, `.jpg`/`.png`/`.webp`, `.txt`/`.csv`, checked by content as well as name, at
   most 100 MB each. Each person may keep 1 GB of sent files; removing a file from one of your
   messages (Remove, then Remove? within five seconds) or unsending the message frees the space.
-  Images show as thumbnails that open the full image; other files show as cards that download
-  them. There is no malware scanning (owner decision).
+  Images show as thumbnails; other files show as cards that download them. There is no malware
+  scanning (owner decision).
+  - **Drag and drop**: files dropped anywhere on a chat window (or the conversation on the
+    Messages page) are attached, with a "Drop files to attach" overlay while dragging. Files
+    dropped on a person or group in the contact list open that conversation with them attached
+    (not for inactive accounts). A dropped folder is left out, with a note to drop its files.
+  - **Paste**: Ctrl+V of a screenshot (or of files copied in Windows Explorer, in browsers that
+    offer them) attaches it; a screenshot is named for when it was taken
+    ("Screenshot 18 Nov 2026 14.32.png"). A paste that carries text (from Word or a web page)
+    pastes the text.
+  - **Checked before uploading**: a file of a type chat does not take, an empty file or one over
+    the size limit shows why at once, with Remove (no Retry); the server checks everything
+    again. Images waiting to be sent show a small preview.
+  - An upload that makes no progress for a minute (or gets no answer within three minutes of
+    its last byte) stops and offers Retry instead of holding up the message.
+  - **Image viewer**: a click on an image thumbnail opens it full size over the page, with the
+    file name and sender, ← → (and buttons) through the conversation's other images, Download,
+    Open in new tab, and Esc or the backdrop to close; focus returns to the thumbnail of the
+    image last shown. Ctrl/Shift/middle click opens the image in a new tab as before.
 - **My files** (`/Chat?view=files`, the "My files" button on the Messages page): the files you
   sent, with how much of your allowance they use; sort by date or size; tick files and
   "Remove selected", or "Remove" everything older than 30, 90, 180 days or a year (each asks for
@@ -157,7 +175,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - **Focus survives updates.** The contact list, the Messages page list and conversation logs
   are redrawn whole on every presence, unread or read-tick change. Every control that can hold
   focus there carries `data-focus-key` (`contact:{id}`, `group:{id}`, `conv:{key}`,
-  `retry:{clientMessageId}`, `unsend:{id}`, and the people panel's controls), and the redraw puts
+  `retry:{clientMessageId}`, `unsend:{id}`, `thumb:{attachmentId}`, and the people panel's controls), and the redraw puts
   focus back on the same control. If it is gone (sent after Retry, Unsend expired), focus goes
   to the message box instead of falling out of the window.
 - **Focus returns** where it came from: closing a window or the contact list goes back to the
@@ -171,6 +189,9 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   is in that conversation, otherwise "New message from …"), including messages fetched by
   polling or catch-up while the live connection was down ("3 new messages from …"), a message
   that could not be sent, group-change errors, and how many messages a search found. Window status lines only change their text when it really changes.
+- The image viewer is a modal dialog (`aria-modal`, labelled by its caption): focus starts on
+  Close, Tab stays inside it, Esc closes it. The drop overlay is decorative (`aria-hidden`);
+  dropping is a shortcut for the attach button, which stays the keyboard route.
 - Inactive people are shown with a muted name and faded avatar, not a faded row, so their text
   keeps its contrast; the row says "Inactive account".
 
@@ -233,7 +254,9 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   `EventKind` and empty body. Leaving or removal deletes the `ChatParticipants` row.
 - **Previews** (`GET /api/chat/previews?link=…&link=…`, at most 10 links, each a path with
   its query, including the path base): `Services/Chat/ChatLinkPreviewService.cs` recognises
-  the record pages above and builds a card for each record the caller may open; the rest are
+  the record pages above and builds a card for each record the caller may open (for repository
+  documents the same readable rule as the Reader page, `DocRepoAccess`: deleted ones never,
+  inactive ones only for those allowed to view inactive documents); the rest are
   left out of the answer. The browser asks once per link per page, in batches, and keeps the
   answer (card or none) for the page's lifetime. Previews read records directly and never go
   through the record pages, so opening a card's record is what records a view (for example an
@@ -260,6 +283,15 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   `before={id}` = page ending before that id (`hasMore`, plus `hasNewer` when it ends short of
   the latest); `after={id}` = page starting after that id. Every page carries
   `peerLastReadMessageId` for the ticks.
+- **Catching up** after a drop (or on the 30-second refresh) starts from the newest message
+  the window received as history (`contiguousId` in `chat/conversation.js`), not the newest it
+  shows: a message pushed or returned by a send can be newer than messages missed while the
+  connection was down, and starting from it would skip them.
+- **Unread counts** are changed live by pushes and reads, and replaced by each contacts or
+  groups list from the server. A list requested before a live change to a conversation is
+  older than that change, so the page keeps its own count for that conversation
+  (`touchUnread` / `keepLiveUnread`). A read that the server did not store asks for the real
+  count again.
 - **Direct conversations are unique per pair.** `ChatConversations.DirectKey` is the two user
   ids in ordinal order joined by `|`, with a unique index; a race to create the first
   conversation resolves to the winner.
@@ -341,6 +373,14 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   messages from before they joined, and the new rate limits apply. A new page talking to an
   old server while chat is switched off sees plain 404s (no `X-Chat-Disabled` header) and
   shows errors instead of hiding chat until it is reloaded.
+
+- The chat UX update of 2026-11-18 (drag and drop, paste, image viewer, early file checks, and
+  fixes for unread counts, catch-up and closed windows) changes only the browser scripts, the
+  chat stylesheet and two server checks (link previews of inactive repository documents;
+  thumbnails made at most two at a time). No migration, setting or route changes; a page
+  already open keeps its old scripts until it is reloaded. Repository-document links that
+  showed a card for an inactive document to someone not allowed to view inactive documents no
+  longer do.
 
 ## Not yet built
 

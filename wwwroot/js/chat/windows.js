@@ -72,10 +72,12 @@
     win.node.remove();
     if (win.typingTimer) global.clearTimeout(win.typingTimer);
     if (win.unsendTimer) global.clearTimeout(win.unsendTimer);
-    // Failed messages are kept with the draft; ones still sending are stored on the server and
-    // come back with the history. Files waiting to be sent (chat/files.js) are kept too: they
-    // are uploaded already and count against the sender's allowance.
-    const unsent = win.messages.filter((m) => !m.id && m.failed);
+    // Messages not yet stored are kept with the draft: failed ones for Retry, and ones still
+    // sending, whose result reaches the same object (a failure then shows with Retry when the
+    // conversation is reopened; a success merges away with the stored copy on reload). Files
+    // waiting to be sent (chat/files.js) are kept too: they are uploaded already and count
+    // against the sender's allowance.
+    const unsent = win.messages.filter((m) => !m.id);
     const pending = win.pending || [];
     if (win.input.value.trim() || unsent.length || pending.length) {
       this.kept.set(peerId, { draft: win.input.value, unsent, pending });

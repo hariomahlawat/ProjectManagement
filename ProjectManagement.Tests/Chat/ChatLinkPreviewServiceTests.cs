@@ -24,6 +24,8 @@ public sealed class ChatLinkPreviewServiceTests
 {
     private static readonly Guid RepoDocId = Guid.Parse("6f9619ff-8b86-d011-b42d-00c04fc964ff");
     private static readonly Guid DeletedRepoDocId = Guid.Parse("7f9619ff-8b86-d011-b42d-00c04fc964ff");
+    private static readonly Guid InactiveRepoDocId = Guid.Parse("8f9619ff-8b86-d011-b42d-00c04fc964ff");
+    private const string InactiveViewerRole = "InactiveViewer";
 
     [Theory]
     [InlineData("/Projects/Overview/12", "project", "12")]
@@ -148,6 +150,19 @@ public sealed class ChatLinkPreviewServiceTests
     }
 
     [Fact]
+    public async Task RepositoryDocument_Inactive_OnlyForThoseWhoMayViewInactiveDocuments()
+    {
+        await using var scope = await PreviewScope.CreateAsync();
+        var links = new[] { $"/DocumentRepository/Documents/Reader/{InactiveRepoDocId}" };
+
+        // Like the Reader page, which answers 404: no card, nothing that says it exists.
+        Assert.Empty(await scope.Previews.PreviewAsync(User("alice"), links, PathString.Empty));
+
+        var card = Assert.Single(await scope.Previews.PreviewAsync(User("dan", InactiveViewerRole), links, PathString.Empty));
+        Assert.Equal("Superseded order", card.Title);
+    }
+
+    [Fact]
     public async Task NobodySignedIn_GetsNothing_AndRequestsAreCapped()
     {
         await using var scope = await PreviewScope.CreateAsync();
@@ -196,13 +211,14 @@ public sealed class ChatLinkPreviewServiceTests
             await db.Database.EnsureCreatedAsync();
             await SeedAsync(db);
 
-            // The same two policies as Program.cs (the endpoint tests use the app's own).
+            // The policies Program.cs defines, with simpler roles (the endpoint tests use the app's own).
             var services = new ServiceCollection()
                 .AddLogging()
                 .AddAuthorizationCore(options =>
                 {
                     options.AddPolicy(Policies.ActionTracker.Access, policy => policy.RequireRole(Policies.ActionTracker.AccessAllowedRoles));
                     options.AddPolicy(Policies.Documents.View, policy => policy.RequireAuthenticatedUser());
+                    options.AddPolicy(Policies.Documents.ViewInactive, policy => policy.RequireRole(InactiveViewerRole));
                 })
                 .BuildServiceProvider();
             return new PreviewScope(connection, db, services);
@@ -260,12 +276,14 @@ public sealed class ChatLinkPreviewServiceTests
                 Id = id, Subject = subject, OfficeCategoryId = 901, DocumentCategoryId = 902, OriginalFileName = "r.pdf",
                 Sha256 = id.ToString("N") + id.ToString("N"), StoragePath = $"r/{id}", CreatedByUserId = "alice", CreatedAtUtc = DateTime.UtcNow, IsDeleted = deleted,
             };
-            db.Documents.AddRange(Repo(RepoDocId, "Monthly returns", false), Repo(DeletedRepoDocId, "Shredded", true));
+            db.Documents.AddRange(Repo(RepoDocId, "Monthly returns", false), Repo(DeletedRepoDocId, "Shredded", true), Repo(InactiveRepoDocId, "Superseded order", false));
 
             await db.SaveChangesAsync();
 
             // The project and its cover photo point at each other: the cover is set second.
             (await db.Projects.SingleAsync(p => p.Id == 1)).CoverPhotoId = 10;
+            // IsActive has a database default of true, so false is written as an update.
+            (await db.Documents.SingleAsync(d => d.Id == InactiveRepoDocId)).IsActive = false;
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
         }

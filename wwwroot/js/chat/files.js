@@ -19,6 +19,11 @@
   } = global.PMChatParts;
 
   const ACCEPT = '.pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png,.webp,.txt,.csv';
+  // An upload that makes no progress for this long has stalled (a dropped connection the
+  // browser has not noticed); after the last byte, the server checks the file (and makes a
+  // thumbnail), which gets longer. Either way the file shows Retry instead of hanging.
+  const STALL_MS = 60000;
+  const CHECK_MS = 180000;
 
   /** What a removed file says in the conversation, by who or what removed it. */
   function removedText(reason) {
@@ -51,6 +56,81 @@
   }
 
   global.PMChatParts.formatSize = formatSize;
+
+  const ALLOWED = ACCEPT.split(',');
+
+  function releasePreview(item) {
+    if (item.preview && global.URL && typeof global.URL.revokeObjectURL === 'function') {
+      global.URL.revokeObjectURL(item.preview);
+    }
+    item.preview = null;
+  }
+  const REFUSED_TYPE = 'Only PDF, Word, Excel, PowerPoint, images (.jpg, .png, .webp), text and CSV files can be sent.';
+
+  /** Why a file cannot be sent, checked before uploading (the server checks again), or null. */
+  function refusal(file, maxBytes) {
+    const name = (file.name || '').toLowerCase();
+    const dot = name.lastIndexOf('.');
+    if (dot < 0 || !ALLOWED.includes(name.slice(dot))) return REFUSED_TYPE;
+    if (file.size === 0) return 'The file is empty.';
+    if (file.size > maxBytes) return `Larger than ${formatSize(maxBytes)}.`;
+    return null;
+  }
+
+  const shotFormat = new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata',
+  });
+
+  /**
+   * A pasted screenshot arrives as "image.png" (or with no name): give it one that says what it
+   * is and when, e.g. "Screenshot 18 Nov 2026 14.32.png". Named files keep their names.
+   */
+  function namePasted(file, now) {
+    const name = file.name || '';
+    const generic = !name || /^image\.(png|jpe?g|webp)$/i.test(name);
+    if (!generic || !/^image\/(png|jpeg|webp)$/.test(file.type || '')) return file;
+    const extension = file.type === 'image/jpeg' ? 'jpg' : file.type.slice('image/'.length);
+    const stamp = shotFormat.format(now || new Date()).replace(',', '').replace(':', '.');
+    try {
+      return new global.File([file], `Screenshot ${stamp}.${extension}`, { type: file.type, lastModified: file.lastModified });
+    } catch (_) {
+      return file; // a browser without the File constructor: the server accepts "image.png" too
+    }
+  }
+
+  /** Whether a drag carries files (not text or a link being dragged around the page). */
+  function carriesFiles(event) {
+    const types = event.dataTransfer && event.dataTransfer.types;
+    return !!types && Array.prototype.indexOf.call(types, 'Files') >= 0;
+  }
+
+  /**
+   * The files of a drop. Folders cannot be sent: the browser offers one as a file without a
+   * type, which reading would fail on, so they are counted and left out.
+   */
+  function droppedFiles(dataTransfer) {
+    const files = [];
+    let folders = 0;
+    const items = dataTransfer.items ? Array.from(dataTransfer.items) : [];
+    if (items.length && items.some((item) => typeof item.webkitGetAsEntry === 'function')) {
+      for (const item of items) {
+        if (item.kind !== 'file') continue;
+        const entry = item.webkitGetAsEntry();
+        if (entry && entry.isDirectory) {
+          folders += 1;
+          continue;
+        }
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    } else {
+      files.push(...Array.from(dataTransfer.files || []));
+    }
+    return { files, folders };
+  }
+
+  global.PMChatParts.namePasted = namePasted;
+  global.PMChatParts.fileRefusal = refusal;
 
   // ----- composing --------------------------------------------------------------------------
 
@@ -85,6 +165,116 @@
     win.form.append(picker);
     win.node.insertBefore(list, win.form);
     win.node.insertBefore(note, win.form);
+
+    // Paste: a screenshot or files copied in Explorer are attached; text pastes as text.
+    win.input.addEventListener('paste', (event) => {
+      const clip = event.clipboardData;
+      const files = clip ? Array.from(clip.files || []) : [];
+      if (!files.length || win.form.hidden) return;
+      // Copying from Word or a web page carries text and a picture of it: that is a text paste.
+      if (clip.getData && clip.getData('text/plain')) return;
+      event.preventDefault();
+      const now = new Date();
+      this.addFiles(win, files.map((file) => namePasted(file, now)));
+    });
+
+    this.bindDrop(win.node, () => (win.form.hidden ? null : win), win);
+  };
+
+  /**
+   * Dropping files on `zone` attaches them to the conversation `target()` names (null: not
+   * now, e.g. a deactivated contact). `win` (when given) shows the "Drop to attach" overlay.
+   */
+  ChatApp.prototype.bindDrop = function (zone, target, win) {
+    let depth = 0; // dragenter/leave fire for every child crossed; count to know when it left
+    const overlay = win ? el('div', 'pm-chat__drop') : null;
+    if (overlay) {
+      overlay.setAttribute('aria-hidden', 'true');
+      overlay.append(icon('cloud-arrow-up'), el('span', null, 'Drop files to attach'));
+      overlay.hidden = true;
+      zone.append(overlay);
+    }
+    const show = (on) => {
+      if (overlay) overlay.hidden = !on;
+      zone.classList.toggle('is-dropping', on);
+    };
+    zone.addEventListener('dragenter', (event) => {
+      if (!carriesFiles(event) || !target(event)) return;
+      event.preventDefault();
+      depth += 1;
+      show(true);
+    });
+    zone.addEventListener('dragover', (event) => {
+      if (!carriesFiles(event) || !target(event)) return;
+      event.preventDefault(); // without this the browser opens the file instead of dropping it
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    });
+    zone.addEventListener('dragleave', () => {
+      depth = Math.max(0, depth - 1);
+      if (!depth) show(false);
+    });
+    zone.addEventListener('drop', (event) => {
+      depth = 0;
+      show(false);
+      const into = carriesFiles(event) ? target(event) : null;
+      if (!into) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const { files, folders } = droppedFiles(event.dataTransfer);
+      const destination = typeof into === 'function' ? into() : into;
+      if (!destination) return;
+      if (files.length) this.addFiles(destination, files);
+      if (folders) {
+        this.composeNote(destination, 'Folders cannot be sent. Open the folder and drop the files themselves.');
+      }
+      if (!destination.minimized) destination.input.focus({ preventScroll: true });
+    });
+  };
+
+  /**
+   * Files dropped on a person or group in the contact list open that conversation with them
+   * attached (people with inactive accounts cannot be sent anything).
+   */
+  ChatApp.prototype.bindContactDrop = function (container) {
+    if (!this.attachments.enabled || !container) return;
+    const keyAt = (event) => {
+      const button = event.target && event.target.closest ? event.target.closest('[data-focus-key]') : null;
+      const focusKey = button ? button.dataset.focusKey : '';
+      if (focusKey.startsWith('group:')) return `g:${focusKey.slice('group:'.length)}`;
+      if (!focusKey.startsWith('contact:')) return null;
+      const contact = this.contacts.get(focusKey.slice('contact:'.length));
+      return contact && contact.isActive ? contact.userId : null;
+    };
+    let marked = null;
+    const mark = (button) => {
+      if (marked && marked !== button) marked.classList.remove('is-drop-target');
+      marked = button;
+      if (button) button.classList.add('is-drop-target');
+    };
+    container.addEventListener('dragover', (event) => {
+      const key = carriesFiles(event) ? keyAt(event) : null;
+      if (!key) {
+        mark(null);
+        return;
+      }
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+      mark(event.target.closest('[data-focus-key]'));
+    });
+    container.addEventListener('dragleave', (event) => {
+      if (!container.contains(event.relatedTarget)) mark(null);
+    });
+    container.addEventListener('drop', (event) => {
+      mark(null);
+      const key = carriesFiles(event) ? keyAt(event) : null;
+      if (!key) return;
+      event.preventDefault();
+      const { files, folders } = droppedFiles(event.dataTransfer);
+      const win = this.openWindow(key, { focus: true });
+      if (!win || !win.pendingList || win.form.hidden) return;
+      if (files.length) this.addFiles(win, files);
+      if (folders) this.composeNote(win, 'Folders cannot be sent. Open the folder and drop the files themselves.');
+    });
   };
 
   ChatApp.prototype.addFiles = function (win, files) {
@@ -94,11 +284,17 @@
         note = `A message can carry at most ${this.attachments.maxFiles} files.`;
         break;
       }
-      const item = { key: newClientId(), file, name: file.name, size: file.size, progress: 0, xhr: null, attachment: null, error: null };
+      const item = { key: newClientId(), file, name: file.name, size: file.size, progress: 0, xhr: null, attachment: null, error: null, refused: false, preview: null };
       win.pending.push(item);
-      if (file.size > this.attachments.maxBytes) {
-        item.error = `Larger than ${formatSize(this.attachments.maxBytes)}.`;
+      const refused = refusal(file, this.attachments.maxBytes);
+      if (refused) {
+        // Not uploaded at all: no Retry, only Remove.
+        item.error = refused;
+        item.refused = true;
       } else {
+        if (/^image\/(png|jpeg|webp)$/.test(file.type || '') && global.URL && typeof global.URL.createObjectURL === 'function') {
+          item.preview = global.URL.createObjectURL(file); // shown while it waits; released when it goes
+        }
         this.uploadFile(win, item);
       }
     }
@@ -118,13 +314,38 @@
     const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     if (token) xhr.setRequestHeader('X-CSRF-TOKEN', token);
     xhr.setRequestHeader('Accept', 'application/json');
+    const stop = () => {
+      if (item.stallTimer) global.clearTimeout(item.stallTimer);
+      item.stallTimer = null;
+    };
+    const watch = (ms) => {
+      stop();
+      item.stallTimer = global.setTimeout(() => {
+        item.stallTimer = null;
+        if (item.xhr !== xhr) return;
+        item.stalled = true;
+        xhr.abort();
+      }, ms);
+    };
     xhr.upload.onprogress = (event) => {
+      watch(STALL_MS);
       if (event.lengthComputable) {
         item.progress = event.loaded / event.total;
         this.renderPending(view());
       }
     };
+    xhr.upload.onload = () => watch(CHECK_MS);
+    xhr.onabort = () => {
+      stop();
+      if (!item.stalled || item.xhr !== xhr) return; // Cancel: the item is already gone
+      item.stalled = false;
+      item.xhr = null;
+      item.error = 'The upload stopped. Check the connection and try again.';
+      this.announce(`${item.name} not sent. ${item.error}`);
+      this.renderPending(view());
+    };
     xhr.onload = () => {
+      stop();
       item.xhr = null;
       let body = null;
       try {
@@ -142,12 +363,15 @@
       this.renderPending(view());
     };
     xhr.onerror = () => {
+      stop();
       item.xhr = null;
       item.error = 'The file could not be uploaded. Check the connection and try again.';
       this.renderPending(view());
     };
     const data = new global.FormData();
     data.append('file', item.file, item.name);
+    item.stalled = false;
+    watch(STALL_MS);
     xhr.send(data);
     this.renderPending(view());
   };
@@ -159,6 +383,7 @@
       this.request('POST', `/attachments/${item.attachment.id}/remove`, {}).catch(() => {});
     }
     win.pending = win.pending.filter((p) => p !== item);
+    releasePreview(item);
     win.pendingNote.textContent = '';
     this.renderPending(win);
     win.input.focus();
@@ -170,7 +395,14 @@
     list.hidden = win.pending.length === 0;
     list.replaceChildren(...win.pending.map((item) => {
       const row = el('li', `pm-chat__pending-item${item.error ? ' is-failed' : ''}`);
-      row.append(icon('file-earmark'));
+      if (item.preview) {
+        const image = el('img', 'pm-chat__pending-thumb');
+        image.src = item.preview;
+        image.alt = '';
+        row.append(image);
+      } else {
+        row.append(icon(item.refused ? 'file-earmark-x' : 'file-earmark'));
+      }
       const text = el('span', 'pm-chat__pending-text');
       text.append(el('span', 'pm-chat__pending-name', item.name));
       let status;
@@ -179,7 +411,7 @@
       else status = formatSize(item.size);
       text.append(el('span', 'pm-chat__pending-status', status));
       row.append(text);
-      if (item.error && item.size <= this.attachments.maxBytes) {
+      if (item.error && !item.refused) {
         const retry = el('button', 'btn btn-link btn-sm p-0', 'Retry');
         retry.type = 'button';
         retry.setAttribute('aria-label', `Retry ${item.name}`);
@@ -208,7 +440,11 @@
   /** After a send: the files that went with it leave the list. */
   ChatApp.prototype.clearSentFiles = function (win, sent) {
     const ids = new Set(sent.map((a) => a.id));
-    win.pending = (win.pending || []).filter((p) => !(p.attachment && ids.has(p.attachment.id)));
+    win.pending = (win.pending || []).filter((p) => {
+      const gone = p.attachment && ids.has(p.attachment.id);
+      if (gone) releasePreview(p);
+      return !gone;
+    });
     if (win.pendingNote) win.pendingNote.textContent = '';
     this.renderPending(win);
   };
@@ -241,6 +477,7 @@
         link.target = '_blank';
         link.rel = 'noopener';
         link.setAttribute('aria-label', `Open image ${file.fileName}`);
+        link.dataset.focusKey = `thumb:${file.id}`;
         const image = el('img');
         image.src = this.attachmentUrl(file, true);
         image.alt = file.fileName;
@@ -250,6 +487,12 @@
           image.height = Math.round(image.width * (file.height / file.width));
         }
         link.append(image);
+        // A plain click opens the viewer; Ctrl/Shift/middle click still opens a new tab.
+        link.addEventListener('click', (event) => {
+          if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          this.openViewer(win, file.id, link);
+        });
         wrap.append(link);
       } else {
         const card = el('a', 'pm-chat__file-card');
@@ -513,5 +756,133 @@
     const panel = { node, refresh };
     this.filesPanelOpen = panel;
     return panel;
+  };
+  // ----- image viewer ---------------------------------------------------------------------
+
+  /** The images of a conversation that can still be opened, oldest first. */
+  ChatApp.prototype.viewerImages = function (win) {
+    const images = [];
+    for (const message of win.messages) {
+      if (message.isUnsent || !message.id) continue;
+      for (const file of message.attachments || []) {
+        if (file.isImage && !file.isRemoved) images.push({ file, message });
+      }
+    }
+    return images;
+  };
+
+  /**
+   * Shows an image of the conversation full size, over the page: arrows (or ← →) step through
+   * the conversation's other images, Download and "Open in new tab" offer the original, Esc or
+   * the backdrop closes it and focus returns to the thumbnail that opened it.
+   */
+  ChatApp.prototype.openViewer = function (win, attachmentId, opener) {
+    const images = this.viewerImages(win);
+    let index = images.findIndex((entry) => entry.file.id === attachmentId);
+    if (index < 0) return;
+    this.closeViewer();
+
+    const dialog = el('div', 'pm-chat-viewer');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    const caption = el('p', 'pm-chat-viewer__caption');
+    caption.id = `pm-chat-viewer-caption-${newClientId()}`;
+    dialog.setAttribute('aria-labelledby', caption.id);
+    const figure = el('div', 'pm-chat-viewer__stage');
+    const image = el('img', 'pm-chat-viewer__image');
+    const missing = el('p', 'pm-chat-viewer__missing', 'This image is no longer available. It may have been removed.');
+    missing.hidden = true;
+    image.addEventListener('error', () => {
+      image.hidden = true;
+      missing.hidden = false;
+    });
+    figure.append(image, missing);
+
+    const previous = iconButton('chevron-left', 'Previous image', 'pm-chat-viewer__nav is-previous');
+    const next = iconButton('chevron-right', 'Next image', 'pm-chat-viewer__nav is-next');
+    const download = el('a', 'pm-chat-viewer__action');
+    download.append(icon('download'), el('span', null, 'Download'));
+    const open = el('a', 'pm-chat-viewer__action');
+    open.target = '_blank';
+    open.rel = 'noopener';
+    open.append(icon('box-arrow-up-right'), el('span', null, 'Open in new tab'));
+    const close = iconButton('x-lg', 'Close image', 'pm-chat-viewer__close');
+    const bar = el('div', 'pm-chat-viewer__bar');
+    bar.append(caption, download, open, close);
+    dialog.append(bar, figure, previous, next);
+
+    const show = () => {
+      const { file, message } = images[index];
+      image.hidden = false;
+      missing.hidden = true;
+      image.src = this.attachmentUrl(file, false);
+      image.alt = file.fileName;
+      const who = this.nameOf(message.senderUserId, win);
+      const position = images.length > 1 ? ` · ${index + 1} of ${images.length}` : '';
+      caption.textContent = `${file.fileName} · ${who}${position}`;
+      download.href = this.attachmentUrl(file, false);
+      download.setAttribute('download', file.fileName);
+      download.setAttribute('aria-label', `Download ${file.fileName}`);
+      open.href = this.attachmentUrl(file, false);
+      open.setAttribute('aria-label', `Open ${file.fileName} in a new tab`);
+      previous.hidden = index === 0;
+      next.hidden = index === images.length - 1;
+    };
+    const step = (by) => {
+      const to = index + by;
+      if (to < 0 || to >= images.length) return;
+      index = to;
+      show();
+    };
+    previous.addEventListener('click', () => step(-1));
+    next.addEventListener('click', () => step(1));
+    close.addEventListener('click', () => this.closeViewer());
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog || event.target === figure) this.closeViewer();
+    });
+    dialog.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation(); // not also the window's Esc (minimise)
+        this.closeViewer();
+      } else if (event.key === 'ArrowLeft') {
+        step(-1);
+      } else if (event.key === 'ArrowRight') {
+        step(1);
+      } else if (event.key === 'Tab') {
+        // Keep focus inside while it is open (aria-modal).
+        const stops = Array.from(dialog.querySelectorAll('a[href], button')).filter((node) => !node.hidden);
+        if (!stops.length) return;
+        const first = stops[0];
+        const last = stops[stops.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    });
+
+    show();
+    document.body.append(dialog);
+    this.viewer = { dialog, opener, win, current: () => images[index].file.id };
+    close.focus();
+  };
+
+  ChatApp.prototype.closeViewer = function () {
+    const viewer = this.viewer;
+    if (!viewer) return;
+    this.viewer = null;
+    viewer.dialog.remove();
+    // Back to the thumbnail of the image last shown (the log may have been redrawn meanwhile,
+    // replacing the one that opened the viewer), else the one that opened it.
+    const shown = viewer.win && viewer.win.log
+      ? viewer.win.log.querySelector(`[data-focus-key="thumb:${viewer.current()}"]`)
+      : null;
+    const opener = shown || (viewer.opener && viewer.opener.isConnected ? viewer.opener : null);
+    if (opener) opener.focus({ preventScroll: true });
+    else if (viewer.win && !viewer.win.form.hidden) viewer.win.input.focus({ preventScroll: true });
   };
 })(window);

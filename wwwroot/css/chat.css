@@ -1401,6 +1401,158 @@
     }
 }
 
+/* ---------- Drag and drop, paste and the image viewer (chat/files.js) ---------- */
+.pm-chat__window {
+    position: relative; /* holds the drop overlay */
+}
+
+.pm-chat__drop {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--pm-primary);
+    border-radius: inherit;
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+    font-weight: 600;
+    pointer-events: none; /* the drop lands on the window underneath */
+}
+
+.pm-chat__drop[hidden] {
+    display: none;
+}
+
+.pm-chat__drop .bi {
+    font-size: 1.75rem;
+}
+
+.pm-chat__contact.is-drop-target {
+    outline: 2px dashed var(--pm-primary);
+    outline-offset: -2px;
+    background: var(--pm-primary-soft);
+}
+
+.pm-chat__pending-thumb {
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    border-radius: .3rem;
+    object-fit: cover;
+}
+
+.pm-chat__thumb {
+    cursor: zoom-in;
+}
+
+.pm-chat-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 1060; /* above the chat dock and Bootstrap modals */
+    display: flex;
+    flex-direction: column;
+    /* Dark in Light and Dark alike, like a photo viewer (the library's hero tokens). */
+    background: var(--pm-library-hero);
+    color: var(--pm-library-hero-ink);
+}
+
+.pm-chat-viewer__bar {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    padding: .5rem .75rem;
+}
+
+.pm-chat-viewer__caption {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .9rem;
+}
+
+.pm-chat-viewer__action,
+.pm-chat-viewer .pm-chat__icon-btn {
+    display: inline-flex;
+    gap: .35rem;
+    align-items: center;
+    padding: .35rem .6rem;
+    border: 1px solid currentColor;
+    border-radius: .4rem;
+    background: transparent;
+    color: inherit;
+    font-size: .85rem;
+    text-decoration: none;
+}
+
+.pm-chat-viewer__action:hover,
+.pm-chat-viewer__action:focus-visible,
+.pm-chat-viewer .pm-chat__icon-btn:hover,
+.pm-chat-viewer .pm-chat__icon-btn:focus-visible {
+    background: var(--pm-library-hero-2);
+    color: inherit;
+}
+
+.pm-chat-viewer__stage {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 0 3.5rem 1rem;
+}
+
+.pm-chat-viewer__image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: .25rem;
+    background: var(--pm-library-hero-ink); /* transparent images on white, as in the chat */
+}
+
+.pm-chat-viewer__image[hidden],
+.pm-chat-viewer__missing[hidden],
+.pm-chat-viewer__nav[hidden] {
+    display: none;
+}
+
+.pm-chat-viewer__nav {
+    position: absolute;
+    top: 50%;
+    font-size: 1.25rem;
+    transform: translateY(-50%);
+}
+
+.pm-chat-viewer__nav.is-previous {
+    left: .75rem;
+}
+
+.pm-chat-viewer__nav.is-next {
+    right: .75rem;
+}
+
+@media (max-width: 575.98px) {
+    .pm-chat-viewer__action span {
+        display: none; /* icons only on a phone; each keeps its aria-label */
+    }
+
+    .pm-chat-viewer__stage {
+        padding: 0 .5rem 1rem;
+    }
+
+    .pm-chat-viewer__nav {
+        top: auto;
+        bottom: 1rem;
+        transform: none;
+    }
+}
+
 /* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
 /* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
    Each value here is what the color-mix() in the rule above it produces, worked out for Light

@@ -65,10 +65,14 @@
         win.attention = true;
       }
       this.renderWindowState(win);
-      if (fresh && counter) counter.unreadCount += 1;
+      if (fresh && counter) {
+        counter.unreadCount += 1;
+        this.touchUnread(key);
+      }
       this.maybeMarkRead(win);
     } else if (countable && counter) {
       counter.unreadCount += 1;
+      this.touchUnread(key);
     }
 
     if (fresh && !muted && !(win && this.isAttended(win))) {
@@ -147,6 +151,7 @@
       contact.unreadCount = win
         ? win.messages.filter((m) => m.id && m.senderUserId !== this.me && m.id > win.lastReadId).length
         : 0;
+      this.touchUnread(read.peerUserId);
     }
     this.renderContacts();
     // Read in another tab: nothing left to call attention to here.
@@ -256,8 +261,10 @@
   ChatApp.prototype.loadGroups = async function () {
     if (this.stopped) return;
     try {
+      const since = this.unreadSeq;
       const groups = await this.request('GET', '/groups');
-      this.groups = new Map(groups.map((g) => [g.id, g]));
+      const previous = this.groups;
+      this.groups = new Map(groups.map((g) => [g.id, this.keepLiveUnread(g, groupKey(g.id), previous.get(g.id), since)]));
       this.windows.forEach((w) => {
         if (!w.groupId) return;
         const g = this.groups.get(w.groupId);
@@ -327,6 +334,7 @@
         group.unreadCount = win
           ? win.messages.filter((m) => m.id && m.senderUserId !== this.me && !m.eventKind && m.id > win.lastReadId).length
           : 0;
+        this.touchUnread(groupKey(read.groupId));
       }
       this.renderContacts();
       if (this.unreadTotal() === 0) this.title.stop();

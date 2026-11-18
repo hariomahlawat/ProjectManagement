@@ -73,6 +73,24 @@
       && win.node.contains(document.activeElement);
   };
 
+  /** A live change to a conversation's unread count (see unreadTouched in chat/app.js). */
+  ChatApp.prototype.touchUnread = function (key) {
+    this.unreadSeq += 1;
+    this.unreadTouched.set(key, this.unreadSeq);
+  };
+
+  /**
+   * A contact or group from a list requested when unreadSeq was `since`: if this tab changed
+   * that conversation's unread count after the request went out, the list's count is older than
+   * what is on screen, so the tab's own count stays.
+   */
+  ChatApp.prototype.keepLiveUnread = function (fresh, key, previous, since) {
+    if (previous && (this.unreadTouched.get(key) || 0) > since) {
+      fresh.unreadCount = previous.unreadCount;
+    }
+    return fresh;
+  };
+
   ChatApp.prototype.maybeMarkRead = function (win) {
     if (!this.isAttended(win)) return;
     const newest = newestId(win.messages, (m) => m.senderUserId !== this.me);
@@ -87,11 +105,15 @@
     const readPath = win.groupId ? `/groups/${win.groupId}/read` : `/with/${encodeURIComponent(win.peerId)}/read`;
     this.request('POST', readPath, { upToMessageId: newest })
       .then(() => { win.lastReadId = Math.max(win.lastReadId || 0, newest); })
-      .catch(() => {})
+      .catch(() => {
+        // The badge was cleared before the server stored the read: ask for the real count.
+        if (win.groupId) this.refreshGroups(); else this.refreshContacts();
+      })
       .finally(() => { if (win.readSending === newest) win.readSending = 0; });
     const counter = win.groupId ? this.groups.get(win.groupId) : this.contacts.get(win.peerId);
     if (counter && !win.hasNewer) {
       counter.unreadCount = 0;
+      this.touchUnread(win.peerId);
       this.renderContacts();
     }
   };
@@ -144,9 +166,15 @@
         win.messages = mergeMessages(win.messages, history.messages);
         win.hasMore = history.hasMore;
         win.historyLoaded = true;
+        win.contiguousId = newestId(history.messages);
         this.applyPeerRead(win, history);
       } else {
-        const knownMax = newestId(win.messages);
+        // Catch up from the newest message known to follow on without a gap: one fetched as
+        // history, not one pushed or returned by a send, which can be newer than messages
+        // missed while the connection was down.
+        const shownMax = newestId(win.messages);
+        const knownMax = win.contiguousId === undefined ? shownMax : Math.min(win.contiguousId, shownMax);
+        const shown = new Set(win.messages.filter((m) => m.id).map((m) => m.id));
         let peerRead = null;
         const result = await fetchSince(
           async (before) => {
@@ -164,10 +192,11 @@
           win.hasMore = true;
         }
         win.messages = mergeMessages(win.messages, result.messages);
+        win.contiguousId = Math.max(knownMax, newestId(result.messages));
         this.applyPeerRead(win, peerRead);
         // Fetched rather than pushed (polling while the live connection is down, or catching
         // up after it returns): the log is not a live region, so say what arrived.
-        this.announceFetched(win, result.messages.filter((m) => m.id > knownMax));
+        this.announceFetched(win, result.messages.filter((m) => m.id > knownMax && !shown.has(m.id)));
       }
       this.renderMessages(win, { stickToBottom: true, force: firstLoad });
       this.maybeMarkRead(win);
@@ -203,6 +232,7 @@
     win.heldLive = []; // the latest page about to load includes them
     win.messages = win.messages.filter((m) => !m.id);
     win.historyLoaded = false;
+    win.contiguousId = undefined;
     this.loadLatest(win);
   };
 
@@ -226,6 +256,7 @@
       win.messages = mergeMessages(win.messages.filter((m) => !m.id), history.messages);
       win.hasMore = history.hasMore;
       win.hasNewer = history.hasNewer;
+      win.contiguousId = win.hasNewer ? undefined : newestId(history.messages);
       if (!win.hasNewer && win.heldLive.length) {
         // The slice reaches the latest message: what arrived meanwhile follows it.
         win.messages = mergeMessages(win.messages, win.heldLive);
@@ -288,6 +319,7 @@
       if (seq !== win.loadSeq) return;
       win.messages = mergeMessages(win.messages, history.messages);
       win.hasNewer = history.hasNewer;
+      if (!win.hasNewer) win.contiguousId = newestId(history.messages) || newest;
       if (!win.hasNewer && win.heldLive.length) {
         // Caught up: add what arrived live while the slice was behind (duplicates merge away).
         win.messages = mergeMessages(win.messages, win.heldLive);
@@ -451,12 +483,20 @@
   };
 
   ChatApp.prototype.unsend = async function (win, message) {
+    // One request per message: a double click must not send a second, rate-limited one.
+    if (this.unsending.has(message.id)) return;
+    this.unsending.add(message.id);
     try {
       const result = await this.request('POST', `/messages/${message.id}/unsend`, {});
       this.applyUnsent(this.viewFor(win), result);
     } catch (error) {
-      message.unsendError = error.message;
-      this.renderMessages(this.viewFor(win), { stickToBottom: false });
+      // The message object may have been replaced by a refresh meanwhile: mark the current one.
+      const view = this.viewFor(win);
+      const current = view.messages.find((m) => m.id === message.id) || message;
+      current.unsendError = error.message;
+      this.renderMessages(view, { stickToBottom: false });
+    } finally {
+      this.unsending.delete(message.id);
     }
   };
 

@@ -106,6 +106,7 @@
     buddy.append(header, statusWrap, searchWrap, this.groupForm, scroller);
     this.buddy = buddy;
     this.newGroupButton = newGroup;
+    this.bindContactDrop(scroller); // chat/files.js: files dropped on a person or group (when attachments are on)
 
     // Esc steps back one level: clears the search, closes the New group form, then the list.
     buddy.addEventListener('keydown', (event) => {
@@ -218,13 +219,17 @@
 
   ChatApp.prototype.saveMyStatus = async function () {
     const text = this.statusInput.value.replace(/\s+/g, ' ').trim();
-    if (text === (this.myStatus || '')) return;
+    // Enter saves and then leaves the box, whose blur saves too: one request for the same text.
+    if (text === (this.myStatus || '') || text === this.statusSaving) return;
+    this.statusSaving = text;
     try {
       const status = await this.request('POST', '/status', { message: text });
       this.myStatus = (status && status.message) || null;
     } catch (_) {
       // Leave what was typed; the next blur or Enter tries again.
       return;
+    } finally {
+      if (this.statusSaving === text) this.statusSaving = null;
     }
     this.renderMyStatus();
   };
@@ -275,8 +280,10 @@
   ChatApp.prototype.loadContacts = async function () {
     if (this.stopped) return;
     try {
+      const since = this.unreadSeq;
       const contacts = await this.request('GET', '/contacts');
-      const fresh = new Map(contacts.map((c) => [c.userId, c]));
+      const previous = this.contacts;
+      const fresh = new Map(contacts.map((c) => [c.userId, this.keepLiveUnread(c, c.userId, previous.get(c.userId), since)]));
       this.contacts = fresh;
       this.renderContacts();
       this.refreshMemberPanels();
