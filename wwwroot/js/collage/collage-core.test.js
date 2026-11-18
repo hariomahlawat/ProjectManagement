@@ -1329,3 +1329,13 @@ test('a side keeps its photo layout through turning over and a draft', () => {
   const read = collage.readDraftModel(JSON.parse(JSON.stringify(collage.draftModel(over))), []);
   assert.deepEqual(read.back.layout?.key, 't2');
 });
+
+// The back's own page-level fields a newer PRISM wrote are kept through a save (PR 8).
+test('the back keeps its own newer fields through a read and a save', () => {
+  const raw = { version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, items: [],
+    back: { background: { type: 'color', value: '#ffffff' }, items: [], finishing: { foil: 'gold' } } };
+  const read = collage.readDraftModel(JSON.parse(JSON.stringify(raw)), []);
+  const saved = collage.draftModel(read);
+  assert.deepEqual(saved.back.finishing, { foil: 'gold' });
+  assert.deepEqual(collage.draftModel(collage.readDraftModel(JSON.parse(JSON.stringify(saved)), [])).back.finishing, { foil: 'gold' });
+});
