@@ -296,8 +296,7 @@
      * Puts `make(place)` where the chosen logo is (the first, or the second when it is chosen), or
      * where the design puts one. One Undo step.
      */
-    function setLogo(make, said) {
-      const role = targetRole();
+    function setLogo(make, said, role = targetRole()) {
       const current = state.collage.items.find((item) => item.role === role) || null;
       // A locked logo is not replaced: unlocked first, as everywhere else.
       if (current?.locked) { messages.sayLocked(); return; }
@@ -339,6 +338,8 @@
       // A card left (or another opened) while the picture is read gets nothing from it.
       const forCollage = state.collageSession;
       const stillOpen = () => forCollage === state.collageSession;
+      // The logo it was chosen for, kept while the picture is read.
+      const role = targetRole();
       let type = null;
       try { type = core.sniffImageType(new Uint8Array(await file.slice(0, 16).arrayBuffer())); } catch { type = null; }
       if (!stillOpen()) return;
@@ -346,9 +347,16 @@
         messages.showAlert('That file cannot be used as a logo. Choose a PNG, JPG or WEBP picture of at most 50 MB.');
         return;
       }
+      // A logo is a photo of the collage: the same limit on how many, and the same pixel budget.
+      const count = parts.photosInCollage();
+      if (count >= core.PHOTO_LIMITS.maxPhotos) {
+        messages.showAlert(`This collage has ${core.PHOTO_LIMITS.maxPhotos} photos, the most it can hold. Remove one from the photo tray first.`);
+        return;
+      }
+      parts.fitBudget(count + 1);
       let photo;
       try {
-        photo = await parts.readPhoto({ file, name: file.name || 'Logo' }, null, { count: doc.photos.size + 1 });
+        photo = await parts.readPhoto({ file, name: file.name || 'Logo' }, null, { count: count + 1 });
       } catch {
         if (stillOpen()) messages.showAlert('That picture could not be read. Try another file.');
         return;
@@ -356,7 +364,9 @@
       if (!stillOpen()) { window.PrismCollagePhotos.releasePhoto(photo); return; }
       doc.photos.set(photo.id, photo);
       parts.renderTray();
-      setLogo((place) => core.photoItem(doc.newItemId(), photo.id, photo.aspect, place), targetRole() === 'logo2' ? 'Your own logo is the second logo.' : 'Your own logo is on the card.');
+      // The second logo it was chosen for may have been removed meanwhile: then it is the logo.
+      const into = role === 'logo2' && state.collage.items.some((item) => item.role === 'logo2') ? 'logo2' : 'logo';
+      setLogo((place) => core.photoItem(doc.newItemId(), photo.id, photo.aspect, place), into === 'logo2' ? 'Your own logo is the second logo.' : 'Your own logo is on the card.', into);
     });
 
     /** A second logo beside the first: the two side by side when the first is in the middle. */

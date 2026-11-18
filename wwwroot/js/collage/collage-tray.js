@@ -377,7 +377,9 @@
     });
 
 
-    return { setTarget, chooseFor, readPhoto, missingPhoto, libraryPicker, renderTray, keptPhotos, forgetRemovedPhotos };
+    /** Working copies made smaller first, so `count` photos stay within the pixel budget. */
+    const fitBudget = (count) => photoReader.fitBudget(doc.photos, count);
+    return { setTarget, chooseFor, readPhoto, missingPhoto, libraryPicker, renderTray, keptPhotos, forgetRemovedPhotos, photosInCollage, fitBudget };
   }
 
   return Object.freeze({ createTray });

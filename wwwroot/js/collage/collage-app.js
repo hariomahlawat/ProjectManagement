@@ -308,6 +308,8 @@
     transformer: () => transformer,
     setPanel: () => setPanel,
     readPhoto: () => readPhoto,
+    photosInCollage: () => photosInCollage,
+    fitBudget: () => fitBudget,
     missingPhoto: () => missingPhoto,
     keptPhotos: () => keptPhotos,
     setPropsOpen: () => setPropsOpen,
@@ -900,7 +902,7 @@
   // (collage-tray.js).
   const {
     setTarget, chooseFor, readPhoto, missingPhoto, libraryPicker, renderTray, keptPhotos,
-    forgetRemovedPhotos
+    forgetRemovedPhotos, photosInCollage, fitBudget
   } = window.PrismCollageTray.createTray({
     state, change: changesFor('setTargetId', 'choose'), core, library, ui, doc, history, messages, surface, screens
   });

@@ -330,3 +330,24 @@ test('a locked logo is neither replaced nor removed from Card details', async ({
   expect(after?.id).toBe(before.id);
   expect(errors).toEqual([]);
 });
+
+test('a logo is a photo of the collage: with 60 photos already, Your own logo is refused', async ({ page }) => {
+  test.setTimeout(120000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 8;
+    canvas.height = 8;
+    canvas.getContext('2d').fillRect(0, 0, 8, 8);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const files = Array.from({ length: 60 }, (_, i) => ({ name: `p${i}.png`, mimeType: 'image/png', buffer: Buffer.from(png, 'base64') }));
+  await page.locator('[data-file-input]').setInputFiles(files);
+  await expect(page.locator('[data-photo-count]')).toHaveText('60 of 60 photos');
+  await page.locator('[data-card-logo-file]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'the most it can hold' })).toBeVisible();
+  await expect(page.locator('[data-photo-count]')).toHaveText('60 of 60 photos');
+  await expect(page.locator('[data-card-logo-name]')).toHaveText('SDD');
+  expect(errors).toEqual([]);
+});
