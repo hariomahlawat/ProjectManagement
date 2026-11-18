@@ -18,6 +18,7 @@ public sealed class CollageStudioPageContractTests
     private static readonly string[] Scripts =
     {
         "js/collage/collage-core.js",
+        "js/collage/collage-print.js",
         "js/collage/collage-drafts.js",
         "js/collage/collage-draft-session.js",
         "js/collage/collage-draw.js",

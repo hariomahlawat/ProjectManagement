@@ -148,7 +148,8 @@ its npm package by hand; the libman entry records the version.
       on a turned one. On a turned sheet each back is also drawn turned 180°, so a cut card
       turned over like a book page reads upright, as it does from an upright sheet.
 
-    `core.sheetLayout` and `core.cutMarks` work in mm; `core.sheetPlacements` gives each card's
+    In `collage-print.js` (print sheets and guest lists, pure and tested in Node), `print.sheetLayout`
+    and `print.cutMarks` work in mm; `print.sheetPlacements` gives each card's
     place on the PDF page in points, turned or not, for both Save paths.
 
     **Guest list** (PR 10): Card details has a **Guest list**. Names can be pasted or typed one

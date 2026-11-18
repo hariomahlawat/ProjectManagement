@@ -934,12 +934,12 @@
   const saveAs = window.PrismCollageSave.createSaveDialog({
     $, core, draw, stickers, measureText, fontsReady, stickerImage,
     getCollage: () => collage,
-    photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge, designs: window.PrismCollageDesigns
+    photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge, designs: window.PrismCollageDesigns, print: window.PrismCollagePrint
   });
 
   // Invitation cards: the start screen's designs and the Card details panel (collage-card.js).
   card = window.PrismCollageCard.createCard({
-    state, core, draw, designs: window.PrismCollageDesigns, stickers, ui, doc, history, messages, surface, selection, screens, parts: laterParts
+    state, core, draw, designs: window.PrismCollageDesigns, print: window.PrismCollagePrint, stickers, ui, doc, history, messages, surface, selection, screens, parts: laterParts
   });
   // The keyboard (shortcuts, nudges, Enter and Esc) and the mouse wheel (collage-keys.js).
   window.PrismCollageKeys.createKeys({

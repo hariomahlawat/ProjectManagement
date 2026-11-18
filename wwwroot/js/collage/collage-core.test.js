@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const collage = require('./collage-core.js');
+const print = require('./collage-print.js');
 
 test('every page is 1,000 units wide and keeps its size shape', () => {
   assert.equal(collage.pageHeight('a4l'), 1000 * 2480 / 3508);
@@ -1357,19 +1358,19 @@ test('a ten-line programme keeps its size when the draft is reopened', () => {
 
 // Print sheets (docs/ux/invitations-posters.md, PR 9).
 test('cards go as many to an A4 or A3 sheet as fit, turned whichever way holds more, with cut marks in the gaps', () => {
-  const count = (size, sheet) => collage.sheetLayout(size, sheet).count;
+  const count = (size, sheet) => print.sheetLayout(size, sheet).count;
   assert.deepEqual([count('a6p', 'a4'), count('a7p', 'a4'), count('passl', 'a4'), count('a5p', 'a4'), count('a5p', 'a3')], [2, 4, 10, 1, 2]);
-  assert.equal(collage.sheetLayout('a4p', 'a4').count, 0, 'an A4 page does not fit inside an A4 sheet with margins');
-  assert.equal(collage.sheetLayout('slide', 'a4'), null, 'a screen size has no paper size');
+  assert.equal(print.sheetLayout('a4p', 'a4').count, 0, 'an A4 page does not fit inside an A4 sheet with margins');
+  assert.equal(print.sheetLayout('slide', 'a4'), null, 'a screen size has no paper size');
   // A6 upright holds two side by side only on a turned A4.
-  const a6 = collage.sheetLayout('a6p', 'a4');
+  const a6 = print.sheetLayout('a6p', 'a4');
   assert.deepEqual([a6.upright, a6.sheet, a6.cols, a6.rows], [false, [297, 210], 2, 1]);
   // Every card on the sheet, inside the margins, none overlapping.
   for (const [size, sheet] of [['passl', 'a4'], ['a7l', 'a3'], ['sq5', 'a4']]) {
-    const layout = collage.sheetLayout(size, sheet);
+    const layout = print.sheetLayout(size, sheet);
     for (const c of layout.cards) {
-      assert.ok(c.x >= collage.SHEET_SPACE.margin - 1e-9 && c.y >= collage.SHEET_SPACE.margin - 1e-9, size);
-      assert.ok(c.x + c.w <= layout.sheet[0] - collage.SHEET_SPACE.margin + 1e-9 && c.y + c.h <= layout.sheet[1] - collage.SHEET_SPACE.margin + 1e-9, size);
+      assert.ok(c.x >= print.SHEET_SPACE.margin - 1e-9 && c.y >= print.SHEET_SPACE.margin - 1e-9, size);
+      assert.ok(c.x + c.w <= layout.sheet[0] - print.SHEET_SPACE.margin + 1e-9 && c.y + c.h <= layout.sheet[1] - print.SHEET_SPACE.margin + 1e-9, size);
     }
     for (let i = 0; i < layout.cards.length; i += 1) for (let j = i + 1; j < layout.cards.length; j += 1) {
       const a = layout.cards[i];
@@ -1377,7 +1378,7 @@ test('cards go as many to an A4 or A3 sheet as fit, turned whichever way holds m
       assert.ok(a.x + a.w <= b.x + 1e-9 || b.x + b.w <= a.x + 1e-9 || a.y + a.h <= b.y + 1e-9 || b.y + b.h <= a.y + 1e-9, `${size}: cards overlap`);
     }
     // Cut marks never cross a card.
-    for (const [x1, y1, x2, y2] of collage.cutMarks(layout)) {
+    for (const [x1, y1, x2, y2] of print.cutMarks(layout)) {
       for (const c of layout.cards) {
         const inside = (x, y) => x > c.x + 1e-9 && x < c.x + c.w - 1e-9 && y > c.y + 1e-9 && y < c.y + c.h - 1e-9;
         assert.ok(!inside(x1, y1) && !inside(x2, y2) && !inside((x1 + x2) / 2, (y1 + y2) / 2), `${size}: a cut mark crosses a card`);
@@ -1385,36 +1386,36 @@ test('cards go as many to an A4 or A3 sheet as fit, turned whichever way holds m
     }
   }
   // The back sheet lines up after a long-edge flip: mirrored across an upright sheet, top to bottom on a turned one.
-  const front = collage.sheetLayout('passl', 'a4');
-  const back = collage.sheetLayout('passl', 'a4', { back: true });
+  const front = print.sheetLayout('passl', 'a4');
+  const back = print.sheetLayout('passl', 'a4', { back: true });
   assert.equal(front.upright, true);
   assert.equal(back.cards[0].x, front.cards[front.cols - 1].x);
   assert.equal(back.cards[0].y, front.cards[0].y);
-  const turnedFront = collage.sheetLayout('a6p', 'a4');
-  const turnedBack = collage.sheetLayout('a6p', 'a4', { back: true });
+  const turnedFront = print.sheetLayout('a6p', 'a4');
+  const turnedBack = print.sheetLayout('a6p', 'a4', { back: true });
   assert.deepEqual(turnedBack.cards.map((c) => c.x), turnedFront.cards.map((c) => c.x), 'one row: a top-to-bottom flip keeps the columns');
 });
 
 // The guest list (docs/ux/invitations-posters.md, PR 10).
 test('guest names come one a line from pasted text, or the first column of a CSV, within limits', () => {
-  assert.deepEqual(collage.guestNames('Name\nLt Gen R. K. Mehta, AVSM\n\n  Maj A and   Mrs B  '), ['Lt Gen R. K. Mehta, AVSM', 'Maj A and Mrs B']);
-  assert.deepEqual(collage.guestNames('Name,Email\n"Brig P. Singh, SM",x@y\nCol D. Nair,col@x\r\n"Say ""Hi""",z', { csv: true }), ['Brig P. Singh, SM', 'Col D. Nair', 'Say "Hi"']);
+  assert.deepEqual(print.guestNames('Name\nLt Gen R. K. Mehta, AVSM\n\n  Maj A and   Mrs B  '), ['Lt Gen R. K. Mehta, AVSM', 'Maj A and Mrs B']);
+  assert.deepEqual(print.guestNames('Name,Email\n"Brig P. Singh, SM",x@y\nCol D. Nair,col@x\r\n"Say ""Hi""",z', { csv: true }), ['Brig P. Singh, SM', 'Col D. Nair', 'Say "Hi"']);
   const many = Array.from({ length: 400 }, (_, i) => `Guest ${i}`).join('\n');
-  assert.equal(collage.guestNames(many).length, collage.GUEST_LIMITS.names);
-  assert.equal(collage.guestNames('x'.repeat(500))[0].length, collage.GUEST_LIMITS.length);
+  assert.equal(print.guestNames(many).length, collage.GUEST_LIMITS.names);
+  assert.equal(print.guestNames('x'.repeat(500))[0].length, collage.GUEST_LIMITS.length);
   // Names past the limit are counted, so the list can say how many were left out.
-  assert.deepEqual(collage.readGuests(many).over, 400 - collage.GUEST_LIMITS.names);
-  assert.equal(collage.readGuests('Maj A').over, 0);
+  assert.deepEqual(print.readGuests(many).over, 400 - collage.GUEST_LIMITS.names);
+  assert.equal(print.readGuests('Maj A').over, 0);
   // A CSV whose first row heads a Name column takes that column, not the rank before it.
-  assert.deepEqual(collage.guestNames('Rank,Name,Unit\nBrig,"P. Singh, SM",5 Sikh\nCol,D. Nair,', { csv: true }), ['Brig P. Singh, SM', 'Col D. Nair']);
-  assert.deepEqual(collage.guestNames('Rank;Guest name' + String.fromCharCode(10) + 'Brig;P. Singh, SM', { csv: true }), ['Brig P. Singh, SM']);
-  assert.deepEqual(collage.guestNames('Guests' + String.fromCharCode(10) + 'Maj A' + String.fromCharCode(10) + 'Capt B'), ['Maj A', 'Capt B']);
+  assert.deepEqual(print.guestNames('Rank,Name,Unit\nBrig,"P. Singh, SM",5 Sikh\nCol,D. Nair,', { csv: true }), ['Brig P. Singh, SM', 'Col D. Nair']);
+  assert.deepEqual(print.guestNames('Rank;Guest name' + String.fromCharCode(10) + 'Brig;P. Singh, SM', { csv: true }), ['Brig P. Singh, SM']);
+  assert.deepEqual(print.guestNames('Guests' + String.fromCharCode(10) + 'Maj A' + String.fromCharCode(10) + 'Capt B'), ['Maj A', 'Capt B']);
   // First name and surname are joined; a quoted address with a line break stays in its cell.
-  assert.deepEqual(collage.guestNames('First name,Surname,Address'+String.fromCharCode(10)+'Ravi,Kumar,"12 Mall Road'+String.fromCharCode(10)+'Delhi"'+String.fromCharCode(10)+'Asha,Rao,x', { csv: true }), ['Ravi Kumar', 'Asha Rao']);
+  assert.deepEqual(print.guestNames('First name,Surname,Address'+String.fromCharCode(10)+'Ravi,Kumar,"12 Mall Road'+String.fromCharCode(10)+'Delhi"'+String.fromCharCode(10)+'Asha,Rao,x', { csv: true }), ['Ravi Kumar', 'Asha Rao']);
   // A draft keeps a guest called anything, even "Name".
   const kept = collage.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, guests: ['Name', 'Guests', 'Maj B'] } }, []);
   assert.deepEqual(kept.card.guests, ['Name', 'Guests', 'Maj B']);
-  assert.deepEqual(collage.guestNames('Full name\nMaj A', { csv: true }), ['Maj A']);
+  assert.deepEqual(print.guestNames('Full name\nMaj A', { csv: true }), ['Maj A']);
   // A draft keeps the list, cleaned the same way.
   const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, guests: ['Col D. Nair', '', 7, 'Maj B'] } }, []);
   assert.deepEqual(read.card.guests, ['Col D. Nair', 'Maj B']);
@@ -1471,10 +1472,10 @@ test('a programme of 600 letters is kept whole in a draft', () => {
 // Backs on print sheets (cold review 2): on a turned sheet each back is turned 180°, so a card
 // turned over like a book page reads upright; on an upright sheet nothing is turned.
 test('sheet placements turn the backs on a turned sheet, and each card still fills its slot', () => {
-  const pt = collage.PT_PER_MM;
-  const turned = collage.sheetLayout('a6p', 'a4', { back: true });
+  const pt = print.PT_PER_MM;
+  const turned = print.sheetLayout('a6p', 'a4', { back: true });
   assert.equal(turned.upright, false, 'A6 portrait goes two to a turned A4');
-  const backs = collage.sheetPlacements(turned, true);
+  const backs = print.sheetPlacements(turned, true);
   const [, sh] = turned.sheet;
   backs.forEach((place, i) => {
     const slot = turned.cards[i];
@@ -1483,10 +1484,10 @@ test('sheet placements turn the backs on a turned sheet, and each card still fil
     assert.ok(Math.abs(place.x - place.width - slot.x * pt) < 0.01);
     assert.ok(Math.abs(place.y - place.height - (sh - slot.y - slot.h) * pt) < 0.01);
   });
-  assert.ok(collage.sheetPlacements(collage.sheetLayout('a6p', 'a4'), false).every((place) => place.rotate === 0), 'fronts are never turned');
-  const upright = collage.sheetLayout('a7p', 'a4', { back: true });
+  assert.ok(print.sheetPlacements(print.sheetLayout('a6p', 'a4'), false).every((place) => place.rotate === 0), 'fronts are never turned');
+  const upright = print.sheetLayout('a7p', 'a4', { back: true });
   assert.equal(upright.upright, true);
-  assert.ok(collage.sheetPlacements(upright, true).every((place) => place.rotate === 0), 'an upright sheet keeps its backs upright');
+  assert.ok(print.sheetPlacements(upright, true).every((place) => place.rotate === 0), 'an upright sheet keeps its backs upright');
 });
 
 // A newer PRISM's parts of a card (cold review 2): the back's own fields, a back this PRISM cannot
@@ -1517,8 +1518,8 @@ test('a draft keeps a newer PRISM\'s back fields, an unreadable back and unknown
 // Print sheet geometry, exactly (cold review 2): margins and gaps, the back's rows mirrored on a
 // turned sheet of several rows, and cut marks at the card corners in the gaps.
 test('sheet layout: 8 mm margins, 4 mm gaps, mirrored rows on a turned sheet, cut marks at the corners', () => {
-  const front = collage.sheetLayout('a7l', 'a4');
-  const back = collage.sheetLayout('a7l', 'a4', { back: true });
+  const front = print.sheetLayout('a7l', 'a4');
+  const back = print.sheetLayout('a7l', 'a4', { back: true });
   assert.equal(front.upright, false);
   assert.equal(front.rows, 2);
   assert.equal(front.cols, 2);
@@ -1534,7 +1535,7 @@ test('sheet layout: 8 mm margins, 4 mm gaps, mirrored rows on a turned sheet, cu
     assert.deepEqual([slot.x, slot.y], [mirrored.x, mirrored.y], `back slot ${i}`);
   });
   // Every cut mark lies outside every card, and each card corner has its marks.
-  const marks = collage.cutMarks(front);
+  const marks = print.cutMarks(front);
   const inside = (x, y) => front.cards.some((c) => x > c.x + 1e-6 && x < c.x + c.w - 1e-6 && y > c.y + 1e-6 && y < c.y + c.h - 1e-6);
   for (const [x1, y1, x2, y2] of marks) assert.ok(!inside((x1 + x2) / 2, (y1 + y2) / 2));
   for (const c of front.cards) {
@@ -1571,31 +1572,31 @@ test('a draft with a size named "constructor" or an object for a sticker id read
 test('names pasted from a spreadsheet: columns read by their headings, else the first, and said', () => {
   const tab = String.fromCharCode(9);
   const nl = String.fromCharCode(10);
-  const headed = collage.readGuests(['Rank' + tab + 'Name' + tab + 'Unit', 'Brig' + tab + 'P. Singh, SM' + tab + 'HQ'].join(nl));
+  const headed = print.readGuests(['Rank' + tab + 'Name' + tab + 'Unit', 'Brig' + tab + 'P. Singh, SM' + tab + 'HQ'].join(nl));
   assert.deepEqual(headed.names, ['Brig P. Singh, SM']);
   assert.equal(headed.firstColumnOnly, false);
-  const plain = collage.readGuests(['Brig P. Singh, SM and Mrs Singh' + tab + 'HQ', 'Col D. Nair' + tab + '5 Sikh'].join(nl));
+  const plain = print.readGuests(['Brig P. Singh, SM and Mrs Singh' + tab + 'HQ', 'Col D. Nair' + tab + '5 Sikh'].join(nl));
   assert.deepEqual(plain.names, ['Brig P. Singh, SM and Mrs Singh', 'Col D. Nair']);
   assert.equal(plain.firstColumnOnly, true);
   // One name a line, commas and all, stays as it was.
-  assert.deepEqual(collage.readGuests('Brig P. Singh, SM' + nl + 'Col D. Nair').names, ['Brig P. Singh, SM', 'Col D. Nair']);
-  assert.equal(collage.readGuests('Brig P. Singh, SM').firstColumnOnly, false);
+  assert.deepEqual(print.readGuests('Brig P. Singh, SM' + nl + 'Col D. Nair').names, ['Brig P. Singh, SM', 'Col D. Nair']);
+  assert.equal(print.readGuests('Brig P. Singh, SM').firstColumnOnly, false);
 });
 
 // Edge to edge (cold review 2): cards touching, no margin or gaps, so more fit on A4; no cut marks.
 test('edge to edge on A4 fits 4 A6 and 2 A5, touching, with no cut marks', () => {
-  const a6 = collage.sheetLayout('a6p', 'a4edge');
+  const a6 = print.sheetLayout('a6p', 'a4edge');
   assert.equal(a6.count, 4);
   assert.equal(a6.edge, true);
-  assert.deepEqual(collage.cutMarks(a6), []);
+  assert.deepEqual(print.cutMarks(a6), []);
   const [a, b] = a6.cards;
   assert.ok(Math.abs(b.x - (a.x + a.w)) < 1e-6, 'touching');
-  assert.equal(collage.sheetLayout('a5p', 'a4edge').count, 2);
-  assert.equal(collage.sheetLayout('a7p', 'a4edge').count, 8);
+  assert.equal(print.sheetLayout('a5p', 'a4edge').count, 2);
+  assert.equal(print.sheetLayout('a7p', 'a4edge').count, 8);
   // Backs still line up with their fronts.
-  const back = collage.sheetLayout('a6p', 'a4edge', { back: true });
+  const back = print.sheetLayout('a6p', 'a4edge', { back: true });
   assert.equal(back.cards.length, 4);
-  assert.equal(collage.sheetLayout('a6p', 'a4').count, 2, 'with room for cutting, 2');
+  assert.equal(print.sheetLayout('a6p', 'a4').count, 2, 'with room for cutting, 2');
 });
 
 // A card's draft is stored front first (cold review 3): the saved shape never depends on which
@@ -1623,10 +1624,47 @@ test('a card saved with its back showing is stored front first, and opens with t
 // "S.No, Rank, Name of Guest" give names, never serial numbers; a stray quote spoils one line only.
 test('guest list headings with serial numbers, "Rank & Name" and "Name of Guest"; a stray quote', () => {
   const nl = String.fromCharCode(10);
-  assert.deepEqual(collage.guestNames(['Ser No,Rank & Name,Unit', '1,Brig P. Singh,HQ', '2,Col D. Nair,5 Sikh'].join(nl), { csv: true }), ['Brig P. Singh', 'Col D. Nair']);
-  assert.deepEqual(collage.guestNames(['S.No,Rank,Name of Guest', '1,Maj,A. Rao'].join(nl), { csv: true }), ['Maj A. Rao']);
+  assert.deepEqual(print.guestNames(['Ser No,Rank & Name,Unit', '1,Brig P. Singh,HQ', '2,Col D. Nair,5 Sikh'].join(nl), { csv: true }), ['Brig P. Singh', 'Col D. Nair']);
+  assert.deepEqual(print.guestNames(['S.No,Rank,Name of Guest', '1,Maj,A. Rao'].join(nl), { csv: true }), ['Maj A. Rao']);
   // A unit's name is not a guest's.
-  assert.deepEqual(collage.guestNames(['Name,Unit Name', 'Col D. Nair,5 Sikh'].join(nl), { csv: true }), ['Col D. Nair']);
+  assert.deepEqual(print.guestNames(['Name,Unit Name', 'Col D. Nair,5 Sikh'].join(nl), { csv: true }), ['Col D. Nair']);
   // An unclosed quote: each line still a guest of its own.
-  assert.deepEqual(collage.guestNames(['Name', '"Maj A', 'Capt B', 'Lt C'].join(nl), { csv: true }), ['"Maj A', 'Capt B', 'Lt C']);
+  assert.deepEqual(print.guestNames(['Name', '"Maj A', 'Capt B', 'Lt C'].join(nl), { csv: true }), ['"Maj A', 'Capt B', 'Lt C']);
+});
+
+// Turning a card over keeps the parts a newer PRISM kept on either side (cold review 3).
+test('turning a card over and back keeps both sides\' kept parts', () => {
+  const raw = { version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, items: [{ id: 'fh', kind: 'hologram' }],
+    back: { background: { type: 'color', value: '#ffffff' }, items: [{ id: 'bh', kind: 'hologram' }] } };
+  const read = collage.readDraftModel(JSON.parse(JSON.stringify(raw)), []);
+  assert.equal(collage.keptCount(read), 2);
+  const over = collage.flipSide(read);
+  assert.equal(collage.keptCount(over), 2, 'turned over');
+  assert.equal(collage.keptCount(collage.flipSide(over)), 2, 'turned back');
+  const saved = collage.draftModel(over);
+  assert.deepEqual(saved.items.map((item) => item.id), ['fh']);
+  assert.deepEqual(saved.back.items.map((item) => item.id), ['bh']);
+});
+
+// Cut marks exactly (cold review 3): both marks at every card corner, 1 mm out from it and
+// SHEET_SPACE.mark long; the cards centred on the sheet.
+test('each card corner has both cut marks, 1 mm out, and the cards are centred', () => {
+  const layout = print.sheetLayout('a6p', 'a4');
+  const marks = print.cutMarks(layout);
+  assert.equal(marks.length, layout.cards.length * 8);
+  const { mark } = print.SHEET_SPACE;
+  for (const card of layout.cards) {
+    for (const [cx, cy] of [[card.x, card.y], [card.x + card.w, card.y], [card.x, card.y + card.h], [card.x + card.w, card.y + card.h]]) {
+      const vertical = marks.find(([x1, y1, x2, y2]) => Math.abs(x1 - cx) < 1e-9 && Math.abs(x2 - cx) < 1e-9 && Math.abs(Math.min(Math.abs(y1 - cy), Math.abs(y2 - cy)) - 1) < 1e-9);
+      const horizontal = marks.find(([x1, y1, x2, y2]) => Math.abs(y1 - cy) < 1e-9 && Math.abs(y2 - cy) < 1e-9 && Math.abs(Math.min(Math.abs(x1 - cx), Math.abs(x2 - cx)) - 1) < 1e-9);
+      assert.ok(vertical && Math.abs(Math.abs(vertical[3] - vertical[1]) - mark) < 1e-9, 'a vertical mark at the corner');
+      assert.ok(horizontal && Math.abs(Math.abs(horizontal[2] - horizontal[0]) - mark) < 1e-9, 'a horizontal mark at the corner');
+    }
+  }
+  const left = Math.min(...layout.cards.map((c) => c.x));
+  const right = Math.max(...layout.cards.map((c) => c.x + c.w));
+  const top = Math.min(...layout.cards.map((c) => c.y));
+  const bottom = Math.max(...layout.cards.map((c) => c.y + c.h));
+  assert.ok(Math.abs(left - (layout.sheet[0] - right)) < 1e-9, 'centred across');
+  assert.ok(Math.abs(top - (layout.sheet[1] - bottom)) < 1e-9, 'centred down');
 });

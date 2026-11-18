@@ -196,8 +196,8 @@ All of it runs in the browser. **There's no server change, no migration and no n
   page that does not understand a part can never delete it by saving the draft again. The editor
   shows "Some parts were made by a newer PRISM and are kept but not shown." That PR is deployed
   for at least one release before any PR that writes the new parts.
-- **Print sheets and guest cards**: `core.sheetLayout` (in `collage-core.js`) places as many
-  cards as fit on an A4 or A3 sheet inside 8 mm margins with 4 mm gaps, `core.cutMarks` gives the
+- **Print sheets and guest cards**: `print.sheetLayout` (in `collage-print.js`, with the guest list reading) places as many
+  cards as fit on an A4 or A3 sheet inside 8 mm margins with 4 mm gaps, `print.cutMarks` gives the
   cut marks, and the back's sheet is mirrored for a long-edge flip. `collage-save.js` writes the
   PDF with the vendored pdf-lib. Guest cards are drawn one at a time from the originals and each
   canvas is let go before the next; each card's JPEG stays in the PDF until it is saved, so the

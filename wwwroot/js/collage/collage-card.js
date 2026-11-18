@@ -70,7 +70,7 @@
   const DEFAULT_CARD_SIZE = 'a5p';
 
   function createCard(deps) {
-    const { state, core, draw, designs, stickers, ui, doc, history, messages, surface, selection, screens, parts } = deps;
+    const { state, core, draw, designs, stickers, ui, doc, history, messages, surface, selection, screens, parts, print = window.PrismCollagePrint } = deps;
     const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const form = ui.$('[data-card-form]');
     const strip = ui.$('[data-card-designs]');
@@ -788,7 +788,7 @@
 
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
     function setGuests(text, { csv = false, held = false } = {}) {
-      const { names: guests, over, firstColumnOnly } = core.readGuests(text, { csv });
+      const { names: guests, over, firstColumnOnly } = print.readGuests(text, { csv });
       guestsFirstColumn = firstColumnOnly;
       doc.edit((draft) => {
         const card = { ...(draft.card || { design: 'classic', details: {} }) };

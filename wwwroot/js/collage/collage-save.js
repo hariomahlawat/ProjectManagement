@@ -147,7 +147,8 @@
    */
   function createSaveDialog({
     $, core, draw, stickers, measureText, fontsReady, stickerImage,
-    getCollage, photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge, designs = null
+    getCollage, photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge, designs = null,
+    print = window.PrismCollagePrint
   }) {
     const saveDialog = $('[data-save-dialog]');
     const saveResult = $('[data-save-result]');
@@ -190,13 +191,13 @@
         const isCard = ['card', 'pocket', 'custom'].includes(group);
         sheetBox.hidden = !(isCard && chosen('format') === 'pdf');
         const flip = getCollage().back ? '; the back sheet lines up when the printer flips on the long edge' : '';
-        for (const key of Object.keys(core.SHEETS)) {
-          const layout = core.sheetLayout(getCollage().size, key);
+        for (const key of Object.keys(print.SHEETS)) {
+          const layout = print.sheetLayout(getCollage().size, key);
           const note = sheetBox.querySelector(`[data-sheet-note="${key}"]`);
           const input = sheetBox.querySelector(`input[name="sheet"][value="${key}"]`);
           const fits = layout?.count || 0;
           // Edge to edge is offered only where it fits more cards than A4 with room for cutting.
-          const offered = !layout?.edge || fits > (core.sheetLayout(getCollage().size, 'a4')?.count || 0);
+          const offered = !layout?.edge || fits > (print.sheetLayout(getCollage().size, 'a4')?.count || 0);
           const option = input?.closest('label');
           if (option) option.hidden = !offered;
           if (note) {
@@ -373,14 +374,14 @@
      * slot empty); a back sheet's cards are placed and turned to line up with the fronts.
      */
     function addSheet(pdf, layout, images, back) {
-      const pt = core.PT_PER_MM;
+      const pt = print.PT_PER_MM;
       const [sw, sh] = layout.sheet;
       const sheet = pdf.addPage([sw * pt, sh * pt]);
-      core.sheetPlacements(layout, back).forEach((place, i) => {
+      print.sheetPlacements(layout, back).forEach((place, i) => {
         if (images[i]) sheet.drawImage(images[i], { ...place, rotate: window.PDFLib.degrees(place.rotate) });
       });
       const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
-      for (const [x1, y1, x2, y2] of core.cutMarks(layout)) {
+      for (const [x1, y1, x2, y2] of print.cutMarks(layout)) {
         sheet.drawLine({ start: { x: x1 * pt, y: (sh - y1) * pt }, end: { x: x2 * pt, y: (sh - y2) * pt }, thickness: 0.4, color: grey });
       }
     }
@@ -407,7 +408,7 @@
         if (cards.length > 1 && cards.every((card) => card.front === page || card.back === page)) shared.set(page, image);
         return image;
       };
-      const layout = sheetKey ? core.sheetLayout(getCollage().size, sheetKey) : null;
+      const layout = sheetKey ? print.sheetLayout(getCollage().size, sheetKey) : null;
       if (!layout?.count) {
         const size = core.pdfPage(getCollage().size);
         for (const card of cards) {
@@ -417,7 +418,7 @@
         }
         return;
       }
-      const backLayout = core.sheetLayout(getCollage().size, sheetKey, { back: true });
+      const backLayout = print.sheetLayout(getCollage().size, sheetKey, { back: true });
       for (const sheet of guestSheets(cards, layout.count)) {
         const images = [];
         for (const page of sheet.pages) images.push(page ? await imageOf(page) : null);
@@ -428,8 +429,8 @@
     /** The print sheet chosen and how many cards fit on it, for the summary; null for none. */
     function sheetSummary() {
       const key = sheetBoxChoice();
-      const layout = key ? core.sheetLayout(getCollage().size, key) : null;
-      return layout?.count ? { count: layout.count, label: core.SHEETS[key].label.replace(', edge to edge', ' (edge to edge)') } : null;
+      const layout = key ? print.sheetLayout(getCollage().size, key) : null;
+      return layout?.count ? { count: layout.count, label: print.SHEETS[key].label.replace(', edge to edge', ' (edge to edge)') } : null;
     }
 
     /** The sheet chosen for a card's PDF (PR 9), or null for each card on its own page. */
@@ -437,7 +438,7 @@
       const box = $('[data-save-sheet]');
       if (!box || box.hidden) return null;
       const value = chosen('sheet');
-      return core.SHEETS[value] ? value : null;
+      return print.SHEETS[value] ? value : null;
     }
 
     async function saveCollage() {
@@ -475,6 +476,8 @@
         // side the design puts it on.
         const holdsGuest = (page) => Boolean(page?.items.some((item) => item.field === 'guest'));
         const guestSide = holdsGuest(all[0]) ? 0 : holdsGuest(all[1]) ? 1 : designs?.sideOf(getCollage(), 'guest') === 'back' ? 1 : 0;
+        // Each name is measured in the card's own fonts, so it keeps its edge: they load first.
+        if (guests.length) await fontsReady?.();
         // The side that holds the names not being saved: one copy, as it is, and a word why.
         const { cards, namesLeftOut } = guestCards(all, pages, guests, guestSide, namedPage);
         const stem = core.fileStem(collageTitle());
@@ -526,7 +529,7 @@
           } else {
             const image = await pdf.embedJpg(await renderer.toBytes(canvas, 'image/jpeg', 0.92));
             const sheetKey = sheetBoxChoice();
-            const layout = sheetKey ? core.sheetLayout(getCollage().size, sheetKey, { back: names[index] === 'back' }) : null;
+            const layout = sheetKey ? print.sheetLayout(getCollage().size, sheetKey, { back: names[index] === 'back' }) : null;
             if (layout?.count) {
               // As many as fit, with cut marks in the gaps.
               addSheet(pdf, layout, layout.cards.map(() => image), names[index] === 'back');

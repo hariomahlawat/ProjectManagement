@@ -300,10 +300,10 @@ test('an A6 card with a back on A4: two cards a sheet where the layout says, bac
   await page.locator('[data-action="save-go"]').click();
   const sheets = await sheetsOf(page, await download);
   const expected = await page.evaluate(() => {
-    const core = window.PrismCollage;
-    const front = core.sheetLayout('a6p', 'a4');
-    const back = core.sheetLayout('a6p', 'a4', { back: true });
-    return { front: core.sheetPlacements(front, false), back: core.sheetPlacements(back, true), marks: core.cutMarks(front).length };
+    const print = window.PrismCollagePrint;
+    const front = print.sheetLayout('a6p', 'a4');
+    const back = print.sheetLayout('a6p', 'a4', { back: true });
+    return { front: print.sheetPlacements(front, false), back: print.sheetPlacements(back, true), marks: print.cutMarks(front).length };
   });
   expect(sheets.length).toBe(2);
   const [fronts, backs] = sheets;

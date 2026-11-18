@@ -746,14 +746,18 @@
         if (!text.trim()) continue;
         const item = core.textItem(newId(), text, { x: part.x * width, y: part.y * height }, {
           ...look,
-          size: Math.max(Math.round(part.size * unit), Math.ceil(minSize)),
+          // Script and italic lines are harder to read small: 7 pt for them, 6 pt for the rest.
+          size: Math.max(Math.round(part.size * unit), Math.ceil(look.font === 'script' || look.italic ? minSize * 7 / 6 : minSize)),
           maxWidth: part.w * width,
           maxLines: part.lines || 1,
           field: part.field,
           role: part.role
         });
-        // A guest's name shrinks only so far (6 pt, or 60% of its size), then takes a second line.
-        if (part.field === 'guest') item.minSize = Math.max(Math.ceil(minSize), Math.round(item.size * 0.6));
+        // Words fitted to their width never go below 6 pt; past it they take another line. A
+        // guest's name stops at 60% of its size.
+        const floor = Math.ceil(minSize);
+        if (floor > 0) item.minSize = floor;
+        if (part.field === 'guest') item.minSize = Math.max(floor, Math.round(item.size * 0.6));
         const layout = core.layoutText(item, measure);
         item.width = layout.width;
         item.aspect = layout.width / layout.height;
@@ -929,8 +933,10 @@
 
   /** MIN_PRINT_PT in page units on a page of this size (0 for a page with no paper size). */
   function minTextUnits(sizeKey) {
-    const mm = core.sizeOf(sizeKey)?.mm;
-    return mm ? MIN_PRINT_PT * 25.4 / 72 * core.PAGE_WIDTH / mm[0] : 0;
+    const size = core.sizeOf(sizeKey);
+    // A custom card smaller than A6 is warned of instead: its words could not all keep the floor.
+    if (!size?.mm || (size.group === 'custom' && core.smallCard(sizeKey))) return 0;
+    return MIN_PRINT_PT * 25.4 / 72 * core.PAGE_WIDTH / size.mm[0];
   }
 
   /** The measures one side of a card of this size is built with. */

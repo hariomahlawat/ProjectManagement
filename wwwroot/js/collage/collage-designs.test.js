@@ -632,6 +632,8 @@ test('every design prints its words at 6 pt or more at every size it is offered 
       for (const item of [...card.items, ...(card.back?.items || [])].filter((each) => each.kind === 'text')) {
         const pt = core.layoutText(item, measure).size * mmPerUnit * 72 / 25.4;
         assert.ok(pt >= 5.99, `${design.key} ${size}: ${item.field} prints at ${pt.toFixed(1)} pt`);
+        // Script and italic lines start at 7 pt, before fitting to their width.
+        if (item.font === 'script' || item.italic) assert.ok(item.size * mmPerUnit * 72 / 25.4 >= 6.99, `${design.key} ${size}: ${item.field} starts below 7 pt`);
       }
     }
   }
@@ -733,4 +735,13 @@ test('a second logo is placed beside the design\'s logo, as tall, through a desi
     const apart = Math.abs(second.x - first.x) - (first.width + second.width) / 2;
     assert.ok(apart > 0, `${key}: side by side, not overlapping`);
   }
+});
+
+// The back's small logo is the front's, or none (cold review 3).
+test('a card whose front has no logo gets a back with no logo, through a design change', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  assert.ok(card.back.items.some((item) => item.role === 'backlogo'));
+  const noLogo = { ...card, items: card.items.filter((item) => item.role !== 'logo') };
+  const changed = designs.applyDesign(noLogo, 'navy', designs.detailsOf(noLogo), { measure, newId });
+  assert.equal(changed.back.items.some((item) => item.role === 'backlogo'), false);
 });
