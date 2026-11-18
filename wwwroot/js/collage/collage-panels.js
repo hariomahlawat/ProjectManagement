@@ -187,6 +187,41 @@
       showPropsTab(tab.dataset.propsTab === 'settings' ? 'layers' : 'settings');
     });
 
+    /** A size typed in mm, from 50 to 300 a side (docs/ux/invitations-posters.md, PR 5b). */
+    function customSizeFields() {
+      const [low, high] = core.CUSTOM_LIMITS.mm;
+      const [w, h] = core.sizeOf(state.collage.size).mm || ['', ''];
+      const field = (name, value, label) => `<input type="number" class="form-control form-control-sm" min="${low}" max="${high}" step="0.1" inputmode="decimal" value="${value}" data-custom-size="${name}" aria-label="${label} in mm">`;
+      return `<div class="clg-custom-size" role="group" aria-labelledby="clgCustomSizeLabel">
+            <span class="clg-field__label" id="clgCustomSizeLabel">Custom size, ${low} to ${high} mm a side</span>
+            <div class="clg-custom-size__row">${field('width', w, 'Width')}<span aria-hidden="true">×</span>${field('height', h, 'Height')}<span>mm</span>
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-action-custom-size>Use</button></div>
+            <p class="clg-hint clg-custom-size__error" data-custom-size-error role="alert" hidden></p>
+          </div>`;
+    }
+
+    /** Uses the size typed in mm, or says why it cannot be used. */
+    function useCustomSize() {
+      const value = (name) => ui.props.querySelector(`[data-custom-size="${name}"]`)?.value;
+      const answer = core.customKey(value('width'), value('height'));
+      const error = ui.props.querySelector('[data-custom-size-error]');
+      if (answer.error) {
+        error.textContent = answer.error;
+        error.hidden = false;
+        return;
+      }
+      error.hidden = true;
+      ui.showSize(answer.key);
+      ui.sizeSelect.dispatchEvent(new Event('change'));
+    }
+
+    ui.props.addEventListener('click', (event) => {
+      if (event.target.closest('[data-action-custom-size]')) useCustomSize();
+    });
+    ui.props.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && event.target.matches('[data-custom-size]')) { event.preventDefault(); useCustomSize(); }
+    });
+
     function renderPropsBody() {
       const item = doc.selectedItem();
       if (!item) {
@@ -194,7 +229,8 @@
           <h2 class="clg-panel-title">Page</h2>
           <label class="clg-field"><span class="clg-field__label">Size</span>
             <select class="form-select form-select-sm" data-page-size>${core.sizesByGroup().map((group) => `<optgroup label="${escapeHtml(group.label)}">${group.keys
-              .map((key) => `<option value="${key}"${key === state.collage.size ? ' selected' : ''}>${escapeHtml(core.SIZES[key].label)} · ${escapeHtml(core.SIZES[key].note)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+              .map((key) => `<option value="${key}"${key === state.collage.size ? ' selected' : ''}>${escapeHtml(core.SIZES[key].label)} · ${escapeHtml(core.SIZES[key].note)}</option>`).join('')}</optgroup>`).join('')}${core.SIZES[state.collage.size] ? '' : `<optgroup label="Custom"><option value="${escapeHtml(state.collage.size)}" selected>${escapeHtml(core.sizeOf(state.collage.size).label)}</option></optgroup>`}</select></label>
+          ${customSizeFields()}
           <div class="clg-section">
             <p class="clg-section__title">How to</p>
             <ul class="clg-tips clg-for-mouse">
@@ -394,7 +430,7 @@
         return;
       }
       if (event.target.matches('[data-page-size]')) {
-        ui.sizeSelect.value = event.target.value;
+        ui.showSize(event.target.value);
         ui.sizeSelect.dispatchEvent(new Event('change'));
       }
     });

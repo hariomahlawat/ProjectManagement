@@ -216,6 +216,25 @@
     }
 }
 
+.clg-custom-size {
+    margin: 0.4rem 0 0.8rem;
+}
+
+.clg-custom-size__row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.clg-custom-size__row input {
+    width: 5.5rem;
+}
+
+.clg-custom-size__error {
+    color: var(--bs-danger-text-emphasis);
+    margin: 0.3rem 0 0;
+}
+
 /* ---------- Editor ---------- */
 
 .clg-editor {

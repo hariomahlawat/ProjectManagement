@@ -615,7 +615,7 @@
     }
 
     function syncAll() {
-      ui.sizeSelect.value = state.collage.size;
+      ui.showSize(state.collage.size);
       layout();
       syncPage();
       parts.renderTray();

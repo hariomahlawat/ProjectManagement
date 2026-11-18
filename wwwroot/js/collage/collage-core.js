@@ -109,7 +109,39 @@
   /** Moving: the item snaps to a guide within this many screen pixels. */
   const SNAP_PIXELS = 7;
 
-  const sizeOf = (key) => SIZES[key] || SIZES[DEFAULT_SIZE];
+  /**
+   * A size the user typed (docs/ux/invitations-posters.md, PR 5b), kept as "mm:<width>x<height>":
+   * each side 50 to 300 mm, to a tenth of a mm, saved at 300 dpi with a true PDF paper size.
+   */
+  const CUSTOM_LIMITS = Object.freeze({ mm: [50, 300] });
+  const CUSTOM_KEY = /^mm:(\d{2,3}(?:\.\d)?)x(\d{2,3}(?:\.\d)?)$/;
+  const customSizes = new Map();
+  function customSize(key) {
+    if (typeof key !== 'string') return null;
+    if (customSizes.has(key)) return customSizes.get(key);
+    const match = CUSTOM_KEY.exec(key);
+    const [low, high] = CUSTOM_LIMITS.mm;
+    const mm = match ? [Number(match[1]), Number(match[2])] : null;
+    const size = mm && mm.every((side) => side >= low && side <= high)
+      ? Object.freeze({ group: 'custom', label: `Custom ${mm[0]} × ${mm[1]} mm`, note: `${mm[0]} × ${mm[1]} mm`, width: Math.round(mm[0] / 25.4 * 300), height: Math.round(mm[1] / 25.4 * 300), mm: Object.freeze(mm) })
+      : null;
+    if (size && customSizes.size < 100) customSizes.set(key, size);
+    return size;
+  }
+  /**
+   * The key for a size typed in mm, or the reason it cannot be used: { key } or { error }.
+   * Sides are rounded to a tenth of a mm.
+   */
+  function customKey(width, height) {
+    const [low, high] = CUSTOM_LIMITS.mm;
+    const sides = [width, height].map((side) => Math.round(Number(side) * 10) / 10);
+    if (sides.some((side) => !Number.isFinite(side))) return { error: 'Type the width and the height in mm.' };
+    if (sides.some((side) => side < low || side > high)) return { error: `Each side must be from ${low} to ${high} mm.` };
+    const key = `mm:${sides[0]}x${sides[1]}`;
+    return customSize(key) ? { key } : { error: 'That size cannot be used.' };
+  }
+  const isSize = (key) => Boolean(SIZES[key] || customSize(key));
+  const sizeOf = (key) => SIZES[key] || customSize(key) || SIZES[DEFAULT_SIZE];
 
   /** The page's height in page units for a size. */
   function pageHeight(key) {
@@ -121,7 +153,7 @@
   function newCollage(sizeKey) {
     return {
       version: MODEL_VERSION,
-      size: SIZES[sizeKey] ? sizeKey : DEFAULT_SIZE,
+      size: isSize(sizeKey) ? sizeKey : DEFAULT_SIZE,
       background: { type: 'color', value: '#ffffff' },
       // The layout last chosen ({ key, gap, radius }), or null for a free arrangement.
       layout: null,
@@ -1266,7 +1298,7 @@
    * item keeps its exact place.
    */
   function changeSize(collage, sizeKey) {
-    if (!SIZES[sizeKey] || sizeKey === collage.size) return collage;
+    if (!isSize(sizeKey) || sizeKey === collage.size) return collage;
     const from = pageHeight(collage.size);
     const to = pageHeight(sizeKey);
     return {
@@ -1687,7 +1719,7 @@
       }
       : null;
     const background = readBackground(raw.background, photoIds);
-    const model = { version: MODEL_VERSION, size: SIZES[raw.size] ? raw.size : DEFAULT_SIZE, background, layout, items };
+    const model = { version: MODEL_VERSION, size: isSize(raw.size) ? raw.size : DEFAULT_SIZE, background, layout, items };
     const card = readCard(raw.card);
     if (card) model.card = card;
     // Fields of the collage this PRISM does not use (a newer PRISM's back page, for example).
@@ -1852,6 +1884,9 @@
     SIZE_GROUPS,
     sizesByGroup,
     sizeOf,
+    isSize,
+    customKey,
+    CUSTOM_LIMITS,
     DEFAULT_SIZE,
     PHOTO_LIMITS,
     ITEM_LIMITS,

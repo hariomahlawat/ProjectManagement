@@ -66,9 +66,30 @@
         }
         sizeSelect.appendChild(list);
       }
+      // A size typed in mm (docs/ux/invitations-posters.md, PR 5b): chosen here, typed in Page settings.
+      const custom = document.createElement('optgroup');
+      custom.label = 'Custom';
+      custom.dataset.customSizes = '';
+      const typed = document.createElement('option');
+      typed.value = 'custom';
+      typed.textContent = 'Custom size…';
+      custom.appendChild(typed);
+      sizeSelect.appendChild(custom);
     }
 
-    return { renderStart };
+    /** Shows the page's size in the size menu, adding a size typed in mm when it is not listed. */
+    function showSize(key) {
+      if (core.isSize(key) && !core.SIZES[key] && ![...sizeSelect.options].some((option) => option.value === key)) {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = core.sizeOf(key).label;
+        const group = sizeSelect.querySelector('[data-custom-sizes]') || sizeSelect;
+        group.insertBefore(option, group.firstChild);
+      }
+      sizeSelect.value = key;
+    }
+
+    return { renderStart, showSize };
   }
 
   return Object.freeze({ createStart });

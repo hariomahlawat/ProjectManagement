@@ -54,9 +54,14 @@
           option.textContent = core.SIZES[key].label;
           startSize.appendChild(option);
         }
+        // A size typed in mm (PR 5b).
+        const typed = document.createElement('option');
+        typed.value = 'custom';
+        typed.textContent = 'Custom size…';
+        startSize.appendChild(typed);
         startSize.value = DEFAULT_CARD_SIZE;
       }
-      const size = startSize.value || DEFAULT_CARD_SIZE;
+      const size = core.isSize(startSize.value) ? startSize.value : DEFAULT_CARD_SIZE;
       const round = ++thumbs;
       startGrid.textContent = '';
       for (const design of Object.values(designs.DESIGNS)) {
@@ -64,7 +69,7 @@
         button.type = 'button';
         button.className = 'clg-design-card';
         button.dataset.startDesign = design.key;
-        button.setAttribute('aria-label', `${design.label} card, ${core.SIZES[size].label}`);
+        button.setAttribute('aria-label', `${design.label} card, ${core.sizeOf(size).label}`);
         const ratio = core.pageHeight(size) / core.PAGE_WIDTH;
         const width = ratio >= 1 ? Math.round(150 / ratio) : 150;
         const height = Math.round(width * ratio);
@@ -90,10 +95,52 @@
       }
     }
 
-    startSize?.addEventListener('change', () => renderStart());
+    // Custom size… shows the mm fields; Use adds the size to the menu and draws the designs at it.
+    const customBox = ui.$('[data-card-custom]');
+    let lastSize = DEFAULT_CARD_SIZE;
+    startSize?.addEventListener('change', () => {
+      if (startSize.value === 'custom') {
+        startSize.value = lastSize;
+        if (customBox) {
+          customBox.hidden = false;
+          customBox.querySelector('[data-card-custom-size="width"]')?.focus();
+        }
+        return;
+      }
+      lastSize = startSize.value;
+      renderStart();
+    });
+    function useCustomCardSize() {
+      const value = (name) => customBox.querySelector(`[data-card-custom-size="${name}"]`).value;
+      const answer = core.customKey(value('width'), value('height'));
+      const error = customBox.querySelector('[data-card-custom-error]');
+      if (answer.error) {
+        error.textContent = answer.error;
+        error.hidden = false;
+        return;
+      }
+      error.hidden = true;
+      if (![...startSize.options].some((option) => option.value === answer.key)) {
+        const option = document.createElement('option');
+        option.value = answer.key;
+        option.textContent = core.sizeOf(answer.key).label;
+        startSize.insertBefore(option, startSize.querySelector('option[value="custom"]'));
+      }
+      startSize.value = answer.key;
+      lastSize = answer.key;
+      customBox.hidden = true;
+      renderStart();
+      messages.announce(`Card size: ${core.sizeOf(answer.key).label}.`);
+    }
+    customBox?.addEventListener('click', (event) => {
+      if (event.target.closest('[data-card-custom-use]')) useCustomCardSize();
+    });
+    customBox?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && event.target.matches('[data-card-custom-size]')) { event.preventDefault(); useCustomCardSize(); }
+    });
     startGrid?.addEventListener('click', (event) => {
       const button = event.target.closest('[data-start-design]');
-      if (button) screens.startCollage(startSize.value || DEFAULT_CARD_SIZE, null, button.dataset.startDesign);
+      if (button) screens.startCollage(core.isSize(startSize.value) ? startSize.value : DEFAULT_CARD_SIZE, null, button.dataset.startDesign);
     });
 
     // -------------------------------------------------------------------------

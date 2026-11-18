@@ -160,7 +160,7 @@
         const title = document.createElement('b');
         title.textContent = item.title;
         const meta = document.createElement('small');
-        const size = core.SIZES[item.size]?.label || '';
+        const size = core.isSize(item.size) ? core.sizeOf(item.size).label : '';
         // Each part stays whole; a narrow card breaks the line only between them.
         const details = [`Saved ${core.savedAgo(item.saved, Date.now())}`, size, `${item.photoCount} photo${item.photoCount === 1 ? '' : 's'}`].filter(Boolean);
         details.forEach((part, index) => {
@@ -258,7 +258,7 @@
       session.begin({ id: record.id, created: true, started: record.started || record.saved });
       ui.nameInput.value = record.autoTitle ? '' : record.title;
       screens.refreshTitle();
-      ui.sizeSelect.value = state.collage.size;
+      ui.showSize(state.collage.size);
       screens.showView('editor');
       parts.setPanel('photos');
       surface.syncAll();
