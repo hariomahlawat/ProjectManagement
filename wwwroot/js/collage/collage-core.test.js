@@ -1296,3 +1296,25 @@ test('a custom size is typed in mm, 50 to 300 a side, and prints at its true pap
   assert.equal(collage.readDraftModel({ version: 1, size: 'mm:120x180', items: [] }, []).size, 'mm:120x180');
   assert.equal(collage.readDraftModel({ version: 1, size: 'mm:10x10', items: [] }, []).size, 'a4l');
 });
+
+// The back (PR 8): a size change moves both sides, and the back's parts kept for a newer PRISM
+// survive a read, a save and a read again.
+test('a card with a back: a size change moves both sides; the back keeps its newer parts through a save', () => {
+  const card = { ...collage.newCollage('a5p'), items: [{ id: 'f', kind: 'text', text: 'Front', x: 500, y: 1300, width: 200, aspect: 4, size: 40 }],
+    back: { background: { type: 'color', value: '#ffffff' }, items: [{ id: 'b', kind: 'text', text: 'Back', x: 500, y: 1300, width: 200, aspect: 4, size: 40 }] } };
+  const turned = collage.changeSize(card, 'a5l');
+  const height = collage.pageHeight('a5l');
+  assert.ok(turned.items[0].y < height && turned.back.items[0].y < height, 'both sides on the page');
+  assert.ok(Math.abs(turned.back.items[0].y - turned.items[0].y) < 1e-6);
+
+  const raw = { version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, items: [],
+    back: { background: { type: 'color', value: '#ffffff' }, items: [
+      { id: 'n', kind: 'text', text: 'Note', x: 500, y: 500, width: 200, aspect: 4, size: 40 },
+      { id: 'h', kind: 'hologram', x: 1, y: 1 }
+    ] } };
+  const read = collage.readDraftModel(JSON.parse(JSON.stringify(raw)), []);
+  assert.equal(collage.keptCount(read), 1);
+  const again = collage.readDraftModel(JSON.parse(JSON.stringify(collage.draftModel(read))), []);
+  assert.equal(collage.keptCount(again), 1, 'the back\'s newer part survives a save');
+  assert.deepEqual(collage.draftModel(again).back.items.map((item) => item.id), ['n', 'h']);
+});

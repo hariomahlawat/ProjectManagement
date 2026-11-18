@@ -1303,11 +1303,10 @@
     if (!isSize(sizeKey) || sizeKey === collage.size) return collage;
     const from = pageHeight(collage.size);
     const to = pageHeight(sizeKey);
-    return {
-      ...collage,
-      size: sizeKey,
-      items: collage.items.map((item) => (item.locked ? item : { ...item, y: item.y * to / from }))
-    };
+    const move = (items) => items.map((item) => (item.locked ? item : { ...item, y: item.y * to / from }));
+    // A card's other side shares the size, so it moves with it (PR 8).
+    const back = collage.back ? { back: { ...collage.back, items: move(collage.back.items) } } : {};
+    return { ...collage, ...back, size: sizeKey, items: move(collage.items) };
   }
 
   // ---------------------------------------------------------------------------
@@ -1791,8 +1790,13 @@
 
   /** How many parts of a collage were made by a newer PRISM and are kept but not shown. */
   function keptCount(collage) {
-    const kept = collage?.kept;
-    return kept ? (kept.items || []).length + Object.keys(kept.fields || {}).length : 0;
+    const count = (kept) => (kept ? (kept.items || []).length + Object.keys(kept.fields || {}).length : 0);
+    return count(collage?.kept) + count(collage?.back?.kept);
+  }
+
+  /** A side's items with the parts it kept for a newer PRISM put back in their places. */
+  function putBack(side) {
+    return draftModel({ version: MODEL_VERSION, size: DEFAULT_SIZE, background: side.background, layout: null, items: side.items, kept: side.kept }).items;
   }
 
   /**
@@ -1804,8 +1808,13 @@
    * A collage with nothing kept is returned as it is.
    */
   function draftModel(collage) {
-    if (!collage || !collage.kept) return collage;
-    const { kept, ...model } = collage;
+    if (!collage) return collage;
+    // The other side keeps its own newer parts too (PR 8), put back the same way.
+    const withBack = collage.back?.kept
+      ? { ...collage, back: { background: collage.back.background, items: putBack(collage.back) } }
+      : collage;
+    if (!withBack.kept) return withBack;
+    const { kept, ...model } = withBack;
     const items = [...model.items];
     const order = kept.order || [];
     // Kept parts never change order among themselves: each goes no lower than just above the
