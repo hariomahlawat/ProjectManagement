@@ -249,3 +249,27 @@
 #offcanvasTot .offcanvas-body .form-text {
     font-size: 0.8125rem;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-project-tot-drawer-1: rgba(229, 231, 235, 0.88);
+        --cm-pages-project-tot-drawer-2: #f3f8fe;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-pages-project-tot-drawer-1: rgba(44, 48, 53, 0.88);
+        --cm-pages-project-tot-drawer-2: #1b2129;
+    }
+
+    .project-tot-offcanvas {
+        --tot-border: var(--cm-pages-project-tot-drawer-1);
+        --tot-soft: var(--cm-pages-project-tot-drawer-2);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

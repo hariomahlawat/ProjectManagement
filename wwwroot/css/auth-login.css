@@ -7,12 +7,12 @@
    no colour literals here.
    ============================================================= */
 
-body:has(.auth) main {
+body.pm-scene-auth main {
     display: flex;
     flex: 1 0 auto;
 }
 
-body:has(.auth) main > .pm-page-shell {
+body.pm-scene-auth main > .pm-page-shell {
     display: flex;
 }
 
@@ -62,7 +62,7 @@ body:has(.auth) main > .pm-page-shell {
     min-width: 0;
 }
 
-body:has(.auth) .public-brand__name {
+body.pm-scene-auth .public-brand__name {
     display: none;
 }
 
@@ -571,5 +571,27 @@ body:has(.auth) .public-brand__name {
 @media (prefers-reduced-motion: reduce) {
     .auth__submit.is-busy .auth__submit-busy::before {
         animation-duration: 2s;
+    }
+}
+
+/* Browsers without color-mix() (Chromium/Edge before 111): landing.css gives the glass tokens
+   solid values; these are the sign-in rules that mix colours directly. Without them the card
+   loses its shadow and the fields lose their hover edge and focus ring. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    .auth__card {
+        box-shadow: var(--lp-glass-shadow);
+    }
+
+    .auth__input:hover {
+        border-color: var(--lp-accent);
+    }
+
+    .auth__input:focus {
+        box-shadow: 0 0 0 2px var(--lp-accent);
+    }
+
+    .auth__submit.is-busy .auth__submit-busy::before {
+        border: 2px solid transparent;
+        border-top-color: var(--pm-text-inverted);
     }
 }

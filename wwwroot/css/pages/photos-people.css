@@ -1886,6 +1886,8 @@ a.identity-workload-pill:hover {
 
 /* A face in a group, reached by keyboard: its tick box is hidden, so the tile shows the focus. */
 .identity-group-face:has(.identity-group-face__checkbox:focus-visible) { outline:2px solid var(--pm-primary); outline-offset:2px; }
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+.pm-no-has .identity-group-face.pm-has-focus-visible { outline:2px solid var(--pm-primary); outline-offset:2px; }
 
 /* Phones: faces start near the top, and everything pressed is at least 44px. */
 @media (max-width: 575.98px) {
@@ -1935,3 +1937,76 @@ a.identity-workload-pill:hover {
     .face-triage-card__select { min-height:2.75rem; min-width:2.75rem; }
     .face-review-batch__name .people-name-field { grid-template-columns:minmax(0, 1fr); }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-photos-people-1: #38311c;
+        --cm-pages-photos-people-2: #1d242d;
+        --cm-pages-photos-people-3: #1e252f;
+        --cm-pages-photos-people-4: #30435f;
+        --cm-pages-photos-people-5: #28251c;
+        --cm-pages-photos-people-6: #1f2632;
+        --cm-pages-photos-people-7: #20282d;
+        --cm-pages-photos-people-8: #374d57;
+        --cm-pages-photos-people-9: #5b4a1e;
+        --cm-pages-photos-people-10: #374e56;
+    }
+
+    :where([data-bs-theme="dark"]) .candidate-strength.is-ambiguous {
+        background: var(--cm-pages-photos-people-1);
+    }
+
+    :where([data-bs-theme="dark"]) .identity-history__icon {
+        background: var(--cm-pages-photos-people-2);
+    }
+
+    :where([data-bs-theme="dark"]) .candidate-strength.is-possible {
+        background: var(--cm-pages-photos-people-3);
+    }
+
+    :where([data-bs-theme="dark"]) .people-select-action:hover,
+    :where([data-bs-theme="dark"]) .people-select-action.is-active {
+        background: var(--cm-pages-photos-people-2);
+        border-color: var(--cm-pages-photos-people-4);
+    }
+
+    :where([data-bs-theme="dark"]) .identity-review-scope {
+        background: var(--cm-pages-photos-people-2);
+        border: 1px solid var(--cm-pages-photos-people-4);
+    }
+
+    :where([data-bs-theme="dark"]) .people-insight__work.is-warning:hover {
+        background: var(--cm-pages-photos-people-5);
+    }
+
+    :where([data-bs-theme="dark"]) a.identity-workload-pill:hover {
+        background: var(--cm-pages-photos-people-6);
+    }
+
+    :where([data-bs-theme="dark"]) .identity-workload-pill.is-processing {
+        background: var(--cm-pages-photos-people-7);
+        border-color: var(--cm-pages-photos-people-8);
+    }
+
+    :where([data-bs-theme="dark"]) .identity-workload-pill.is-warning {
+        background: var(--cm-pages-photos-people-5);
+        border-color: var(--cm-pages-photos-people-9);
+    }
+
+    :where([data-bs-theme="dark"]) .identity-workload-pill.is-active {
+        background: var(--cm-pages-photos-people-2);
+        border-color: var(--cm-pages-photos-people-4);
+    }
+
+    :where([data-bs-theme="dark"]) .identity-group-refresh-notice.is-refreshing {
+        background: var(--cm-pages-photos-people-7);
+        border-color: var(--cm-pages-photos-people-10);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

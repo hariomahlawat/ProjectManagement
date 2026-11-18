@@ -635,3 +635,48 @@
     color: #fff;
     background: rgba(0, 0, 0, 0.78);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-media-intelligence-1: rgba(244, 246, 251, 0.95);
+        --cm-pages-media-intelligence-2: #9ec5b6;
+        --cm-pages-media-intelligence-3: #efd890;
+        --cm-pages-media-intelligence-4: #f1d684;
+        --cm-pages-media-intelligence-5: #93c1af;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-pages-media-intelligence-1: rgba(22, 24, 27, 0.95);
+        --cm-pages-media-intelligence-2: #376d4f;
+        --cm-pages-media-intelligence-3: #7f692e;
+        --cm-pages-media-intelligence-4: #89702d;
+        --cm-pages-media-intelligence-5: #387653;
+    }
+
+    .classification-review-toolbar {
+        background: var(--cm-pages-media-intelligence-1);
+    }
+
+    .classification-assistance--used {
+        border-color: var(--cm-pages-media-intelligence-2);
+    }
+
+    .classification-assistance--blocked {
+        border-color: var(--cm-pages-media-intelligence-3);
+    }
+
+    .classification-admission-panel {
+        border: 1px solid var(--cm-pages-media-intelligence-4);
+    }
+
+    .classification-admission-panel--approved {
+        border-color: var(--cm-pages-media-intelligence-5);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

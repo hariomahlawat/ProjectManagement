@@ -1521,3 +1521,97 @@
         color: #9aa0a6;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-project-ideas-board-1: #1d242d;
+        --cm-project-ideas-board-2: #3d5c8c;
+        --cm-project-ideas-board-3: #202834;
+        --cm-project-ideas-board-4: #1e252f;
+        --cm-project-ideas-board-5: #30435f;
+        --cm-project-ideas-board-6: #5b4a1e;
+        --cm-project-ideas-board-7: #2d291c;
+        --cm-project-ideas-board-8: #564138;
+        --cm-project-ideas-board-9: #2a2322;
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page {
+        --pi-blue-soft: var(--cm-project-ideas-board-1);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-new-idea:hover {
+        background: var(--cm-project-ideas-board-2);
+        border-color: var(--cm-project-ideas-board-2);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-tabs a.active {
+        border-color: var(--cm-project-ideas-board-2);
+        background: var(--cm-project-ideas-board-2);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-tab-count {
+        background: var(--cm-project-ideas-board-3);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-search-clear:hover {
+        background: var(--cm-project-ideas-board-4);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-involvement-filter:hover {
+        border-color: var(--cm-project-ideas-board-5);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-involvement-filter.active {
+        border-color: var(--cm-project-ideas-board-5);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-filter-token {
+        border: 1px solid var(--cm-project-ideas-board-5);
+        background: var(--cm-project-ideas-board-1);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-table-row:focus-visible,
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-table-row:focus-within {
+        background: var(--cm-project-ideas-board-1) !important;
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-signal-warning {
+        border-color: var(--cm-project-ideas-board-6);
+        background: var(--cm-project-ideas-board-7);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-signal-danger {
+        border-color: var(--cm-project-ideas-board-8);
+        background: var(--cm-project-ideas-board-9);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-person-avatar {
+        border: 1px solid var(--cm-project-ideas-board-5);
+        background: var(--cm-project-ideas-board-1);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-table-row:hover .pi-table-open {
+        background: var(--cm-project-ideas-board-4);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-idea-card:hover {
+        border-color: var(--cm-project-ideas-board-5);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-card-icon {
+        border: 1px solid var(--cm-project-ideas-board-5);
+        background: var(--cm-project-ideas-board-1);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-index-page .pi-empty-icon {
+        border: 1px solid var(--cm-project-ideas-board-5);
+        background: var(--cm-project-ideas-board-1);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

@@ -49,6 +49,7 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'components', 'prism-toast.test.js'),
   path.join('wwwroot', 'js', 'widgets', 'media-viewer.test.js'),
   path.join('wwwroot', 'js', 'core', 'declarative-actions.test.js'),
+  path.join('wwwroot', 'js', 'core', 'has-fallback.test.js'),
   path.join('wwwroot', 'js', 'admin', 'admin-shell.test.js'),
   path.join('wwwroot', 'js', 'core', 'page-handled-contract.test.js'),
   path.join('wwwroot', 'js', 'core', 'theme-preference.test.js'),
@@ -77,6 +78,8 @@ const explicitTests = [
   path.join('tools', 'theme-coverage.test.js'),
   path.join('tools', 'theme-dark-codemod.test.js'),
   path.join('tools', 'css-dead-declarations.test.js'),
+  path.join('tools', 'public-pages-old-browsers.test.js'),
+  path.join('tools', 'color-mix-fallbacks.test.js'),
 ];
 
 function findTestFiles(directory) {

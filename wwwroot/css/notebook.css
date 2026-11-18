@@ -2280,7 +2280,12 @@ body.notebook-confirm-open { overflow: hidden; }
 .notebook-card:focus-within .notebook-card-actions,
 .notebook-card.is-selected .notebook-card-actions,
 .notebook-card.has-open-menu .notebook-card-actions,
-.notebook-card.has-open-popover .notebook-card-actions,
+.notebook-card.has-open-popover .notebook-card-actions {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 .notebook-card:has(.notebook-card-more[open]) .notebook-card-actions,
 .notebook-card:has(.notebook-colour-picker__popover:not([hidden])) .notebook-card-actions {
     opacity: 1;
@@ -4319,7 +4324,10 @@ body.notebook-confirm-open { overflow: hidden; }
 
 /* SECTION: Direct-drag floating-surface safety (authoritative overrides) */
 .notebook-card.has-open-menu,
-.notebook-card.has-open-popover,
+.notebook-card.has-open-popover {
+    z-index: 90;
+}
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 .notebook-card:has(.notebook-card-more[open]),
 .notebook-card:has(.notebook-colour-picker__popover:not([hidden])) {
     z-index: 90;
@@ -4340,7 +4348,10 @@ body.notebook-confirm-open { overflow: hidden; }
    allowed to leave the card. The application then collision-positions the colour
    palette inside the Notebook content viewport. */
 .notebook-conference-shared-card.has-open-popover,
-.notebook-conference-shared-card.has-open-menu,
+.notebook-conference-shared-card.has-open-menu {
+    overflow: visible;
+}
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 .notebook-conference-shared-card:has(.notebook-colour-picker__popover:not([hidden])),
 .notebook-conference-shared-card:has(.notebook-card-more[open]) {
     overflow: visible;
@@ -5668,3 +5679,181 @@ body.notebook-confirm-open { overflow: hidden; }
 :where([data-bs-theme="dark"]) .notebook-system-home-state {
     color: #9aa0a6;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-notebook-1: rgba(244, 246, 251, 0.84);
+        --cm-notebook-2: #1d242d;
+        --cm-notebook-3: #30435f;
+        --cm-notebook-4: #265339;
+        --cm-notebook-5: #1b2a24;
+        --cm-notebook-6: #342e1c;
+        --cm-notebook-7: #1b2c25;
+        --cm-notebook-8: #281f22;
+        --cm-notebook-9: #5a3335;
+        --cm-notebook-10: #2f2a1c;
+        --cm-notebook-11: #5b4a1e;
+        --cm-notebook-12: #212b39;
+        --cm-notebook-13: #3d341d;
+        --cm-notebook-14: #1d3228;
+        --cm-notebook-15: #2d2124;
+        --cm-notebook-16: #2b271c;
+        --cm-notebook-17: #1a2823;
+        --cm-notebook-18: #1e252f;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-notebook-1: rgba(22, 24, 27, 0.84);
+    }
+
+    .notebook-card-actions {
+        background: var(--cm-notebook-1) !important;
+    }
+
+    @media (max-width: 640px) {
+        .notebook-card-actions {
+            background: transparent !important;
+        }
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-label-chips a:hover,
+    :where([data-bs-theme="dark"]) .notebook-label-chips a.is-active {
+        background: var(--cm-notebook-2);
+        border-color: var(--cm-notebook-3);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-action-done {
+        border: 1px solid var(--cm-notebook-4);
+        background: var(--cm-notebook-5);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-card-color-blue {
+        background: var(--cm-notebook-2);
+        border-color: var(--cm-notebook-3);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-card-color-amber {
+        background: var(--cm-notebook-6);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-card-color-green {
+        background: var(--cm-notebook-7);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-card-color-rose {
+        background: var(--cm-notebook-8);
+        border-color: var(--cm-notebook-9);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-editor-primary {
+        border: 1px solid var(--cm-notebook-3);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-conflict {
+        background: var(--cm-notebook-10);
+        border: 1px solid var(--cm-notebook-11);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-composer__pin.is-active,
+    :where([data-bs-theme="dark"]) .notebook-composer__pin[aria-pressed="true"] {
+        background: var(--cm-notebook-2);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-create-feedback {
+        background: var(--cm-notebook-2);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-create-feedback.is-error {
+        background: var(--cm-notebook-8);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-colour-swatch--blue {
+        background: var(--cm-notebook-12);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-colour-swatch--amber {
+        background: var(--cm-notebook-13);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-colour-swatch--green {
+        background: var(--cm-notebook-14);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-colour-swatch--rose {
+        background: var(--cm-notebook-15);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-colour-choice--blue .notebook-colour-choice__swatch {
+        background: var(--cm-notebook-12);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-colour-choice--amber .notebook-colour-choice__swatch {
+        background: var(--cm-notebook-13);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-colour-choice--green .notebook-colour-choice__swatch {
+        background: var(--cm-notebook-14);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-colour-choice--rose .notebook-colour-choice__swatch {
+        background: var(--cm-notebook-15);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-surface-colour-blue {
+        background: var(--cm-notebook-2) !important;
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-surface-colour-amber {
+        background: var(--cm-notebook-16) !important;
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-surface-colour-green {
+        background: var(--cm-notebook-17) !important;
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-surface-colour-rose {
+        background: var(--cm-notebook-8) !important;
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-label-manager__row input:focus {
+        border-color: var(--cm-notebook-3);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-label-manager__feedback {
+        background: var(--cm-notebook-2);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-label-manager__feedback.is-error {
+        background: var(--cm-notebook-8);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-label-picker__suggestion[aria-selected="true"] {
+        background: var(--cm-notebook-2);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-collaborator-avatar {
+        background: var(--cm-notebook-18);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-reminder-scheduler__zone {
+        background: var(--cm-notebook-18);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-reminder-presets button:hover,
+    :where([data-bs-theme="dark"]) .notebook-reminder-presets button:focus-visible {
+        border-color: var(--cm-notebook-3);
+        background: var(--cm-notebook-2);
+    }
+
+    :where([data-bs-theme="dark"]) .notebook-create-discard:hover,
+    :where([data-bs-theme="dark"]) .notebook-create-discard:focus-visible {
+        background: var(--cm-notebook-8);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

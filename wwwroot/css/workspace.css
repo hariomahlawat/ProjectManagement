@@ -2185,3 +2185,46 @@
         color: #9aa0a6;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-workspace-1: #3d5c8c;
+        --cm-workspace-2: #1e252f;
+        --cm-workspace-3: #1f2632;
+        --cm-workspace-4: #1d242d;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --po-blue-100: #1e252f;
+        --po-danger-soft: #281f22;
+        --po-warning-soft: #312c1c;
+        --po-purple-soft: #23222d;
+    }
+
+    :where([data-bs-theme="dark"]) .po-btn--primary {
+        background: var(--cm-workspace-1);
+    }
+
+    :where([data-bs-theme="dark"]) .po-btn--primary:hover {
+        background: var(--cm-workspace-1);
+    }
+
+    :where([data-bs-theme="dark"]) .po-document-row__icon {
+        background: var(--cm-workspace-2);
+    }
+
+    :where([data-bs-theme="dark"]) .po-document-row__unread {
+        background: var(--cm-workspace-3);
+    }
+
+    :where([data-bs-theme="dark"]) .po-personal-activity-kpis article > span {
+        background: var(--cm-workspace-4);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

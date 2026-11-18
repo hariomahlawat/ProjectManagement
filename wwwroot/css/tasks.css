@@ -704,8 +704,17 @@
   cursor: grab;
 }
 
-.todo-row[data-status="done"] .task-row__title,
+.todo-row[data-status="done"] .task-row__title {
+  text-decoration: line-through;
+  opacity: .6;
+}
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 .todo-row:has(.js-done-checkbox:checked) .task-row__title {
+  text-decoration: line-through;
+  opacity: .6;
+}
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+.pm-no-has .todo-row.pm-has-done-checked .task-row__title {
   text-decoration: line-through;
   opacity: .6;
 }

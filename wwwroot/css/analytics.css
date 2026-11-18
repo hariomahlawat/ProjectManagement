@@ -130,7 +130,11 @@ button.analytics-figure { width: 100%; text-align: left; font: inherit; cursor: 
 .analytics-filter-form { position: relative; }
 .analytics-filter { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px 4px 12px; border: 1px solid var(--an-border); border-radius: 999px; background: var(--an-surface); color: var(--an-muted); font-size: .75rem; font-weight: 700; line-height: 1; cursor: pointer; transition: background-color 160ms var(--an-ease), border-color 160ms var(--an-ease); }
 .analytics-filter:hover, .analytics-filter[aria-expanded="true"] { border-color: var(--an-border-strong); background: var(--an-inset); }
-.analytics-filter:focus-visible, .analytics-filter:has(:focus-visible) { outline: none; box-shadow: var(--an-focus); }
+.analytics-filter:focus-visible { outline: none; box-shadow: var(--an-focus); }
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
+.analytics-filter:has(:focus-visible) { outline: none; box-shadow: var(--an-focus); }
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+.pm-no-has .analytics-filter.pm-has-focus-visible { outline: none; box-shadow: var(--an-focus); }
 .analytics-filter b { color: var(--an-strong); font-weight: 800; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .analytics-filter i { font-size: .7rem; color: var(--an-muted); }
 .analytics-filter__select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
@@ -284,3 +288,24 @@ button.analytics-figure { width: 100%; text-align: left; font: inherit; cursor: 
 @media (prefers-reduced-motion: reduce) {
     .analytics-drill__row.is-flash > .analytics-drill__summary { animation: none; }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-analytics-1: rgba(246, 247, 251, 0.18);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-analytics-1: rgba(14, 15, 17, 0.18);
+    }
+
+    .analytics-modes__item.is-active .analytics-modes__count {
+        background: var(--cm-analytics-1);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

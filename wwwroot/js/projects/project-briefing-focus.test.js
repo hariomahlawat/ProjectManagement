@@ -124,7 +124,7 @@ test('blocked storage still lets the button work for this page', async () => {
 test('the focus view hides the top bar and rail only from 576px, and the button not on phones', () => {
   const css = fs.readFileSync(
     path.resolve(__dirname, '..', '..', 'css', 'pages', 'project-briefing-decks.css'),
-    'utf8');
+    'utf8').split('/* BEGIN GENERATED: color-mix()')[0]; // not the generated color-mix() fallbacks
   const section = css.slice(css.indexOf('/* SECTION: Focus view'));
 
   assert.match(section, /@media \(min-width: 576px\) \{\s*html\[data-pbd-focus\]/);

@@ -5357,3 +5357,192 @@ details[open] > summary .at-disclosure-chevron {
         background: rgba(255, 255, 255, 0.12);
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-action-tracker-1: rgba(15, 23, 42, 0.45);
+        --cm-action-tracker-2: #30435f;
+        --cm-action-tracker-3: #212b39;
+        --cm-action-tracker-4: #3d5c8c;
+        --cm-action-tracker-5: #1d242d;
+        --cm-action-tracker-6: #1e252f;
+        --cm-action-tracker-7: #2f2224;
+        --cm-action-tracker-8: #3d341d;
+        --cm-action-tracker-9: #1d3228;
+        --cm-action-tracker-10: #212c35;
+        --cm-action-tracker-11: #304d5d;
+        --cm-action-tracker-12: #5a3335;
+        --cm-action-tracker-13: #5b4a1e;
+        --cm-action-tracker-14: #2b271c;
+        --cm-action-tracker-15: #281f22;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-action-tracker-1: rgba(240, 242, 244, 0.45);
+    }
+
+    .at-task-action-menu {
+        box-shadow: 0 10px 24px -12px var(--cm-action-tracker-1);
+    }
+
+    :where([data-bs-theme="dark"]) .at-nav a:hover,
+    :where([data-bs-theme="dark"]) .at-nav a.active {
+        border-color: var(--cm-action-tracker-2);
+    }
+
+    :where([data-bs-theme="dark"]) .at-count-chip {
+        background: var(--cm-action-tracker-3);
+    }
+
+    :where([data-bs-theme="dark"]) .at-register-scope-option.active {
+        background: var(--cm-action-tracker-4);
+    }
+
+    :where([data-bs-theme="dark"]) .at-register-table tbody tr.is-selected td {
+        background: var(--cm-action-tracker-5);
+    }
+
+    :where([data-bs-theme="dark"]) .at-register-table tbody tr.is-selected:hover td {
+        background: var(--cm-action-tracker-6);
+    }
+
+    :where([data-bs-theme="dark"]) .at-badge-status-progress {
+        background: var(--cm-action-tracker-3);
+    }
+
+    :where([data-bs-theme="dark"]) .at-badge-status-blocked {
+        background: var(--cm-action-tracker-7);
+    }
+
+    :where([data-bs-theme="dark"]) .at-badge-status-submitted {
+        background: var(--cm-action-tracker-8);
+    }
+
+    :where([data-bs-theme="dark"]) .at-badge-status-closed {
+        background: var(--cm-action-tracker-9);
+    }
+
+    :where([data-bs-theme="dark"]) .at-badge-priority-high {
+        background: var(--cm-action-tracker-8);
+    }
+
+    :where([data-bs-theme="dark"]) .at-badge-priority-critical {
+        background: var(--cm-action-tracker-7);
+    }
+
+    :where([data-bs-theme="dark"]) .at-task-card.is-selected,
+    :where([data-bs-theme="dark"]) .at-mini-row.is-selected {
+        border-color: var(--cm-action-tracker-2);
+        background: var(--cm-action-tracker-5);
+    }
+
+    :where([data-bs-theme="dark"]) .at-scope-badge-sprint {
+        background: var(--cm-action-tracker-3);
+        border-color: var(--cm-action-tracker-2);
+    }
+
+    :where([data-bs-theme="dark"]) .at-sprint-status-pill {
+        background: var(--cm-action-tracker-10);
+        border: 1px solid var(--cm-action-tracker-11);
+    }
+
+    :where([data-bs-theme="dark"]) .at-active-sprint-note {
+        border: 1px solid var(--cm-action-tracker-2);
+        background: var(--cm-action-tracker-5);
+    }
+
+    :where([data-bs-theme="dark"]) .at-closure-review {
+        border-color: var(--cm-action-tracker-12);
+    }
+
+    :where([data-bs-theme="dark"]) .at-closure-recommendations {
+        border: 1px solid var(--cm-action-tracker-13);
+        background: var(--cm-action-tracker-14);
+    }
+
+    :where([data-bs-theme="dark"]) .at-sprint-list-item.is-active {
+        border-color: var(--cm-action-tracker-2);
+        background: var(--cm-action-tracker-5);
+    }
+
+    :where([data-bs-theme="dark"]) .at-overdue-marker {
+        border: 1px solid var(--cm-action-tracker-12);
+        background: var(--cm-action-tracker-7);
+    }
+
+    :where([data-bs-theme="dark"]) .at-sprint-health-grid-readable article.is-primary {
+        border-color: var(--cm-action-tracker-2);
+        background: var(--cm-action-tracker-5);
+    }
+
+    :where([data-bs-theme="dark"]) .at-due-exception-column-overdue {
+        border-color: var(--cm-action-tracker-12);
+    }
+
+    :where([data-bs-theme="dark"]) .at-planning-tabs a.active {
+        border-color: var(--cm-action-tracker-2);
+        background: var(--cm-action-tracker-5);
+    }
+
+    :where([data-bs-theme="dark"]) .at-planning-command-focus {
+        border-left: 3px solid var(--cm-action-tracker-2);
+    }
+
+    :where([data-bs-theme="dark"]) .at-shell.is-planning-board .at-create-trigger {
+        border-color: var(--cm-action-tracker-2);
+        background: var(--cm-action-tracker-5);
+    }
+
+    :where([data-bs-theme="dark"]) .at-closure-recommendations {
+        border-color: var(--cm-action-tracker-13);
+    }
+
+    :where([data-bs-theme="dark"]) .at-scope-badge-invalid {
+        border-color: var(--cm-action-tracker-12);
+        background: var(--cm-action-tracker-15);
+    }
+
+    :where([data-bs-theme="dark"]) .at-action-danger-group {
+        border-color: var(--cm-action-tracker-12);
+    }
+
+    :where([data-bs-theme="dark"]) .at-action-more-group .at-action-more-destructive:hover,
+    :where([data-bs-theme="dark"]) .at-action-more-group .at-action-more-destructive:focus {
+        background: var(--cm-action-tracker-15);
+    }
+
+    :where([data-bs-theme="dark"]) .at-simple-rail .at-nav a.active {
+        background: var(--cm-action-tracker-5);
+    }
+
+    :where([data-bs-theme="dark"]) .at-overview-metric:hover {
+        border-color: var(--cm-action-tracker-2);
+    }
+
+    :where([data-bs-theme="dark"]) .at-simple-section-heading > span {
+        background: var(--cm-action-tracker-6);
+    }
+
+    :where([data-bs-theme="dark"]) .at-board-nav a.active {
+        background: var(--cm-action-tracker-6);
+    }
+
+    :where([data-bs-theme="dark"]) .at-open-total-link:hover {
+        border-color: var(--cm-action-tracker-2);
+    }
+
+    :where([data-bs-theme="dark"]) .at-fixed-decision {
+        background: var(--cm-action-tracker-15);
+    }
+
+    :where([data-bs-theme="dark"]) .at-filter-count {
+        background: var(--cm-action-tracker-6);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

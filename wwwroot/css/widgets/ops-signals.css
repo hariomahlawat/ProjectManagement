@@ -217,3 +217,34 @@
     background: color-mix(in oklab, var(--pm-primary) 10%, #16181b);
     border: 1px solid color-mix(in oklab, var(--pm-primary) 16%, #2c3035);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-widgets-ops-signals-1: #e8f0fd;
+        --cm-widgets-ops-signals-2: #dbe7fb;
+        --cm-widgets-ops-signals-3: #1e242e;
+        --cm-widgets-ops-signals-4: #364252;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-widgets-ops-signals-1: #f0f7ff;
+        --cm-widgets-ops-signals-2: #e8f2ff;
+    }
+
+    .ops-signals__icon {
+        background: var(--cm-widgets-ops-signals-1);
+        border: 1px solid var(--cm-widgets-ops-signals-2);
+    }
+
+    :where([data-bs-theme="dark"]) .ops-signals__icon {
+        background: var(--cm-widgets-ops-signals-3);
+        border: 1px solid var(--cm-widgets-ops-signals-4);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

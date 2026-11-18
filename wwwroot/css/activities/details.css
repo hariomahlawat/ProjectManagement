@@ -1056,3 +1056,41 @@
     background: #25282d;
     color: #fff;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-activities-details-1: #312c1c;
+        --cm-activities-details-2: #1e252f;
+        --cm-activities-details-3: #30435f;
+        --cm-activities-details-4: #281f22;
+        --cm-activities-details-5: #1d242d;
+    }
+
+    :where([data-bs-theme="dark"]) .activities-details-page {
+        --activity-warning-bg: var(--cm-activities-details-1);
+    }
+
+    :where([data-bs-theme="dark"]) .activity-detail-hero__type {
+        background: var(--cm-activities-details-2);
+    }
+
+    :where([data-bs-theme="dark"]) .activity-upload-panel {
+        border: 1px solid var(--cm-activities-details-3);
+    }
+
+    :where([data-bs-theme="dark"]) .activity-icon-action--danger:hover,
+    :where([data-bs-theme="dark"]) .activity-icon-action--danger:focus-visible {
+        background: var(--cm-activities-details-4);
+    }
+
+    :where([data-bs-theme="dark"]) .activity-document-row__icon {
+        background: var(--cm-activities-details-5);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

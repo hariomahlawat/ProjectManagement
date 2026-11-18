@@ -611,3 +611,43 @@
     color: #fbbf24;
     background: color-mix(in srgb, #fbbf24 8%, #16181b);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-action-task-actions-1: #5a3335;
+        --cm-action-task-actions-2: #1d242d;
+        --cm-action-task-actions-3: #5b4a1e;
+        --cm-action-task-actions-4: #28251c;
+    }
+
+    :where([data-bs-theme="dark"]) .at-task-action-danger {
+        border: 1px solid var(--cm-action-task-actions-1);
+    }
+
+    :where([data-bs-theme="dark"]) .at-update-action.is-danger:hover,
+    :where([data-bs-theme="dark"]) .at-update-action.is-danger:focus-visible {
+        border-color: var(--cm-action-task-actions-1);
+    }
+
+    :where([data-bs-theme="dark"]) .at-person-picker-option:hover,
+    :where([data-bs-theme="dark"]) .at-person-picker-option.is-active,
+    :where([data-bs-theme="dark"]) .at-person-picker-option[aria-selected="true"] {
+        background: var(--cm-action-task-actions-2);
+    }
+
+    :where([data-bs-theme="dark"]) .at-priority-input:checked + .at-priority-choice[data-priority="critical"] {
+        border-color: var(--cm-action-task-actions-1);
+    }
+
+    :where([data-bs-theme="dark"]) .at-priority-input:checked + .at-priority-choice[data-priority="high"] {
+        border-color: var(--cm-action-task-actions-3);
+        background: var(--cm-action-task-actions-4);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

@@ -492,3 +492,49 @@
 :where([data-bs-theme="dark"]) .todo-kebab:focus-visible {
     outline: 2px solid rgba(110, 168, 254, 0.45);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-todo-widget-1: #222c3b;
+        --cm-todo-widget-2: #1a2823;
+        --cm-todo-widget-3: #242f3f;
+        --cm-todo-widget-4: #354a6a;
+        --cm-todo-widget-5: #3b331c;
+        --cm-todo-widget-6: #66521e;
+        --cm-todo-widget-7: #1a3635;
+        --cm-todo-widget-8: #1e5a54;
+        --cm-todo-widget-9: #283548;
+        --cm-todo-widget-10: #395276;
+    }
+
+    [data-bs-theme="dark"] .todo-widget {
+        --mission-panel-header-bg: linear-gradient(135deg, var(--cm-todo-widget-1), var(--cm-todo-widget-2));
+    }
+
+    [data-bs-theme="dark"] .mission-panel__kpi {
+        --mission-kpi-bg: var(--cm-todo-widget-3);
+        --mission-kpi-border: var(--cm-todo-widget-4);
+    }
+
+    [data-bs-theme="dark"] .mission-panel__kpi.bg-warning {
+        --mission-kpi-bg: var(--cm-todo-widget-5);
+        --mission-kpi-border: var(--cm-todo-widget-6);
+    }
+
+    [data-bs-theme="dark"] .mission-panel__kpi.bg-info {
+        --mission-kpi-bg: var(--cm-todo-widget-7);
+        --mission-kpi-border: var(--cm-todo-widget-8);
+    }
+
+    [data-bs-theme="dark"] .mission-panel__kpi.bg-primary {
+        --mission-kpi-bg: var(--cm-todo-widget-9);
+        --mission-kpi-border: var(--cm-todo-widget-10);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

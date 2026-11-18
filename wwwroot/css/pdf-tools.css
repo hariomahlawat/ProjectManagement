@@ -1028,3 +1028,63 @@
         width: 100%;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pdf-tools-1: rgba(0, 0, 0, 0.08);
+        --cm-pdf-tools-2: rgba(0, 0, 0, 0.06);
+        --cm-pdf-tools-3: rgba(0, 0, 0, 0.25);
+        --cm-pdf-tools-4: #e6eefb;
+        --cm-pdf-tools-5: rgba(244, 246, 251, 0.7);
+        --cm-pdf-tools-6: rgba(13, 110, 253, 0.08);
+        --cm-pdf-tools-7: rgba(0, 0, 0, 0.45);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-pdf-tools-1: rgba(240, 242, 244, 0.08);
+        --cm-pdf-tools-2: rgba(240, 242, 244, 0.06);
+        --cm-pdf-tools-4: #1b2129;
+        --cm-pdf-tools-5: rgba(22, 24, 27, 0.7);
+        --cm-pdf-tools-6: rgba(110, 168, 254, 0.08);
+    }
+
+    .pdft {
+        --pdft-shadow: 0 1px 2px var(--cm-pdf-tools-1), 0 6px 20px var(--cm-pdf-tools-2);
+    }
+
+    .pdft-card__icon {
+        background: transparent;
+    }
+
+    .pdft-drop.is-dragging {
+        background: var(--pdft-surface);
+    }
+
+    .pdft-page.is-lifted {
+        box-shadow: 0 0.5rem 1.25rem var(--cm-pdf-tools-3);
+    }
+
+    .pdft-preset:has(.pdft-preset__input:checked) {
+        background: var(--cm-pdf-tools-4);
+    }
+
+    .pdft-busy {
+        background: var(--cm-pdf-tools-5);
+    }
+
+    .pdft-item__text[contenteditable="true"],
+    .pdft-item__text[contenteditable="plaintext-only"] {
+        background: var(--cm-pdf-tools-6);
+    }
+
+    .pdft-dialog::backdrop {
+        background: var(--cm-pdf-tools-7);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

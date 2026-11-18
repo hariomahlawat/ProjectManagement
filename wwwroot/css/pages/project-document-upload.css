@@ -110,3 +110,29 @@
     background: rgba(22, 24, 27, 0.95);
     box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-project-document-upload-1: #1e252f;
+        --cm-pages-project-document-upload-2: #1d242d;
+    }
+
+    :where([data-bs-theme="dark"]) .project-document-upload-step {
+        background: var(--cm-pages-project-document-upload-1);
+    }
+
+    :where([data-bs-theme="dark"]) .project-document-dropzone__icon {
+        background: var(--cm-pages-project-document-upload-2);
+    }
+
+    :where([data-bs-theme="dark"]) .project-document-file__icon {
+        background: var(--cm-pages-project-document-upload-2);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

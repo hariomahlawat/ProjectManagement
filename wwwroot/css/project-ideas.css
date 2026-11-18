@@ -1939,3 +1939,123 @@
 :where([data-bs-theme="dark"]) .pi-deleted-retained span {
     background: #1e2125;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-project-ideas-1: #5a3335;
+        --cm-project-ideas-2: #1e252f;
+        --cm-project-ideas-3: #1d242d;
+        --cm-project-ideas-4: #1d3228;
+        --cm-project-ideas-5: #3d341d;
+        --cm-project-ideas-6: #30435f;
+        --cm-project-ideas-7: #28251c;
+        --cm-project-ideas-8: #5b4a1e;
+        --cm-project-ideas-9: #4b3e1d;
+        --cm-project-ideas-10: #281f22;
+        --cm-project-ideas-11: #1b2a24;
+        --cm-project-ideas-12: #1f1f2d;
+        --cm-project-ideas-13: #202834;
+    }
+
+    :where([data-bs-theme="dark"]) .pi-btn-danger {
+        border-color: var(--cm-project-ideas-1);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-chip.active {
+        background: var(--cm-project-ideas-2) !important;
+    }
+
+    :where([data-bs-theme="dark"]) .pi-active-filter {
+        background: var(--cm-project-ideas-3);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-hero-icon {
+        background: var(--cm-project-ideas-2);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-card-icon,
+    :where([data-bs-theme="dark"]) .pi-icon {
+        background: var(--cm-project-ideas-2);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-status-active {
+        background: var(--cm-project-ideas-4);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-status-onhold {
+        background: var(--cm-project-ideas-5);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-notice {
+        background: var(--cm-project-ideas-3);
+        border: 1px solid var(--cm-project-ideas-6);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-avatar {
+        background: var(--cm-project-ideas-4);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-note {
+        background: var(--cm-project-ideas-7);
+        border: 1px solid var(--cm-project-ideas-8);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-featured {
+        background: var(--cm-project-ideas-9);
+    }
+
+    :where([data-bs-theme="dark"]) .idea-attachment-icon.pdf {
+        background: var(--cm-project-ideas-10);
+    }
+
+    :where([data-bs-theme="dark"]) .idea-attachment-icon.word {
+        background: var(--cm-project-ideas-3);
+    }
+
+    :where([data-bs-theme="dark"]) .idea-attachment-icon.excel {
+        background: var(--cm-project-ideas-11);
+    }
+
+    :where([data-bs-theme="dark"]) .idea-attachment-icon.ppt {
+        background: var(--cm-project-ideas-7);
+    }
+
+    :where([data-bs-theme="dark"]) .idea-attachment-icon.image {
+        background: var(--cm-project-ideas-12);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-view-toggle {
+        background: var(--cm-project-ideas-13);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-table-open:hover {
+        background: var(--cm-project-ideas-2);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-table-row:focus-within {
+        background: var(--cm-project-ideas-3);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-table-row:active {
+        background: var(--cm-project-ideas-3) !important;
+    }
+
+    :where([data-bs-theme="dark"]) .pi-table-row:hover .pi-table-activity > span {
+        background: var(--cm-project-ideas-3);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-section-count {
+        background: var(--cm-project-ideas-3);
+    }
+
+    :where([data-bs-theme="dark"]) .pi-section-action {
+        border: 1px solid var(--cm-project-ideas-6);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

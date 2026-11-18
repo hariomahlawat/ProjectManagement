@@ -14,6 +14,14 @@
     -webkit-backdrop-filter: saturate(1.4) blur(14px);
 }
 
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw no bar and no edge. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    .public-topbar {
+        background: var(--pm-page-bg);
+        border-bottom: 1px solid var(--pm-border);
+    }
+}
+
 .public-topbar__inner,
 .public-footer__inner {
     width: min(76rem, calc(100% - 2rem));

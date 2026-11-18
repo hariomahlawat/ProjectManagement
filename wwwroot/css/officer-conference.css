@@ -2554,3 +2554,41 @@
         border-top: 1px solid #2c3035;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-officer-conference-1: #3c3956;
+        --cm-officer-conference-2: #51497b;
+        --cm-officer-conference-3: #28251c;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --oc-blue-soft: #1d242d;
+        --oc-warning-soft: #2b271c;
+    }
+
+    :where([data-bs-theme="dark"]) .oc-add-direction {
+        border: 1px solid var(--cm-officer-conference-1);
+    }
+
+    :where([data-bs-theme="dark"]) .oc-inline-editor {
+        border-top: 1px solid var(--cm-officer-conference-1);
+    }
+
+    :where([data-bs-theme="dark"]) .oc-editor-save {
+        border: 1px solid var(--cm-officer-conference-2);
+        background: var(--cm-officer-conference-2);
+    }
+
+    :where([data-bs-theme="dark"]) .oc-add-task:hover,
+    :where([data-bs-theme="dark"]) .oc-add-task:focus-visible {
+        background: var(--cm-officer-conference-3);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

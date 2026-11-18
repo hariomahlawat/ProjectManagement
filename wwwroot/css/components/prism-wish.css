@@ -180,3 +180,35 @@
         -webkit-backdrop-filter: none;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --pw-rim: rgba(255, 255, 255, 0.85);
+        --pw-shadow: rgba(15, 23, 42, 0.28);
+        --pw-gold: #b97c07;
+        --cm-components-prism-wish-1: rgba(255, 255, 255, 0.76);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --pw-rim: rgba(240, 242, 244, 0.18);
+        --pw-shadow: rgba(14, 15, 17, 0.85);
+        --cm-components-prism-wish-1: rgba(22, 24, 27, 0.72);
+    }
+
+    .prism-wish__card {
+        background: var(--cm-components-prism-wish-1);
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+        .prism-wish__card {
+            background: var(--pm-card);
+        }
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

@@ -882,3 +882,32 @@
 :where([data-bs-theme="dark"]) .person-photo-discovery__processing h3 {
     color: #e6e8eb;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-photos-person-profile-1: #281f22;
+        --cm-pages-photos-person-profile-2: #1d242d;
+        --cm-pages-photos-person-profile-3: #30435f;
+        --cm-pages-photos-person-profile-4: #1e252f;
+    }
+
+    :where([data-bs-theme="dark"]) .person-photo-discovery__notice.is-error {
+        background: var(--cm-pages-photos-person-profile-1);
+    }
+
+    :where([data-bs-theme="dark"]) .photos-person-profile__self-link {
+        background: var(--cm-pages-photos-person-profile-2);
+        border: 1px solid var(--cm-pages-photos-person-profile-3);
+    }
+
+    :where([data-bs-theme="dark"]) .person-photo-discovery__band-header > span {
+        background: var(--cm-pages-photos-person-profile-4);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

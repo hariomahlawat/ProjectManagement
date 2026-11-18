@@ -5,6 +5,7 @@
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "focused";
     ViewData["PublicHeaderMode"] = "Auth";
+    ViewData["BodyClass"] = "pm-scene-lp pm-scene-auth";
     // The opening sequence plays on arrival only. A sign-in that comes back with an error is a
     // POST, and replaying it on every retry would be tiresome.
     var playIntro = HttpMethods.IsGet(Request.Method);

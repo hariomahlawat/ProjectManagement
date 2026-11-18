@@ -512,3 +512,58 @@
     background: repeating-linear-gradient(135deg, color-mix(in srgb, #fbbf24 12%, #16181b), color-mix(in srgb, #fbbf24 12%, #16181b) 3px, #2c3035 3px, #2c3035 6px);
     border-color: #3a3f45;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-erp-usage-1: #30435f;
+        --cm-erp-usage-2: #3c3956;
+        --cm-erp-usage-3: #1e252f;
+        --cm-erp-usage-4: #1d242d;
+        --cm-erp-usage-5: #2b271c;
+        --cm-erp-usage-6: #281f22;
+        --cm-erp-usage-7: #312c1c;
+    }
+
+    :where([data-bs-theme="dark"]) .erp-usage-notice {
+        border: 1px solid var(--cm-erp-usage-1);
+    }
+
+    :where([data-bs-theme="dark"]) .erp-usage-notice--maturity {
+        border-color: var(--cm-erp-usage-2);
+    }
+
+    :where([data-bs-theme="dark"]) .erp-usage-metric--primary > span {
+        background: var(--cm-erp-usage-3);
+    }
+
+    :where([data-bs-theme="dark"]) .erp-usage-metric--info > span {
+        background: var(--cm-erp-usage-4);
+    }
+
+    :where([data-bs-theme="dark"]) .erp-usage-metric--warning > span {
+        background: var(--cm-erp-usage-5);
+    }
+
+    :where([data-bs-theme="dark"]) .erp-usage-metric--danger > span {
+        background: var(--cm-erp-usage-6);
+    }
+
+    :where([data-bs-theme="dark"]) .erp-module-grid article > span {
+        background: var(--cm-erp-usage-3);
+    }
+
+    :where([data-bs-theme="dark"]) .is-navigation {
+        background: var(--cm-erp-usage-1);
+    }
+
+    :where([data-bs-theme="dark"]) .is-nonworking {
+        background: repeating-linear-gradient(135deg, var(--cm-erp-usage-7), var(--cm-erp-usage-7) 3px, #2c3035 3px, #2c3035 6px);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

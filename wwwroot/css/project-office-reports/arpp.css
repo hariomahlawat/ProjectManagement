@@ -1770,3 +1770,78 @@ details.arpp-reference-guidance[open] .arpp-reference-guidance__chevron {
 :where([data-bs-theme="dark"]) .arpp-suggestion__confidence {
     background: rgba(110, 168, 254, 0.14);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-project-office-reports-arpp-1: rgba(244, 246, 251, 0.94);
+        --cm-project-office-reports-arpp-2: rgba(247, 249, 252, 0.7);
+        --cm-project-office-reports-arpp-3: #dde8fb;
+        --cm-project-office-reports-arpp-4: #e2ebfb;
+        --cm-project-office-reports-arpp-5: #bed1ee;
+        --cm-project-office-reports-arpp-6: rgba(207, 226, 255, 0.45);
+        --cm-project-office-reports-arpp-7: #e3edfd;
+        --cm-project-office-reports-arpp-8: rgba(13, 110, 253, 0.28);
+        --cm-project-office-reports-arpp-9: rgba(13, 110, 253, 0.12);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-project-office-reports-arpp-1: rgba(22, 24, 27, 0.94);
+        --cm-project-office-reports-arpp-2: rgba(37, 40, 45, 0.7);
+        --cm-project-office-reports-arpp-3: #1f2632;
+        --cm-project-office-reports-arpp-4: #1d242d;
+        --cm-project-office-reports-arpp-5: #384659;
+        --cm-project-office-reports-arpp-6: rgba(34, 44, 59, 0.45);
+        --cm-project-office-reports-arpp-7: #1c212a;
+        --cm-project-office-reports-arpp-8: rgba(110, 168, 254, 0.28);
+        --cm-project-office-reports-arpp-9: rgba(110, 168, 254, 0.12);
+    }
+
+    .arpp-editor__actions--sticky {
+        background: var(--cm-project-office-reports-arpp-1);
+    }
+
+    .arpp-document-empty {
+        background: var(--cm-project-office-reports-arpp-2);
+    }
+
+    .arpp-project-picker__result[aria-selected="true"],
+    .arpp-project-picker__result.is-active {
+        background: var(--cm-project-office-reports-arpp-3);
+    }
+
+    .arpp-suggestion:hover,
+    .arpp-suggestion:focus-visible,
+    .arpp-suggestion.is-selected {
+        background: var(--cm-project-office-reports-arpp-4);
+    }
+
+    .arpp-reference-guidance {
+        border: 1px solid var(--cm-project-office-reports-arpp-5);
+        background: var(--cm-project-office-reports-arpp-6);
+    }
+
+    .arpp-publication-continuity {
+        border: 1px solid var(--arpp-border);
+        background: var(--cm-project-office-reports-arpp-7);
+    }
+
+    details.arpp-reference-guidance {
+        border: 1px solid var(--cm-project-office-reports-arpp-5);
+        background: var(--cm-project-office-reports-arpp-6);
+    }
+
+    details.arpp-reference-guidance > summary:focus-visible {
+        outline: 3px solid var(--cm-project-office-reports-arpp-8);
+    }
+
+    .arpp-reference-guidance__body {
+        border-top: 1px solid var(--cm-project-office-reports-arpp-9);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

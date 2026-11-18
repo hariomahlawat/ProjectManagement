@@ -1382,3 +1382,31 @@ button[data-ffc-submitting-text]:disabled {
 :where([data-bs-theme="dark"]) .ffc-record-create .validation-summary-errors:focus {
     outline: 3px solid rgba(110, 168, 254, 0.33);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-project-office-reports-ffc-record-workspace-1: #212b39;
+        --cm-project-office-reports-ffc-record-workspace-2: #1d3228;
+        --cm-project-office-reports-ffc-record-workspace-3: #3d341d;
+        --cm-project-office-reports-ffc-record-workspace-4: #1f1f2d;
+        --cm-project-office-reports-ffc-record-workspace-5: #38325d;
+    }
+
+    :where([data-bs-theme="dark"]) .ffc-workspace {
+        --ffc-primary-soft: var(--cm-project-office-reports-ffc-record-workspace-1);
+        --ffc-success-soft: var(--cm-project-office-reports-ffc-record-workspace-2);
+        --ffc-warning-soft: var(--cm-project-office-reports-ffc-record-workspace-3);
+    }
+
+    :where([data-bs-theme="dark"]) .ffc-workspace-lifecycle.is-unlinked {
+        background: var(--cm-project-office-reports-ffc-record-workspace-4);
+        border-color: var(--cm-project-office-reports-ffc-record-workspace-5);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

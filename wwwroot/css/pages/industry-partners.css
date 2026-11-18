@@ -2472,3 +2472,79 @@ button.ip-primary-contact-card {
     break-inside: avoid;
   }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-industry-partners-1: #30435f;
+        --cm-pages-industry-partners-2: #1d242d;
+        --cm-pages-industry-partners-3: #5b4a1e;
+        --cm-pages-industry-partners-4: rgba(49, 94, 231, 0.14);
+        --cm-pages-industry-partners-5: #acd0c0;
+        --cm-pages-industry-partners-6: #ebb8b8;
+        --cm-pages-industry-partners-7: #949baa;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --ip-primary-soft: #1d242d;
+        --ip-primary-border: #30435f;
+        --ip-warning-soft: #2b271c;
+        --ip-danger-soft: #281f22;
+        --cm-pages-industry-partners-4: rgba(110, 168, 254, 0.14);
+        --cm-pages-industry-partners-5: #285d3e;
+        --cm-pages-industry-partners-6: #653739;
+        --cm-pages-industry-partners-7: #72777c;
+    }
+
+    :where([data-bs-theme="dark"]) .ip-search-form .form-control:focus,
+    :where([data-bs-theme="dark"]) .ip-search-control .form-control:focus {
+        border-color: var(--cm-pages-industry-partners-1);
+    }
+
+    :where([data-bs-theme="dark"]) .ip-org-avatar,
+    :where([data-bs-theme="dark"]) .ip-contact-avatar {
+        border: 1px solid var(--cm-pages-industry-partners-1);
+        background: var(--cm-pages-industry-partners-2);
+    }
+
+    :where([data-bs-theme="dark"]) .ip-status-past {
+        border-color: var(--cm-pages-industry-partners-3);
+    }
+
+    :where([data-bs-theme="dark"]) .ip-directory .form-control:focus,
+    :where([data-bs-theme="dark"]) .ip-directory .form-select:focus {
+        border-color: var(--cm-pages-industry-partners-1);
+    }
+
+    :where([data-bs-theme="dark"]) .ip-duplicate-suggestions {
+        border: 1px solid var(--cm-pages-industry-partners-3);
+    }
+
+    .ip-select:focus-within {
+        box-shadow: 0 0 0 0.2rem var(--cm-pages-industry-partners-4);
+    }
+
+    .ip-org-avatar[class*="ip-tone-"] {
+        border-color: var(--ip-surface);
+        background: var(--ip-surface);
+        color: var(--ip-tone);
+    }
+
+    .ip-copy.is-copied {
+        border-color: var(--cm-pages-industry-partners-5);
+    }
+
+    .ip-copy.is-copy-failed {
+        border-color: var(--cm-pages-industry-partners-6);
+    }
+
+    .ip-jdp-dot {
+        background: var(--cm-pages-industry-partners-7);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

@@ -1294,3 +1294,33 @@
 :where([data-bs-theme="dark"]) .ffc-portfolio-row:focus-within {
     box-shadow: 0 0.35rem 0.9rem rgba(0, 0, 0, 0.24);
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-project-office-reports-ffc-portfolio-1: rgba(248, 249, 250, 0.72);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-project-office-reports-ffc-portfolio-1: rgba(30, 33, 37, 0.72);
+    }
+
+    .ffc-segmented-bar {
+        box-shadow: inset 0 0 0 1px var(--ffc-border);
+    }
+
+    .ffc-active-filters {
+        background: var(--cm-project-office-reports-ffc-portfolio-1);
+    }
+
+    .ffc-portfolio-row:hover,
+    .ffc-portfolio-row:focus-within {
+        border-color: var(--ffc-border);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

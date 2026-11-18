@@ -615,7 +615,10 @@
     display: none;
 }
 
-.itp-stage-row--done::before,
+.itp-stage-row--done::before {
+    background: var(--itp-done);
+}
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 .itp-stage-row--done:has(+ .itp-stage-row--done)::after {
     background: var(--itp-done);
 }
@@ -2485,7 +2488,12 @@
         display: none;
     }
 
-    .itp-jstep--travelled::before,
+    .itp-jstep--travelled::before {
+        left: 13px;
+        width: 4px;
+        background: var(--pm-success);
+    }
+    /* Separate rule: a browser without :has() drops a whole list that contains it. */
     .itp-jstep:has(+ .itp-jstep--travelled)::after {
         left: 13px;
         width: 4px;
@@ -2872,3 +2880,24 @@
     padding: 0;
     font-size: inherit;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-it-projects-1: #c0aaec;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-pages-it-projects-1: #57507a;
+    }
+
+    .itp-remark--conference .itp-remark__body {
+        border-color: var(--cm-pages-it-projects-1);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

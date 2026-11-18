@@ -1362,3 +1362,38 @@
                 0 3px 8px rgba(0, 0, 0, 0.25);
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-projects-reports-1: #1e252f;
+        --cm-pages-projects-reports-2: #2b271c;
+        --cm-pages-projects-reports-3: #30435f;
+        --cm-pages-projects-reports-4: #1d242d;
+        --cm-pages-projects-reports-5: #5b4a1e;
+    }
+
+    :where([data-bs-theme="dark"]) .project-reports-page {
+        --reports-blue-soft: var(--cm-pages-projects-reports-1);
+        --reports-warning-soft: var(--cm-pages-projects-reports-2);
+    }
+
+    :where([data-bs-theme="dark"]) .report-option-toggle:has(.form-check-input:checked) {
+        border-color: var(--cm-pages-projects-reports-3);
+        background: var(--cm-pages-projects-reports-4);
+    }
+
+    :where([data-bs-theme="dark"]) .report-preflight {
+        border: 1px solid var(--cm-pages-projects-reports-5);
+    }
+
+    :where([data-bs-theme="dark"]) .report-preflight__body {
+        border-top: 1px solid var(--cm-pages-projects-reports-5);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

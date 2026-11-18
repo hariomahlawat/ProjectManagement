@@ -1694,3 +1694,207 @@
     .library *::before,
     .library *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-docrepo-ui-1: rgba(47, 95, 208, 0.4);
+        --cm-docrepo-ui-2: rgba(61, 111, 224, 0.6);
+        --cm-docrepo-ui-3: rgba(124, 58, 237, 0.22);
+        --cm-docrepo-ui-4: rgba(255, 255, 255, 0.03);
+        --cm-docrepo-ui-5: rgba(255, 255, 255, 0.12);
+        --cm-docrepo-ui-6: rgba(255, 255, 255, 0.18);
+        --cm-docrepo-ui-7: rgba(255, 255, 255, 0.1);
+        --cm-docrepo-ui-8: rgba(255, 255, 255, 0.2);
+        --cm-docrepo-ui-9: #e8eefb;
+        --cm-docrepo-ui-10: #b5c8f3;
+        --cm-docrepo-ui-11: rgba(61, 111, 224, 0.55);
+        --cm-docrepo-ui-12: rgba(255, 255, 255, 0.09);
+        --cm-docrepo-ui-13: rgba(255, 255, 255, 0.16);
+        --cm-docrepo-ui-14: rgba(149, 87, 10, 0.7);
+        --cm-docrepo-ui-15: rgba(47, 95, 208, 0.6);
+        --cm-docrepo-ui-16: rgba(255, 255, 255, 0.3);
+        --cm-docrepo-ui-17: #e2e9f8;
+        --cm-docrepo-ui-18: rgba(47, 95, 208, 0.55);
+        --cm-docrepo-ui-19: #dae2f7;
+        --cm-docrepo-ui-20: #f7f9fd;
+        --cm-docrepo-ui-21: #f8f9fb;
+        --cm-docrepo-ui-22: rgba(255, 255, 255, 0.18);
+        --cm-docrepo-ui-23: rgba(47, 95, 208, 0.07);
+        --cm-docrepo-ui-24: #90b9ae;
+        --cm-docrepo-ui-25: #cb9698;
+        --cm-docrepo-ui-26: #cfa9ae;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-docrepo-ui-1: rgba(121, 166, 255, 0.4);
+        --cm-docrepo-ui-2: rgba(44, 79, 158, 0.6);
+        --cm-docrepo-ui-3: rgba(183, 156, 255, 0.22);
+        --cm-docrepo-ui-4: rgba(243, 245, 249, 0.03);
+        --cm-docrepo-ui-5: rgba(243, 245, 249, 0.12);
+        --cm-docrepo-ui-6: rgba(243, 245, 249, 0.18);
+        --cm-docrepo-ui-7: rgba(243, 245, 249, 0.1);
+        --cm-docrepo-ui-8: rgba(243, 245, 249, 0.2);
+        --cm-docrepo-ui-9: #dbe1ee;
+        --cm-docrepo-ui-10: #a7b6d6;
+        --cm-docrepo-ui-11: rgba(44, 79, 158, 0.55);
+        --cm-docrepo-ui-12: rgba(243, 245, 249, 0.09);
+        --cm-docrepo-ui-13: rgba(243, 245, 249, 0.16);
+        --cm-docrepo-ui-14: rgba(245, 180, 83, 0.7);
+        --cm-docrepo-ui-15: rgba(121, 166, 255, 0.6);
+        --cm-docrepo-ui-16: rgba(243, 245, 249, 0.3);
+        --cm-docrepo-ui-17: #252d3d;
+        --cm-docrepo-ui-18: rgba(121, 166, 255, 0.55);
+        --cm-docrepo-ui-19: #293246;
+        --cm-docrepo-ui-20: #1b1f26;
+        --cm-docrepo-ui-21: #14161a;
+        --cm-docrepo-ui-22: rgba(23, 25, 29, 0.18);
+        --cm-docrepo-ui-23: rgba(121, 166, 255, 0.07);
+        --cm-docrepo-ui-24: #40725d;
+        --cm-docrepo-ui-25: #7c5455;
+        --cm-docrepo-ui-26: #684b4d;
+    }
+
+    .library {
+        --library-focus: 0 0 0 3px var(--cm-docrepo-ui-1);
+    }
+
+    .library-hero {
+        background: radial-gradient(900px 340px at 85% -30%, var(--cm-docrepo-ui-2), transparent 70%), radial-gradient(700px 300px at -10% 120%, var(--cm-docrepo-ui-3), transparent 70%), linear-gradient(135deg, var(--pm-library-hero), var(--pm-library-hero-2));
+    }
+
+    .library-hero::before {
+        background: repeating-linear-gradient(0deg, var(--cm-docrepo-ui-4) 0 1px, transparent 1px 28px);
+    }
+
+    .library-hero__logo {
+        background: var(--cm-docrepo-ui-5);
+        box-shadow: inset 0 0 0 1px var(--cm-docrepo-ui-6);
+    }
+
+    .library-hero__btn {
+        background: var(--cm-docrepo-ui-7);
+        box-shadow: inset 0 0 0 1px var(--cm-docrepo-ui-8);
+    }
+
+    .library .library-hero__btn:hover {
+        background: var(--cm-docrepo-ui-6);
+    }
+
+    .library .library-hero__btn--primary:hover {
+        background: var(--cm-docrepo-ui-9);
+    }
+
+    .library-hero__title span {
+        color: var(--cm-docrepo-ui-10);
+    }
+
+    .library-hero__search {
+        box-shadow: 0 18px 50px rgba(var(--pm-library-page-shadow-rgb), .35), 0 0 0 1px var(--cm-docrepo-ui-7);
+    }
+
+    .library-hero__search:focus-within {
+        box-shadow: 0 18px 50px rgba(var(--pm-library-page-shadow-rgb), .35), 0 0 0 4px var(--cm-docrepo-ui-11);
+    }
+
+    .library-hero__try a {
+        background: var(--cm-docrepo-ui-12);
+        box-shadow: inset 0 0 0 1px var(--cm-docrepo-ui-13);
+    }
+
+    .library .library-hero__try a:hover {
+        background: var(--cm-docrepo-ui-6);
+    }
+
+    .library .library-hero__stats a {
+        border-bottom: 2px solid var(--cm-docrepo-ui-14);
+    }
+
+    .library .library-tile:hover {
+        border-color: var(--pm-library-border);
+    }
+
+    .library-tile__icon {
+        background: var(--pm-library-card);
+    }
+
+    .library-cover:focus-within .library-cover__art {
+        outline: 3px solid var(--cm-docrepo-ui-15);
+    }
+
+    .library-cover__fallback {
+        background: linear-gradient(165deg, var(--library-hue) 0%, var(--library-hue) 100%);
+    }
+
+    .library-cover__fallback::before {
+        background: var(--cm-docrepo-ui-7);
+    }
+
+    .library-cover__office {
+        border-top: 1px solid var(--cm-docrepo-ui-16);
+    }
+
+    .library-thumb {
+        background: var(--cm-docrepo-ui-17);
+        box-shadow: 0 1px 2px rgba(var(--pm-library-shadow-rgb), .14), inset 3px 0 0 var(--cm-docrepo-ui-18);
+    }
+
+    .library-facet__check[class*="library-hue-"] {
+        box-shadow: inset 0 0 0 1.5px var(--library-hue);
+    }
+
+    .library .library-chip:hover {
+        background: var(--cm-docrepo-ui-19);
+    }
+
+    .library-row:hover {
+        background: var(--cm-docrepo-ui-20);
+    }
+
+    .library-timeline__item::before {
+        box-shadow: 0 0 0 2px transparent;
+    }
+
+    .library-mark {
+        background: var(--pm-library-card);
+        box-shadow: inset 3px 0 0 var(--library-hue), 0 1px 2px rgba(var(--pm-library-shadow-rgb), .12);
+    }
+
+    .rd-badge {
+        background: var(--pm-library-card);
+    }
+
+    .rd-thumbs {
+        background: var(--cm-docrepo-ui-21);
+    }
+
+    .rd-toast button {
+        background: var(--cm-docrepo-ui-22);
+    }
+
+    .library-drop {
+        background: radial-gradient(500px 220px at 50% 0%, var(--cm-docrepo-ui-23), transparent 70%), var(--pm-library-card);
+    }
+
+    .library-queue__item.is-done {
+        border-color: var(--cm-docrepo-ui-24);
+    }
+
+    .library-queue__item.is-error {
+        border-color: var(--cm-docrepo-ui-25);
+    }
+
+    .library-action--danger {
+        border-color: var(--cm-docrepo-ui-26);
+    }
+
+    .library-table--documents tbody tr:hover {
+        background: var(--cm-docrepo-ui-20);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

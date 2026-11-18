@@ -902,3 +902,52 @@
 :where([data-bs-theme="dark"]) .at-update-context {
     color: #9aa0a6;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-action-task-details-redesign-1: #2f2224;
+        --cm-action-task-details-redesign-2: #30435f;
+        --cm-action-task-details-redesign-3: #1d242d;
+        --cm-action-task-details-redesign-4: #5a3335;
+        --cm-action-task-details-redesign-5: #5b4a1e;
+        --cm-action-task-details-redesign-6: #2b271c;
+    }
+
+    :where([data-bs-theme="dark"]) .at-date-warning {
+        background: var(--cm-action-task-details-redesign-1);
+    }
+
+    :where([data-bs-theme="dark"]) .at-next-action-section {
+        border-color: var(--cm-action-task-details-redesign-2);
+        background: linear-gradient(180deg, var(--cm-action-task-details-redesign-3) 0%, var(--pm-card, #ffffff) 100%);
+    }
+
+    :where([data-bs-theme="dark"]) .at-task-command-body .at-audit-remarks {
+        border-left: 3px solid var(--cm-action-task-details-redesign-2);
+    }
+
+    :where([data-bs-theme="dark"]) .at-manage-task-grid .at-action-danger-group {
+        border-color: var(--cm-action-task-details-redesign-4);
+    }
+
+    :where([data-bs-theme="dark"]) .at-next-action-secondary {
+        border-top: 1px solid var(--cm-action-task-details-redesign-2);
+    }
+
+    :where([data-bs-theme="dark"]) .at-action-danger-group {
+        border-color: var(--cm-action-task-details-redesign-5) !important;
+        background: var(--cm-action-task-details-redesign-6) !important;
+    }
+
+    :where([data-bs-theme="dark"]) .at-manage-task-grid .at-action-replanning-group {
+        border-color: var(--cm-action-task-details-redesign-5);
+        background: var(--cm-action-task-details-redesign-6);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

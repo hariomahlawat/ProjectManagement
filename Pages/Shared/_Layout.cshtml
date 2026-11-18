@@ -11,8 +11,14 @@
 @inject IErpUsageModuleCatalog ErpUsageModules
 @inject IOptions<ErpUsageOptions> ErpUsageConfiguration
 @inject IOptionsMonitor<ChatOptions> ChatConfiguration
+@{
+    // Page-level scene classes (for example "pm-scene-lp pm-scene-auth"), set by a page through
+    // ViewData["BodyClass"]. Stylesheets select on these instead of body:has(...), which browsers
+    // older than Chromium 105 do not understand (they drop the whole rule).
+    var sceneClass = ViewData["BodyClass"] as string;
+}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="@sceneClass">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -68,8 +74,11 @@
     @* Loaded early, without defer: it only adds document-level listeners, and confirmations
        must be active before a user can click a destructive button on a slow page. *@
     <script src="~/js/core/declarative-actions.js" asp-append-version="true"></script>
+    @* Only older browsers without :has() run it: it keeps the state classes the html.pm-no-has
+       twin rules use (see wwwroot/js/core/has-fallback.js). *@
+    <script src="~/js/core/has-fallback.js" asp-append-version="true" defer></script>
 </head>
-<body class="d-flex flex-column min-vh-100">
+<body class="d-flex flex-column min-vh-100 @sceneClass">
     @{
         var signedIn = SignInManager.IsSignedIn(User);
         var chatEnabled = signedIn && ChatConfiguration.CurrentValue.Enabled;

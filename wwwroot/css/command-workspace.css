@@ -1583,3 +1583,174 @@
         box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6);
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cw-badge-bg: rgba(15, 23, 42, 0.07);
+        --cw-lens-bg: rgba(15, 23, 42, 0.06);
+        --cm-command-workspace-1: rgba(255, 255, 255, 0.56);
+        --cm-command-workspace-2: rgba(255, 255, 255, 0.78);
+        --cm-command-workspace-3: rgba(15, 23, 42, 0.09);
+        --cm-command-workspace-4: rgba(255, 255, 255, 0.95);
+        --cm-command-workspace-5: rgba(15, 23, 42, 0.18);
+        --cm-command-workspace-6: rgba(255, 255, 255, 0.95);
+        --cm-command-workspace-7: rgba(255, 255, 255, 0.38);
+        --cm-command-workspace-8: rgba(255, 255, 255, 0.85);
+        --cm-command-workspace-9: rgba(15, 23, 42, 0.45);
+        --cm-command-workspace-10: rgba(37, 99, 235, 0.6);
+        --cm-command-workspace-11: rgba(124, 58, 237, 0.55);
+        --cm-command-workspace-12: rgba(8, 145, 178, 0.45);
+        --cm-command-workspace-13: rgba(217, 119, 6, 0.35);
+        --cm-command-workspace-14: rgba(18, 33, 63, 0.45);
+        --cm-command-workspace-15: rgba(100, 116, 139, 0.55);
+        --cm-command-workspace-16: #212936;
+        --cm-command-workspace-17: #1e252f;
+        --cm-command-workspace-18: #1f2632;
+        --cm-command-workspace-19: #1d242d;
+        --cm-command-workspace-20: #1f1f2d;
+        --cm-command-workspace-21: #2b271c;
+        --cm-command-workspace-22: #1a2823;
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cw-blue-soft: #1d242d;
+        --cw-badge-bg: rgba(255, 255, 255, 0.08);
+        --cw-lens-bg: rgba(0, 0, 0, 0.35);
+        --cw-lens-thumb: #2d2f32;
+        --cm-command-workspace-1: rgba(255, 255, 255, 0.06);
+        --cm-command-workspace-2: rgba(255, 255, 255, 0.09);
+        --cm-command-workspace-3: rgba(255, 255, 255, 0.12);
+        --cm-command-workspace-4: rgba(255, 255, 255, 0.4);
+        --cm-command-workspace-5: rgba(255, 255, 255, 0.06);
+        --cm-command-workspace-6: rgba(255, 255, 255, 0.3);
+        --cm-command-workspace-7: rgba(255, 255, 255, 0.1);
+        --cm-command-workspace-8: rgba(255, 255, 255, 0.2);
+        --cm-command-workspace-9: rgba(0, 0, 0, 0.45);
+        --cm-command-workspace-10: rgba(110, 168, 254, 0.6);
+        --cm-command-workspace-11: rgba(167, 139, 250, 0.55);
+        --cm-command-workspace-12: rgba(34, 211, 238, 0.45);
+        --cm-command-workspace-13: rgba(251, 191, 36, 0.35);
+        --cm-command-workspace-14: rgba(230, 232, 235, 0.45);
+        --cm-command-workspace-15: rgba(154, 160, 166, 0.55);
+    }
+
+    .cw-local-rail {
+        --cw-glass: var(--cm-command-workspace-1);
+        --cw-glass-strong: var(--cm-command-workspace-2);
+        --cw-glass-rim: var(--cm-command-workspace-3);
+        --cw-glass-rim-hi: var(--cm-command-workspace-4);
+        --cw-glass-rim-lo: var(--cm-command-workspace-5);
+        --cw-glass-sheen: var(--cm-command-workspace-6);
+        --cw-glass-gleam: var(--cm-command-workspace-7);
+        --cw-glass-lens: var(--cm-command-workspace-8);
+        --cw-glass-shadow: 0 1px 0 0 var(--cw-glass-sheen) inset, 0 0 18px -6px var(--cw-glass-lens) inset, 0 24px 60px -30px var(--cm-command-workspace-9);
+    }
+
+    .cw-local-rail__aurora {
+        background: radial-gradient(42% 60% at 18% 30%, var(--cm-command-workspace-10), transparent 70%), radial-gradient(38% 52% at 78% 18%, var(--cm-command-workspace-11), transparent 70%), radial-gradient(34% 50% at 60% 80%, var(--cm-command-workspace-12), transparent 70%), radial-gradient(26% 40% at 92% 70%, var(--cm-command-workspace-13), transparent 70%);
+    }
+
+    .cw-prism__glass {
+        stroke: var(--cm-command-workspace-14);
+    }
+
+    .cw-local-rail__role {
+        background: transparent;
+        color: var(--cw-hue);
+    }
+
+    .cw-local-rail:hover,
+    .cw-local-rail:focus-within {
+        scrollbar-color: var(--cm-command-workspace-15) transparent;
+    }
+
+    .cw-local-rail__group-label::before {
+        box-shadow: 0 0 0 3px transparent;
+    }
+
+    .cw-local-rail__group-label:focus-visible {
+        box-shadow: 0 0 0 2px transparent inset;
+    }
+
+    .cw-local-rail nav a:hover,
+    .cw-local-rail nav a:focus-visible {
+        background: transparent;
+    }
+
+    .cw-local-rail nav a.is-context-active {
+        background: transparent;
+    }
+
+    .cw-local-rail nav a.is-active {
+        background: transparent;
+        color: var(--cw-hue);
+        box-shadow: 0 1px 0 0 var(--cw-glass-sheen) inset, 0 0 0 1px transparent inset, 0 6px 16px -10px transparent;
+    }
+
+    .cw-local-rail nav a.is-active::before {
+        box-shadow: 0 0 10px var(--cw-hue);
+    }
+
+    .cw-local-rail nav a.is-active > i {
+        background: transparent;
+    }
+
+    .cw-local-rail nav a.is-active b {
+        background: transparent;
+        color: var(--cw-hue);
+    }
+
+    .command-workspace:not(.is-nav-expanded) .cw-local-rail nav a > i {
+        color: var(--cw-hue);
+    }
+
+    :where([data-bs-theme="dark"]) .cw-view-tabs a.is-active b {
+        background: var(--cm-command-workspace-16);
+    }
+
+    :where([data-bs-theme="dark"]) .cw-result-count {
+        background: var(--cm-command-workspace-17);
+    }
+
+    :where([data-bs-theme="dark"]) .cw-avatar {
+        background: var(--officer-accent);
+    }
+
+    :where([data-bs-theme="dark"]) .cw-work-sections summary b,
+    :where([data-bs-theme="dark"]) .cw-empty-work-row b {
+        background: var(--cm-command-workspace-18);
+    }
+
+    :where([data-bs-theme="dark"]) .cw-work-section__heading > b {
+        background: var(--cm-command-workspace-18);
+    }
+
+    :where([data-bs-theme="dark"]) .cw-officer-card.is-sortable-ghost {
+        background: var(--cm-command-workspace-19);
+    }
+
+    :where([data-bs-theme="dark"]) .cw-conference-action:hover,
+    :where([data-bs-theme="dark"]) .cw-conference-action:focus-visible {
+        background: var(--cm-command-workspace-20);
+    }
+
+    :where([data-bs-theme="dark"]) .cw-adoption-kpis article > span,
+    :where([data-bs-theme="dark"]) .cw-pattern-kpis article > span {
+        background: var(--cm-command-workspace-17);
+    }
+
+    :where([data-bs-theme="dark"]) .cw-adoption-kpis article.is-attention > span {
+        background: var(--cm-command-workspace-21);
+    }
+
+    :where([data-bs-theme="dark"]) .cw-pattern-legend i.is-operational::after {
+        background: var(--cm-command-workspace-22);
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

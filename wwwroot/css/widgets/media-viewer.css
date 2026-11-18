@@ -132,8 +132,9 @@
 
 /* The header and arrows fade while the pointer is still, leaving only the picture. They stay
    while a control in them shows keyboard focus, so the focused control is never invisible. */
+.photos-viewer.is-idle .photos-viewer__nav:not(:focus-visible) { opacity: 0; pointer-events: none; }
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 .photos-viewer.is-idle .photos-viewer__header:not(:has(:focus-visible)),
-.photos-viewer.is-idle .photos-viewer__nav:not(:focus-visible),
 .photos-viewer.is-idle .photos-viewer__strip:not(:has(:focus-visible)) { opacity: 0; pointer-events: none; }
 
 /* A strip of nearby thumbnails along the bottom of the stage (galleries that provide them). */
@@ -149,6 +150,8 @@
 .photos-viewer__thumb:hover { opacity: .9; }
 .photos-viewer__thumb.is-current { margin: 0 .35rem; opacity: 1; outline: 2px solid currentColor; outline-offset: 1px; width: 4.4rem; }
 .photos-viewer__stage:has(.photos-viewer__strip:not([hidden])) .photos-viewer__media { padding-bottom: 5.25rem; }
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+.pm-no-has .photos-viewer__stage.pm-has-strip .photos-viewer__media { padding-bottom: 5.25rem; }
 .photos-viewer.is-idle { cursor: none; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -291,3 +294,17 @@
 :where([data-bs-theme="dark"]) .photos-viewer__info p {
     color: #c4cbd5;
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+
+    .photos-viewer__thumb {
+        background: transparent;
+    }
+}
+/* END GENERATED: color-mix() fallbacks */

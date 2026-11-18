@@ -1341,3 +1341,38 @@
         line-clamp: unset;
     }
 }
+
+/* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
+/* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
+   Each value here is what the color-mix() in the rule above it produces, worked out for Light
+   and Dark; browsers with color-mix() skip this block. Rules keep their source order, and a
+   later rule that overrode a mixed colour (say in @supports not (backdrop-filter)) is repeated
+   after it, so it still wins. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    :root {
+        --cm-pages-search-1: rgba(37, 99, 214, 0.28);
+        --cm-pages-search-2: rgba(245, 158, 11, 0.3);
+        --cm-pages-search-3: rgba(15, 23, 42, 0.45);
+    }
+
+    :root[data-bs-theme="dark"] {
+        --cm-pages-search-1: rgba(110, 168, 254, 0.28);
+        --cm-pages-search-2: rgba(251, 191, 36, 0.3);
+        --cm-pages-search-3: rgba(14, 15, 17, 0.45);
+    }
+
+    .pm-gs-page {
+        --pm-gs-focus-ring: 0 0 0 3px var(--cm-pages-search-1);
+    }
+
+    .pm-gs-page mark {
+        background: var(--cm-pages-search-2);
+    }
+
+    @media (max-width: 767.98px) {
+        .pm-gs-filter[open] > .pm-gs-filter__backdrop {
+            background: var(--cm-pages-search-3);
+        }
+    }
+}
+/* END GENERATED: color-mix() fallbacks */
