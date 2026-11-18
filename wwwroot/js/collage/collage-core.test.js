@@ -1565,3 +1565,35 @@ test('a draft with a size named "constructor" or an object for a sticker id read
   const photo = read.items.find((item) => item.id === 'f1');
   assert.deepEqual([photo.frame, photo.look, photo.shape], ['none', 'none', 'rect']);
 });
+
+// Columns pasted from a spreadsheet (cold review 2): with a heading row, rank and name are joined;
+// without one, only the first column is used, and the list says so.
+test('names pasted from a spreadsheet: columns read by their headings, else the first, and said', () => {
+  const tab = String.fromCharCode(9);
+  const nl = String.fromCharCode(10);
+  const headed = collage.readGuests(['Rank' + tab + 'Name' + tab + 'Unit', 'Brig' + tab + 'P. Singh, SM' + tab + 'HQ'].join(nl));
+  assert.deepEqual(headed.names, ['Brig P. Singh, SM']);
+  assert.equal(headed.firstColumnOnly, false);
+  const plain = collage.readGuests(['Brig P. Singh, SM and Mrs Singh' + tab + 'HQ', 'Col D. Nair' + tab + '5 Sikh'].join(nl));
+  assert.deepEqual(plain.names, ['Brig P. Singh, SM and Mrs Singh', 'Col D. Nair']);
+  assert.equal(plain.firstColumnOnly, true);
+  // One name a line, commas and all, stays as it was.
+  assert.deepEqual(collage.readGuests('Brig P. Singh, SM' + nl + 'Col D. Nair').names, ['Brig P. Singh, SM', 'Col D. Nair']);
+  assert.equal(collage.readGuests('Brig P. Singh, SM').firstColumnOnly, false);
+});
+
+// Edge to edge (cold review 2): cards touching, no margin or gaps, so more fit on A4; no cut marks.
+test('edge to edge on A4 fits 4 A6 and 2 A5, touching, with no cut marks', () => {
+  const a6 = collage.sheetLayout('a6p', 'a4edge');
+  assert.equal(a6.count, 4);
+  assert.equal(a6.edge, true);
+  assert.deepEqual(collage.cutMarks(a6), []);
+  const [a, b] = a6.cards;
+  assert.ok(Math.abs(b.x - (a.x + a.w)) < 1e-6, 'touching');
+  assert.equal(collage.sheetLayout('a5p', 'a4edge').count, 2);
+  assert.equal(collage.sheetLayout('a7p', 'a4edge').count, 8);
+  // Backs still line up with their fronts.
+  const back = collage.sheetLayout('a6p', 'a4edge', { back: true });
+  assert.equal(back.cards.length, 4);
+  assert.equal(collage.sheetLayout('a6p', 'a4').count, 2, 'with room for cutting, 2');
+});

@@ -233,7 +233,11 @@
         ui.showSize(state.collage.size);
         selection.select(null);
         parts.setPropsOpen?.(true, 'settings');
-        window.requestAnimationFrame(() => ui.props.querySelector('[data-custom-size="width"]')?.focus());
+        window.requestAnimationFrame(() => {
+          const fold = ui.props.querySelector('[data-custom-fold]');
+          if (fold) fold.open = true;
+          ui.props.querySelector('[data-custom-size="width"]')?.focus();
+        });
         return;
       }
       change.setCollage(core.changeSize(state.collage, ui.sizeSelect.value));

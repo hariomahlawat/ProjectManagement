@@ -122,13 +122,24 @@
 
 .clg-start-cards__size select {
     width: auto;
-    max-width: min(22rem, 70vw);
+    max-width: min(15rem, 70vw);
 }
 
 .clg-design-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 1rem;
+}
+
+/* Cards and posters on the start screen: as many to a row as fit, all the same width, so six
+   designs never leave one alone on a second row (cold review 2). */
+.clg-start-cards .clg-design-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.clg-start-cards .clg-design-card {
+    width: auto;
 }
 
 .clg-design-card {
@@ -190,6 +201,17 @@
     margin: -0.25rem 0 0.7rem;
 }
 
+/* Save: what the saved picture leaves out, said where it is seen (cold review 2). */
+.clg-save-empty {
+    margin: 0.4rem 0;
+    padding: 0.5rem 0.7rem;
+    border-left: 3px solid var(--bs-warning);
+    border-radius: 6px;
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+    font-size: 0.86rem;
+}
+
 .clg-card-question {
     margin: 0 0 0.6rem;
     padding: 0.55rem 0.7rem;
@@ -243,6 +265,7 @@
     /* On a phone, cards and posters come first, as on a wide screen, each in one row that scrolls
        sideways, so the layouts and blank pages stay close below (cold review, 19 Nov). */
     .clg-start-cards .clg-design-grid {
+        display: flex;
         flex-wrap: nowrap;
         overflow-x: auto;
         scroll-snap-type: x proximity;
@@ -276,12 +299,24 @@
 
 .clg-custom-size__row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.4rem;
 }
 
 .clg-custom-size__row input {
-    width: 5.5rem;
+    width: 5rem;
+    min-width: 0;
+}
+
+details.clg-custom-size > summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--pdft-muted);
+}
+
+details.clg-custom-size[open] > summary {
+    margin-bottom: 0.35rem;
 }
 
 .clg-custom-size__error {

@@ -846,6 +846,11 @@
         words('note', 0.25, 0.82, 0.36, 18, { font: 'elegant', color: look.ink, bold: false, italic: true }, { lines: 2 })
       ];
     }
+    // The Bilingual design keeps its Hindi inside: the invitation and the occasion in Hindi too.
+    const hindi = designKey === 'bilingual' ? [
+      words('inviteHi', 0.25, 0.44, 0.38, 22, { font: 'hindiFormal', color: look.accent, bold: false }, { lines: 2 }),
+      words('occasionHi', 0.75, 0.405, 0.38, 24, { font: 'hindiFormal', color: look.title, bold: true }, { lines: 1 })
+    ] : [];
     return [
       panelBorder('innerborder', 0.25),
       panelBorder('innerborder2', 0.75),
@@ -857,12 +862,13 @@
       words('when', 0.75, 0.47, 0.38, 21, { font: 'clean', color: look.ink, bold: true }, { lines: 2 }),
       words('venue', 0.75, 0.57, 0.38, 20, { font: 'clean', color: look.ink, bold: false }, { lines: 2 }),
       words('dress', 0.75, 0.66, 0.38, 19, { font: 'clean', color: look.accent, bold: true }, { lines: 1 }),
-      words('rsvp', 0.75, 0.77, 0.38, 17, { font: 'clean', color: look.ink, bold: false }, { lines: 2 })
+      words('rsvp', 0.75, 0.77, 0.38, 17, { font: 'clean', color: look.ink, bold: false }, { lines: 2 }),
+      ...hindi
     ];
   }
 
   /** The fields on a folded card's inside, so the panel knows which side holds them. */
-  const INSIDE_FIELDS = Object.freeze(['invite', 'guest', 'at', 'occasion', 'when', 'venue', 'dress', 'rsvp']);
+  const INSIDE_FIELDS = Object.freeze(['invite', 'guest', 'at', 'occasion', 'when', 'venue', 'dress', 'rsvp', 'inviteHi', 'occasionHi']);
 
   /** The measures one side of a card of this size is built with. */
   /**

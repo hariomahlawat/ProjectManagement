@@ -1584,7 +1584,14 @@
    * gaps, never on a card. A back sheet is mirrored so each back lands behind its front when the
    * printer flips on the long edge: across for an upright sheet, top to bottom for a turned one.
    */
-  const SHEETS = lookupTable({ a4: Object.freeze({ label: 'A4', mm: [210, 297] }), a3: Object.freeze({ label: 'A3', mm: [297, 420] }) });
+  // Sheets for printing several cards. "Edge to edge" packs cards touching, with no margin, gaps
+  // or cut marks: more to a sheet (4 A6 or 2 A5 on A4), cut on the card edges, where a printer
+  // that cannot print to the paper's edge leaves a thin white line.
+  const SHEETS = lookupTable({
+    a4: Object.freeze({ label: 'A4', mm: [210, 297] }),
+    a3: Object.freeze({ label: 'A3', mm: [297, 420] }),
+    a4edge: Object.freeze({ label: 'A4, edge to edge', mm: [210, 297], margin: 0, gap: 0, edge: true })
+  });
   const SHEET_SPACE = Object.freeze({ margin: 8, gap: 4, mark: 2.5 });
 
   function sheetLayout(sizeKey, sheetKey, { back = false } = {}) {
@@ -1592,7 +1599,8 @@
     const sheet = SHEETS[sheetKey];
     if (!size.mm || !sheet) return null;
     const [cw, ch] = size.mm;
-    const { margin, gap } = SHEET_SPACE;
+    const margin = sheet.margin ?? SHEET_SPACE.margin;
+    const gap = sheet.gap ?? SHEET_SPACE.gap;
     const fit = ([sw, sh]) => {
       const cols = Math.max(0, Math.floor((sw - 2 * margin + gap) / (cw + gap)));
       const rows = Math.max(0, Math.floor((sh - 2 * margin + gap) / (ch + gap)));
@@ -1616,7 +1624,7 @@
         cards.push({ x: left + c * (cw + gap), y: top + r * (ch + gap), w: cw, h: ch });
       }
     }
-    return { sheet: [best.sw, best.sh], upright: isUpright, cols: best.cols, rows: best.rows, count: best.count, cards };
+    return { sheet: [best.sw, best.sh], upright: isUpright, cols: best.cols, rows: best.rows, count: best.count, cards, ...(sheet.edge ? { edge: true } : {}) };
   }
 
   /** PDF points in a mm. */
@@ -1640,6 +1648,8 @@
 
   /** Cut marks round each card of a sheet: short lines in the gaps at each corner, in mm. */
   function cutMarks(layout) {
+    // Cards edge to edge have no gaps to mark in: they are cut on their edges.
+    if (layout?.edge) return [];
     const { mark } = SHEET_SPACE;
     const lines = [];
     for (const card of layout?.cards || []) {
@@ -1679,6 +1689,7 @@
       .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
+      .replace(/…/g, '')
       .replace(/^[.\s]+|[.\s]+$/g, '')
       .slice(0, 80)
       .trim();
@@ -1987,18 +1998,24 @@
   function readGuests(text, { csv = false, heading = true } = {}) {
     const source = String(text || '');
     const head = source.split(/\r?\n/).find((line) => line.trim()) || '';
-    // A CSV saved with semicolons (as some spreadsheets do) when its first row has no comma.
-    const separator = csv && head.includes(';') && !head.includes(',') ? ';' : ',';
-    const rows = (csv ? csvRows(source, separator) : source.split(/\r?\n/).map((line) => [line]))
+    // Columns pasted from a spreadsheet come with tabs between them; a CSV saved with semicolons
+    // (as some spreadsheets do) has them when its first row has no comma.
+    const pasted = !csv && heading && source.includes('\t');
+    const separator = pasted ? '\t' : csv && head.includes(';') && !head.includes(',') ? ';' : ',';
+    const rows = (csv || pasted ? csvRows(source, separator) : source.split(/\r?\n/).map((line) => [line]))
       .filter((cells) => cells.some((cell) => cell.trim()));
     let columns = [0];
+    let headed = false;
     if (heading && rows.length) {
       const named = rows[0].map((cell, i) => (NAME_HEADING.test(cell) || RANK_HEADING.test(cell) ? i : -1)).filter((i) => i >= 0);
       if (named.some((i) => NAME_HEADING.test(rows[0][i]))) {
         columns = named;
+        headed = true;
         rows.shift();
       }
     }
+    // With no headings, only the first column is a name; the list says when others were there.
+    const firstColumnOnly = !headed && rows.some((cells) => cells.slice(1).some((cell) => cell.trim()));
     const names = [];
     let over = 0;
     for (const cells of rows) {
@@ -2007,7 +2024,7 @@
       if (names.length >= GUEST_LIMITS.names) { over += 1; continue; }
       names.push(name);
     }
-    return { names, over };
+    return { names, over, firstColumnOnly };
   }
 
   /**

@@ -45,8 +45,8 @@
    */
   function leftOutLine(empty, hidden) {
     const parts = [];
-    if (empty === 1) parts.push('The empty frame is left out of the saved picture.');
-    else if (empty > 1) parts.push(`The ${empty} empty frames are left out of the saved picture.`);
+    if (empty === 1) parts.push('The empty frame is left out of the saved picture, so its place stays blank. Add a photo to it, or remove it in Layers.');
+    else if (empty > 1) parts.push(`The ${empty} empty frames are left out of the saved picture, so their places stay blank. Add photos to them, or remove them in Layers.`);
     if (hidden === 1) parts.push('1 hidden item left out; show it from Layers to keep it.');
     else if (hidden > 1) parts.push(`${hidden} hidden items left out; show them from Layers to keep them.`);
     return parts.join(' ');
@@ -172,15 +172,24 @@
         const group = core.sizeOf(getCollage().size).group;
         const isCard = ['card', 'pocket', 'custom'].includes(group);
         sheetBox.hidden = !(isCard && chosen('format') === 'pdf');
+        const flip = getCollage().back ? '; the back sheet lines up when the printer flips on the long edge' : '';
         for (const key of Object.keys(core.SHEETS)) {
           const layout = core.sheetLayout(getCollage().size, key);
           const note = sheetBox.querySelector(`[data-sheet-note="${key}"]`);
           const input = sheetBox.querySelector(`input[name="sheet"][value="${key}"]`);
           const fits = layout?.count || 0;
-          if (note) note.textContent = fits ? `${fits} card${fits === 1 ? '' : 's'} to a sheet, with cut marks${getCollage().back ? '; the back sheet lines up when the printer flips on the long edge' : ''}.` : 'The card is too large for this sheet.';
+          // Edge to edge is offered only where it fits more cards than A4 with room for cutting.
+          const offered = !layout?.edge || fits > (core.sheetLayout(getCollage().size, 'a4')?.count || 0);
+          const option = input?.closest('label');
+          if (option) option.hidden = !offered;
+          if (note) {
+            note.textContent = !fits ? 'The card is too large for this sheet.'
+              : layout.edge ? `${fits} cards touching, no cut marks: cut on the card edges${flip}. Most printers leave a thin white line at the paper's edge.`
+              : `${fits} card${fits === 1 ? '' : 's'} to a sheet, with cut marks${flip}.`;
+          }
           if (input) {
-            input.disabled = !fits;
-            if (!fits && input.checked) sheetBox.querySelector('input[name="sheet"][value="card"]').checked = true;
+            input.disabled = !fits || !offered;
+            if (input.disabled && input.checked) sheetBox.querySelector('input[name="sheet"][value="card"]').checked = true;
           }
         }
       }

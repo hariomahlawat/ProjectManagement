@@ -106,7 +106,7 @@
         button.type = 'button';
         button.className = 'clg-design-card';
         button.dataset.startDesign = design.key;
-        button.setAttribute('aria-label', `${design.label} card, ${core.sizeOf(size).label}`);
+        button.setAttribute('aria-label', `${/\bcard\b/i.test(design.label) || /\bpass\b/i.test(design.label) ? design.label : `${design.label} card`}, ${core.sizeOf(size).label}`);
         const ratio = core.pageHeight(size) / core.PAGE_WIDTH;
         const width = ratio >= 1 ? Math.round(150 / ratio) : 150;
         const height = Math.round(width * ratio);
@@ -134,13 +134,15 @@
         button.querySelector('b').textContent = design.label;
         button.querySelector('small').textContent = design.note;
         posterGrid.appendChild(button);
-        drawThumb(button.querySelector('canvas'), size, design.key, round, designs.POSTER_DETAILS);
+        drawThumb(button.querySelector('canvas'), size, design.key, round);
       }
     }
 
     // A small picture of a design, drawn as Save draws: the same drawing as the page.
     let renderer = null;
-    async function drawThumb(canvas, size, key, round, details = designs.DEFAULT_DETAILS) {
+    /** A design's picture on the start screen, with the wording it opens with. */
+    async function drawThumb(canvas, size, key, round) {
+      const details = designs.startDetails(key);
       try {
         renderer = renderer || window.PrismCollageRender.createRenderer({ core, draw, measureText: surface.measureText, fontsReady: surface.fontsReady, stickerImage: surface.stickerImage });
         const collage = designs.applyDesign(core.newCollage(size), key, details, { measure: surface.measureText, newId: (() => { let n = 0; return () => `t${++n}`; })() });
@@ -156,6 +158,20 @@
           const h = core.itemHeight(slot) * scale;
           const x = slot.x * scale - w / 2;
           const y = slot.y * scale - h / 2;
+          if (slot.role === 'logo') {
+            // A poster's logo place: a light dashed outline, so the heading shows through.
+            context.setLineDash([3, 3]);
+            context.strokeStyle = '#8796a8';
+            context.lineWidth = 1;
+            context.strokeRect(x, y, w, h);
+            context.setLineDash([]);
+            context.fillStyle = '#5b6b7d';
+            context.font = `600 ${Math.max(9, Math.round(w / 5))}px Mulish, sans-serif`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText('Logo', x + w / 2, y + h / 2);
+            continue;
+          }
           const shade = context.createLinearGradient(0, y, 0, y + h);
           shade.addColorStop(0, '#c9d6e3');
           shade.addColorStop(1, '#8796a8');
@@ -327,13 +343,14 @@
         const id = `clgCard-${field}`;
         const value = escapeHtml(details[field] || '');
         const input = long
-          ? `<textarea class="form-control form-control-sm" id="${id}" rows="${field === 'programme' ? 5 : 2}" maxlength="${core.TEXT_LIMITS.maxLength}" data-card-field="${field}">${value}</textarea>`
+          ? `<textarea class="form-control form-control-sm" id="${id}" rows="${field === 'programme' ? 5 : field === 'host' ? 3 : 2}" maxlength="${core.TEXT_LIMITS.maxLength}" data-card-field="${field}">${value}</textarea>`
           : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off">`;
         const picks = field === 'occasion' ? OCCASIONS : field === 'dress' ? DRESSES : null;
-        const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
+        const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}" aria-pressed="${(details[field] || '') === pick}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
         return `<label class="clg-field" for="${id}"><span class="clg-field__label">${escapeHtml(label)}</span>${input}</label>${chips}`;
       }).join('');
-      form.innerHTML = `<div class="clg-section clg-card-words"><p class="clg-section__title">Words</p>${fields}</div>`
+      // A poster asks which logo first, above everything, until it is answered (PR 11).
+      form.innerHTML = posterQuestion() + `<div class="clg-section clg-card-words"><p class="clg-section__title">Words</p>${fields}</div>`
         + logo + (poster && !state.collage.back ? '' : sidesSection()) + colours + (poster ? '' : guestSection());
       renderStrip();
     }
@@ -358,12 +375,21 @@
       return stickers.find(item.sticker)?.label || 'Logo';
     }
 
+    /** A poster's question, at the top of its panel until a logo, No logo or Decide later is chosen. */
+    function posterQuestion() {
+      const first = logoOf(state.collage)?.kind === 'slot' ? null : logoOf(state.collage);
+      if (!isPoster() || first || designs.detailsOf(state.collage).logoMode) return '';
+      return `<div class="clg-section clg-card-question" role="group" aria-labelledby="clgPosterAsk"><p class="clg-section__title" id="clgPosterAsk">Which logo goes on this poster?</p>
+          <p class="clg-hint">Pick one under Logo below, use your own, or choose:</p>
+          <div class="clg-stack"><button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="none">No logo</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="later">Decide later</button></div></div>`;
+    }
+
     function logoSection() {
       const first = logoOf(state.collage)?.kind === 'slot' ? null : logoOf(state.collage);
       const mode = designs.detailsOf(state.collage).logoMode;
       // A poster asks which logo, until one is chosen, none is, or it is left for later (PR 11).
       const asking = isPoster() && !first && !mode;
-      const question = asking ? `<p class="clg-card-question" role="note"><b>Which logo goes on this poster?</b> Pick one below, use your own, or choose <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-card-logo="none">No logo</button> or <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-card-logo="later">Decide later</button>.</p>` : '';
       const secondItem = state.collage.items.find((item) => item.role === 'logo2') || null;
       const second = Boolean(secondItem);
       const role = targetRole();
@@ -377,7 +403,7 @@
         return `<button type="button" class="clg-sticker clg-sticker--named${on ? ' is-on' : ''}" data-card-logo-use="${escapeHtml(entry.id)}" aria-pressed="${on}" title="${escapeHtml(entry.label)}" aria-label="Use ${escapeHtml(entry.label)}"><img src="${escapeHtml(surface.stickerSource({ sticker: entry.id, colour: '' }) || '')}" alt=""><span class="clg-sticker__name">${escapeHtml(entry.label)}</span></button>`;
       }).join('');
       return `<div class="clg-section clg-card-logo">
-          <p class="clg-section__title">Logo</p>${question}${which}
+          <p class="clg-section__title">Logo</p>${which}
           <p class="clg-hint" data-card-logo-name>${escapeHtml(logoName(current))}</p>
           <div class="clg-stickers clg-card-logo__choices">${choices}</div>
           <div class="clg-stack">
@@ -712,19 +738,23 @@
         </div>`;
     }
 
-    // How many names the last list given had past the limit, so the panel says so when redrawn.
+    // How many names the last list given had past the limit, and whether it had other columns,
+    // so the panel says so when redrawn.
     let guestsOver = 0;
+    let guestsFirstColumn = false;
 
     /** The line under the guest list: how many guests, and how many names were left out. */
     function guestCountText(count) {
       if (!count) return 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.';
       const left = guestsOver ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${guestsOver} name${guestsOver === 1 ? ' was' : 's were'} left out.` : '';
-      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it.${left} The names stay in this browser.`;
+      const column = guestsFirstColumn ? ' Only the first column was used; give the list a heading row (Rank, Name) to join columns.' : '';
+      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it.${left}${column} The names stay in this browser.`;
     }
 
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
     function setGuests(text, { csv = false, held = false } = {}) {
-      const { names: guests, over } = core.readGuests(text, { csv });
+      const { names: guests, over, firstColumnOnly } = core.readGuests(text, { csv });
+      guestsFirstColumn = firstColumnOnly;
       doc.edit((draft) => {
         const card = { ...(draft.card || { design: 'classic', details: {} }) };
         if (guests.length) card.guests = guests;
@@ -924,6 +954,7 @@
       const input = form.querySelector(`[data-card-field="${pick.dataset.cardPick}"]`);
       if (input) input.value = pick.dataset.value;
       setField(pick.dataset.cardPick, pick.dataset.value);
+      for (const chip of form.querySelectorAll(`[data-card-pick="${pick.dataset.cardPick}"]`)) chip.setAttribute('aria-pressed', String(chip === pick));
       history.flushNudge();
       messages.announce(`${pick.dataset.cardPick === 'occasion' ? 'Occasion' : 'Dress'}: ${pick.dataset.value.replace(/^Dress: /, '')}.`);
     });

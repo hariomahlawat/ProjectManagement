@@ -381,3 +381,35 @@ test('Undo after typing in Card details puts the words back, on the card and in 
   await expect(venue).toHaveValue('Sudarshan Hall');
   expect(errors).toEqual([]);
 });
+
+test('a poster asks which logo first, at the top of its panel, and its picture on the start screen is its own', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-poster="talk"]').click();
+  const first = await page.locator('.clg-card-form > *').first().getAttribute('class');
+  expect(first).toContain('clg-card-question');
+  // The talk poster opens with its own sample wording, as its start-screen picture shows.
+  await expect(page.locator('[data-card-field="title"]')).not.toHaveValue('Annual Sports Meet 2026');
+  await page.locator('.clg-card-question [data-card-logo="later"]').click();
+  await expect(page.locator('.clg-card-question')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('Save offers A4 edge to edge where it fits more cards: 4 A6 touching, no cut marks', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a6p');
+  await page.locator('[data-start-design="classic"]').click();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  const edge = page.locator('[data-save-sheet] input[value="a4edge"]');
+  await expect(edge).toBeVisible();
+  await expect(page.locator('[data-sheet-note="a4edge"]')).toContainText('4 cards touching');
+  await edge.check();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const [sheet] = await sheetsOf(page, await download);
+  expect(sheet.pictures.length).toBe(4);
+  expect(sheet.lines).toBe(0);
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
