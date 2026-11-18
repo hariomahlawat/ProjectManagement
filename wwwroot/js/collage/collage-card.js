@@ -343,6 +343,21 @@
 
     // The field typed in since it was focused: its words are the user's, never put back.
     let typedIn = null;
+    // Ctrl+Z in a field is the Studio's Undo (words typed are recorded for it), as on the page;
+    // Ctrl+Y or Ctrl+Shift+Z its Redo. The browser's own undo is lost once the panel is redrawn.
+    form?.addEventListener('keydown', (event) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || !event.target.matches('[data-card-field]')) return;
+      const key = event.key.toLowerCase();
+      const which = key === 'z' && !event.shiftKey ? 'undo' : (key === 'y' || (key === 'z' && event.shiftKey)) ? 'redo' : null;
+      if (!which) return;
+      event.preventDefault();
+      event.stopPropagation();
+      history.flushNudge();
+      // The field shows the words Undo brings back, though it has focus.
+      typedIn = null;
+      const button = ui.root.querySelector(`[data-action="${which}"]`);
+      if (button && !button.disabled) button.click();
+    });
     form?.addEventListener('focusin', (event) => { lastFocused = event.target; if (event.target.dataset.cardField) typedIn = null; });
     // While a field is typed in, a phone's sheet is shorter, so the card above stays readable.
     form?.addEventListener('focusin', (event) => {

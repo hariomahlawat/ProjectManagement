@@ -490,3 +490,18 @@ test('looking through designs keeps no drafts; the first change keeps one', asyn
   expect(await draftCount()).toBe(1);
   expect(errors).toEqual([]);
 });
+
+test('Ctrl+Z in a Card details field undoes the words typed, and Ctrl+Y brings them back', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await touch(page);
+  const venue = page.locator('[data-card-field="venue"]');
+  await venue.click();
+  await venue.fill('Cariappa Hall');
+  await page.waitForTimeout(700);
+  await page.keyboard.press('Control+z');
+  await expect(venue).toHaveValue('Sudarshan Hall');
+  await page.keyboard.press('Control+y');
+  await expect(venue).toHaveValue('Cariappa Hall');
+  expect(errors).toEqual([]);
+});
