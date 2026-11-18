@@ -188,9 +188,12 @@
     const path = this.historyPath(win);
     const firstLoad = !win.historyLoaded;
     try {
+      // Asked for now: a live edit or reaction arriving before the answer stays (settleFetched).
+      const eventsBefore = this.messageEventSeq;
       if (!win.historyLoaded) {
         const history = await this.request('GET', path);
         if (seq !== win.loadSeq) return;
+        history.messages = this.settleFetched(history.messages, eventsBefore);
         win.messages = mergeMessages(win.messages, history.messages);
         win.hasMore = history.hasMore;
         win.historyLoaded = true;
@@ -219,6 +222,7 @@
           knownMax,
           CATCH_UP_PAGES);
         if (seq !== win.loadSeq) return;
+        result.messages = this.settleFetched(result.messages, eventsBefore);
         if (!result.overlaps) {
           // Too much was missed to stitch together: show the recent stretch and let
           // "Show earlier messages" page back from there instead of leaving a silent gap.
@@ -285,8 +289,10 @@
     // than merged into messages this response is about to replace.
     win.hasNewer = true;
     try {
+      const eventsBefore = this.messageEventSeq;
       const history = await this.request('GET', this.historyPath(win, `&before=${messageId + 1}`));
       if (seq !== win.loadSeq) return; // the person moved on (sent a reply, opened another hit)
+      history.messages = this.settleFetched(history.messages, eventsBefore);
       win.messages = mergeMessages(win.messages.filter((m) => !m.id), history.messages);
       win.hasMore = history.hasMore;
       win.hasNewer = history.hasNewer;
@@ -324,10 +330,12 @@
     const hadFocus = win.node.contains(document.activeElement);
     const before = win.body.scrollHeight - win.body.scrollTop;
     try {
+      const eventsBefore = this.messageEventSeq;
       const history = await this.request('GET', this.historyPath(win, `&before=${oldest.id}`));
       // Another search hit (or a jump to the latest) replaced the view meanwhile: this page
       // belongs to the old one and would leave a gap in the new one.
       if (seq !== win.loadSeq) return;
+      history.messages = this.settleFetched(history.messages, eventsBefore);
       win.messages = mergeMessages(win.messages, history.messages);
       win.hasMore = history.hasMore;
       this.applyPeerRead(win, history);
@@ -349,8 +357,10 @@
     const hadFocus = win.node.contains(document.activeElement);
     const keep = win.body.scrollTop;
     try {
+      const eventsBefore = this.messageEventSeq;
       const history = await this.request('GET', this.historyPath(win, `&after=${newest}`));
       if (seq !== win.loadSeq) return;
+      history.messages = this.settleFetched(history.messages, eventsBefore);
       win.messages = mergeMessages(win.messages, history.messages);
       win.hasNewer = history.hasNewer;
       if (!win.hasNewer) win.contiguousId = newestId(history.messages) || newest;

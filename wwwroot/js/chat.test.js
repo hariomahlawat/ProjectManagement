@@ -4385,3 +4385,47 @@ test('a live reaction during the reconnect refresh keeps the reaction and still 
     window.close();
   }
 });
+
+test('a live edit during a history load is not undone by its older answer, even for a message not yet shown', async () => {
+  let releaseLatest;
+  let releaseEarlier;
+  let loads = 0;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) {
+      loads += 1;
+      if (url.includes('before=5')) {
+        await new Promise((resolve) => { releaseEarlier = resolve; });
+        return { messages: [directMessage(4, 'peer', 'Older, before the edit')], hasMore: false };
+      }
+      if (loads === 1) return { messages: [directMessage(5, 'peer', 'Five'), directMessage(6, 'peer', 'Six')], hasMore: true };
+      await new Promise((resolve) => { releaseLatest = resolve; });
+      return { messages: [directMessage(5, 'peer', 'Five'), directMessage(6, 'peer', 'Six, before the edit')], hasMore: true };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+
+    // A refresh of the latest page is on its way when message 6 is edited live.
+    const refresh = app.loadLatest(win);
+    await tick();
+    app.onEdited(directMessage(6, 'peer', 'Six, edited', { editedUtc: new Date().toISOString() }));
+    releaseLatest();
+    await refresh;
+    assert.match(win.log.querySelector('[data-message-id="6"] .pm-chat__bubble').textContent, /Six, edited/);
+
+    // An earlier page is on its way when message 4, not yet shown, is edited live.
+    const earlier = app.loadEarlier(win);
+    await tick();
+    app.onEdited(directMessage(4, 'peer', 'Four, edited', { editedUtc: new Date().toISOString() }));
+    releaseEarlier();
+    await earlier;
+    assert.match(win.log.querySelector('[data-message-id="4"] .pm-chat__bubble').textContent, /Four, edited/);
+  } finally {
+    window.close();
+  }
+});

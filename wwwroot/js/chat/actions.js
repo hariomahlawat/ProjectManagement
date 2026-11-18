@@ -308,15 +308,16 @@
     const on = !this.myReaction(message, kind);
     const before = message.reactions || [];
     // Shown at once; the server's answer (or a failure) settles it.
-    this.noteMessageEvent(messageId, 'reactions');
-    this.eachCopy(messageId, (m) => ({ ...m, reactions: toggled(m.reactions || [], kind, this.me, on) }));
+    const shown = toggled(before, kind, this.me, on);
+    this.noteMessageEvent(messageId, { reactions: shown });
+    this.eachCopy(messageId, (m) => ({ ...m, reactions: shown }));
     try {
       const result = await this.request('POST', `/messages/${messageId}/react`, { kind, on });
       this.onReactions(result);
       const info = reactionInfo(kind);
       this.announce(on ? `Reacted: ${info.label}.` : `${info.label} taken back.`);
     } catch (error) {
-      this.noteMessageEvent(messageId, 'reactions');
+      this.noteMessageEvent(messageId, { reactions: before });
       this.eachCopy(messageId, (m) => ({ ...m, reactions: before }));
       this.composeNote(this.viewFor(win), error.message);
     }
@@ -334,27 +335,51 @@
   }
 
   /**
-   * A live change to part of a message: 'text' (text, edit time, mentions) or 'reactions'
-   * (see messageEventAt in chat/app.js). An edit pushed by the server carries both, as of then.
+   * A live change to part of a message, with its new content: change.text ({ body, editedUtc,
+   * mentionedUserIds }) and/or change.reactions (the list). Numbered (messageEventSeq), so any
+   * answer from the server asked for before it cannot put the older part back (settleFetched),
+   * whether or not the message was on screen when the change arrived.
    */
-  ChatApp.prototype.noteMessageEvent = function (messageId, ...parts) {
+  ChatApp.prototype.noteMessageEvent = function (messageId, change) {
     this.messageEventSeq += 1;
     const at = { ...(this.messageEventAt.get(messageId) || {}) };
-    parts.forEach((part) => { at[part] = this.messageEventSeq; });
+    if (change.text) at.text = { seq: this.messageEventSeq, ...change.text };
+    if (change.reactions) at.reactions = { seq: this.messageEventSeq, list: change.reactions };
     this.messageEventAt.set(messageId, at);
+  };
+
+  /**
+   * Messages from the server (history, catch-up, the state check), asked for when the live
+   * numbering stood at eventsBefore: a part that changed live since keeps its live content.
+   */
+  ChatApp.prototype.settleFetched = function (messages, eventsBefore) {
+    if (!this.messageEventAt.size) return messages;
+    return (messages || []).map((m) => {
+      const at = m && m.id ? this.messageEventAt.get(m.id) : null;
+      if (!at || m.isUnsent) return m;
+      let next = m;
+      if (at.text && at.text.seq > eventsBefore) {
+        next = { ...next, body: at.text.body, editedUtc: at.text.editedUtc, mentionedUserIds: at.text.mentionedUserIds };
+      }
+      if (at.reactions && at.reactions.seq > eventsBefore) next = { ...next, reactions: at.reactions.list };
+      return next;
+    });
   };
 
   /** ReactionsChanged, or the answer to this page's own reaction. */
   ChatApp.prototype.onReactions = function (change) {
     if (!change || !change.messageId) return;
-    this.noteMessageEvent(change.messageId, 'reactions');
+    this.noteMessageEvent(change.messageId, { reactions: change.reactions || [] });
     this.eachCopy(change.messageId, (m) => ({ ...m, reactions: change.reactions || [] }));
   };
 
   /** MessageEdited / GroupMessageEdited, or the answer to this page's own edit. */
   ChatApp.prototype.onEdited = function (message) {
     if (!message || !message.id || this.unsentIds.has(message.id)) return;
-    this.noteMessageEvent(message.id, 'text', 'reactions');
+    this.noteMessageEvent(message.id, {
+      text: { body: message.body, editedUtc: message.editedUtc, mentionedUserIds: message.mentionedUserIds },
+      reactions: message.reactions || [],
+    });
     this.windows.forEach((win) => {
       const held = win.messages.some((m) => m.id === message.id);
       const heldLive = (win.heldLive || []).some((m) => m.id === message.id);
