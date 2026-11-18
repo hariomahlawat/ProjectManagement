@@ -112,3 +112,93 @@ test('the custom card size box closes with Escape or Cancel, and the menu keeps 
   await expect(size).toHaveValue(before);
   expect(errors).toEqual([]);
 });
+
+test('a custom card smaller than A6 is warned of on the start screen; a larger one is not', async ({ page }) => {
+  const errors = await openFresh(page);
+  const size = page.locator('[data-card-size]');
+  const hint = page.locator('[data-card-small]');
+  await expect(hint).toBeHidden();
+  const use = async (width, height) => {
+    await size.selectOption('custom');
+    await page.locator('[data-card-custom-size="width"]').fill(String(width));
+    await page.locator('[data-card-custom-size="height"]').fill(String(height));
+    await page.locator('[data-card-custom-use]').click();
+  };
+  await use(80, 120);
+  await expect(hint).toBeVisible();
+  await use(150, 200);
+  await expect(hint).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+/** The bytes of a download. */
+async function bytesOf(download) {
+  const chunks = [];
+  for await (const chunk of await download.createReadStream()) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
+/** Saves the page as a screen PNG and counts its dark (ink) pixels. */
+async function saveAndCountInk(page) {
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'A slide or a screen' }).click();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const file = await download;
+  await expect(page.locator('[data-save-result]')).toContainText('Saved');
+  const result = await page.locator('[data-save-result]').textContent();
+  await page.keyboard.press('Escape');
+  const ink = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext('2d');
+    context.drawImage(bitmap, 0, 0);
+    const data = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+    let dark = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] < 300) dark += 1;
+    return dark;
+  }, (await bytesOf(file)).toString('base64'));
+  return { ink, result };
+}
+
+test('every card design saves with its words drawn, the Bilingual Hindi included', async ({ page }) => {
+  test.setTimeout(180000);
+  const errors = await openFresh(page);
+  const keys = await page.locator('[data-start-design]').evaluateAll((buttons) => buttons.map((button) => button.dataset.startDesign));
+  expect(keys.length).toBeGreaterThanOrEqual(6);
+  await page.locator(`[data-start-design="${keys[0]}"]`).click();
+  for (const key of keys) {
+    await page.locator(`[data-card-design="${key}"]`).click();
+    await expect(page.locator(`[data-card-design="${key}"]`)).toHaveAttribute('aria-pressed', 'true');
+    const { ink, result } = await saveAndCountInk(page);
+    expect(ink, `${key}: words drawn`).toBeGreaterThan(2000);
+    expect(result, key).not.toMatch(/left out|could not/);
+    if (key === 'bilingual') {
+      // The Hindi is drawn too: emptied, the picture loses ink.
+      const hindi = page.locator('[data-card-field="occasionHi"]');
+      await hindi.fill('');
+      await hindi.blur();
+      const without = await saveAndCountInk(page);
+      expect(without.ink).toBeLessThan(ink - 200);
+      await page.keyboard.press('Control+z');
+    }
+  }
+  expect(errors).toEqual([]);
+});
+
+test('a poster with No logo saves with nothing left out', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-poster="event"]').click();
+  await page.locator('.clg-card-question [data-card-logo="none"]').click();
+  await expect(page.locator('[data-card-logo-name]')).toContainText('No logo on this poster');
+  const { ink, result } = await saveAndCountInk(page);
+  expect(ink).toBeGreaterThan(2000);
+  expect(result).not.toMatch(/empty frame|left out|could not/);
+  expect(errors).toEqual([]);
+});

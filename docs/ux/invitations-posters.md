@@ -196,10 +196,12 @@ All of it runs in the browser. **There's no server change, no migration and no n
   page that does not understand a part can never delete it by saving the draft again. The editor
   shows "Some parts were made by a newer PRISM and are kept but not shown." That PR is deployed
   for at least one release before any PR that writes the new parts.
-- **Print sheets and guest cards**: `collage-print.js` places 1, 2 or 4 cards on a sheet, with cut
-  marks, and turns the back's order for a long-edge flip. It writes the PDF with the vendored
-  pdf-lib. Guest cards draw one card at a time from the originals, put it in the PDF and let the
-  canvas go.
+- **Print sheets and guest cards**: `core.sheetLayout` (in `collage-core.js`) places as many
+  cards as fit on an A4 or A3 sheet inside 8 mm margins with 4 mm gaps, `core.cutMarks` gives the
+  cut marks, and the back's sheet is mirrored for a long-edge flip. `collage-save.js` writes the
+  PDF with the vendored pdf-lib. Guest cards are drawn one at a time from the originals and each
+  canvas is let go before the next; each card's JPEG stays in the PDF until it is saved, so the
+  PDF itself grows with the number of guests (300 A5 cards made a PDF of about 69 MB).
 - **Fonts**: Cinzel and Pinyon Script are added to `wwwroot/fonts/collage/` with `OFL.txt`, and to
   `collage-fonts.css` and the Credits dialog.
 
@@ -241,6 +243,10 @@ comes with tests that fail without it.
   - PR 9b was split into 9b (pocket cards) and 9c (folded cards);
   - 10 (guest list) and 11 (posters) were built before 9c, being of more use;
   - the custom card size moved to its own PR, 5b.
+  - PR 10 was built without the size estimate, the preview of the first three and the
+    browser memory test in its "Done when". Canvases are let go one at a time, but each card's
+    picture stays in the PDF, so a long list makes a large PDF (300 A5 cards, about 69 MB, 13 s).
+    The estimate and preview are left for later.
 - **Fonts (owner approved, 19 Nov):** Cinzel (Engraved) and Pinyon Script (Formal script) were
   downloaded from @fontsource 5.3.0 and shipped to master on their own (#3447).
 - **Sheet counts:** on A4, with 8 mm margins and 4 mm gaps, 2 A6, 4 A7 or 10 car passes fit;
@@ -248,8 +254,11 @@ comes with tests that fail without it.
 - **Release order (owner agreed, 19 Nov):** PR 2 reaches production a release before PR 3 and
   later (see Deployment). If they went in one release, a user on a cached tab during the
   change-over could lose a card's shapes from a draft.
-- **After the last PR:** a cold, independent review (PR 13), with fixes until it scores 8.5 or
-  above.
+- **Cold review, 19 Nov:** UX 6.5, code and tests 7. Fixed on top of the stack in three parts:
+  sides taken from the design, guest names on the right side, locks and both sides (part 1);
+  logos, the Card panel's order, posters, phones and wording (part 2); long words, long
+  programmes, small custom cards, and tests for drafts, guest PDFs, every design's save, posters
+  without a logo and folded sides (part 3). Then a fresh review, until it scores 8.5 or above.
 
 | PR | What | Done when |
 | --- | --- | --- |

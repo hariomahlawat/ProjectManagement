@@ -122,6 +122,7 @@ test('a quick pick pressed straight after typing words in Settings still fills i
   await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Barakhana');
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasion')?.text).toBe('Barakhana');
   expect((await newestDraft(page)).model.items.find((item) => item.field === 'venue').text).toBe('Sudarshan Hall');
+  expect(errors).toEqual([]);
 });
 
 test('Regimental takes the unit\'s colours from Card details; Bilingual shows the Hindi fields, Classic does not', async ({ page }) => {

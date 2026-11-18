@@ -110,7 +110,7 @@ test('an unknown design changes nothing; a draft drops a bad card', () => {
   assert.equal(designs.applyDesign(plain, 'nope', {}, { measure, newId }), plain);
   const read = core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: '<b>', details: { occasion: 'x' } } }, []);
   assert.equal(read.card, undefined);
-  const odd = core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: { occasion: 7, '<x>': 'y', venue: 'v'.repeat(400) } } }, []);
+  const odd = core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: { occasion: 7, '<x>': 'y', venue: 'v'.repeat(1200) } } }, []);
   assert.deepEqual(Object.keys(odd.card.details), ['venue']);
   assert.equal(odd.card.details.venue.length, core.TEXT_LIMITS.maxLength);
 });
@@ -540,6 +540,53 @@ test('every design and its back read back from a draft unchanged, a long program
         const was = core.layoutText(item, measure);
         const now = core.layoutText(again, measure);
         assert.ok(Math.abs(was.size - now.size) < 0.01, `${key}: ${item.field} drawn at ${now.size}, was ${was.size}`);
+      }
+    }
+  }
+});
+
+// Custom sizes (PR 5b): every card design stays on the page with no words overlapping, and at
+// a card no smaller than A6 (core.smallCard) has letters at least 1.5 mm tall; smaller ones are warned of.
+test('card designs at custom sizes stay on the page, and are readable from A6 up', () => {
+  for (const size of ['mm:300x50', 'mm:50x300', 'mm:50x50', 'mm:300x300', 'mm:200x100', 'mm:100x200', 'mm:100x100', 'mm:105x148', 'mm:148x105']) {
+    const mmWide = core.sizeOf(size).mm[0];
+    const small = core.smallCard(size);
+    for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].poster && !designs.DESIGNS[each].pocket)) {
+      const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
+      const height = core.pageHeight(size);
+      for (const item of card.items) {
+        const b = box(item);
+        assert.ok(b.left >= -0.5 && b.right <= core.PAGE_WIDTH + 0.5 && b.top >= -0.5 && b.bottom <= height + 0.5, `${key} ${size}: ${item.role || item.field} off the page`);
+      }
+      const texts = card.items.filter((item) => item.kind === 'text');
+      for (let i = 0; i < texts.length; i += 1) {
+        for (let j = i + 1; j < texts.length; j += 1) assert.ok(!overlap(box(texts[i]), box(texts[j])), `${key} ${size}: ${texts[i].field} overlaps ${texts[j].field}`);
+      }
+      if (!small) {
+        const letters = Math.min(...texts.map((item) => core.layoutText(item, measure).size)) * mmWide / core.PAGE_WIDTH;
+        assert.ok(letters >= 1.5, `${key} ${size}: letters ${letters.toFixed(2)} mm`);
+      }
+    }
+  }
+});
+
+// A folded card prints on a landscape sheet folded down the middle (PR 9c): the outside's right
+// half is the front cover (the logo and host), its left half the back; inside, the invitation
+// reads on the left panel and the occasion and details on the right. No part crosses the fold.
+test('folded cards: the cover is the outside sheet\'s right half, and inside reads left to right', () => {
+  for (const size of ['fold6', 'fold5']) {
+    for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].poster && !designs.DESIGNS[each].pocket)) {
+      const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
+      const half = core.PAGE_WIDTH / 2;
+      const outside = card.items;
+      const inside = card.back.items;
+      for (const role of ['logo']) assert.ok(outside.find((item) => item.role === role).x > half, `${key} ${size}: the ${role} on the cover`);
+      assert.ok(outside.find((item) => item.field === 'host').x > half, `${key} ${size}: the host on the cover`);
+      assert.ok(inside.find((item) => item.field === 'invite').x < half, `${key} ${size}: the invitation on the left panel`);
+      for (const field of ['occasion', 'when', 'venue']) assert.ok(inside.find((item) => item.field === field).x > half, `${key} ${size}: ${field} on the right panel`);
+      for (const item of [...outside, ...inside].filter((each) => each.kind === 'text')) {
+        const b = box(item);
+        assert.ok(b.right <= half + 0.5 || b.left >= half - 0.5, `${key} ${size}: ${item.field} crosses the fold`);
       }
     }
   }

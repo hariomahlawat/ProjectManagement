@@ -590,12 +590,12 @@ test('a Hindi syllable stays one letter cluster on a curve', () => {
 
 test('a draft keeps text, within its limits', () => {
   const text = collage.textItem('t', 'शुभकामनाएँ', { x: 10, y: 10 }, { font: 'hindiHand', size: 999, curve: -400, color: '#c62f3a', label: 'red', outlineColor: 'x', align: 'middle', bold: 'yes' });
-  const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [text, { ...text, id: 'u', font: 'comic', text: 'x'.repeat(400) }, { ...text, id: 'v', font: 'Comic Sans"' }] }, []);
+  const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [text, { ...text, id: 'u', font: 'comic', text: 'x'.repeat(1200) }, { ...text, id: 'v', font: 'Comic Sans"' }] }, []);
   const [a, b, c] = read.items;
   assert.deepEqual([a.text, a.font, a.size, a.curve, a.color, a.label, a.outlineColor, a.align, a.bold], ['शुभकामनाएँ', 'hindiHand', 300, -100, '#c62f3a', '', '#ffffff', 'center', false]);
   // A font this PRISM does not ship keeps its name for a newer PRISM (it draws as the clean
   // font here); a name no PRISM writes falls back to clean (docs/ux/invitations-posters.md, PR 2).
-  assert.deepEqual([b.font, b.text.length], ['comic', 300]);
+  assert.deepEqual([b.font, b.text.length], ['comic', collage.TEXT_LIMITS.maxLength]);
   assert.equal(collage.fontOf(b), collage.fontOf({ ...b, font: 'clean' }));
   assert.equal(c.font, 'clean');
   assert.equal('crop' in a, false);
@@ -1437,4 +1437,26 @@ test('a card\'s back moves with the page size, and keeps its newer parts on ever
   const once = collage.draftModel(card);
   const twice = collage.draftModel(collage.readDraftModel(JSON.parse(JSON.stringify(once)), []));
   assert.ok(twice.back.items.some((item) => item.kind === 'seal'));
+});
+
+// A word too long for its width even at the smallest size is broken, so it stays on the page.
+test('one very long word in a fitted text item is broken across lines and stays within the width', () => {
+  const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) * 0.56;
+  const item = { kind: 'text', text: 'X'.repeat(80), size: 40, maxWidth: 300, maxLines: 2, font: 'Mulish' };
+  const layout = collage.layoutText(item, measure);
+  assert.ok(layout.width <= item.maxWidth + 0.5, `the text is ${layout.width} wide`);
+  assert.ok(layout.lines > 1);
+  assert.equal(layout.glyphs.map((glyph) => glyph.ch).join(''), 'X'.repeat(80));
+  // A word that fits once smaller is made smaller, not broken.
+  const short = collage.layoutText({ ...item, text: 'Sudarshan' }, measure);
+  assert.equal(short.lines, 1);
+});
+
+// A long programme (ten lines of 60 letters) is kept whole by the draft, in the item and the details.
+test('a programme of 600 letters is kept whole in a draft', () => {
+  const programme = Array.from({ length: 10 }, (_, i) => `${18 + i}00 h  ` + 'Item of the evening with its place'.padEnd(52, '.')).join(String.fromCharCode(10));
+  assert.ok(programme.length > 600);
+  const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [{ id: 'p', kind: 'text', text: programme, x: 500, y: 500, width: 600, aspect: 1, size: 40, angle: 0, field: 'programme' }], card: { design: 'classic', details: { programme } } }, []);
+  assert.equal(read.items[0].text, programme);
+  assert.equal(read.card.details.programme, programme);
 });

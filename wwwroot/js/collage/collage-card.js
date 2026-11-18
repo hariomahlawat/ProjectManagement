@@ -175,6 +175,11 @@
     // Custom size… shows the mm fields; Use adds the size to the menu and draws the designs at it.
     const customBox = ui.$('[data-card-custom]');
     let lastSize = DEFAULT_CARD_SIZE;
+    /** A custom card smaller than A6 is warned of on the start screen: its smallest words get tiny. */
+    function showSmallHint() {
+      const hint = ui.$('[data-card-small]');
+      if (hint) hint.hidden = !(core.isSize(startSize.value) && startSize.value.startsWith('mm:') && core.smallCard(startSize.value));
+    }
     startSize?.addEventListener('change', () => {
       if (startSize.value === 'custom') {
         startSize.value = lastSize;
@@ -185,6 +190,7 @@
         return;
       }
       lastSize = startSize.value;
+      showSmallHint();
       renderStart();
     });
     function useCustomCardSize() {
@@ -206,8 +212,9 @@
       startSize.value = answer.key;
       lastSize = answer.key;
       customBox.hidden = true;
+      showSmallHint();
       renderStart();
-      messages.announce(`Card size: ${core.sizeOf(answer.key).label}.`);
+      messages.announce(`Card size: ${core.sizeOf(answer.key).label}.${core.smallCard(answer.key) ? ' This card is smaller than A6, so its smallest words will print very small.' : ''}`);
     }
     /** Cancel or Escape: the box closes and the menu keeps the size it had; focus goes back to it. */
     function closeCustomBox() {

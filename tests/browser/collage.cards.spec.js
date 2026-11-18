@@ -238,6 +238,13 @@ test('a guest list makes one card for each guest: on their own pages, or filling
   // Cleared, with Undo; Save then offers no guest cards.
   await page.locator('[data-card-guest="clear"]').click();
   await expect(page.locator('[data-card-guests]')).toHaveValue('');
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await expect(page.locator('[data-save-guests]')).toBeHidden();
+  await page.keyboard.press('Escape');
+  await page.locator('[data-prism-toast]').filter({ hasText: 'guest list is cleared' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('[data-card-guests]')).toHaveValue(/Col D\. Nair/);
+  await expect(page.locator('[data-card-guest-count]')).toContainText('3 guests');
   expect(errors).toEqual([]);
 });
 

@@ -119,6 +119,15 @@
    * each side 50 to 300 mm, to a tenth of a mm, saved at 300 dpi with a true PDF paper size.
    */
   const CUSTOM_LIMITS = Object.freeze({ mm: [50, 300] });
+
+  /**
+   * Whether a card size is smaller than A6 (a side under 100 mm, or less paper than 100 × 148
+   * mm): a full invitation's smallest words would then print under 1.5 mm tall.
+   */
+  function smallCard(sizeKey) {
+    const mm = sizeOf(sizeKey)?.mm;
+    return Boolean(mm) && (Math.min(mm[0], mm[1]) < 100 || mm[0] * mm[1] < 100 * 148);
+  }
   const CUSTOM_KEY = /^mm:(\d{2,3}(?:\.\d)?)x(\d{2,3}(?:\.\d)?)$/;
   const customSizes = new Map();
   function customSize(key) {
@@ -696,7 +705,7 @@
     hindiFormal: Object.freeze({ label: 'हिंदी औपचारिक', css: '"Tiro Devanagari Hindi", "Noto Sans Devanagari", serif' })
   });
   const TEXT_LIMITS = Object.freeze({
-    size: [8, 300], spacing: [-5, 40], outline: [0, 12], curve: [-100, 100], maxLength: 300
+    size: [8, 300], spacing: [-5, 40], outline: [0, 12], curve: [-100, 100], maxLength: 1000
   });
   const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
 
@@ -834,12 +843,28 @@
       // Smaller by what the width needs, and at least a little each time.
       size = Math.max(smallest, size * Math.min(0.94, item.maxWidth / layout.width));
     }
+    // A word too long for the width even at the smallest size (a long unbroken name) is broken
+    // across lines, so it never runs off the page.
+    if (layout.width > item.maxWidth + 0.5) layout = layoutTextAt(item, size, measure, item.maxWidth, true);
     return layout;
   }
 
-  /** Words broken onto lines no wider than `width` (whole words; a word longer than it stands alone). */
-  function wrapLine(line, width, measureLine) {
-    const words = line.split(/ +/);
+  /**
+   * Words broken onto lines no wider than `width`: whole words, and a word longer than it stands
+   * alone, or with `breakWords` is broken between letters (whole letters, so Hindi stays joined).
+   */
+  function wrapLine(line, width, measureLine, breakWords = false) {
+    const words = line.split(/ +/).flatMap((word) => {
+      if (!breakWords || measureLine(word) <= width) return [word];
+      const pieces = [];
+      let piece = '';
+      for (const letter of graphemes(word)) {
+        if (piece && measureLine(piece + letter) > width) { pieces.push(piece); piece = letter; }
+        else piece += letter;
+      }
+      if (piece) pieces.push(piece);
+      return pieces;
+    });
     const out = [];
     let current = '';
     for (const word of words) {
@@ -855,7 +880,7 @@
     return out;
   }
 
-  function layoutTextAt(item, size, measure, wrapWidth) {
+  function layoutTextAt(item, size, measure, wrapWidth, breakWords = false) {
     const font = fontOf(item, size);
     const gap = (item.spacing || 0) / 100 * size;
     const pad = (item.outline || 0) + size * 0.08;
@@ -869,7 +894,7 @@
       let lines = String(item.text || ' ').split('\n').map((line) => line || ' ');
       if (wrapWidth > 0) {
         const room = Math.max(1, wrapWidth - 2 * (pad + labelX));
-        lines = lines.flatMap((line) => wrapLine(line, room, runWidth));
+        lines = lines.flatMap((line) => wrapLine(line, room, runWidth, breakWords));
       }
       const lineHeight = size * 1.25;
       const widths = lines.map(runWidth);
@@ -2186,6 +2211,7 @@
     GUEST_LIMITS,
     guestNames,
     readGuests,
+    smallCard,
     cutMarks,
     decodeSize,
     itemsToSave,

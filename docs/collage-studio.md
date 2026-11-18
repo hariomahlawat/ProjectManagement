@@ -142,8 +142,10 @@ its npm package by hand; the libman entry records the version.
     Saved as a PDF, **One card for each guest** puts each guest's name in the guest field (or in
     the place the design has for it, where it leaves a line), in the list's order. Each card goes
     on its own page (with the back after it), or fills the chosen A4 or A3 sheets, each sheet of
-    fronts followed by its sheet of backs. Cards are drawn one at a time, so memory stays at one
-    card; the result says how many cards on how many pages.
+    fronts followed by its sheet of backs. Cards are drawn one canvas at a time, each let go before
+    the next, and a page all guests share (the back) is drawn once; each card's picture stays in
+    the PDF until it is saved, so a long list makes a large PDF (300 A5 cards, about 69 MB). The
+    result says how many cards on how many pages.
 
     **Folded cards** (PR 9c): **Folded A6 card** (an A5 sheet) and **Folded A5 card** (an A4
     sheet) are in the size menus' **Folded cards** group. A folded card is always two-sided:
@@ -201,10 +203,13 @@ its npm package by hand; the libman entry records the version.
   - A size out of range is refused with the reason.
   - The size is kept as `mm:<width>x<height>` (for example `mm:120x180`). It's read back from
     drafts, listed under **Custom** in the menus, saved at 300 dpi, and its PDF page is that paper
-    size.
+    size. A custom card smaller than A6 (a side under 100 mm, or less paper than 100 × 148 mm) gets
+  a note on the start screen that its smallest words will print under 1.5 mm tall.
 - **Words that fit a width** (PR 4): a text item may carry a `maxWidth`. Its words then wrap onto
-  new lines within it, up to `maxLines` (3 unless set), and if they still don't fit, the letters
-  get smaller, down to 40% of the size. The words typed never change, only how they're laid out.
+  new lines within it, up to `maxLines` (3 unless set, at most 12; lines the user breaks always
+  count), and if they still don't fit, the letters get smaller, down to 40% of the size. A single
+  word too long even then (a long unbroken name) is broken between letters. Text items hold up to
+  1,000 characters. The words typed never change, only how they're laid out.
   Curved words aren't fitted. Dragging a corner of fitted words makes the width grow with them.
   The card designs (PR 4b) set this, so a long occasion never runs off a card.
 - **Photos**: add up to 60 photos (JPEG, PNG, WEBP, GIF or BMP, at most 50 MB each) by the
