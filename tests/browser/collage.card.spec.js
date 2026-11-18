@@ -270,3 +270,28 @@ async function streamBytes(download) {
   for await (const chunk of await download.createReadStream()) chunks.push(chunk);
   return Buffer.concat(chunks);
 }
+
+test('a second logo can be changed: the choices change the logo picked above them', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-logo="second"]').click();
+  // Straight after adding it, the choices change the second logo.
+  await expect(page.locator('[data-card-logo-target="logo2"]')).toHaveAttribute('aria-pressed', 'true');
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 120;
+    canvas.height = 60;
+    canvas.getContext('2d').fillRect(0, 0, 120, 60);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await page.locator('[data-card-logo-file]').setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(page.locator('[data-card-logo-name]')).toHaveText('Your own logo (second.png)');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'logo2')?.kind).toBe('photo');
+  const items = (await newestDraft(page)).model.items;
+  // The first logo is still the SDD logo.
+  expect(items.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
+  // First logo picked: the name shown is the first's.
+  await page.locator('[data-card-logo-target="logo"]').click();
+  await expect(page.locator('[data-card-logo-name]')).toHaveText('SDD');
+  expect(errors).toEqual([]);
+});
