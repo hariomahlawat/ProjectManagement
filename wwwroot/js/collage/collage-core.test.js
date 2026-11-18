@@ -1264,7 +1264,7 @@ test('words with a width wrap onto new lines, then get smaller, and never change
 
   // A draft keeps a usable width and line count, and drops a bad one.
   const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [{ ...base, maxLines: 9 }, { ...base, id: 'u', maxWidth: 3, maxLines: 'x' }] }, []);
-  assert.deepEqual([read.items[0].maxWidth, read.items[0].maxLines], [420, 6]);
+  assert.deepEqual([read.items[0].maxWidth, read.items[0].maxLines], [420, 9]);
   assert.equal('maxWidth' in read.items[1], false);
   assert.equal('maxLines' in read.items[1], false);
 });
@@ -1338,4 +1338,14 @@ test('the back keeps its own newer fields through a read and a save', () => {
   const saved = collage.draftModel(read);
   assert.deepEqual(saved.back.finishing, { foil: 'gold' });
   assert.deepEqual(collage.draftModel(collage.readDraftModel(JSON.parse(JSON.stringify(saved)), [])).back.finishing, { foil: 'gold' });
+});
+
+// A programme of ten lines reads back from a draft at the same size (PR 8).
+test('a ten-line programme keeps its size when the draft is reopened', () => {
+  const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) * 0.56;
+  const programme = Array.from({ length: 10 }, (_, i) => `${18 + i}00 h  Item ${i + 1}`).join(String.fromCharCode(10));
+  const item = { id: 'p', kind: 'text', text: programme, x: 500, y: 500, width: 800, aspect: 1, size: 31, maxWidth: 800, maxLines: 10, field: 'programme' };
+  const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [item] }, []);
+  assert.equal(read.items[0].maxLines, 10);
+  assert.ok(Math.abs(collage.layoutText(read.items[0], measure).size - collage.layoutText(item, measure).size) < 0.01);
 });

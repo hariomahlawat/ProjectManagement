@@ -459,3 +459,15 @@ test('the back\'s small logo follows the front\'s: replaced, removed and put bac
   await expect.poll(async () => (await backLogo())?.sticker).toBe('logo:sdd');
   expect(errors).toEqual([]);
 });
+
+test('turning to the back keeps the card\'s own title, from its front', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const title = page.locator('[data-name]');
+  const before = await title.getAttribute('placeholder');
+  await page.locator('[data-card-side="add"]').click();
+  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
+  expect(await title.getAttribute('placeholder')).toBe(before);
+  expect(before).not.toMatch(/Programme/);
+  expect(errors).toEqual([]);
+});

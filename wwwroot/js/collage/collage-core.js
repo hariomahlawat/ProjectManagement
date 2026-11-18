@@ -810,11 +810,13 @@
    * when they still do not fit its letters get smaller, down to `smallest` of its size. The
    * words the user typed never change; only how they are laid out. Curved text is not fitted.
    */
-  const TEXT_FIT = Object.freeze({ maxLines: [1, 6], defaultLines: 3, smallest: 0.4 });
+  const TEXT_FIT = Object.freeze({ maxLines: [1, 12], defaultLines: 3, smallest: 0.4 });
 
   function layoutText(item, measure) {
     if (!(item.maxWidth > 0) || item.curve) return layoutTextAt(item, item.size, measure, 0);
-    const lines = Number.isInteger(item.maxLines) ? item.maxLines : TEXT_FIT.defaultLines;
+    // Lines the user broke always count: a programme of eight lines may have eight.
+    const given = String(item.text || '').split(String.fromCharCode(10)).length;
+    const lines = Math.max(given, Number.isInteger(item.maxLines) ? item.maxLines : TEXT_FIT.defaultLines);
     const smallest = Math.max(TEXT_LIMITS.size[0], item.size * TEXT_FIT.smallest);
     let size = item.size;
     let layout = null;
