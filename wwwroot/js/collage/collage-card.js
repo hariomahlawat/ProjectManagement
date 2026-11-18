@@ -264,7 +264,7 @@
       const colours = designs.colourList(designs.detailsOf(state.collage).colours);
       colours[index - 1] = value.toLowerCase();
       doc.edit((draft) => {
-        draft.card = { design: draft.card?.design || 'regimental', details: { ...designs.detailsOf(draft), colours: colours.join(' ') } };
+        draft.card = { ...draft.card, design: draft.card?.design || 'regimental', details: { ...designs.detailsOf(draft), colours: colours.join(' ') } };
         for (const item of draft.items) {
           for (const [prop, which] of Object.entries(item.tint || {})) {
             if (which === index) item[prop] = value.toLowerCase();

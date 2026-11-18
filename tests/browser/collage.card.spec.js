@@ -139,6 +139,9 @@ test('Regimental takes the unit\'s colours from Card details; Bilingual shows th
   expect(model.items.find((item) => item.field === 'host').color).toBe('#1f5b3a');
   expect(model.card.details.colours.split(' ')[0]).toBe('#1f5b3a');
   await expect(page.locator('[data-card-field="occasionHi"]')).toHaveCount(0);
+  // The colour change keeps the card's list of placed fields: a field deleted after it stays deleted.
+  expect(Array.isArray(model.card.placed)).toBe(true);
+  expect(model.card.placed).toContain('host');
 
   await page.locator('[data-card-design="bilingual"]').click();
   await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('स्थापना दिवस रात्रिभोज');
