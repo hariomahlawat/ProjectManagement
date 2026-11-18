@@ -402,6 +402,11 @@
       draw.drawSticker(context._context, item, image, pixelsPerUnit);
     }
 
+    function drawShapeNode(context, shape) {
+      const item = doc.itemById(shape.id());
+      if (item) draw.drawShape(context._context, item);
+    }
+
     function drawTextNode(context, shape) {
       const item = doc.itemById(shape.id());
       if (!item) return;
@@ -421,7 +426,7 @@
     function makeNode(item) {
       const node = item.kind === 'slot'
         ? makeSlotNode()
-        : new Konva.Shape({ name: 'item', draggable: true, sceneFunc: item.kind === 'text' ? drawTextNode : item.kind === 'sticker' ? drawStickerNode : drawPhotoNode, hitFunc: hitPhotoNode });
+        : new Konva.Shape({ name: 'item', draggable: true, sceneFunc: item.kind === 'text' ? drawTextNode : item.kind === 'sticker' ? drawStickerNode : item.kind === 'shape' ? drawShapeNode : drawPhotoNode, hitFunc: hitPhotoNode });
       node.id(item.id);
       node.setAttr('kind', item.kind);
       node.on('pointerdown', (event) => {
@@ -577,6 +582,8 @@
       const isText = Boolean(node && ['text', 'sticker'].includes(doc.itemById(state.selectedId)?.kind));
       const locked = Boolean(node && doc.itemById(state.selectedId)?.locked);
       transformer.enabledAnchors(adjusting || locked ? [] : isText ? CORNER_ANCHORS : ALL_ANCHORS);
+      // A line or border stretches freely from its corners too (docs/ux/invitations-posters.md, PR 3).
+      transformer.keepRatio(!(node && doc.itemById(state.selectedId)?.kind === 'shape'));
       transformer.rotateEnabled(!adjusting && !locked);
       transformer.borderStroke(adjusting ? ADJUST_COLOUR : locked ? LOCKED_COLOUR : accent());
       transformer.borderDash(adjusting || locked ? [6, 4] : []);

@@ -1078,7 +1078,7 @@ test('words over a photo are told apart from words on the empty page', () => {
 // understand, so saving it here never deletes a card's shapes, back page or new logo.
 test('a draft keeps the parts a newer PRISM made, and writes them back in their places', () => {
   const photo = collage.photoItem('a', 'p1', 1.5, { x: 100, y: 100, width: 200 });
-  const shape = { id: 'b', kind: 'shape', shape: 'rect', x: 10, y: 10, width: 980, aspect: 0.7, stroke: '#a8842f', points: [[0, 0], [1, 1]] };
+  const shape = { id: 'b', kind: 'seal', seal: 'rect', x: 10, y: 10, width: 980, aspect: 0.7, stroke: '#a8842f', points: [[0, 0], [1, 1]] };
   const logo = { id: 'c', kind: 'sticker', sticker: 'logo:sdd', x: 400, y: 40, width: 120, aspect: 0.59 };
   const words = { ...collage.textItem('d', 'Raising Day Dinner', { x: 500, y: 300 }), font: 'cinzel', field: 'occasion', maxWidth: 800 };
   const back = { background: { type: 'color', value: '#fbf7ee' }, items: [{ id: 'e', kind: 'photo', photo: 'p2', x: 0, y: 0, width: 1000, aspect: 1.4 }] };
@@ -1127,10 +1127,10 @@ test('kept parts are only ones a PRISM could have written, within limits, and a 
     size: 'a4l',
     items: [
       { ...base, id: 'a', kind: '<img src=x>' },
-      { ...base, id: 'b', kind: 'Shape' },
-      { ...base, id: 'bad id', kind: 'shape' },
-      { ...base, id: 'c', kind: 'shape' },
-      { ...base, id: 'c', kind: 'shape' },
+      { ...base, id: 'b', kind: 'Seal' },
+      { ...base, id: 'bad id', kind: 'seal' },
+      { ...base, id: 'c', kind: 'seal' },
+      { ...base, id: 'c', kind: 'seal' },
       { ...base, id: 'd', kind: 'sticker', sticker: 'javascript:alert(1)' },
       { ...base, id: 'e', kind: 'sticker' }
     ],
@@ -1141,17 +1141,17 @@ test('kept parts are only ones a PRISM could have written, within limits, and a 
   assert.deepEqual(read.kept.fields, {});
   assert.deepEqual(read.items, []);
 
-  const many = Array.from({ length: 600 }, (_, i) => ({ ...base, id: `s${i}`, kind: 'shape' }));
+  const many = Array.from({ length: 600 }, (_, i) => ({ ...base, id: `s${i}`, kind: 'seal' }));
   assert.equal(collage.readDraftModel({ version: 1, items: many }, []).kept.items.length, 500);
   const huge = collage.readDraftModel({ version: 1, items: [], back: 'x'.repeat(2_100_000) }, []);
   assert.equal(huge.kept, undefined);
 
-  assert.equal(collage.readDraftModel({ version: 2, items: [{ ...base, id: 'c', kind: 'shape' }] }, []), null);
+  assert.equal(collage.readDraftModel({ version: 2, items: [{ ...base, id: 'c', kind: 'seal' }] }, []), null);
 });
 
 test('a kept part keeps its place in the stacking order when items around it are deleted here', () => {
   const a = collage.photoItem('a', 'p1', 1.5, { x: 100, y: 100, width: 200 });
-  const shape = { id: 'b', kind: 'shape', shape: 'rect', x: 10, y: 10, width: 980, aspect: 0.7 };
+  const shape = { id: 'b', kind: 'seal', seal: 'rect', x: 10, y: 10, width: 980, aspect: 0.7 };
   const c = collage.textItem('c', 'On top of the shape', { x: 500, y: 300 });
   const d = collage.textItem('d', 'Also on top', { x: 500, y: 400 });
   const read = collage.readDraftModel({ version: 1, size: 'a4p', items: [a, shape, c, d] }, ['p1']);
@@ -1176,4 +1176,37 @@ test('a kept part keeps its place in the stacking order when items around it are
   const written = ids(collage.draftModel(moved));
   assert.ok(written.indexOf('b') < written.indexOf('sc'), written.join());
   assert.deepEqual([...written].sort(), ['b', 'sc', 'tb', 'td']);
+});
+
+// Lines and borders (docs/ux/invitations-posters.md, PR 3).
+test('a shape item: its forms, its defaults, its name and how a draft reads it back', () => {
+  const line = collage.shapeItem('l', 'line', { x: 500, y: 300, width: 600 });
+  assert.equal(line.kind, 'shape');
+  assert.equal(line.aspect, 600 / collage.SHAPE_LIMITS.lineBox, 'a line is thin, but still easy to grab and stretch');
+  assert.ok(collage.SHAPE_LIMITS.lineBox > collage.ITEM_LIMITS.minWidth);
+  assert.equal(collage.shapeItem('x', 'star', { x: 0, y: 0, width: 10 }).form, 'rect');
+  assert.equal(collage.layerName(line), 'Line');
+  assert.equal(collage.layerName(collage.shapeItem('o', 'ellipse', { x: 0, y: 0, width: 10 })), 'Oval');
+  assert.equal(collage.layerName(collage.shapeItem('r', 'rect', { x: 0, y: 0, width: 10 })), 'Rectangle');
+
+  const raw = { version: 1, size: 'a4p', items: [
+    collage.shapeItem('a', 'rect', { x: 500, y: 700, width: 940, aspect: 0.7 }, { stroke: '#a8842f', fill: '#fbf7ee', strokeWidth: 4, radius: 12 }),
+    { id: 'b', kind: 'shape', form: 'hexagon', fill: 'red', stroke: 'javascript:1', strokeWidth: 999, radius: 999, x: 1, y: 1, width: 50, aspect: 2, crop: { zoom: 2 } }
+  ] };
+  const read = collage.readDraftModel(raw, []);
+  assert.equal(collage.keptCount(read), 0, 'a shape is drawn now, not kept aside');
+  const [a, b] = read.items;
+  assert.deepEqual([a.form, a.fill, a.stroke, a.strokeWidth, a.radius], ['rect', '#fbf7ee', '#a8842f', 4, 12]);
+  assert.deepEqual([b.form, b.fill, b.stroke, b.strokeWidth, b.radius], ['rect', '', '', 40, collage.LAYOUT_LIMITS.radiusMax]);
+  assert.equal('crop' in b, false);
+});
+
+test('a page border takes no room when a new item looks for a free spot; other shapes do', () => {
+  const border = collage.shapeItem('a', 'rect', { x: 500, y: 707, width: 940, aspect: 940 / 1354 }, { stroke: '#a8842f' });
+  const spot = collage.freeSpot([border], 'a4p', 100, 40);
+  assert.deepEqual(spot, collage.freeSpot([], 'a4p', 100, 40));
+  // A band across the middle: the next shape goes where it covers nothing, not on top of it.
+  const band = collage.shapeItem('b', 'rect', spot && { x: 500, y: spot.y, width: 1000, aspect: 1000 / 120 }, { fill: '#1d2c55' });
+  const next = collage.freeSpot([border, band], 'a4p', 160, 50);
+  assert.ok(Math.abs(next.y - band.y) >= 60 + 50, `${next.y} is clear of the band at ${band.y}`);
 });

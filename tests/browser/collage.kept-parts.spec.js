@@ -1,7 +1,7 @@
 'use strict';
 
 // A draft made by a newer PRISM keeps what this page does not understand
-// (docs/ux/invitations-posters.md, PR 2): its shapes, an unknown logo sticker and its back page
+// (docs/ux/invitations-posters.md, PR 2): parts of kinds it does not draw, an unknown logo sticker and its back page
 // are not shown here, the user is told so once, and saving the draft here writes them back.
 
 const { test, expect } = require('./test');
@@ -43,10 +43,10 @@ test('a draft keeps the parts a newer PRISM made when it is edited and saved her
   await page.getByRole('button', { name: 'Back to the start' }).click();
   await expect(page.locator('[data-open-draft]')).toHaveCount(1);
 
-  // A newer PRISM's parts, as it would write them: a border shape, a logo sticker this page
+  // A newer PRISM's parts, as it would write them: a part of a kind this page does not draw, a logo sticker this page
   // does not know, and a back page that shows the same photo.
   const newer = {
-    shape: { id: 'zshape', kind: 'shape', shape: 'rect', x: 10, y: 10, width: 980, aspect: 1.4, stroke: '#a8842f' },
+    shape: { id: 'zshape', kind: 'seal', seal: 'rect', x: 10, y: 10, width: 980, aspect: 1.4, stroke: '#a8842f' },
     logo: { id: 'zlogo', kind: 'sticker', sticker: 'logo:sdd', x: 440, y: 30, width: 120, aspect: 0.59 }
   };
   await withDraft(page, (record, parts) => {

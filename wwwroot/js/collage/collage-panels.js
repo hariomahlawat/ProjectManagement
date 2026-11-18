@@ -232,6 +232,23 @@
           ${arrangeSections(item)}`;
         return;
       }
+      if (item.kind === 'shape') {
+        // Lines and borders (docs/ux/invitations-posters.md, PR 3).
+        const [low, high] = core.SHAPE_LIMITS.strokeWidth;
+        const forms = [['rect', 'Rectangle'], ['ellipse', 'Oval'], ['line', 'Line']]
+          .map(([value, label]) => `<button type="button" class="btn btn-sm ${item.form === value ? 'btn-primary' : 'btn-outline-secondary'}" data-text-set="form" data-value="${value}" aria-pressed="${item.form === value}">${label}</button>`).join('');
+        ui.props.innerHTML = `
+          <h2 class="clg-panel-title">${escapeHtml(core.layerName(item))}</h2>
+          <div class="clg-section">
+            <div class="clg-buttons" role="group" aria-label="Shape">${forms}</div>
+            <p class="clg-field__label clg-field__label--plain">${item.form === 'line' ? 'Colour' : 'Line colour'}</p>${swatches('stroke', SHAPE_COLOURS, item.stroke, item.form !== 'line')}
+            <label class="clg-field"><span class="clg-field__label">Line thickness<output data-out="strokeWidth">${core.sliderText('strokeWidth', item.strokeWidth)}</output></span>
+              <input type="range" min="${item.form === 'line' ? 1 : low}" max="${high}" step="1" value="${item.strokeWidth}" data-prop="strokeWidth" aria-label="Line thickness, in page units"></label>
+            ${item.form === 'line' ? '' : `<p class="clg-field__label clg-field__label--plain">Fill</p>${swatches('fill', SHAPE_COLOURS, item.fill, true)}`}
+          </div>
+          ${arrangeSections(item)}`;
+        return;
+      }
       if (item.kind === 'slot') {
         ui.props.innerHTML = `
           <h2 class="clg-panel-title">Empty frame</h2>
@@ -263,6 +280,8 @@
     }
 
     const TEXT_COLOURS = ['#ffffff', '#172033', '#000000', '#c62f3a', '#e8c36a', '#ffd23f', '#1f6f43', '#0b2a8a', '#c2185b', '#7a3b1e', '#ff7043', '#6a1b9a'];
+    // Formal colours first (gold, maroon, navy, black, white), then the rest.
+    const SHAPE_COLOURS = ['#a8842f', '#d4b25e', '#5c1a22', '#1d2c55', '#172033', '#000000', '#ffffff', '#fbf7ee', '#1f6f43', '#c62f3a', '#0b6fa4', '#7a7f87'];
     const STICKER_COLOURS = ['#c62f3a', '#e2b13c', '#ffd23f', '#1f6f43', '#0b2a8a', '#c2185b', '#172033', '#ffffff', '#9fd3c7', '#ff7043'];
     const LABEL_COLOURS = ['#ffffff', '#fffbea', '#172033', '#ffd23f', '#c62f3a', '#1f6f43'];
 

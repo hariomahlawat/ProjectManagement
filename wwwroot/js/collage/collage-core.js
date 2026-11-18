@@ -310,10 +310,15 @@
     const height = pageHeight(sizeKey);
     const rows = [0.5, 0.3, 0.7, 0.15, 0.85];
     const columns = [0.5, 0.27, 0.73];
-    const boxes = (items || []).filter((item) => !item.hidden).map((item) => {
+    // A border round most of the page is meant to have things inside it, so it takes no room;
+    // other lines and shapes count like a photo, so new ones do not pile up on each other
+    // (PR 3 of docs/ux/invitations-posters.md).
+    const border = (item) => item.kind === 'shape' && item.width * itemHeight(item) > PAGE_WIDTH * height / 2;
+    const boxes = (items || []).filter((item) => !item.hidden && !border(item)).map((item) => {
       const box = turnedHalfBox(item.width, itemHeight(item), item.angle || 0);
-      // Words or a sticker under new words hide them; a photo under them is what words are for.
-      const weight = item.kind === 'photo' || item.kind === 'slot' ? 1 : 12;
+      // Words or a sticker under new words hide them; a photo or a shape under them is what
+      // words are for.
+      const weight = item.kind === 'photo' || item.kind === 'slot' || item.kind === 'shape' ? 1 : 12;
       return { x: item.x, y: item.y, hw: box.halfWidth, hh: box.halfHeight, weight };
     });
     let best = null;
@@ -671,6 +676,37 @@
       opacity: 100,
       flip: false,
       shadow: false,
+      ...look
+    };
+  }
+
+  /**
+   * Lines and borders (docs/ux/invitations-posters.md, PR 3): a rectangle (with rounded corners
+   * from `radius`), an ellipse or a line, with a `fill` and a `stroke` colour ('' for none) and a
+   * stroke width in page units. Unlike a sticker it stretches freely: its box is whatever the
+   * user drags it to, and the stroke is drawn inside the box, so the box is what is seen. A line
+   * runs across the middle of its box, which is half as thick again as ITEM_LIMITS.minWidth so
+   * it can still be grabbed, and stretched without the handles' smallest-size rule refusing it.
+   */
+  const SHAPE_FORMS = Object.freeze(['rect', 'ellipse', 'line']);
+  const SHAPE_LIMITS = Object.freeze({ strokeWidth: [0, 40], lineBox: ITEM_LIMITS.minWidth * 1.5 });
+
+  function shapeItem(id, form, place, look = {}) {
+    const line = form === 'line';
+    return {
+      id,
+      kind: 'shape',
+      form: SHAPE_FORMS.includes(form) ? form : 'rect',
+      fill: '',
+      stroke: '#172033',
+      strokeWidth: line ? 6 : 4,
+      radius: 0,
+      x: place.x,
+      y: place.y,
+      width: place.width,
+      aspect: place.aspect || (line ? place.width / SHAPE_LIMITS.lineBox : 1),
+      angle: 0,
+      opacity: 100,
       ...look
     };
   }
@@ -1296,6 +1332,7 @@
     }
     if (item.kind === 'slot') return 'Empty frame';
     if (item.kind === 'sticker') return 'Sticker';
+    if (item.kind === 'shape') return item.form === 'line' ? 'Line' : item.form === 'ellipse' ? 'Oval' : 'Rectangle';
     return 'Photo';
   }
 
@@ -1416,7 +1453,7 @@
   // How much wider than tall (or the reverse) an item may be: well past any real frame or text.
   const ASPECT_LIMITS = Object.freeze([0.02, 50]);
   // The kinds this PRISM draws, and the collage fields it uses.
-  const DRAWN_KINDS = Object.freeze(['photo', 'slot', 'text', 'sticker']);
+  const DRAWN_KINDS = Object.freeze(['photo', 'slot', 'text', 'sticker', 'shape']);
   const MODEL_FIELDS = Object.freeze(['version', 'size', 'background', 'layout', 'items', 'kept']);
   // A kind, sticker or font name a newer PRISM may write: short, lower case, no markup.
   const PART_NAME = /^[a-z][a-z0-9:_-]{0,40}$/;
@@ -1489,6 +1526,14 @@
         clean.shadow = item.shadow === true;
         delete clean.crop;
         delete clean.radius;
+      }
+      if (item.kind === 'shape') {
+        clean.form = SHAPE_FORMS.includes(item.form) ? item.form : 'rect';
+        clean.fill = HEX_COLOUR.test(item.fill) ? item.fill : '';
+        clean.stroke = HEX_COLOUR.test(item.stroke) ? item.stroke : '';
+        const [low, high] = SHAPE_LIMITS.strokeWidth;
+        clean.strokeWidth = Math.min(high, Math.max(low, isNumber(item.strokeWidth) ? item.strokeWidth : 4));
+        delete clean.crop;
       }
       if (item.kind === 'text') {
         const range = (value, [low, high], fallback) => Math.min(high, Math.max(low, isNumber(value) ? value : fallback));
@@ -1703,7 +1748,10 @@
     fontOf,
     graphemes,
     STICKER_LIMITS,
+    SHAPE_FORMS,
+    SHAPE_LIMITS,
     stickerItem,
+    shapeItem,
     layoutText,
     BACKGROUND_COLOURS,
     GRADIENTS,

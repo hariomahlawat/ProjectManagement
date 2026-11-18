@@ -132,7 +132,7 @@
   // Work worth keeping: a photo, some text or a sticker (an empty frame alone is not).
   // A photo used only as the blurred background still makes a picture worth saving.
   // Parts a newer PRISM made, kept but not shown, are work too (docs/ux/invitations-posters.md, PR 2).
-  const hasContent = () => collage.items.some((item) => ['photo', 'text', 'sticker'].includes(item.kind))
+  const hasContent = () => collage.items.some((item) => ['photo', 'text', 'sticker', 'shape'].includes(item.kind))
     || (collage.background?.type === 'photo' && photos.has(collage.background.photo))
     || core.keptCount(collage) > 0;
   const firstSlot = () => collage.items.find((item) => item.kind === 'slot' && !item.locked) || null;
@@ -732,7 +732,8 @@
     '[data-action="rotate-left"]', '[data-action="rotate-right"]', '[data-action="straighten"]',
     '[data-action="fit-photo"]', '[data-finish="frame"]', '[data-finish="shape"]',
     '[data-prop="radius"]', '[data-prop="zoom"]', '[data-action="adjust"]', '[data-action="replace"]', '[data-action="delete"]',
-    '[data-prop="spacing"]', '[data-prop="curve"]', '[data-text-set="font"]', '[data-text-toggle]'
+    '[data-prop="spacing"]', '[data-prop="curve"]', '[data-text-set="font"]', '[data-text-toggle]',
+    '[data-text-set="form"]', '[data-prop="strokeWidth"]'
   ].join(', ');
 
   function changeSelected(change, record = true) {

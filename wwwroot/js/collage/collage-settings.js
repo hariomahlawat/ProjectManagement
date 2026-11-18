@@ -34,7 +34,8 @@
           <label class="clg-field"><span class="clg-field__label">Size<output data-out="width">${core.sliderText('width', item.width)}</output></span>
             <input type="range" min="${low}" max="${high}" step="1" value="${Math.round(Math.min(high, Math.max(low, item.width)))}" data-prop="width" aria-label="Width of the ${item.kind === 'slot' ? 'frame' : 'photo'}, in page units"></label>
         </div>`;
-      const corners = item.kind === 'text' || item.kind === 'sticker' ? '' : `
+      // A line or an oval has no corners to round.
+      const corners = item.kind === 'text' || item.kind === 'sticker' || (item.kind === 'shape' && item.form !== 'rect') ? '' : `
           <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius">${core.sliderText('radius', item.radius || 0)}</output></span>
             <input type="range" min="0" max="${core.LAYOUT_LIMITS.radiusMax}" step="1" value="${item.radius || 0}" data-prop="radius" aria-label="Rounded corners, in page units"></label>`;
       // Size, and lock, hide, duplicate and delete, are always in view; the rest fold away.
@@ -90,6 +91,9 @@
           name = entry?.label || entry?.words?.split(' ')[0] || name;
         } else if (item.kind === 'text') {
           thumb = '<span class="clg-layer__thumb clg-layer__thumb--icon" aria-hidden="true"><i class="bi bi-fonts"></i></span>';
+        } else if (item.kind === 'shape') {
+          const icon = item.form === 'line' ? 'bi-dash-lg' : item.form === 'ellipse' ? 'bi-circle' : 'bi-bounding-box-circles';
+          thumb = `<span class="clg-layer__thumb clg-layer__thumb--icon" aria-hidden="true"><i class="bi ${icon}"></i></span>`;
         }
         return `<li class="clg-layer${item.id === selectedId ? ' is-on' : ''}${item.hidden ? ' is-hidden' : ''}">
             <button type="button" class="clg-layer__pick" data-layer-select="${item.id}" aria-current="${item.id === selectedId}">${thumb}<span class="clg-layer__name">${escapeHtml(name)}</span></button>

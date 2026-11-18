@@ -107,6 +107,17 @@
           context.restore();
           continue;
         }
+        if (item.kind === 'shape') {
+          context.save();
+          context.globalAlpha = item.opacity / 100;
+          context.translate(item.x * s, item.y * s);
+          context.rotate(item.angle * Math.PI / 180);
+          context.scale(s, s);
+          context.translate(-item.width / 2, -core.itemHeight(item) / 2);
+          draw.drawShape(context, item);
+          context.restore();
+          continue;
+        }
         if (item.kind === 'text') {
           const layout = core.layoutText(item, measureText);
           context.save();
