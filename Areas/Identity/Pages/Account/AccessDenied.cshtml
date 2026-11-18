@@ -18,6 +18,7 @@
         ? "Only authorised FFC managers can manage FFC records or countries. If you need access, please contact your administrator."
         : "You don't have permission to view this resource. If you believe this is an error, please contact your administrator.";
     var signedIn = SignInManager.IsSignedIn(User);
+    ViewData["BodyClass"] = signedIn ? "pm-scene-lp pm-scene-status pm-scene-status-in-app" : "pm-scene-lp pm-scene-status";
     var localReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : null;
 }
 

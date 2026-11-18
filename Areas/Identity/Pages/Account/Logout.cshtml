@@ -8,6 +8,7 @@
     ViewData["PublicHeaderMode"] = "Auth";
     // Signing out is a POST; a GET while still signed in offers it rather than claiming it happened.
     var signedIn = SignInManager.IsSignedIn(User);
+    ViewData["BodyClass"] = signedIn ? "pm-scene-lp pm-scene-status pm-scene-status-in-app" : "pm-scene-lp pm-scene-status";
 }
 
 @section Styles {

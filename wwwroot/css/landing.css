@@ -155,21 +155,21 @@
 
 /* ---------- Page frame ---------- */
 
-body:has(.lp) {
+body.pm-scene-lp {
     background: var(--pm-page-bg);
 }
 
-html:has(.lp),
-body:has(.lp) {
+html.pm-scene-lp,
+body.pm-scene-lp {
     max-width: 100%;
     overflow-x: clip;
 }
 
-body:has(.lp) main {
+body.pm-scene-lp main {
     padding: 0 !important;
 }
 
-body:has(.lp) main > .pm-page-shell {
+body.pm-scene-lp main > .pm-page-shell {
     width: 100%;
     max-width: none;
     padding: 0 !important;
@@ -177,7 +177,7 @@ body:has(.lp) main > .pm-page-shell {
 
 /* Tokens live on body as well as .lp, so the floating header capsule (outside .lp)
    shares the same glass. */
-body:has(.lp),
+body.pm-scene-lp,
 .lp {
     --lp-text: var(--pm-text-strong);
     --lp-body: var(--pm-text-secondary);
@@ -1577,11 +1577,11 @@ body:has(.lp),
 
 /* ---------- Floating header capsule ---------- */
 
-body:has(.lp) {
+body.pm-scene-lp {
     --lp-header-h: 78px;
 }
 
-body:has(.lp) .public-topbar {
+body.pm-scene-lp .public-topbar {
     padding-top: 12px;
     border-bottom: 0;
     background: transparent;
@@ -1590,25 +1590,25 @@ body:has(.lp) .public-topbar {
     pointer-events: none;
 }
 
-body:has(.lp) .public-topbar__inner {
+body.pm-scene-lp .public-topbar__inner {
     min-height: 56px;
     padding: 0 0.5rem 0 1rem;
     border-radius: 999px;
     pointer-events: auto;
 }
 
-body:has(.lp) .public-topbar__inner > * {
+body.pm-scene-lp .public-topbar__inner > * {
     position: relative;
     z-index: 1;
 }
 
-body:has(.lp) .public-theme {
+body.pm-scene-lp .public-theme {
     border-color: color-mix(in srgb, var(--lp-rim) var(--lp-rim-mix), transparent);
     background: color-mix(in srgb, var(--lp-glass-hi) calc(var(--lp-glass-mix) / 2), transparent);
 }
 
 /* The page slides under the capsule so the glass has something to blur. */
-body:has(.lp) main {
+body.pm-scene-lp main {
     margin-top: calc(-1 * var(--lp-header-h));
 }
 
@@ -1623,7 +1623,7 @@ body:has(.lp) main {
 .lp-tile,
 .lp-trust__grid article,
 .lp-hero__legend li,
-body:has(.lp) .public-topbar__inner,
+body.pm-scene-lp .public-topbar__inner,
 .auth__card {
     position: relative;
     border: 1px solid var(--lp-glass-rim);
@@ -1640,7 +1640,7 @@ body:has(.lp) .public-topbar__inner,
 .lp-tile::before,
 .lp-trust__grid article::before,
 .lp-hero__legend li::before,
-body:has(.lp) .public-topbar__inner::before,
+body.pm-scene-lp .public-topbar__inner::before,
 .auth__card::before {
     content: "";
     position: absolute;
@@ -1760,10 +1760,106 @@ body:has(.lp) .public-topbar__inner::before,
         display: none;
     }
 
-    body:has(.lp) .public-topbar__inner {
+    body.pm-scene-lp .public-topbar__inner {
         background: var(--pm-card);
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
+    }
+}
+
+/* Browsers without color-mix() (Chromium/Edge before 111, still found on offline LAN machines).
+   A var() value that uses color-mix() is not dropped when the stylesheet is read: it becomes
+   invalid when the page is drawn, so the property resets (a background turns transparent, a
+   border disappears). Here every glass token gets a solid value from the theme tokens, and each
+   rule that mixes colours directly gets a plain value, so the pages read correctly, just without
+   the glass. Tokens only, so Light and Dark both follow the theme. */
+@supports not (color: color-mix(in srgb, currentColor 50%, transparent)) {
+    body.pm-scene-lp,
+    .lp {
+        --lp-glass: var(--lp-surface);
+        --lp-glass-strong: var(--lp-surface);
+        --lp-glass-surface: var(--lp-surface);
+        --lp-glass-rim: var(--lp-line);
+        --lp-glass-rim-hi: var(--lp-line);
+        --lp-glass-rim-lo: var(--lp-line);
+        --lp-glass-rim-ring: none;
+        --lp-glass-sheen: transparent;
+        --lp-glass-gleam: transparent;
+        --lp-glass-lens: transparent;
+        --lp-glass-shadow: 0 12px 32px -20px var(--lp-muted);
+        --lp-glass-filter: none;
+    }
+
+    .lp-aurora {
+        display: none;
+    }
+
+    body.pm-scene-lp .public-theme {
+        border-color: var(--lp-line);
+        background: var(--lp-surface);
+    }
+
+    .lp-btn--primary {
+        background: var(--lp-accent-fill);
+    }
+
+    .lp-btn--primary:hover {
+        background: var(--lp-accent-fill-hover);
+    }
+
+    .lp-flow__node {
+        box-shadow: 0 0 0 5px var(--lp-surface), 0 0 0 6px var(--lp-line);
+    }
+
+    .lp-tile:hover {
+        border-color: var(--lp-hue);
+    }
+
+    .lp-tile__tag .bi,
+    .lp-pill--accent,
+    .lp-search__hits span:first-child,
+    .lp-trust__grid .bi,
+    .lp-mock,
+    .lp-mock__facts span {
+        background: var(--lp-inset);
+    }
+
+    .lp-pips i.is-done {
+        background: var(--lp-spec-5);
+    }
+
+    .lp-search {
+        border: 1px solid var(--lp-spec-4);
+    }
+
+    .lp-chips span {
+        border: 1px solid var(--lp-line);
+        background: var(--lp-surface);
+    }
+
+    /* Full-strength hues, softened with opacity in place of the mix with the pane. */
+    .lp-mock--gallery i {
+        background: linear-gradient(135deg, var(--lp-spec-3), var(--lp-spec-4));
+        opacity: 0.5;
+    }
+
+    .lp-mock--gallery i:first-child {
+        background: linear-gradient(160deg, var(--lp-spec-5), var(--lp-spec-6));
+    }
+
+    .lp-mock--gallery i:last-child {
+        background: linear-gradient(135deg, var(--lp-spec-2), var(--lp-spec-1));
+    }
+
+    /* The call to action keeps its night panel: without it, its light text would sit on the
+       light page. */
+    .lp-cta__panel {
+        border: 1px solid var(--lp-night-2);
+        background: linear-gradient(135deg, var(--lp-night), var(--lp-night-2));
+    }
+
+    .lp-cta__beam {
+        background: linear-gradient(90deg, transparent 0%, var(--lp-on-night-muted) 35%, var(--lp-lift-1) 62%, var(--lp-lift-2) 70%, var(--lp-lift-3) 78%, var(--lp-lift-4) 85%, var(--lp-lift-5) 92%, var(--lp-lift-6) 100%);
     }
 }
 
@@ -1774,15 +1870,15 @@ body:has(.lp) .public-topbar__inner::before,
 }
 
 @media (max-width: 640px) {
-    body:has(.lp) {
+    body.pm-scene-lp {
         --lp-header-h: 70px;
     }
 
-    body:has(.lp) .public-topbar {
+    body.pm-scene-lp .public-topbar {
         padding-top: 8px;
     }
 
-    body:has(.lp) .public-topbar__inner {
+    body.pm-scene-lp .public-topbar__inner {
         width: calc(100% - 1rem);
         min-height: 52px;
         padding-left: 0.75rem;

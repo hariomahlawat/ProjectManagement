@@ -11,17 +11,17 @@
    no colour literals here.
    ============================================================= */
 
-body:has(.status) main {
+body.pm-scene-status main {
     display: flex;
     flex: 1 0 auto;
 }
 
-body:has(.status) main > .pm-page-shell {
+body.pm-scene-status main > .pm-page-shell {
     display: flex;
 }
 
 /* Signed in there is no capsule to slide under. */
-body:has(.status--in-app) main {
+body.pm-scene-status-in-app main {
     margin-top: 0;
 }
 

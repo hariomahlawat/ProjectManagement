@@ -14,7 +14,7 @@
    ============================================================= */
 
 /* Signed in there is no header capsule to slide under (landing.css pulls main up for it). */
-body:has(.about) main {
+body.pm-scene-about main {
     margin-top: 0;
 }
 

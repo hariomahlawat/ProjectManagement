@@ -178,7 +178,7 @@ Keep the copy true to the current application; update it when a module is added 
 ## Glass
 
 The surfaces follow a Liquid Glass style (translucent, light-catching layers floating over
-the content). One recipe, defined on `body:has(.lp)` and `.lp` in `landing.css` ("GLASS"
+the content). One recipe, defined on `body.pm-scene-lp` and `.lp` in `landing.css` ("GLASS"
 section), so the floating header capsule outside `.lp` shares it:
 
 | Token | Role |
@@ -198,5 +198,15 @@ section), so the floating header capsule outside `.lp` shares it:
 - **Reduce Transparency** (`prefers-reduced-transparency`) makes every surface solid and hides
   the aurora; **Reduce Motion** stops the drift and the pointer highlight. Browsers without
   `backdrop-filter` get the denser frost.
+- **Older browsers** (offline LAN machines whose Edge or Chrome is not updated) are supported
+  without the glass. The pages select on body scene classes rather than `:has()` (Chromium
+  105+): the layout writes `ViewData["BodyClass"]` onto `<html>` and `<body>`, and each page in
+  the scene sets it (`pm-scene-lp`, plus `pm-scene-auth`, `pm-scene-status`,
+  `pm-scene-status-in-app` or `pm-scene-about`). Browsers without `color-mix()` (Chromium 111+)
+  get an `@supports not (color-mix)` block in `landing.css`, `auth-login.css` and
+  `public-shell.css`: solid glass tokens from the theme tokens, the aurora hidden, and a plain
+  value for each rule that mixes a background or border colour directly. Without it, a `var()`
+  value using `color-mix()` resets when drawn, which left the sign-in card, field borders and
+  the Sign in button blank. `tools/public-pages-old-browsers.test.js` checks all three.
 - Cost: blur runs on the GPU. Only a handful of layers blur at once; do not add glass to
   long lists or tables inside the application.
