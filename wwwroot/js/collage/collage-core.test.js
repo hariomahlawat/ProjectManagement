@@ -1407,3 +1407,28 @@ test('guest names come one a line from pasted text, or the first column of a CSV
   assert.deepEqual(read.card.guests, ['Col D. Nair', 'Maj B']);
   assert.equal(collage.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {} } }, []).card.guests, undefined);
 });
+
+// Cold review fixes (19 Nov 2026).
+test('a programme of eight lines keeps its size after its draft is read back', () => {
+  const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) / 2;
+  const text = Array.from({ length: 8 }, (_, i) => `19${i}0 h · Item ${i}`).join('\n');
+  const item = collage.textItem('p', text, { x: 500, y: 500 }, { size: 31, maxWidth: 800, maxLines: 10 });
+  const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [item] }, []).items[0];
+  assert.equal(collage.layoutText(read, measure).size, 31, 'lines the user broke always count');
+  // A tint names a unit colour 1 to 3 for a colour; anything else is dropped.
+  const shape = { ...collage.shapeItem('s', 'rect', { x: 1, y: 1, width: 10 }), tint: { fill: 1, stroke: 9, width: 2 } };
+  assert.deepEqual(collage.readDraftModel({ version: 1, size: 'a5p', items: [shape] }, []).items[0].tint, { fill: 1 });
+});
+
+test('a card\'s back moves with the page size, and keeps its newer parts on every save', () => {
+  const front = [collage.textItem('a', 'Front', { x: 500, y: 1000 })];
+  const backItems = [collage.textItem('b', 'Back', { x: 500, y: 1200 }), { id: 'z', kind: 'seal', x: 1, y: 1, width: 10, aspect: 1 }];
+  const card = collage.readDraftModel({ version: 1, size: 'a5p', items: front, back: { background: { type: 'color', value: '#ffffff' }, items: backItems } }, []);
+  assert.equal(collage.keptCount(card), 1, 'the back\'s newer part counts');
+  const resized = collage.changeSize(card, 'a5l');
+  assert.ok(resized.back.items[0].y < collage.pageHeight('a5l'), 'the back moved onto the new page');
+  // Two round trips: the back's newer part is still there.
+  const once = collage.draftModel(card);
+  const twice = collage.draftModel(collage.readDraftModel(JSON.parse(JSON.stringify(once)), []));
+  assert.ok(twice.back.items.some((item) => item.kind === 'seal'));
+});

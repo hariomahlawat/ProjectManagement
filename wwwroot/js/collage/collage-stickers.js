@@ -184,7 +184,7 @@
       return { kind: 'unit', id, label: 'Crest or logo', url: `${base}/api/collage/stickers/${id.slice(5)}/image`, aspect: 1, words: '' };
     }
     if (id.startsWith('logo:')) {
-      const entry = LOGOS[id.slice(5)];
+      const entry = Object.prototype.hasOwnProperty.call(LOGOS, id.slice(5)) ? LOGOS[id.slice(5)] : null;
       return entry ? { kind: 'logo', id, key: id.slice(5), label: entry.label, url: `${base}${entry.file}`, aspect: entry.aspect, words: entry.words } : null;
     }
     if (id.startsWith('draw:')) {

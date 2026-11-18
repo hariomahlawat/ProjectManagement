@@ -262,31 +262,38 @@
      * side that holds it (a folded card's inside).
      */
     function namedPage(page, name) {
-      if (page.items.some((item) => item.field === 'guest')) {
-        return { ...page, items: page.items.map((item) => (item.field === 'guest' ? nameInField(item, name) : item)) };
+      if (!page) return null;
+      const linked = page.items.find((item) => item.field === 'guest');
+      if (linked) {
+        // The name in the guest field, set by the same edge as the field (left, right or middle).
+        const named = { ...linked, text: name };
+        const layout = core.layoutText(named, measureText);
+        if (named.align === 'left') named.x = linked.x - linked.width / 2 + layout.width / 2;
+        if (named.align === 'right') named.x = linked.x + linked.width / 2 - layout.width / 2;
+        named.width = layout.width;
+        named.aspect = layout.width / layout.height;
+        return { ...page, items: page.items.map((item) => (item === linked ? named : item)) };
       }
+      // A design that leaves a line to write on: the name in the place its design has for it.
       let n = 0;
       const made = designs?.fieldItem(getCollage(), 'guest', { ...designs.detailsOf(getCollage()), guest: name }, { measure: measureText, newId: () => `guest${++n}` });
       return made ? { ...page, items: [...page.items, made] } : page;
     }
 
-    /**
-     * The guest field with a guest's name, laid out again, keeping the edge it is aligned to: a
-     * left-aligned field's left edge stays put as the name grows, a right-aligned one's right edge.
-     */
-    function nameInField(field, name) {
-      const layout = core.layoutText({ ...field, text: name }, measureText);
-      const named = { ...field, text: name, width: layout.width, aspect: layout.width / layout.height };
-      if (field.align === 'left') named.x = field.x - field.width / 2 + layout.width / 2;
-      if (field.align === 'right') named.x = field.x + field.width / 2 - layout.width / 2;
-      return named;
+    /** Cut marks for a sheet layout onto a PDF page `sh` mm tall. */
+    function drawCutMarks(sheet, layout, sh) {
+      const pt = 72 / 25.4;
+      const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
+      for (const [x1, y1, x2, y2] of core.cutMarks(layout)) {
+        sheet.drawLine({ start: { x: x1 * pt, y: (sh - y1) * pt }, end: { x: x2 * pt, y: (sh - y2) * pt }, thickness: 0.4, color: grey });
+      }
     }
 
     /**
-     * Guest cards into the PDF: `cards` has a { front, back } a guest, the name on the side that
-     * holds it; a side not saved is null, so the other side still comes once a guest. Each card on
-     * its own pages, or filling sheets (each sheet of fronts, then its sheet of backs). A page
-     * every guest shares is drawn once; the others one at a time.
+     * Guest cards into the PDF (PR 10): `cards` are { front, back } pages per guest, the guest's
+     * name on the side that holds it. Each card on its own pages, or filling sheets (each sheet of
+     * fronts followed by its sheet of backs). A page every guest shares is drawn once; the others
+     * one at a time, each let go before the next.
      */
     async function guestPdf(pdf, cards, fits, sheetKey) {
       const pt = 72 / 25.4;
@@ -302,7 +309,7 @@
         } finally {
           renderer.release(drawn.canvas);
         }
-        if (cards.every((card) => card.front === page || card.back === page)) shared.set(page, image);
+        if (cards.length > 1 && cards.every((card) => card.front === page || card.back === page)) shared.set(page, image);
         return image;
       };
       const layout = sheetKey ? core.sheetLayout(getCollage().size, sheetKey) : null;
@@ -316,7 +323,6 @@
         return;
       }
       const backLayout = core.sheetLayout(getCollage().size, sheetKey, { back: true });
-      const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
       const [sw, sh] = layout.sheet;
       for (let start = 0; start < cards.length; start += layout.count) {
         const batch = cards.slice(start, start + layout.count);
@@ -328,9 +334,7 @@
             const slot = slots.cards[i];
             sheet.drawImage(await imageOf(card[which]), { x: slot.x * pt, y: (sh - slot.y - slot.h) * pt, width: slot.w * pt, height: slot.h * pt });
           }
-          for (const [x1, y1, x2, y2] of core.cutMarks(layout)) {
-            sheet.drawLine({ start: { x: x1 * pt, y: (sh - y1) * pt }, end: { x: x2 * pt, y: (sh - y2) * pt }, thickness: 0.4, color: grey });
-          }
+          drawCutMarks(sheet, layout, sh);
         }
       }
     }
@@ -375,9 +379,8 @@
         const names = all.length > 1 ? (sides === 'both' ? ['front', 'back'] : [sides]) : [''];
         // One card for each guest (PR 10): the front once a guest, their name on it, then the back.
         const guests = format === 'pdf' && !$('[data-save-guests]')?.hidden && chosen('guests') === 'each' ? (getCollage().card?.guests || []) : [];
-        // The name goes on the side that holds the guest field (a folded card's inside); a side
-        // not saved is left out, and the other still comes once a guest, to match it printed apart.
-        const guestSide = all[1] && designs?.isBackField(getCollage(), 'guest') ? 1 : 0;
+        // The name goes on the side the design puts the guest's name (a folded card's inside).
+        const guestSide = designs?.sideOf(getCollage(), 'guest') === 'back' ? 1 : 0;
         const chosenPage = (page) => pages.includes(page);
         const cards = guests.length ? guests.map((name) => {
           const named = namedPage(all[guestSide], name);
@@ -399,7 +402,6 @@
         }
         const pdfSheet = format === 'pdf' ? sheetBoxChoice() : null;
         if (cards && cards.length) {
-          // Each guest's card drawn and placed one at a time, so memory stays at one card.
           await guestPdf(pdf, cards, fits, pdfSheet);
           width = fits.width;
           height = fits.height;
@@ -444,10 +446,7 @@
               for (const slot of layout.cards) {
                 sheet.drawImage(image, { x: slot.x * pt, y: (sh - slot.y - slot.h) * pt, width: slot.w * pt, height: slot.h * pt });
               }
-              const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
-              for (const [x1, y1, x2, y2] of core.cutMarks(layout)) {
-                sheet.drawLine({ start: { x: x1 * pt, y: (sh - y1) * pt }, end: { x: x2 * pt, y: (sh - y2) * pt }, thickness: 0.4, color: grey });
-              }
+              drawCutMarks(sheet, layout, sh);
             } else {
               const page = core.pdfPage(getCollage().size);
               pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
@@ -456,12 +455,12 @@
           renderer.release(canvas);
           canvas = null;
         }
+        const pageCount = pdf ? pdf.getPageCount() : 0;
         if (pdf) files.push({ bytes: await pdf.save(), type: 'application/pdf', name: `${stem}.pdf` });
         for (const file of files) download(file.bytes, file.type, file.name);
         const total = files.reduce((sum, file) => sum + file.bytes.length, 0);
         const sizeText = photoTools ? photoTools.formatBytes(total) : `${Math.ceil(total / 1000)} KB`;
         const saved = files.length === 1 ? `Saved “${files[0].name}”` : `Saved ${files.map((file) => `“${file.name}”`).join(' and ')}`;
-        const pageCount = pdf ? (await window.PDFLib.PDFDocument.load(files.at(-1).bytes)).getPageCount() : 0;
         const pageNote = cards && cards.length ? `${cards.length} guest cards on ${pageCount} page${pageCount === 1 ? '' : 's'}` : pdf && pages.length > 1 ? `${pages.length} pages` : null;
         const parts = [saved, pageNote, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText].filter(Boolean);
         let line = `${parts.join(' · ')}.`;

@@ -1740,6 +1740,11 @@
         clean.stroke = HEX_COLOUR.test(item.stroke) ? item.stroke : '';
         const [low, high] = SHAPE_LIMITS.strokeWidth;
         clean.strokeWidth = Math.min(high, Math.max(low, isNumber(item.strokeWidth) ? item.strokeWidth : 4));
+        if (item.tint && typeof item.tint === 'object') {
+          const tint = Object.fromEntries(Object.entries(item.tint).filter(([prop, which]) => ['fill', 'stroke', 'color'].includes(prop) && [1, 2, 3].includes(which)));
+          if (Object.keys(tint).length) clean.tint = tint;
+          else delete clean.tint;
+        } else delete clean.tint;
         delete clean.crop;
       }
       if (item.kind === 'text') {
@@ -1757,6 +1762,12 @@
         clean.align = ['left', 'center', 'right'].includes(item.align) ? item.align : 'center';
         for (const flag of ['bold', 'italic', 'shadow', 'glow']) clean[flag] = item[flag] === true;
         // Fitting to a width (PR 4 of docs/ux/invitations-posters.md): a usable width, or none.
+        // A part's tint names which unit colour (1 to 3) a colour follows; nothing else is kept.
+        if (item.tint && typeof item.tint === 'object') {
+          const tint = Object.fromEntries(Object.entries(item.tint).filter(([prop, which]) => ['fill', 'stroke', 'color'].includes(prop) && [1, 2, 3].includes(which)));
+          if (Object.keys(tint).length) clean.tint = tint;
+          else delete clean.tint;
+        } else delete clean.tint;
         if (isNumber(item.maxWidth) && item.maxWidth >= ITEM_LIMITS.minWidth) clean.maxWidth = Math.min(ITEM_LIMITS.maxWidth, item.maxWidth);
         else delete clean.maxWidth;
         if (Number.isInteger(item.maxLines)) clean.maxLines = Math.min(TEXT_FIT.maxLines[1], Math.max(TEXT_FIT.maxLines[0], item.maxLines));

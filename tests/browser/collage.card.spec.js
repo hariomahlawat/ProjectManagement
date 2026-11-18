@@ -601,6 +601,32 @@ test('a logo still being read when the card is turned over stays in the tray, no
   const back = model.side === 'back' ? model.items : model.back.items;
   expect(front.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
   expect(back.some((item) => item.role === 'logo')).toBe(false);
+});
+
+// Cold review fixes (19 Nov 2026).
+test('a programme card\'s programme is typed in Card details; a folded card prints each guest inside', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a7p');
+  await page.locator('[data-start-design="programmecard"]').click();
+  const programme = page.locator('[data-card-field="programme"]');
+  await programme.fill('1900 h · Arrival');
+  await programme.blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'programme')?.text).toBe('1900 h · Arrival');
+  await expect(programme).toHaveValue('1900 h · Arrival');
+
+  await page.getByRole('button', { name: 'Back to the start' }).click();
+  await page.locator('[data-card-size]').selectOption('fold6');
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-guests]').fill('Col D. Nair\nMaj B. Rao');
+  await page.locator('[data-card-guests]').blur();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  await download;
+  // Outside and inside for each guest; the names are inside, where the guest line is.
+  await expect(page.locator('[data-save-result]')).toContainText('2 guest cards on 4 pages');
   expect(errors).toEqual([]);
 });
 

@@ -462,3 +462,28 @@ test('a folded card has an outside and an inside in every design, each panel wit
   }
   assert.ok(designs.fieldsOf('classic', 'fold6').includes('when'));
 });
+
+// Cold review fixes (19 Nov 2026).
+test('a field\'s side comes from the design: a programme card\'s programme is on its front, a folded card\'s details inside', () => {
+  const card = designs.applyDesign(core.newCollage('a7p'), 'programmecard', {}, { measure, newId });
+  assert.equal(designs.sideOf(card, 'programme'), 'front');
+  assert.equal(designs.fieldItem(card, 'programme', { ...designs.detailsOf(card), programme: '1900 h · Arrival' }, { measure, newId }).text, '1900 h · Arrival');
+  const folded = designs.applyDesign(core.newCollage('fold6'), 'classic', {}, { measure, newId });
+  assert.equal(designs.sideOf(folded, 'guest'), 'back');
+  assert.equal(designs.sideOf(folded, 'occasion'), 'front');
+  assert.ok(designs.fieldsOnCard(folded).includes('when'));
+  const flat = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  assert.equal(designs.sideOf(flat, 'programme'), 'back');
+  assert.equal(designs.usesColours('pass'), false, 'a role named band is not a unit colour');
+  assert.equal(designs.usesColours('regimental'), true);
+});
+
+test('a design change leaves a locked part where it is and brings a hidden part back hidden', () => {
+  const card = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+  const edited = { ...card, items: card.items.map((item) => (item.field === 'occasion' ? { ...item, x: 111, locked: true } : item.field === 'note' ? { ...item, hidden: true } : item)) };
+  const navy = designs.applyDesign(edited, 'navy', designs.detailsOf(edited), { measure, newId });
+  const occasions = navy.items.filter((item) => item.field === 'occasion');
+  assert.equal(occasions.length, 1, 'no second occasion');
+  assert.deepEqual([occasions[0].x, occasions[0].locked], [111, true]);
+  assert.equal(navy.items.find((item) => item.field === 'note').hidden, true);
+});
