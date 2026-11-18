@@ -1175,7 +1175,7 @@ if (root) {
       if (refreshButton) refreshButton.disabled = false;
       renderEmpty(projects.size
         ? 'Every project in this deck is left out of the PowerPoint. Bring one back to build the slides.'
-        : 'Pick ongoing projects, a category or individual projects. The slides build from current PRISM data.');
+        : 'Pick projects by ARPP year, category, status or name. The slides build from current PRISM data.');
       return;
     }
 
