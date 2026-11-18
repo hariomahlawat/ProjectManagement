@@ -498,7 +498,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 ## Not yet built
 
 **Announcements** (one-to-many messages, for example from a HoD, that recipients acknowledge)
-are designed but not built; they need these owner decisions first:
+are **parked** (owner, 2026-11-18): not planned for now. If they are taken up again, these
+decisions come first:
 1. Who may send one: Comdt and HoD only, or anyone to a group they manage?
 2. To whom: a group, everyone with a role, or chosen people?
 3. Who sees the acknowledgements: only the sender, or also the sender's chain of command?
