@@ -692,6 +692,33 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         Assert.IsType<NotFoundObjectResult>(options);
     }
 
+    // A full deck (120) asked again for projects it already holds adds nothing and is not refused;
+    // one new project is refused with how many it holds (cold review 5, L9).
+    [Fact]
+    public async Task AFullDeck_TakesProjectsItHoldsAgain_ButRefusesANewOne()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
+        var now = new FixedClock().UtcNow;
+        for (var id = 1001; id < 1001 + ProjectBriefingDeckService.MaximumProjectsPerDeck - 1; id++)
+        {
+            db.Projects.Add(new Project { Id = id, Name = $"Project {id}", CreatedByUserId = Officer });
+            deck.Items.Add(new ProjectBriefingDeckItem { ProjectId = id, SortOrder = id, AddedAtUtc = now });
+        }
+        db.Projects.Add(new Project { Id = 5000, Name = "One more", CreatedByUserId = Officer });
+        await db.SaveChangesAsync();
+        Assert.Equal(ProjectBriefingDeckService.MaximumProjectsPerDeck, deck.Items.Count);
+        var service = new ProjectBriefingDeckService(
+            db, new NoSelection(), new NoAudit(), new FixedClock(), NullLogger<ProjectBriefingDeckService>.Instance, Roles);
+
+        var again = await service.AddProjectsAsync(deck.Id, Officer, new[] { ProjectId, 1001 }, null, Version(deck));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AddProjectsAsync(deck.Id, Officer, new[] { ProjectId, 5000 }, null, again.RowVersion));
+
+        Assert.Equal(0, again.Added);
+        Assert.Contains("already holds 120 projects", error.Message, StringComparison.Ordinal);
+    }
+
     // Every ticked project was archived, deleted or cancelled after the list was shown: the refusal
     // names them, so the dialog unticks them rather than failing the same way again (cold review 3, M1).
     [Fact]
