@@ -4429,3 +4429,45 @@ test('a live edit during a history load is not undone by its older answer, even 
     window.close();
   }
 });
+
+test('a reaction from someone else arriving before my own reaction is answered is not undone by that answer', async () => {
+  let answer;
+  let mode = 'ok';
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Submit the DPR by Friday')], hasMore: false };
+    if (url.endsWith('/react')) {
+      await new Promise((resolve) => { answer = resolve; });
+      if (mode === 'fail') return { status: 500, body: { detail: 'Try again.' } };
+      // Read when only my reaction was stored.
+      return { status: 200, body: { messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me'] }] } };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const chips = () => Array.from(win.log.querySelectorAll('.pm-chat__reaction'), (c) => c.textContent);
+
+    win.log.querySelector('[data-focus-key="react-noted:1"]').click();
+    await tick();
+    // The server pushes the list after the peer's reaction too, before my answer arrives.
+    app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me'] }, { kind: 'like', userIds: ['peer'] }] });
+    answer();
+    await tick(); await tick(); await tick();
+    assert.deepEqual(chips(), ['✓ Noted1', '👍1'], "the peer's reaction stays");
+
+    // A failed request does not wipe a list the server has sent since.
+    mode = 'fail';
+    win.log.querySelector('[data-focus-key="react-looking:1"]').click();
+    await tick();
+    app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me', 'peer'] }, { kind: 'like', userIds: ['peer'] }] });
+    answer();
+    await tick(); await tick(); await tick();
+    assert.deepEqual(chips(), ['✓ Noted2', '👍1']);
+  } finally {
+    window.close();
+  }
+});

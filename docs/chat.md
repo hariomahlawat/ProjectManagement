@@ -489,6 +489,12 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   `GET /api/chat/messages/current?ids=…` (at most 500 ids per request, the same who-may-read
   rule as history; others are left out) for the current state of every message it has loaded,
   and redraws those that changed. An older server answers 404 and the page carries on.
+- **Live changes win over older answers.** Every live edit or reaction change (pushed, or this
+  page's own) is recorded with its content and a running number (`noteMessageEvent`). Any
+  server answer that was asked for before it (history pages, catch-up, the state check, and the
+  answers to this page's own reaction or edit) keeps that part as the live change left it
+  (`settleFetched`, `changedSince` in `chat/actions.js`). New code that merges server copies of
+  existing messages must go through the same check.
 
 - **Phase 5 (#records, Remind me, do not disturb)** changes the chat scripts and stylesheet and
   adds three attributes to the chat root in `_Layout.cshtml` (`data-record-search-url`,

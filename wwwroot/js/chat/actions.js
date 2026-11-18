@@ -311,16 +311,28 @@
     const shown = toggled(before, kind, this.me, on);
     this.noteMessageEvent(messageId, { reactions: shown });
     this.eachCopy(messageId, (m) => ({ ...m, reactions: shown }));
+    // A ReactionsChanged arriving before this request's answer is newer than the answer (the
+    // server pushes it after this change was stored, to this page too): it is kept.
+    const mark = this.messageEventSeq;
     try {
       const result = await this.request('POST', `/messages/${messageId}/react`, { kind, on });
-      this.onReactions(result);
+      if (!this.changedSince(messageId, 'reactions', mark)) this.onReactions(result);
       const info = reactionInfo(kind);
       this.announce(on ? `Reacted: ${info.label}.` : `${info.label} taken back.`);
     } catch (error) {
-      this.noteMessageEvent(messageId, { reactions: before });
-      this.eachCopy(messageId, (m) => ({ ...m, reactions: before }));
+      // Not stored: back to how it was, unless the server has told this page the list since.
+      if (!this.changedSince(messageId, 'reactions', mark)) {
+        this.noteMessageEvent(messageId, { reactions: before });
+        this.eachCopy(messageId, (m) => ({ ...m, reactions: before }));
+      }
       this.composeNote(this.viewFor(win), error.message);
     }
+  };
+
+  /** Whether a part of a message ('text' or 'reactions') changed live after the numbering stood at mark. */
+  ChatApp.prototype.changedSince = function (messageId, part, mark) {
+    const at = this.messageEventAt.get(messageId);
+    return !!(at && at[part] && at[part].seq > mark);
   };
 
   function toggled(reactions, kind, me, on) {
@@ -490,11 +502,13 @@
       this.cancelComposing(win);
       return;
     }
+    // A newer edit of the same message (from another tab) arriving before this answer is kept.
+    const mark = this.messageEventSeq;
     try {
       const saved = await this.request('POST', `/messages/${id}/edit`, { body: text, mentionedUserIds: mentioned });
       const view = this.viewFor(win);
       if (view.editing && view.editing.id === id) this.cancelComposing(view);
-      this.onEdited(saved);
+      if (!this.changedSince(id, 'text', mark)) this.onEdited(saved);
       this.announce('Message edited.');
     } catch (error) {
       this.composeNote(this.viewFor(win), error.message);
