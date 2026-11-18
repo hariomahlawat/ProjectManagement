@@ -1300,7 +1300,10 @@
 
   /** A copy of an item, a little down and to the right, with a new id; never hidden or locked. */
   function duplicateItem(item, id) {
-    return { ...item, id, x: item.x + 24, y: item.y + 24, hidden: false, locked: false };
+    // A copy of a card's part is the user's own: it shows no field and is not the design's
+    // (docs/ux/invitations-posters.md), so the field and its words stay one item.
+    const { field, role, ...rest } = item;
+    return { ...rest, id, x: item.x + 24, y: item.y + 24, hidden: false, locked: false };
   }
 
   /**

@@ -144,10 +144,22 @@
    */
   function detailsOf(collage) {
     const details = { ...DEFAULT_DETAILS, ...(collage?.card?.details || {}) };
+    // A field the card's design shows here but has no words for was emptied or deleted on the
+    // page: it stays empty, so the next design does not bring it back.
+    const design = collage?.card?.design;
+    if (DESIGNS[design]) for (const field of fieldsOf(design, collage.size)) details[field] = '';
     for (const item of collage?.items || []) {
       if (item.kind === 'text' && FIELDS.includes(item.field)) details[item.field] = item.text;
     }
     return details;
+  }
+
+  /** The fields a design shows words for: on a page of this size, or in either arrangement. */
+  function fieldsOf(designKey, sizeKey) {
+    const design = DESIGNS[designKey];
+    if (!design) return [];
+    const parts = sizeKey ? (isPortrait(sizeKey) ? design.portrait : design.landscape) : [...design.portrait, ...design.landscape];
+    return [...new Set(parts.filter((part) => part.kind === 'text').map((part) => part.field))];
   }
 
   /**
@@ -222,5 +234,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, unitOf, isPortrait, detailsOf, applyDesign, fieldItem });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, fieldsOf });
 });
