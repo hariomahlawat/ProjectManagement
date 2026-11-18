@@ -13,7 +13,7 @@ const { createModelEditor } = require('./collage-model.js');
 
 // The parts are handed their helpers in groups, as collage-app.js hands them (PR 11).
 const GROUPS = {
-  ui: ['$', 'root', 'views', 'body', 'props', 'stageBox', 'stageHost', 'angleTag', 'layoutGrid', 'sizeSelect', 'nameInput', 'fileInput', 'tray', 'replaceBanner', 'emptyHint', 'zoomValue', 'toolbar', 'coarsePointer', 'FRAME_WIDTHS', 'LOCKED_CONTROLS', 'THUMBNAIL_EVERY_MS'],
+  ui: ['$', 'root', 'views', 'body', 'props', 'stageBox', 'stageHost', 'angleTag', 'layoutGrid', 'sizeSelect', 'showSize', 'nameInput', 'fileInput', 'tray', 'replaceBanner', 'emptyHint', 'zoomValue', 'toolbar', 'coarsePointer', 'FRAME_WIDTHS', 'LOCKED_CONTROLS', 'THUMBNAIL_EVERY_MS'],
   doc: ['edit', 'editItem', 'itemById', 'selectedItem', 'isFrame', 'photos', 'newItemId', 'nextId', 'pageHeight', 'firstSlot', 'hasContent', 'collageTitle', 'photoCount'],
   history: ['commit', 'holdEdit', 'flushNudge', 'changes', 'updateUndo', 'restore', 'scheduleDraft', 'session'],
   messages: ['announce', 'showAlert', 'clearAlert', 'busy', 'sayLocked', 'offerUndo', 'askConfirm', 'keepingFocus'],
@@ -416,6 +416,7 @@ function makePanels(t, initial = {}) {
     draw,
     stickers,
     sizeSelect: dom.$('[data-size-select]'),
+    showSize: (key) => { dom.$('[data-size-select]').value = key; },
     body: dom.document.body,
     layoutGrid: dom.$('[data-layout-grid]'),
     props: dom.$('[data-props]'),
@@ -539,6 +540,7 @@ function makeDraftsScreen(t, session, initial = {}) {
     views: { start: dom.$('[data-view="start"]'), editor: dom.$('[data-view="editor"]') },
     nameInput: dom.$('[data-name]'),
     sizeSelect: dom.$('[data-size-select]'),
+    showSize: (key) => { dom.$('[data-size-select]').value = key; },
     THUMBNAIL_EVERY_MS: 5000,
     changes: { start() {} },
     photos,
@@ -698,6 +700,7 @@ function makeActions(t, initial = {}) {
     fileInput: dom.$('[data-file-input]'),
     nameInput: dom.$('[data-name]'),
     sizeSelect: dom.$('[data-size-select]'),
+    showSize: (key) => { dom.$('[data-size-select]').value = key; },
     body: dom.document.body,
     props: dom.$('[data-props]'),
     changes: { version: 1, undo: () => null, redo: () => null },
@@ -806,10 +809,17 @@ test('start: a card for every page size and layout, and the size list of the edi
   // Blank pages on the start screen are the pages and screens; every size is in the menu,
   // grouped (docs/ux/invitations-posters.md, PR 4).
   assert.deepEqual([...dom.document.querySelectorAll('[data-start-size]')].map((b) => b.dataset.startSize), ['a4l', 'a4p', 'a3p', 'slide', 'square', 'story', 'banner']);
-  assert.deepEqual([...dom.$('[data-size-select]').querySelectorAll('optgroup')].map((g) => g.label), ['Pages and screens', 'Cards', 'Pocket cards']);
+  assert.deepEqual([...dom.$('[data-size-select]').querySelectorAll('optgroup')].map((g) => g.label), ['Pages and screens', 'Cards', 'Pocket cards', 'Custom']);
   assert.deepEqual([...dom.document.querySelectorAll('[data-start-layout]')].map((b) => b.dataset.startLayout), layouts);
   assert.deepEqual([...dom.document.querySelectorAll('[data-layout-grid] [data-layout]')].map((b) => b.dataset.layout), layouts);
-  assert.deepEqual([...dom.$('[data-size-select]').options].map((o) => o.value), sizes);
+  // Every size, then Custom size… (docs/ux/invitations-posters.md, PR 5b).
+  assert.deepEqual([...dom.$('[data-size-select]').options].map((o) => o.value), [...sizes, 'custom']);
+  // A size typed in mm is added to the menu when the page takes it.
+  start.showSize('mm:120x180');
+  assert.equal(dom.$('[data-size-select]').value, 'mm:120x180');
+  assert.equal(dom.$('[data-size-select]').selectedOptions[0].textContent, 'Custom 120 × 180 mm');
+  start.showSize('mm:120x180');
+  assert.equal([...dom.$('[data-size-select]').options].filter((o) => o.value === 'mm:120x180').length, 1);
   const first = core.LAYOUTS[layouts[0]];
   assert.equal(dom.$('[data-start-layout]').getAttribute('aria-label'), `${first.label}, ${first.cells.length} photos`);
 });

@@ -96,7 +96,7 @@
     const chosen = (name) => saveDialog.querySelector(`input[name="${name}"]:checked`)?.value;
 
     function syncSaveDialog() {
-      const size = core.SIZES[getCollage().size];
+      const size = core.sizeOf(getCollage().size);
       const pixels = core.savePixels(getCollage().size, 'print');
       $('[data-print-note]').textContent = size.mm
         ? `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels, 300 dots per inch on ${size.label} paper.`

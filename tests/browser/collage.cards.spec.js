@@ -12,7 +12,7 @@ test('a car pass size and the SDD logo: the menu groups sizes, and Save draws th
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
 
   const size = page.locator('[data-size]');
-  expect(await size.locator('optgroup').evaluateAll((groups) => groups.map((g) => g.label))).toEqual(['Pages and screens', 'Cards', 'Pocket cards']);
+  expect(await size.locator('optgroup').evaluateAll((groups) => groups.map((g) => g.label))).toEqual(['Pages and screens', 'Cards', 'Pocket cards', 'Custom']);
   await size.selectOption('passl');
   await expect(size).toHaveValue('passl');
 
@@ -60,3 +60,54 @@ async function streamBytes(download) {
   for await (const chunk of await download.createReadStream()) chunks.push(chunk);
   return Buffer.concat(chunks);
 }
+
+test('a custom card size typed in mm: refused out of range, then the card saves a PDF of that paper size', async ({ page }) => {
+  const errors = await openFresh(page);
+  const size = page.locator('[data-card-size]');
+  await size.selectOption('custom');
+  await expect(size).toHaveValue('a5p');
+  const box = page.locator('[data-card-custom]');
+  await expect(box).toBeVisible();
+  await box.locator('[data-card-custom-size="width"]').fill('30');
+  await box.locator('[data-card-custom-size="height"]').fill('180');
+  await box.locator('[data-card-custom-use]').click();
+  await expect(box.locator('[data-card-custom-error]')).toHaveText('Each side must be from 50 to 300 mm.');
+  await box.locator('[data-card-custom-size="width"]').fill('120');
+  await box.locator('[data-card-custom-size="height"]').press('Enter');
+  await expect(size).toHaveValue('mm:120x180');
+  await expect(box).toBeHidden();
+  await expect(page.locator('[data-start-design]').first()).toHaveAttribute('aria-label', /Custom 120 × 180 mm/);
+
+  await page.locator('[data-start-design="classic"]').click();
+  await expect(page.locator('[data-size]')).toHaveValue('mm:120x180');
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/\.pdf$/);
+  // Read with the pdf-lib PRISM ships, in the page: one page, 120 × 180 mm.
+  const pageSize = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const doc = await window.PDFLib.PDFDocument.load(bytes);
+    return { pages: doc.getPageCount(), ...doc.getPage(0).getSize() };
+  }, (await streamBytes(file)).toString('base64'));
+  expect(pageSize.pages).toBe(1);
+  expect(Math.abs(pageSize.width - 120 / 25.4 * 72)).toBeLessThan(0.5);
+  expect(Math.abs(pageSize.height - 180 / 25.4 * 72)).toBeLessThan(0.5);
+
+  // In the editor, Custom size… opens Page settings to type another size, even from Layers.
+  await page.keyboard.press('Escape');
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-size]').selectOption('custom');
+  await expect(page.locator('[data-size]')).toHaveValue('mm:120x180');
+  const width = page.locator('[data-props] [data-custom-size="width"]');
+  await expect(width).toBeFocused();
+  await width.fill('200');
+  await page.locator('[data-props] [data-custom-size="height"]').fill('100');
+  await page.locator('[data-props] [data-action-custom-size]').click();
+  await expect(page.locator('[data-size]')).toHaveValue('mm:200x100');
+  expect(errors).toEqual([]);
+});

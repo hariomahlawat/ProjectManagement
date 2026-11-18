@@ -194,6 +194,7 @@
     angleTag: () => angleTag,
     layoutGrid: () => layoutGrid,
     sizeSelect: () => sizeSelect,
+    showSize: () => showSize,
     nameInput: () => nameInput,
     fileInput: () => fileInput,
     tray: () => tray,
@@ -341,7 +342,7 @@
   }
 
   // the start screen: blank pages, layouts and the drafts (collage-start.js).
-  const { renderStart } = window.PrismCollageStart.createStart({ core, $, sizeSelect, layoutGrid });
+  const { renderStart, showSize } = window.PrismCollageStart.createStart({ core, $, sizeSelect, layoutGrid });
   function resetEditor() {
     collageSession += 1;
     namedFromWords = null;
@@ -390,7 +391,7 @@
     if (!room) setDraftStatus('Not kept as a draft', true);
     nameInput.value = '';
     refreshTitle();
-    sizeSelect.value = collage.size;
+    showSize(collage.size);
     showView('editor');
     card?.refresh();
     setPanel(collage.card ? 'card' : 'photos');
@@ -727,7 +728,7 @@
     refreshTitle();
     if (panel === 'background') renderBackgroundPanel();
     scheduleDraft();
-    sizeSelect.value = collage.size;
+    showSize(collage.size);
     layout();
     syncPage();
     renderTray();

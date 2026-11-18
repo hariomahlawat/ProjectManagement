@@ -227,13 +227,22 @@
     });
 
     ui.sizeSelect.addEventListener('change', () => {
+      // "Custom size…" opens Page settings, where the size is typed in mm (PR 5b of
+      // docs/ux/invitations-posters.md); the menu keeps showing the page's size meanwhile.
+      if (ui.sizeSelect.value === 'custom') {
+        ui.showSize(state.collage.size);
+        selection.select(null);
+        parts.setPropsOpen?.(true, 'settings');
+        window.requestAnimationFrame(() => ui.props.querySelector('[data-custom-size="width"]')?.focus());
+        return;
+      }
       change.setCollage(core.changeSize(state.collage, ui.sizeSelect.value));
       // A page laid out in a grid is laid out again on the new page, every frame in its own place.
       if (state.collage.layout) change.setCollage(core.reflowLayout(state.collage, state.collage.layout.gap));
       selection.stopAdjust(false);
       surface.layout();
       history.commit();
-      messages.announce(`The page is now ${core.SIZES[state.collage.size].label}.`);
+      messages.announce(`The page is now ${core.sizeOf(state.collage.size).label}.`);
     });
 
     ui.nameInput.addEventListener('input', () => {

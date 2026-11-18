@@ -111,6 +111,13 @@ its npm package by hand; the libman entry records the version.
 
   Each saves at 300 dpi, and its PDF page is the paper size. The start screen's blank pages are
   still the seven pages and screens.
+- **Custom size** (PR 5b): **Custom size…** in the start screen's Card size menu, or at the end of
+  the page size menu, takes a size typed in mm, 50 to 300 a side, to a tenth of a mm.
+  - In the editor, it opens Page settings, which always shows the width and height fields.
+  - A size out of range is refused with the reason.
+  - The size is kept as `mm:<width>x<height>` (for example `mm:120x180`). It's read back from
+    drafts, listed under **Custom** in the menus, saved at 300 dpi, and its PDF page is that paper
+    size.
 - **Words that fit a width** (PR 4): a text item may carry a `maxWidth`. Its words then wrap onto
   new lines within it, up to `maxLines` (3 unless set), and if they still don't fit, the letters
   get smaller, down to 40% of the size. The words typed never change, only how they're laid out.

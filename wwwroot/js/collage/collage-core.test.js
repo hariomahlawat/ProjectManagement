@@ -1275,3 +1275,24 @@ test('a card is called by its occasion', () => {
   assert.equal(collage.autoTitleFromText([host, occasion]), 'Raising Day Dinner card');
   assert.equal(collage.autoTitleFromText([host, { ...occasion, text: '  ' }]), 'The Commandant and Officers');
 });
+
+// A size typed in mm (docs/ux/invitations-posters.md, PR 5b).
+test('a custom size is typed in mm, 50 to 300 a side, and prints at its true paper size', () => {
+  assert.deepEqual(collage.customKey(120, 180), { key: 'mm:120x180' });
+  assert.deepEqual(collage.customKey('99.04', '210'), { key: 'mm:99x210' }, 'rounded to a tenth of a mm');
+  assert.deepEqual(collage.customKey(120.25, 180), { key: 'mm:120.3x180' });
+  assert.match(collage.customKey(40, 180).error, /from 50 to 300 mm/);
+  assert.match(collage.customKey('', 'x').error, /width and the height/);
+  const size = collage.sizeOf('mm:120x180');
+  assert.deepEqual([size.label, size.group, size.mm], ['Custom 120 × 180 mm', 'custom', [120, 180]]);
+  assert.ok(Math.abs(size.width - 120 / 25.4 * 300) < 1);
+  const pdf = collage.pdfPage('mm:120x180');
+  assert.ok(Math.abs(pdf.width - 120 / 25.4 * 72) < 0.01 && Math.abs(pdf.height - 180 / 25.4 * 72) < 0.01);
+  assert.equal(collage.isSize('mm:120x180'), true);
+  for (const bad of ['mm:30x180', 'mm:120x400', 'mm:120x180.25', 'mm:x', 'mm:120X180']) assert.equal(collage.isSize(bad), false, bad);
+  // New collages, size changes and drafts take a custom size; a bad one falls back.
+  assert.equal(collage.newCollage('mm:120x180').size, 'mm:120x180');
+  assert.equal(collage.changeSize(collage.newCollage('a4l'), 'mm:120x180').size, 'mm:120x180');
+  assert.equal(collage.readDraftModel({ version: 1, size: 'mm:120x180', items: [] }, []).size, 'mm:120x180');
+  assert.equal(collage.readDraftModel({ version: 1, size: 'mm:10x10', items: [] }, []).size, 'a4l');
+});
