@@ -674,7 +674,8 @@
       background: { ...design.background },
       layout: null,
       items: makePage(card.items, parts, pageContext(card, wording, opts, { isCard: Boolean(card.card), frameRole: 'photo' })),
-      card: { design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
+      // The guest list stays with the card through a design change (PR 10).
+      card: { ...(card.card?.guests ? { guests: card.card.guests } : {}), design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
     };
     if (card.back) {
       applied.back = backPage(card, designKey, wording, opts, card.back.items);

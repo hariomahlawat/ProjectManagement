@@ -126,6 +126,18 @@ its npm package by hand; the libman entry records the version.
 
     `core.sheetLayout` and `core.cutMarks` work in mm.
 
+    **Guest list** (PR 10): Card details has a **Guest list**. Names can be pasted or typed one
+    a line, or read from a .txt file (whole lines) or a .csv file (the first column; quotes
+    allowed). A first line "Name" is left out; there are at most 300 names of 120 characters
+    each. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
+    this browser only, and stay through design changes.
+
+    Saved as a PDF, **One card for each guest** puts each guest's name in the guest field (or in
+    the place the design has for it, where it leaves a line), in the list's order. Each card goes
+    on its own page (with the back after it), or fills the chosen A4 or A3 sheets, each sheet of
+    fronts followed by its sheet of backs. Cards are drawn one at a time, so memory stays at one
+    card; the result says how many cards on how many pages.
+
     Save asks **Both sides / Front only / Back only**: a PDF has a page for each side chosen, a
     PNG or JPG a file for each (`…-front.png`, `…-back.png`). Drafts keep both sides.
   - **Logo** (PR 7): Card details has a **Logo** section. It names the current logo and offers:

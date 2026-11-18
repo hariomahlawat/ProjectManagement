@@ -1389,3 +1389,16 @@ test('cards go as many to an A4 or A3 sheet as fit, turned whichever way holds m
   const turnedBack = collage.sheetLayout('a6p', 'a4', { back: true });
   assert.deepEqual(turnedBack.cards.map((c) => c.x), turnedFront.cards.map((c) => c.x), 'one row: a top-to-bottom flip keeps the columns');
 });
+
+// The guest list (docs/ux/invitations-posters.md, PR 10).
+test('guest names come one a line from pasted text, or the first column of a CSV, within limits', () => {
+  assert.deepEqual(collage.guestNames('Name\nLt Gen R. K. Mehta, AVSM\n\n  Maj A and   Mrs B  '), ['Lt Gen R. K. Mehta, AVSM', 'Maj A and Mrs B']);
+  assert.deepEqual(collage.guestNames('Name,Email\n"Brig P. Singh, SM",x@y\nCol D. Nair,col@x\r\n"Say ""Hi""",z', { csv: true }), ['Brig P. Singh, SM', 'Col D. Nair', 'Say "Hi"']);
+  const many = Array.from({ length: 400 }, (_, i) => `Guest ${i}`).join('\n');
+  assert.equal(collage.guestNames(many).length, collage.GUEST_LIMITS.names);
+  assert.equal(collage.guestNames('x'.repeat(500))[0].length, collage.GUEST_LIMITS.length);
+  // A draft keeps the list, cleaned the same way.
+  const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, guests: ['Col D. Nair', '', 7, 'Maj B'] } }, []);
+  assert.deepEqual(read.card.guests, ['Col D. Nair', 'Maj B']);
+  assert.equal(collage.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {} } }, []).card.guests, undefined);
+});

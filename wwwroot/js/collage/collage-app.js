@@ -919,7 +919,7 @@
   const saveAs = window.PrismCollageSave.createSaveDialog({
     $, core, draw, stickers, measureText, fontsReady, stickerImage,
     getCollage: () => collage,
-    photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge
+    photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge, designs: window.PrismCollageDesigns
   });
 
   // Invitation cards: the start screen's designs and the Card details panel (collage-card.js).

@@ -145,3 +145,54 @@ test('A6 cards with a back print two to a turned A4 sheet, fronts then backs, wi
   await expect(sheet).toBeHidden();
   expect(errors).toEqual([]);
 });
+
+test('a guest list makes one card for each guest: on their own pages, or filling A4 sheets', async ({ page }) => {
+  test.setTimeout(120000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a6p');
+  await page.locator('[data-start-design="classic"]').click();
+  const list = page.locator('[data-card-guests]');
+  await list.fill('Lt Gen R. K. Mehta, AVSM\nBrig P. Singh, SM and Mrs Singh\nCol D. Nair');
+  await list.blur();
+  await expect(page.locator('[data-card-guest-count]')).toContainText('3 guests');
+  await expect.poll(async () => {
+    const draft = await page.evaluate(() => new Promise((resolve) => {
+      const open = indexedDB.open('prism-collage-studio');
+      open.onsuccess = () => {
+        const all = open.result.transaction('drafts').objectStore('drafts').getAll();
+        all.onsuccess = () => resolve(all.result.sort((a, b) => b.saved - a.saved)[0]);
+      };
+    }));
+    return draft?.model?.card?.guests?.length;
+  }).toBe(3);
+
+  const pagesOf = async (file) => page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    return (await window.PDFLib.PDFDocument.load(bytes)).getPages().map((p) => Math.round(p.getSize().width));
+  }, (await streamBytes(file)).toString('base64'));
+
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await expect(page.locator('[data-save-guests]')).toBeVisible();
+  await expect(page.locator('[data-guest-label]')).toHaveText('One card for each guest (3)');
+  // Each on its own A6 page.
+  let download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  expect((await pagesOf(await download)).length).toBe(3);
+  await expect(page.locator('[data-save-result]')).toContainText('3 guest cards on 3 pages');
+  // Two to a turned A4 sheet: two sheets for three guests.
+  await page.locator('[data-save-sheet] input[value="a4"]').check();
+  download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const sheets = await pagesOf(await download);
+  expect(sheets).toEqual([842, 842]);
+  await expect(page.locator('[data-save-result]')).toContainText('3 guest cards on 2 pages');
+  await page.keyboard.press('Escape');
+
+  // Cleared, with Undo; Save then offers no guest cards.
+  await page.locator('[data-card-guest="clear"]').click();
+  await expect(page.locator('[data-card-guests]')).toHaveValue('');
+  expect(errors).toEqual([]);
+});

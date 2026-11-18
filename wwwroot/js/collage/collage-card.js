@@ -255,7 +255,7 @@
       const colours = designs.usesColours(design) ? colourFields(details.colours) : '';
       // The logo is the front's: changed with the front showing.
       const logo = state.collage.side === 'back' ? '<p class="clg-hint">Turn to the front to change the logo.</p>' : logoSection();
-      form.innerHTML = sidesSection() + logo + colours + FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
+      form.innerHTML = sidesSection() + logo + colours + guestSection() + FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
         const id = `clgCard-${field}`;
         const value = escapeHtml(details[field] || '');
         const input = long
@@ -533,6 +533,60 @@
       }
     }
 
+    // -------------------------------------------------------------------------
+    // The guest list (PR 10): names pasted, or read from a .csv or .txt file, kept with the
+    // draft in this browser only. Save as PDF can then make one card for each guest.
+    // -------------------------------------------------------------------------
+
+    function guestSection() {
+      const names = state.collage.card?.guests || [];
+      const count = names.length;
+      return `<div class="clg-section clg-card-guests">
+          <p class="clg-section__title">Guest list</p>
+          <label class="clg-field"><span class="clg-field__label">One name a line, up to ${core.GUEST_LIMITS.names}</span>
+            <textarea class="form-control form-control-sm" rows="4" data-card-guests placeholder="Brig P. Singh, SM and Mrs Singh">${escapeHtml(names.join(String.fromCharCode(10)))}</textarea></label>
+          <div class="clg-stack">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-card-guest="file"><i class="bi bi-filetype-csv" aria-hidden="true"></i> Names from a .csv or .txt file…</button>
+            ${count ? '<button type="button" class="btn btn-link btn-sm text-danger p-0" data-card-guest="clear">Clear names</button>' : ''}
+          </div>
+          <p class="clg-hint" data-card-guest-count>${count ? `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it.` : 'Leave empty to print the card as it is, with a line for the name.'} The names stay in this browser.</p>
+        </div>`;
+    }
+
+    /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
+    function setGuests(text, { csv = false, held = false } = {}) {
+      const guests = core.guestNames(text, { csv });
+      doc.edit((draft) => {
+        const card = { ...(draft.card || { design: 'classic', details: {} }) };
+        if (guests.length) card.guests = guests;
+        else delete card.guests;
+        draft.card = card;
+      }, 'none');
+      if (held) history.holdEdit();
+      else history.commit();
+      const count = form.querySelector('[data-card-guest-count]');
+      if (count) count.firstChild && (count.textContent = guests.length ? `${guests.length} guest${guests.length === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. The names stay in this browser.` : 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.');
+      return guests;
+    }
+
+    const guestFile = document.createElement('input');
+    guestFile.type = 'file';
+    guestFile.accept = '.csv,.txt,text/csv,text/plain';
+    guestFile.hidden = true;
+    guestFile.dataset.cardGuestFile = '';
+    ui.root.appendChild(guestFile);
+    guestFile.addEventListener('change', async () => {
+      const file = guestFile.files?.[0];
+      guestFile.value = '';
+      if (!file) return;
+      if (file.size > 1000000) { messages.showAlert('That file is too large for a guest list. Use a .csv or .txt file of at most 1 MB.'); return; }
+      let text = '';
+      try { text = await file.text(); } catch { messages.showAlert('That file could not be read.'); return; }
+      const guests = setGuests(text, { csv: /\.csv$/i.test(file.name) || file.type === 'text/csv' });
+      renderPanel();
+      messages.announce(guests.length ? `${guests.length} names read from ${file.name}.` : `No names were found in ${file.name}.`);
+    });
+
     /** The unit's three colours, for a design with a band in them (Regimental). */
     function colourFields(text) {
       const colours = designs.colourList(text);
@@ -601,7 +655,7 @@
       doc.edit((draft) => {
         // A field filled again is one the design has placed.
         const placed = [...new Set([...(draft.card?.placed || []), ...(fresh ? [field] : [])])];
-        draft.card = { design: draft.card?.design || 'classic', details, placed };
+        draft.card = { ...draft.card, design: draft.card?.design || 'classic', details, placed };
         const list = fieldsHere(draft, field);
         const index = list.findIndex((item) => item.kind === 'text' && item.field === field);
         if (index >= 0 && !text.trim()) {
@@ -649,9 +703,10 @@
       if (field) typedIn = event.target;
       if (field) setField(field, event.target.value);
       if (event.target.dataset.cardColour) setColour(Number(event.target.dataset.cardColour), event.target.value);
+      if (event.target.matches('[data-card-guests]')) setGuests(event.target.value, { held: true });
     });
     form?.addEventListener('change', (event) => {
-      if (event.target.dataset.cardField || event.target.dataset.cardColour) history.flushNudge();
+      if (event.target.dataset.cardField || event.target.dataset.cardColour || event.target.matches('[data-card-guests]')) history.flushNudge();
     });
     form?.addEventListener('click', (event) => {
       const target = event.target.closest('[data-card-logo-target]');
@@ -659,6 +714,16 @@
         logoTarget = target.dataset.cardLogoTarget === 'logo2' ? 'logo2' : 'logo';
         renderPanel();
         messages.announce(logoTarget === 'logo2' ? 'The choices change the second logo.' : 'The choices change the first logo.');
+        return;
+      }
+      const guest = event.target.closest('[data-card-guest]');
+      if (guest) {
+        if (guest.dataset.cardGuest === 'file') guestFile.click();
+        if (guest.dataset.cardGuest === 'clear') {
+          setGuests('');
+          renderPanel();
+          messages.offerUndo('The guest list is cleared.');
+        }
         return;
       }
       const side = event.target.closest('[data-card-side]');
