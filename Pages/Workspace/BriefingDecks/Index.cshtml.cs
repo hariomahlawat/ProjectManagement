@@ -102,7 +102,23 @@ public sealed class IndexModel : PageModel
     public bool SelectedDeckIsPersonal { get; private set; }
 
     // How many projects this Project Officer leads, for the "My projects" quick add.
-    public int MyProjectCount { get; private set; }
+    // The Add projects filter's choices, for its script (docs/ux/briefing-add-projects.md).
+    public string AddProjectsFilterOptionsJson => System.Text.Json.JsonSerializer.Serialize(
+        new
+        {
+            arppYears = SelectionOptions.ArppYears.Select(year => new { value = year.FinancialYearStart, label = year.Label, count = year.ProjectCount }),
+            projectCategories = SelectionOptions.ProjectCategories.Select(category => new { value = category.Id, label = category.Name, count = category.MatchCount, parentId = category.ParentId }),
+            technicalCategories = SelectionOptions.TechnicalCategories.Select(category => new { value = category.Id, label = category.Name, count = category.MatchCount, parentId = category.ParentId }),
+            ongoingCount = SelectionOptions.OngoingCount,
+            completedCount = SelectionOptions.CompletedCount,
+            proliferationCount = SelectionOptions.ProliferationAvailableCount,
+            completionFinancialYears = SelectionOptions.MaximumCompletionFinancialYear < SelectionOptions.MinimumCompletionFinancialYear
+                ? Array.Empty<object>()
+                : Enumerable.Range(SelectionOptions.MinimumCompletionFinancialYear, SelectionOptions.MaximumCompletionFinancialYear - SelectionOptions.MinimumCompletionFinancialYear + 1)
+                    .Reverse()
+                    .Select(year => (object)new { value = year, label = ProjectBriefingSelectionService.FinancialYearLabel(year) })
+                    .ToArray()
+        });
 
     public async Task<IActionResult> OnGetAsync(long? deckId, string? start, CancellationToken cancellationToken)
     {
@@ -675,7 +691,10 @@ public sealed class IndexModel : PageModel
             addedRowVersion = added.RowVersion;
             message = added.Added == 0
                 ? "All matching projects are already in this deck."
-                : $"{added.Added} project{(added.Added == 1 ? string.Empty : "s")} added — {selection.RuleSummary}.";
+                // Ticked projects need no description of how they were chosen.
+                : input.Kind == ProjectBriefingSelectionKind.IndividualProjects
+                    ? $"{added.Added} project{(added.Added == 1 ? string.Empty : "s")} added."
+                    : $"{added.Added} project{(added.Added == 1 ? string.Empty : "s")} added — {selection.RuleSummary}.";
         }
         catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
         {
@@ -1299,16 +1318,6 @@ public sealed class IndexModel : PageModel
         {
             SelectionOptions = await _selectionService.GetOptionsAsync(cancellationToken);
             FfcFootprintPreviewSummary = SelectedDeck.FfcFootprintPreviewSummary;
-            if (User.IsInRole(RoleNames.ProjectOfficer))
-            {
-                MyProjectCount = (await _selectionService.ResolveAsync(
-                    new ProjectBriefingSelectionRequest
-                    {
-                        Kind = ProjectBriefingSelectionKind.MyProjects,
-                        OfficerUserId = userId
-                    },
-                    cancellationToken)).ProjectIds.Count;
-            }
         }
 
         var navigation = IsCommandUser

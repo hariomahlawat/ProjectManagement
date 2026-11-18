@@ -121,10 +121,13 @@ the server; the script inserts only slide HTML and writes all other text as text
   and Edit controls are finger-sized (40px).
 - **Project Officers' decks** (`ProjectBriefingDeckAccessRules`): a Project Officer's decks are
   their own; Comdt and HoD see them in the library as "<owner>'s deck · view only" with
-  Download PowerPoint and Duplicate to change it, and do not open them in the Studio. Add
-  projects starts a Project Officer on **My projects**.
-- **Add projects** is a dialog with the earlier selection methods (quick add, recently completed,
-  project and technical category, individual search). Each saves in place: the handler answers an
+  Download PowerPoint and Duplicate to change it, and do not open them in the Studio. ("My
+  projects" in Add projects was dropped on 17 Nov 2026, docs/ux/briefing-add-projects.md.)
+- **Add projects** is a dialog: one list of every project narrowed by filters (search, ARPP year,
+  technical and project category, status, completed between, proliferation), ticks kept across
+  filters, Add with Undo and Remove on projects already in the deck
+  (docs/ux/briefing-add-projects.md; it replaced the earlier tabs of quick add, recently
+  completed, categories and individual search). Each saves in place: the handler answers an
   in-page request with the refreshed deck, and plain form posts still redirect.
 - The Studio remembers the selected project or slide, the view and the inspector tab for the
   session, so a page reload (settings, additional slides) returns to the same place.

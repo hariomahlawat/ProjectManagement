@@ -1343,43 +1343,6 @@ if (root) {
   window.addEventListener('pagehide', () => storage.set(`${storagePrefix}scroll`, String(window.scrollY)));
   restoreScroll();
 
-  // Selection method tabs.
-  const tabs = [...root.querySelectorAll('[data-pbd-selector-tab]')];
-  const panels = [...root.querySelectorAll('[data-pbd-selector-panel]')];
-  const activatePanel = (name, focus = false) => {
-    tabs.forEach((tab) => {
-      const active = tab.dataset.pbdSelectorTab === name;
-      tab.classList.toggle('is-active', active);
-      tab.setAttribute('aria-selected', String(active));
-      tab.tabIndex = active ? 0 : -1;
-      if (active && focus) tab.focus();
-    });
-    panels.forEach((panel) => {
-      const active = panel.dataset.pbdSelectorPanel === name;
-      panel.hidden = !active;
-      panel.classList.toggle('is-active', active);
-    });
-    storage.set(`${storagePrefix}activeTab`, name);
-  };
-
-  const savedTab = storage.get(`${storagePrefix}activeTab`);
-  if (savedTab && tabs.some((tab) => tab.dataset.pbdSelectorTab === savedTab)) activatePanel(savedTab);
-
-  tabs.forEach((tab, index) => {
-    tab.addEventListener('click', () => activatePanel(tab.dataset.pbdSelectorTab || 'quick'));
-    tab.addEventListener('keydown', (event) => {
-      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-      event.preventDefault();
-      let target = index;
-      if (event.key === 'ArrowRight') target = (index + 1) % tabs.length;
-      if (event.key === 'ArrowLeft') target = (index - 1 + tabs.length) % tabs.length;
-      if (event.key === 'Home') target = 0;
-      if (event.key === 'End') target = tabs.length - 1;
-      activatePanel(tabs[target].dataset.pbdSelectorTab || 'quick', true);
-    });
-  });
-
-
   root.querySelectorAll('[data-pbd-auto-dismiss]').forEach((alert) => {
     window.setTimeout(() => {
       alert.classList.add('is-leaving');
@@ -1418,13 +1381,8 @@ if (root) {
     });
     addProjectsStatus.append(' ', undo);
   };
-  const quickAddButtons = () => [...(addProjectsModalElement?.querySelectorAll('.pbd-quick-card button[type="submit"]') || [])];
   const openAddProjects = () => {
     setState(addProjectsStatus, '');
-    quickAddButtons().forEach((button) => {
-      button.classList.remove('is-added');
-      button.textContent = 'Add';
-    });
     addProjectsModal?.show();
   };
   // Focus can leave the dialog (a button disabled while saving drops it to the page); Escape
@@ -1478,7 +1436,7 @@ if (root) {
     window.history.replaceState(window.history.state, '', url);
   }
   addProjectsModalElement?.addEventListener('shown.bs.modal', () => {
-    addProjectsModalElement.querySelector('[data-pbd-selector-tab].is-active')?.focus();
+    addProjectsModalElement.querySelector('[data-pbd-filter-query]')?.focus();
   });
 
   const generateButton = root.querySelector('[data-pbd-generate]');
@@ -1589,7 +1547,7 @@ if (root) {
     if (!deck) return;
     const projects = deck.projects || [];
     latestProjects = projects;
-    reconcileSearchMembership(projects);
+    refreshFilterMembership(projects);
     const presented = projects.filter((project) => project.isPresented).length;
     // A re-read deck never replaces the version a save produced (review 2 fixes, PR 3).
     updateLeftOutNotice(projects);
@@ -1913,11 +1871,13 @@ if (root) {
     // Taken when this save starts in the queue, after any earlier save's reply is applied, so a
     // second add made before the first finished undoes only its own projects.
     let membersBefore = new Set();
+    // The form's fields as they are now: a second Add made before this one runs must not change
+    // what this one sends (Codex review: the Add projects form is reused for each Add).
+    const body = new FormData(form);
     setState(addProjectsStatus, 'Adding projects…', 'saving');
     try {
       const payload = await runDeckMutation(async () => {
         membersBefore = new Set(latestProjects.map((project) => Number(project.projectId)));
-        const body = new FormData(form);
         body.set('RowVersion', currentRowVersion());
         const response = await fetch(form.action, {
           method: 'POST',
@@ -2060,231 +2020,437 @@ if (root) {
     announceDeckChange();
   });
 
-  // Manage individual membership across all projects.
-  const individualForm = root.querySelector('[data-pbd-individual-form]');
-  const searchInput = root.querySelector('[data-pbd-project-search]');
-  const searchResults = root.querySelector('[data-pbd-search-results]');
-  const searchStatus = root.querySelector('[data-pbd-search-status]');
-  const membershipFilter = root.querySelector('[data-pbd-membership-filter]');
-  const membershipSummary = root.querySelector('[data-pbd-selected-count]');
-  const applyMembershipButton = root.querySelector('[data-pbd-apply-membership]');
-  const resultBaseline = new Map();
-  const resultDesired = new Map();
-  let searchRows = [];
-  let searchTimer = 0;
-  let searchAbortController = null;
+  // Add projects (docs/ux/briefing-add-projects.md): filters narrow one list of every project
+  // (values inside a filter are alternatives, filters combine), ticks are kept when the filters
+  // change so sets mix, and Add saves the ticked projects through AddSelection (Undo offered by
+  // that form's handler). A project already in the deck has Remove instead of a tick.
+  const filterRoot = root.querySelector('[data-pbd-filter]');
+  const filterQuery = filterRoot?.querySelector('[data-pbd-filter-query]');
+  const filterChips = filterRoot?.querySelector('[data-pbd-filter-chips]');
+  const filterPanel = filterRoot?.querySelector('[data-pbd-filter-panel]');
+  const filterCount = filterRoot?.querySelector('[data-pbd-filter-count]');
+  const filterTickAll = filterRoot?.querySelector('[data-pbd-filter-tick-all]');
+  const filterResults = filterRoot?.querySelector('[data-pbd-filter-results]');
+  const filterAddForm = filterRoot?.querySelector('[data-pbd-filter-add-form]');
+  const filterTickedLabel = root.querySelector('[data-pbd-filter-ticked]');
+  const filterClear = root.querySelector('[data-pbd-filter-clear]');
+  const filterAdd = root.querySelector('[data-pbd-filter-add]');
+  let filterOptions = {};
+  try { filterOptions = JSON.parse(filterRoot?.querySelector('[data-pbd-filter-options]')?.textContent || '{}'); } catch { filterOptions = {}; }
 
-  const pendingMembershipChanges = () => {
-    const add = [];
-    const remove = [];
-    resultDesired.forEach((desired, projectId) => {
-      const baseline = resultBaseline.get(projectId);
-      if (desired && !baseline) add.push(projectId);
-      if (!desired && baseline) remove.push(projectId);
-    });
-    return { add, remove };
+  const FILTERS = [
+    { key: 'arpp', label: 'ARPP', options: () => filterOptions.arppYears || [] },
+    { key: 'technicalCategory', label: 'Technical category', options: () => filterOptions.technicalCategories || [] },
+    { key: 'projectCategory', label: 'Project category', options: () => filterOptions.projectCategories || [] },
+    {
+      key: 'status',
+      label: 'Status',
+      options: () => [
+        { value: 'Active', label: 'Ongoing', count: filterOptions.ongoingCount },
+        { value: 'Completed', label: 'Completed', count: filterOptions.completedCount }
+      ]
+    },
+    { key: 'completed', label: 'Completed between', range: true },
+    { key: 'proliferation', label: 'Available for proliferation', toggle: true }
+  ];
+  const filterState = {
+    arpp: new Set(), technicalCategory: new Set(), projectCategory: new Set(), status: new Set(),
+    completedFrom: '', completedTo: '', proliferation: false
   };
+  const ticked = new Map(); // projectId -> name, kept across filter changes
+  let filterRows = [];
+  let openFilter = '';
+  let filterTimer = 0;
+  let filterAbort = null;
 
-  const updateMembershipSummary = () => {
-    const { add, remove } = pendingMembershipChanges();
-    const parts = [];
-    if (add.length) parts.push(`${add.length} to add`);
-    if (remove.length) parts.push(`${remove.length} to remove`);
-    if (membershipSummary) membershipSummary.textContent = parts.length ? parts.join(' · ') : 'No pending changes';
-    if (applyMembershipButton) applyMembershipButton.disabled = add.length === 0 && remove.length === 0;
-  };
-
-  const applyMembershipResultFilter = () => {
-    const filter = membershipFilter?.value || 'all';
-    let shown = 0;
-    searchResults?.querySelectorAll('[data-project-result]').forEach((node) => {
-      const id = Number(node.dataset.projectResult);
-      const selected = resultDesired.get(id) === true;
-      const visible = filter === 'all' || (filter === 'selected' && selected) || (filter === 'unselected' && !selected);
-      node.hidden = !visible;
-      if (visible) shown += 1;
-    });
-    if (showingDeckRows) {
-      setState(searchStatus, `This deck has ${searchRows.length} ${searchRows.length === 1 ? 'project' : 'projects'}. Untick to remove, or search to add more.`);
-      return;
+  const optionLabel = (filter, value) => filter.options().find((option) => String(option.value) === String(value))?.label || String(value);
+  const filterSummary = (filter) => {
+    if (filter.toggle) return filterState.proliferation ? filter.label : '';
+    if (filter.range) {
+      const from = filterState.completedFrom;
+      const to = filterState.completedTo;
+      const label = (year) => (filterOptions.completionFinancialYears || []).find((option) => String(option.value) === String(year))?.label || year;
+      if (from && to) return from === to ? `Completed in ${label(from)}` : `Completed ${label(from)} to ${label(to)}`;
+      if (from) return `Completed from ${label(from)}`;
+      if (to) return `Completed up to ${label(to)}`;
+      return '';
     }
-    setState(searchStatus, searchRows.length ? `${shown} of ${searchRows.length} matching projects shown.` : 'No projects match this search.');
+    const values = [...filterState[filter.key]];
+    if (!values.length) return '';
+    const names = values.map((value) => optionLabel(filter, value));
+    return `${filter.label}: ${names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ')}`;
   };
 
-  // After any membership change (search, quick add, categories, removals), mark search results
-  // from the deck's actual members while keeping ticks the person has not applied yet.
-  const reconcileSearchMembership = (projects) => {
-    // No search typed and no deck list showing yet (the deck was empty): show the members now.
-    const blankQuery = (searchInput?.value.trim() || '').length < 2;
-    if (blankQuery && !showingDeckRows) {
-      if (projects.length) {
-        showingDeckRows = true;
-        renderSearchResults(deckRowsFrom(projects));
+  const renderFilterChips = () => {
+    if (!filterChips) return;
+    filterChips.replaceChildren();
+    FILTERS.forEach((filter) => {
+      const summary = filterSummary(filter);
+      const chip = document.createElement('span');
+      chip.className = `pbd-filter-chip${summary ? ' is-set' : ''}`;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'pbd-filter-chip__open';
+      button.dataset.pbdFilterOpen = filter.key;
+      if (filter.toggle) {
+        button.setAttribute('aria-pressed', String(filterState.proliferation));
+        button.textContent = filter.label;
+      } else {
+        button.setAttribute('aria-expanded', String(openFilter === filter.key));
+        button.setAttribute('aria-controls', 'pbd-filter-panel');
+        button.textContent = summary || `+ ${filter.label}`;
       }
-      return;
-    }
-    if (searchRows.length === 0) return;
-    const members = new Set(projects.map((project) => Number(project.projectId)));
-    const pending = new Map();
-    resultDesired.forEach((desired, projectId) => {
-      if (desired !== resultBaseline.get(projectId)) pending.set(projectId, desired);
-    });
-    searchRows = showingDeckRows
-      ? deckRowsFrom(projects)
-      : searchRows.map((project) => ({ ...project, isSelected: members.has(Number(project.projectId)) }));
-    renderSearchResults(searchRows);
-    pending.forEach((desired, projectId) => {
-      if (desired === members.has(projectId)) return;
-      const checkbox = searchResults?.querySelector(`[data-project-result="${projectId}"] input[type="checkbox"]`);
-      if (!(checkbox instanceof HTMLInputElement) || checkbox.checked === desired) return;
-      checkbox.checked = desired;
-      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-  };
-
-  // Saved membership and the pending tick, told apart: only saved members read "In deck".
-  const showMembershipBadge = (badge, saved, desired) => {
-    const [text, state] = saved
-      ? (desired ? ['In deck', 'is-in-deck'] : ['Will be removed', 'is-pending-remove'])
-      : (desired ? ['Will be added', 'is-pending-add'] : ['', '']);
-    badge.textContent = text;
-    badge.hidden = !text;
-    badge.className = `pbd-membership-badge ${state}`.trim();
-  };
-
-  // With no search typed, the list is the deck's own projects (untick to remove).
-  let showingDeckRows = false;
-  const deckRowsFrom = (projects) => projects.map((project) => ({
-    projectId: Number(project.projectId),
-    projectName: project.projectName,
-    isSelected: true,
-    fromDeck: true,
-    lifecycle: project.lifecycleDisplay,
-    presentStage: project.presentStage,
-    projectCategory: project.projectCategory,
-    technicalCategory: project.technicalCategory
-  }));
-
-  const renderSearchResults = (rows) => {
-    searchRows = rows;
-    resultBaseline.clear();
-    resultDesired.clear();
-    searchResults?.replaceChildren();
-    if (!rows.length) {
-      // The deck list emptied (every project removed): back to the prompt, ready to refill.
-      if (showingDeckRows) {
-        showingDeckRows = false;
-        setState(searchStatus, 'Type at least two letters of a project name to find it.');
-        updateMembershipSummary();
-        return;
+      chip.append(button);
+      if (summary && !filter.toggle) {
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.className = 'pbd-filter-chip__clear';
+        clear.dataset.pbdFilterClear = filter.key;
+        clear.setAttribute('aria-label', `Clear ${filter.label}`);
+        clear.innerHTML = '<i class="bi bi-x" aria-hidden="true"></i>';
+        chip.append(clear);
       }
-      setState(searchStatus, 'No projects match this search.');
-      updateMembershipSummary();
+      filterChips.append(chip);
+    });
+    const anySet = FILTERS.some((filter) => filterSummary(filter)) || Boolean(filterQuery?.value.trim());
+    if (anySet) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'btn btn-link btn-sm pbd-filter__reset';
+      reset.dataset.pbdFilterReset = 'true';
+      reset.textContent = 'Clear filters';
+      filterChips.append(reset);
+    }
+  };
+
+  const renderFilterPanel = () => {
+    if (!filterPanel) return;
+    const filter = FILTERS.find((candidate) => candidate.key === openFilter);
+    filterPanel.replaceChildren();
+    filterPanel.hidden = !filter;
+    if (!filter) return;
+    filterPanel.id = 'pbd-filter-panel';
+    filterPanel.setAttribute('aria-label', filter.label);
+    if (filter.range) {
+      const years = filterOptions.completionFinancialYears || [];
+      const select = (name, label) => {
+        const wrap = document.createElement('label');
+        wrap.className = 'pbd-filter__range';
+        const text = document.createElement('span');
+        text.textContent = label;
+        const element = document.createElement('select');
+        element.className = 'form-select form-select-sm';
+        element.dataset.pbdFilterRange = name;
+        element.append(new Option('Any', ''));
+        years.forEach((year) => element.append(new Option(year.label, String(year.value))));
+        element.value = filterState[name];
+        wrap.append(text, element);
+        return wrap;
+      };
+      filterPanel.append(select('completedFrom', 'From'), select('completedTo', 'To'));
+      const note = document.createElement('small');
+      note.className = 'pbd-filter__note';
+      note.textContent = 'Financial years, April to March.';
+      filterPanel.append(note);
       return;
     }
-
-    rows.forEach((project) => {
-      resultBaseline.set(project.projectId, Boolean(project.isSelected));
-      resultDesired.set(project.projectId, Boolean(project.isSelected));
+    const options = filter.options();
+    if (!options.length) {
+      const empty = document.createElement('small');
+      empty.className = 'pbd-filter__note';
+      empty.textContent = filter.key === 'arpp' ? 'No ARPP has been published yet.' : 'Nothing to choose from yet.';
+      filterPanel.append(empty);
+      return;
+    }
+    const list = document.createElement('div');
+    list.className = 'pbd-chips';
+    options.forEach((option) => {
       const label = document.createElement('label');
-      label.className = 'pbd-search-result';
-      label.dataset.projectResult = String(project.projectId);
+      label.className = `pbd-chip${option.parentId ? ' is-child' : ''}`;
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = String(option.value);
+      input.dataset.pbdFilterValue = filter.key;
+      input.checked = filterState[filter.key].has(String(option.value));
+      const text = document.createElement('span');
+      text.textContent = Number.isFinite(option.count) ? `${option.label} · ${option.count}` : option.label;
+      label.append(input, text);
+      list.append(label);
+    });
+    filterPanel.append(list);
+    if (filter.key === 'projectCategory' || filter.key === 'technicalCategory') {
+      const note = document.createElement('small');
+      note.className = 'pbd-filter__note';
+      note.textContent = 'A parent category includes its sub-categories.';
+      filterPanel.append(note);
+    }
+  };
 
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.checked = Boolean(project.isSelected);
-      checkbox.addEventListener('change', () => {
-        resultDesired.set(project.projectId, checkbox.checked);
-        label.classList.toggle('is-selected', checkbox.checked);
-        showMembershipBadge(badge, Boolean(project.isSelected), checkbox.checked);
-        updateMembershipSummary();
-        applyMembershipResultFilter();
-      });
+  const updateTickedFooter = () => {
+    const count = ticked.size;
+    if (filterTickedLabel) filterTickedLabel.textContent = count ? `${count} ticked` : 'Nothing ticked';
+    if (filterClear) filterClear.hidden = count === 0;
+    if (filterAdd) filterAdd.textContent = count ? `Add ${count} ${count === 1 ? 'project' : 'projects'}` : 'Add projects';
+  };
 
+  const renderFilterRows = () => {
+    if (!filterResults) return;
+    filterResults.replaceChildren();
+    const notInDeck = filterRows.filter((row) => !row.isSelected);
+    const inDeck = filterRows.length - notInDeck.length;
+    if (filterCount) {
+      filterCount.textContent = filterRows.length
+        ? `${filterRows.length} ${filterRows.length === 1 ? 'project matches' : 'projects match'}${inDeck ? ` · ${inDeck} already in the deck` : ''}`
+        : 'No projects match these filters.';
+    }
+    if (filterTickAll) {
+      const allTicked = notInDeck.length > 0 && notInDeck.every((row) => ticked.has(row.projectId));
+      filterTickAll.hidden = notInDeck.length === 0;
+      filterTickAll.dataset.mode = allTicked ? 'untick' : 'tick';
+      filterTickAll.textContent = allTicked ? `Untick these ${notInDeck.length}` : `Tick all ${notInDeck.length} not in the deck`;
+    }
+    filterRows.forEach((row) => {
+      const item = document.createElement(row.isSelected ? 'div' : 'label');
+      item.className = `pbd-search-result pbd-filter__row${row.isSelected ? ' is-in-deck' : ''}${ticked.has(row.projectId) ? ' is-selected' : ''}`;
+      item.dataset.projectResult = String(row.projectId);
+      if (row.isSelected) {
+        const mark = document.createElement('i');
+        mark.className = 'bi bi-check2-circle pbd-filter__in-deck-mark';
+        mark.setAttribute('aria-hidden', 'true');
+        item.append(mark);
+      } else {
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = ticked.has(row.projectId);
+        checkbox.dataset.pbdFilterTick = String(row.projectId);
+        item.append(checkbox);
+      }
       const body = document.createElement('span');
       const heading = document.createElement('span');
       heading.className = 'pbd-search-result__heading';
       const name = document.createElement('strong');
-      name.textContent = project.projectName;
-      const badge = document.createElement('em');
-      showMembershipBadge(badge, Boolean(project.isSelected), Boolean(project.isSelected));
-      heading.append(name, badge);
-      const meta = document.createElement('small');
-      // "Completed · Completed" said once.
-      meta.textContent = [...new Set([project.lifecycle, project.presentStage, project.projectCategory, project.technicalCategory, project.projectOfficer].filter(Boolean))].join(' · ');
-      body.append(heading, meta);
-      if (!project.fromDeck) {
-        const ref = document.createElement('small');
-        ref.textContent = project.caseFileNumber ? `Ref: ${project.caseFileNumber}` : 'No case-file reference';
-        body.append(ref);
+      name.textContent = row.projectName;
+      heading.append(name);
+      if (row.isSelected) {
+        const badge = document.createElement('em');
+        badge.className = 'pbd-membership-badge is-in-deck';
+        badge.textContent = 'In deck';
+        heading.append(badge);
       }
-      label.append(checkbox, body);
-      label.classList.toggle('is-selected', checkbox.checked);
-      searchResults?.append(label);
+      const meta = document.createElement('small');
+      meta.textContent = [...new Set([row.lifecycle, row.presentStage, row.technicalCategory, row.projectCategory, row.projectOfficer].filter(Boolean))].join(' · ');
+      body.append(heading, meta);
+      item.append(body);
+      if (row.isSelected) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'btn btn-link btn-sm pbd-filter__remove';
+        remove.dataset.pbdFilterRemove = String(row.projectId);
+        remove.textContent = 'Remove';
+        remove.setAttribute('aria-label', `Remove ${row.projectName} from the deck`);
+        item.append(remove);
+      }
+      filterResults.append(item);
     });
-    updateMembershipSummary();
-    applyMembershipResultFilter();
+    updateTickedFooter();
   };
 
-  const searchProjects = async () => {
-    const query = searchInput?.value.trim() || '';
-    if (query.length < 2) {
-      searchAbortController?.abort();
-      if (latestProjects.length) {
-        showingDeckRows = true;
-        renderSearchResults(deckRowsFrom(latestProjects));
-        return;
-      }
-      showingDeckRows = false;
-      searchResults?.replaceChildren();
-      searchRows = [];
-      setState(searchStatus, 'Type at least two letters of a project name to find it.');
-      updateMembershipSummary();
-      return;
-    }
-    showingDeckRows = false;
-
-    searchAbortController?.abort();
-    searchAbortController = new AbortController();
-    setState(searchStatus, 'Searching…');
+  const loadFilterRows = async () => {
+    if (!filterRoot || deckId <= 0) return;
+    filterAbort?.abort();
+    filterAbort = new AbortController();
+    const url = new URL(root.dataset.filterUrl, window.location.origin);
+    url.searchParams.set('deckId', String(deckId));
+    const query = filterQuery?.value.trim() || '';
+    if (query) url.searchParams.set('query', query);
+    ['arpp', 'technicalCategory', 'projectCategory', 'status'].forEach((key) => {
+      filterState[key].forEach((value) => url.searchParams.append(key, value));
+    });
+    if (filterState.completedFrom) url.searchParams.set('completedFrom', filterState.completedFrom);
+    if (filterState.completedTo) url.searchParams.set('completedTo', filterState.completedTo);
+    if (filterState.proliferation) url.searchParams.set('proliferation', 'true');
+    if (filterCount) filterCount.textContent = 'Finding projects…';
     try {
-      const url = new URL(root.dataset.searchUrl, window.location.origin);
-      url.searchParams.set('deckId', String(deckId));
-      url.searchParams.set('query', query);
       const response = await fetch(url, {
         credentials: 'same-origin',
         headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        signal: searchAbortController.signal
+        signal: filterAbort.signal
       });
       checkReply(response, { read: true });
       const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.message || `Search failed (${response.status}).`);
-      renderSearchResults(payload || []);
+      if (!response.ok) throw new Error(payload?.message || `Projects could not be listed (${response.status}).`);
+      filterRows = (payload?.rows || []).map((row) => ({ ...row, projectId: Number(row.projectId) }));
+      renderFilterRows();
     } catch (error) {
       if (error.name === 'AbortError') return;
-      setState(searchStatus, error.message || 'Project search could not be completed.', 'error');
+      if (filterCount) filterCount.textContent = error.message || 'Projects could not be listed.';
     }
   };
+  const reloadFilterRows = (delay = 0) => {
+    window.clearTimeout(filterTimer);
+    filterTimer = window.setTimeout(loadFilterRows, delay);
+  };
 
-  searchInput?.addEventListener('input', () => {
-    window.clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(searchProjects, 260);
+  // After any change to the deck, mark the rows from its actual members; a ticked project that is
+  // now in the deck is no longer ticked.
+  const refreshFilterMembership = (projects) => {
+    const members = new Set(projects.map((project) => Number(project.projectId)));
+    members.forEach((projectId) => ticked.delete(projectId));
+    if (!filterRows.length) { updateTickedFooter(); return; }
+    filterRows = filterRows.map((row) => ({ ...row, isSelected: members.has(row.projectId) }));
+    renderFilterRows();
+  };
+
+  filterQuery?.addEventListener('input', () => { renderFilterChips(); reloadFilterRows(260); });
+  filterChips?.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+    const reset = event.target.closest('[data-pbd-filter-reset]');
+    if (reset) {
+      ['arpp', 'technicalCategory', 'projectCategory', 'status'].forEach((key) => filterState[key].clear());
+      filterState.completedFrom = '';
+      filterState.completedTo = '';
+      filterState.proliferation = false;
+      if (filterQuery) filterQuery.value = '';
+      openFilter = '';
+      renderFilterChips();
+      renderFilterPanel();
+      reloadFilterRows();
+      filterQuery?.focus();
+      return;
+    }
+    const clear = event.target.closest('[data-pbd-filter-clear]');
+    if (clear) {
+      const key = clear.dataset.pbdFilterClear;
+      if (key === 'completed') { filterState.completedFrom = ''; filterState.completedTo = ''; }
+      else filterState[key]?.clear?.();
+      renderFilterChips();
+      renderFilterPanel();
+      reloadFilterRows();
+      filterChips.querySelector(`[data-pbd-filter-open="${key}"]`)?.focus();
+      return;
+    }
+    const open = event.target.closest('[data-pbd-filter-open]');
+    if (!open) return;
+    const key = open.dataset.pbdFilterOpen;
+    if (key === 'proliferation') {
+      filterState.proliferation = !filterState.proliferation;
+      renderFilterChips();
+      reloadFilterRows();
+      filterChips.querySelector('[data-pbd-filter-open="proliferation"]')?.focus();
+      return;
+    }
+    openFilter = openFilter === key ? '' : key;
+    renderFilterChips();
+    renderFilterPanel();
+    if (openFilter) filterPanel?.querySelector('input, select')?.focus();
+    else filterChips.querySelector(`[data-pbd-filter-open="${key}"]`)?.focus();
   });
-  membershipFilter?.addEventListener('change', applyMembershipResultFilter);
-  // Open on the deck's own projects.
-  if (individualForm && deckId > 0) searchProjects();
-
-  individualForm?.addEventListener('submit', async (event) => {
+  filterPanel?.addEventListener('change', (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.dataset.pbdFilterValue) {
+      const values = filterState[target.dataset.pbdFilterValue];
+      if (target.checked) values.add(target.value);
+      else values.delete(target.value);
+    } else if (target instanceof HTMLSelectElement && target.dataset.pbdFilterRange) {
+      filterState[target.dataset.pbdFilterRange] = target.value;
+    } else {
+      return;
+    }
+    // The open chip's text follows the choice; focus stays in the panel.
+    renderFilterChips();
+    reloadFilterRows(120);
+  });
+  filterPanel?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
     event.preventDefault();
-    const { add, remove } = pendingMembershipChanges();
-    if (add.length === 0 && remove.length === 0) return;
-    applyMembershipButton?.setAttribute('disabled', 'disabled');
+    event.stopPropagation();
+    const key = openFilter;
+    openFilter = '';
+    renderFilterChips();
+    renderFilterPanel();
+    filterChips?.querySelector(`[data-pbd-filter-open="${key}"]`)?.focus();
+  });
+
+  filterResults?.addEventListener('change', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || !target.dataset.pbdFilterTick) return;
+    const projectId = Number(target.dataset.pbdFilterTick);
+    const row = filterRows.find((candidate) => candidate.projectId === projectId);
+    if (target.checked) ticked.set(projectId, row?.projectName || '');
+    else ticked.delete(projectId);
+    target.closest('.pbd-filter__row')?.classList.toggle('is-selected', target.checked);
+    // Only the counts change: the list is not rebuilt, so focus stays on the tick.
+    const notInDeck = filterRows.filter((candidate) => !candidate.isSelected);
+    if (filterTickAll && notInDeck.length) {
+      const allTicked = notInDeck.every((candidate) => ticked.has(candidate.projectId));
+      filterTickAll.dataset.mode = allTicked ? 'untick' : 'tick';
+      filterTickAll.textContent = allTicked ? `Untick these ${notInDeck.length}` : `Tick all ${notInDeck.length} not in the deck`;
+    }
+    updateTickedFooter();
+  });
+  filterTickAll?.addEventListener('click', () => {
+    const untick = filterTickAll.dataset.mode === 'untick';
+    filterRows.filter((row) => !row.isSelected).forEach((row) => {
+      if (untick) ticked.delete(row.projectId);
+      else ticked.set(row.projectId, row.projectName);
+    });
+    renderFilterRows();
+    filterTickAll.focus();
+  });
+  filterClear?.addEventListener('click', () => {
+    ticked.clear();
+    renderFilterRows();
+    filterQuery?.focus();
+  });
+  filterAdd?.addEventListener('click', () => {
+    if (!(filterAddForm instanceof HTMLFormElement)) return;
+    if (ticked.size === 0) {
+      setState(addProjectsStatus, 'Tick the projects to add first.', 'error');
+      return;
+    }
+    filterAddForm.querySelectorAll('input[name="ProjectIds"]').forEach((input) => input.remove());
+    ticked.forEach((_name, projectId) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'ProjectIds';
+      input.value = String(projectId);
+      filterAddForm.append(input);
+    });
+    filterAddForm.requestSubmit();
+  });
+  filterResults?.addEventListener('click', async (event) => {
+    const button = event.target instanceof Element ? event.target.closest('[data-pbd-filter-remove]') : null;
+    if (!button) return;
+    const projectId = Number(button.dataset.pbdFilterRemove);
+    const name = filterRows.find((row) => row.projectId === projectId)?.projectName || 'The project';
+    // Removing deletes the project's place in this deck with its notes, photo choice and position,
+    // and adding it back starts afresh (Codex review): so it asks, rather than offering an Undo
+    // that could not bring those back.
+    const confirmed = await prismConfirm({
+      title: `Remove ${name}?`,
+      message: 'It leaves this deck with its speaker notes, chosen photo and place in the order. Adding it again starts it afresh; the project itself is not changed.',
+      confirmText: 'Remove project',
+      cancelText: 'Keep',
+      tone: 'danger',
+      returnFocus: button
+    });
+    if (!confirmed) return;
+    button.disabled = true;
     try {
-      await updateMembership(add, remove, searchStatus);
-    } finally {
-      updateMembershipSummary();
+      await updateMembership([], [projectId], addProjectsStatus);
+      setState(addProjectsStatus, `Removed ${name}.`, 'saved');
+      // The row is rebuilt as "not in the deck"; keep the keyboard on it.
+      filterResults.querySelector(`[data-pbd-filter-tick="${projectId}"]`)?.focus();
+    } catch {
+      button.disabled = false;
     }
   });
+
+  renderFilterChips();
+  updateTickedFooter();
+  // The list loads when the dialog first opens, then follows every change to the deck.
+  addProjectsModalElement?.addEventListener('show.bs.modal', () => { if (!filterRows.length) reloadFilterRows(); });
+  if (root.querySelector('[data-pbd-studio][data-pbd-start="projects"]')) reloadFilterRows();
 
   // Briefing-specific project description editor (delegated for dynamically refreshed rows).
   const descriptionModalElement = document.getElementById('pbd-description-modal');

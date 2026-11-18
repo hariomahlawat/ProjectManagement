@@ -13,12 +13,16 @@ public sealed class ProjectBriefingContractTests
 
         Assert.Contains("\"Briefing decks | Comdt / HoD Workspace\"", page, StringComparison.Ordinal);
         Assert.Contains("Briefing decks", Read("_CommandWorkspaceRail.cshtml"), StringComparison.Ordinal);
-        Assert.Contains("All ongoing projects", page, StringComparison.Ordinal);
-        Assert.Contains("Recently completed", page, StringComparison.Ordinal);
-        Assert.Contains("Project category", page, StringComparison.Ordinal);
-        Assert.Contains("Technical category", page, StringComparison.Ordinal);
-        Assert.Contains("Available for proliferation", page, StringComparison.Ordinal);
-        Assert.Contains("Manage individually", page, StringComparison.Ordinal);
+        // Add projects is one filtered list (docs/ux/briefing-add-projects.md): its filters are
+        // drawn by the script from the options the page carries.
+        var addProjectsScript = Read("project-briefing-decks.js");
+        foreach (var filter in new[] { "'ARPP'", "'Technical category'", "'Project category'", "'Status'", "'Completed between'", "'Available for proliferation'" })
+        {
+            Assert.Contains($"label: {filter}", addProjectsScript, StringComparison.Ordinal);
+        }
+        Assert.Contains("data-pbd-filter-options", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Manage individually", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("My projects", page, StringComparison.Ordinal);
         Assert.Contains("R&amp;D cost", page, StringComparison.Ordinal);
         Assert.Contains("Generate PowerPoint", page, StringComparison.Ordinal);
         Assert.Contains("<legend class=\"form-label\">Template</legend>", page, StringComparison.Ordinal);
@@ -242,29 +246,31 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
-    public void AddProjects_KeepsItsTabsUndoesBulkAddsAndTellsPendingFromSaved()
+    public void AddProjects_OneFilteredListUndoesAddsAndMarksTheDeck()
     {
         var script = Read("project-briefing-decks.js");
         var css = Read("project-briefing-decks.css").Replace("\r\n", "\n");
 
-        // The tab strip cannot shrink, and only the dialog scrolls.
+        // Only the dialog scrolls (docs/ux/briefing-add-projects.md).
         Assert.Contains(".pbd-add-projects .modal-body {\n    grid-auto-rows: max-content;", css, StringComparison.Ordinal);
-        Assert.Contains(".pbd-add-projects .pbd-search-results {\n    max-height: none;", css, StringComparison.Ordinal);
 
-        // A quick or category add can be undone: exactly the projects it brought in.
+        // An add can be undone: exactly the projects it brought in.
         Assert.Contains("if (added.length) offerAddUndo(added, button);", script, StringComparison.Ordinal);
         Assert.Contains("await updateMembership([], added, addProjectsStatus);", script, StringComparison.Ordinal);
 
-        // Saved and pending told apart; the deck's own projects listed before any search.
-        Assert.Contains("? (desired ? ['In deck', 'is-in-deck'] : ['Will be removed', 'is-pending-remove'])", script, StringComparison.Ordinal);
-        Assert.Contains(": (desired ? ['Will be added', 'is-pending-add'] : ['', '']);", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("'NOT IN DECK'", script, StringComparison.Ordinal);
-        Assert.Contains("renderSearchResults(deckRowsFrom(latestProjects));", script, StringComparison.Ordinal);
-        // Codex review: the Undo baseline is taken inside the queued save; an empty deck's list fills in after an add.
+        // A project already in the deck reads "In deck" with Remove, not a tick; Remove asks first, as
+        // the project's notes, photo choice and position in the deck go with it (Codex review).
+        Assert.Contains("badge.textContent = 'In deck';", script, StringComparison.Ordinal);
+        Assert.Contains("confirmText: 'Remove project',", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("await updateMembership([projectId], [], addProjectsStatus);", script, StringComparison.Ordinal);
+        // Each Add sends the ticks of its own click, even when queued behind another save.
+        var queuedAdd = script[script.IndexOf("let membersBefore = new Set();", StringComparison.Ordinal)..];
+        Assert.True(queuedAdd.IndexOf("const body = new FormData(form);", StringComparison.Ordinal)
+            < queuedAdd.IndexOf("await runDeckMutation(async () => {", StringComparison.Ordinal));
+        // Codex review: the Undo baseline is taken inside the queued save.
         var addHandler = script[script.IndexOf("let membersBefore = new Set();", StringComparison.Ordinal)..];
         Assert.True(addHandler.IndexOf("membersBefore = new Set(latestProjects", StringComparison.Ordinal)
             > addHandler.IndexOf("await runDeckMutation(async () => {", StringComparison.Ordinal));
-        Assert.Contains("if (blankQuery && !showingDeckRows) {", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -860,10 +866,10 @@ public sealed class ProjectBriefingContractTests
         var service = Read("ProjectBriefingDeckService.cs");
 
         Assert.Contains("data-membership-url", page, StringComparison.Ordinal);
-        Assert.Contains("In this deck", page, StringComparison.Ordinal);
-        Assert.Contains("Not in this deck", page, StringComparison.Ordinal);
-        Assert.Contains("Apply changes", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-add-selection-form", page, StringComparison.Ordinal);
+        // A project in the deck has Remove in the Add projects list; ticked ones are added together.
+        Assert.Contains("remove.textContent = 'Remove';", script, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-filter-add", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-add-selection-form data-pbd-filter-add-form", page, StringComparison.Ordinal);
         Assert.Contains("updateMembership", script, StringComparison.Ordinal);
         Assert.Contains("sessionStorage", script, StringComparison.Ordinal);
         // An in-page Add projects request is answered with the refreshed deck, not a redirect.
