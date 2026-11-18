@@ -259,9 +259,15 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("if (added.length) offerAddUndo(added, button);", script, StringComparison.Ordinal);
         Assert.Contains("await updateMembership([], added, addProjectsStatus);", script, StringComparison.Ordinal);
 
-        // A project already in the deck reads "In deck" with Remove, not a tick; a removal can be undone.
+        // A project already in the deck reads "In deck" with Remove, not a tick; Remove asks first, as
+        // the project's notes, photo choice and position in the deck go with it (Codex review).
         Assert.Contains("badge.textContent = 'In deck';", script, StringComparison.Ordinal);
-        Assert.Contains("await updateMembership([projectId], [], addProjectsStatus);", script, StringComparison.Ordinal);
+        Assert.Contains("confirmText: 'Remove project',", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("await updateMembership([projectId], [], addProjectsStatus);", script, StringComparison.Ordinal);
+        // Each Add sends the ticks of its own click, even when queued behind another save.
+        var queuedAdd = script[script.IndexOf("let membersBefore = new Set();", StringComparison.Ordinal)..];
+        Assert.True(queuedAdd.IndexOf("const body = new FormData(form);", StringComparison.Ordinal)
+            < queuedAdd.IndexOf("await runDeckMutation(async () => {", StringComparison.Ordinal));
         // Codex review: the Undo baseline is taken inside the queued save.
         var addHandler = script[script.IndexOf("let membersBefore = new Set();", StringComparison.Ordinal)..];
         Assert.True(addHandler.IndexOf("membersBefore = new Set(latestProjects", StringComparison.Ordinal)
