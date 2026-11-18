@@ -1546,7 +1546,7 @@
   const ASPECT_LIMITS = Object.freeze([0.02, 50]);
   // The kinds this PRISM draws, and the collage fields it uses.
   const DRAWN_KINDS = Object.freeze(['photo', 'slot', 'text', 'sticker', 'shape']);
-  const MODEL_FIELDS = Object.freeze(['version', 'size', 'background', 'layout', 'items', 'kept']);
+  const MODEL_FIELDS = Object.freeze(['version', 'size', 'background', 'layout', 'items', 'kept', 'card']);
   // A kind, sticker or font name a newer PRISM may write: short, lower case, no markup.
   const PART_NAME = /^[a-z][a-z0-9:_-]{0,40}$/;
   // How much a draft may hold that is not understood: well past any real card.
@@ -1679,6 +1679,8 @@
       : null;
     const background = readBackground(raw.background, photoIds);
     const model = { version: MODEL_VERSION, size: SIZES[raw.size] ? raw.size : DEFAULT_SIZE, background, layout, items };
+    const card = readCard(raw.card);
+    if (card) model.card = card;
     // Fields of the collage this PRISM does not use (a newer PRISM's back page, for example).
     const fields = {};
     for (const [key, value] of Object.entries(raw)) {
@@ -1690,6 +1692,20 @@
     }
     if (keptItems.length || Object.keys(fields).length) model.kept = { items: keptItems, fields, order: keptItems.length ? drawnOrder : [] };
     return model;
+  }
+
+  /**
+   * A card's design and wording (docs/ux/invitations-posters.md, PR 4b), read back from a draft:
+   * the design's name and each field's words, as plain short text; anything else is dropped.
+   */
+  function readCard(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const design = typeof raw.design === 'string' && PART_NAME.test(raw.design) ? raw.design : '';
+    const details = {};
+    for (const [field, value] of Object.entries(raw.details && typeof raw.details === 'object' ? raw.details : {})) {
+      if (PART_NAME.test(field) && typeof value === 'string' && Object.keys(details).length < 40) details[field] = value.slice(0, TEXT_LIMITS.maxLength);
+    }
+    return design ? { design, details } : null;
   }
 
   /** How many parts of a collage were made by a newer PRISM and are kept but not shown. */
