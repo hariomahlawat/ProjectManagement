@@ -30,6 +30,7 @@ const MARKUP = `
       <div data-pbd-filter-panel hidden></div>
       <span data-pbd-filter-count></span>
       <button type="button" data-pbd-filter-tick-all hidden></button>
+      <button type="button" data-pbd-filter-list-retry hidden>Try again</button>
       <div data-pbd-filter-results></div>
       <form data-pbd-filter-add-form><input type="hidden" name="Kind" value="IndividualProjects" /></form>
     </div>
@@ -56,7 +57,7 @@ async function setUp({ members = [], rows = [row(1, 'Alpha'), row(2, 'Bravo'), r
   const dom = new JSDOM(`<!doctype html><html><body>${MARKUP}</body></html>`, { url: 'http://localhost/' });
   const { window } = dom;
   const { document } = window;
-  const state = { members: members.map((projectId) => ({ projectId })), submits: [], fetches: [], optionsReplies: [], listReplies: [] };
+  const state = { members: members.map((projectId) => ({ projectId })), submits: [], fetches: [], optionsReplies: [], listReplies: [], confirms: [] };
   window.fetch = (url) => {
     const href = String(url);
     state.fetches.push(href);
@@ -90,8 +91,10 @@ async function setUp({ members = [], rows = [row(1, 'Alpha'), row(2, 'Bravo'), r
     statusElement: status,
     updateMembership: async (add, remove) => {
       state.members = state.members.filter((member) => !remove.includes(member.projectId)).concat(add.map((projectId) => ({ projectId })));
+      // As the page does: the deck's new members reach the dialog.
+      controller.refreshMembership(state.members);
     },
-    confirmRemoval: async () => true,
+    confirmRemoval: async (options) => { state.confirms.push(options); return true; },
     modalElement: document.getElementById('pbd-add-projects-modal'),
     getMembers: () => state.members
   });
@@ -251,4 +254,114 @@ test('adding everything from the review gives the filters back', async () => {
   assert.equal(page.$('[data-pbd-filter-ticked]').textContent, 'Nothing ticked');
   assert.equal(page.$('[data-pbd-filter-query]').disabled, false);
   assert.equal(page.$('[data-pbd-filter-open="arpp"]').disabled, false);
+});
+
+test('when none of the ticked projects can be added, they are unticked and named, not tried again', async () => {
+  const page = await setUp();
+  page.tickRow(1);
+  page.tickRow(2);
+  page.$('[data-pbd-filter-add]').click();
+  page.status.textContent = 'None of the ticked projects can be added: they have been archived, deleted or cancelled.';
+  page.settle({ message: 'refused', skippedProjectIds: [1, 2] }, false);
+  assert.match(page.status.textContent, /2 projects were not added: Alpha, Bravo/);
+  assert.equal(page.$('[data-pbd-filter-ticked]').textContent, 'Nothing ticked');
+  assert.equal(page.$('[data-pbd-filter-tick="1"]'), null, 'no longer offered');
+  assert.equal(page.$('[data-pbd-filter-add]').disabled, false);
+});
+
+test('a full deck: nothing can be ticked, Tick all is not offered, and the footer says why', async () => {
+  const members = Array.from({ length: 120 }, (_, index) => 1000 + index);
+  const page = await setUp({ members });
+  assert.match(page.$('[data-pbd-filter-room]').textContent, /This deck is full: it holds 120 projects/);
+  assert.equal(page.$('[data-pbd-filter-tick-all]').hidden, true);
+  assert.ok([...page.document.querySelectorAll('[data-pbd-filter-tick]')].every((box) => box.disabled));
+});
+
+test('ticks that fill the room hold the other ticks back, and Tick all ticks only what fits', async () => {
+  const members = Array.from({ length: 118 }, (_, index) => 1000 + index);
+  const page = await setUp({ members });
+  assert.equal(page.$('[data-pbd-filter-tick-all]').textContent, 'Tick the first 2 that fit');
+  page.$('[data-pbd-filter-tick-all]').click();
+  assert.equal(page.$('[data-pbd-filter-ticked]').textContent, '2 ticked · Review');
+  assert.equal(page.$('[data-pbd-filter-tick="3"]').disabled, true, 'the third does not fit');
+  assert.equal(page.$('[data-pbd-filter-tick="1"]').disabled, false, 'a ticked one can be unticked');
+  assert.match(page.$('[data-pbd-filter-room]').textContent, /The ticks fill the deck's room/);
+  const box = page.$('[data-pbd-filter-tick="1"]');
+  box.checked = false;
+  box.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  assert.equal(page.$('[data-pbd-filter-tick="3"]').disabled, false, 'room again');
+});
+
+test('the room line is read out only when the ticks go over the room or back', async () => {
+  const members = Array.from({ length: 119 }, (_, index) => 1000 + index);
+  const page = await setUp({ members });
+  const roomLine = page.$('[data-pbd-filter-room]');
+  page.tickRow(1);
+  assert.equal(roomLine.getAttribute('aria-live'), 'off');
+  page.tickRow(2); // only possible by script: the box is held back
+  assert.equal(roomLine.getAttribute('aria-live'), 'polite');
+  page.tickRow(3);
+  assert.equal(roomLine.getAttribute('aria-live'), 'off');
+});
+
+test('a list that fails to load can be tried again', async () => {
+  const page = await setUp({ holdList: true });
+  page.state.listReplies.shift().resolve(reply({ message: 'The server is busy.' }, 500));
+  await tick();
+  await tick();
+  assert.equal(page.$('[data-pbd-filter-count]').textContent, 'The server is busy.');
+  assert.equal(page.$('[data-pbd-filter-list-retry]').hidden, false);
+  page.$('[data-pbd-filter-list-retry]').click();
+  page.state.listReplies.shift().resolve(reply({ rows: [row(1, 'Alpha')] }));
+  await tick();
+  await tick();
+  assert.equal(page.$('[data-pbd-filter-count]').textContent, '1 project matches');
+  assert.equal(page.$('[data-pbd-filter-list-retry]').hidden, true);
+});
+
+test('the list is loaded again each time the dialog opens, and the ticks stay', async () => {
+  const page = await setUp();
+  page.tickRow(1);
+  const lists = () => page.state.fetches.filter((href) => href.includes('FilterProjects')).length;
+  const before = lists();
+  page.controller.open();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(lists(), before + 1);
+  assert.equal(page.$('[data-pbd-filter-tick="1"]').checked, true);
+});
+
+test('Remove asks with the project name, then the row can be ticked again with focus on it', async () => {
+  const page = await setUp({ members: [2] });
+  page.$('[data-pbd-filter-remove="2"]').click();
+  await tick();
+  await tick();
+  assert.equal(page.state.confirms[0].title, 'Remove Bravo?');
+  assert.equal(page.document.activeElement, page.$('[data-pbd-filter-tick="2"]'));
+  assert.match(page.status.textContent, /Removed Bravo\./);
+});
+
+test('the proliferation chip and Clear filters change what the list asks for', async () => {
+  const page = await setUp();
+  page.$('[data-pbd-filter-open="proliferation"]').click();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.match(page.state.fetches.at(-1), /proliferation=true/);
+  assert.equal(page.$('[data-pbd-filter-open="proliferation"]').getAttribute('aria-pressed'), 'true');
+  page.$('[data-pbd-filter-reset]').click();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.doesNotMatch(page.state.fetches.at(-1), /proliferation/);
+  assert.equal(page.$('[data-pbd-filter-reset]'), null);
+});
+
+test('"Ongoing" with "Completed between" says why nothing matches', async () => {
+  const page = await setUp({ rows: [], options: { completionFinancialYears: [{ value: 2025, label: 'FY 2025-26' }] } });
+  page.$('[data-pbd-filter-open="status"]').click();
+  const ongoing = page.$('[data-pbd-filter-value="status"][value="Active"]');
+  ongoing.checked = true;
+  ongoing.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  page.$('[data-pbd-filter-open="completed"]').click();
+  const from = page.$('[data-pbd-filter-range="completedFrom"]');
+  from.value = '2025';
+  from.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.match(page.$('[data-pbd-filter-count]').textContent, /ongoing projects have no completion year/);
 });

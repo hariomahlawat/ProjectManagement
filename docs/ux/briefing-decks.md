@@ -726,8 +726,8 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
   own; only that officer edits them. Comdt and HoD decks stay shared between them as today and a
   Project Officer does not see them. Comdt and HoD can open a Project Officer's deck to view or
   duplicate it, not change it. A Project Officer can add any project (every signed-in user can
-  already read project information, costs and remarks); Add projects opens on their own projects
-  first. A person who is also HoD or Comdt works as command.
+  already read project information, costs and remarks). Add projects lists every project, narrowed
+  with filters ("My projects" was dropped in the Add projects redesign, docs/ux/briefing-add-projects.md). A person who is also HoD or Comdt works as command.
 - **Focus view, not a separate tab.** The Studio is already full width with the rail folded; a
   separate tab (like Collage Studio) would only gain the top bar's height, and would break back,
   the library's Generate hand-off and the "fix in project" links. Instead a **Focus** button in

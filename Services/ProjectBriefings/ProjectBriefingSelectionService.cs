@@ -113,22 +113,22 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
         };
     }
 
+    // Every category, inactive ones too: only active ones are offered, but a parent's count takes in
+    // its inactive sub-categories, as the filter does (cold review 3, M5).
     private Task<List<CategoryOptionRow>> ProjectCategoryRowsAsync(CancellationToken cancellationToken)
         => _db.ProjectCategories
             .AsNoTracking()
-            .Where(category => category.IsActive)
             .OrderBy(category => category.SortOrder)
             .ThenBy(category => category.Name)
-            .Select(category => new CategoryOptionRow(category.Id, category.Name, category.ParentId))
+            .Select(category => new CategoryOptionRow(category.Id, category.Name, category.ParentId, category.IsActive))
             .ToListAsync(cancellationToken);
 
     private Task<List<CategoryOptionRow>> TechnicalCategoryRowsAsync(CancellationToken cancellationToken)
         => _db.TechnicalCategories
             .AsNoTracking()
-            .Where(category => category.IsActive)
             .OrderBy(category => category.SortOrder)
             .ThenBy(category => category.Name)
-            .Select(category => new CategoryOptionRow(category.Id, category.Name, category.ParentId))
+            .Select(category => new CategoryOptionRow(category.Id, category.Name, category.ParentId, category.IsActive))
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<ProjectBriefingSearchResultVm>> FilterAsync(
@@ -298,14 +298,11 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             .Select(project => project.Id)
             .ToListAsync(cancellationToken);
 
+        // Only ticked projects can be added now; the record says so and which were ticked.
         var rulesJson = JsonSerializer.Serialize(new
         {
             kind = request.Kind.ToString(),
-            projectCategoryIds = request.ProjectCategoryIds,
-            technicalCategoryIds = request.TechnicalCategoryIds,
-            projectIds = request.ProjectIds,
-            completionYearFrom = request.CompletionYearFrom,
-            completionYearTo = request.CompletionYearTo
+            projectIds = request.ProjectIds
         });
 
         return new ProjectBriefingSelectionResult(projectIds, summary, rulesJson);
@@ -313,16 +310,26 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
 
     private static IQueryable<Project> WhereMatches(IQueryable<Project> query, string text)
     {
-        var pattern = $"%{text}%";
+        var pattern = ContainsPattern(text);
         return query.Where(project =>
-            EF.Functions.ILike(project.Name, pattern)
-            || (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern))
-            || (project.Category != null && EF.Functions.ILike(project.Category.Name, pattern))
-            || (project.TechnicalCategory != null && EF.Functions.ILike(project.TechnicalCategory.Name, pattern))
+            EF.Functions.ILike(project.Name, pattern, LikeEscape)
+            || (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern, LikeEscape))
+            || (project.Category != null && EF.Functions.ILike(project.Category.Name, pattern, LikeEscape))
+            || (project.TechnicalCategory != null && EF.Functions.ILike(project.TechnicalCategory.Name, pattern, LikeEscape))
             || (project.LeadPoUser != null
-                && (EF.Functions.ILike(project.LeadPoUser.FullName, pattern)
-                    || EF.Functions.ILike(project.LeadPoUser.Rank, pattern))));
+                && (EF.Functions.ILike(project.LeadPoUser.FullName, pattern, LikeEscape)
+                    || EF.Functions.ILike(project.LeadPoUser.Rank, pattern, LikeEscape))));
     }
+
+    private const string LikeEscape = "\\";
+
+    // "%" and "_" typed in the search box are matched as themselves, not as wildcards that list
+    // every project (cold review 3).
+    internal static string ContainsPattern(string text)
+        => "%" + text
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal) + "%";
 
     // The result rows (stage, categories, officer) for the projects a query selects, by name.
     private async Task<IReadOnlyList<ProjectBriefingSearchResultVm>> BuildResultsAsync(
@@ -452,10 +459,11 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
     }
 
     private static IReadOnlyList<ProjectBriefingLookupOptionVm> BuildCategoryOptions(
-        IReadOnlyList<CategoryOptionRow> rows,
+        IReadOnlyList<CategoryOptionRow> allRows,
         IReadOnlyDictionary<int, int> directCounts)
     {
-        var children = rows
+        // Counts walk the whole tree, as ExpandCategoryIdsAsync does; only active rows are listed.
+        var children = allRows
             .Where(row => row.ParentId.HasValue)
             .GroupBy(row => row.ParentId!.Value)
             .ToDictionary(group => group.Key, group => group.Select(row => row.Id).ToArray());
@@ -482,6 +490,7 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
         // Depth-first: SortOrder is numbered within each parent, so a flat sort mixed one parent's
         // sub-categories in among the other parents (cold review, M3). A row whose parent is not
         // listed (inactive) stands at the top level.
+        var rows = allRows.Where(row => row.IsActive).ToList();
         var listed = rows.Select(row => row.Id).ToHashSet();
         var ordered = new List<ProjectBriefingLookupOptionVm>(rows.Count);
         var placed = new HashSet<int>();
@@ -549,7 +558,7 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
     private sealed record CategoryNode(int Id, int? ParentId);
     private sealed record ArppListing(int ProjectId, int FinancialYearStart);
     private sealed record Completion(int ProjectId, int FinancialYearStart);
-    private sealed record CategoryOptionRow(int Id, string Name, int? ParentId);
+    private sealed record CategoryOptionRow(int Id, string Name, int? ParentId, bool IsActive);
 
     private sealed record SearchProjectBaseRow(
         int ProjectId,

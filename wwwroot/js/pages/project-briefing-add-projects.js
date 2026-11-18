@@ -19,6 +19,7 @@ export function initAddProjects(deps) {
   const filterPanel = filterRoot.querySelector('[data-pbd-filter-panel]');
   const filterCount = filterRoot.querySelector('[data-pbd-filter-count]');
   const filterTickAll = filterRoot.querySelector('[data-pbd-filter-tick-all]');
+  const filterListRetry = filterRoot.querySelector('[data-pbd-filter-list-retry]');
   const filterResults = filterRoot.querySelector('[data-pbd-filter-results]');
   const filterAddForm = filterRoot.querySelector('[data-pbd-filter-add-form]');
   const filterTickedLabel = root.querySelector('[data-pbd-filter-ticked]');
@@ -35,6 +36,7 @@ export function initAddProjects(deps) {
   let filterOptions = {};
   let optionsState = 'idle';
   let optionsLoad = null;
+  let optionsError = '';
   const loadFilterOptions = () => {
     if (deckId <= 0 || optionsState === 'loaded' || optionsState === 'loading') return optionsLoad;
     optionsState = 'loading';
@@ -51,7 +53,10 @@ export function initAddProjects(deps) {
         filterOptions = (await response.json()) || {};
         optionsState = 'loaded';
       })
-      .catch(() => {
+      .catch((error) => {
+        // checkReply's message (signed out, no access) says more than a generic failure
+        // (cold review 3).
+        optionsError = error?.message || '';
         optionsState = 'failed';
       })
       .finally(() => {
@@ -190,7 +195,7 @@ export function initAddProjects(deps) {
     filterPanel.setAttribute('aria-label', filter.label);
     if (optionsState !== 'loaded' && !filter.toggle && filter.key !== 'status') {
       if (optionsState === 'failed') {
-        filterPanel.append(panelNote('The choices could not be loaded.'));
+        filterPanel.append(panelNote(optionsError || 'The choices could not be loaded.'));
         const retry = doc.createElement('button');
         retry.type = 'button';
         retry.className = 'btn btn-sm btn-outline-primary';
@@ -262,31 +267,63 @@ export function initAddProjects(deps) {
 
   // How many more projects the deck can take, and whether the ticks fit (cold review 2, High).
   const room = () => Math.max(0, maximumProjects - members().size);
+  // When the ticks fill the deck's room, the projects not ticked cannot be ticked (cold review 3,
+  // M2): finding out only on Add was too late. Ticked ones can always be unticked.
+  const syncTickLimits = () => {
+    const full = ticked.size >= room();
+    filterResults.querySelectorAll('input[data-pbd-filter-tick]').forEach((checkbox) => {
+      checkbox.disabled = full && !checkbox.checked;
+    });
+  };
+  let roomWasOver = false;
   const updateTickedFooter = () => {
     const count = ticked.size;
     if (count === 0) showTicked = false;
     if (filterTickedLabel) {
+      // The label says what a click does; no pressed state on top of a changing label (cold review 3).
       filterTickedLabel.textContent = count === 0
         ? 'Nothing ticked'
         : showTicked ? `${count} ticked · Back to the list` : `${count} ticked · Review`;
       filterTickedLabel.disabled = count === 0;
-      filterTickedLabel.setAttribute('aria-pressed', String(showTicked));
     }
     if (filterRoom) {
       const left = room();
       const over = count > left;
-      filterRoom.textContent = over
-        ? `The deck has room for ${left} more: untick ${count - left}.`
-        : `Room for ${left} more in this deck.`;
-      filterRoom.classList.toggle('is-over', over);
+      // Read out only when the ticks go over the room or come back within it, not on every tick
+      // (cold review 3).
+      filterRoom.setAttribute('aria-live', over !== roomWasOver ? 'polite' : 'off');
+      roomWasOver = over;
+      filterRoom.textContent = left === 0
+        ? `This deck is full: it holds ${maximumProjects} projects. Remove some to add others.`
+        : over
+          ? `The deck has room for ${left} more: untick ${count - left}.`
+          : count === left
+            ? `The ticks fill the deck's room (${left} more).`
+            : `Room for ${left} more in this deck.`;
+      filterRoom.classList.toggle('is-over', over || left === 0);
     }
+    syncTickLimits();
     if (filterClear) filterClear.hidden = count === 0;
     if (filterAdd) filterAdd.textContent = count ? `Add ${count} ${count === 1 ? 'project' : 'projects'}` : 'Add projects';
   };
 
-  const tickAllLabel = (notInDeck, allTicked) => (allTicked
-    ? `Untick these ${notInDeck.length}`
-    : `Tick all ${notInDeck.length} not in the deck`);
+  // Tick all ticks only as many as fit (cold review 3, M2).
+  const tickAllLabel = (notInDeck, allTicked) => {
+    if (allTicked) return `Untick these ${notInDeck.length}`;
+    const untickedCount = notInDeck.filter((row) => !ticked.has(row.projectId)).length;
+    const fits = Math.max(0, room() - ticked.size);
+    return untickedCount <= fits
+      ? `Tick all ${notInDeck.length} not in the deck`
+      : `Tick the first ${fits} that fit`;
+  };
+  const updateTickAll = (notInDeck) => {
+    if (!filterTickAll) return;
+    const allTicked = notInDeck.length > 0 && notInDeck.every((row) => ticked.has(row.projectId));
+    const fits = room() - ticked.size;
+    filterTickAll.hidden = notInDeck.length === 0 || showTicked || (!allTicked && fits <= 0);
+    filterTickAll.dataset.mode = allTicked ? 'untick' : 'tick';
+    filterTickAll.textContent = tickAllLabel(notInDeck, allTicked);
+  };
 
   const renderFilterRows = () => {
     filterResults.replaceChildren();
@@ -300,18 +337,20 @@ export function initAddProjects(deps) {
     const notInDeck = rows.filter((row) => !row.isSelected);
     const inDeck = rows.length - notInDeck.length;
     if (filterCount) {
+      // Ongoing projects have no completion year, so "Ongoing" with "Completed between" can match
+      // nothing: say why (cold review 3).
+      const contradictory = filterState.status.size === 1 && filterState.status.has('Active')
+        && Boolean(filterState.completedFrom || filterState.completedTo);
       filterCount.textContent = showTicked
         ? `The ${rows.length} ticked ${rows.length === 1 ? 'project' : 'projects'}, whatever the filters. Untick any you do not want; go back to the list to change the filters.`
         : rows.length
           ? `${rows.length} ${rows.length === 1 ? 'project matches' : 'projects match'}${inDeck ? ` · ${inDeck} already in the deck` : ''}`
-          : 'No projects match these filters.';
+          : contradictory
+            ? 'No projects match: ongoing projects have no completion year. Clear Status or Completed between.'
+            : 'No projects match these filters.';
     }
-    if (filterTickAll) {
-      const allTicked = notInDeck.length > 0 && notInDeck.every((row) => ticked.has(row.projectId));
-      filterTickAll.hidden = notInDeck.length === 0 || showTicked;
-      filterTickAll.dataset.mode = allTicked ? 'untick' : 'tick';
-      filterTickAll.textContent = tickAllLabel(notInDeck, allTicked);
-    }
+    if (filterListRetry) filterListRetry.hidden = true;
+    updateTickAll(notInDeck);
     rows.forEach((row) => {
       const item = doc.createElement(row.isSelected ? 'div' : 'label');
       item.className = `pbd-search-result pbd-filter__row${row.isSelected ? ' is-in-deck' : ''}${ticked.has(row.projectId) ? ' is-selected' : ''}`;
@@ -373,7 +412,11 @@ export function initAddProjects(deps) {
     if (filterState.completedFrom) url.searchParams.set('completedFrom', filterState.completedFrom);
     if (filterState.completedTo) url.searchParams.set('completedTo', filterState.completedTo);
     if (filterState.proliferation) url.searchParams.set('proliferation', 'true');
-    if (filterCount) filterCount.textContent = 'Finding projects…';
+    // "Finding projects…" only when the answer is slow, so it is not read out on every keystroke
+    // (cold review 3).
+    const finding = view.setTimeout(() => {
+      if (request === listRequest && filterCount) filterCount.textContent = 'Finding projects…';
+    }, 400);
     try {
       const response = await view.fetch(url, {
         credentials: 'same-origin',
@@ -395,10 +438,13 @@ export function initAddProjects(deps) {
       renderFilterRows();
     } catch (error) {
       if (error.name === 'AbortError' || request !== listRequest) return;
-      // No stale rows to tick under an error.
+      // No stale rows to tick under an error, and a way to try again (cold review 3, M3).
       filterRows = [];
       renderFilterRows();
       if (filterCount) filterCount.textContent = error.message || 'Projects could not be listed.';
+      if (filterListRetry) filterListRetry.hidden = false;
+    } finally {
+      view.clearTimeout(finding);
     }
   };
   const reloadFilterRows = (delay = 0) => {
@@ -424,6 +470,12 @@ export function initAddProjects(deps) {
   };
 
   filterQuery?.addEventListener('input', () => { renderFilterChips(); reloadFilterRows(260); });
+  filterListRetry?.addEventListener('click', () => {
+    filterListRetry.hidden = true;
+    if (filterCount) filterCount.textContent = 'Finding projects…';
+    filterQuery?.focus();
+    loadFilterRows();
+  });
   filterChips.addEventListener('click', (event) => {
     if (!(event.target instanceof view.Element)) return;
     if (event.target.closest('[data-pbd-filter-reset]')) {
@@ -524,19 +576,15 @@ export function initAddProjects(deps) {
     }
     target.closest('.pbd-filter__row')?.classList.toggle('is-selected', target.checked);
     // Only the counts change: the list is not rebuilt, so focus stays on the tick.
-    const notInDeck = filterRows.filter((candidate) => !candidate.isSelected);
-    if (filterTickAll && notInDeck.length) {
-      const allTicked = notInDeck.every((candidate) => ticked.has(candidate.projectId));
-      filterTickAll.dataset.mode = allTicked ? 'untick' : 'tick';
-      filterTickAll.textContent = tickAllLabel(notInDeck, allTicked);
-    }
+    updateTickAll(filterRows.filter((candidate) => !candidate.isSelected));
     updateTickedFooter();
   });
   filterTickAll?.addEventListener('click', () => {
     const untick = filterTickAll.dataset.mode === 'untick';
+    let fits = room() - ticked.size;
     filterRows.filter((row) => !row.isSelected).forEach((row) => {
       if (untick) ticked.delete(row.projectId);
-      else ticked.set(row.projectId, row);
+      else if (!ticked.has(row.projectId) && fits > 0) { ticked.set(row.projectId, row); fits -= 1; }
     });
     renderFilterRows();
     filterTickAll.focus();
@@ -592,7 +640,8 @@ export function initAddProjects(deps) {
     adding = false;
     const payload = event.detail?.payload;
     // Projects the server could not add (archived, deleted or cancelled since the list was
-    // loaded) are unticked and named, not left ticked to fail again (cold review 2, M4).
+    // loaded) are unticked and named, not left ticked to fail again (cold review 2, M4), also
+    // when none could be added (cold review 3, M1).
     const skipped = (payload?.skippedProjectIds || []).map(Number);
     if (skipped.length) {
       const names = skipped.map((projectId) => pendingAdd.get(projectId)?.projectName).filter(Boolean);
@@ -601,6 +650,8 @@ export function initAddProjects(deps) {
       note.className = 'pbd-filter__skipped';
       note.textContent = ` ${skipped.length === 1 ? 'One project was' : `${skipped.length} projects were`} not added: ${names.join(', ') || 'no longer available'} (archived, deleted or cancelled).`;
       statusElement?.append(note);
+      // They are no longer offered either.
+      filterRows = filterRows.filter((row) => !skipped.includes(row.projectId));
       renderFilterRows();
     }
     if (!event.detail?.ok) pendingAdd = new Map();
@@ -626,7 +677,9 @@ export function initAddProjects(deps) {
     const button = event.target instanceof view.Element ? event.target.closest('[data-pbd-filter-remove]') : null;
     if (!button) return;
     const projectId = Number(button.dataset.pbdFilterRemove);
-    const name = filterRows.find((row) => row.projectId === projectId)?.projectName || 'The project';
+    const name = filterRows.find((row) => row.projectId === projectId)?.projectName
+      || (getMembers?.() || []).find((project) => Number(project.projectId) === projectId)?.projectName
+      || 'this project';
     // Removing deletes the project's place in this deck with its notes, photo choice and
     // position, and adding it back starts afresh: so it asks, rather than offering an Undo that
     // could not bring those back.
@@ -652,10 +705,11 @@ export function initAddProjects(deps) {
 
   renderFilterChips();
   updateTickedFooter();
-  // The list and the choices load when the dialog first opens, then follow every change.
+  // The choices load when the dialog first opens. The list loads on every opening (cold review 3,
+  // M4), so projects created, archived or re-categorised since are shown as they are now. Ticks stay.
   const openDialog = () => {
     loadFilterOptions();
-    if (!filterRows.length) reloadFilterRows();
+    reloadFilterRows();
   };
   modalElement?.addEventListener('show.bs.modal', openDialog);
 

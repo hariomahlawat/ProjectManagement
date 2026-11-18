@@ -497,7 +497,7 @@ public sealed class ProjectBriefingDeckPageHandlerTests
 
     // ---- Set-up -------------------------------------------------------------------------------
 
-    private static IndexModel CreatePage(ApplicationDbContext db, string userId, bool ajax = false, NoAudit? audit = null)
+    private static IndexModel CreatePage(ApplicationDbContext db, string userId, bool ajax = false, NoAudit? audit = null, IProjectBriefingSelectionService? selection = null)
     {
         var clock = new FixedClock();
         var deckService = new ProjectBriefingDeckService(
@@ -513,7 +513,7 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         // The workspace services only feed the page's rail on GET; no handler here touches them.
         var page = new IndexModel(
             deckService,
-            new NoSelection(),
+            selection ?? new NoSelection(),
             dataService,
             exportService,
             (CommandWorkspaceService)RuntimeHelpers.GetUninitializedObject(typeof(CommandWorkspaceService)),
@@ -690,6 +690,45 @@ public sealed class ProjectBriefingDeckPageHandlerTests
 
         Assert.IsType<NotFoundObjectResult>(list);
         Assert.IsType<NotFoundObjectResult>(options);
+    }
+
+    // Every ticked project was archived, deleted or cancelled after the list was shown: the refusal
+    // names them, so the dialog unticks them rather than failing the same way again (cold review 3, M1).
+    [Fact]
+    public async Task AddSelection_NoneOfTheTickedProjectsCanBeAdded_NamesThemInTheRefusal()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
+        var page = CreatePage(db, Officer, ajax: true, selection: new NothingEligible());
+
+        var result = await page.OnPostAddSelectionAsync(new IndexModel.AddSelectionInput
+        {
+            DeckId = deck.Id, Kind = ProjectBriefingSelectionKind.IndividualProjects, ProjectIds = new List<int> { 501, 502, 501 }, RowVersion = Version(deck)
+        }, CancellationToken.None);
+
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, json.StatusCode);
+        using var reply = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(json.Value));
+        Assert.StartsWith("None of the ticked projects can be added", reply.RootElement.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Equal(new[] { 501, 502 }, reply.RootElement.GetProperty("skippedProjectIds").EnumerateArray().Select(id => id.GetInt32()));
+    }
+
+    private sealed class NothingEligible : IProjectBriefingSelectionService
+    {
+        public Task<ProjectBriefingSelectionOptionsVm> GetOptionsAsync(CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<ProjectBriefingSelectionResult> ResolveAsync(ProjectBriefingSelectionRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(new ProjectBriefingSelectionResult(Array.Empty<int>(), "Individually selected projects", "{}"));
+
+        public Task<ProjectBriefingSelectionOptionsVm> GetCategoryOptionsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new ProjectBriefingSelectionOptionsVm());
+
+        public Task<IReadOnlyList<ProjectBriefingSearchResultVm>> FilterAsync(ProjectBriefingProjectFilter filter, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<int>> ValidateProjectIdsAsync(IReadOnlyCollection<int> projectIds, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<int>>(projectIds.ToArray());
     }
 
     private sealed class NoSelection : IProjectBriefingSelectionService
