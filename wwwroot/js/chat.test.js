@@ -3402,3 +3402,269 @@ test('an image opens in the viewer, which steps through the conversation and giv
     window.close();
   }
 });
+
+// ----- Phase 2: reading the conversation ------------------------------------------------------
+
+function said(app) {
+  const heard = [];
+  app.announce = (text) => heard.push(text);
+  return heard;
+}
+
+function scrolledUp(win) {
+  Object.defineProperty(win.body, 'scrollHeight', { value: 1000, configurable: true });
+  Object.defineProperty(win.body, 'clientHeight', { value: 200, configurable: true });
+  win.body.scrollTop = 0;
+}
+
+test('opening a conversation with unread messages marks where they start, until the person replies', async () => {
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 2 }];
+    if (url.includes('/with/peer/messages')) {
+      return {
+        messages: [directMessage(1, 'me', 'Can you send the draft?'), directMessage(2, 'peer', 'Sending now'), directMessage(3, 'peer', 'Here it is')],
+        hasMore: false,
+      };
+    }
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      return { status: 200, body: directMessage(4, 'me', body.body, { clientMessageId: body.clientMessageId }) };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const items = Array.from(win.log.children);
+    const divider = win.log.querySelector('.pm-chat__unread-divider');
+    assert.ok(divider, 'New messages is shown');
+    assert.equal(divider.textContent, 'New messages');
+    assert.match(items[items.indexOf(divider) + 1].textContent, /Sending now/);
+
+    win.input.value = 'Thanks';
+    app.send(win);
+    await tick(); await tick();
+    assert.equal(win.log.querySelector('.pm-chat__unread-divider'), null, 'gone once they reply');
+  } finally {
+    window.close();
+  }
+});
+
+test('a message arriving while the person reads back shows "↓ 1 new message", which goes to the latest', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Morning')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    assert.equal(win.jump.hidden, true);
+
+    scrolledUp(win);
+    app.onMessage(directMessage(2, 'peer', 'Have a look at para 4'));
+    assert.equal(win.jump.hidden, false);
+    assert.match(win.jump.textContent, /1 new message$/);
+    app.onMessage(directMessage(3, 'peer', 'and para 5'));
+    assert.match(win.jump.textContent, /2 new messages$/);
+    app.onMessage(directMessage(30, 'me', 'from my other tab'));
+    assert.match(win.jump.textContent, /2 new messages$/, 'my own messages are not news');
+
+    win.jump.click();
+    assert.equal(win.jump.hidden, true);
+    assert.equal(win.body.scrollTop, 1000);
+
+    // At the bottom already: nothing to point at.
+    Object.defineProperty(win.body, 'scrollTop', { value: 800, configurable: true, writable: true });
+    app.onMessage(directMessage(4, 'peer', 'ok'));
+    assert.equal(win.jump.hidden, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('a run of messages from one person sits together, and each time shows the full date on hover', async () => {
+  const t0 = Date.parse('2026-11-18T05:00:00Z');
+  const at = (minutes) => new Date(t0 + minutes * 60000).toISOString();
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) {
+      return {
+        messages: [
+          directMessage(1, 'peer', 'one', { sentUtc: at(0) }),
+          directMessage(2, 'peer', 'two', { sentUtc: at(2) }),
+          directMessage(3, 'peer', 'three, much later', { sentUtc: at(30) }),
+          directMessage(4, 'me', 'mine', { sentUtc: at(31) }),
+        ],
+        hasMore: false,
+      };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const runs = Array.from(win.log.querySelectorAll('.pm-chat__msg'), (m) => m.classList.contains('is-continued'));
+    assert.deepEqual(runs, [false, true, false, false]);
+    const nexts = Array.from(win.log.querySelectorAll('.pm-chat__msg'), (m) => m.classList.contains('has-next'));
+    assert.deepEqual(nexts, [true, false, false, false], 'their time shows once per run');
+    assert.equal(win.log.querySelector('.pm-chat__time').title, 'Wed, 18 Nov 2026, 10:30');
+  } finally {
+    window.close();
+  }
+});
+
+test('Copy puts a message on the clipboard, also on plain http where the Clipboard API is missing', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'File no. 12/4/2026')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    const copied = [];
+    window.document.execCommand = (command) => {
+      copied.push([command, window.document.activeElement.value]);
+      return true;
+    };
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const copy = win.log.querySelector('[data-focus-key="copy:1"]');
+    assert.equal(copy.getAttribute('aria-label'), 'Copy message from Peer Person');
+    copy.click();
+    await tick();
+    assert.deepEqual(copied, [['copy', 'File no. 12/4/2026']]);
+    assert.deepEqual(heard, ['Message copied.']);
+    assert.equal(copy.textContent, 'Copied');
+    assert.equal(window.document.querySelectorAll('textarea[readonly]').length, 0, 'the helper box is gone');
+  } finally {
+    window.close();
+  }
+});
+
+test('the character counter appears near the limit and says when the limit is reached', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    const win = app.openWindow('peer', { focus: true });
+    const type = (length) => {
+      win.input.value = 'x'.repeat(length);
+      win.input.dispatchEvent(new window.Event('input'));
+    };
+    type(3000);
+    assert.equal(win.counter.hidden, true);
+    type(3800);
+    assert.equal(win.counter.hidden, false);
+    assert.equal(win.counter.textContent, '200');
+    assert.equal(win.counter.classList.contains('is-low'), false);
+    type(3980);
+    assert.equal(win.counter.classList.contains('is-low'), true);
+    type(4000);
+    type(4000);
+    assert.deepEqual(heard, ['The message is at the 4000-character limit.'], 'said once');
+  } finally {
+    window.close();
+  }
+});
+
+test('a docked window links to the same conversation on the Messages page, and its title says if it is open', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  }, '', 'data-messages-url="/Chat"');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    assert.equal(win.node.querySelector('.pm-chat__full').getAttribute('href'), '/Chat?with=peer');
+    assert.equal(win.toggle.getAttribute('aria-expanded'), 'true');
+    win.minimize.click();
+    assert.equal(win.toggle.getAttribute('aria-expanded'), 'false');
+  } finally {
+    window.close();
+  }
+});
+
+test('Alt+C opens the contact list in its search; Enter opens the first match and ↓ ↑ move through the list', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      return [contact, { ...contact, userId: 'sita', displayName: 'Sita Sharma', initials: 'SS' }];
+    }
+    if (url.includes('/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    assert.equal(app.buddy.hidden, true);
+    const press = (target, key, init) => {
+      const event = new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(event);
+      return event;
+    };
+    const alt = press(window.document.body, 'c', { altKey: true, code: 'KeyC' });
+    assert.equal(alt.defaultPrevented, true);
+    assert.equal(app.buddy.hidden, false);
+    assert.equal(window.document.activeElement, app.search);
+    assert.equal(press(window.document.body, 'c', { ctrlKey: true, code: 'KeyC' }).defaultPrevented, false, 'Ctrl+C is copy');
+    assert.equal(press(app.search, 'ç', { altKey: true, code: 'KeyC' }).defaultPrevented, false, 'Option+C on a Mac types ç');
+
+    app.search.value = 'sit';
+    app.search.dispatchEvent(new window.Event('input'));
+    press(app.search, 'ArrowDown');
+    assert.equal(window.document.activeElement.dataset.focusKey, 'contact:sita');
+    press(window.document.activeElement, 'ArrowUp');
+    assert.equal(window.document.activeElement, app.search);
+    press(app.search, 'Enter');
+    assert.ok(app.windows.get('sita'), 'the first match opened');
+  } finally {
+    window.close();
+  }
+});
+
+test('a dropped connection shows "Reconnecting…" after a few seconds, and it clears when chat is live again', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  const runTimers = manualTimers(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    const win = app.openWindow('peer', { focus: false });
+    app.setLive(false);
+    assert.equal(app.offlineNote.hidden, true, 'a blip shows nothing');
+    runTimers();
+    assert.equal(app.offlineNote.hidden, false);
+    assert.equal(win.offline.hidden, false);
+    assert.match(win.offline.textContent, /Reconnecting…/);
+    const later = app.openWindow('peer2', { focus: false }) || app.createWindow('peer2');
+    assert.equal(later.offline.hidden, false, 'a window opened meanwhile says so too');
+
+    app.setLive(true);
+    assert.equal(app.offlineNote.hidden, true);
+    assert.equal(win.offline.hidden, true);
+    assert.deepEqual(heard, [
+      'Chat lost its connection. Trying again; new messages will still arrive.',
+      'Chat is connected again.',
+    ]);
+  } finally {
+    window.close();
+  }
+});

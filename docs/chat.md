@@ -46,7 +46,29 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   only when the person is in it (keyboard focus in an expanded window on a visible tab), so a
   window that merely popped open stays unread.
 - A window stays where the person has scrolled: new messages and the 30-second refresh scroll
-  to the newest message only when the view is already at the bottom.
+  to the newest message only when the view is already at the bottom. A message from someone
+  else arriving while the person reads back shows **"↓ 1 new message"** (counting up) over the
+  bottom of the conversation; it goes to the latest message, and clears on reaching it.
+- **"New messages"** divider: a conversation opened with unread messages shows a red line
+  where they start (worked out from the unread count) and opens there; messages arriving while
+  the person is elsewhere start one too. It stays until the person replies, or closes the window.
+- **Reading**: messages from one person within five minutes form a run, drawn closer together;
+  in a run of someone else's messages the time shows once, under the last. Pointing at a time
+  (or a bubble) shows the full date and time ("Wed, 18 Nov 2026, 10:30").
+- **Copy** beside a message (on hover, or keyboard focus in it) copies its text, also on
+  plain-http deployments where the browser's Clipboard API is not offered; touch screens use
+  press-and-hold instead.
+- **Reconnecting…**: when the live connection has been down for four seconds, the contact list
+  and every window say so ("New messages may take up to 30 seconds to appear", the polling
+  interval) and screen readers hear it; it clears, with "Chat is connected again", on
+  reconnecting. Short blips show nothing.
+- **Open in Messages** (expand icon) in a docked window's title bar opens the same conversation
+  on the Messages page.
+- **Alt+C** anywhere in PRISM opens the contact list with the cursor in its search: type a
+  name, **Enter** opens the first match, **↓/↑** move through people and groups (↑ from the
+  first returns to the search). Ctrl+K stays PRISM's search palette.
+- Near the 4,000-character limit a counter beside the message box shows how many characters are
+  left (red under 50); reaching the limit is said once to screen readers.
 - **Enter** sends, **Shift+Enter** adds a line. **Esc** steps back one level: in a window it
   closes the people panel, then minimises the window (focus stays on its title bar); in the
   contact list it cancels a status edit, clears the search, closes New group, then closes the
@@ -175,7 +197,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - **Focus survives updates.** The contact list, the Messages page list and conversation logs
   are redrawn whole on every presence, unread or read-tick change. Every control that can hold
   focus there carries `data-focus-key` (`contact:{id}`, `group:{id}`, `conv:{key}`,
-  `retry:{clientMessageId}`, `unsend:{id}`, `thumb:{attachmentId}`, and the people panel's controls), and the redraw puts
+  `retry:{clientMessageId}`, `unsend:{id}`, `copy:{id}`, `thumb:{attachmentId}`, and the people panel's controls), and the redraw puts
   focus back on the same control. If it is gone (sent after Retry, Unsend expired), focus goes
   to the message box instead of falling out of the window.
 - **Focus returns** where it came from: closing a window or the contact list goes back to the
@@ -189,6 +211,10 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   is in that conversation, otherwise "New message from …"), including messages fetched by
   polling or catch-up while the live connection was down ("3 new messages from …"), a message
   that could not be sent, group-change errors, and how many messages a search found. Window status lines only change their text when it really changes.
+- A docked window's title button reports `aria-expanded` (minimised or not). The chat button and
+  the people search carry `aria-keyshortcuts="Alt+C"`. "↓ N new messages" is a button that
+  says where it goes; the "Reconnecting…" notes are announced once through the live region
+  rather than being live regions themselves.
 - The image viewer is a modal dialog (`aria-modal`, labelled by its caption): focus starts on
   Close, Tab stays inside it, Esc closes it. The drop overlay is decorative (`aria-hidden`);
   dropping is a shortcut for the attach button, which stays the keyboard route.
@@ -381,6 +407,12 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   already open keeps its old scripts until it is reloaded. Repository-document links that
   showed a card for an inactive document to someone not allowed to view inactive documents no
   longer do.
+
+- The reading update of 2026-11-18 (Phase 2: "New messages" divider, "↓ new messages", runs,
+  Copy, Reconnecting…, Open in Messages, Alt+C, the character counter) changes only the chat
+  scripts and stylesheet: no server, migration or setting change. Alt+C is new to the page; it
+  was not used elsewhere in PRISM. The page's name-button observer now ignores chat's own
+  redraws, so it no longer rescans the page on every chat update.
 
 ## Not yet built
 

@@ -8,13 +8,70 @@
 
   const document = global.document;
   const {
-    ChatApp, HISTORY_PAGE, CATCH_UP_PAGES, timeFormat, newClientId, dayKey,
+    ChatApp, HISTORY_PAGE, CATCH_UP_PAGES, TIME_ZONE, timeFormat, newClientId, dayKey,
     dayLabel, mergeMessages, fetchSince, seenBy, seenByEveryone, el,
     focusKeyIn, refocus, icon,
     newestId, appendLinked, previewLinks, previewCard,
   } = global.PMChatParts;
 
   const PREVIEW_BATCH = 10; // links per GET {api}/previews (the server's limit)
+  const RUN_GAP_MS = 5 * 60000; // messages from one person closer than this read as one run
+  const fullTimeParts = new Intl.DateTimeFormat('en-IN', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TIME_ZONE,
+  });
+
+  /** "Wed, 18 Nov 2026, 10:30" (India time), for the title of a message's time. */
+  function fullTime(date) {
+    const part = {};
+    fullTimeParts.formatToParts(date).forEach((p) => { part[p.type] = p.value; });
+    return `${part.weekday}, ${part.day} ${part.month} ${part.year}, ${part.hour}:${part.minute}`;
+  }
+
+  /**
+   * The first of the last `count` messages from other people: where "New messages" goes when a
+   * conversation opens with unread messages (the server counts them; the page doesn't know the
+   * person's own read marker). 0 when there are none, or when they are not all on this page.
+   */
+  function firstUnreadId(messages, me, count) {
+    if (!count) return 0;
+    let seen = 0;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (!m.id || m.senderUserId === me || m.eventKind || m.isUnsent) continue;
+      seen += 1;
+      if (seen === count) return m.id;
+    }
+    return 0;
+  }
+
+  /** Copies text to the clipboard: the Clipboard API where the page may use it, else a fallback. */
+  async function copyText(text) {
+    if (global.isSecureContext && global.navigator && global.navigator.clipboard) {
+      try {
+        await global.navigator.clipboard.writeText(text);
+        return true;
+      } catch (_) { /* fall back */ }
+    }
+    // Plain http on the LAN has no Clipboard API: copy through a hidden text box.
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    const back = document.activeElement;
+    document.body.append(area);
+    area.focus({ preventScroll: true });
+    area.select();
+    let done = false;
+    try {
+      done = document.execCommand('copy');
+    } catch (_) {
+      done = false;
+    }
+    area.remove();
+    if (back && typeof back.focus === 'function') back.focus({ preventScroll: true });
+    return done;
+  }
   const PREVIEW_DELAY_MS = 40; // gather the links of one redraw (or several) into one request
 
   /** The cards for a message's PRISM links that are known; unknown links are asked for. */
@@ -167,6 +224,12 @@
         win.hasMore = history.hasMore;
         win.historyLoaded = true;
         win.contiguousId = newestId(history.messages);
+        // Opening with unread messages: "New messages" marks where they start.
+        const counter = win.groupId ? this.groups.get(win.groupId) : this.contacts.get(win.peerId);
+        // (A message that popped the window open may have marked itself already; an earlier
+        // unread one wins.)
+        const fromCount = counter ? firstUnreadId(win.messages, this.me, counter.unreadCount) : 0;
+        if (fromCount && (!win.unreadFromId || fromCount < win.unreadFromId)) win.unreadFromId = fromCount;
         this.applyPeerRead(win, history);
       } else {
         // Catch up from the newest message known to follow on without a gap: one fetched as
@@ -365,12 +428,21 @@
     }
 
     let lastSender = null;
+    let lastSentAt = 0;
+    let previousItem = null;
+    let divider = null;
     for (const message of win.messages) {
       const sent = new Date(message.sentUtc || Date.now());
       const key = dayKey(sent);
       if (key !== lastDay) {
         items.push(el('li', 'pm-chat__day', dayLabel(sent, now)));
         lastDay = key;
+        lastSender = null;
+      }
+      if (message.id && message.id === win.unreadFromId) {
+        divider = el('li', 'pm-chat__unread-divider');
+        divider.append(el('span', null, 'New messages'));
+        items.push(divider);
         lastSender = null;
       }
       if (message.eventKind) {
@@ -380,6 +452,15 @@
       }
       const mine = message.senderUserId === this.me;
       const item = el('li', `pm-chat__msg ${mine ? 'is-mine' : 'is-theirs'}`);
+      // A run: the same person again within a few minutes sits closer to the message before.
+      const continues = message.senderUserId === lastSender && sent.getTime() - lastSentAt < RUN_GAP_MS;
+      if (continues) {
+        item.classList.add('is-continued');
+        // Their earlier message in the run carries the same time: it shows once, at the end.
+        // (Mine keep theirs: each has its own ticks.)
+        if (previousItem && previousItem.classList.contains('is-theirs')) previousItem.classList.add('has-next');
+      }
+      lastSentAt = sent.getTime();
       const who = this.nameOf(message.senderUserId, win);
       if (win.groupId && !mine && message.senderUserId !== lastSender) {
         // In a group, say who is talking at the start of each run of their messages.
@@ -418,6 +499,7 @@
         meta.textContent = 'Sending…';
       } else {
         meta.textContent = timeFormat.format(sent);
+        meta.title = fullTime(sent);
         if (mine) {
           // Read ticks: one tick once stored, two (coloured) once read. In a group, two ticks
           // once everyone has read it; the label says who has.
@@ -458,6 +540,22 @@
       // A message of files only has no text bubble.
       if (!message.isUnsent && !message.body && files.length) bubble.hidden = true;
       item.append(bubble, ...files, ...cards, meta);
+      bubble.title = meta.title || '';
+      previousItem = message.failed || !message.id ? null : item;
+      if (message.id && !message.isUnsent && message.body) {
+        // Shown on hover or keyboard focus within the message (CSS), always in the tab order.
+        const copy = el('button', 'pm-chat__msg-action', 'Copy');
+        copy.type = 'button';
+        copy.dataset.focusKey = `copy:${message.id}`;
+        copy.setAttribute('aria-label', `Copy message from ${mine ? 'you' : who}`);
+        copy.addEventListener('click', async () => {
+          const ok = await copyText(message.body);
+          this.announce(ok ? 'Message copied.' : 'The message could not be copied. Select the text and press Ctrl+C.');
+          copy.textContent = ok ? 'Copied' : 'Copy';
+          if (ok) global.setTimeout(() => { if (copy.isConnected) copy.textContent = 'Copy'; }, 1500);
+        });
+        item.append(copy);
+      }
       items.push(item);
     }
 
@@ -475,6 +573,9 @@
     win.newer.hidden = !win.hasNewer;
     if (options && options.scrollToHighlight && highlighted) {
       if (typeof highlighted.scrollIntoView === 'function') highlighted.scrollIntoView({ block: 'center' });
+    } else if (options && options.force && divider) {
+      // Opening with unread messages: start where they start, not below them.
+      if (typeof divider.scrollIntoView === 'function') divider.scrollIntoView({ block: 'start' });
     } else if (options && options.stickToBottom && (nearBottom || options.force)) {
       // Only while the person is at the bottom, or on the first load: someone reading back
       // through older messages is not pulled down by a new message or the 30-second refresh.
@@ -522,8 +623,13 @@
       attachmentIds: files.attachments.map((a) => a.id),
     };
     this.clearSentFiles(win, files.attachments);
+    // Replying: the person has caught up, so "New messages" and "↓ new" go.
+    win.unreadFromId = 0;
+    win.newBelow = 0;
+    this.renderJump(win);
     win.input.value = '';
     win.input.style.height = 'auto';
+    this.renderCounter(win);
     win.typingSentAt = 0;
     win.messages.push(message);
     this.renderMessages(win, { stickToBottom: true });

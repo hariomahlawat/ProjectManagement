@@ -103,7 +103,31 @@
     if (this.tips) scroller.append(this.tips);
     scroller.append(this.groupHeading, this.groupList, this.peopleHeading, this.list, this.emptyNote);
 
-    buddy.append(header, statusWrap, searchWrap, this.groupForm, scroller);
+    this.offlineNote = el('p', 'pm-chat__offline');
+    this.offlineNote.hidden = true;
+    buddy.append(header, this.offlineNote, statusWrap, searchWrap, this.groupForm, scroller);
+    search.setAttribute('aria-keyshortcuts', 'Alt+C');
+    search.title = 'Search people (Alt+C from anywhere in PRISM)';
+    // From the search: Enter opens the first match, ↓ moves into the list.
+    search.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== 'ArrowDown') return;
+      const first = scroller.querySelector('.pm-chat__contact');
+      if (!first) return;
+      event.preventDefault();
+      if (event.key === 'Enter') first.click();
+      else first.focus();
+    });
+    // In the list: ↑ ↓ move between people and groups; ↑ from the first goes back to the search.
+    scroller.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      const buttons = Array.from(scroller.querySelectorAll('.pm-chat__contact'));
+      const at = buttons.indexOf(event.target);
+      if (at < 0) return;
+      event.preventDefault();
+      const to = at + (event.key === 'ArrowDown' ? 1 : -1);
+      if (to < 0) search.focus();
+      else if (to < buttons.length) buttons[to].focus();
+    });
     this.buddy = buddy;
     this.newGroupButton = newGroup;
     this.bindContactDrop(scroller); // chat/files.js: files dropped on a person or group (when attachments are on)

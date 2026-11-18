@@ -180,6 +180,7 @@
       win = app.createWindow(peerId, { embedded: true });
       if (carry) {
         win.input.value = carry.draft;
+        app.renderCounter(win);
         win.messages = carry.unsent;
       }
       app.windows.set(peerId, win);

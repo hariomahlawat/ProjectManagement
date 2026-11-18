@@ -9,8 +9,10 @@
   const document = global.document;
   const {
     POLL_MS, IDLE_MS, IDLE_CHECK_MS, UNSENT_RETRY_MS, SERVER_TIMEOUT_MS, UNSENT_LOOKBACK_MS,
-    TitleFlasher, groupIdOf, Chime,
+    TitleFlasher, groupIdOf, Chime, icon,
   } = global.PMChatParts;
+
+  const OFFLINE_NOTICE_MS = 4000; // a drop shorter than this shows no "Reconnecting…"
 
   // ---------------------------------------------------------------------------
   // Controller
@@ -81,7 +83,21 @@
 
   ChatApp.prototype.start = function () {
     this.buildDock();
-    this.launchers.forEach((button) => button.addEventListener('click', () => this.toggleBuddy()));
+    this.launchers.forEach((button) => {
+      button.addEventListener('click', () => this.toggleBuddy());
+      button.setAttribute('aria-keyshortcuts', 'Alt+C');
+    });
+    // Alt+C from anywhere: the contact list, with the cursor in its search (a quick switcher:
+    // type a name, Enter). Ctrl+K is PRISM's search palette, so chat does not take it.
+    document.addEventListener('keydown', (event) => {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      // The key must say "c": Option+C on a Mac types "ç", which must still type.
+      if (String(event.key).toLowerCase() !== 'c') return;
+      if (this.stopped) return;
+      event.preventDefault();
+      if (this.buddyOpen) this.search.focus();
+      else this.toggleBuddy(true);
+    });
     global.addEventListener('resize', () => this.enforceCapacity());
     // Muting a group in another tab of this user applies here too.
     global.addEventListener('storage', (event) => {
@@ -99,8 +115,9 @@
     this.attachPersonButtons(document);
     if (typeof global.MutationObserver === 'function' && document.body) {
       let pending = null;
-      new global.MutationObserver(() => {
-        if (pending) return;
+      new global.MutationObserver((mutations) => {
+        // Chat's own redraws (contacts, messages, presence) never add names to mark.
+        if (pending || mutations.every((m) => this.root.contains(m.target))) return;
         pending = global.setTimeout(() => { pending = null; this.attachPersonButtons(document); }, 200);
       }).observe(document.body, { childList: true, subtree: true });
     }
@@ -307,12 +324,14 @@
     connection.onreconnecting(() => {
       this.markOffline();
       this.startPolling();
+      this.setLive(false);
     });
     connection.onreconnected(() => this.resync());
     connection.onclose(() => {
       if (this.stopped) return;
       this.markOffline();
       this.startPolling();
+      this.setLive(false);
       global.setTimeout(() => this.startConnection(), 30000);
     });
     this.connection = connection;
@@ -327,6 +346,7 @@
       .then(() => this.resync())
       .catch(() => {
         this.startPolling();
+        this.setLive(false);
         global.setTimeout(() => this.startConnection(), 30000);
       });
   };
@@ -436,7 +456,45 @@
     return files;
   };
 
+  /**
+   * The live connection dropped (false) or is back (true). A drop shows "Reconnecting…" in the
+   * contact list and every window once it has lasted a few seconds (a blip shows nothing);
+   * messages keep coming every 30 seconds meanwhile.
+   */
+  ChatApp.prototype.setLive = function (live) {
+    if (live) {
+      if (this.offlineTimer) global.clearTimeout(this.offlineTimer);
+      this.offlineTimer = null;
+      const wasShown = this.offlineShown;
+      this.offlineShown = false;
+      this.renderConnection();
+      if (wasShown) this.announce('Chat is connected again.');
+      return;
+    }
+    if (this.offlineShown || this.offlineTimer) return;
+    this.offlineTimer = global.setTimeout(() => {
+      this.offlineTimer = null;
+      if (this.stopped || this.isConnected()) return;
+      this.offlineShown = true;
+      this.renderConnection();
+      this.announce('Chat lost its connection. Trying again; new messages will still arrive.');
+    }, OFFLINE_NOTICE_MS);
+  };
+
+  /** `extra`: a window being built, not yet among this.windows. */
+  ChatApp.prototype.renderConnection = function (extra) {
+    const text = 'Reconnecting… New messages may take up to 30 seconds to appear.';
+    const notes = [this.offlineNote].concat(Array.from(this.windows.values(), (w) => w.offline), extra ? [extra.offline] : []);
+    notes.filter(Boolean).forEach((note) => {
+      note.hidden = !this.offlineShown;
+      if (this.offlineShown && note.textContent !== text) {
+        note.replaceChildren(icon('wifi-off'), global.document.createTextNode(` ${text}`));
+      }
+    });
+  };
+
   ChatApp.prototype.resync = function () {
+    this.setLive(true);
     if (this.pollTimer) {
       global.clearInterval(this.pollTimer);
       this.pollTimer = null;

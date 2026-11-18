@@ -58,9 +58,18 @@
         win.typingUntil = 0;
         win.typers.delete(message.senderUserId);
       }
+      // Read back through the conversation when it arrived: it lands out of sight, so count it
+      // for "↓ new messages" (and the person's own messages from another tab do not count).
+      const readingBack = !win.hasNewer && win.historyLoaded && !this.atBottom(win);
+      // Arriving while the person is elsewhere: "New messages" marks where they start.
+      if (fresh && !this.isAttended(win) && !win.unreadFromId) win.unreadFromId = message.id;
       // A conversation opened at an old message (from search) shows a slice of history; the
       // newest message is reached with "Show newer messages", so don't paste it below a gap.
       this.acceptSaved(win, [message]);
+      if (fresh && readingBack) {
+        win.newBelow += 1;
+        this.renderJump(win);
+      }
       if (fresh && !this.isAttended(win)) {
         win.attention = true;
       }
