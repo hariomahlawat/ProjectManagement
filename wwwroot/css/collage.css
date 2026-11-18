@@ -193,6 +193,12 @@
     margin-bottom: 0.8rem;
 }
 
+/* Notes on the start screen keep their distance from the design cards under them. */
+.clg-card-pocket-hint,
+.clg-card-small {
+    margin: 0 0 0.7rem;
+}
+
 /* The Card details intro keeps its distance from the designs under it. */
 [data-card-hint] {
     margin-bottom: 0.7rem;

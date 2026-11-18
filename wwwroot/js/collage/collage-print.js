@@ -164,6 +164,8 @@
   const NAME_WORDS = /\bnames?\b|\bsurname\b|^\s*guests?\s*$|^\s*initials?\s*$/i;
   const NOT_A_PERSON = /\b(unit|regiment|formation|organi[sz]ation|station|place|venue|file|company|establishment|appointment)\b/i;
   const SPOUSE_HEADING = /\b(spouse|wife|husband|partner)\b/i;
+  // Honours and awards follow the name after a comma ("Lt Gen A. Kumar, PVSM, AVSM").
+  const HONOURS_HEADING = /\b(honours|honors|awards|decorations|post-?nominals)\b/i;
   const NAME_HEADING = { test: (cell) => NAME_WORDS.test(cell) && !NOT_A_PERSON.test(cell) && !SPOUSE_HEADING.test(cell) };
 
   /**
@@ -188,6 +190,7 @@
       .filter((cells) => cells.some((cell) => cell.trim()));
     let columns = [0];
     let spouse = -1;
+    let honours = -1;
     let headed = false;
     let width = 1;
     if (heading && rows.length) {
@@ -195,6 +198,7 @@
       if (named.some((i) => NAME_HEADING.test(rows[0][i]))) {
         columns = named;
         spouse = rows[0].findIndex((cell) => SPOUSE_HEADING.test(cell));
+        honours = rows[0].findIndex((cell) => HONOURS_HEADING.test(cell));
         width = rows[0].length;
         headed = true;
         rows.shift();
@@ -208,7 +212,9 @@
     const names = [];
     let over = 0;
     for (const cells of rows) {
-      const main = columns.map((i) => cells[i] ?? '').join(' ').replace(/\s+/g, ' ').trim();
+      const person = columns.map((i) => cells[i] ?? '').join(' ').replace(/\s+/g, ' ').trim();
+      const awards = honours >= 0 ? String(cells[honours] ?? '').replace(/\s+/g, ' ').trim() : '';
+      const main = person && awards ? `${person}, ${awards}` : person;
       const partner = spouse >= 0 ? String(cells[spouse] ?? '').replace(/\s+/g, ' ').trim() : '';
       const name = (main && partner ? `${main} and ${partner}` : main).slice(0, core.GUEST_LIMITS.length);
       if (!name) continue;

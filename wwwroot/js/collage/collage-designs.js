@@ -126,7 +126,8 @@
         words('invite', 0.6, 0.29, 0.6, 32, { font: 'script', color: GOLD, bold: false }),
         rule('guestline', 0.6, 0.38, 0.46, INK, 1.5),
         words('guest', 0.6, 0.36, 0.46, 32, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-        words('occasion', 0.6, 0.5, 0.6, 50, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('at', 0.6, 0.425, 0.4, 20, { font: 'elegant', color: INK, bold: false, italic: true }),
+        words('occasion', 0.6, 0.51, 0.6, 48, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
         words('when', 0.6, 0.63, 0.6, 23, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
         words('venue', 0.6, 0.7, 0.6, 22, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
         words('dress', 0.6, 0.765, 0.6, 21, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
@@ -207,7 +208,8 @@
         words('invite', 0.61, 0.36, 0.6, 22, { font: 'elegant', color: INK, bold: false, italic: true }),
         rule('guestline', 0.61, 0.44, 0.46, INK, 1.5),
         words('guest', 0.61, 0.42, 0.46, 30, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-        words('occasion', 0.61, 0.54, 0.62, 48, { font: 'elegant', color: 'band3', bold: true }, { lines: 2 }),
+        words('at', 0.61, 0.48, 0.4, 18, { font: 'elegant', color: INK, bold: false, italic: true }),
+        words('occasion', 0.61, 0.555, 0.62, 44, { font: 'elegant', color: 'band3', bold: true }, { lines: 2 }),
         words('when', 0.61, 0.65, 0.62, 22, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
         words('venue', 0.61, 0.715, 0.62, 21, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
         words('dress', 0.61, 0.775, 0.62, 20, { font: 'clean', color: 'band1', bold: true }, { lines: 1 }),
@@ -287,14 +289,18 @@
         words('inviteHi', 0.27, 0.4, 0.4, 18, { font: 'hindiFormal', color: INK, bold: false }, { lines: 1 }),
         words('host', 0.73, 0.29, 0.4, 18, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
         words('invite', 0.73, 0.4, 0.4, 18, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
-        vline('divider2', 0.5, 0.6, 0.12, GOLD, 1.2),
-        words('occasionHi', 0.27, 0.6, 0.4, 28, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
-        words('occasion', 0.73, 0.6, 0.4, 26, { font: 'elegant', color: MAROON, bold: true }, { lines: 3 }),
-        words('when', 0.5, 0.72, 0.84, 21, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
-        words('venue', 0.5, 0.78, 0.84, 20, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
-        words('dress', 0.5, 0.835, 0.84, 19, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
-        words('rsvp', 0.08, 0.91, 0.42, 16, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('note', 0.92, 0.91, 0.38, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 1 })
+        // The guest's name across both columns, then "at the" before the occasion, as in portrait.
+        rule('guestline', 0.5, 0.49, 0.5, INK, 1.2),
+        words('guest', 0.5, 0.473, 0.5, 24, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('at', 0.73, 0.535, 0.3, 16, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
+        vline('divider2', 0.5, 0.635, 0.1, GOLD, 1.2),
+        words('occasionHi', 0.27, 0.635, 0.4, 26, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
+        words('occasion', 0.73, 0.635, 0.4, 24, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('when', 0.5, 0.75, 0.84, 20, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
+        words('venue', 0.5, 0.805, 0.84, 19, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
+        words('dress', 0.5, 0.855, 0.84, 18, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
+        words('rsvp', 0.08, 0.925, 0.42, 15, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('note', 0.92, 0.925, 0.38, 15, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 1 })
       ]
     }),
     // Posters (PR 11): offered in the Posters row, A3 or A4, a logo only when the user picks one.
@@ -456,6 +462,7 @@
       ]
     }),
     pocketinvite: Object.freeze({
+      notFor: Object.freeze(['passl', 'passp']),
       key: 'pocketinvite',
       label: 'Pocket invitation',
       note: 'The invitation, small',
@@ -465,11 +472,14 @@
         border('border', 0.04, GOLD, 2.5),
         border('border2', 0.06, GOLD, 1),
         logo(0.5, 0.13, 0.11),
-        words('host', 0.5, 0.29, 0.8, 22, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
-        words('invite', 0.5, 0.39, 0.8, 24, { font: 'script', color: GOLD, bold: false }, { lines: 2 }),
-        words('occasion', 0.5, 0.52, 0.84, 40, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
-        words('when', 0.5, 0.66, 0.84, 22, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
-        words('venue', 0.5, 0.74, 0.84, 21, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+        words('host', 0.5, 0.26, 0.8, 21, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
+        words('invite', 0.5, 0.34, 0.8, 21, { font: 'script', color: GOLD, bold: false }, { lines: 1 }),
+        rule('guestline', 0.5, 0.445, 0.64, INK, 1.2),
+        words('guest', 0.5, 0.425, 0.64, 22, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('at', 0.5, 0.49, 0.4, 17, { font: 'elegant', color: INK, bold: false, italic: true }),
+        words('occasion', 0.5, 0.56, 0.84, 36, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('when', 0.5, 0.675, 0.84, 21, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+        words('venue', 0.5, 0.75, 0.84, 20, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
         words('dress', 0.5, 0.81, 0.84, 20, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
         words('rsvp', 0.5, 0.89, 0.84, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
       ],
@@ -477,9 +487,12 @@
         border('border', 0.04, GOLD, 2.5),
         border('border2', 0.06, GOLD, 1),
         logo(0.17, 0.5, 0.13),
-        words('host', 0.62, 0.17, 0.6, 19, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
-        words('invite', 0.62, 0.3, 0.6, 21, { font: 'script', color: GOLD, bold: false }, { lines: 1 }),
-        words('occasion', 0.62, 0.45, 0.62, 34, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('host', 0.62, 0.14, 0.6, 17, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
+        words('invite', 0.62, 0.245, 0.6, 18, { font: 'script', color: GOLD, bold: false }, { lines: 1 }),
+        rule('guestline', 0.62, 0.375, 0.5, INK, 1.2),
+        words('guest', 0.62, 0.35, 0.5, 20, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('at', 0.62, 0.425, 0.4, 15, { font: 'elegant', color: INK, bold: false, italic: true }),
+        words('occasion', 0.62, 0.5, 0.62, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
         words('when', 0.62, 0.62, 0.62, 19, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
         words('venue', 0.62, 0.71, 0.62, 18, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
         words('dress', 0.62, 0.8, 0.62, 17, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
@@ -576,7 +589,8 @@
   function designsFor(sizeKey, kind) {
     if (kind === 'poster') return Object.values(DESIGNS).filter((design) => design.poster);
     const pocket = core.sizeOf(sizeKey).group === 'pocket';
-    return Object.values(DESIGNS).filter((design) => !design.poster && Boolean(design.pocket) === pocket);
+    // A design may not suit some sizes (a full pocket invitation on a visiting card is too small to read).
+    return Object.values(DESIGNS).filter((design) => !design.poster && Boolean(design.pocket) === pocket && !(design.notFor || []).includes(sizeKey));
   }
 
   /** Whether a design follows the unit's colours: a part's colour is one of 'band1' to 'band3'. */

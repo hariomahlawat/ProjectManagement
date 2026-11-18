@@ -177,7 +177,9 @@
           model: shot.model,
           size: shot.size,
           photoCount: shot.photos.length,
-          thumbnail: shot.thumbnail || ''
+          thumbnail: shot.thumbnail || '',
+          // What it is ('card' or 'poster'), for the drafts list; a collage has none.
+          ...(shot.kind ? { kind: shot.kind } : {})
         };
         if (forDraft === current) status('Saving draft…');
         writing = true;

@@ -14,20 +14,20 @@
 
   /** The Card details form: each field's label, and whether it takes more than one line. */
   const FORM = Object.freeze([
+    // The Bilingual design's Hindi wording (PR 6) sits right under its English.
     ['host', 'Host', true],
+    ['hostHi', 'Host in Hindi', true],
     ['invite', 'Invitation line'],
+    ['inviteHi', 'Invitation line in Hindi'],
     ['guest', 'Guest’s name (leave empty for a line to write it on)'],
     ['at', 'Before the occasion'],
     ['occasion', 'Occasion'],
+    ['occasionHi', 'Occasion in Hindi'],
     ['when', 'Date and time'],
     ['venue', 'Venue'],
     ['dress', 'Dress'],
     ['rsvp', 'R.S.V.P.'],
     ['note', 'Note at the bottom'],
-    // The Bilingual design's Hindi wording (PR 6).
-    ['occasionHi', 'Occasion in Hindi'],
-    ['hostHi', 'Host in Hindi', true],
-    ['inviteHi', 'Invitation line in Hindi'],
     // The back of the card (PR 8).
     ['programmeTitle', 'Back: title'],
     ['programme', 'Back: programme, one line each', true],
@@ -115,6 +115,9 @@
         startSize.value = DEFAULT_CARD_SIZE;
       }
       const size = core.isSize(startSize.value) ? startSize.value : DEFAULT_CARD_SIZE;
+      // Where the pocket designs are, said while a full-size card is chosen.
+      const pocketHint = ui.$('[data-card-pocket-hint]');
+      if (pocketHint) pocketHint.hidden = core.sizeOf(size).group === 'pocket';
       const round = ++thumbs;
       if (posterGrid && posterSize) renderPosters(round);
       startGrid.textContent = '';
@@ -123,7 +126,9 @@
         button.type = 'button';
         button.className = 'clg-design-card';
         button.dataset.startDesign = design.key;
-        button.setAttribute('aria-label', `${/\bcard\b/i.test(design.label) || /\bpass\b/i.test(design.label) ? design.label : `${design.label} card`}, ${core.sizeOf(size).label}`);
+        const named = /\bcard\b/i.test(design.label) || /\bpass\b/i.test(design.label) ? design.label : `${design.label} card`;
+        // The size is said too, unless it is the design's own name (the car pass on a car pass size).
+        button.setAttribute('aria-label', core.sizeOf(size).label === design.label ? named : `${named}, ${core.sizeOf(size).label}`);
         const ratio = core.pageHeight(size) / core.PAGE_WIDTH;
         const width = ratio >= 1 ? Math.round(150 / ratio) : 150;
         const height = Math.round(width * ratio);
@@ -163,6 +168,13 @@
       try {
         renderer = renderer || window.PrismCollageRender.createRenderer({ core, draw, measureText: surface.measureText, fontsReady: surface.fontsReady, stickerImage: surface.stickerImage });
         const collage = designs.applyDesign(core.newCollage(size), key, details, { measure: surface.measureText, newId: (() => { let n = 0; return () => `t${++n}`; })() });
+        // The design's own fonts first (a script heading, Bebas on a poster), so the picture is
+        // drawn in them, not in the fallback.
+        if (document.fonts) {
+          const fonts = new Set(collage.items.filter((item) => item.kind === 'text').map((item) => core.fontOf(item, 40)));
+          await Promise.all([...fonts].map((font) => document.fonts.load(font, 'Aअ').catch(() => null)));
+          if (round !== thumbs) return;
+        }
         const drawn = await renderer.drawCollage(collage, new Map(), canvas.width, canvas.height);
         if (round !== thumbs) { renderer.release(drawn.canvas); return; }
         const context = canvas.getContext('2d');
@@ -413,7 +425,7 @@
       }).join('');
       // A poster asks which logo first, above everything, until it is answered (PR 11).
       form.innerHTML = posterQuestion() + `<div class="clg-section clg-card-words"><p class="clg-section__title">Words</p>${fields}</div>`
-        + logo + (poster && !state.collage.back ? '' : sidesSection()) + colours + (poster ? '' : guestSection());
+        + logo + (poster && !state.collage.back ? '' : sidesSection()) + colours + (poster || !shown.has('guest') ? '' : guestSection());
       renderStrip();
     }
 
@@ -799,7 +811,9 @@
       const left = guestsOver ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${guestsOver} name${guestsOver === 1 ? ' was' : 's were'} left out.` : '';
       const column = guestsFirstColumn ? ' Only the first column was used; give the list a heading row (Rank, Name) to join columns.'
         : guestsExtraCells ? ' Some rows have a comma inside a name without quotes ("Col X, VSM"): put such names in quotes so all of it is used.' : '';
-      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it.${left}${column} The names stay in this browser.`;
+      // The first names as they will print, so a wrong column shows before Save.
+      const first = (state.collage.card?.guests || []).slice(0, 3).map((name) => `“${name}”`).join(', ');
+      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. First on the cards: ${first}${count > 3 ? ', …' : ''}.${left}${column} The names stay in this browser.`;
     }
 
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
@@ -965,6 +979,8 @@
       const field = event.target.dataset.cardField;
       if (field) typedIn = event.target;
       if (field) setField(field, event.target.value);
+      // A quick pick shows pressed only while its words are the field's.
+      if (field) for (const chip of form.querySelectorAll(`[data-card-pick="${field}"]`)) chip.setAttribute('aria-pressed', String(chip.dataset.value === event.target.value));
       if (event.target.dataset.cardColour) setColour(Number(event.target.dataset.cardColour), event.target.value);
       if (event.target.matches('[data-card-guests]')) setGuests(event.target.value, { held: true });
     });

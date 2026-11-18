@@ -200,3 +200,8 @@ test('guest list: appointments left out, spouses joined, pasted headings read, s
   assert.equal(stray.extraCells, true);
   assert.equal(print.readGuests(['Name,Unit', '"Col X, VSM",5 Sikh'].join(nl), { csv: true }).extraCells, false);
 });
+
+test('an Honours column follows the name after a comma', () => {
+  const nl = String.fromCharCode(10);
+  assert.deepEqual(print.guestNames(['Rank,Name,Honours', 'Lt Gen,Arvind Kumar,"PVSM, AVSM"', 'Col,D Nair,'].join(nl), { csv: true }), ['Lt Gen Arvind Kumar, PVSM, AVSM', 'Col D Nair']);
+});

@@ -541,3 +541,24 @@ test('Ctrl+Z in the guest list box undoes the list', async ({ page }) => {
   await expect(box).toHaveValue('Maj A\nCapt B');
   expect(errors).toEqual([]);
 });
+
+test('a car pass offers no guest list; a reopened card opens on Card details and is listed as a card', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('passl');
+  await expect(page.locator('[data-card-pocket-hint]')).toBeHidden();
+  await page.locator('[data-start-design="pass"]').click();
+  await expect(page.locator('[data-card-guests]')).toHaveCount(0);
+  await openFresh(page);
+  await expect(page.locator('[data-card-pocket-hint]')).toBeVisible();
+  await page.locator('[data-start-design="classic"]').click();
+  await touch(page);
+  await page.locator('.clg-editor [data-action="home"], [data-view="editor"] [data-action="home"]').first().click();
+  await page.locator('[data-view="start"]').waitFor();
+  const draft = page.locator('[data-drafts] > *').first();
+  await expect(draft).toContainText('Card');
+  await expect(draft).not.toContainText('0 photos');
+  await draft.locator('button, [role="button"]').first().click();
+  await page.locator('[data-view="editor"]').waitFor();
+  await expect(page.locator('[data-drawer-panel="card"]')).toBeVisible();
+  expect(errors).toEqual([]);
+});

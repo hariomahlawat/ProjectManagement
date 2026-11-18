@@ -190,7 +190,9 @@
       const guestPlace = Boolean(designs?.fieldsOf(getCollage().card?.design, getCollage().size).includes('guest'));
       const guestCount = guestPlace ? (getCollage().card?.guests?.length || 0) : 0;
       if (guestsBox) {
-        guestsBox.hidden = !(guestCount && chosen('format') === 'pdf');
+        // Only a design with a place for the guest's name makes a card for each guest.
+        const hasGuestField = Boolean(designs?.fieldsOnCard(getCollage()).includes('guest'));
+        guestsBox.hidden = !(guestCount && hasGuestField && chosen('format') === 'pdf');
         const label = guestsBox.querySelector('[data-guest-label]');
         if (label) label.textContent = `One card for each guest (${guestCount})`;
       }
@@ -398,7 +400,9 @@
         if (images[i]) sheet.drawImage(images[i], { ...place, rotate: window.PDFLib.degrees(place.rotate) });
       });
       const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
-      for (const [x1, y1, x2, y2] of print.cutMarks(layout)) {
+      // Marks only round the cards the sheet has (the last sheet of guests may not be full).
+      const filled = { ...layout, cards: layout.cards.filter((_, i) => images[i]) };
+      for (const [x1, y1, x2, y2] of print.cutMarks(filled)) {
         sheet.drawLine({ start: { x: x1 * pt, y: (sh - y1) * pt }, end: { x: x2 * pt, y: (sh - y2) * pt }, thickness: 0.4, color: grey });
       }
     }

@@ -146,24 +146,24 @@ test('a field deleted on the page stays empty when the design changes; a duplica
   assert.equal(copy.field, undefined);
   assert.equal(copy.role, undefined);
   assert.equal(copy.text, note.text);
-  assert.deepEqual(designs.fieldsOf('classic', 'a5l').includes('at'), false);
-  assert.deepEqual(designs.fieldsOf('classic', 'a5p').includes('at'), true);
+  assert.deepEqual(designs.fieldsOf('reply', 'a7l').includes('replyCount'), false);
+  assert.deepEqual(designs.fieldsOf('reply', 'a7p').includes('replyCount'), true);
 });
 
 test('a field the design never placed keeps its words when the page is turned', () => {
-  // Classic landscape has no place for "at the"; turned to portrait without a new design, the
-  // words are still the card's, not taken as deleted.
-  const wide = designs.applyDesign(core.newCollage('a5l'), 'classic', { at: 'at the' }, { measure, newId });
-  assert.ok(!wide.items.some((item) => item.field === 'at'));
-  assert.ok(!wide.card.placed.includes('at'));
-  const turned = core.changeSize(wide, 'a5p');
-  assert.equal(designs.detailsOf(turned).at, 'at the');
-  const portrait = designs.applyDesign(turned, 'classic', designs.detailsOf(turned), { measure, newId });
-  assert.equal(portrait.items.find((item) => item.field === 'at').text, 'at the');
+  // The RSVP card landscape has no place for the number attending; turned to portrait without
+  // a new design, its words are still the card's, not taken as deleted.
+  const wide = designs.applyDesign(core.newCollage('a7l'), 'reply', { replyCount: 'Number attending' }, { measure, newId });
+  assert.ok(!wide.items.some((item) => item.field === 'replyCount'));
+  assert.ok(!wide.card.placed.includes('replyCount'));
+  const turned = core.changeSize(wide, 'a7p');
+  assert.equal(designs.detailsOf(turned).replyCount, 'Number attending');
+  const portrait = designs.applyDesign(turned, 'reply', designs.detailsOf(turned), { measure, newId });
+  assert.equal(portrait.items.find((item) => item.field === 'replyCount').text, 'Number attending');
   // A draft keeps the placed fields.
   const read = core.readDraftModel(JSON.parse(JSON.stringify(portrait)), []);
-  assert.ok(read.card.placed.includes('at'));
-  assert.deepEqual(core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, placed: ['at', '<x>', 7] } }, []).card.placed, ['at']);
+  assert.ok(read.card.placed.includes('replyCount'));
+  assert.deepEqual(core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'ceremonial', details: {}, placed: ['at', '<x>', 7] } }, []).card.placed, ['at']);
 });
 
 test('a draft keeps the Hindi wording and the unit colours of a card', () => {
@@ -314,7 +314,9 @@ test('deleting the back keeps the programme as it was edited, for a new back', (
 
 // Pocket cards (PR 9b).
 test('pocket sizes are offered the pocket designs, and cards the others', () => {
-  assert.deepEqual(designs.designsFor('passl').map((d) => d.key), ['pass', 'reply', 'programmecard', 'pocketinvite']);
+  // A visiting card is too small for a whole pocket invitation; A7 has all four.
+  assert.deepEqual(designs.designsFor('passl').map((d) => d.key), ['pass', 'reply', 'programmecard']);
+  assert.deepEqual(designs.designsFor('a7p').map((d) => d.key), ['pass', 'reply', 'programmecard', 'pocketinvite']);
   assert.ok(designs.designsFor('a5p').every((d) => !d.pocket));
   assert.ok(designs.designsFor('mm:120x180').every((d) => !d.pocket));
   const pass = designs.applyDesign(core.newCollage('passl'), 'pass', {}, { measure, newId });

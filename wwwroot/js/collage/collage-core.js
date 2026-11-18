@@ -1604,10 +1604,12 @@
       .replace(/\s+/g, ' ')
       .trim()
       .replace(/…/g, '')
-      .replace(/^[.\s]+|[.\s]+$/g, '')
-      .slice(0, 80)
-      .trim();
-    return /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(clean) || !clean ? 'Collage' : clean;
+      .replace(/^[.\s]+|[.\s]+$/g, '');
+    // At most 80 letters, cut between words where it can be.
+    const cut = clean.slice(0, 81);
+    const space = cut.lastIndexOf(' ');
+    const short = clean.length <= 80 ? clean : (space > 0 ? cut.slice(0, space) : clean.slice(0, 80)).trim();
+    return /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(short) || !short ? 'Collage' : short;
   }
 
   // ---------------------------------------------------------------------------

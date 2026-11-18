@@ -102,6 +102,12 @@ its npm package by hand; the libman entry records the version.
     list the words in the order the poster reads, ending with the contact line.
   - **Bilingual:** an occasion quick pick fills in the Hindi occasion too; the other Hindi fields
     say they are not translated for the user.
+  - **Guest list** only on a design with a place for the guest's name (not on a car pass, RSVP
+    or programme card); it shows the first three names as they will print. A list's Honours
+    column follows each name after a comma. A visiting-card size does not offer the pocket
+    invitation, which would be too small to read. The start screen says the pocket designs come
+    with a pocket size.
+  - **Drafts** list a card or poster as such, and reopen it on Card details.
   - **Drafts:** a card or poster opened from a design is kept as a draft from its first change,
     so looking through the designs keeps none. Tab after typing in Card details goes to the next
     field: the panel is drawn again only once focus has landed.
@@ -174,9 +180,12 @@ its npm package by hand; the libman entry records the version.
     **Folded cards** (PR 9c): **Folded A6 card** (an A5 sheet) and **Folded A5 card** (an A4
     sheet) are in the size menus' **Folded cards** group. A folded card is always two-sided:
     - its **outside** has the back cover on the left (the note) and the front cover on the right
-      (the logo and the occasion);
-    - its **inside** has the invitation on the left (host, invitation line, guest line) and the
-      details on the right (when, where, dress, R.S.V.P.).
+      (the logo and the host, who sends it);
+    - its **inside** has the invitation on the left (the invitation line and the guest line) and
+      the occasion and details on the right ("at the", the occasion, when, where, dress,
+      R.S.V.P.); a Bilingual card adds its Hindi invitation and occasion.
+
+    Each field is on one side only, so the host is on the cover, not inside again.
 
     Every card design gives it these panels in its own colours. Card details calls the sides
     **Outside** and **Inside**, with no Delete. Inside fields are typed whichever side shows. A

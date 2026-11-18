@@ -1485,3 +1485,12 @@ test('turning a card over and back keeps both sides\' kept parts', () => {
   assert.deepEqual(saved.back.items.map((item) => item.id), ['bh']);
 });
 
+
+test('a long file name is cut between words', () => {
+  const name = 'Simulation in Training: Lessons from the Field and the Classroom for Young Officers and Instructors';
+  const stem = collage.fileStem(name);
+  const flat = name.replace(':', ' ').replace(/  +/g, ' ');
+  assert.ok(stem.length <= 80);
+  assert.ok(flat.startsWith(stem), stem);
+  assert.equal(flat[stem.length], ' ', 'cut at a space');
+});
