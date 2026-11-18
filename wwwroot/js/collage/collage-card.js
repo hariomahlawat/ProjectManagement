@@ -181,14 +181,18 @@
       const details = { ...designs.detailsOf(collage), [field]: text };
       const fresh = !textFor(collage, field) && text.trim() ? designs.fieldItem(collage, field, details, options()) : null;
       let removed = null;
+      let edited = null;
       doc.edit((draft) => {
-        draft.card = { design: draft.card?.design || 'classic', details };
+        // A field filled again is one the design has placed.
+        const placed = [...new Set([...(draft.card?.placed || []), ...(fresh ? [field] : [])])];
+        draft.card = { design: draft.card?.design || 'classic', details, placed };
         const index = draft.items.findIndex((item) => item.kind === 'text' && item.field === field);
         if (index >= 0 && !text.trim()) {
           removed = draft.items[index].id;
           draft.items.splice(index, 1);
         } else if (index >= 0) {
           const target = draft.items[index];
+          edited = target.id;
           const left = target.x - target.width / 2;
           const right = target.x + target.width / 2;
           target.text = text;
@@ -202,6 +206,11 @@
         }
       }, 'none');
       if (removed && state.selectedId === removed) selection.select(null);
+      // The selected item's Words box shows the words just typed here, unless it is being typed in.
+      if (edited && state.selectedId === edited) {
+        const words = ui.props.querySelector('[data-text]');
+        if (words && document.activeElement !== words) words.value = text;
+      }
       surface.syncPage();
       history.holdEdit();
     }

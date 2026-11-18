@@ -144,10 +144,10 @@
    */
   function detailsOf(collage) {
     const details = { ...DEFAULT_DETAILS, ...(collage?.card?.details || {}) };
-    // A field the card's design shows here but has no words for was emptied or deleted on the
-    // page: it stays empty, so the next design does not bring it back.
-    const design = collage?.card?.design;
-    if (DESIGNS[design]) for (const field of fieldsOf(design, collage.size)) details[field] = '';
+    // A field the design placed on the card but which has no words now was emptied or deleted
+    // on the page: it stays empty, so the next design does not bring it back. A field the design
+    // never placed (the page was turned since, say) keeps its words for when it is.
+    for (const field of collage?.card?.placed || []) if (FIELDS.includes(field)) details[field] = '';
     for (const item of collage?.items || []) {
       if (item.kind === 'text' && FIELDS.includes(item.field)) details[item.field] = item.text;
     }
@@ -218,7 +218,12 @@
       background: { ...design.background },
       layout: null,
       items: [...made, ...own],
-      card: { design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
+      card: {
+        design: designKey,
+        details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])),
+        // The fields this design put on the card, so a missing one is known to be deleted.
+        placed: [...new Set(made.filter((item) => item.field).map((item) => item.field))]
+      }
     };
   }
 

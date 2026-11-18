@@ -124,3 +124,15 @@ test('a quick pick pressed straight after typing words in Settings still fills i
   expect((await newestDraft(page)).model.items.find((item) => item.field === 'venue').text).toBe('Sudarshan Hall');
   expect(errors).toEqual([]);
 });
+
+test('words typed in Card details show in the selected item\'s Words box at once', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]').filter({ hasText: "Officers' Mess" }).click();
+  await page.locator('.clg-props [data-props-tab="settings"]').click();
+  await expect(page.locator('[data-text]')).toHaveValue("Officers' Mess, SDD Campus");
+  await page.locator('[data-card-field="venue"]').fill('Sudarshan Hall');
+  await expect(page.locator('[data-text]')).toHaveValue('Sudarshan Hall');
+  expect(errors).toEqual([]);
+});

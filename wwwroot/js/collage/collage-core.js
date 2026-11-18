@@ -1707,14 +1707,18 @@
    * A card's design and wording (docs/ux/invitations-posters.md, PR 4b), read back from a draft:
    * the design's name and each field's words, as plain short text; anything else is dropped.
    */
+  // A card field's name: letters and digits, as the designs name them ("occasion", "hostHi").
+  const CARD_FIELD = /^[a-z][A-Za-z0-9]{0,30}$/;
   function readCard(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const design = typeof raw.design === 'string' && PART_NAME.test(raw.design) ? raw.design : '';
     const details = {};
     for (const [field, value] of Object.entries(raw.details && typeof raw.details === 'object' ? raw.details : {})) {
-      if (PART_NAME.test(field) && typeof value === 'string' && Object.keys(details).length < 40) details[field] = value.slice(0, TEXT_LIMITS.maxLength);
+      if (CARD_FIELD.test(field) && typeof value === 'string' && Object.keys(details).length < 40) details[field] = value.slice(0, TEXT_LIMITS.maxLength);
     }
-    return design ? { design, details } : null;
+    // The fields the design placed (PR 5): names only, as the designs name them.
+    const placed = Array.isArray(raw.placed) ? [...new Set(raw.placed.filter((field) => typeof field === 'string' && CARD_FIELD.test(field)))].slice(0, 40) : [];
+    return design ? { design, details, placed } : null;
   }
 
   /** How many parts of a collage were made by a newer PRISM and are kept but not shown. */
