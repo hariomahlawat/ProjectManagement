@@ -346,7 +346,7 @@
     // Ctrl+Z in a field is the Studio's Undo (words typed are recorded for it), as on the page;
     // Ctrl+Y or Ctrl+Shift+Z its Redo. The browser's own undo is lost once the panel is redrawn.
     form?.addEventListener('keydown', (event) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || !event.target.matches('[data-card-field]')) return;
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || !event.target.matches('[data-card-field], [data-card-guests]')) return;
       const key = event.key.toLowerCase();
       const which = key === 'z' && !event.shiftKey ? 'undo' : (key === 'y' || (key === 'z' && event.shiftKey)) ? 'redo' : null;
       if (!which) return;
@@ -356,7 +356,12 @@
       // The field shows the words Undo brings back, though it has focus.
       typedIn = null;
       const button = ui.root.querySelector(`[data-action="${which}"]`);
-      if (button && !button.disabled) button.click();
+      undoing = true;
+      try {
+        if (button && !button.disabled) button.click();
+      } finally {
+        undoing = false;
+      }
     });
     form?.addEventListener('focusin', (event) => { lastFocused = event.target; if (event.target.dataset.cardField) typedIn = null; });
     // While a field is typed in, a phone's sheet is shorter, so the card above stays readable.
@@ -375,7 +380,15 @@
         const value = details[input.dataset.cardField] || '';
         if (input.value !== value) input.value = value;
       }
+      // The guest list box follows the list (after Undo too), but never while it is typed in.
+      const guestsBox = form.querySelector('[data-card-guests]');
+      if (guestsBox && (guestsBox !== document.activeElement || undoing)) {
+        const value = (state.collage.card?.guests || []).join(String.fromCharCode(10));
+        if (guestsBox.value !== value) guestsBox.value = value;
+      }
     }
+    // An Undo or Redo pressed in the panel: the box with focus shows what it brings back.
+    let undoing = false;
 
     function renderPanel() {
       const details = designs.detailsOf(state.collage);
@@ -517,21 +530,7 @@
      * or none when the front has none. Done inside the change it follows, so one Undo covers both.
      */
     function followLogoOnBack() {
-      doc.edit((draft) => {
-        if (!draft.back) return;
-        const front = draft.items.find((item) => item.role === 'logo' && item.kind !== 'slot');
-        const at = draft.back.items.findIndex((item) => item.role === 'backlogo');
-        if (!front) {
-          if (at >= 0) draft.back.items.splice(at, 1);
-          return;
-        }
-        // The back's place for it: where it is now, or where the design puts it.
-        const place = at >= 0 ? draft.back.items[at] : designs.backPage(draft, draft.card?.design, designs.detailsOf(draft), options()).items.find((item) => item.role === 'backlogo');
-        if (!place) return;
-        const small = { ...front, id: at >= 0 ? place.id : doc.newItemId(), x: place.x, y: place.y, width: place.width, angle: 0, role: 'backlogo' };
-        if (at >= 0) draft.back.items.splice(at, 1, small);
-        else draft.back.items.push(small);
-      }, 'none');
+      doc.edit((draft) => designs.followLogo(draft, options(), { add: true }), 'none');
     }
 
     function useLogoSticker(id) {
@@ -792,19 +791,22 @@
     // so the panel says so when redrawn.
     let guestsOver = 0;
     let guestsFirstColumn = false;
+    let guestsExtraCells = false;
 
     /** The line under the guest list: how many guests, and how many names were left out. */
     function guestCountText(count) {
       if (!count) return 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.';
       const left = guestsOver ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${guestsOver} name${guestsOver === 1 ? ' was' : 's were'} left out.` : '';
-      const column = guestsFirstColumn ? ' Only the first column was used; give the list a heading row (Rank, Name) to join columns.' : '';
+      const column = guestsFirstColumn ? ' Only the first column was used; give the list a heading row (Rank, Name) to join columns.'
+        : guestsExtraCells ? ' Some rows have a comma inside a name without quotes ("Col X, VSM"): put such names in quotes so all of it is used.' : '';
       return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it.${left}${column} The names stay in this browser.`;
     }
 
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
     function setGuests(text, { csv = false, held = false } = {}) {
-      const { names: guests, over, firstColumnOnly } = print.readGuests(text, { csv });
+      const { names: guests, over, firstColumnOnly, extraCells } = print.readGuests(text, { csv });
       guestsFirstColumn = firstColumnOnly;
+      guestsExtraCells = extraCells;
       doc.edit((draft) => {
         const card = { ...(draft.card || { design: 'classic', details: {} }) };
         if (guests.length) card.guests = guests;
@@ -861,7 +863,8 @@
         // Both sides follow the unit's colours: the back's title and rules use them too.
         for (const item of [...draft.items, ...(draft.back?.items || [])]) {
           for (const [prop, which] of Object.entries(item.tint || {})) {
-            if (which === index && ['fill', 'stroke', 'color'].includes(prop)) item[prop] = value.toLowerCase();
+            // A locked part stays exactly as it is.
+            if (which === index && !item.locked && ['fill', 'stroke', 'color'].includes(prop)) item[prop] = value.toLowerCase();
           }
         }
       }, 'none');

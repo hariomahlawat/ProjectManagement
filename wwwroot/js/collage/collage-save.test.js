@@ -6,7 +6,9 @@ const save = require('./collage-save.js');
 
 test('a PDF of cards on print sheets is summed up in print words', () => {
   assert.equal(save.saveSummary({ format: 'pdf', quality: 'print', pixels: { width: 1240, height: 1748 }, paper: 'A6 card', sheet: { count: 2, label: 'A4' } }),
-    'A PDF at print quality: 2 A6 cards to each A4 sheet, at their true size.');
+    'A PDF at print quality: 2 × A6 card to each A4 sheet, at true size.');
+  assert.equal(save.saveSummary({ format: 'pdf', quality: 'print', pixels: { width: 1, height: 1 }, paper: 'Entry card or car pass', sheet: { count: 10, label: 'A4' } }),
+    'A PDF at print quality: 10 × Entry card or car pass to each A4 sheet, at true size.');
 });
 
 test('each purpose sets a type and quality, and a hand-made choice matches no purpose', () => {
@@ -107,4 +109,10 @@ test('a guest\'s name keeps its field\'s edge: left, right or the middle', () =>
   const two = save.nameInField(one, 'A long name', { width: 380, height: 100 });
   assert.equal(two.y + 100 / 2, 1025, 'the bottom stays on the line');
   assert.equal(save.nameInField(one, 'Maj A', { width: 200, height: 50 }).y, 1000, 'one line stays put');
+});
+
+test('the name of a guest moves with the line drawn to write on', () => {
+  const name = { x: 500, y: 600, text: 'Maj A' };
+  assert.deepEqual(save.onTheLine(name, { x: 500, y: 740 }, { x: 500, y: 620 }), { x: 500, y: 720, text: 'Maj A' });
+  assert.equal(save.onTheLine(name, null, { x: 1, y: 1 }), name);
 });

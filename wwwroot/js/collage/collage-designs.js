@@ -549,6 +549,15 @@
     return made.items.find((item) => item.role === role) || null;
   }
 
+  /** Where the design puts the part with `role` on one side ('front' or 'back') of the card. */
+  function roleItemOn(collage, role, side, opts) {
+    if (side !== 'back') return roleItem(collage, role, opts);
+    const key = collage?.card?.design;
+    if (!DESIGNS[key] || !collage.back) return null;
+    const front = collage.side === 'back' ? core.flipSide(collage) : collage;
+    return backPage(front, key, detailsOf(front), opts).items.find((item) => item.role === role) || null;
+  }
+
   /** The unit's three colours from the details ("#7a1f2b #c9a54a #1d2c55"), each checked. */
   function colourList(text) {
     const given = String(text || '').trim().split(/[\s,]+/);
@@ -1066,6 +1075,38 @@
     return added;
   }
 
+  /**
+   * The back's small logo follows the front's logo (PR 8): the same picture in the back logo's
+   * place, or none when the front has none. Without `add`, a back whose small logo was deleted
+   * keeps none (the user took it off); with it (a logo chosen in Card details), it comes back in
+   * the design's place. Returns the collage itself when nothing changes, so it can run after
+   * every change. Works whichever side shows.
+   */
+  function followLogo(collage, opts, { add = false } = {}) {
+    if (!collage?.back || !collage.card) return collage;
+    const showingBack = collage.side === 'back';
+    const front = showingBack ? core.flipSide(collage) : collage;
+    const logo = front.items.find((item) => item.role === 'logo' && item.kind !== 'slot');
+    const items = front.back.items;
+    const at = items.findIndex((item) => item.role === 'backlogo');
+    let next;
+    if (!logo) {
+      if (at < 0) return collage;
+      next = items.filter((_, i) => i !== at);
+    } else {
+      if (at < 0 && !add) return collage;
+      const place = at >= 0 ? items[at] : backPage(front, front.card.design, detailsOf(front), opts).items.find((item) => item.role === 'backlogo');
+      if (!place) return collage;
+      const old = at >= 0 ? items[at] : null;
+      if (old && old.kind === logo.kind && old.sticker === logo.sticker && old.photo === logo.photo && old.aspect === logo.aspect) return collage;
+      const small = { ...logo, id: old ? old.id : opts.newId(), x: place.x, y: place.y, width: place.width, angle: 0, role: 'backlogo' };
+      if (old?.locked) small.locked = true;
+      next = old ? items.map((item, i) => (i === at ? small : item)) : [...items, small];
+    }
+    const out = { ...front, back: { ...front.back, items: next } };
+    return showingBack ? core.flipSide(out) : out;
+  }
+
   /** The card without its back, showing its front. */
   function deleteBack(collage) {
     if (!collage?.back) return collage;
@@ -1107,5 +1148,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, fitRoundel });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, fitRoundel, followLogo, roleItemOn });
 });

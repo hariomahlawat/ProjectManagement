@@ -745,3 +745,28 @@ test('a card whose front has no logo gets a back with no logo, through a design 
   const changed = designs.applyDesign(noLogo, 'navy', designs.detailsOf(noLogo), { measure, newId });
   assert.equal(changed.back.items.some((item) => item.role === 'backlogo'), false);
 });
+
+// The back's small logo follows the front's however it changes (cold review 4).
+test('the back logo follows the front: replaced, removed, kept off when deleted, back when chosen', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  const backLogo = (c) => (c.side === 'back' ? c.items : c.back.items).find((item) => item.role === 'backlogo');
+  assert.equal(designs.followLogo(card, { measure, newId }), card, 'nothing to change');
+  const replaced = { ...card, items: card.items.map((item) => (item.role === 'logo' ? { ...item, kind: 'photo', photo: 'p1', sticker: undefined, aspect: 2 } : item)) };
+  assert.equal(backLogo(designs.followLogo(replaced, { measure, newId })).photo, 'p1');
+  const removed = { ...card, items: card.items.filter((item) => item.role !== 'logo') };
+  assert.equal(backLogo(designs.followLogo(removed, { measure, newId })), undefined);
+  // Turned over, the same.
+  assert.equal(backLogo(designs.followLogo(core.flipSide(removed), { measure, newId })), undefined);
+  // A back logo the user deleted stays off, unless a logo is chosen in Card details.
+  const deleted = { ...card, back: { ...card.back, items: card.back.items.filter((item) => item.role !== 'backlogo') } };
+  assert.equal(designs.followLogo(deleted, { measure, newId }), deleted);
+  assert.ok(backLogo(designs.followLogo(deleted, { measure, newId }, { add: true })));
+});
+
+test('roleItemOn finds where the design puts a part on either side', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  assert.ok(designs.roleItemOn(card, 'guestline', 'front', { measure, newId }));
+  assert.ok(designs.roleItemOn(card, 'backlogo', 'back', { measure, newId }));
+  const folded = designs.applyDesign(core.newCollage('fold6'), 'classic', {}, { measure, newId });
+  assert.ok(designs.roleItemOn(folded, 'guestline', 'back', { measure, newId }), 'a folded card\'s line is inside');
+});

@@ -158,10 +158,13 @@
   // Headings in a guest list's first row: the columns that make up a guest's name, in order.
   // A rank column joins the name; a column whose heading names a person ("Name", "Rank & Name",
   // "Name of Guest", "Surname"), not a unit or a place, is a name column.
-  const RANK_HEADING = /^\s*(rank|title|appointment)\s*$/i;
+  // An appointment ("Cdr 50 Bde") is not part of a name on the card; a spouse's column joins the
+  // name with "and" ("Brig P. Singh and Mrs Singh").
+  const RANK_HEADING = /^\s*(rank|title)\s*$/i;
   const NAME_WORDS = /\bnames?\b|\bsurname\b|^\s*guests?\s*$|^\s*initials?\s*$/i;
-  const NOT_A_PERSON = /\b(unit|regiment|formation|organi[sz]ation|station|place|venue|file|company|establishment)\b/i;
-  const NAME_HEADING = { test: (cell) => NAME_WORDS.test(cell) && !NOT_A_PERSON.test(cell) };
+  const NOT_A_PERSON = /\b(unit|regiment|formation|organi[sz]ation|station|place|venue|file|company|establishment|appointment)\b/i;
+  const SPOUSE_HEADING = /\b(spouse|wife|husband|partner)\b/i;
+  const NAME_HEADING = { test: (cell) => NAME_WORDS.test(cell) && !NOT_A_PERSON.test(cell) && !SPOUSE_HEADING.test(cell) };
 
   /**
    * The guest list read from text, one name a line, with how many names did not fit (past
@@ -177,30 +180,42 @@
     // Columns pasted from a spreadsheet come with tabs between them; a CSV saved with semicolons
     // (as some spreadsheets do) has them when its first row has no comma.
     const pasted = !csv && heading && source.includes('\t');
-    const separator = pasted ? '\t' : csv && head.includes(';') && !head.includes(',') ? ';' : ',';
-    const rows = (csv || pasted ? csvRows(source, separator) : source.split(/\r?\n/).map((line) => [line]))
+    // Pasted text whose first line heads columns with commas ("Name, Unit") is read as a CSV.
+    const headedText = !csv && !pasted && heading && head.includes(',') && head.split(',').some((cell) => NAME_HEADING.test(cell));
+    const asCsv = csv || headedText;
+    const separator = pasted ? '\t' : asCsv && head.includes(';') && !head.includes(',') ? ';' : ',';
+    const rows = (asCsv || pasted ? csvRows(source, separator) : source.split(/\r?\n/).map((line) => [line]))
       .filter((cells) => cells.some((cell) => cell.trim()));
     let columns = [0];
+    let spouse = -1;
     let headed = false;
+    let width = 1;
     if (heading && rows.length) {
       const named = rows[0].map((cell, i) => (NAME_HEADING.test(cell) || RANK_HEADING.test(cell) ? i : -1)).filter((i) => i >= 0);
       if (named.some((i) => NAME_HEADING.test(rows[0][i]))) {
         columns = named;
+        spouse = rows[0].findIndex((cell) => SPOUSE_HEADING.test(cell));
+        width = rows[0].length;
         headed = true;
         rows.shift();
       }
     }
     // With no headings, only the first column is a name; the list says when others were there.
     const firstColumnOnly = !headed && rows.some((cells) => cells.slice(1).some((cell) => cell.trim()));
+    // A row with more cells than headings had a comma inside a name without quotes ("Col X, VSM"):
+    // the list says so, as the part after the comma is not read as the name.
+    const extraCells = headed && rows.some((cells) => cells.length > width);
     const names = [];
     let over = 0;
     for (const cells of rows) {
-      const name = columns.map((i) => cells[i] ?? '').join(' ').replace(/\s+/g, ' ').trim().slice(0, core.GUEST_LIMITS.length);
+      const main = columns.map((i) => cells[i] ?? '').join(' ').replace(/\s+/g, ' ').trim();
+      const partner = spouse >= 0 ? String(cells[spouse] ?? '').replace(/\s+/g, ' ').trim() : '';
+      const name = (main && partner ? `${main} and ${partner}` : main).slice(0, core.GUEST_LIMITS.length);
       if (!name) continue;
       if (names.length >= core.GUEST_LIMITS.names) { over += 1; continue; }
       names.push(name);
     }
-    return { names, over, firstColumnOnly };
+    return { names, over, firstColumnOnly, extraCells };
   }
 
   return Object.freeze({ SHEETS, SHEET_SPACE, sheetLayout, sheetPlacements, PT_PER_MM, cutMarks, csvRows, readGuests, guestNames });

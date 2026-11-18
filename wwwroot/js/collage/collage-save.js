@@ -35,7 +35,8 @@
     const size = `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels`;
     const how = quality === 'print' ? 'print quality' : 'screen size';
     // Cards on a print sheet: how many to which sheet, in print words.
-    if (format === 'pdf' && sheet) return `A PDF at ${how}: ${sheet.count} ${paper || 'card'}${sheet.count === 1 ? '' : 's'} to each ${sheet.label} sheet, at their true size.`;
+    // "4 × RSVP card 3.5 × 5 in": a size's name is never made plural.
+    if (format === 'pdf' && sheet) return `A PDF at ${how}: ${sheet.count === 1 ? 'one' : sheet.count} × ${paper || 'card'} to each ${sheet.label} sheet, at true size.`;
     if (format === 'pdf') return `A PDF at ${how}: ${paper ? `${paper} at its true size, ` : ''}${size}.`;
     const kind = format === 'jpeg' ? 'JPG' : 'PNG';
     return `A ${kind} picture at ${how}: ${size}${format === 'jpeg' && target ? `, kept under ${target}` : ''}.`;
@@ -97,6 +98,15 @@
       }
     }
     return sheets;
+  }
+
+  /**
+   * A guest's name placed by its design moved as far as the line drawn to write on was moved
+   * (`line` where it is now, `designLine` where the design puts it); as it is without both.
+   */
+  function onTheLine(item, line, designLine) {
+    if (!line || !designLine) return item;
+    return { ...item, x: item.x + line.x - designLine.x, y: item.y + line.y - designLine.y };
   }
 
   /**
@@ -229,7 +239,8 @@
       // Both sides of a card are counted. The roundel a design hides while there is no logo is
       // the design's, not something the user hid.
       const sides = [...getCollage().items, ...(getCollage().back?.items || [])];
-      const empty = sides.filter((item) => item.kind === 'slot').length;
+      // A poster's empty logo place is not a photo frame: its own question says it is left out.
+      const empty = sides.filter((item) => item.kind === 'slot' && item.role !== 'logo').length;
       const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && item.role !== 'roundel').length;
       const emptyLine = $('[data-save-empty]');
       emptyLine.textContent = leftOutLine(empty, hidden);
@@ -365,8 +376,14 @@
       }
       // A design that leaves a line to write on: the name in the place its design has for it.
       let n = 0;
-      const made = designs?.fieldItem(getCollage(), 'guest', { ...designs.detailsOf(getCollage()), guest: name }, { measure: measureText, newId: () => `guest${++n}` });
-      return made ? { ...page, items: [...page.items, made] } : page;
+      const opts = { measure: measureText, newId: () => `guest${++n}` };
+      const made = designs?.fieldItem(getCollage(), 'guest', { ...designs.detailsOf(getCollage()), guest: name }, opts);
+      if (!made) return page;
+      // On the line drawn to write on, wherever the user moved it: the name moves with it.
+      const line = page.items.find((item) => item.role === 'guestline');
+      const designLine = line && designs.roleItemOn(getCollage(), 'guestline', designs.sideOf(getCollage(), 'guest') || 'front', opts);
+      const placed = onTheLine(made, line, designLine);
+      return { ...page, items: [...page.items, placed] };
     }
 
     /**
@@ -528,7 +545,8 @@
             files.push({ bytes, type: 'image/jpeg', name: `${stem}${suffix}.jpg` });
           } else {
             const image = await pdf.embedJpg(await renderer.toBytes(canvas, 'image/jpeg', 0.92));
-            const sheetKey = sheetBoxChoice();
+            // The sheet chosen when Save was pressed, for every page of this PDF.
+            const sheetKey = pdfSheet;
             const layout = sheetKey ? print.sheetLayout(getCollage().size, sheetKey, { back: names[index] === 'back' }) : null;
             if (layout?.count) {
               // As many as fit, with cut marks in the gaps.
@@ -577,5 +595,5 @@
     });
   }
 
-  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField });
+  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField, onTheLine });
 });

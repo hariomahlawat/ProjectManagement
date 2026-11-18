@@ -709,6 +709,12 @@
   /** A finished change: one Undo step, kept in the draft, and the page and panels redrawn. */
   function commit() {
     changeMadeAfterAlert();
+    // A card's back shows the front's logo, however the front's logo was changed (deleted or
+    // replaced on the page too): kept in the same Undo step.
+    if (collage.card && collage.back) {
+      const followed = window.PrismCollageDesigns.followLogo(collage, { measure: measureText, newId: newItemId });
+      if (followed !== collage) edit(() => followed, 'none');
+    }
     changes.commit();
   }
 

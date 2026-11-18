@@ -505,3 +505,39 @@ test('Ctrl+Z in a Card details field undoes the words typed, and Ctrl+Y brings t
   await expect(venue).toHaveValue('Cariappa Hall');
   expect(errors).toEqual([]);
 });
+
+test('deleting the front logo on the page takes the back\'s small logo away too', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.locator('[data-card-side="front"]').click();
+  await touch(page);
+  const draft = async () => (await newestDraft(page)).model;
+  const logoId = (await draft()).items.find((item) => item.role === 'logo').id;
+  expect((await draft()).back.items.some((item) => item.role === 'backlogo')).toBe(true);
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator(`[data-layer-select="${logoId}"]`).click();
+  await page.keyboard.press('Delete');
+  await expect.poll(async () => (await draft()).items.some((item) => item.role === 'logo')).toBe(false);
+  expect((await draft()).back.items.some((item) => item.role === 'backlogo')).toBe(false);
+  // One Undo brings both back.
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await draft()).back.items.some((item) => item.role === 'backlogo')).toBe(true);
+  expect((await draft()).items.some((item) => item.role === 'logo')).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('Ctrl+Z in the guest list box undoes the list', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const box = page.locator('[data-card-guests]');
+  await box.fill('Maj A\nCapt B');
+  await box.blur();
+  await expect(page.locator('[data-card-guest-count]')).toContainText('2 guests');
+  await box.click();
+  await box.fill('Maj A\nCapt B\nLt C');
+  await page.waitForTimeout(700);
+  await page.keyboard.press('Control+z');
+  await expect(box).toHaveValue('Maj A\nCapt B');
+  expect(errors).toEqual([]);
+});
