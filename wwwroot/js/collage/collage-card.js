@@ -135,7 +135,24 @@
       // Drawn again unless a field in it is being typed in; a focused button keeps its focus.
       const typing = form.contains(document.activeElement) && document.activeElement.matches('input:not([type="color"]), textarea');
       if (state.panel === 'card' && !typing) messages.keepingFocus(() => renderPanel());
-      else renderStrip();
+      else {
+        if (state.panel === 'card') syncInputs();
+        renderStrip();
+      }
+    }
+
+    // The field typed in since it was focused: its words are the user's, never put back.
+    let typedIn = null;
+    form?.addEventListener('focusin', (event) => { if (event.target.dataset.cardField) typedIn = null; });
+
+    /** Every field shows the card's words, in place, except one being typed in. */
+    function syncInputs() {
+      const details = designs.detailsOf(state.collage);
+      for (const input of form.querySelectorAll('[data-card-field]')) {
+        if (input === document.activeElement && typedIn === input) continue;
+        const value = details[input.dataset.cardField] || '';
+        if (input.value !== value) input.value = value;
+      }
     }
 
     function renderPanel() {
@@ -239,6 +256,7 @@
 
     form?.addEventListener('input', (event) => {
       const field = event.target.dataset.cardField;
+      if (field) typedIn = event.target;
       if (field) setField(field, event.target.value);
     });
     form?.addEventListener('change', (event) => {
