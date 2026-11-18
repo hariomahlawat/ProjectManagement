@@ -34,6 +34,26 @@
     header.append(this.soundToggle);
     this.renderSoundToggle();
 
+    // Do not disturb: a choice of how long, or off.
+    this.dndToggle = iconButton('bell', 'Do not disturb');
+    this.dndToggle.setAttribute('aria-expanded', 'false');
+    this.dndMenu = el('div', 'pm-chat__dnd');
+    this.dndMenu.hidden = true;
+    this.dndMenu.id = 'pm-chat-dnd-menu';
+    this.dndMenu.setAttribute('role', 'group');
+    this.dndMenu.setAttribute('aria-label', 'Do not disturb');
+    this.dndToggle.setAttribute('aria-controls', this.dndMenu.id);
+    this.dndToggle.addEventListener('click', () => this.toggleDndMenu());
+    this.dndMenu.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation(); // not also the contact list's Esc
+      this.toggleDndMenu(false);
+      this.dndToggle.focus();
+    });
+    this.dndNote = el('p', 'pm-chat__dnd-note');
+    this.dndNote.hidden = true;
+    header.append(this.dndToggle);
+
     if (this.messagesUrl) {
       const all = el('a', 'pm-chat__icon-btn');
       all.href = this.messagesUrl;
@@ -105,7 +125,8 @@
 
     this.offlineNote = el('p', 'pm-chat__offline');
     this.offlineNote.hidden = true;
-    buddy.append(header, this.offlineNote, statusWrap, searchWrap, this.groupForm, scroller);
+    buddy.append(header, this.dndMenu, this.dndNote, this.offlineNote, statusWrap, searchWrap, this.groupForm, scroller);
+    this.renderDnd();
     search.setAttribute('aria-keyshortcuts', 'Alt+C');
     search.title = 'Search people (Alt+C from anywhere in PRISM)';
     // From the search: Enter opens the first match, ↓ moves into the list.
@@ -239,6 +260,81 @@
     if (this.statusInput && document.activeElement !== this.statusInput) {
       this.statusInput.value = this.myStatus || '';
     }
+  };
+
+  /** Sets (or, with '', clears) the person's status message from code (do not disturb). */
+  ChatApp.prototype.setStatusText = async function (text) {
+    try {
+      const status = await this.request('POST', '/status', { message: text });
+      this.myStatus = (status && status.message) || null;
+    } catch (_) {
+      return; // the status stays as it was; do not disturb works without it
+    }
+    this.renderMyStatus();
+  };
+
+  /** The choices: for an hour, until 17:00 (earlier in the day), until tomorrow 09:00; or off. */
+  ChatApp.prototype.toggleDndMenu = function (force) {
+    const open = typeof force === 'boolean' ? force : this.dndMenu.hidden;
+    this.dndMenu.hidden = !open;
+    this.dndToggle.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    const now = new Date();
+    const at = (days, hours) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() + days);
+      d.setHours(hours, 0, 0, 0);
+      return d;
+    };
+    const choices = [{ key: 'hour', label: 'For 1 hour', until: new Date(now.getTime() + 3600000) }];
+    if (now.getHours() < 16) choices.push({ key: 'evening', label: 'Until 17:00', until: at(0, 17) });
+    choices.push({ key: 'tomorrow', label: 'Until tomorrow, 09:00', until: at(1, 9) });
+    const buttons = choices.map((choice) => {
+      const button = el('button', 'btn btn-sm btn-outline-secondary', choice.label);
+      button.type = 'button';
+      button.dataset.dnd = choice.key;
+      button.addEventListener('click', () => {
+        this.toggleDndMenu(false);
+        this.setDnd(choice.until);
+        this.dndToggle.focus();
+      });
+      return button;
+    });
+    if (this.isQuiet()) {
+      const off = el('button', 'btn btn-sm btn-outline-primary', 'Turn off');
+      off.type = 'button';
+      off.dataset.dnd = 'off';
+      off.addEventListener('click', () => {
+        this.toggleDndMenu(false);
+        this.setDnd(null);
+        this.dndToggle.focus();
+      });
+      buttons.unshift(off);
+    }
+    const intro = el('p', 'pm-chat__dnd-intro', 'Quiet chat: no sound, pop-ups or tab flashing. Messages still arrive and count as unread.');
+    this.dndMenu.replaceChildren(intro, ...buttons);
+    buttons[0].focus();
+  };
+
+  /** The bell, the "Do not disturb until …" line and the chat button show the state. */
+  ChatApp.prototype.renderDnd = function () {
+    if (!this.dndToggle) return;
+    const quiet = this.isQuiet();
+    this.dndToggle.replaceChildren(icon(quiet ? 'bell-slash' : 'bell'));
+    this.dndToggle.classList.toggle('is-on', quiet);
+    const label = quiet ? 'Do not disturb is on: change or turn off' : 'Do not disturb';
+    this.dndToggle.setAttribute('aria-label', label);
+    this.dndToggle.title = label;
+    this.dndNote.hidden = !quiet;
+    if (quiet) {
+      const until = new Date(this.dnd.until);
+      const sameDay = until.toDateString() === new Date().toDateString();
+      const when = new Intl.DateTimeFormat('en-IN', sameDay
+        ? { hour: '2-digit', minute: '2-digit', hour12: false }
+        : { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(until);
+      this.dndNote.replaceChildren(icon('bell-slash'), document.createTextNode(` Do not disturb until ${when}`));
+    }
+    this.renderLauncherBadge();
   };
 
   ChatApp.prototype.saveMyStatus = async function () {
@@ -554,7 +650,11 @@
       const count = badge.querySelector('[data-chat-unread-count]');
       if (count) count.textContent = countLabel(total);
     });
-    this.launchers.forEach((b) => b.setAttribute('aria-label', total ? `Open chat, ${total} unread` : 'Open chat'));
+    const quiet = this.isQuiet() ? ', do not disturb is on' : '';
+    this.launchers.forEach((b) => {
+      b.setAttribute('aria-label', `${total ? `Open chat, ${total} unread` : 'Open chat'}${quiet}`);
+      b.classList.toggle('is-quiet', !!quiet);
+    });
     return total;
   };
 })(window);

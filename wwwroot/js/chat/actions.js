@@ -25,6 +25,7 @@
   ];
   const QUOTE_LENGTH = 90;
   const MENTION_LIMIT = 6; // suggestions shown at once
+  const RECORD_DELAY_MS = 250; // typing pause before #record suggestions are asked for
 
   function reactionInfo(kind) {
     return REACTIONS.find((r) => r.kind === kind) || { kind, symbol: kind, label: kind };
@@ -100,8 +101,11 @@
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', `Actions for the message from ${mine ? 'you' : who}`);
     const buttons = [];
+    // text: shown as is (reactions), or "icon:name" for an icon button (its label is its name).
     const add = (text, label, key, handler, pressed) => {
-      const button = el('button', 'pm-chat__action', text);
+      const isIcon = text.startsWith('icon:');
+      const button = el('button', `pm-chat__action${isIcon ? ' is-icon' : ''}`, isIcon ? null : text);
+      if (isIcon) button.append(icon(text.slice('icon:'.length)));
       button.type = 'button';
       button.setAttribute('aria-label', label);
       button.title = label;
@@ -121,22 +125,31 @@
           () => this.toggleReaction(win, message.id, reaction.kind),
           on);
       }
-      add('Reply', `Reply to the message from ${mine ? 'you' : who}`, `reply:${message.id}`, () => this.startReply(win, message.id));
+      add('icon:reply', `Reply to the message from ${mine ? 'you' : who}`, `reply:${message.id}`, () => this.startReply(win, message.id));
     }
     let copy = null;
     if (message.body) {
-      copy = add('Copy', `Copy message from ${mine ? 'you' : who}`, `copy:${message.id}`, async () => {
+      copy = add('icon:copy', `Copy message from ${mine ? 'you' : who}`, `copy:${message.id}`, async () => {
         const ok = await copyText(message.body);
         this.announce(ok ? 'Message copied.' : 'The message could not be copied. Select the text and press Ctrl+C.');
-        copy.textContent = ok ? 'Copied' : 'Copy';
-        if (ok) global.setTimeout(() => { if (copy.isConnected) copy.textContent = 'Copy'; }, 1500);
+        if (!ok) return;
+        copy.replaceChildren(icon('check2'));
+        copy.classList.add('is-done');
+        global.setTimeout(() => {
+          if (!copy.isConnected) return;
+          copy.replaceChildren(icon('copy'));
+          copy.classList.remove('is-done');
+        }, 1500);
       });
+    }
+    if (this.notebookApi && (message.body || (message.attachments || []).length)) {
+      add('icon:alarm', 'Remind me about this message (saved in your Notebook)', `remind:${message.id}`, () => this.openReminder(win, message.id));
     }
     let expiresIn = 0;
     if (mine && canWrite && this.editMs > 0 && message.body) {
       const left = this.editMs - (Date.now() - Date.parse(message.sentUtc));
       if (left > 0) {
-        add('Edit', 'Edit your message', `edit:${message.id}`, () => this.startEdit(win, message.id));
+        add('icon:pencil', 'Edit your message', `edit:${message.id}`, () => this.startEdit(win, message.id));
         expiresIn = left;
       }
     }
@@ -452,18 +465,20 @@
     return a.length === b.length && a.every((id) => b.includes(id));
   }
 
-  // ----- the message box: keys, and @mention suggestions -------------------------------------
+  // ----- the message box: @mention and #record suggestions ----------------------------------
 
-  /** Sets up a window's message box for replies, edits and (in a group) @mentions. */
+  /**
+   * Sets up a window's message box for replies, edits and suggestions: @mentions (groups) and
+   * #records (PRISM's own search suggestions, which apply the person's permissions).
+   */
   ChatApp.prototype.bindComposer = function (win) {
     win.replyTo = 0;
     win.editing = null;
     win.mentionIds = new Map();
-    if (!win.groupId) return;
+    if (!win.groupId && !this.recordSearchUrl) return;
     const list = el('ul', 'pm-chat__mention-list');
-    list.id = `pm-chat-mentions-${win.groupId}-${Math.random().toString(36).slice(2, 8)}`;
+    list.id = `pm-chat-suggest-${(win.peerId || '').replace(/[^\w-]/g, '_')}-${Math.random().toString(36).slice(2, 8)}`;
     list.setAttribute('role', 'listbox');
-    list.setAttribute('aria-label', 'People to mention');
     list.hidden = true;
     win.mentionList = list;
     win.mentionState = null;
@@ -473,25 +488,100 @@
     win.input.addEventListener('blur', () => global.setTimeout(() => this.closeMentions(win), 150));
   };
 
+  /** What is being typed before the caret: an @mention (groups) first, else a #record. */
   ChatApp.prototype.suggestMentions = function (win) {
-    const fragment = mentionFragment(win.input);
-    if (!fragment) {
+    const mention = win.groupId ? mentionFragment(win.input) : null;
+    if (mention) {
+      const query = mention.query.toLowerCase();
+      const people = (win.members || [])
+        .filter((m) => m.userId !== this.me && m.isActive !== false)
+        .filter((m) => !query || m.displayName.toLowerCase().split(/\s+/).some((part) => part.startsWith(query)) || m.displayName.toLowerCase().includes(query))
+        .slice(0, MENTION_LIMIT)
+        .map((m) => ({ key: m.userId, label: m.displayName, person: m }));
+      this.showSuggestions(win, 'mention', mention, people);
+      return;
+    }
+    const record = this.recordSearchUrl ? recordFragment(win.input) : null;
+    if (!record) {
       this.closeMentions(win);
       return;
     }
-    const query = fragment.query.toLowerCase();
-    const people = (win.members || [])
-      .filter((m) => m.userId !== this.me && m.isActive !== false)
-      .filter((m) => !query || m.displayName.toLowerCase().split(/\s+/).some((part) => part.startsWith(query)) || m.displayName.toLowerCase().includes(query))
-      .slice(0, MENTION_LIMIT);
-    if (!people.length) {
+    this.searchRecords(win, record);
+  };
+
+  ChatApp.prototype.showSuggestions = function (win, type, fragment, items) {
+    if (!items.length) {
       this.closeMentions(win);
       return;
     }
-    const keep = win.mentionState && people.some((p) => p.userId === win.mentionState.active) ? win.mentionState.active : people[0].userId;
-    win.mentionState = { fragment, people, active: keep };
+    const previous = win.mentionState;
+    const keep = previous && previous.type === type && items.some((i) => i.key === previous.active) ? previous.active : items[0].key;
+    win.mentionState = { type, fragment, items, active: keep };
     this.renderMentions(win);
   };
+
+  /** #records: asks PRISM's search suggestions (debounced, remembered per page). */
+  ChatApp.prototype.searchRecords = function (win, fragment) {
+    const query = fragment.query.trim();
+    if (win.recordTimer) global.clearTimeout(win.recordTimer);
+    const cache = this.recordCache || (this.recordCache = new Map());
+    const show = (records) => {
+      // Only if the box still asks for the same thing.
+      const now = recordFragment(win.input);
+      if (!now || now.query.trim() !== query) return;
+      this.showSuggestions(win, 'record', now, records.map((r) => ({
+        key: r.url,
+        label: r.title || 'Untitled',
+        detail: [r.category || r.sourceModule, r.identifier || r.subtitle].filter(Boolean).join(' · '),
+        record: r,
+      })));
+    };
+    if (cache.has(query)) {
+      show(cache.get(query));
+      return;
+    }
+    win.recordTimer = global.setTimeout(async () => {
+      win.recordTimer = null;
+      let records = [];
+      try {
+        const separator = this.recordSearchUrl.includes('?') ? '&' : '?';
+        const response = await global.fetch(`${this.recordSearchUrl}${separator}q=${encodeURIComponent(query)}`, {
+          headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error(String(response.status));
+        const payload = await response.json();
+        records = (Array.isArray(payload) ? payload : [])
+          .map((r) => ({ ...r, url: sameOrigin(r.url) }))
+          .filter((r) => r.url);
+      } catch (_) {
+        records = []; // search unavailable: the box simply offers nothing
+      }
+      cache.set(query, records);
+      if (cache.size > 30) cache.delete(cache.keys().next().value);
+      show(records);
+    }, RECORD_DELAY_MS);
+  };
+
+  /** A suggestion's link as an absolute URL on this PRISM server, or '' for anything else. */
+  function sameOrigin(url) {
+    if (typeof url !== 'string' || !url) return '';
+    try {
+      const parsed = new URL(url, global.location.origin);
+      return parsed.origin === global.location.origin && (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? parsed.href : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /** The "#words" being typed before the caret (at least two characters), or null. */
+  function recordFragment(input) {
+    const before = input.value.slice(0, input.selectionStart == null ? input.value.length : input.selectionStart);
+    const match = /(^|\s)#([^\s#][^#\n]{1,39})$/.exec(before);
+    return match ? { query: match[2], start: before.length - match[2].length - 1, end: before.length } : null;
+  }
+
+  global.PMChatParts.recordFragment = recordFragment;
 
   ChatApp.prototype.renderMentions = function (win) {
     const state = win.mentionState;
@@ -504,16 +594,19 @@
       win.input.removeAttribute('aria-controls');
       return;
     }
+    list.setAttribute('aria-label', state.type === 'mention' ? 'People to mention' : 'PRISM records to link');
     win.input.setAttribute('aria-controls', list.id);
-    list.replaceChildren(...state.people.map((person) => {
-      const option = el('li', `pm-chat__mention-option${person.userId === state.active ? ' is-active' : ''}`, person.displayName);
-      option.id = `${list.id}-${person.userId.replace(/[^\w-]/g, '_')}`;
+    list.replaceChildren(...state.items.map((item, index) => {
+      const option = el('li', `pm-chat__mention-option${item.key === state.active ? ' is-active' : ''}`);
+      option.append(el('span', 'pm-chat__suggest-label', item.label));
+      if (item.detail) option.append(el('span', 'pm-chat__suggest-detail', item.detail));
+      option.id = `${list.id}-${index}`;
       option.setAttribute('role', 'option');
-      option.setAttribute('aria-selected', String(person.userId === state.active));
+      option.setAttribute('aria-selected', String(item.key === state.active));
       // mousedown, not click: the box keeps focus (and its caret) while choosing.
       option.addEventListener('mousedown', (event) => {
         event.preventDefault();
-        this.chooseMention(win, person);
+        this.chooseSuggestion(win, item);
       });
       return option;
     }));
@@ -522,20 +615,26 @@
   };
 
   ChatApp.prototype.closeMentions = function (win) {
+    if (win.recordTimer) {
+      global.clearTimeout(win.recordTimer);
+      win.recordTimer = null;
+    }
     if (!win.mentionState) return;
     win.mentionState = null;
     this.renderMentions(win);
   };
 
-  ChatApp.prototype.chooseMention = function (win, person) {
+  /** A person becomes "@Name "; a record becomes its link (which shows as a preview card). */
+  ChatApp.prototype.chooseSuggestion = function (win, item) {
     const state = win.mentionState;
     if (!state) return;
     const value = win.input.value;
-    const insert = `@${person.displayName} `;
+    const insert = state.type === 'mention' ? `@${item.label} ` : `${item.key} `;
     win.input.value = value.slice(0, state.fragment.start) + insert + value.slice(state.fragment.end);
     const caret = state.fragment.start + insert.length;
     if (typeof win.input.setSelectionRange === 'function') win.input.setSelectionRange(caret, caret);
-    win.mentionIds.set(person.displayName, person.userId);
+    if (state.type === 'mention') win.mentionIds.set(item.label, item.key);
+    else this.announce(`Linked ${item.label}.`);
     this.closeMentions(win);
     win.input.dispatchEvent(new global.Event('input'));
     win.input.focus({ preventScroll: true });
@@ -549,17 +648,17 @@
   ChatApp.prototype.composerKey = function (win, event) {
     const state = win.mentionState;
     if (state) {
-      const at = state.people.findIndex((p) => p.userId === state.active);
+      const at = state.items.findIndex((i) => i.key === state.active);
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
-        const to = (at + (event.key === 'ArrowDown' ? 1 : -1) + state.people.length) % state.people.length;
-        state.active = state.people[to].userId;
+        const to = (at + (event.key === 'ArrowDown' ? 1 : -1) + state.items.length) % state.items.length;
+        state.active = state.items[to].key;
         this.renderMentions(win);
         return true;
       }
       if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
         event.preventDefault();
-        this.chooseMention(win, state.people[Math.max(0, at)]);
+        this.chooseSuggestion(win, state.items[Math.max(0, at)]);
         return true;
       }
       if (event.key === 'Escape') {
@@ -585,5 +684,180 @@
       }
     }
     return false;
+  };
+  // ----- "Remind me": a reminder in the person's own Notebook ----------------------------------
+
+  const reminderFormat = new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+
+  /** The preset times, worked out from now (the browser's clock and time zone). */
+  function reminderPresets(now) {
+    const at = (days, hours, minutes) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() + days);
+      d.setHours(hours, minutes || 0, 0, 0);
+      return d;
+    };
+    const presets = [{ key: 'hour', label: 'In 1 hour', when: new Date(now.getTime() + 3600000) }];
+    if (now.getHours() < 16) presets.push({ key: 'evening', label: 'This evening, 17:00', when: at(0, 17) });
+    presets.push({ key: 'tomorrow', label: 'Tomorrow, 09:00', when: at(1, 9) });
+    const toMonday = ((8 - now.getDay()) % 7) || 7;
+    if (toMonday > 1) presets.push({ key: 'monday', label: 'Monday, 09:00', when: at(toMonday, 9) });
+    return presets;
+  }
+
+  global.PMChatParts.reminderPresets = reminderPresets;
+
+  /** "2026-11-19T09:00" for a datetime-local box, in the browser's time. */
+  function localInputValue(date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  /** The panel above the message box: when to be reminded about one message. */
+  ChatApp.prototype.openReminder = function (win, messageId) {
+    const message = win.messages.find((m) => m.id === messageId);
+    if (!message) return;
+    this.closeReminder(win);
+    const panel = el('div', 'pm-chat__reminder');
+    panel.setAttribute('role', 'group');
+    const heading = el('p', 'pm-chat__reminder-title');
+    heading.id = `pm-chat-remind-${messageId}-${Math.random().toString(36).slice(2, 8)}`;
+    heading.append(icon('alarm'), document.createTextNode(' Remind me about this message'));
+    panel.setAttribute('aria-labelledby', heading.id);
+    const presets = el('div', 'pm-chat__reminder-presets');
+    for (const preset of reminderPresets(new Date())) {
+      const button = el('button', 'btn btn-sm btn-outline-secondary', preset.label);
+      button.type = 'button';
+      button.dataset.reminderPreset = preset.key;
+      button.addEventListener('click', () => this.saveReminder(win, message, preset.when));
+      presets.append(button);
+    }
+    const custom = el('form', 'pm-chat__reminder-custom');
+    const label = el('label', 'visually-hidden', 'Date and time');
+    const when = el('input', 'form-control form-control-sm');
+    when.type = 'datetime-local';
+    when.id = `${heading.id}-when`;
+    label.htmlFor = when.id;
+    when.min = localInputValue(new Date());
+    when.value = localInputValue(new Date(Date.now() + 2 * 3600000));
+    const save = el('button', 'btn btn-sm btn-primary', 'Save');
+    save.type = 'submit';
+    custom.append(label, when, save);
+    custom.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const chosen = when.value ? new Date(when.value) : null;
+      if (!chosen || Number.isNaN(chosen.getTime()) || chosen.getTime() <= Date.now()) {
+        this.reminderNote(win, 'Choose a time later than now.', true);
+        when.focus();
+        return;
+      }
+      this.saveReminder(win, message, chosen);
+    });
+    const close = el('button', 'pm-chat__icon-btn pm-chat__reminder-close');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Close without a reminder');
+    close.append(icon('x-lg'));
+    close.addEventListener('click', () => this.closeReminder(win, true));
+    const note = el('p', 'pm-chat__reminder-note');
+    note.hidden = true;
+    panel.append(close, heading, presets, custom, note);
+    panel.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation(); // not also the window's Esc (minimise)
+      this.closeReminder(win, true);
+    });
+    win.reminder = { panel, note, messageId };
+    win.node.insertBefore(panel, win.form);
+    const first = presets.querySelector('button');
+    if (first) first.focus();
+  };
+
+  ChatApp.prototype.closeReminder = function (win, refocus) {
+    if (!win.reminder) return;
+    if (win.reminder.timer) global.clearTimeout(win.reminder.timer);
+    win.reminder.panel.remove();
+    const messageId = win.reminder.messageId;
+    win.reminder = null;
+    if (refocus) {
+      const back = win.log.querySelector(`[data-focus-key="remind:${messageId}"]`);
+      if (back) back.focus();
+      else if (!win.form.hidden) win.input.focus({ preventScroll: true });
+    }
+  };
+
+  ChatApp.prototype.reminderNote = function (win, text, isError, link) {
+    if (!win.reminder) return;
+    const note = win.reminder.note;
+    note.hidden = false;
+    note.classList.toggle('is-error', !!isError);
+    note.replaceChildren(document.createTextNode(text));
+    if (link) {
+      const open = el('a', null, 'Open Notebook');
+      open.href = link;
+      note.append(' ', open);
+    }
+    this.announce(text);
+  };
+
+  /**
+   * Saves the reminder in the Notebook (its own API, checks and storage): the message's words as
+   * the title and body, and a link that opens the message in chat. Only the person sees it.
+   */
+  ChatApp.prototype.saveReminder = async function (win, message, when) {
+    const who = message.senderUserId === this.me ? 'You' : this.nameOf(message.senderUserId, win);
+    const where = win.groupId ? ` in ${(this.groups.get(win.groupId) || {}).title || 'a group'}` : '';
+    const words = message.body ? snippet(message.body) : ((message.attachments || []).map((a) => a.fileName).filter(Boolean).join(', ') || 'a file');
+    const title = `Chat: ${who}${where}: ${words}`.slice(0, 220);
+    const files = (message.attachments || []).filter((a) => !a.isRemoved).map((a) => a.fileName);
+    const back = this.messagesUrl
+      ? `${global.location.origin}${this.messagesUrl}?with=${encodeURIComponent(win.peerId)}&at=${message.id}`
+      : '';
+    const body = [
+      message.body || '',
+      files.length ? `Files: ${files.join(', ')}` : '',
+      back ? `Open the message in chat: ${back}` : '',
+    ].filter(Boolean).join('\n\n').slice(0, 20000);
+    const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    if (token) headers['X-CSRF-TOKEN'] = token;
+    let failed = null;
+    try {
+      const response = await global.fetch(this.notebookApi, {
+        method: 'POST',
+        headers,
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          title,
+          body,
+          type: 'Reminder',
+          priority: 'Normal',
+          reminderAtUtc: when.toISOString(),
+          isPinned: false,
+          checklistRows: [],
+          labels: [],
+          clientRequestId: global.PMChatParts.newClientId(),
+        }),
+      });
+      if (!response.ok) {
+        let problem = null;
+        try {
+          problem = await response.json();
+        } catch (_) { /* not JSON */ }
+        const detail = problem && problem.errors ? Object.values(problem.errors).flat()[0] : null;
+        failed = detail || (problem && problem.message) || 'The reminder could not be saved.';
+      }
+    } catch (_) {
+      failed = 'PRISM could not be reached. Check the connection and try again.';
+    }
+    const view = this.viewFor(win);
+    if (failed) {
+      this.reminderNote(view, failed, true);
+      return;
+    }
+    this.reminderNote(view, `Reminder saved in your Notebook for ${reminderFormat.format(when)}.`, false, this.notebookUrl);
+    if (view.reminder) {
+      view.reminder.panel.classList.add('is-done');
+      view.reminder.timer = global.setTimeout(() => this.closeReminder(view, false), 6000);
+    }
   };
 })(window);

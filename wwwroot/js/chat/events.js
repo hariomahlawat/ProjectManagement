@@ -44,7 +44,8 @@
 
     // A mention of this person gets through a muted group: it pops open, chimes and is announced.
     const mentioned = incoming && Array.isArray(message.mentionedUserIds) && message.mentionedUserIds.includes(this.me);
-    const muted = this.isMuted(message.groupId) && !mentioned;
+    // Do not disturb quiets everything, mentions included (they still count as unread).
+    const muted = (this.isMuted(message.groupId) && !mentioned) || this.isQuiet();
     let win = this.windows.get(key);
     if (!win && countable && !muted) {
       // Classic behaviour: a new message pops its conversation open (not for a muted group).

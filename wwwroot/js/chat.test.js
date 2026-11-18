@@ -3542,7 +3542,7 @@ test('Copy puts a message on the clipboard, also on plain http where the Clipboa
     await tick();
     assert.deepEqual(copied, [['copy', 'File no. 12/4/2026']]);
     assert.deepEqual(heard, ['Message copied.']);
-    assert.equal(copy.textContent, 'Copied');
+    assert.ok(copy.classList.contains('is-done'), 'the button shows it worked');
     assert.equal(window.document.querySelectorAll('textarea[readonly]').length, 0, 'the helper box is gone');
   } finally {
     window.close();
@@ -3881,7 +3881,7 @@ test('the message toolbar is one tab stop; ← → move inside it', async () => 
     assert.equal(bar.getAttribute('role'), 'toolbar');
     const buttons = Array.from(bar.querySelectorAll('button'));
     assert.deepEqual(buttons.map((b) => b.tabIndex), [0, -1, -1, -1, -1]);
-    assert.deepEqual(buttons.map((b) => b.textContent), ['✓ Noted', '👍', '👀', 'Reply', 'Copy']);
+    assert.deepEqual(buttons.map((b) => b.textContent || b.getAttribute('aria-label')), ['✓ Noted', '👍', '👀', 'Reply to the message from Peer Person', 'Copy message from Peer Person']);
     buttons[0].focus();
     bar.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     assert.equal(window.document.activeElement, buttons[1]);
@@ -3962,6 +3962,214 @@ test('a mention of me gets through a muted group, and stands out', async () => {
     const item = win.log.querySelector('[data-message-id="81"]');
     assert.ok(item.classList.contains('is-mentioned'));
     assert.ok(item.querySelector('.pm-chat__mention.is-me'));
+  } finally {
+    window.close();
+  }
+});
+
+// ----- Phase 5: #records ---------------------------------------------------------------------
+
+test('# offers PRISM records from the search suggestions; choosing one inserts its link', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.startsWith('/Common/Search')) {
+      asked.push(url);
+      return [
+        { title: 'Simulator Upgrade', url: '/Projects/Overview/12', category: 'Project', identifier: 'PRJ-12' },
+        { title: 'Somewhere else', url: 'https://other.example/x', category: 'Link' },
+      ];
+    }
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  }, '', 'data-record-search-url="/Common/Search?handler=Suggestions"');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    const type = (text) => {
+      win.input.value = text;
+      win.input.setSelectionRange(text.length, text.length);
+      win.input.dispatchEvent(new window.Event('input'));
+    };
+    type('See #s');
+    await wait(300);
+    assert.equal(asked.length, 0, 'one character after # asks nothing');
+
+    type('See #simu');
+    type('See #simul');
+    await wait(300);
+    assert.deepEqual(asked, ['/Common/Search?handler=Suggestions&q=simul'], 'one request after typing pauses');
+    const options = Array.from(win.mentionList.children);
+    assert.equal(options.length, 1, 'a link off this server is left out');
+    assert.equal(options[0].textContent, 'Simulator UpgradeProject · PRJ-12');
+    assert.equal(win.mentionList.getAttribute('aria-label'), 'PRISM records to link');
+
+    win.input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    assert.equal(win.input.value, 'See https://prism.local/Projects/Overview/12 ');
+    assert.equal(win.mentionList.hidden, true);
+
+    // The same words again come from what the page remembers.
+    type('Also #simul');
+    await tick();
+    assert.equal(asked.length, 1);
+    assert.equal(win.mentionList.hidden, false);
+  } finally {
+    window.close();
+  }
+});
+
+// ----- Phase 5: Remind me (a reminder in the person's own Notebook) ---------------------------
+
+test('Remind me saves a Notebook reminder with the message and a link back to it', async () => {
+  const saved = [];
+  let refuse = false;
+  const window = bootApp(async (url, init) => {
+    if (url === '/api/notebook/items' && init.method === 'POST') {
+      saved.push({ body: JSON.parse(init.body), token: init.headers['X-CSRF-TOKEN'] });
+      if (refuse) return { status: 400, body: { code: 'notebook_validation_failed', message: 'The reminder time is invalid.', errors: { reminderAtUtc: ['Choose a future reminder date and time.'] } } };
+      return { status: 201, body: { id: 'x' } };
+    }
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Board meeting moved to 1500, Room 3')], hasMore: false };
+    return { status: 204, body: null };
+  }, '', 'data-notebook-api="/api/notebook/items" data-notebook-url="/Notebook" data-messages-url="/Chat"');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+
+    const remind = win.log.querySelector('[data-focus-key="remind:1"]');
+    assert.equal(remind.getAttribute('aria-label'), 'Remind me about this message (saved in your Notebook)');
+    remind.click();
+    const panel = win.node.querySelector('.pm-chat__reminder');
+    assert.ok(panel);
+    assert.equal(window.document.activeElement.dataset.reminderPreset, 'hour', 'focus on the first choice');
+
+    const before = Date.now();
+    panel.querySelector('[data-reminder-preset="tomorrow"]').click();
+    await tick(); await tick();
+    const sent = saved[0].body;
+    assert.equal(saved[0].token, 't');
+    assert.equal(sent.type, 'Reminder');
+    assert.equal(sent.title, 'Chat: Peer Person: Board meeting moved to 1500, Room 3');
+    assert.match(sent.body, /^Board meeting moved to 1500, Room 3\n\nOpen the message in chat: https:\/\/prism\.local\/Chat\?with=peer&at=1$/);
+    const when = new Date(sent.reminderAtUtc);
+    assert.ok(when.getTime() > before);
+    assert.equal(when.getHours(), 9);
+    assert.match(sent.clientRequestId, /^[0-9a-f-]{36}$/);
+    assert.match(panel.textContent, /Reminder saved in your Notebook for/);
+    assert.equal(panel.querySelector('a').getAttribute('href'), '/Notebook');
+    assert.ok(heard.some((t) => t.startsWith('Reminder saved in your Notebook')));
+
+    // A refusal from the Notebook is shown as it gives it; Esc closes and goes back to the message.
+    refuse = true;
+    win.log.querySelector('[data-focus-key="remind:1"]').click();
+    const again = win.node.querySelector('.pm-chat__reminder');
+    again.querySelector('[data-reminder-preset="hour"]').click();
+    await tick(); await tick();
+    assert.match(again.querySelector('.pm-chat__reminder-note').textContent, /Choose a future reminder date and time\./);
+    again.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.equal(win.node.querySelector('.pm-chat__reminder'), null);
+    assert.equal(win.minimized, false);
+    assert.equal(window.document.activeElement.dataset.focusKey, 'remind:1');
+  } finally {
+    window.close();
+  }
+});
+
+test('reminder presets fit the time of day', () => {
+  const { PMChatParts } = load();
+  const morning = PMChatParts.reminderPresets(new Date(2026, 10, 18, 10, 0)); // a Wednesday
+  assert.deepEqual(Array.from(morning, (p) => p.key), ['hour', 'evening', 'tomorrow', 'monday']);
+  assert.equal(morning[3].when.getDay(), 1);
+  const late = PMChatParts.reminderPresets(new Date(2026, 10, 22, 18, 0)); // a Sunday evening
+  assert.deepEqual(Array.from(late, (p) => p.key), ['hour', 'tomorrow'], 'no "this evening" late in the day; tomorrow is Monday');
+});
+
+// ----- Phase 5: do not disturb ------------------------------------------------------------------
+
+test('do not disturb quiets arriving messages (mentions too), tells others, and ends on time', async () => {
+  const statuses = [];
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/status') && init.method === 'POST') {
+      const message = JSON.parse(init.body).message;
+      statuses.push(message);
+      return { userId: 'me', message: message || null };
+    }
+    if (url.endsWith('/status')) return { userId: 'me', message: null };
+    return undefined;
+  });
+  const runTimers = manualTimers(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    let alerts = 0;
+    app.alert = () => { alerts += 1; };
+
+    app.dndToggle.click();
+    assert.equal(app.dndMenu.hidden, false);
+    assert.equal(app.dndToggle.getAttribute('aria-expanded'), 'true');
+    app.dndMenu.querySelector('[data-dnd="hour"]').click();
+    await tick(); await tick();
+    assert.equal(app.isQuiet(), true);
+    assert.equal(app.dndNote.hidden, false);
+    assert.match(app.dndNote.textContent, /Do not disturb until \d\d:\d\d/);
+    assert.match(statuses[0], /^Do not disturb until \d\d:\d\d$/, 'others see it as the status');
+    assert.match(app.launchers[0].getAttribute('aria-label'), /do not disturb is on/);
+    assert.ok(JSON.parse(window.localStorage.getItem('prism.chat.dnd.me')).until > Date.now());
+
+    app.onMessage(directMessage(90, 'peer', 'quick question'));
+    app.onMessage(groupMessage(91, 'peer', '@Me Myself urgent', { mentionedUserIds: ['me'] }));
+    assert.equal(alerts, 0);
+    assert.equal(app.windows.size, 0, 'nothing pops open');
+    assert.equal(app.contacts.get('peer').unreadCount, 1, 'still counted');
+    assert.ok(heard.some((t) => t.startsWith('Do not disturb until')));
+
+    // Its time comes: off again, and the status it set is cleared.
+    const stored = JSON.parse(window.localStorage.getItem('prism.chat.dnd.me'));
+    stored.until = Date.now() - 1;
+    window.localStorage.setItem('prism.chat.dnd.me', JSON.stringify(stored));
+    app.dnd.until = stored.until;
+    runTimers();
+    await tick(); await tick();
+    assert.equal(app.isQuiet(), false);
+    assert.equal(app.dndNote.hidden, true);
+    assert.equal(statuses[1], '');
+    assert.equal(window.localStorage.getItem('prism.chat.dnd.me'), null);
+    app.onMessage(directMessage(92, 'peer', 'back?'));
+    assert.equal(alerts, 1);
+  } finally {
+    window.close();
+  }
+});
+
+test('do not disturb keeps a status message the person set themselves, and follows other tabs', async () => {
+  const statuses = [];
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/status') && init.method === 'POST') {
+      statuses.push(JSON.parse(init.body).message);
+      return { userId: 'me', message: JSON.parse(init.body).message || null };
+    }
+    if (url.endsWith('/status')) return { userId: 'me', message: 'On tour till Friday' };
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    await app.setDnd(new Date(Date.now() + 3600000));
+    await app.setDnd(null);
+    assert.deepEqual(statuses, [], 'their own status is left alone');
+
+    // Another tab turns it on.
+    window.localStorage.setItem('prism.chat.dnd.me', JSON.stringify({ until: Date.now() + 600000, status: null }));
+    window.dispatchEvent(new window.StorageEvent('storage', { key: 'prism.chat.dnd.me' }));
+    assert.equal(app.isQuiet(), true);
+    assert.equal(app.dndNote.hidden, false);
   } finally {
     window.close();
   }

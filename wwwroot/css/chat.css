@@ -1635,6 +1635,15 @@
     color: var(--pm-primary-strong);
 }
 
+.pm-chat__action.is-icon {
+    padding: .05rem .3rem;
+    font-size: .78rem;
+}
+
+.pm-chat__action.is-done {
+    color: var(--pm-success);
+}
+
 .pm-chat__action[aria-pressed="true"] {
     background: var(--pm-primary-soft);
     color: var(--pm-primary-strong);
@@ -1709,6 +1718,107 @@
 .pm-chat__reaction-count {
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+}
+
+/* "Remind me" (chat/actions.js): when, above the message box. */
+.pm-chat__reminder {
+    position: relative;
+    padding: .4rem .6rem .45rem;
+    border-top: 1px solid var(--pm-border);
+    background: var(--pm-surface-subtle);
+    font-size: .75rem;
+}
+
+.pm-chat__reminder-title {
+    margin: 0 1.6rem .3rem 0;
+    font-weight: 600;
+}
+
+.pm-chat__reminder-close {
+    position: absolute;
+    top: .15rem;
+    right: .2rem;
+}
+
+.pm-chat__reminder-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem;
+    margin-bottom: .3rem;
+}
+
+.pm-chat__reminder-presets .btn,
+.pm-chat__reminder-custom .btn {
+    padding: .1rem .45rem;
+    font-size: .72rem;
+}
+
+.pm-chat__reminder-custom {
+    display: flex;
+    gap: .25rem;
+}
+
+.pm-chat__reminder-custom .form-control {
+    min-width: 0;
+    font-size: .74rem;
+}
+
+.pm-chat__reminder-note {
+    margin: .3rem 0 0;
+    color: var(--pm-success-strong);
+}
+
+.pm-chat__reminder-note.is-error {
+    color: var(--pm-danger);
+}
+
+.pm-chat__reminder-note[hidden] {
+    display: none;
+}
+
+.pm-chat__reminder.is-done .pm-chat__reminder-presets,
+.pm-chat__reminder.is-done .pm-chat__reminder-custom {
+    display: none;
+}
+
+/* Do not disturb (chat/dock.js, chat/app.js). */
+.pm-chat__icon-btn.is-on {
+    color: var(--pm-warning);
+}
+
+.pm-chat__dnd {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem;
+    padding: .45rem .75rem .55rem;
+    border-bottom: 1px solid var(--pm-border);
+    background: var(--pm-surface-subtle);
+}
+
+.pm-chat__dnd[hidden],
+.pm-chat__dnd-note[hidden] {
+    display: none;
+}
+
+.pm-chat__dnd .btn {
+    padding: .1rem .5rem;
+    font-size: .74rem;
+}
+
+.pm-chat__dnd-intro {
+    flex-basis: 100%;
+    margin: 0 0 .15rem;
+    color: var(--pm-text-muted);
+    font-size: .74rem;
+}
+
+.pm-chat__dnd-note {
+    margin: 0;
+    padding: .3rem .75rem;
+    border-bottom: 1px solid var(--pm-border);
+    background: var(--pm-warning-soft-bg);
+    color: var(--pm-text);
+    font-size: .74rem;
 }
 
 /* @mentions. */
@@ -1793,6 +1903,19 @@
     border-radius: .35rem;
     font-size: .8rem;
     cursor: pointer;
+}
+
+.pm-chat__suggest-label,
+.pm-chat__suggest-detail {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pm-chat__suggest-detail {
+    color: var(--pm-text-muted);
+    font-size: .7rem;
 }
 
 .pm-chat__mention-option.is-active,

@@ -117,6 +117,25 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   restores what you were typing); Send saves it. The message says "Edited" (its tooltip gives
   when); the earlier text is not kept (owner default). The new text reaches everyone live and
   is what search finds. Files cannot be changed by editing (remove a file instead).
+- **#records** (Phase 5): typing `#` and at least two characters in any message box lists
+  matching PRISM records from PRISM's own search suggestions (`/Common/Search?handler=Suggestions`,
+  the same as the top-bar search, so each person only ever sees records they may open). Enter or
+  Tab inserts the record's link, which shows as a preview card as usual. Links off this server
+  are never offered; if search is unavailable the list simply does not appear.
+- **Remind me** (Phase 5): the alarm button in a message's toolbar saves a **reminder in your
+  own Notebook** (personal; nobody else sees it): in 1 hour, this evening at 17:00 (earlier in
+  the day), tomorrow 09:00, Monday 09:00, or a chosen date and time. It holds who said what,
+  the message text and file names, and a link that opens the message in chat. It goes through
+  the Notebook's own API (`POST /api/notebook/items`: its checks, its antiforgery) and appears
+  wherever Notebook reminders appear (the Notebook and My Workspace). Chat stores nothing.
+- **Do not disturb** (Phase 5): the bell in the contact list header: for 1 hour, until 17:00
+  (earlier in the day) or until tomorrow 09:00, or Turn off. While on, arriving messages make
+  no sound, flash no tab title, pop no window open and are not announced (mentions included);
+  they still count as unread, and the contact list says "Do not disturb until 17:00". Kept in
+  this browser for this user (`localStorage` key `prism.chat.dnd.{userId}`, like sound and
+  mute) and followed by its other tabs; it ends by itself. If you have no status message of
+  your own, it sets "Do not disturb until 17:00" as your status so others know, and clears it
+  when it ends; a status you set yourself is left alone.
 - **@mentions** (groups): typing `@` in a group's message box lists its members (never
   yourself); ↑ ↓ choose, Enter or Tab inserts "@Name", Esc closes the list. The message stores
   who was mentioned (members only; others are dropped on the server). Mentions are marked in the
@@ -468,7 +487,25 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   queries on a migrated PostgreSQL database. Missed live edits and reactions (connection down)
   are picked up by the catch-up's history pages, which refresh every message they cover.
 
+- **Phase 5 (#records, Remind me, do not disturb)** changes the chat scripts and stylesheet and
+  adds three attributes to the chat root in `_Layout.cshtml` (`data-record-search-url`,
+  `data-notebook-api`, `data-notebook-url`); no migration, setting or chat endpoint changes.
+  Each feature is off when its attribute is missing, so a page from an older server simply
+  does not offer it. The Notebook keeps a chat reminder as a note with a reminder time (its own
+  normalisation of the "Reminder" type its create editor also sends); `ChatApiTests` posts
+  chat's exact body to the real Notebook API.
+
 ## Not yet built
+
+**Announcements** (one-to-many messages, for example from a HoD, that recipients acknowledge)
+are designed but not built; they need these owner decisions first:
+1. Who may send one: Comdt and HoD only, or anyone to a group they manage?
+2. To whom: a group, everyone with a role, or chosen people?
+3. Who sees the acknowledgements: only the sender, or also the sender's chain of command?
+4. Can recipients reply in a thread, or only acknowledge?
+5. Do unacknowledged announcements get a reminder (and after how long)?
+They would reuse the reactions table pattern for acknowledgements and the notification outbox
+for delivery, and need one migration.
 
 File attachments are built but **switched off** (`Chat:Attachments:Enabled`); before switching
 them on in production, check that the data disk has about 50 GB free beyond the 20 GB floor

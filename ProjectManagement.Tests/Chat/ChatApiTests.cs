@@ -56,10 +56,14 @@ public sealed class ChatApiTests
         Assert.True(chatCard >= 0 && themeCard > chatCard, "the Chat card comes before the theme card");
         Assert.Contains("data-whats-new-skip-if-stored=\"prism.chat.dock.", html);
         Assert.Contains("data-guide-url=\"/Chat/Guide\"", html);
+        // #records use PRISM's own search suggestions; editing follows its setting.
+        Assert.Contains("data-record-search-url=\"/Common/Search?handler=Suggestions\"", html);
+        Assert.Contains("data-edit-minutes=\"15\"", html);
 
         var guide = await client.GetStringAsync("/Chat/Guide");
         Assert.Contains("Chat quick guide", guide);
         Assert.Contains("within 5 minutes", guide);
+        Assert.Contains("<strong>Edit</strong> it within 15 minutes", guide);
         Assert.Contains("Share files", guide);
         Assert.Contains("1 GB", guide);
     }
@@ -357,6 +361,48 @@ public sealed class ChatApiTests
         Assert.Empty(host.Hub.Pushes);
     }
 
+    /// <summary>
+    /// "Remind me" (wwwroot/js/chat/actions.js) posts this exact body to the Notebook's own API:
+    /// the Notebook accepts it and keeps it as the person's reminder, and it is only theirs.
+    /// </summary>
+    [Fact]
+    public async Task RemindMe_TheBodyChatSends_IsANotebookReminderForThePersonOnly()
+    {
+        await using var host = await ChatHost.CreateAsync();
+        using var alice = host.ClientFor("alice");
+        var token = await host.TokenAsync(alice);
+        var due = DateTimeOffset.UtcNow.AddDays(1);
+
+        var response = await host.PostAsync(alice, token, "/api/notebook/items", new
+        {
+            title = "Chat: Bob Bhatia: Board meeting moved to 1500",
+            body = "Board meeting moved to 1500\n\nOpen the message in chat: https://prism.local/Chat?with=bob&at=1",
+            type = "Reminder",
+            priority = "Normal",
+            reminderAtUtc = due.ToString("O"),
+            isPinned = false,
+            checklistRows = Array.Empty<object>(),
+            labels = Array.Empty<string>(),
+            clientRequestId = Guid.NewGuid(),
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var item = await db.NotebookItems.AsNoTracking().SingleAsync();
+        Assert.Equal("alice", item.OwnerId);
+        // The Notebook keeps a reminder as a note with a reminder time (NotebookRules normalises
+        // the "Reminder" type its own create editor also sends, which makes the time required).
+        Assert.Equal(NotebookItemType.Note, item.Type);
+        Assert.NotNull(item.ReminderAtUtc);
+        Assert.Equal("Chat: Bob Bhatia: Board meeting moved to 1500", item.Title);
+        Assert.Equal(due.ToUnixTimeSeconds(), item.ReminderAtUtc!.Value.ToUnixTimeSeconds());
+
+        // Without the antiforgery token the Notebook refuses it, as for any other write.
+        var forged = await alice.PostAsJsonAsync("/api/notebook/items", new { title = "x", type = "Note", checklistRows = Array.Empty<object>(), labels = Array.Empty<string>(), clientRequestId = Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.BadRequest, forged.StatusCode);
+    }
+
     [Fact]
     public async Task GroupTraffic_GoesToMembers_OnGroupEvents()
     {
@@ -463,6 +509,8 @@ public sealed class ChatApiTests
         }
 
         public RecordingHubContext Hub { get; }
+
+        public IServiceProvider Services => _factory.Services;
 
         public static async Task<ChatHost> CreateAsync(IDictionary<string, string?>? settings = null)
         {

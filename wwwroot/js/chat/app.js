@@ -13,6 +13,7 @@
   } = global.PMChatParts;
 
   const OFFLINE_NOTICE_MS = 4000; // a drop shorter than this shows no "Reconnecting…"
+  const dndTimeFormat = new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   // ---------------------------------------------------------------------------
   // Controller
@@ -29,6 +30,11 @@
     this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
     // Missing (a page from an older server): no Edit offered.
     this.editMs = (Number(root.dataset.editMinutes) || 0) * 60000;
+    // PRISM's search suggestions, for #records in the message box (absent: not offered).
+    this.recordSearchUrl = root.dataset.recordSearchUrl || '';
+    // The person's own Notebook, for "Remind me" (absent: not offered).
+    this.notebookApi = root.dataset.notebookApi || '';
+    this.notebookUrl = root.dataset.notebookUrl || '';
     // File attachments (chat/files.js), when switched on for this server.
     this.attachments = {
       enabled: root.dataset.attachments === 'on',
@@ -51,6 +57,7 @@
     this.soundKey = `prism.chat.sound.${this.me}`;
     this.dingKey = `prism.chat.ding.${this.me}`;
     this.muteKey = `prism.chat.muted.${this.me}`;
+    this.dndKey = `prism.chat.dnd.${this.me}`;
     this.contacts = new Map();
     this.groups = new Map(); // groupId -> { id, title, managerUserId, memberCount, unreadCount, lastMessageUtc }
     // Live unread changes (a message pushed, a conversation read) by conversation key, numbered.
@@ -78,6 +85,7 @@
     this.chime = new Chime();
     this.soundOn = this.readSoundPreference();
     this.muted = this.readMuted();
+    this.dnd = this.readDnd();
     this.title = new TitleFlasher(document, global.setInterval.bind(global), global.clearInterval.bind(global));
     this.page = null;
     this.launchers = Array.from(document.querySelectorAll('[data-chat-launcher]'));
@@ -85,6 +93,7 @@
 
   ChatApp.prototype.start = function () {
     this.buildDock();
+    this.applyDnd(this.dnd); // set on an earlier page: shown, and ended when its time comes
     this.launchers.forEach((button) => {
       button.addEventListener('click', () => this.toggleBuddy());
       button.setAttribute('aria-keyshortcuts', 'Alt+C');
@@ -104,6 +113,7 @@
     // Muting a group in another tab of this user applies here too.
     global.addEventListener('storage', (event) => {
       if (event.key === this.muteKey) this.applyMutedChange(this.readMuted());
+      if (event.key === this.dndKey) this.applyDnd(this.readDnd());
     });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
@@ -222,6 +232,77 @@
       if (win.panelOpen) this.renderMembersPanel(win);
     });
     this.renderContacts();
+  };
+
+  // ----- do not disturb -------------------------------------------------------------
+
+  /**
+   * Do not disturb, in this browser (like sound and mute) and shared by its tabs: until a time,
+   * no chime, title flash, pop-up window or announcement for arriving messages; they still count
+   * as unread. { until: ms, status: the status message it set, or null }.
+   */
+  ChatApp.prototype.readDnd = function () {
+    try {
+      const stored = JSON.parse(global.localStorage.getItem(this.dndKey) || 'null');
+      if (stored && Number.isFinite(stored.until) && stored.until > Date.now()) {
+        return { until: stored.until, status: typeof stored.status === 'string' ? stored.status : null };
+      }
+    } catch (_) { /* nothing stored */ }
+    return null;
+  };
+
+  ChatApp.prototype.isQuiet = function () {
+    return !!this.dnd && this.dnd.until > Date.now();
+  };
+
+  /** Starts (until: a Date) or ends (null) do not disturb, in every tab of this browser. */
+  ChatApp.prototype.setDnd = async function (until) {
+    const previous = this.readDnd();
+    let next = null;
+    if (until) {
+      // Others learn of it through the status message, unless the person has one of their own.
+      const label = `Do not disturb until ${dndTimeFormat.format(until)}`;
+      const ownStatus = this.myStatus && (!previous || this.myStatus !== previous.status);
+      next = { until: until.getTime(), status: ownStatus ? null : label };
+    }
+    try {
+      if (next) global.localStorage.setItem(this.dndKey, JSON.stringify(next));
+      else global.localStorage.removeItem(this.dndKey);
+    } catch (_) { /* this page only */ }
+    this.applyDnd(next);
+    if (next && next.status) {
+      await this.setStatusText(next.status);
+    } else if (previous && previous.status && this.myStatus === previous.status) {
+      await this.setStatusText('');
+    }
+    this.announce(next ? `Do not disturb until ${dndTimeFormat.format(until)}. Messages still arrive, quietly.` : 'Do not disturb is off.');
+  };
+
+  /** Shows a do-not-disturb state, and ends it when its time comes (in each tab). */
+  ChatApp.prototype.applyDnd = function (dnd) {
+    this.dnd = dnd;
+    if (this.dndTimer) global.clearTimeout(this.dndTimer);
+    this.dndTimer = null;
+    if (dnd) {
+      // Long waits are re-armed: a browser timer cannot wait much beyond 24 days.
+      const wait = Math.min(dnd.until - Date.now(), 6 * 3600000);
+      this.dndTimer = global.setTimeout(() => {
+        if (this.dnd && this.dnd.until <= Date.now()) this.endDnd();
+        else this.applyDnd(this.readDnd());
+      }, Math.max(0, wait) + 500);
+    }
+    this.renderDnd();
+  };
+
+  /** Its time came: off, and the status message it set goes too (if still the one shown). */
+  ChatApp.prototype.endDnd = function () {
+    const ended = this.dnd;
+    try {
+      const stored = JSON.parse(global.localStorage.getItem(this.dndKey) || 'null');
+      if (stored && stored.until === (ended && ended.until)) global.localStorage.removeItem(this.dndKey);
+    } catch (_) { /* nothing stored */ }
+    this.applyDnd(null);
+    if (ended && ended.status && this.myStatus === ended.status) this.setStatusText('');
   };
 
   // ----- HTTP ------------------------------------------------------------------
