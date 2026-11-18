@@ -53,6 +53,63 @@
   }
 
   /**
+   * The pages Save makes for a card (PR 8): the sides chosen, front first, with the name each
+   * file gets. A page with one side is saved as it is.
+   */
+  function chosenSides(all, sides) {
+    if (all.length < 2) return { pages: all, names: [''] };
+    if (sides === 'front') return { pages: [all[0]], names: ['front'] };
+    if (sides === 'back') return { pages: [all[1]], names: ['back'] };
+    return { pages: all, names: ['front', 'back'] };
+  }
+
+  /**
+   * One card for each guest (PR 10): { front, back } pages per guest, the name (by `namePage`)
+   * on the side that holds it, `guestSide` (0 the front, 1 the back or a folded card's inside),
+   * and only the sides chosen (`pages`). When the side with the names is not chosen there are
+   * no guest cards, and `namesLeftOut` says so.
+   */
+  function guestCards(all, pages, guests, guestSide, namePage) {
+    if (!guests.length) return { cards: null, namesLeftOut: false };
+    const chosen = (page) => pages.includes(page);
+    if (!chosen(all[guestSide])) return { cards: null, namesLeftOut: true };
+    const cards = guests.map((name) => {
+      const named = namePage(all[guestSide], name);
+      const front = guestSide === 0 ? named : all[0];
+      const back = guestSide === 1 ? named : (all[1] || null);
+      return { front: chosen(all[0]) ? front : null, back: all[1] && chosen(all[1]) ? back : null };
+    });
+    return { cards, namesLeftOut: false };
+  }
+
+  /**
+   * Guest cards on sheets of `count` (PR 10): for each batch, its sheet of fronts, then its sheet
+   * of backs; `pages[i]` goes in slot i (null leaves it empty).
+   */
+  function guestSheets(cards, count) {
+    const sheets = [];
+    for (let start = 0; start < cards.length; start += count) {
+      const batch = cards.slice(start, start + count);
+      for (const which of ['front', 'back']) {
+        if (batch.some((card) => card[which])) sheets.push({ back: which === 'back', pages: batch.map((card) => card[which] || null) });
+      }
+    }
+    return sheets;
+  }
+
+  /**
+   * A guest's name in the design's guest field (PR 10): the field's words become the name,
+   * laid out as `layout` says, and it stays set by the same edge as the field (left, right or
+   * the middle).
+   */
+  function nameInField(field, name, layout) {
+    const named = { ...field, text: name, width: layout.width, aspect: layout.width / layout.height };
+    if (field.align === 'left') named.x = field.x - field.width / 2 + layout.width / 2;
+    if (field.align === 'right') named.x = field.x + field.width / 2 - layout.width / 2;
+    return named;
+  }
+
+  /**
    * Where Tab goes from the control that has focus, so it stays inside a dialog: from the last
    * stop to the first, and with Shift from the first (or from the dialog itself) to the last.
    * Null means the browser's own Tab is right. stops are the dialog's Tab stops in order.
@@ -275,13 +332,7 @@
       if (!page) return null;
       const linked = page.items.find((item) => item.field === 'guest');
       if (linked) {
-        // The name in the guest field, set by the same edge as the field (left, right or middle).
-        const named = { ...linked, text: name };
-        const layout = core.layoutText(named, measureText);
-        if (named.align === 'left') named.x = linked.x - linked.width / 2 + layout.width / 2;
-        if (named.align === 'right') named.x = linked.x + linked.width / 2 - layout.width / 2;
-        named.width = layout.width;
-        named.aspect = layout.width / layout.height;
+        const named = nameInField(linked, name, core.layoutText({ ...linked, text: name }, measureText));
         return { ...page, items: page.items.map((item) => (item === linked ? named : item)) };
       }
       // A design that leaves a line to write on: the name in the place its design has for it.
@@ -340,14 +391,10 @@
         return;
       }
       const backLayout = core.sheetLayout(getCollage().size, sheetKey, { back: true });
-      for (let start = 0; start < cards.length; start += layout.count) {
-        const batch = cards.slice(start, start + layout.count);
-        for (const [which, slots] of [['front', layout], ['back', backLayout]]) {
-          if (!batch.some((card) => card[which])) continue;
-          const images = [];
-          for (const card of batch) images.push(card[which] ? await imageOf(card[which]) : null);
-          addSheet(pdf, slots, images, which === 'back');
-        }
+      for (const sheet of guestSheets(cards, layout.count)) {
+        const images = [];
+        for (const page of sheet.pages) images.push(page ? await imageOf(page) : null);
+        addSheet(pdf, sheet.back ? backLayout : layout, images, sheet.back);
       }
     }
 
@@ -386,9 +433,7 @@
         // A card with a back (docs/ux/invitations-posters.md, PR 8): the sides chosen, front
         // first; a PDF gets a page for each, a picture a file for each.
         let all = core.pagesOf(getCollage());
-        const sides = all.length > 1 ? (chosen('sides') || 'both') : 'front';
-        const pages = all.length > 1 ? (sides === 'front' ? [all[0]] : sides === 'back' ? [all[1]] : all) : all;
-        const names = all.length > 1 ? (sides === 'both' ? ['front', 'back'] : [sides]) : [''];
+        const { pages, names } = chosenSides(all, all.length > 1 ? (chosen('sides') || 'both') : 'front');
         // One card for each guest (PR 10): the front once a guest, their name on it, then the back.
         const guests = format === 'pdf' && !$('[data-save-guests]')?.hidden && chosen('guests') === 'each' ? (getCollage().card?.guests || []) : [];
         // The name goes on the side the design puts the guest's name (a folded card's inside).
@@ -396,15 +441,8 @@
         // side the design puts it on.
         const holdsGuest = (page) => Boolean(page?.items.some((item) => item.field === 'guest'));
         const guestSide = holdsGuest(all[0]) ? 0 : holdsGuest(all[1]) ? 1 : designs?.sideOf(getCollage(), 'guest') === 'back' ? 1 : 0;
-        const chosenPage = (page) => pages.includes(page);
         // The side that holds the names not being saved: one copy, as it is, and a word why.
-        const namesLeftOut = guests.length > 0 && !chosenPage(all[guestSide]);
-        const cards = guests.length && !namesLeftOut ? guests.map((name) => {
-          const named = namedPage(all[guestSide], name);
-          const front = guestSide === 0 ? named : all[0];
-          const back = guestSide === 1 ? named : (all[1] || null);
-          return { front: chosenPage(all[0]) ? front : null, back: all[1] && chosenPage(all[1]) ? back : null };
-        }) : null;
+        const { cards, namesLeftOut } = guestCards(all, pages, guests, guestSide, namedPage);
         const stem = core.fileStem(collageTitle());
         saveLeftOut = 0;
         saveStickersLeftOut = 0;
@@ -502,5 +540,5 @@
     });
   }
 
-  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops });
+  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField });
 });

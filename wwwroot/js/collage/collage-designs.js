@@ -13,6 +13,10 @@
 })(typeof self !== 'undefined' ? self : typeof globalThis !== 'undefined' ? globalThis : this, function (core) {
   'use strict';
 
+  // A table looked up by a name from a draft or a file: no prototype, so "constructor" or
+  // "toString" is never a size, a design or a font.
+  const lookupTable = (entries) => Object.freeze(Object.assign(Object.create(null), entries));
+
   /** The wording a new card starts with: realistic, and every word can be changed. */
   const DEFAULT_DETAILS = Object.freeze({
     host: 'The Commandant and Officers\nSimulator Development Division',
@@ -90,7 +94,7 @@
   const NAVY = '#1d2c55';
   const GREY = '#55607a';
 
-  const DESIGNS = Object.freeze({
+  const DESIGNS = lookupTable({
     classic: Object.freeze({
       key: 'classic',
       label: 'Classic ivory',
@@ -789,7 +793,7 @@
   }
 
   /** The look of a design's back: its background and the colours of the title, rule and words. */
-  const BACK_LOOKS = Object.freeze({
+  const BACK_LOOKS = lookupTable({
     classic: { background: { type: 'color', value: '#fbf7ee' }, title: MAROON, accent: GOLD, ink: INK },
     navy: { background: { type: 'gradient', key: 'navy' }, title: PALE_GOLD, accent: PALE_GOLD, ink: IVORY },
     regimental: { background: { type: 'color', value: '#ffffff' }, title: 'band1', accent: 'band2', ink: INK },

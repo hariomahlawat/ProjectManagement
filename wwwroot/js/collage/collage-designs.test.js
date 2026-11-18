@@ -386,7 +386,10 @@ test('posters: no logo until one is chosen, the heading moves up with No logo, e
       }
       const none = designs.applyDesign(core.newCollage(size), key, { ...designs.POSTER_DETAILS, logoMode: 'none' }, { measure, newId });
       assert.ok(!none.items.some((item) => item.role === 'logo'), `${key}: no logo`);
-      assert.ok(none.items.find((item) => item.field === 'title').y <= poster.items.find((item) => item.field === 'title').y, `${key}: the heading does not move down`);
+      // The heading moves up into the logo's space where the design says so, and never down.
+      const moves = [...designs.DESIGNS[key].portrait, ...(designs.DESIGNS[key].landscape || [])].some((part) => part.field === 'title' && part.yNoLogo !== undefined);
+      const [after, before] = [none, poster].map((each) => each.items.find((item) => item.field === 'title').y);
+      assert.ok(moves ? after < before - 1 : after <= before, `${key}: the heading ${moves ? 'moves up' : 'does not move down'}`);
       // A logo put back is placed where the design wants one, even after "No logo".
       assert.ok(designs.roleItem(none, 'logo', { measure, newId }));
     }
@@ -670,4 +673,22 @@ test('a long guest name keeps a readable size and takes a second line', () => {
   // It is kept by a draft.
   const read = core.readDraftModel(JSON.parse(JSON.stringify(card)), []);
   assert.equal(read.items.find((item) => item.field === 'guest').minSize, guest.minSize);
+});
+
+test('a design named like an object\'s own property is no design', () => {
+  const plain = core.newCollage('a5p');
+  for (const name of ['constructor', 'toString', '__proto__']) {
+    assert.equal(designs.applyDesign(plain, name, {}, { measure, newId }), plain, name);
+    assert.equal(designs.DESIGNS[name], undefined, name);
+  }
+});
+
+test('a design change keeps the guest list, and the back keeps the front logo', () => {
+  const card = designs.addBack({ ...designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }) }, { measure, newId });
+  const withGuests = { ...card, card: { ...card.card, guests: ['Maj A', 'Capt B'] } };
+  const navy = designs.applyDesign(withGuests, 'navy', designs.detailsOf(withGuests), { measure, newId });
+  assert.deepEqual(navy.card.guests, ['Maj A', 'Capt B']);
+  const front = navy.items.find((item) => item.role === 'logo');
+  const back = navy.back.items.find((item) => item.role === 'backlogo');
+  assert.equal(back.sticker, front.sticker, 'the back shows the front logo');
 });

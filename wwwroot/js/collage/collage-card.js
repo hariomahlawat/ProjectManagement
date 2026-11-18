@@ -708,8 +708,18 @@
             <button type="button" class="btn btn-outline-secondary btn-sm" data-card-guest="file"><i class="bi bi-filetype-csv" aria-hidden="true"></i> Names from a .csv or .txt file…</button>
             ${count ? '<button type="button" class="btn btn-link btn-sm text-danger p-0" data-card-guest="clear">Clear names</button>' : ''}
           </div>
-          <p class="clg-hint" data-card-guest-count>${count ? `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it.` : 'Leave empty to print the card as it is, with a line for the name.'} The names stay in this browser.</p>
+          <p class="clg-hint" data-card-guest-count>${guestCountText(count)}</p>
         </div>`;
+    }
+
+    // How many names the last list given had past the limit, so the panel says so when redrawn.
+    let guestsOver = 0;
+
+    /** The line under the guest list: how many guests, and how many names were left out. */
+    function guestCountText(count) {
+      if (!count) return 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.';
+      const left = guestsOver ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${guestsOver} name${guestsOver === 1 ? ' was' : 's were'} left out.` : '';
+      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it.${left} The names stay in this browser.`;
     }
 
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
@@ -724,8 +734,8 @@
       if (held) history.holdEdit();
       else history.commit();
       const count = form.querySelector('[data-card-guest-count]');
-      const left = over ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${over} name${over === 1 ? ' was' : 's were'} left out.` : '';
-      if (count) (count.textContent = guests.length ? `${guests.length} guest${guests.length === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it.${left} The names stay in this browser.` : 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.');
+      guestsOver = over;
+      if (count) count.textContent = guestCountText(guests.length);
       if (over && !held) messages.showAlert(`Only the first ${core.GUEST_LIMITS.names} names are kept. ${over} name${over === 1 ? ' was' : 's were'} left out: make a second card for them.`);
       else if (over) messages.announce(`Only the first ${core.GUEST_LIMITS.names} names are kept. ${over} left out.`);
       return guests;

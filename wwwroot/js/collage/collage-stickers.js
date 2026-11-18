@@ -23,6 +23,10 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  // A table looked up by a name from a draft or a file: no prototype, so "constructor" or
+  // "toString" is never a size, a design or a font.
+  const lookupTable = (entries) => Object.freeze(Object.assign(Object.create(null), entries));
+
   function star(points, outer, inner, cx = 50, cy = 50) {
     const list = [];
     for (let i = 0; i < points * 2; i += 1) {
@@ -50,7 +54,7 @@
    * Drawn stickers: SVG with the word COLOUR where the chosen colour goes. `aspect` is
    * width / height; `colour` the colour a new one starts with.
    */
-  const DRAWN = Object.freeze({
+  const DRAWN = lookupTable({
     ribbon: Object.freeze({ label: 'Ribbon banner', words: 'ribbon banner title', aspect: 2.4, colour: '#d32f4f',
       svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100"><path d="M0 30h40v50H0l14-25z" fill="COLOUR" opacity=".7"/><path d="M240 30h-40v50h40l-14-25z" fill="COLOUR" opacity=".7"/><path d="M30 20h180v50H30z" fill="COLOUR"/><path d="M30 70l12 12V70zM210 70l-12 12V70z" fill="#000" opacity=".35"/></svg>' }),
     rosette: Object.freeze({ label: 'Rosette', words: 'rosette award badge prize medal', aspect: 0.8, colour: '#e2b13c',
@@ -106,7 +110,7 @@
 
   // PRISM's own logos, shipped with PRISM and always offered first in Crests and logos
   // (docs/ux/invitations-posters.md, PR 4). The SDD logo is the 4× picture added in #3428.
-  const LOGOS = Object.freeze({
+  const LOGOS = lookupTable({
     sdd: Object.freeze({ label: 'SDD', file: '/img/logos/sdd-hd.webp', aspect: 1732 / 2940, words: 'sdd simulator development division archer' })
   });
   const logoItems = () => Object.freeze(Object.entries(LOGOS).map(([key, entry]) => Object.freeze({

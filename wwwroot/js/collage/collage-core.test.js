@@ -1513,3 +1513,55 @@ test('a draft keeps a newer PRISM\'s back fields, an unreadable back and unknown
   assert.equal(odd.back, undefined);
   assert.deepEqual(collage.draftModel(odd).back, { pages: [1, 2] });
 });
+
+// Print sheet geometry, exactly (cold review 2): margins and gaps, the back's rows mirrored on a
+// turned sheet of several rows, and cut marks at the card corners in the gaps.
+test('sheet layout: 8 mm margins, 4 mm gaps, mirrored rows on a turned sheet, cut marks at the corners', () => {
+  const front = collage.sheetLayout('a7l', 'a4');
+  const back = collage.sheetLayout('a7l', 'a4', { back: true });
+  assert.equal(front.upright, false);
+  assert.equal(front.rows, 2);
+  assert.equal(front.cols, 2);
+  // The gap between neighbours is 4 mm, and the cards sit centred inside 8 mm margins.
+  const [a, b] = [front.cards[0], front.cards[1]];
+  assert.ok(Math.abs(b.x - (a.x + a.w) - 4) < 1e-6, 'a 4 mm gap across');
+  assert.ok(a.x >= 8 - 1e-6 && a.y >= 8 - 1e-6, 'inside the margins');
+  const rowGap = front.cards[2].y - (front.cards[0].y + front.cards[0].h);
+  assert.ok(Math.abs(rowGap - 4) < 1e-6, 'a 4 mm gap down');
+  // On a turned sheet the back's rows swap (top to bottom), the columns stay.
+  back.cards.forEach((slot, i) => {
+    const mirrored = front.cards[(1 - Math.floor(i / 2)) * 2 + (i % 2)];
+    assert.deepEqual([slot.x, slot.y], [mirrored.x, mirrored.y], `back slot ${i}`);
+  });
+  // Every cut mark lies outside every card, and each card corner has its marks.
+  const marks = collage.cutMarks(front);
+  const inside = (x, y) => front.cards.some((c) => x > c.x + 1e-6 && x < c.x + c.w - 1e-6 && y > c.y + 1e-6 && y < c.y + c.h - 1e-6);
+  for (const [x1, y1, x2, y2] of marks) assert.ok(!inside((x1 + x2) / 2, (y1 + y2) / 2));
+  for (const c of front.cards) {
+    for (const [cx, cy] of [[c.x, c.y], [c.x + c.w, c.y], [c.x, c.y + c.h], [c.x + c.w, c.y + c.h]]) {
+      assert.ok(marks.some(([x1, y1, x2, y2]) => (Math.abs(x1 - cx) < 1e-6 && Math.abs(x2 - cx) < 1e-6) || (Math.abs(y1 - cy) < 1e-6 && Math.abs(y2 - cy) < 1e-6)), 'a mark lines up with each corner');
+    }
+  }
+});
+
+// Damaged drafts (cold review 2): a size, design or font named like an object's own property, or
+// a value that is an object where text belongs, is read as unknown, never as a size or a crash.
+test('a draft with a size named "constructor" or an object for a sticker id reads safely', () => {
+  for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__']) {
+    assert.equal(collage.isSize(name), false, name);
+    assert.ok(Number.isFinite(collage.pageHeight(name)), name);
+    const read = collage.readDraftModel({ version: 1, size: name, items: [] }, []);
+    assert.equal(read.size, collage.DEFAULT_SIZE ?? read.size);
+    assert.ok(collage.isSize(read.size));
+  }
+  const odd = { toString: 1 };
+  const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [
+    { id: 's1', kind: 'sticker', sticker: odd, x: 1, y: 1, width: 10, aspect: 1 },
+    { id: 't1', kind: 'text', text: 'Hi', color: odd, x: 1, y: 1, width: 10, aspect: 1, size: 40 },
+    { id: 'f1', kind: 'photo', photo: 'p', frame: 'constructor', look: 'toString', shape: 'valueOf', x: 1, y: 1, width: 10, aspect: 1 }
+  ], background: { type: 'color', value: odd } }, ['p']);
+  assert.ok(read);
+  assert.equal(read.items.find((item) => item.id === 't1').color, '#172033');
+  const photo = read.items.find((item) => item.id === 'f1');
+  assert.deepEqual([photo.frame, photo.look, photo.shape], ['none', 'none', 'rect']);
+});

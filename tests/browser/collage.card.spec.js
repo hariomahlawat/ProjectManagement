@@ -395,9 +395,14 @@ test('a back with the programme: added and shown, typed from the front, and save
     const text = atob(base64);
     const bytes = new Uint8Array(text.length);
     for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
-    return (await window.PDFLib.PDFDocument.load(bytes)).getPageCount();
+    return (await window.PDFLib.PDFDocument.load(bytes)).getPages().map((p) => [p.getWidth(), p.getHeight()]);
   }, (await streamBytes(file)).toString('base64'));
-  expect(pages).toBe(2);
+  expect(pages.length).toBe(2);
+  // Both pages are the card's paper, A5 (148 × 210 mm) in points.
+  for (const [w, h] of pages) {
+    expect(Math.abs(w - 148 / 25.4 * 72)).toBeLessThan(0.5);
+    expect(Math.abs(h - 210 / 25.4 * 72)).toBeLessThan(0.5);
+  }
   await expect(page.locator('[data-save-result]')).toContainText('2 pages');
   // The front alone, as a picture: one file named for its side.
   await page.locator('input[name="sides"][value="front"]').check();

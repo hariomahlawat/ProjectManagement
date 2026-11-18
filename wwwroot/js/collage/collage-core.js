@@ -15,6 +15,13 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  // A table looked up by a name from a draft or a file: no prototype, so "constructor" or
+  // "toString" is never a size, a design or a font.
+  const lookupTable = (entries) => Object.freeze(Object.assign(Object.create(null), entries));
+  // A pattern tested only against text: a draft's odd value (an object, a number) never matches,
+  // and never throws while it is turned into text.
+  const textMatches = (pattern, value) => typeof value === 'string' && pattern.test(value);
+
   /** The model's version, kept in every collage so a later version can read an older draft. */
   const MODEL_VERSION = 1;
 
@@ -43,7 +50,7 @@
   // Folded cards (PR 9c): the flat sheet, printed both sides and folded down the middle.
   const folded = (label, note, mm) => Object.freeze({ ...card('folded', label, note, mm), fold: 'middle' });
 
-  const SIZES = Object.freeze({
+  const SIZES = lookupTable({
     a4l: Object.freeze({ group: 'page', label: 'A4 landscape', note: '297 × 210 mm', width: 3508, height: 2480, mm: [297, 210] }),
     a4p: Object.freeze({ group: 'page', label: 'A4 portrait', note: '210 × 297 mm', width: 2480, height: 3508, mm: [210, 297] }),
     a3p: Object.freeze({ group: 'page', label: 'A3 poster', note: '297 × 420 mm', width: 3508, height: 4961, mm: [297, 420] }),
@@ -489,14 +496,14 @@
    * the top and at the bottom (a polaroid's deep bottom holds a caption). Frames go with the
    * square shape only; a shaped photo has none.
    */
-  const FRAMES = Object.freeze({
+  const FRAMES = lookupTable({
     none: Object.freeze({ label: 'None', side: 0, top: 0, bottom: 0 }),
     border: Object.freeze({ label: 'White border', side: 0.035, top: 0.035, bottom: 0.035 }),
     polaroid: Object.freeze({ label: 'Polaroid', side: 0.05, top: 0.05, bottom: 0.2 }),
     tape: Object.freeze({ label: 'Taped', side: 0.035, top: 0.035, bottom: 0.035 }),
     torn: Object.freeze({ label: 'Torn edge', side: 0.035, top: 0.035, bottom: 0.035 })
   });
-  const SHAPES = Object.freeze({
+  const SHAPES = lookupTable({
     rect: 'Square',
     oval: 'Oval',
     heart: 'Heart',
@@ -505,7 +512,7 @@
     arch: 'Arch'
   });
   /** Looks as CSS filter lists; the same text styles the screen, the save and the previews. */
-  const LOOKS = Object.freeze({
+  const LOOKS = lookupTable({
     none: Object.freeze({ label: 'Original', filter: '' }),
     bw: Object.freeze({ label: 'Black & white', filter: 'grayscale(1) contrast(1.08)' }),
     sepia: Object.freeze({ label: 'Sepia', filter: 'sepia(0.85)' }),
@@ -690,7 +697,7 @@
    * Fonts for text, all shipped with PRISM (wwwroot/fonts/collage, SIL Open Font License). Each
    * English font falls back to a Devanagari one, so Hindi typed in any font still shows.
    */
-  const FONTS = Object.freeze({
+  const FONTS = lookupTable({
     clean: Object.freeze({ label: 'Clean', css: 'Mulish, "Noto Sans Devanagari", sans-serif' }),
     elegant: Object.freeze({ label: 'Elegant', css: '"Playfair Display", "Tiro Devanagari Hindi", serif' }),
     script: Object.freeze({ label: 'Script', css: '"Dancing Script", Kalam, cursive' }),
@@ -986,7 +993,7 @@
    */
   function readBackground(raw, photoIds) {
     if (!raw || typeof raw !== 'object') return { ...WHITE_BACKGROUND };
-    if (raw.type === 'color' && /^#[0-9a-f]{6}$/i.test(raw.value)) return { type: 'color', value: raw.value };
+    if (raw.type === 'color' && textMatches(/^#[0-9a-f]{6}$/i, raw.value)) return { type: 'color', value: raw.value };
     if (raw.type === 'gradient' && GRADIENTS[raw.key]) return { type: 'gradient', key: raw.key };
     if (raw.type === 'pattern' && PATTERNS[raw.key]) return { type: 'pattern', key: raw.key };
     if (raw.type === 'texture' && TEXTURES[raw.key]) return { type: 'texture', key: raw.key };
@@ -1013,7 +1020,7 @@
   // ---------------------------------------------------------------------------
 
   /** Grids on 12 × 12 units: [x, y, width, height] for each frame. */
-  const LAYOUTS = Object.freeze({
+  const LAYOUTS = lookupTable({
     t2: Object.freeze({ label: '2 side by side', cells: [[0, 0, 6, 12], [6, 0, 6, 12]] }),
     t3: Object.freeze({ label: '1 big, 2 small', cells: [[0, 0, 7, 12], [7, 0, 5, 6], [7, 6, 5, 6]] }),
     t3c: Object.freeze({ label: '3 columns', cells: [[0, 0, 4, 12], [4, 0, 4, 12], [8, 0, 4, 12]] }),
@@ -1577,7 +1584,7 @@
    * gaps, never on a card. A back sheet is mirrored so each back lands behind its front when the
    * printer flips on the long edge: across for an upright sheet, top to bottom for a turned one.
    */
-  const SHEETS = Object.freeze({ a4: Object.freeze({ label: 'A4', mm: [210, 297] }), a3: Object.freeze({ label: 'A3', mm: [297, 420] }) });
+  const SHEETS = lookupTable({ a4: Object.freeze({ label: 'A4', mm: [210, 297] }), a3: Object.freeze({ label: 'A3', mm: [297, 420] }) });
   const SHEET_SPACE = Object.freeze({ margin: 8, gap: 4, mark: 2.5 });
 
   function sheetLayout(sizeKey, sheetKey, { back = false } = {}) {
@@ -1765,7 +1772,7 @@
         if (typeof item.kind === 'string' && PART_NAME.test(item.kind)) keep(item, at);
         continue;
       }
-      if (item.kind === 'sticker' && !STICKER_ID.test(item.sticker)) {
+      if (item.kind === 'sticker' && !textMatches(STICKER_ID, item.sticker)) {
         if (typeof item.sticker === 'string' && PART_NAME.test(item.sticker)) keep(item, at);
         continue;
       }
@@ -1788,7 +1795,7 @@
         // Stickers have their own limits (down to 20), so the saved width is clamped, not the
         // item width already raised to the general minimum.
         clean.width = Math.min(STICKER_LIMITS.width[1], Math.max(STICKER_LIMITS.width[0], item.width));
-        clean.colour = HEX_COLOUR.test(item.colour) ? item.colour : '';
+        clean.colour = textMatches(HEX_COLOUR, item.colour) ? item.colour : '';
         clean.flip = item.flip === true;
         clean.shadow = item.shadow === true;
         delete clean.crop;
@@ -1796,8 +1803,8 @@
       }
       if (item.kind === 'shape') {
         clean.form = SHAPE_FORMS.includes(item.form) ? item.form : 'rect';
-        clean.fill = HEX_COLOUR.test(item.fill) ? item.fill : '';
-        clean.stroke = HEX_COLOUR.test(item.stroke) ? item.stroke : '';
+        clean.fill = textMatches(HEX_COLOUR, item.fill) ? item.fill : '';
+        clean.stroke = textMatches(HEX_COLOUR, item.stroke) ? item.stroke : '';
         const [low, high] = SHAPE_LIMITS.strokeWidth;
         clean.strokeWidth = Math.min(high, Math.max(low, isNumber(item.strokeWidth) ? item.strokeWidth : 4));
         setTint(clean, item.tint);
@@ -1812,9 +1819,9 @@
         clean.spacing = range(item.spacing, TEXT_LIMITS.spacing, 0);
         clean.outline = range(item.outline, TEXT_LIMITS.outline, 0);
         clean.curve = range(item.curve, TEXT_LIMITS.curve, 0);
-        clean.color = HEX_COLOUR.test(item.color) ? item.color : '#172033';
-        clean.outlineColor = HEX_COLOUR.test(item.outlineColor) ? item.outlineColor : '#ffffff';
-        clean.label = HEX_COLOUR.test(item.label) ? item.label : '';
+        clean.color = textMatches(HEX_COLOUR, item.color) ? item.color : '#172033';
+        clean.outlineColor = textMatches(HEX_COLOUR, item.outlineColor) ? item.outlineColor : '#ffffff';
+        clean.label = textMatches(HEX_COLOUR, item.label) ? item.label : '';
         clean.align = ['left', 'center', 'right'].includes(item.align) ? item.align : 'center';
         for (const flag of ['bold', 'italic', 'shadow', 'glow']) clean[flag] = item[flag] === true;
         setTint(clean, item.tint);

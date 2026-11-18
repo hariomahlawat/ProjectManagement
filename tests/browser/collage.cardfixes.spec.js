@@ -252,3 +252,132 @@ test('guests with only the side without names saved: one copy, and the result sa
   expect(pages).toBe(1);
   expect(errors).toEqual([]);
 });
+
+/**
+ * Each page of a PDF, read back from its content streams: the pictures drawn (where, how large,
+ * turned or not) and how many lines (cut marks).
+ */
+async function sheetsOf(page, file) {
+  return page.evaluate(async (base64) => {
+    const { PDFDocument, PDFName, PDFArray, PDFRawStream, decodePDFRawStream } = window.PDFLib;
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const pdf = await PDFDocument.load(bytes);
+    return pdf.getPages().map((p) => {
+      const contents = p.node.get(PDFName.of('Contents'));
+      const refs = contents instanceof PDFArray ? contents.asArray() : [contents];
+      let ops = '';
+      for (const ref of refs) {
+        const stream = pdf.context.lookup(ref);
+        ops += stream instanceof PDFRawStream ? new TextDecoder().decode(decodePDFRawStream(stream).decode()) : new TextDecoder().decode(stream.getContents());
+      }
+      // A picture: in "q … Do Q", the "a b c d e f cm" steps combined; a line: "x y m x y l S".
+      const times = (m, n) => [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
+      const pictures = [];
+      for (const block of ops.split(/\bq\b/).slice(1)) {
+        if (!/\sDo\b/.test(block)) continue;
+        let m = [1, 0, 0, 1, 0, 0];
+        for (const step of block.matchAll(/(-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) cm/g)) m = times(m, step.slice(1, 7).map(Number));
+        pictures.push(m);
+      }
+      const lines = (ops.match(/ l\s/g) || []).length;
+      return { size: [p.getWidth(), p.getHeight()], pictures, lines };
+    });
+  }, (await bytesOf(file)).toString('base64'));
+}
+
+test('an A6 card with a back on A4: two cards a sheet where the layout says, backs turned, cut marks on both', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a6p');
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('[data-save-sheet] input[value="a4"]').check();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const sheets = await sheetsOf(page, await download);
+  const expected = await page.evaluate(() => {
+    const core = window.PrismCollage;
+    const front = core.sheetLayout('a6p', 'a4');
+    const back = core.sheetLayout('a6p', 'a4', { back: true });
+    return { front: core.sheetPlacements(front, false), back: core.sheetPlacements(back, true), marks: core.cutMarks(front).length };
+  });
+  expect(sheets.length).toBe(2);
+  const [fronts, backs] = sheets;
+  for (const [sheet, places, turned] of [[fronts, expected.front, false], [backs, expected.back, true]]) {
+    expect(sheet.pictures.length).toBe(places.length);
+    sheet.pictures.forEach(([a, , , d, e, f], i) => {
+      // The unit square mapped onto the card: upright, a = width and d = height; turned 180°,
+      // both negative. e, f: the corner the picture starts from.
+      expect(Math.sign(a)).toBe(turned ? -1 : 1);
+      expect(Math.abs(Math.abs(a) - places[i].width)).toBeLessThan(0.5);
+      expect(Math.abs(Math.abs(d) - places[i].height)).toBeLessThan(0.5);
+      expect(Math.abs(e - places[i].x)).toBeLessThan(0.5);
+      expect(Math.abs(f - places[i].y)).toBeLessThan(0.5);
+    });
+    expect(sheet.lines).toBe(expected.marks);
+  }
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
+
+test('every pocket design and every poster saves with its words drawn', async ({ page }) => {
+  test.setTimeout(240000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a7p');
+  const pocket = await page.locator('[data-start-design]').evaluateAll((buttons) => buttons.map((button) => button.dataset.startDesign));
+  expect(pocket.length).toBeGreaterThanOrEqual(4);
+  await page.locator(`[data-start-design="${pocket[0]}"]`).click();
+  for (const key of pocket) {
+    await page.locator(`[data-card-design="${key}"]`).click();
+    await expect(page.locator(`[data-card-design="${key}"]`)).toHaveAttribute('aria-pressed', 'true');
+    const { ink, result } = await saveAndCountInk(page);
+    expect(ink, `${key}: words drawn`).toBeGreaterThan(500);
+    expect(result, key).not.toMatch(/could not/);
+  }
+  await openFresh(page);
+  const posters = await page.locator('[data-start-poster]').evaluateAll((buttons) => buttons.map((button) => button.dataset.startPoster));
+  expect(posters.length).toBe(4);
+  await page.locator(`[data-start-poster="${posters[0]}"]`).click();
+  for (const key of posters) {
+    await page.locator(`[data-card-design="${key}"]`).click();
+    await expect(page.locator(`[data-card-design="${key}"]`)).toHaveAttribute('aria-pressed', 'true');
+    const { ink, result } = await saveAndCountInk(page);
+    expect(ink, `${key}: words drawn`).toBeGreaterThan(2000);
+    expect(result, key).not.toMatch(/could not/);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('a guest list from a .csv file: rank and name joined, past 300 counted, a file too large refused', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const rows = ['Rank,Name,Unit', ...Array.from({ length: 302 }, (_, i) => `Maj,"Officer ${i + 1}, SM",5 Sikh`)].join('\n');
+  await page.locator('[data-card-guest-file]').setInputFiles({ name: 'guests.csv', mimeType: 'text/csv', buffer: Buffer.from(rows) });
+  await expect(page.locator('[data-card-guest-count]')).toContainText('300 guests');
+  await expect(page.locator('[data-card-guest-count]')).toContainText('2 names were left out');
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: '2 names were left out' })).toBeVisible();
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.guests?.[0]).toBe('Maj Officer 1, SM');
+  await page.locator('[data-card-guest-file]').setInputFiles({ name: 'big.txt', mimeType: 'text/plain', buffer: Buffer.alloc(1000001, 65) });
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'too large for a guest list' })).toBeVisible();
+  expect((await newestDraft(page)).model.card.guests.length).toBe(300);
+  expect(errors).toEqual([]);
+});
+
+test('Undo after typing in Card details puts the words back, on the card and in the field', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await touch(page);
+  const venue = page.locator('[data-card-field="venue"]');
+  await venue.fill('Cariappa Hall');
+  await venue.blur();
+  await expect.poll(async () => (await newestDraft(page)).model.items.find((item) => item.field === 'venue')?.text).toBe('Cariappa Hall');
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await newestDraft(page)).model.items.find((item) => item.field === 'venue')?.text).toBe('Sudarshan Hall');
+  await expect(venue).toHaveValue('Sudarshan Hall');
+  expect(errors).toEqual([]);
+});

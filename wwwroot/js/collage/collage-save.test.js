@@ -55,3 +55,45 @@ test('Save says what it leaves out: empty frames and hidden items (docs/ux/colla
   assert.equal(save.leftOutLine(0, 2), '2 hidden items left out; show them from Layers to keep them.');
   assert.equal(save.leftOutLine(2, 2), 'The 2 empty frames are left out of the saved picture. 2 hidden items left out; show them from Layers to keep them.');
 });
+
+// Save's print rules (cold review 2): the sides chosen, which side gets each guest's name, the
+// sheets of guest cards, and a name kept at its field's edge.
+test('the sides chosen are saved front first, each named', () => {
+  assert.deepEqual(save.chosenSides(['F', 'B'], 'both'), { pages: ['F', 'B'], names: ['front', 'back'] });
+  assert.deepEqual(save.chosenSides(['F', 'B'], 'front'), { pages: ['F'], names: ['front'] });
+  assert.deepEqual(save.chosenSides(['F', 'B'], 'back'), { pages: ['B'], names: ['back'] });
+  assert.deepEqual(save.chosenSides(['F'], 'back'), { pages: ['F'], names: [''] });
+});
+
+test('each guest\'s name goes on the side that holds it, and only the sides chosen are kept', () => {
+  const name = (page, who) => `${page}:${who}`;
+  // A flat card: the name on the front, the shared back after it.
+  assert.deepEqual(save.guestCards(['F', 'B'], ['F', 'B'], ['A', 'B2'], 0, name).cards,
+    [{ front: 'F:A', back: 'B' }, { front: 'F:B2', back: 'B' }]);
+  // A folded card: the name inside (the back), the outside shared.
+  assert.deepEqual(save.guestCards(['O', 'I'], ['O', 'I'], ['A'], 1, name).cards, [{ front: 'O', back: 'I:A' }]);
+  // Inside only: no outside page.
+  assert.deepEqual(save.guestCards(['O', 'I'], ['I'], ['A'], 1, name).cards, [{ front: null, back: 'I:A' }]);
+  // Outside only: the names would not be saved.
+  assert.deepEqual(save.guestCards(['O', 'I'], ['O'], ['A'], 1, name), { cards: null, namesLeftOut: true });
+  assert.deepEqual(save.guestCards(['F'], ['F'], [], 0, name), { cards: null, namesLeftOut: false });
+});
+
+test('guest cards fill sheets: each batch\'s fronts, then its backs, slot by slot', () => {
+  const cards = [1, 2, 3].map((i) => ({ front: `f${i}`, back: `b${i}` }));
+  assert.deepEqual(save.guestSheets(cards, 2), [
+    { back: false, pages: ['f1', 'f2'] }, { back: true, pages: ['b1', 'b2'] },
+    { back: false, pages: ['f3'] }, { back: true, pages: ['b3'] }
+  ]);
+  assert.deepEqual(save.guestSheets([{ front: 'f1', back: null }], 4), [{ back: false, pages: ['f1'] }]);
+});
+
+test('a guest\'s name keeps its field\'s edge: left, right or the middle', () => {
+  const field = { x: 500, width: 400, text: '____', align: 'left' };
+  const layout = { width: 200, height: 50 };
+  assert.equal(save.nameInField(field, 'Maj A', layout).x, 400);
+  assert.equal(save.nameInField({ ...field, align: 'right' }, 'Maj A', layout).x, 600);
+  assert.equal(save.nameInField({ ...field, align: 'center' }, 'Maj A', layout).x, 500);
+  assert.equal(save.nameInField(field, 'Maj A', layout).text, 'Maj A');
+  assert.equal(save.nameInField(field, 'Maj A', layout).width, 200);
+});
