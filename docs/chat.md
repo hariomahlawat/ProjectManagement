@@ -492,7 +492,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - **Live changes win over older answers.** Every live edit or reaction change (pushed, or this
   page's own) is recorded with its content and a running number (`noteMessageEvent`). Any
   server answer that was asked for before it (history pages, catch-up, the state check, and the
-  answers to this page's own reaction or edit) keeps that part as the live change left it
+  answers to this page's own send, reaction or edit, and a repeated push of a message already
+  shown) keeps that part as the live change left it
   (`settleFetched`, `changedSince` in `chat/actions.js`). New code that merges server copies of
   existing messages must go through the same check.
 

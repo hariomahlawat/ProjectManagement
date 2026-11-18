@@ -4507,3 +4507,59 @@ test("someone's reaction arriving while my edit is saved is kept, and the saved 
     window.close();
   }
 });
+
+test('a reaction to my new message arriving before my own send is answered is not undone by that answer', async () => {
+  let answer;
+  let sent;
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      sent = directMessage(7, 'me', body.body, { clientMessageId: body.clientMessageId });
+      await new Promise((resolve) => { answer = resolve; });
+      return { status: 200, body: sent };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.input.value = 'Board meeting moved to 1500';
+    app.send(win);
+    await tick();
+    // The push arrives first, then the peer's reaction, then my answer.
+    app.onMessage(sent);
+    app.onReactions({ messageId: 7, groupId: null, reactions: [{ kind: 'noted', userIds: ['peer'] }] });
+    answer();
+    await tick(); await tick(); await tick();
+    const item = win.log.querySelector('[data-message-id="7"]');
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '✓ Noted1');
+    assert.equal(win.log.querySelectorAll('.pm-chat__msg').length, 1, 'one message, no duplicate');
+  } finally {
+    window.close();
+  }
+});
+
+test('a repeated push of a message (a retried send) does not undo reactions already shown', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    const pushed = directMessage(8, 'peer', 'Sending the annex');
+    app.onMessage(pushed);
+    app.onReactions({ messageId: 8, groupId: null, reactions: [{ kind: 'like', userIds: ['me'] }] });
+    app.onMessage({ ...pushed }); // the same message again, read before the reaction
+    assert.equal(win.log.querySelector('[data-message-id="8"] .pm-chat__reaction').textContent, '👍1');
+  } finally {
+    window.close();
+  }
+});

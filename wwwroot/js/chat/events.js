@@ -68,7 +68,9 @@
       if (fresh && !this.isAttended(win) && !win.unreadFromId) win.unreadFromId = message.id;
       // A conversation opened at an old message (from search) shows a slice of history; the
       // newest message is reached with "Show newer messages", so don't paste it below a gap.
-      this.acceptSaved(win, [message]);
+      // A message is pushed when it is saved (again on a retried send). Edits and reactions come
+      // as their own events, so a pushed copy never carries newer ones: recorded live parts win.
+      this.acceptSaved(win, this.settleFetched([message], 0));
       if (fresh && readingBack) {
         win.newBelow += 1;
         this.renderJump(win);

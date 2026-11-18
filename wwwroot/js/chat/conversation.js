@@ -641,6 +641,9 @@
     message.failed = false;
     message.error = null;
     this.renderMessages(win, { stickToBottom: true });
+    // The saved message is also pushed live, and others may react (or another tab edit) before
+    // this answer arrives: what changed live since keeps its live content (settleFetched).
+    const eventsBefore = this.messageEventSeq;
     try {
       const saved = win.groupId
         ? await this.request('POST', `/groups/${win.groupId}/messages`, {
@@ -659,7 +662,7 @@
         });
       // Checked now, not when sending: the person may have opened an older slice meanwhile,
       // or the conversation may have moved to another view (dock to Messages page).
-      this.acceptSaved(this.viewFor(win), [saved]);
+      this.acceptSaved(this.viewFor(win), this.settleFetched([saved], eventsBefore));
       return;
     } catch (error) {
       message.failed = true;
