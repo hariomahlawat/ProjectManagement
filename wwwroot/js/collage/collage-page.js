@@ -35,7 +35,11 @@
         draw.drawBackground(context._context, state.collage.background, core.PAGE_WIDTH, doc.pageHeight(), { photo: backgroundPhoto(), pixelsPerUnit });
       }
     });
-    backWorld.add(pageRect, backgroundShape);
+    // A folded card's fold, down the middle (PR 9c of docs/ux/invitations-posters.md): a guide on
+    // the page only, never in Preview or Save, which draws without Konva.
+    const foldLine = new Konva.Line({ points: [core.PAGE_WIDTH / 2, 0, core.PAGE_WIDTH / 2, 10], stroke: '#9aa3b2', strokeWidth: 1.5, dash: [10, 8], strokeScaleEnabled: false, listening: false, visible: false, name: 'fold' });
+    const showFold = () => foldLine.visible(Boolean(core.sizeOf(state.collage.size).fold) && !state.previewing);
+    backWorld.add(pageRect, backgroundShape, foldLine);
     backLayer.add(backWorld);
     // `world` is the page: 1,000 units wide, scaled and centred on the work surface.
     const world = new Konva.Group();
@@ -182,6 +186,8 @@
       world.scale({ x: state.scale, y: state.scale });
       pageRect.height(height);
       backgroundShape.height(height);
+      foldLine.points([core.PAGE_WIDTH / 2, 0, core.PAGE_WIDTH / 2, height]);
+      showFold();
       backWorld.position(world.position());
       backWorld.scale(world.scale());
       backLayer.batchDraw();
@@ -205,6 +211,8 @@
       selection.select(null);
       document.body.classList.add('clg-previewing');
       layer.listening(false);
+      showFold();
+      backLayer.batchDraw();
       syncPage();
       ui.root.querySelector('[data-preview-exit]').hidden = false;
       ui.root.querySelector('[data-preview-exit]').focus();
@@ -217,6 +225,8 @@
       change.setPreviewing(false);
       document.body.classList.remove('clg-previewing');
       layer.listening(true);
+      showFold();
+      backLayer.batchDraw();
       syncPage();
       ui.root.querySelector('[data-preview-exit]').hidden = true;
       window.requestAnimationFrame(layout);

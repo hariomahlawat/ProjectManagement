@@ -809,7 +809,7 @@ test('start: a card for every page size and layout, and the size list of the edi
   // Blank pages on the start screen are the pages and screens; every size is in the menu,
   // grouped (docs/ux/invitations-posters.md, PR 4).
   assert.deepEqual([...dom.document.querySelectorAll('[data-start-size]')].map((b) => b.dataset.startSize), ['a4l', 'a4p', 'a3p', 'slide', 'square', 'story', 'banner']);
-  assert.deepEqual([...dom.$('[data-size-select]').querySelectorAll('optgroup')].map((g) => g.label), ['Pages and screens', 'Cards', 'Pocket cards', 'Custom']);
+  assert.deepEqual([...dom.$('[data-size-select]').querySelectorAll('optgroup')].map((g) => g.label), ['Pages and screens', 'Cards', 'Pocket cards', 'Folded cards', 'Custom']);
   assert.deepEqual([...dom.document.querySelectorAll('[data-start-layout]')].map((b) => b.dataset.startLayout), layouts);
   assert.deepEqual([...dom.document.querySelectorAll('[data-layout-grid] [data-layout]')].map((b) => b.dataset.layout), layouts);
   // Every size, then Custom size… (docs/ux/invitations-posters.md, PR 5b).

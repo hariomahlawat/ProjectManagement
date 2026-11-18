@@ -12,7 +12,7 @@ test('a car pass size and the SDD logo: the menu groups sizes, and Save draws th
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
 
   const size = page.locator('[data-size]');
-  expect(await size.locator('optgroup').evaluateAll((groups) => groups.map((g) => g.label))).toEqual(['Pages and screens', 'Cards', 'Pocket cards', 'Custom']);
+  expect(await size.locator('optgroup').evaluateAll((groups) => groups.map((g) => g.label))).toEqual(['Pages and screens', 'Cards', 'Pocket cards', 'Folded cards', 'Custom']);
   await size.selectOption('passl');
   await expect(size).toHaveValue('passl');
 

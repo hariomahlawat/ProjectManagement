@@ -40,6 +40,8 @@
   const A7 = card('pocket', 'A7 pocket card', '74 × 105 mm', [74, 105]);
   const IN355 = card('pocket', 'RSVP card 3.5 × 5 in', '89 × 127 mm', [88.9, 127]);
   const PASS = card('pocket', 'Entry card or car pass', 'Visiting card, 89 × 51 mm', [88.9, 50.8]);
+  // Folded cards (PR 9c): the flat sheet, printed both sides and folded down the middle.
+  const folded = (label, note, mm) => Object.freeze({ ...card('folded', label, note, mm), fold: 'middle' });
 
   const SIZES = Object.freeze({
     a4l: Object.freeze({ group: 'page', label: 'A4 landscape', note: '297 × 210 mm', width: 3508, height: 2480, mm: [297, 210] }),
@@ -68,7 +70,9 @@
     in355p: IN355,
     in355l: turned(IN355, 'RSVP card 3.5 × 5 in, landscape'),
     passl: PASS,
-    passp: turned(PASS, 'Entry card or car pass, upright')
+    passp: turned(PASS, 'Entry card or car pass, upright'),
+    fold6: folded('Folded A6 card', 'An A5 sheet folded to 105 × 148 mm', [210, 148]),
+    fold5: folded('Folded A5 card', 'An A4 sheet folded to 148 × 210 mm', [297, 210])
   });
   const DEFAULT_SIZE = 'a4l';
 
@@ -76,7 +80,8 @@
   const SIZE_GROUPS = Object.freeze([
     Object.freeze({ key: 'page', label: 'Pages and screens' }),
     Object.freeze({ key: 'card', label: 'Cards' }),
-    Object.freeze({ key: 'pocket', label: 'Pocket cards' })
+    Object.freeze({ key: 'pocket', label: 'Pocket cards' }),
+    Object.freeze({ key: 'folded', label: 'Folded cards' })
   ]);
   function sizesByGroup() {
     return SIZE_GROUPS.map((group) => ({ ...group, keys: Object.keys(SIZES).filter((key) => SIZES[key].group === group.key) }));

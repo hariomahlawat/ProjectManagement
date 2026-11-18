@@ -138,6 +138,18 @@ its npm package by hand; the libman entry records the version.
     fronts followed by its sheet of backs. Cards are drawn one at a time, so memory stays at one
     card; the result says how many cards on how many pages.
 
+    **Folded cards** (PR 9c): **Folded A6 card** (an A5 sheet) and **Folded A5 card** (an A4
+    sheet) are in the size menus' **Folded cards** group. A folded card is always two-sided:
+    - its **outside** has the back cover on the left (the note) and the front cover on the right
+      (the logo and the occasion);
+    - its **inside** has the invitation on the left (host, invitation line, guest line) and the
+      details on the right (when, where, dress, R.S.V.P.).
+
+    Every card design gives it these panels in its own colours. Card details calls the sides
+    **Outside** and **Inside**, with no Delete. Inside fields are typed whichever side shows. A
+    dashed fold line shows on the page, never in Preview or Save. Saved as a PDF it's two pages
+    of the flat sheet: print both sides, flipping on the short edge, and fold down the middle.
+
     Save asks **Both sides / Front only / Back only**: a PDF has a page for each side chosen, a
     PNG or JPG a file for each (`…-front.png`, `…-back.png`). Drafts keep both sides.
   - **Logo** (PR 7): Card details has a **Logo** section. It names the current logo and offers:
