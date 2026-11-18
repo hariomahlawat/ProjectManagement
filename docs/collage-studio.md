@@ -114,6 +114,18 @@ its npm package by hand; the libman entry records the version.
     `side: "back"` says the back shows; `core.flipSide` turns the card over and `core.pagesOf`
     gives the pages front first.
 
+    **Print sheets** (PR 9): a card, pocket card or custom size saved as a PDF can go **on A4
+    sheets** or **on A3 sheets**, or each card on its own page. The note says how many fit.
+    - There are 8 mm margins and 4 mm gaps. On A4 that's 2 A6, 4 A7 or 10 visiting-card passes;
+      A5 is exactly half of A4, so one A5 goes on an A4 sheet.
+    - The sheet is turned whichever way holds more.
+    - Thin cut marks sit in the gaps at each card's corners.
+    - With a back, the back sheet follows the front sheet, mirrored so each back lands behind
+      its front when the printer flips on the long edge: across an upright sheet, top to bottom
+      on a turned one.
+
+    `core.sheetLayout` and `core.cutMarks` work in mm.
+
     Save asks **Both sides / Front only / Back only**: a PDF has a page for each side chosen, a
     PNG or JPG a file for each (`…-front.png`, `…-back.png`). Drafts keep both sides.
   - **Logo** (PR 7): Card details has a **Logo** section. It names the current logo and offers:

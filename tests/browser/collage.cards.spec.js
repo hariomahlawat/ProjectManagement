@@ -111,3 +111,37 @@ test('a custom card size typed in mm: refused out of range, then the card saves 
   await expect(page.locator('[data-size]')).toHaveValue('mm:200x100');
   expect(errors).toEqual([]);
 });
+
+test('A6 cards with a back print two to a turned A4 sheet, fronts then backs, with cut marks', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a6p');
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  const sheet = page.locator('[data-save-sheet]');
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('[data-sheet-note="a4"]')).toContainText('2 cards to a sheet');
+  await sheet.locator('input[value="a4"]').check();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const file = await download;
+  const pdf = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const doc = await window.PDFLib.PDFDocument.load(bytes);
+    return doc.getPages().map((p) => p.getSize());
+  }, (await streamBytes(file)).toString('base64'));
+  // Two A4 sheets turned on their side: the fronts, then the backs.
+  expect(pdf.length).toBe(2);
+  for (const size of pdf) {
+    expect(Math.abs(size.width - 297 / 25.4 * 72)).toBeLessThan(0.5);
+    expect(Math.abs(size.height - 210 / 25.4 * 72)).toBeLessThan(0.5);
+  }
+  // A screen picture hides the sheet choice.
+  await page.getByRole('button', { name: 'A slide or a screen' }).click();
+  await expect(sheet).toBeHidden();
+  expect(errors).toEqual([]);
+});

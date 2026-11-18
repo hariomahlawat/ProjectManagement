@@ -99,6 +99,24 @@
       // Sides are offered for a card with a back (PR 8).
       const sidesBox = $('[data-save-sides]');
       if (sidesBox) sidesBox.hidden = !getCollage().back;
+      // A card printed as a PDF can go several to an A4 or A3 sheet (PR 9).
+      const sheetBox = $('[data-save-sheet]');
+      if (sheetBox) {
+        const group = core.sizeOf(getCollage().size).group;
+        const isCard = ['card', 'pocket', 'custom'].includes(group);
+        sheetBox.hidden = !(isCard && chosen('format') === 'pdf');
+        for (const key of Object.keys(core.SHEETS)) {
+          const layout = core.sheetLayout(getCollage().size, key);
+          const note = sheetBox.querySelector(`[data-sheet-note="${key}"]`);
+          const input = sheetBox.querySelector(`input[name="sheet"][value="${key}"]`);
+          const fits = layout?.count || 0;
+          if (note) note.textContent = fits ? `${fits} card${fits === 1 ? '' : 's'} to a sheet, with cut marks${getCollage().back ? '; the back sheet lines up when the printer flips on the long edge' : ''}.` : 'The card is too large for this sheet.';
+          if (input) {
+            input.disabled = !fits;
+            if (!fits && input.checked) sheetBox.querySelector('input[name="sheet"][value="card"]').checked = true;
+          }
+        }
+      }
       const size = core.sizeOf(getCollage().size);
       const pixels = core.savePixels(getCollage().size, 'print');
       $('[data-print-note]').textContent = size.mm
@@ -228,6 +246,14 @@
       window.setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
 
+    /** The sheet chosen for a card's PDF (PR 9), or null for each card on its own page. */
+    function sheetBoxChoice() {
+      const box = $('[data-save-sheet]');
+      if (!box || box.hidden) return null;
+      const value = chosen('sheet');
+      return core.SHEETS[value] ? value : null;
+    }
+
     async function saveCollage() {
       if (saving) return;
       const format = chosen('format');
@@ -299,9 +325,25 @@
             }
             files.push({ bytes, type: 'image/jpeg', name: `${stem}${suffix}.jpg` });
           } else {
-            const page = core.pdfPage(getCollage().size);
             const image = await pdf.embedJpg(await renderer.toBytes(canvas, 'image/jpeg', 0.92));
-            pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
+            const sheetKey = sheetBoxChoice();
+            const layout = sheetKey ? core.sheetLayout(getCollage().size, sheetKey, { back: names[index] === 'back' }) : null;
+            if (layout?.count) {
+              // As many as fit, with cut marks in the gaps; mm to PDF points, from the bottom.
+              const pt = 72 / 25.4;
+              const [sw, sh] = layout.sheet;
+              const sheet = pdf.addPage([sw * pt, sh * pt]);
+              for (const slot of layout.cards) {
+                sheet.drawImage(image, { x: slot.x * pt, y: (sh - slot.y - slot.h) * pt, width: slot.w * pt, height: slot.h * pt });
+              }
+              const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
+              for (const [x1, y1, x2, y2] of core.cutMarks(layout)) {
+                sheet.drawLine({ start: { x: x1 * pt, y: (sh - y1) * pt }, end: { x: x2 * pt, y: (sh - y2) * pt }, thickness: 0.4, color: grey });
+              }
+            } else {
+              const page = core.pdfPage(getCollage().size);
+              pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
+            }
           }
           renderer.release(canvas);
           canvas = null;

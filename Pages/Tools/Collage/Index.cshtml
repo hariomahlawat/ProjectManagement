@@ -336,6 +336,16 @@
                     <label class="clg-option"><input type="radio" name="sides" value="back">
                         <span><b>Back only</b></span></label>
                 </fieldset>
+                @* Cards on an A4 or A3 sheet with cut marks (docs/ux/invitations-posters.md, PR 9). *@
+                <fieldset class="clg-options clg-save-sheet" data-save-sheet hidden>
+                    <legend>Print on</legend>
+                    <label class="clg-option"><input type="radio" name="sheet" value="card" checked>
+                        <span><b>Each card on its own page</b><small data-sheet-note="card">The card's own paper size.</small></span></label>
+                    <label class="clg-option"><input type="radio" name="sheet" value="a4">
+                        <span><b>A4 sheets</b><small data-sheet-note="a4"></small></span></label>
+                    <label class="clg-option"><input type="radio" name="sheet" value="a3">
+                        <span><b>A3 sheets</b><small data-sheet-note="a3"></small></span></label>
+                </fieldset>
                 <details class="clg-more" data-save-more>
                 <summary>More options <span class="clg-more__hint">type and quality</span></summary>
                 <fieldset class="clg-options">
