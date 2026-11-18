@@ -308,7 +308,7 @@
     const on = !this.myReaction(message, kind);
     const before = message.reactions || [];
     // Shown at once; the server's answer (or a failure) settles it.
-    this.noteMessageEvent(messageId);
+    this.noteMessageEvent(messageId, 'reactions');
     this.eachCopy(messageId, (m) => ({ ...m, reactions: toggled(m.reactions || [], kind, this.me, on) }));
     try {
       const result = await this.request('POST', `/messages/${messageId}/react`, { kind, on });
@@ -316,7 +316,7 @@
       const info = reactionInfo(kind);
       this.announce(on ? `Reacted: ${info.label}.` : `${info.label} taken back.`);
     } catch (error) {
-      this.noteMessageEvent(messageId);
+      this.noteMessageEvent(messageId, 'reactions');
       this.eachCopy(messageId, (m) => ({ ...m, reactions: before }));
       this.composeNote(this.viewFor(win), error.message);
     }
@@ -333,23 +333,28 @@
     return list.filter((r) => r.userIds.length).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
   }
 
-  /** A live change to a message (see messageEventAt in chat/app.js). */
-  ChatApp.prototype.noteMessageEvent = function (messageId) {
+  /**
+   * A live change to part of a message: 'text' (text, edit time, mentions) or 'reactions'
+   * (see messageEventAt in chat/app.js). An edit pushed by the server carries both, as of then.
+   */
+  ChatApp.prototype.noteMessageEvent = function (messageId, ...parts) {
     this.messageEventSeq += 1;
-    this.messageEventAt.set(messageId, this.messageEventSeq);
+    const at = { ...(this.messageEventAt.get(messageId) || {}) };
+    parts.forEach((part) => { at[part] = this.messageEventSeq; });
+    this.messageEventAt.set(messageId, at);
   };
 
   /** ReactionsChanged, or the answer to this page's own reaction. */
   ChatApp.prototype.onReactions = function (change) {
     if (!change || !change.messageId) return;
-    this.noteMessageEvent(change.messageId);
+    this.noteMessageEvent(change.messageId, 'reactions');
     this.eachCopy(change.messageId, (m) => ({ ...m, reactions: change.reactions || [] }));
   };
 
   /** MessageEdited / GroupMessageEdited, or the answer to this page's own edit. */
   ChatApp.prototype.onEdited = function (message) {
     if (!message || !message.id || this.unsentIds.has(message.id)) return;
-    this.noteMessageEvent(message.id);
+    this.noteMessageEvent(message.id, 'text', 'reactions');
     this.windows.forEach((win) => {
       const held = win.messages.some((m) => m.id === message.id);
       const heldLive = (win.heldLive || []).some((m) => m.id === message.id);

@@ -4352,3 +4352,36 @@ test('a live edit that arrives while the reconnect refresh is on its way is not 
     window.close();
   }
 });
+
+test('a live reaction during the reconnect refresh keeps the reaction and still brings in a missed edit', async () => {
+  let answer;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) {
+      await new Promise((resolve) => { answer = resolve; });
+      // Edited while the page was offline; read before the reaction below.
+      return [directMessage(1, 'peer', 'Corrected while offline', { editedUtc: new Date().toISOString(), reactions: [] })];
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Original')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    const catchUp = app.syncUnsent(true);
+    await tick(); await tick();
+    app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'like', userIds: ['peer'] }] });
+    answer();
+    await catchUp;
+    const item = win.log.querySelector('[data-message-id="1"]');
+    assert.match(item.querySelector('.pm-chat__bubble').textContent, /Corrected while offline/, 'the missed edit is brought in');
+    assert.ok(item.querySelector('.pm-chat__edited'));
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '👍1', 'the live reaction stays');
+  } finally {
+    window.close();
+  }
+});

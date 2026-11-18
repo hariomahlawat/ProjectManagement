@@ -48,8 +48,9 @@
     // never overrides it (attachment id -> the event's number).
     this.fileEventSeq = 0;
     this.fileEventAt = new Map();
-    // Live edits and reaction changes, numbered by message id, so a state check (refreshLoaded)
-    // whose answer was read before one of them does not put the older state back.
+    // Live edits and reaction changes, numbered per message and per part ({ text, reactions }),
+    // so a state check (refreshLoaded) whose answer was read before one of them keeps that part
+    // as it is on screen and still brings in the other.
     this.messageEventSeq = 0;
     this.messageEventAt = new Map();
     // When live events stopped arriving (or, until the first connection, when this page started
@@ -581,19 +582,31 @@
       }
       const fresh = new Map();
       for (const message of Array.isArray(current) ? current : []) {
-        // Changed live while this answer was on its way: the live state is newer.
-        if ((this.messageEventAt.get(message.id) || 0) > eventsBefore) continue;
         if (message.isUnsent) this.unsentIds.add(message.id); // applied on the redraw below
         else if (!this.unsentIds.has(message.id)) fresh.set(message.id, message);
       }
+      // A part that changed live while this answer was on its way is newer on screen: it stays,
+      // and the rest of the answer is taken.
+      const settle = (local) => {
+        const answer = fresh.get(local.id);
+        const changed = this.messageEventAt.get(local.id) || {};
+        const next = { ...answer };
+        if ((changed.text || 0) > eventsBefore) {
+          next.body = local.body;
+          next.editedUtc = local.editedUtc;
+          next.mentionedUserIds = local.mentionedUserIds;
+        }
+        if ((changed.reactions || 0) > eventsBefore) next.reactions = local.reactions;
+        return next;
+      };
       // One redraw per window that holds any of them.
       this.windows.forEach((win) => {
-        const held = win.messages.filter((m) => fresh.has(m.id)).map((m) => fresh.get(m.id));
+        const held = win.messages.filter((m) => fresh.has(m.id)).map(settle);
         const live = (win.heldLive || []).some((m) => fresh.has(m.id));
         const unsent = win.messages.some((m) => m.id && this.unsentIds.has(m.id) && !m.isUnsent);
         if (!held.length && !live && !unsent) return;
         if (held.length) win.messages = mergeMessages(win.messages, held);
-        if (live) win.heldLive = win.heldLive.map((m) => fresh.get(m.id) || m);
+        if (live) win.heldLive = win.heldLive.map((m) => (fresh.has(m.id) ? settle(m) : m));
         this.renderMessages(win, { stickToBottom: false });
       });
     }
