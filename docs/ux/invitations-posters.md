@@ -182,7 +182,20 @@ All of it runs in the browser. **There's no server change, no migration and no n
   - an empty logo place is an empty frame with `role: "logo"`. Like any empty frame, Preview and
     Save leave it out.
 - **Two sides**: the collage model gains an optional `back` page (its own background and items).
-  `readDraftModel` reads old drafts unchanged, as single-sided. The model version goes up by one.
+  `readDraftModel` reads old drafts unchanged, as single-sided.
+- **Draft compatibility: no model version change.** Today `readDraftModel` refuses any draft whose
+  `version` is above `MODEL_VERSION`, and the drafts screen then says the draft "cannot be opened
+  here". So a version bump would lock new drafts out of an older cached tab and out of a rolled-back
+  deployment. Every change in this plan is therefore **additive**, and `MODEL_VERSION` stays 1:
+  - new optional fields (`field`, `maxWidth`, `role`, `fit`, `back`, `design`, `guests`) that an
+    older reader ignores;
+  - one new item kind, `shape`, which an older reader drops.
+
+  Before anything new is written, **PR 2 (Keep what is not understood)** makes the reader keep
+  unknown items, unknown fields and the `back` page as they are, untouched and not drawn. Then a
+  page that does not understand a part can never delete it by saving the draft again. The editor
+  shows "Some parts were made by a newer PRISM and are kept but not shown." That PR is deployed
+  for at least one release before any PR that writes the new parts.
 - **Print sheets and guest cards**: `collage-print.js` places 1, 2 or 4 cards on a sheet, with cut
   marks, and turns the back's order for a long-edge flip. It writes the PDF with the vendored
   pdf-lib. Guest cards draw one card at a time from the originals, put it in the PDF and let the
@@ -196,9 +209,9 @@ All of it runs in the browser. **There's no server change, no migration and no n
 change the collage) and PR 12 (smaller files) reshape `collage-app.js` and `collage-core.js`.
 This plan touches the same files. So:
 
-- PRs 2 and 3 here (designs as data, shapes) can be built at any time. They add files and add to
-  the model.
-- PRs 4 and later, which touch the editor, start after fifth-plan PRs 9 and 12 are merged.
+- PRs 2 to 4 here (keep what is not understood, shapes, designs as data) can be built at any
+  time. They add files and add to the model.
+- PRs 5 and later, which touch the editor, start after fifth-plan PRs 9 and 12 are merged.
 
 ## Build order (small PRs)
 
@@ -209,18 +222,19 @@ comes with tests that fail without it.
 | --- | --- | --- |
 | 0 | HD SDD logo `wwwroot/img/logos/sdd-hd.webp` (#3428) | Merged |
 | 1 | This plan and the mockup | Merged |
-| 2 | **Shapes**: the `shape` kind (rectangle, line, ellipse; fill, stroke, rounding) in core, drawing, page, settings, Layers and drafts, plus a Shapes group in the Stickers panel | A border drawn on the page saves in the same place in the PNG and the PDF; old drafts open unchanged |
-| 3 | **Designs as data**: `collage-designs.js`, `applyDesign`, field links on text items, `maxWidth` fitting, all flat card sizes in [Card sizes](#card-sizes) with portrait and landscape plus a custom size, designs that place themselves by proportion so that one design fits every size, and the SDD logo as a built-in sticker. Two designs (Classic ivory, Navy and gold) to prove it | Unit tests: every field placed, nothing off the page at every size and shape, words kept across a design and size change, a long occasion fits |
-| 4 | **Start screen and Card details**: the Invitation cards row, the Card details form, the Designs strip and the quick picks, with phone sheet and Dark | Typing in the form and on the card change the same item, with one Undo step each (browser test) |
-| 5 | **The other card designs and fonts**: Regimental (with the colour band setting), Ceremonial photo, Bilingual and Modern, plus Cinzel and Pinyon Script with Credits | Each design opens, takes all fields in English and Hindi, and saves (browser test) |
-| 6 | **Logos**: Change logo (own file or Crests and logos), Add second logo, Remove, and the empty logo place left out of Save | An own PNG logo keeps its clear background in the saved PDF; a removed logo stays removed across a design change |
-| 7 | **Front and back**: the optional back page, Add and Delete the back, Front / Back switch, the programme field, a two-page PDF, and front, back or both for PNG and JPG | A two-sided card saves a two-page PDF of the right paper size; an old draft opens as one-sided |
-| 8 | **Print sheets**: as many cards as fit on A4 or A3 for any size, or fewer, with cut marks, and the back placed for a long-edge flip | The PDF's card positions and cut marks match the paper for every size (unit test on the placement numbers); 8 A7 and 10 visiting cards fit on A4 |
-| 8b | **Folded cards and pocket cards**: A5 folding to A6 and A4 folding to A5 (outside and inside pages, fold line shown in the editor and never saved), and the Entry card or car pass, RSVP card, Programme card and Pocket invitation designs | A folded card saves a two-page PDF whose panels land on the right side of the fold when printed both sides |
-| 9 | **Guest list**: paste or a .csv or .txt file, up to 300 names, a preview of the first three, page count and size estimate, one PDF, Clear names | 300 names make one PDF without the browser's memory growing past one card (browser memory test, as for Save) |
-| 10 | **Posters**: the Posters row, Poster details, the four designs, the logo question, and No logo moving the heading up | A poster opened and saved without choosing a logo has no "Add logo" box in the file |
-| 11 | **Docs**: the guide [../collage-studio.md](../collage-studio.md) gains Cards and posters, and the page contract test lists the new scripts, fonts and logo path | Docs match what is built |
-| 12 | **Cold review** (first-time use, editor code, tests) with a test account that is not an admin | Scores reported; findings planned |
+| 2 | **Keep what is not understood**: `readDraftModel` keeps unknown items, unknown fields and the `back` page untouched and not drawn, writes them back unchanged, and the editor says some parts are kept but not shown. `MODEL_VERSION` stays 1. Deployed a release before PR 3 | A draft holding a made-up item kind and a `back` page opens, is edited and saved, and still holds both, byte for byte (unit test); a draft with version 2 is still refused, as today |
+| 3 | **Shapes**: the `shape` kind (rectangle, line, ellipse; fill, stroke, rounding) in core, drawing, page, settings, Layers and drafts, plus a Shapes group in the Stickers panel | A border drawn on the page saves in the same place in the PNG and the PDF; old drafts open unchanged |
+| 4 | **Designs as data**: `collage-designs.js`, `applyDesign`, field links on text items, `maxWidth` fitting, all flat card sizes in [Card sizes](#card-sizes) with portrait and landscape plus a custom size, designs that place themselves by proportion so that one design fits every size, and the SDD logo as a built-in sticker. Two designs (Classic ivory, Navy and gold) to prove it | Unit tests: every field placed, nothing off the page at every size and shape, words kept across a design and size change, a long occasion fits |
+| 5 | **Start screen and Card details**: the Invitation cards row, the Card details form, the Designs strip and the quick picks, with phone sheet and Dark | Typing in the form and on the card change the same item, with one Undo step each (browser test) |
+| 6 | **The other card designs and fonts**: Regimental (with the colour band setting), Ceremonial photo, Bilingual and Modern, plus Cinzel and Pinyon Script with Credits | Each design opens, takes all fields in English and Hindi, and saves (browser test) |
+| 7 | **Logos**: Change logo (own file or Crests and logos), Add second logo, Remove, and the empty logo place left out of Save | An own PNG logo keeps its clear background in the saved PDF; a removed logo stays removed across a design change |
+| 8 | **Front and back**: the optional back page, Add and Delete the back, Front / Back switch, the programme field, a two-page PDF, and front, back or both for PNG and JPG | A two-sided card saves a two-page PDF of the right paper size; an old draft opens as one-sided |
+| 9 | **Print sheets**: as many cards as fit on A4 or A3 for any size, or fewer, with cut marks, and the back placed for a long-edge flip | The PDF's card positions and cut marks match the paper for every size (unit test on the placement numbers); 8 A7 and 10 visiting cards fit on A4 |
+| 9b | **Folded cards and pocket cards**: A5 folding to A6 and A4 folding to A5 (outside and inside pages, fold line shown in the editor and never saved), and the Entry card or car pass, RSVP card, Programme card and Pocket invitation designs | A folded card saves a two-page PDF whose panels land on the right side of the fold when printed both sides |
+| 10 | **Guest list**: paste or a .csv or .txt file, up to 300 names, a preview of the first three, page count and size estimate, one PDF, Clear names | 300 names make one PDF without the browser's memory growing past one card (browser memory test, as for Save) |
+| 11 | **Posters**: the Posters row, Poster details, the four designs, the logo question, and No logo moving the heading up | A poster opened and saved without choosing a logo has no "Add logo" box in the file |
+| 12 | **Docs**: the guide [../collage-studio.md](../collage-studio.md) gains Cards and posters, and the page contract test lists the new scripts, fonts and logo path | Docs match what is built |
+| 13 | **Cold review** (first-time use, editor code, tests) with a test account that is not an admin | Scores reported; findings planned |
 
 ## Deployment
 
@@ -230,11 +244,19 @@ comes with tests that fail without it.
 - Scripts are linked with `asp-append-version`, so a browser loads the new scripts on its next
   page load, even while old and new servers overlap.
 - Drafts are in each browser:
-  - a draft from before this change opens as before;
-  - a card draft opened by an older copy of the page (an old cached tab) is read safely by the
-    existing draft reader, which drops parts it does not know rather than failing.
-- Rollback: revert the PRs. Card and poster drafts made in between keep their photos and text.
-  They open in the older page as collages without their shapes.
+  - a draft from before this change opens as before, since the model version does not change;
+  - a card or poster draft opened by an older copy of the page still opens, because the version
+    is still 1. A page with PR 2 keeps the parts it does not understand. A page from before PR 2
+    (an old cached tab during the change-over) drops shapes and the back page from what it shows.
+    If it then saves the draft, those parts are lost from the draft. This is why PR 2 is deployed
+    a release ahead of the PRs that write those parts.
+- Rollback:
+  - Revert the feature PRs and **keep PR 2**. Card and poster drafts made in between then open as
+    collages with their photos, text and logos. Shapes and the back page are kept in the draft
+    but not shown, and come back if the feature returns.
+  - Reverting PR 2 as well is not advised once cards exist, for the reason above.
+  - A finished card is never only in a draft: Save makes the PNG, JPG or PDF, which no version
+    change affects. The guide tells users to save the PDF of a card they need to keep.
 
 ## Not in this plan
 
