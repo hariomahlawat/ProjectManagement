@@ -79,6 +79,13 @@ public sealed class ChatPostgresIntegrationTests
             Assert.Equal(new[] { "bob" }, asked.Reactions!.Single().UserIds);
             Assert.Equal(ask.Message.Id, history.Messages.Single(m => m.Id == reply.Message.Id).ReplyToMessageId);
 
+            // The state check after an outage: what Bob may read, with its edit and reactions;
+            // Carol joined after both messages and gets neither.
+            var current = await chat.ListCurrentAsync("bob", new[] { ask.Message.Id, reply.Message.Id });
+            Assert.Equal("@Bob draft by 1600", current.Single(m => m.Id == ask.Message.Id).Body);
+            Assert.Equal(ChatReactionKind.Noted, Assert.Single(current.Single(m => m.Id == ask.Message.Id).Reactions!).Kind);
+            Assert.Empty(await chat.ListCurrentAsync("carol", new[] { ask.Message.Id, reply.Message.Id }));
+
             // Unsending clears its mentions and reactions; the reply keeps pointing at it.
             await chat.UnsendAsync("alice", ask.Message.Id);
             Assert.Equal(0, await db.ChatMessageReactions.CountAsync());

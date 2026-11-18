@@ -484,8 +484,11 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   loaded before this release does not know them and shows edits and reactions on its next load;
   it sends replies and mentions as plain messages. The model snapshot is updated for the chat
   tables, checked by `ChatModelSnapshotTests`; `ChatPostgresIntegrationTests` runs the new
-  queries on a migrated PostgreSQL database. Missed live edits and reactions (connection down)
-  are picked up by the catch-up's history pages, which refresh every message they cover.
+  queries on a migrated PostgreSQL database. Edits and reactions missed while the live
+  connection was down are brought in on reconnect: the page asks
+  `GET /api/chat/messages/current?ids=…` (at most 500 ids per request, the same who-may-read
+  rule as history; others are left out) for the current state of every message it has loaded,
+  and redraws those that changed. An older server answers 404 and the page carries on.
 
 - **Phase 5 (#records, Remind me, do not disturb)** changes the chat scripts and stylesheet and
   adds three attributes to the chat root in `_Layout.cshtml` (`data-record-search-url`,

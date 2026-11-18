@@ -404,6 +404,24 @@ public sealed class ChatApiTests
     }
 
     [Fact]
+    public async Task CurrentMessages_OverHttp_AnswerForReadableMessages_AndAreBounded()
+    {
+        await using var host = await ChatHost.CreateAsync();
+        using var alice = host.ClientFor("alice");
+        var token = await host.TokenAsync(alice);
+        var sent = await (await host.PostAsync(alice, token, "/api/chat/messages", new ChatSendRequest("bob", Guid.NewGuid(), "Hello"))).Content.ReadFromJsonAsync<ChatMessageDto>();
+
+        var mine = await alice.GetFromJsonAsync<List<ChatMessageDto>>($"/api/chat/messages/current?ids={sent!.Id},x,-3");
+        Assert.Equal("Hello", Assert.Single(mine!).Body);
+
+        using var carol = host.ClientFor("carol");
+        Assert.Empty((await carol.GetFromJsonAsync<List<ChatMessageDto>>($"/api/chat/messages/current?ids={sent.Id}"))!);
+
+        var tooMany = string.Join(',', Enumerable.Range(1, ChatService.MaxStateCheck + 1));
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.GetAsync($"/api/chat/messages/current?ids={tooMany}")).StatusCode);
+    }
+
+    [Fact]
     public async Task GroupTraffic_GoesToMembers_OnGroupEvents()
     {
         await using var host = await ChatHost.CreateAsync();

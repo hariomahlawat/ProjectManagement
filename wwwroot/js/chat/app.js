@@ -9,7 +9,7 @@
   const document = global.document;
   const {
     POLL_MS, IDLE_MS, IDLE_CHECK_MS, UNSENT_RETRY_MS, SERVER_TIMEOUT_MS, UNSENT_LOOKBACK_MS,
-    TitleFlasher, groupIdOf, Chime, icon,
+    TitleFlasher, groupIdOf, Chime, icon, mergeMessages,
   } = global.PMChatParts;
 
   const OFFLINE_NOTICE_MS = 4000; // a drop shorter than this shows no "Reconnecting…"
@@ -516,6 +516,9 @@
         this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));
         if (this.page) this.page.refreshResults();
       }
+      // Back live: edits and reactions missed meanwhile on messages already on screen (catch-up
+      // only fetches newer messages). A failure retries with the rest of this catch-up.
+      if (done) await this.refreshLoaded();
       // Live again: events cover the rest, unless the connection dropped again while this ran
       // (that outage still needs its own catch-up).
       const stillLive = !this.connection || this.isConnected();
@@ -526,6 +529,45 @@
       if (done && !this.stopped) {
         this.unsentRetry = global.setTimeout(() => this.syncUnsent(true), UNSENT_RETRY_MS);
       }
+    }
+  };
+
+  /**
+   * Asks the server for the current state of every message this page has loaded and shows any
+   * that changed (edited, reactions, mentions, unsent). An older server without the endpoint
+   * answers 404: nothing to do.
+   */
+  ChatApp.prototype.refreshLoaded = async function () {
+    const ids = new Set();
+    this.windows.forEach((win) => {
+      win.messages.concat(win.heldLive || []).forEach((m) => {
+        if (m.id && !m.eventKind && !m.isUnsent) ids.add(m.id);
+      });
+    });
+    const all = Array.from(ids);
+    for (let start = 0; start < all.length; start += 500) {
+      let current;
+      try {
+        current = await this.request('GET', `/messages/current?ids=${all.slice(start, start + 500).join(',')}`);
+      } catch (error) {
+        if (error && (error.status === 404 || error.status === 405)) return;
+        throw error;
+      }
+      const fresh = new Map();
+      for (const message of Array.isArray(current) ? current : []) {
+        if (message.isUnsent) this.unsentIds.add(message.id); // applied on the redraw below
+        else if (!this.unsentIds.has(message.id)) fresh.set(message.id, message);
+      }
+      // One redraw per window that holds any of them.
+      this.windows.forEach((win) => {
+        const held = win.messages.filter((m) => fresh.has(m.id)).map((m) => fresh.get(m.id));
+        const live = (win.heldLive || []).some((m) => fresh.has(m.id));
+        const unsent = win.messages.some((m) => m.id && this.unsentIds.has(m.id) && !m.isUnsent);
+        if (!held.length && !live && !unsent) return;
+        if (held.length) win.messages = mergeMessages(win.messages, held);
+        if (live) win.heldLive = win.heldLive.map((m) => fresh.get(m.id) || m);
+        this.renderMessages(win, { stickToBottom: false });
+      });
     }
   };
 

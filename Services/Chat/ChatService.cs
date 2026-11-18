@@ -846,6 +846,61 @@ public sealed class ChatService
             .Select(p => p.UserId)
             .ToListAsync(cancellationToken);
 
+    /// <summary>The most messages one state check takes (<see cref="ListCurrentAsync"/>).</summary>
+    public const int MaxStateCheck = 500;
+
+    /// <summary>
+    /// The current state of messages a page has loaded, those the caller may read (a direct chat's
+    /// two people; a group's members who had joined by the time each was sent): text, edit,
+    /// reactions, mentions, files, unsent. A page asks after its live connection was down, so an
+    /// edit or a reaction it missed on an older message is not left on screen; ids it may not read
+    /// are simply left out of the answer.
+    /// </summary>
+    public async Task<IReadOnlyList<ChatMessageDto>> ListCurrentAsync(string userId, IReadOnlyCollection<long> messageIds, CancellationToken cancellationToken = default)
+    {
+        var ids = messageIds.Where(id => id > 0).Distinct().Take(MaxStateCheck).ToList();
+        if (ids.Count == 0)
+        {
+            return Array.Empty<ChatMessageDto>();
+        }
+
+        var rows = await (
+                from m in _db.ChatMessages.AsNoTracking()
+                where ids.Contains(m.Id) && m.EventKind == null
+                join p in _db.ChatParticipants.AsNoTracking() on m.ConversationId equals p.ConversationId
+                where p.UserId == userId
+                    && (p.Conversation!.Kind == ChatConversation.DirectKind || p.JoinedUtc <= m.SentUtc)
+                select new { m.Id, m.SenderUserId, m.ClientMessageId, m.Body, m.SentUtc, m.UnsentUtc, m.ConversationId, p.Conversation!.Kind })
+            .ToListAsync(cancellationToken);
+        if (rows.Count == 0)
+        {
+            return Array.Empty<ChatMessageDto>();
+        }
+
+        // The other person of each direct conversation, for the recipient id.
+        var directIds = rows.Where(r => r.Kind == ChatConversation.DirectKind).Select(r => r.ConversationId).Distinct().ToList();
+        var people = await _db.ChatParticipants
+            .AsNoTracking()
+            .Where(p => directIds.Contains(p.ConversationId))
+            .Select(p => new { p.ConversationId, p.UserId })
+            .ToListAsync(cancellationToken);
+
+        var messages = rows
+            .Select(r =>
+            {
+                var isGroup = r.Kind == ChatConversation.GroupKind;
+                var recipient = isGroup
+                    ? string.Empty
+                    : people.FirstOrDefault(p => p.ConversationId == r.ConversationId && !string.Equals(p.UserId, r.SenderUserId, StringComparison.Ordinal))?.UserId ?? string.Empty;
+                return new ChatMessageDto(
+                    r.Id, r.SenderUserId, recipient, r.ClientMessageId,
+                    r.UnsentUtc is null ? r.Body : string.Empty, r.SentUtc, r.UnsentUtc is not null,
+                    isGroup ? r.ConversationId : null);
+            })
+            .ToList();
+        return await ChatMessageDetails.WithDetailsAsync(_db, messages, cancellationToken);
+    }
+
     public async Task<ChatUnsentPageDto> ListUnsentSinceAsync(
         string userId,
         DateTimeOffset since,

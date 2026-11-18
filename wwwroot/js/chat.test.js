@@ -4210,3 +4210,62 @@ test('closing a window in the middle of an edit cancels the edit and keeps the e
     window.close();
   }
 });
+
+test('after a reconnect, edits and reactions missed on older loaded messages are brought in', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) {
+      asked.push(url);
+      return [
+        directMessage(1, 'peer', 'Corrected while you were away', { editedUtc: new Date().toISOString(), reactions: [{ kind: 'noted', userIds: ['peer'] }] }),
+        directMessage(2, 'me', 'unchanged'),
+      ];
+    }
+    if (url.includes('/with/peer/messages')) {
+      return { messages: [directMessage(1, 'peer', 'Original text'), directMessage(2, 'me', 'unchanged')], hasMore: false };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    await app.syncUnsent(true);
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /\/messages\/current\?ids=1,2$/);
+    const first = win.log.querySelector('[data-message-id="1"]');
+    assert.match(first.querySelector('.pm-chat__bubble').textContent, /Corrected while you were away/);
+    assert.ok(first.querySelector('.pm-chat__edited'));
+    assert.ok(first.querySelector('.pm-chat__reaction'));
+    assert.equal(app.offlineSince, null, 'the catch-up is done');
+  } finally {
+    window.close();
+  }
+});
+
+test('an older server without the state check is fine: the reconnect catch-up still completes', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) return { status: 404, body: null };
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'hi')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    await app.syncUnsent(true);
+    assert.ok(!app.unsentRetry, 'no retry is scheduled');
+    assert.equal(app.offlineSince, null);
+    assert.equal(app.stopped, false, 'a plain 404 does not switch chat off');
+  } finally {
+    window.close();
+  }
+});

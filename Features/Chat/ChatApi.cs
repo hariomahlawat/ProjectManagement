@@ -67,6 +67,7 @@ public static class ChatApi
         group.MapPost("/status", SetStatusAsync).RequireRateLimiting(ChangeRateLimitPolicy);
         group.MapPost("/messages/{messageId:long}/unsend", UnsendAsync).RequireRateLimiting(ChangeRateLimitPolicy);
         group.MapGet("/unsent", GetUnsentSinceAsync);
+        group.MapGet("/messages/current", GetCurrentMessagesAsync);
         group.MapPost("/messages/{messageId:long}/edit", EditAsync).RequireRateLimiting(SendRateLimitPolicy);
         group.MapPost("/messages/{messageId:long}/react", ReactAsync).RequireRateLimiting(SendRateLimitPolicy);
 
@@ -236,6 +237,32 @@ public static class ChatApi
 
         SetNoStoreHeaders(httpContext.Response);
         return Results.Ok(await chat.ListUnsentSinceAsync(userId, since.Value, beforeMessageId, cancellationToken));
+    }
+
+    /// <summary>The current state of messages a page has loaded (<c>?ids=1,2,3</c>), after an outage.</summary>
+    private static async Task<IResult> GetCurrentMessagesAsync(
+        [FromQuery(Name = "ids")] string? ids,
+        HttpContext httpContext,
+        ChatService chat,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var parsed = (ids ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(id => long.TryParse(id, out var value) ? value : 0)
+            .Where(id => id > 0)
+            .ToList();
+        if (parsed.Count > ChatService.MaxStateCheck)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid request", detail: $"Ask about at most {ChatService.MaxStateCheck} messages at once.");
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await chat.ListCurrentAsync(userId, parsed, cancellationToken));
     }
 
     private static async Task<IResult> UnsendAsync(

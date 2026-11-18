@@ -24,6 +24,7 @@
  *   POST {api}/messages/{id}/unsend             own message, shortly after sending
  *   POST {api}/messages/{id}/edit               { body, mentionedUserIds } own message, within the edit window
  *   POST {api}/messages/{id}/react              { kind: noted|like|looking, on }
+ *   GET  {api}/messages/current?ids=            loaded messages as they are now (after an outage)
  *   GET  {api}/unsent?since=                    ids unsent while this page was not listening
  *   GET  {api}/previews?link=&link=             cards for links to PRISM records the user may open
  *   GET/POST {api}/groups, GET {api}/groups/{id}, …/messages, …/read, …/members,
