@@ -1528,6 +1528,63 @@
   }
 
   /**
+   * Print sheets (docs/ux/invitations-posters.md, PR 9): as many cards of a size as fit on an A4
+   * or A3 sheet, with room round them for cutting. The sheet is turned whichever way holds more
+   * (upright on a tie). Everything is in mm from the sheet's top-left; `cut` marks sit in the
+   * gaps, never on a card. A back sheet is mirrored so each back lands behind its front when the
+   * printer flips on the long edge: across for an upright sheet, top to bottom for a turned one.
+   */
+  const SHEETS = Object.freeze({ a4: Object.freeze({ label: 'A4', mm: [210, 297] }), a3: Object.freeze({ label: 'A3', mm: [297, 420] }) });
+  const SHEET_SPACE = Object.freeze({ margin: 8, gap: 4, mark: 2.5 });
+
+  function sheetLayout(sizeKey, sheetKey, { back = false } = {}) {
+    const size = sizeOf(sizeKey);
+    const sheet = SHEETS[sheetKey];
+    if (!size.mm || !sheet) return null;
+    const [cw, ch] = size.mm;
+    const { margin, gap } = SHEET_SPACE;
+    const fit = ([sw, sh]) => {
+      const cols = Math.max(0, Math.floor((sw - 2 * margin + gap) / (cw + gap)));
+      const rows = Math.max(0, Math.floor((sh - 2 * margin + gap) / (ch + gap)));
+      return { sw, sh, cols, rows, count: cols * rows };
+    };
+    const upright = fit(sheet.mm);
+    const turned = fit([sheet.mm[1], sheet.mm[0]]);
+    const best = turned.count > upright.count ? turned : upright;
+    if (!best.count) return { sheet: sheet.mm, upright: true, cols: 0, rows: 0, count: 0, cards: [] };
+    const blockW = best.cols * cw + (best.cols - 1) * gap;
+    const blockH = best.rows * ch + (best.rows - 1) * gap;
+    const left = (best.sw - blockW) / 2;
+    const top = (best.sh - blockH) / 2;
+    const isUpright = best === upright;
+    const cards = [];
+    for (let row = 0; row < best.rows; row += 1) {
+      for (let col = 0; col < best.cols; col += 1) {
+        // Behind its front after a long-edge flip.
+        const c = back && isUpright ? best.cols - 1 - col : col;
+        const r = back && !isUpright ? best.rows - 1 - row : row;
+        cards.push({ x: left + c * (cw + gap), y: top + r * (ch + gap), w: cw, h: ch });
+      }
+    }
+    return { sheet: [best.sw, best.sh], upright: isUpright, cols: best.cols, rows: best.rows, count: best.count, cards };
+  }
+
+  /** Cut marks round each card of a sheet: short lines in the gaps at each corner, in mm. */
+  function cutMarks(layout) {
+    const { mark } = SHEET_SPACE;
+    const lines = [];
+    for (const card of layout?.cards || []) {
+      for (const [x, y] of [[card.x, card.y], [card.x + card.w, card.y], [card.x, card.y + card.h], [card.x + card.w, card.y + card.h]]) {
+        const sx = x === card.x ? -1 : 1;
+        const sy = y === card.y ? -1 : 1;
+        lines.push([x, y + sy * 1, x, y + sy * (1 + mark)]);
+        lines.push([x + sx * 1, y, x + sx * (1 + mark), y]);
+      }
+    }
+    return lines;
+  }
+
+  /**
    * How large to read a photo's original for a frame `framePixels` wide in the saved picture:
    * enough for the part the frame shows to have that many pixels, never more than the original
    * has, so a small frame never makes the browser hold a huge photo.
@@ -2035,6 +2092,10 @@
     paperDpi,
     fitArea,
     pdfPage,
+    SHEETS,
+    SHEET_SPACE,
+    sheetLayout,
+    cutMarks,
     decodeSize,
     itemsToSave,
     fileStem,

@@ -1349,3 +1349,43 @@ test('a ten-line programme keeps its size when the draft is reopened', () => {
   assert.equal(read.items[0].maxLines, 10);
   assert.ok(Math.abs(collage.layoutText(read.items[0], measure).size - collage.layoutText(item, measure).size) < 0.01);
 });
+
+// Print sheets (docs/ux/invitations-posters.md, PR 9).
+test('cards go as many to an A4 or A3 sheet as fit, turned whichever way holds more, with cut marks in the gaps', () => {
+  const count = (size, sheet) => collage.sheetLayout(size, sheet).count;
+  assert.deepEqual([count('a6p', 'a4'), count('a7p', 'a4'), count('passl', 'a4'), count('a5p', 'a4'), count('a5p', 'a3')], [2, 4, 10, 1, 2]);
+  assert.equal(collage.sheetLayout('a4p', 'a4').count, 0, 'an A4 page does not fit inside an A4 sheet with margins');
+  assert.equal(collage.sheetLayout('slide', 'a4'), null, 'a screen size has no paper size');
+  // A6 upright holds two side by side only on a turned A4.
+  const a6 = collage.sheetLayout('a6p', 'a4');
+  assert.deepEqual([a6.upright, a6.sheet, a6.cols, a6.rows], [false, [297, 210], 2, 1]);
+  // Every card on the sheet, inside the margins, none overlapping.
+  for (const [size, sheet] of [['passl', 'a4'], ['a7l', 'a3'], ['sq5', 'a4']]) {
+    const layout = collage.sheetLayout(size, sheet);
+    for (const c of layout.cards) {
+      assert.ok(c.x >= collage.SHEET_SPACE.margin - 1e-9 && c.y >= collage.SHEET_SPACE.margin - 1e-9, size);
+      assert.ok(c.x + c.w <= layout.sheet[0] - collage.SHEET_SPACE.margin + 1e-9 && c.y + c.h <= layout.sheet[1] - collage.SHEET_SPACE.margin + 1e-9, size);
+    }
+    for (let i = 0; i < layout.cards.length; i += 1) for (let j = i + 1; j < layout.cards.length; j += 1) {
+      const a = layout.cards[i];
+      const b = layout.cards[j];
+      assert.ok(a.x + a.w <= b.x + 1e-9 || b.x + b.w <= a.x + 1e-9 || a.y + a.h <= b.y + 1e-9 || b.y + b.h <= a.y + 1e-9, `${size}: cards overlap`);
+    }
+    // Cut marks never cross a card.
+    for (const [x1, y1, x2, y2] of collage.cutMarks(layout)) {
+      for (const c of layout.cards) {
+        const inside = (x, y) => x > c.x + 1e-9 && x < c.x + c.w - 1e-9 && y > c.y + 1e-9 && y < c.y + c.h - 1e-9;
+        assert.ok(!inside(x1, y1) && !inside(x2, y2) && !inside((x1 + x2) / 2, (y1 + y2) / 2), `${size}: a cut mark crosses a card`);
+      }
+    }
+  }
+  // The back sheet lines up after a long-edge flip: mirrored across an upright sheet, top to bottom on a turned one.
+  const front = collage.sheetLayout('passl', 'a4');
+  const back = collage.sheetLayout('passl', 'a4', { back: true });
+  assert.equal(front.upright, true);
+  assert.equal(back.cards[0].x, front.cards[front.cols - 1].x);
+  assert.equal(back.cards[0].y, front.cards[0].y);
+  const turnedFront = collage.sheetLayout('a6p', 'a4');
+  const turnedBack = collage.sheetLayout('a6p', 'a4', { back: true });
+  assert.deepEqual(turnedBack.cards.map((c) => c.x), turnedFront.cards.map((c) => c.x), 'one row: a top-to-bottom flip keeps the columns');
+});
